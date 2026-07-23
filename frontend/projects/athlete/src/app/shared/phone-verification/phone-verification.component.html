@@ -1,0 +1,81 @@
+<div class="pv-root">
+  @if (error(); as e) {
+    <div class="nx-alert" role="alert">{{ e }}</div>
+  }
+
+  @switch (step()) {
+    @case ('phone') {
+      <label class="nx-field">
+        <span class="nx-field-label">Telefone (WhatsApp) *</span>
+        <span class="nx-field-box">
+          <input
+            type="tel"
+            [value]="phone()"
+            (input)="setPhone($any($event.target).value)"
+            placeholder="(00) 00000-0000"
+            autocomplete="tel"
+          />
+        </span>
+        <span class="nx-field-msg nx-field-msg--hint">Enviamos um código por SMS pra confirmar que o número é seu.</span>
+      </label>
+
+      <button
+        type="button"
+        class="nx-btn-primary"
+        [disabled]="!phoneValid() || sending()"
+        (click)="sendCode()"
+      >
+        @if (sending()) {
+          <span class="nx-spinner" aria-hidden="true"></span>
+          <span>Enviando…</span>
+        } @else {
+          <span>Enviar código</span>
+        }
+      </button>
+    }
+
+    @case ('code') {
+      <label class="nx-field">
+        <span class="nx-field-label">Código de verificação *</span>
+        <span class="nx-field-box">
+          <input
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            [value]="code()"
+            (input)="setCode($any($event.target).value)"
+            placeholder="000000"
+          />
+        </span>
+        <span class="nx-field-msg nx-field-msg--hint">Enviamos um SMS com o código de 6 dígitos para {{ phone() }}.</span>
+      </label>
+
+      <button
+        type="button"
+        class="nx-btn-primary"
+        [disabled]="!codeValid() || confirming()"
+        (click)="confirmCode()"
+      >
+        @if (confirming()) {
+          <span class="nx-spinner" aria-hidden="true"></span>
+          <span>Confirmando…</span>
+        } @else {
+          <span>Confirmar</span>
+        }
+      </button>
+
+      <div class="nx-resend-row">
+        @if (resendCooldown() > 0) {
+          <span>Reenviar em <span class="nx-timer">{{ resendCooldown() }}s</span></span>
+        } @else {
+          <span>Não chegou?</span>
+          <button type="button" class="nx-text-link" [disabled]="sending()" (click)="sendCode()">reenviar</button>
+        }
+        <button type="button" class="nx-text-link" (click)="changeNumber()">trocar número</button>
+      </div>
+    }
+  }
+
+  <div class="pv-recaptcha" [id]="recaptchaContainerId"></div>
+</div>

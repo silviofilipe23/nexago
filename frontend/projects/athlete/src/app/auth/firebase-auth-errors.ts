@@ -28,6 +28,20 @@ export function mapFirebaseAuthError(error: unknown): string {
       return 'Este link expirou. Peça um novo.';
     case 'auth/invalid-action-code':
       return 'Este link já foi usado ou é inválido. Peça um novo.';
+    case 'auth/invalid-verification-code':
+      return 'Código incorreto. Confira os 6 dígitos e tente de novo.';
+    case 'auth/invalid-verification-id':
+      return 'Essa verificação expirou. Peça um novo código.';
+    case 'auth/quota-exceeded':
+      return 'Limite de envios de SMS atingido. Tente novamente mais tarde.';
+    case 'auth/invalid-phone-number':
+      return 'Número de telefone inválido.';
+    case 'auth/credential-already-in-use':
+      return 'Este número já está vinculado a outra conta.';
+    case 'auth/captcha-check-failed':
+      return 'Não foi possível confirmar que você não é um robô. Tente novamente.';
+    case 'auth/provider-already-linked':
+      return 'Esta conta já tem um telefone vinculado.';
     default:
       if (code.startsWith('auth/')) {
         return 'Não foi possível entrar. Tente novamente.';

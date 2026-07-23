@@ -1,4 +1,4 @@
-import { athleteLevelLabel, buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState, titleCase } from './profile-format';
+import { athleteLevelLabel, buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, titleCase } from './profile-format';
 
 describe('profile-format', () => {
   describe('titleCase', () => {
@@ -49,24 +49,6 @@ describe('profile-format', () => {
 
     it('falls back to AT for an empty name', () => {
       expect(initialsOf('')).toBe('AT');
-    });
-  });
-
-  describe('splitCityState', () => {
-    it('splits on the last comma and uppercases the state', () => {
-      expect(splitCityState('Aparecida de Goiânia, GO')).toEqual({ city: 'Aparecida de Goiânia', state: 'GO' });
-    });
-
-    it('handles a missing comma by returning the whole string as city', () => {
-      expect(splitCityState('Recife')).toEqual({ city: 'Recife', state: '' });
-    });
-
-    it('handles an empty string', () => {
-      expect(splitCityState('')).toEqual({ city: '', state: '' });
-    });
-
-    it('trims whitespace and normalizes state casing', () => {
-      expect(splitCityState('Rio de Janeiro,rj')).toEqual({ city: 'Rio de Janeiro', state: 'RJ' });
     });
   });
 

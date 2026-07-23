@@ -67,23 +67,6 @@ export function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
-export function splitCityState(input: string): { city: string; state: string } {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return { city: '', state: '' };
-  }
-  const lastComma = trimmed.lastIndexOf(',');
-  if (lastComma === -1) {
-    return { city: trimmed, state: '' };
-  }
-  const city = trimmed.slice(0, lastComma).trim();
-  const state = trimmed.slice(lastComma + 1).trim().toUpperCase();
-  if (!city) {
-    return { city: trimmed, state: '' };
-  }
-  return { city, state };
-}
-
 export function joinCityState(city: string, state: string): string {
   const trimmedCity = city.trim();
   const trimmedState = state.trim();

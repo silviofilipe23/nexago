@@ -20,7 +20,7 @@ import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
-import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState, type SportLevelEntry } from './profile-format';
+import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, type SportLevelEntry } from './profile-format';
 import { athleteFunctions } from '../data/functions';
 import {
   registerReferral,
@@ -28,6 +28,7 @@ import {
   type ReferralRegistrationRejection,
 } from '../data/athlete-referral-repository';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
+import { BrLocationsService } from '../shared/br-locations/br-locations.service';
 
 interface AthleteProfileData {
   fullName: string;
@@ -111,6 +112,7 @@ export class AthleteProfileSettingsComponent {
   private readonly fb = inject(FormBuilder);
   protected readonly auth = inject(AuthService);
   protected readonly gamification = inject(AthleteGamificationService);
+  protected readonly brLocations = inject(BrLocationsService);
   private readonly firestore = createFirestore();
 
   protected readonly isEditing = signal(false);
@@ -124,6 +126,7 @@ export class AthleteProfileSettingsComponent {
   protected readonly passwordResetSent = signal(false);
   protected readonly resetError = signal<string | null>(null);
   protected readonly changingPhone = signal(false);
+  protected readonly cityOptions = signal<string[]>([]);
 
   // Programa de indicação (referral) — `referredBy` vem de `users/{uid}`, carregado junto
   // com o resto do perfil em loadRemoteProfile. `null` = ainda sem indicador vinculado,
@@ -150,7 +153,8 @@ export class AthleteProfileSettingsComponent {
   protected readonly form = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
     nickname: [''],
-    cityState: ['', Validators.required],
+    state: ['', Validators.required],
+    city: ['', Validators.required],
     bio: [''],
   });
 
@@ -266,17 +270,30 @@ export class AthleteProfileSettingsComponent {
     });
   }
 
-  protected startEdit(): void {
+  protected async startEdit(): Promise<void> {
     const current = this.profileState();
     this.form.reset({
       fullName: current.fullName,
       nickname: current.nickname,
-      cityState: joinCityState(current.city, current.state),
+      state: current.state,
+      city: '',
       bio: current.bio,
     });
+    this.cityOptions.set(this.brLocations.citiesFor(current.state));
     this.saveError.set(null);
     this.saveSuccess.set(null);
     this.isEditing.set(true);
+
+    await this.brLocations.ready;
+    const cities = this.brLocations.citiesFor(current.state);
+    this.cityOptions.set(cities);
+    const matched = cities.find((c) => c.toLowerCase() === current.city.trim().toLowerCase());
+    this.form.patchValue({ city: matched ?? '' });
+  }
+
+  protected onStateSelected(uf: string): void {
+    this.form.patchValue({ state: uf, city: '' });
+    this.cityOptions.set(this.brLocations.citiesFor(uf));
   }
 
   protected cancelEdit(): void {
@@ -308,7 +325,7 @@ export class AthleteProfileSettingsComponent {
 
     try {
       const raw = this.form.getRawValue();
-      const { city, state } = splitCityState(raw.cityState);
+      const { city, state } = raw;
       const nickname = raw.nickname.trim() || null;
       const bio = raw.bio.trim();
       const publicProfileId = this.profileState().publicProfileId || buildPublicProfileId(raw.fullName, uid);

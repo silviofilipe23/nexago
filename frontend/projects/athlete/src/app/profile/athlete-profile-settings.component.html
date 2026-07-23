@@ -92,8 +92,25 @@
                 </label>
 
                 <label class="at-field">
+                  <span>Estado</span>
+                  <select formControlName="state" (change)="onStateSelected($any($event.target).value)">
+                    <option value="">Selecione</option>
+                    @for (s of brLocations.states; track s.sigla) {
+                      <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                    }
+                  </select>
+                </label>
+
+                <label class="at-field">
                   <span>Cidade</span>
-                  <input type="text" formControlName="cityState" placeholder="Ex.: Aparecida de Goiânia, GO" />
+                  <select formControlName="city">
+                    <option value="">
+                      {{ !form.controls.state.value ? 'Selecione o estado primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}
+                    </option>
+                    @for (c of cityOptions(); track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
                 </label>
 
                 <label class="at-field">

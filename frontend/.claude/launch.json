@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "athlete",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:athlete"],
+      "port": 4200
+    }
+  ]
+}

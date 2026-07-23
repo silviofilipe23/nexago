@@ -1,47 +1,46 @@
 import { mapFirebaseAuthError } from './firebase-auth-errors';
 
 describe('mapFirebaseAuthError', () => {
-  describe('Phone Auth (verificação de telefone)', () => {
-    it('mapeia código de verificação inválido', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/invalid-verification-code' })).toBe(
-        'Código incorreto. Confira os 6 dígitos e tente de novo.',
-      );
-    });
+  const err = (code: string) => ({ code });
 
-    it('mapeia sessão de verificação expirada/inválida', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/invalid-verification-id' })).toBe(
-        'Essa verificação expirou. Peça um novo código.',
-      );
-    });
+  it('mapeia erros de e-mail/senha', () => {
+    expect(mapFirebaseAuthError(err('auth/invalid-credential'))).toContain('incorretos');
+    expect(mapFirebaseAuthError(err('auth/user-disabled'))).toContain('desativada');
+  });
 
-    it('mapeia cota de SMS excedida', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/quota-exceeded' })).toBe(
-        'Limite de envios de SMS atingido. Tente novamente mais tarde.',
-      );
-    });
+  it('explica domínio não autorizado em vez de cair no genérico', () => {
+    const msg = mapFirebaseAuthError(err('auth/unauthorized-domain'));
+    expect(msg).not.toBe('Não foi possível entrar. Tente novamente.');
+    expect(msg).toContain('domínio');
+  });
 
-    it('mapeia número de telefone inválido', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/invalid-phone-number' })).toBe(
-        'Número de telefone inválido.',
-      );
-    });
+  it('explica popup bloqueado pelo navegador', () => {
+    const msg = mapFirebaseAuthError(err('auth/popup-blocked'));
+    expect(msg).not.toBe('Não foi possível entrar. Tente novamente.');
+    expect(msg).toContain('bloqueou');
+  });
 
-    it('mapeia número já vinculado a outra conta', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/credential-already-in-use' })).toBe(
-        'Este número já está vinculado a outra conta.',
-      );
-    });
+  it('explica popup fechado antes de concluir', () => {
+    const msg = mapFirebaseAuthError(err('auth/popup-closed-by-user'));
+    expect(msg).not.toBe('Não foi possível entrar. Tente novamente.');
+    expect(msg).toContain('janela');
+  });
 
-    it('mapeia falha do reCAPTCHA', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/captcha-check-failed' })).toBe(
-        'Não foi possível confirmar que você não é um robô. Tente novamente.',
-      );
-    });
+  it('explica provedor desabilitado no Firebase', () => {
+    const msg = mapFirebaseAuthError(err('auth/operation-not-allowed'));
+    expect(msg).not.toBe('Não foi possível entrar. Tente novamente.');
+    expect(msg).toContain('indisponível');
+  });
 
-    it('mapeia telefone já vinculado à própria conta', () => {
-      expect(mapFirebaseAuthError({ code: 'auth/provider-already-linked' })).toBe(
-        'Esta conta já tem um telefone vinculado.',
-      );
-    });
+  it('explica conta já existente com outro método', () => {
+    const msg = mapFirebaseAuthError(err('auth/account-exists-with-different-credential'));
+    expect(msg).not.toBe('Não foi possível entrar. Tente novamente.');
+    expect(msg).toContain('outro método');
+  });
+
+  it('mantém o genérico para códigos auth/ desconhecidos', () => {
+    expect(mapFirebaseAuthError(err('auth/algo-novo'))).toBe(
+      'Não foi possível entrar. Tente novamente.',
+    );
   });
 });

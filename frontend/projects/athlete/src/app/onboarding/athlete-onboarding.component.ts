@@ -10,6 +10,7 @@ import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../
 import { athleteFunctions } from '../data/functions';
 import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
+import { birthDateBrToIso, validateBirthDate, validatePhone } from './onboarding-validators';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
@@ -125,16 +126,19 @@ export class AthleteOnboardingComponent {
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
   protected readonly phoneError = computed(() =>
+    this.touched() ? validatePhone(this.phone()) : null,
     this.touched() && !this.phoneVerified() ? 'Verifique seu WhatsApp' : null,
   );
   protected readonly birthDateError = computed(() =>
-    this.touched() && !birthDateBrToIso(this.birthDateInput()) ? 'Data inválida (dd/mm/aaaa)' : null,
+    this.touched() ? validateBirthDate(this.birthDateInput()) : null,
   );
   protected readonly genderError = computed(() => (this.touched() && !this.gender() ? 'Obrigatório' : null));
 
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
+      validatePhone(this.phone()) == null &&
+      validateBirthDate(this.birthDateInput()) == null &&
       this.phoneVerified() &&
       birthDateBrToIso(this.birthDateInput()) != null &&
       this.gender() != null,

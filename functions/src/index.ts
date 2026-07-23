@@ -301,6 +301,7 @@ export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
 export {completeOrganizerSignup} from "./organizer-signup";
 export {grantAthleteRole} from "./athlete-signup";
+export {confirmPhoneVerification} from "./athlete-phone-verification";
 
 export {searchAthleteForCoachInvite} from "./coach-athlete-search";
 export {

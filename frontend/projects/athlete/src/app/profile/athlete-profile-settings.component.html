@@ -91,12 +91,6 @@
                 </label>
 
                 <label class="at-field">
-                  <span>WhatsApp</span>
-                  <input type="text" formControlName="whatsappNumber" placeholder="+55 62 99123-4567" />
-                  <small class="at-field-hint">Usado pra confirmar reservas e times.</small>
-                </label>
-
-                <label class="at-field">
                   <span>E-mail</span>
                   <input type="text" [value]="accountEmail()" disabled />
                   <small class="at-field-hint">Pra trocar o e-mail, fale com o suporte.</small>
@@ -229,6 +223,28 @@
             <div class="at-card-head">
               <span class="at-card-title">Segurança</span>
             </div>
+            <div class="at-profile-security-row">
+              <div>
+                <strong>Telefone</strong>
+                <p>
+                  @if (phoneVerified()) {
+                    {{ phoneNumber() }} · verificado ✓
+                  } @else {
+                    Nenhum telefone verificado ainda.
+                  }
+                </p>
+              </div>
+              @if (!changingPhone()) {
+                <button type="button" class="at-mini-btn" (click)="startChangePhone()">
+                  {{ phoneVerified() ? 'Trocar número' : 'Verificar' }}
+                </button>
+              }
+            </div>
+            @if (changingPhone()) {
+              <app-phone-verification (verified)="onPhoneVerified($event)" />
+              <button type="button" class="at-mini-btn" (click)="cancelChangePhone()">Cancelar</button>
+            }
+
             <div class="at-profile-security-row">
               <div>
                 <strong>Senha</strong>

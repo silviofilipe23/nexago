@@ -62,16 +62,9 @@ export function isValidWhatsApp(raw: unknown): boolean {
   return false;
 }
 
-function resolvePhoneNumber(data: UserAccessData): string {
-  for (const key of ["phoneNumber", "phone", "whatsapp", "celular", "mobile"]) {
-    const value = trimString(data[key]);
-    if (value) return value;
-  }
-  return "";
-}
-
-function hasValidWhatsApp(data: UserAccessData): boolean {
-  return isValidWhatsApp(resolvePhoneNumber(data));
+/** Telefone com posse confirmada por SMS (Firebase Phone Auth) — nunca gravado pelo client, só pela Cloud Function `confirmPhoneVerification`. */
+function hasVerifiedPhone(data: UserAccessData): boolean {
+  return data.phoneVerified === true;
 }
 
 /** Cidade preenchida (UF não obrigatória para torneios). */
@@ -97,7 +90,7 @@ export function missingTournamentProfileRequirementIds(
 ): TournamentProfileRequirementId[] {
   const missing: TournamentProfileRequirementId[] = [];
   if (!isOnboardingCompleted(data)) missing.push("onboarding");
-  if (!hasValidWhatsApp(data)) missing.push("whatsapp");
+  if (!hasVerifiedPhone(data)) missing.push("whatsapp");
   if (!hasCity(data)) missing.push("city");
   return missing;
 }
@@ -113,7 +106,7 @@ function formatMissingStepsList(labels: string[]): string {
 /** Perfil mínimo para inscrição em torneios. */
 export function isTournamentProfileReady(data: UserAccessData): boolean {
   if (data.isProfileComplete === true) return true;
-  return isOnboardingCompleted(data) && hasValidWhatsApp(data) && hasCity(data);
+  return isOnboardingCompleted(data) && hasVerifiedPhone(data) && hasCity(data);
 }
 
 /** @deprecated Gamificação — não usar para gate de torneios. */

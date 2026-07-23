@@ -1,0 +1,14 @@
+.pv-root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+// reCAPTCHA invisível: precisa ficar montado no DOM o tempo todo (nunca
+// atrás de @if), mas não deve ocupar espaço no layout.
+.pv-recaptcha {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}

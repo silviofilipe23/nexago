@@ -10,6 +10,7 @@ import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../
 import { athleteFunctions } from '../data/functions';
 import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
+import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
 
@@ -58,12 +59,6 @@ function createFirestore(): Firestore | null {
   return getFirestore(app);
 }
 
-function isValidWhatsApp(raw: string): boolean {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length >= 10 && digits.length <= 11) return true;
-  return digits.length >= 12 && digits.length <= 13 && digits.startsWith('55');
-}
-
 /** `dd/mm/aaaa` → `YYYY-MM-DD` (mesma convenção do Flutter, athlete_firestore_codes.dart). */
 function birthDateBrToIso(raw: string): string | null {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
@@ -79,7 +74,7 @@ function birthDateBrToIso(raw: string): string | null {
 @Component({
   selector: 'app-athlete-onboarding',
   standalone: true,
-  imports: [RouterLink, AuthShellComponent],
+  imports: [RouterLink, AuthShellComponent, PhoneVerificationComponent],
   templateUrl: './athlete-onboarding.component.html',
   styleUrl: './athlete-onboarding.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -110,7 +105,8 @@ export class AthleteOnboardingComponent {
 
   protected readonly name = signal(this.initialName());
   protected readonly nickname = signal('');
-  protected readonly phone = signal('');
+  protected readonly phoneVerified = signal(false);
+  protected readonly verifiedPhoneNumber = signal<string | null>(null);
   protected readonly birthDateInput = signal('');
   protected readonly gender = signal<string | null>(null);
   protected readonly touched = signal(false);
@@ -129,7 +125,7 @@ export class AthleteOnboardingComponent {
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
   protected readonly phoneError = computed(() =>
-    this.touched() && !isValidWhatsApp(this.phone()) ? 'Informe um WhatsApp válido' : null,
+    this.touched() && !this.phoneVerified() ? 'Verifique seu WhatsApp' : null,
   );
   protected readonly birthDateError = computed(() =>
     this.touched() && !birthDateBrToIso(this.birthDateInput()) ? 'Data inválida (dd/mm/aaaa)' : null,
@@ -139,7 +135,7 @@ export class AthleteOnboardingComponent {
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
-      isValidWhatsApp(this.phone()) &&
+      this.phoneVerified() &&
       birthDateBrToIso(this.birthDateInput()) != null &&
       this.gender() != null,
   );
@@ -175,6 +171,13 @@ export class AthleteOnboardingComponent {
 
   protected isGoalSelected(code: string): boolean {
     return this.selectedGoalCodes().has(code);
+  }
+
+  /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
+   *  users/{uid} via Admin SDK — aqui só refletimos o estado na UI. */
+  protected onPhoneVerified(event: { phoneNumber: string }): void {
+    this.verifiedPhoneNumber.set(event.phoneNumber);
+    this.phoneVerified.set(true);
   }
 
   protected goToStep(step: ObStep): void {
@@ -261,7 +264,6 @@ export class AthleteOnboardingComponent {
           {
             fullName,
             nickname: this.nickname().trim() || null,
-            phoneNumber: this.phone().trim(),
             gender: this.gender(),
             birthDate: isoBirthDate,
             goals: Array.from(this.selectedGoalCodes()),

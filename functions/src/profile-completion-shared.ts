@@ -126,7 +126,7 @@ export function computeProfileRewardContext(
     photo: stringField(data["avatarUrl"]).length > 0,
     sport_level: isSportLevelStepDone(data),
     city: isCityStepDone(data),
-    whatsapp: isValidWhatsApp(data["phoneNumber"]),
+    whatsapp: data["phoneVerified"] === true,
     goals:
       stringList(data["goals"]).length > 0 ||
       stringField(data["gameObjective"]).length > 0,

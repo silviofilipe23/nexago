@@ -99,6 +99,7 @@ export interface UpsertClubInput {
   capacity: number;
   priceReais: number;
   cancelWindowHours: number;
+  allowOnsitePayment: boolean;
   endDate?: string | null;
 }
 

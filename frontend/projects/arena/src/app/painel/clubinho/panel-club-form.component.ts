@@ -138,8 +138,25 @@ function parseNumber(raw: string): number {
               </div>
             </div>
             <p class="hint">
-              O atleta só entra na lista após pagar o PIX. Saindo até {{ cancelWindow() || '0' }}h antes,
-              o estorno é automático e a vaga reabre.
+              Com PIX antecipado, o nome só entra na lista após o pagamento. Saindo até
+              {{ cancelWindow() || '0' }}h antes, o estorno é automático e a vaga reabre.
+            </p>
+
+            <div class="onsite-row">
+              <button
+                type="button"
+                class="court-option"
+                [class.active]="allowOnsite()"
+                (click)="allowOnsite.set(!allowOnsite())"
+              >
+                <span class="court-check">{{ allowOnsite() ? '✓' : '' }}</span>
+                Aceitar pagamento na arena
+              </button>
+            </div>
+            <p class="hint">
+              {{ allowOnsite()
+                ? 'O atleta pode garantir a vaga sem pagar antes e acertar na arena no dia (sem taxa da plataforma).'
+                : 'Somente PIX antecipado garante a vaga — ninguém entra na lista sem pagar.' }}
             </p>
           </ar-panel-card>
         </div>
@@ -297,6 +314,10 @@ function parseNumber(raw: string): number {
       gap: 10px;
     }
 
+    .onsite-row {
+      margin-top: 16px;
+    }
+
     .court-option {
       display: flex;
       align-items: center;
@@ -408,6 +429,7 @@ export class PanelClubFormComponent {
   protected readonly capacity = signal('16');
   protected readonly price = signal('15');
   protected readonly cancelWindow = signal('24');
+  protected readonly allowOnsite = signal(true);
 
   protected readonly canSave = computed(
     () =>
@@ -465,6 +487,7 @@ export class PanelClubFormComponent {
       this.capacity.set(String(club.capacity));
       this.price.set(String(club.priceReais).replace('.', ','));
       this.cancelWindow.set(String(club.cancelWindowHours));
+      this.allowOnsite.set(club.allowOnsitePayment);
     } catch {
       this.errorMessage.set('Não foi possível carregar o clubinho.');
     }
@@ -500,6 +523,7 @@ export class PanelClubFormComponent {
         capacity: Math.floor(parseNumber(this.capacity())),
         priceReais: parseNumber(this.price()),
         cancelWindowHours: Math.max(0, Math.floor(parseNumber(this.cancelWindow()))),
+        allowOnsitePayment: this.allowOnsite(),
       });
       void this.router.navigate(['/painel/clubinho', result.clubId]);
     } catch (err) {

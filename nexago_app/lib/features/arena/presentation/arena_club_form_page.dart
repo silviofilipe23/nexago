@@ -48,6 +48,7 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
   TimeOfDay _startTime = const TimeOfDay(hour: 18, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 21, minute: 0);
   final Set<String> _selectedCourtIds = <String>{};
+  bool _allowOnsitePayment = true;
   bool _busy = false;
   bool _prefilled = false;
 
@@ -81,6 +82,7 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
     _selectedCourtIds
       ..clear()
       ..addAll(club.courtIds);
+    _allowOnsitePayment = club.allowOnsitePayment;
   }
 
   @override
@@ -138,7 +140,8 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
       children: [
         Text(
           'Jogo aberto da arena: os atletas colocam o nome na lista pública '
-          'e pagam um valor fixo por sessão via PIX antecipado.',
+          'e pagam um valor fixo por sessão — PIX antecipado ou, se você '
+          'permitir, direto na arena no dia.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: context.themeColors.onSurfaceMuted,
             height: 1.4,
@@ -353,6 +356,39 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
             height: 1.35,
           ),
         ),
+        const SizedBox(height: 20),
+        _sectionLabel(context, 'PAGAMENTO'),
+        const SizedBox(height: 8),
+        Material(
+          color: context.themeColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          child: SwitchListTile.adaptive(
+            value: _allowOnsitePayment,
+            onChanged: (v) => setState(() => _allowOnsitePayment = v),
+            activeThumbColor: AppColors.brand,
+            activeTrackColor: AppColors.brand.withValues(alpha: 0.45),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: Text(
+              'Aceitar pagamento na arena',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.themeColors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              'O atleta garante a vaga sem PIX e paga direto na arena no '
+              'dia. Desligado, só entra quem pagar o PIX antecipado.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ),
         const SizedBox(height: 32),
         FilledButton(
           onPressed: _busy ? null : () => _submit(arenaId),
@@ -442,6 +478,7 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
             capacity: capacity,
             priceReais: price,
             cancelWindowHours: cancelWindow,
+            allowOnsitePayment: _allowOnsitePayment,
           );
       if (!mounted) return;
       if (result.skippedDates.isNotEmpty) {

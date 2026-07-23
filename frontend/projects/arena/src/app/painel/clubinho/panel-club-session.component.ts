@@ -74,8 +74,11 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
               <div class="summary-value">{{ spotsLeft(s) }}</div>
             </ar-panel-card>
             <ar-panel-card pad="sm" class="summary-card">
-              <div class="summary-label tone-orange">Arrecadação confirmada</div>
+              <div class="summary-label tone-orange">Recebido online</div>
               <div class="summary-value small">{{ confirmedRevenue() }}</div>
+              @if (onsiteCount() > 0) {
+                <div class="summary-note">+ {{ onsiteCount() }} paga(m) na arena</div>
+              }
             </ar-panel-card>
           </div>
 
@@ -95,6 +98,8 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
                   <div class="participant-amount">{{ formatReais(p.amountReais) }}</div>
                   @if (p.refundStatus === 'failed') {
                     <ar-pill tone="red">Estorno falhou</ar-pill>
+                  } @else if (p.status === 'confirmed' && p.paymentMethod === 'onsite') {
+                    <ar-pill tone="yellow">Paga na arena</ar-pill>
                   } @else {
                     <ar-pill [tone]="participantTone[p.status]">{{ participantLabel[p.status] }}</ar-pill>
                   }
@@ -196,6 +201,13 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
 
     .summary-value.small {
       font-size: 20px;
+    }
+
+    .summary-note {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+      margin-top: 4px;
     }
 
     .summary-cap {
@@ -353,12 +365,17 @@ export class PanelClubSessionComponent implements OnDestroy {
     return s ? `${s.startTime}–${s.endTime} · ${this.sessionStatusLabel[s.status]}` : '';
   });
 
+  /** Só o que de fato entrou online (PIX confirmado) — onsite é acertado na arena. */
   protected readonly confirmedRevenue = computed(() => {
     const total = this.participants()
-      .filter((p) => p.status === 'confirmed')
+      .filter((p) => p.status === 'confirmed' && p.paymentMethod === 'pix')
       .reduce((sum, p) => sum + p.amountReais, 0);
     return formatReais(total);
   });
+
+  protected readonly onsiteCount = computed(
+    () => this.participants().filter((p) => p.status === 'confirmed' && p.paymentMethod === 'onsite').length,
+  );
 
   private readonly clubId = this.route.snapshot.paramMap.get('clubId') ?? '';
   private readonly sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';

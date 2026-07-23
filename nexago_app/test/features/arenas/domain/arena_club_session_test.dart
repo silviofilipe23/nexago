@@ -40,6 +40,7 @@ void main() {
         'capacity': 12,
         'priceReais': 25, // int no Firestore
         'cancelWindowHours': 12,
+        'allowOnsitePayment': false,
         'confirmedCount': 5,
         'pendingCount': 3,
         'status': 'scheduled',
@@ -61,6 +62,7 @@ void main() {
       expect(session.capacity, 12);
       expect(session.priceReais, 25.0);
       expect(session.cancelWindowHours, 12);
+      expect(session.allowOnsitePayment, isFalse);
       expect(session.confirmedCount, 5);
       expect(session.pendingCount, 3);
       expect(session.status, 'scheduled');
@@ -83,6 +85,8 @@ void main() {
       expect(session.capacity, 0);
       expect(session.priceReais, 0);
       expect(session.cancelWindowHours, 0);
+      // Docs antigos sem o campo aceitam pagar na arena (default true).
+      expect(session.allowOnsitePayment, isTrue);
       expect(session.confirmedCount, 0);
       expect(session.pendingCount, 0);
       expect(session.status, '');
@@ -139,6 +143,29 @@ void main() {
     test('startAt aceita DateTime além de Timestamp', () {
       final start = DateTime(2026, 7, 24, 15);
       expect(sessionFrom({'startAt': start}).startAt, start);
+    });
+
+    test('allowOnsitePayment: só `false` explícito desliga (contrato do CF)',
+        () {
+      // Ausente (doc antigo) = aceita pagar na arena.
+      expect(sessionFrom({}).allowOnsitePayment, isTrue);
+      expect(
+        sessionFrom({'allowOnsitePayment': true}).allowOnsitePayment,
+        isTrue,
+      );
+      expect(
+        sessionFrom({'allowOnsitePayment': false}).allowOnsitePayment,
+        isFalse,
+      );
+      // Tipo errado não desliga — espelha `data['...'] != false` do backend.
+      expect(
+        sessionFrom({'allowOnsitePayment': 'nope'}).allowOnsitePayment,
+        isTrue,
+      );
+      expect(
+        sessionFrom({'allowOnsitePayment': 0}).allowOnsitePayment,
+        isTrue,
+      );
     });
   });
 
@@ -287,6 +314,7 @@ void main() {
           'endTime': '19:00',
           'startAt': Timestamp.fromDate(startAt),
           'status': 'pending_payment',
+          'paymentMethod': 'pix',
           'amountReais': 25, // int no Firestore
           'refundStatus': 'none',
           'asaasPaymentId': 'pay_1',
@@ -309,6 +337,8 @@ void main() {
       expect(participant.endTime, '19:00');
       expect(participant.startAt, startAt);
       expect(participant.status, 'pending_payment');
+      expect(participant.paymentMethod, 'pix');
+      expect(participant.isOnsite, isFalse);
       expect(participant.amountReais, 25.0);
       expect(participant.refundStatus, 'none');
       expect(participant.asaasPaymentId, 'pay_1');
@@ -328,6 +358,9 @@ void main() {
       expect(participant.arenaName, 'Arena');
       expect(participant.clubName, 'Clubinho');
       expect(participant.status, '');
+      // Docs antigos sem paymentMethod são PIX.
+      expect(participant.paymentMethod, 'pix');
+      expect(participant.isOnsite, isFalse);
       expect(participant.amountReais, 0);
       expect(participant.refundStatus, 'none');
       expect(participant.isActive, isFalse);
@@ -351,6 +384,7 @@ void main() {
         'startTime': 1500,
         'startAt': '2026-07-24',
         'status': 9,
+        'paymentMethod': 12,
         'amountReais': 'vinte e cinco',
         'refundStatus': 0,
         'asaasPaymentId': 1,
@@ -368,6 +402,8 @@ void main() {
       expect(participant.startTime, '');
       expect(participant.startAt, isNull);
       expect(participant.status, '');
+      expect(participant.paymentMethod, 'pix');
+      expect(participant.isOnsite, isFalse);
       expect(participant.amountReais, 0);
       expect(participant.refundStatus, 'none');
       expect(participant.asaasPaymentId, isNull);
@@ -420,6 +456,40 @@ void main() {
       expect(withStatus('canceled_by_arena_refunded').wasRefunded, isTrue);
       expect(withStatus('canceled').wasRefunded, isFalse);
       expect(withStatus('confirmed').wasRefunded, isFalse);
+    });
+  });
+
+  group('ClubParticipant.paymentMethod / isOnsite', () {
+    test('ausente (doc antigo) vira pix e isOnsite false', () {
+      final participant = participantFrom({'status': 'confirmed'});
+      expect(participant.paymentMethod, 'pix');
+      expect(participant.isOnsite, isFalse);
+    });
+
+    test('onsite: nasce confirmado direto, sem PIX', () {
+      final participant = participantFrom({
+        'status': 'confirmed',
+        'paymentMethod': 'onsite',
+      });
+      expect(participant.paymentMethod, 'onsite');
+      expect(participant.isOnsite, isTrue);
+      expect(participant.isConfirmed, isTrue);
+      expect(participant.isActive, isTrue);
+    });
+
+    test('pix explícito segue pix', () {
+      expect(participantFrom({'paymentMethod': 'pix'}).isOnsite, isFalse);
+    });
+
+    test('valor desconhecido não vira onsite', () {
+      final participant = participantFrom({'paymentMethod': 'cartao'});
+      expect(participant.paymentMethod, 'cartao');
+      expect(participant.isOnsite, isFalse);
+    });
+
+    test('tipo errado / vazio caem no default pix', () {
+      expect(participantFrom({'paymentMethod': 3}).paymentMethod, 'pix');
+      expect(participantFrom({'paymentMethod': '  '}).paymentMethod, 'pix');
     });
   });
 }

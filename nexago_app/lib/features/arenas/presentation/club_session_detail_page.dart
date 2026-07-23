@@ -161,36 +161,52 @@ class _ClubSessionDetailPageState extends ConsumerState<ClubSessionDetailPage> {
   }
 
   Future<void> _confirmLeave(ArenaClubSession session) async {
+    final me =
+        ref.read(myClubParticipantProvider(widget.sessionId)).valueOrNull;
+    final isOnsite = me?.isConfirmed == true && me?.isOnsite == true;
     final now = DateTime.now();
-    final withRefund = session.canLeaveWithRefund(now);
-    final deadline = session.cancelDeadline;
-    final deadlineLabel = deadline != null
-        ? '${_fullDateFmt.format(deadline)} às '
-            '${deadline.hour.toString().padLeft(2, '0')}:'
-            '${deadline.minute.toString().padLeft(2, '0')}'
-        : null;
+
+    final bool canLeave;
+    final String dialogMessage;
+    if (isOnsite) {
+      // Vaga "paga na arena": sem dinheiro envolvido — sai até o início.
+      final start = session.startAt;
+      canLeave = start == null || now.isBefore(start);
+      dialogMessage = canLeave
+          ? 'Sair agora libera sua vaga. Confirmar?'
+          : 'Esta sessão já começou — não dá mais para sair da lista. '
+              'Fale com a arena.';
+    } else {
+      final withRefund = session.canLeaveWithRefund(now);
+      final deadline = session.cancelDeadline;
+      final deadlineLabel = deadline != null
+          ? '${_fullDateFmt.format(deadline)} às '
+              '${deadline.hour.toString().padLeft(2, '0')}:'
+              '${deadline.minute.toString().padLeft(2, '0')}'
+          : null;
+      canLeave = withRefund;
+      dialogMessage = withRefund
+          ? 'Você sai da lista desta sessão e o valor pago '
+              '(${formatBRL(session.priceReais)}) é estornado '
+              'automaticamente no PIX.'
+          : 'O prazo para sair com estorno automático '
+              '(${session.cancelWindowHours}h antes do início'
+              '${deadlineLabel != null ? ' — até $deadlineLabel' : ''}) '
+              'já passou. Fale com a arena.';
+    }
 
     final confirmedLeave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: ctx.themeColors.surfaceSheet,
         title: const Text('Sair da lista?'),
-        content: Text(
-          withRefund
-              ? 'Você sai da lista desta sessão e o valor pago '
-                  '(${formatBRL(session.priceReais)}) é estornado '
-                  'automaticamente no PIX.'
-              : 'O prazo para sair com estorno automático '
-                  '(${session.cancelWindowHours}h antes do início'
-                  '${deadlineLabel != null ? ' — até $deadlineLabel' : ''}) '
-                  'já passou. Fale com a arena.',
-        ),
+        content: Text(dialogMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Voltar'),
           ),
-          if (withRefund)
+          if (canLeave)
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: FilledButton.styleFrom(backgroundColor: AppColors.live),
@@ -369,6 +385,13 @@ class _SessionHeroCard extends StatelessWidget {
               label: 'Saída com estorno até ${session.cancelWindowHours}h '
                   'antes do início',
             ),
+            if (session.allowOnsitePayment) ...[
+              const SizedBox(height: 8),
+              const _InfoRow(
+                icon: Icons.storefront_outlined,
+                label: 'Pague antecipado no PIX ou direto na arena no dia',
+              ),
+            ],
           ],
         ),
       ),
@@ -542,11 +565,16 @@ class _BottomCta extends StatelessWidget {
                 size: 18,
               ),
               const SizedBox(width: 6),
-              Text(
-                'Você está na lista',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.win,
-                  fontWeight: FontWeight.w800,
+              Flexible(
+                child: Text(
+                  me?.isOnsite == true
+                      ? 'Você está na lista — pague na arena no dia'
+                      : 'Você está na lista',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.win,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -633,7 +661,9 @@ class _BottomCta extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'por atleta · PIX antecipado',
+                          session.allowOnsitePayment
+                              ? 'por atleta · PIX ou pague na arena'
+                              : 'por atleta · PIX antecipado',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: context.themeColors.onSurfaceMuted,
                           ),

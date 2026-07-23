@@ -69,6 +69,8 @@ export interface ArenaClubData {
   capacity: number;
   priceReais: number;
   cancelWindowHours: number;
+  /** Aceita reservar vaga pagando na arena (sem PIX antecipado). */
+  allowOnsitePayment: boolean;
   status: string;
   startDate: string;
   endDate: string | null;
@@ -91,6 +93,7 @@ export function parseArenaClub(data: Record<string, unknown>): ArenaClubData {
     capacity: Number(data["capacity"] ?? 0),
     priceReais: Number(data["priceReais"] ?? 0),
     cancelWindowHours: Number(data["cancelWindowHours"] ?? 0),
+    allowOnsitePayment: data["allowOnsitePayment"] !== false,
     status: String(data["status"] ?? ""),
     startDate: String(data["startDate"] ?? ""),
     endDate: typeof data["endDate"] === "string" ? data["endDate"] : null,
@@ -311,6 +314,7 @@ export async function materializeClubSession(
         capacity: club.capacity,
         priceReais: club.priceReais,
         cancelWindowHours: club.cancelWindowHours,
+        allowOnsitePayment: club.allowOnsitePayment,
         confirmedCount: 0,
         pendingCount: 0,
         status: "scheduled",
@@ -486,6 +490,8 @@ export interface CancelClubSessionResult {
   refunded: number;
   refundFailed: number;
   canceledPending: number;
+  /** Confirmados que iam pagar na arena — cancelados sem estorno. */
+  canceledOnsite: number;
 }
 
 /**
@@ -522,11 +528,13 @@ export async function cancelClubSessionCore(
   let refunded = 0;
   let refundFailed = 0;
   let canceledPending = 0;
+  let canceledOnsite = 0;
 
   for (const doc of participantsSnap.docs) {
     const p = doc.data() as Record<string, unknown>;
     const status = String(p["status"] ?? "");
     const athleteId = String(p["athleteId"] ?? doc.id);
+    const paymentMethod = p["paymentMethod"] === "onsite" ? "onsite" : "pix";
     const asaasPaymentId = typeof p["asaasPaymentId"] === "string" ?
       p["asaasPaymentId"].trim() :
       "";
@@ -550,6 +558,28 @@ export async function cancelClubSessionCore(
     }
 
     if (status !== "confirmed") continue;
+
+    // Vaga "paga na arena": nada a estornar — só cancela e avisa.
+    if (paymentMethod === "onsite") {
+      await doc.ref.set({
+        status: "canceled",
+        canceledAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      canceledOnsite += 1;
+      try {
+        await deps.notify({
+          userId: athleteId,
+          title: "Clubinho cancelado 😔",
+          body: `A sessão de ${session.clubName} em ${formatDateBr(session.date)} foi ` +
+            "cancelada pela arena.",
+          type: "club_session_canceled",
+          data: {clubSessionId: sessionId, arenaId: session.arenaId},
+        });
+      } catch (e) {
+        logger.warn("cancelClubSessionCore: notificação falhou", {sessionId, athleteId, error: e});
+      }
+      continue;
+    }
 
     try {
       if (asaasPaymentId) await deps.refund(asaasPaymentId);
@@ -587,7 +617,7 @@ export async function cancelClubSessionCore(
     }
   }
 
-  return {sessionId, refunded, refundFailed, canceledPending};
+  return {sessionId, refunded, refundFailed, canceledPending, canceledOnsite};
 }
 
 function formatDateBr(dateKey: string): string {
@@ -647,6 +677,7 @@ interface UpsertClubInput {
   capacity?: number;
   priceReais?: number;
   cancelWindowHours?: number;
+  allowOnsitePayment?: boolean;
   startDate?: string;
   endDate?: string | null;
 }
@@ -671,6 +702,7 @@ export const upsertArenaClub = onCall(async (request) => {
   const capacity = Number(input.capacity);
   const priceReais = Number(input.priceReais);
   const cancelWindowHours = Number(input.cancelWindowHours);
+  const allowOnsitePayment = input.allowOnsitePayment !== false;
   const todayKey = dayKeyFromEventDate(new Date());
   const startDate = input.startDate?.trim() || todayKey;
   const endDate = input.endDate?.trim() || null;
@@ -757,6 +789,7 @@ export const upsertArenaClub = onCall(async (request) => {
       capacity,
       priceReais,
       cancelWindowHours,
+      allowOnsitePayment,
       status: "active",
       startDate,
       endDate,
@@ -826,6 +859,7 @@ export const upsertArenaClub = onCall(async (request) => {
     capacity,
     priceReais,
     cancelWindowHours,
+    allowOnsitePayment,
     endDate,
     updatedAt: FieldValue.serverTimestamp(),
   }, {merge: true});
@@ -846,6 +880,7 @@ export const upsertArenaClub = onCall(async (request) => {
       capacity,
       priceReais,
       cancelWindowHours,
+      allowOnsitePayment,
       endDate,
     };
     const result = await materializeClubSeries(

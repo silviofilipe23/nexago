@@ -27,6 +27,8 @@ export interface ArenaClub {
   capacity: number;
   priceReais: number;
   cancelWindowHours: number;
+  /** Aceita reservar vaga pagando na arena (sem PIX antecipado). */
+  allowOnsitePayment: boolean;
   status: ArenaClubStatus;
   startDate: string;
   endDate: string | null;
@@ -58,6 +60,8 @@ export interface ClubParticipant {
   athleteName: string;
   athletePhotoUrl: string | null;
   status: ClubParticipantStatus;
+  /** 'onsite' = paga na arena (sem cobrança online); ausente em docs antigos = 'pix'. */
+  paymentMethod: 'pix' | 'onsite';
   amountReais: number;
   refundStatus: 'none' | 'done' | 'failed';
   joinedAt: Date | null;
@@ -94,6 +98,7 @@ export function arenaClubFromDoc(doc: QueryDocumentSnapshot | DocumentSnapshot):
     capacity: num(d['capacity']),
     priceReais: num(d['priceReais']),
     cancelWindowHours: num(d['cancelWindowHours']),
+    allowOnsitePayment: d['allowOnsitePayment'] !== false,
     status: (str(d['status'], 'active') as ArenaClubStatus) || 'active',
     startDate: str(d['startDate']),
     endDate: typeof d['endDate'] === 'string' && d['endDate'] ? d['endDate'] : null,
@@ -132,6 +137,7 @@ export function clubParticipantFromDoc(doc: QueryDocumentSnapshot): ClubParticip
     athletePhotoUrl:
       typeof d['athletePhotoUrl'] === 'string' && d['athletePhotoUrl'] ? d['athletePhotoUrl'] : null,
     status: (str(d['status']) as ClubParticipantStatus) || 'pending_payment',
+    paymentMethod: d['paymentMethod'] === 'onsite' ? 'onsite' : 'pix',
     amountReais: num(d['amountReais']),
     refundStatus: (str(d['refundStatus'], 'none') as 'none' | 'done' | 'failed') || 'none',
     joinedAt: toDate(d['joinedAt']),

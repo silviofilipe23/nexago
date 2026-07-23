@@ -30,6 +30,7 @@ function baseClub(overrides: Partial<ArenaClubData> = {}): ArenaClubData {
     capacity: 24,
     priceReais: 15,
     cancelWindowHours: 24,
+    allowOnsitePayment: true,
     status: "active",
     startDate: "2026-07-01",
     endDate: null,
@@ -159,6 +160,16 @@ describe("arena-club.cancelClubSessionCore", () => {
         amountReais: 15,
       },
     );
+    fake.seedDoc(
+      "arenaClubSessions/club_c1_2026-07-24/clubParticipants/uid3",
+      {
+        athleteId: "uid3",
+        status: "confirmed",
+        paymentMethod: "onsite",
+        amountReais: 15,
+        netReais: 0,
+      },
+    );
   }
 
   it("cancela, libera bloqueios e faz o estorno em massa", async () => {
@@ -183,9 +194,15 @@ describe("arena-club.cancelClubSessionCore", () => {
     assert.equal(result.refunded, 1);
     assert.equal(result.refundFailed, 0);
     assert.equal(result.canceledPending, 1);
-    assert.deepEqual(refunds, ["pay_1"]);
+    assert.equal(result.canceledOnsite, 1);
+    assert.deepEqual(refunds, ["pay_1"]); // onsite (uid3) NÃO gera estorno
     assert.deepEqual(deleted, ["pay_2"]);
-    assert.deepEqual(notified, ["uid1"]);
+    assert.deepEqual(notified.sort(), ["uid1", "uid3"]);
+
+    const onsite = fake.store.get(
+      "arenaClubSessions/club_c1_2026-07-24/clubParticipants/uid3",
+    )!;
+    assert.equal(onsite["status"], "canceled");
 
     const session = fake.store.get("arenaClubSessions/club_c1_2026-07-24")!;
     assert.equal(session["status"], "canceled");
@@ -259,5 +276,12 @@ describe("arena-club.parseArenaClub", () => {
     assert.equal(club.weekday, 5);
     assert.equal(club.endDate, null);
     assert.deepEqual(club.skippedDates, []);
+    // Campo novo ausente em docs antigos → default aceita pagar na arena.
+    assert.equal(club.allowOnsitePayment, true);
+  });
+
+  it("respeita allowOnsitePayment: false", () => {
+    const club = parseArenaClub({allowOnsitePayment: false});
+    assert.equal(club.allowOnsitePayment, false);
   });
 });

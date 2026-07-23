@@ -23,6 +23,7 @@ void main() {
         'capacity': 12,
         'priceReais': 25, // int no Firestore
         'cancelWindowHours': 12,
+        'allowOnsitePayment': false,
         'status': 'active',
         'startDate': '2026-07-03',
         'endDate': '2026-12-18',
@@ -44,6 +45,7 @@ void main() {
       expect(club.capacity, 12);
       expect(club.priceReais, 25.0);
       expect(club.cancelWindowHours, 12);
+      expect(club.allowOnsitePayment, isFalse);
       expect(club.status, 'active');
       expect(club.isActive, isTrue);
       expect(club.startDate, '2026-07-03');
@@ -68,12 +70,33 @@ void main() {
       expect(club.capacity, 0);
       expect(club.priceReais, 0);
       expect(club.cancelWindowHours, 0);
+      // Docs antigos sem o campo aceitam pagar na arena (default true).
+      expect(club.allowOnsitePayment, isTrue);
       expect(club.status, '');
       expect(club.isActive, isFalse);
       expect(club.startDate, '');
       expect(club.endDate, isNull);
       expect(club.skippedDates, isEmpty);
       expect(club.createdAt, isNull);
+    });
+
+    test('allowOnsitePayment: só `false` explícito desliga (contrato do CF)',
+        () {
+      expect(clubFrom({}).allowOnsitePayment, isTrue);
+      expect(
+        clubFrom({'allowOnsitePayment': true}).allowOnsitePayment,
+        isTrue,
+      );
+      expect(
+        clubFrom({'allowOnsitePayment': false}).allowOnsitePayment,
+        isFalse,
+      );
+      // Tipo errado não desliga — espelha `data['...'] != false` do backend.
+      expect(
+        clubFrom({'allowOnsitePayment': 'nope'}).allowOnsitePayment,
+        isTrue,
+      );
+      expect(clubFrom({'allowOnsitePayment': 0}).allowOnsitePayment, isTrue);
     });
 
     test('tipos errados caem nos defaults sem lançar', () {

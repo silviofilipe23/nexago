@@ -34,6 +34,18 @@ class ClubJoinPixResult {
   final double amountReais;
 }
 
+/// Resposta da callable `joinArenaClubSession` com `paymentMethod: 'onsite'`
+/// (vaga confirmada na hora; o atleta paga na arena no dia, sem QR).
+class ClubJoinOnsiteResult {
+  const ClubJoinOnsiteResult({
+    required this.sessionId,
+    required this.amountReais,
+  });
+
+  final String sessionId;
+  final double amountReais;
+}
+
 /// Resposta da callable `leaveArenaClubSession`.
 class ClubLeaveResult {
   const ClubLeaveResult({
@@ -195,8 +207,44 @@ class ArenaClubsRepository {
     }
   }
 
-  /// Sai da lista. Pendente → cancela o PIX; confirmado dentro do prazo →
+  /// Entra na lista pagando na arena: a callable confirma a vaga NA HORA
+  /// (sem QR). Só funciona se a sessão aceitar `allowOnsitePayment`; se o
+  /// atleta tinha um PIX pendente, o backend converte sozinho.
+  Future<ClubJoinOnsiteResult> joinSessionOnsite({
+    required String sessionId,
+  }) async {
+    final id = sessionId.trim();
+    if (id.isEmpty) {
+      throw ArenaClubException('Sessão inválida.');
+    }
+    try {
+      final raw =
+          await _functions.httpsCallable('joinArenaClubSession').call(
+        <String, dynamic>{'sessionId': id, 'paymentMethod': 'onsite'},
+      );
+      final data = raw.data;
+      if (data is! Map) {
+        throw ArenaClubException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      if ((map['status'] as String?)?.trim() != 'confirmed') {
+        throw ArenaClubException('Resposta inválida do servidor.');
+      }
+      return ClubJoinOnsiteResult(
+        sessionId: (map['sessionId'] as String?)?.trim() ?? id,
+        amountReais: (map['amountReais'] as num?)?.toDouble() ?? 0,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw ArenaClubException(_mapMessage(e), code: e.code);
+    } catch (e) {
+      if (e is ArenaClubException) rethrow;
+      throw ArenaClubException('Não foi possível entrar na lista: $e');
+    }
+  }
+
+  /// Sai da lista. Pendente → cancela o PIX; confirmado PIX dentro do prazo →
   /// estorno automático; fora do prazo → erro com a mensagem do servidor.
+  /// Confirmado onsite (paga na arena) → sai até o início, sem estorno.
   Future<ClubLeaveResult> leaveSession({required String sessionId}) async {
     final id = sessionId.trim();
     if (id.isEmpty) {

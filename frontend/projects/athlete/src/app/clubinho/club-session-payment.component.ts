@@ -9,6 +9,7 @@ import { athleteFunctions } from '../data/functions';
 import {
   ArenaClubError,
   joinClubSession,
+  joinClubSessionOnsite,
   watchClubSession,
   watchMyParticipant,
   type ClubJoinPixPayment,
@@ -65,7 +66,12 @@ function onlyDigits(v: string): string {
               <div class="cp-success-icon">✓</div>
               <h2 class="cp-success-title">Você está na lista!</h2>
               <p class="cp-success-text">
-                Pagamento confirmado — seu nome já aparece na lista do {{ s.clubName }} em {{ s.date }}.
+                @if (myMethod() === 'onsite') {
+                  Vaga garantida no {{ s.clubName }} em {{ s.date }} — pague
+                  {{ formatBRL(s.priceReais) }} na arena no dia.
+                } @else {
+                  Pagamento confirmado — seu nome já aparece na lista do {{ s.clubName }} em {{ s.date }}.
+                }
               </p>
               <div class="cp-success-actions">
                 <a class="cp-btn-primary" [routerLink]="['/reservar', s.arenaId, 'clubinho', s.id]">Ver lista</a>
@@ -104,24 +110,45 @@ function onlyDigits(v: string): string {
               <span class="cp-kicker">Valor da vaga</span>
               <div class="cp-amount big">{{ formatBRL(s.priceReais) }}</div>
 
-              <label class="cp-label" for="cpf">CPF (obrigatório para o PIX)</label>
-              <input
-                id="cpf"
-                type="text"
-                inputmode="numeric"
-                class="cp-input"
-                placeholder="Somente números"
-                [value]="cpf()"
-                (input)="onCpfInput($any($event.target).value)"
-              />
+              @if (s.allowOnsitePayment) {
+                <div class="cp-methods">
+                  <button type="button" class="cp-method-btn" [class.active]="method() === 'pix'" (click)="method.set('pix')">
+                    PIX antecipado
+                  </button>
+                  <button type="button" class="cp-method-btn" [class.active]="method() === 'onsite'" (click)="method.set('onsite')">
+                    Pagar na arena
+                  </button>
+                </div>
+              }
 
-              <button type="button" class="cp-btn-primary" [disabled]="processing()" (click)="generate()">
-                {{ processing() ? 'Reservando vaga…' : 'Gerar PIX e segurar vaga' }}
-              </button>
-              <p class="cp-hint">
-                A vaga fica segurada por alguns minutos enquanto você paga. Não pagou? Ela volta
-                para a lista automaticamente.
-              </p>
+              @if (method() === 'pix') {
+                <label class="cp-label" for="cpf">CPF (obrigatório para o PIX)</label>
+                <input
+                  id="cpf"
+                  type="text"
+                  inputmode="numeric"
+                  class="cp-input"
+                  placeholder="Somente números"
+                  [value]="cpf()"
+                  (input)="onCpfInput($any($event.target).value)"
+                />
+
+                <button type="button" class="cp-btn-primary" [disabled]="processing()" (click)="generate()">
+                  {{ processing() ? 'Reservando vaga…' : 'Gerar PIX e segurar vaga' }}
+                </button>
+                <p class="cp-hint">
+                  A vaga fica segurada por alguns minutos enquanto você paga. Não pagou? Ela volta
+                  para a lista automaticamente.
+                </p>
+              } @else {
+                <button type="button" class="cp-btn-primary" [disabled]="processing()" (click)="joinOnsite()">
+                  {{ processing() ? 'Garantindo vaga…' : 'Garantir vaga · pagar na arena' }}
+                </button>
+                <p class="cp-hint">
+                  Seu nome entra na lista agora e você acerta os {{ formatBRL(s.priceReais) }}
+                  direto na arena no dia. Dá para sair da lista até o início da sessão.
+                </p>
+              }
             </div>
           }
         }
@@ -266,6 +293,30 @@ function onlyDigits(v: string): string {
       overflow: auto;
     }
 
+    .cp-methods {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .cp-method-btn {
+      height: 50px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text-mute);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 13.5px;
+      cursor: pointer;
+    }
+
+    .cp-method-btn.active {
+      background: rgba(255, 106, 26, 0.1);
+      border-color: var(--nx-orange-500);
+      color: var(--nx-orange-500);
+    }
+
     .cp-label {
       font-family: var(--nx-font-mono);
       font-size: 9.5px;
@@ -402,6 +453,7 @@ export class ClubSessionPaymentComponent {
 
   protected readonly loading = signal(true);
   protected readonly session = signal<ClubSession | null>(null);
+  protected readonly method = signal<'pix' | 'onsite'>('pix');
   protected readonly cpf = signal('');
   protected readonly processing = signal(false);
   protected readonly notice = signal<string | null>(null);
@@ -409,6 +461,7 @@ export class ClubSessionPaymentComponent {
   protected readonly countdown = signal('');
   protected readonly pixExpired = signal(false);
   protected readonly confirmed = signal(false);
+  protected readonly myMethod = signal<'pix' | 'onsite'>('pix');
 
   constructor() {
     const db = this.firestore;
@@ -433,6 +486,7 @@ export class ClubSessionPaymentComponent {
       if (!uid) return;
       this.unwatchMy = watchMyParticipant(db, this.sessionId, uid, (p) => {
         if (p?.status === 'confirmed') {
+          this.myMethod.set(p.paymentMethod);
           this.confirmed.set(true);
           clearInterval(this.countdownInterval);
         } else if (p?.status === 'expired' && this.pix()) {
@@ -469,6 +523,27 @@ export class ClubSessionPaymentComponent {
       this.startCountdown(pix.expiresAt);
     } catch (err) {
       this.showNotice(err instanceof ArenaClubError ? err.message : 'Não foi possível gerar o PIX agora.');
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
+  /** Sem cobrança online: a callable confirma na hora e o listener vira a tela. */
+  protected async joinOnsite(): Promise<void> {
+    if (this.processing()) return;
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      this.showNotice('Faça login para entrar na lista.');
+      return;
+    }
+
+    this.processing.set(true);
+    try {
+      await joinClubSessionOnsite(athleteFunctions(), this.sessionId);
+      this.myMethod.set('onsite');
+      this.confirmed.set(true);
+    } catch (err) {
+      this.showNotice(err instanceof ArenaClubError ? err.message : 'Não foi possível garantir a vaga agora.');
     } finally {
       this.processing.set(false);
     }

@@ -128,6 +128,7 @@ class ArenaClubService {
     required int capacity,
     required double priceReais,
     required int cancelWindowHours,
+    bool allowOnsitePayment = true,
     String? startDate,
     String? endDate,
   }) async {
@@ -146,6 +147,7 @@ class ArenaClubService {
         'capacity': capacity,
         'priceReais': priceReais,
         'cancelWindowHours': cancelWindowHours,
+        'allowOnsitePayment': allowOnsitePayment,
         if (startDate != null) 'startDate': startDate,
         if (endDate != null) 'endDate': endDate,
       });

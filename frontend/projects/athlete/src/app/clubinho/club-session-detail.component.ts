@@ -121,21 +121,31 @@ function formatFullDate(dateKey: string): string {
                 @if (s.status === 'scheduled') {
                   @switch (myStatus()) {
                     @case ('confirmed') {
-                      <div class="cs-mine ok">✓ Você está na lista</div>
+                      <div class="cs-mine ok">
+                        ✓ Você está na lista{{ myIsOnsite() ? ' — pague na arena no dia' : '' }}
+                      </div>
                       @if (canLeave()) {
                         @if (!leaveConfirming()) {
                           <button type="button" class="cs-btn-ghost full" (click)="leaveConfirming.set(true)">Sair da lista</button>
                         } @else {
-                          <p class="cs-leave-warn">Sair agora estorna seu PIX automaticamente e libera a vaga. Confirmar?</p>
+                          <p class="cs-leave-warn">
+                            {{ myIsOnsite()
+                              ? 'Sair agora libera sua vaga para outro atleta. Confirmar?'
+                              : 'Sair agora estorna seu PIX automaticamente e libera a vaga. Confirmar?' }}
+                          </p>
                           <div class="cs-leave-row">
                             <button type="button" class="cs-btn-ghost" (click)="leaveConfirming.set(false)">Ficar</button>
                             <button type="button" class="cs-btn-danger" [disabled]="leaving()" (click)="confirmLeave()">
-                              {{ leaving() ? 'Saindo…' : 'Sair e estornar' }}
+                              {{ leaving() ? 'Saindo…' : myIsOnsite() ? 'Sair da lista' : 'Sair e estornar' }}
                             </button>
                           </div>
                         }
                       } @else {
-                        <p class="cs-hint">O prazo para sair com estorno ({{ s.cancelWindowHours }}h antes) já passou.</p>
+                        <p class="cs-hint">
+                          {{ myIsOnsite()
+                            ? 'Esta sessão já começou.'
+                            : 'O prazo para sair com estorno (' + s.cancelWindowHours + 'h antes) já passou.' }}
+                        </p>
                       }
                     }
                     @case ('pending_payment') {
@@ -147,7 +157,11 @@ function formatFullDate(dateKey: string): string {
                         <a class="cs-btn-primary" [routerLink]="['/reservar', s.arenaId, 'clubinho', s.id, 'pagamento']">
                           Entrar na lista · {{ formatBRL(s.priceReais) }}
                         </a>
-                        <p class="cs-hint">O nome entra na lista após o pagamento do PIX. Cancele até {{ s.cancelWindowHours }}h antes com estorno automático.</p>
+                        <p class="cs-hint">
+                          {{ s.allowOnsitePayment
+                            ? 'Pague com PIX antecipado ou garanta a vaga e pague na arena no dia.'
+                            : 'O nome entra na lista após o pagamento do PIX. Cancele até ' + s.cancelWindowHours + 'h antes com estorno automático.' }}
+                        </p>
                       } @else {
                         <p class="cs-hint">Sem vagas — tente na próxima sessão.</p>
                       }
@@ -506,11 +520,15 @@ export class ClubSessionDetailComponent {
   });
 
   protected readonly myStatus = computed(() => this.myParticipant()?.status ?? null);
+  protected readonly myIsOnsite = computed(() => this.myParticipant()?.paymentMethod === 'onsite');
 
   protected readonly canLeave = computed(() => {
     const s = this.session();
     if (!s?.startAt) return false;
-    const deadline = s.startAt.getTime() - s.cancelWindowHours * 60 * 60 * 1000;
+    // Onsite não tem estorno envolvido: pode sair até o início da sessão.
+    const deadline = this.myIsOnsite()
+      ? s.startAt.getTime()
+      : s.startAt.getTime() - s.cancelWindowHours * 60 * 60 * 1000;
     return Date.now() <= deadline;
   });
 
@@ -555,9 +573,12 @@ export class ClubSessionDetailComponent {
     if (this.leaving()) return;
     this.leaving.set(true);
     try {
+      const wasOnsite = this.myIsOnsite();
       await leaveClubSession(athleteFunctions(), this.sessionId);
       this.leaveConfirming.set(false);
-      this.notice.set('Você saiu da lista — o estorno do PIX foi solicitado.');
+      this.notice.set(
+        wasOnsite ? 'Você saiu da lista — a vaga foi liberada.' : 'Você saiu da lista — o estorno do PIX foi solicitado.',
+      );
     } catch (err) {
       this.notice.set(err instanceof ArenaClubError ? err.message : 'Não foi possível sair da lista agora.');
     } finally {

@@ -12,6 +12,7 @@ void main() {
   ClubParticipant participant({
     String sessionId = 's1',
     String status = 'confirmed',
+    String paymentMethod = 'pix',
     DateTime? startAt,
     String date = '2026-07-24',
     String startTime = '15:00',
@@ -30,6 +31,7 @@ void main() {
         endTime: endTime,
         startAt: startAt,
         status: status,
+        paymentMethod: paymentMethod,
         amountReais: 25,
         refundStatus: 'none',
       );
@@ -59,6 +61,16 @@ void main() {
       expect(item, isNotNull);
       expect(item!.statusLabel, 'PAGAR PIX');
       expect(item.clubSession!.pendingPayment, isTrue);
+    });
+
+    test('confirmado onsite (paga na arena) também vira "NA LISTA"', () {
+      final item = mapClubParticipationToAgendaItem(
+        participant(paymentMethod: 'onsite'),
+      );
+
+      expect(item, isNotNull);
+      expect(item!.statusLabel, 'NA LISTA');
+      expect(item.clubSession!.pendingPayment, isFalse);
     });
 
     test('usa o startAt do servidor quando presente', () {

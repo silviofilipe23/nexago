@@ -55,6 +55,7 @@ interface SessionSnapshotForJoin {
   capacity: number;
   priceReais: number;
   cancelWindowHours: number;
+  allowOnsitePayment: boolean;
   confirmedCount: number;
   pendingCount: number;
 }
@@ -74,6 +75,7 @@ function readSessionForJoin(data: Record<string, unknown>): SessionSnapshotForJo
     capacity: Number(data["capacity"] ?? 0),
     priceReais: Number(data["priceReais"] ?? 0),
     cancelWindowHours: Number(data["cancelWindowHours"] ?? 0),
+    allowOnsitePayment: data["allowOnsitePayment"] !== false,
     confirmedCount: Number(data["confirmedCount"] ?? 0),
     pendingCount: Number(data["pendingCount"] ?? 0),
   };
@@ -114,6 +116,8 @@ interface JoinInput {
   sessionId?: string;
   cpf?: string;
   cpfCnpj?: string;
+  /** 'pix' (default, antecipado) ou 'onsite' (paga na arena, se o clubinho aceitar). */
+  paymentMethod?: string;
 }
 
 export const joinArenaClubSession = onCall({
@@ -131,6 +135,7 @@ export const joinArenaClubSession = onCall({
   const cpfFromRequest =
     typeof input.cpfCnpj === "string" ? input.cpfCnpj :
       (typeof input.cpf === "string" ? input.cpf : "");
+  const paymentMethod = input.paymentMethod === "onsite" ? "onsite" : "pix";
 
   const db = getFirestore();
   const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
@@ -141,6 +146,118 @@ export const joinArenaClubSession = onCall({
   const paymentExpiresAt = Timestamp.fromMillis(
     nowMs + ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES * 60 * 1000,
   );
+
+  // "Pagar na arena": confirma a vaga na hora, sem cobrança online (sem taxa,
+  // sem carteira — o dinheiro nem passa pela plataforma, igual reserva onsite).
+  if (paymentMethod === "onsite") {
+    const onsiteResult = await db.runTransaction(async (tx: Transaction) => {
+      const sessionSnap = await tx.get(sessionRef);
+      if (!sessionSnap.exists) {
+        throw new HttpsError("not-found", "Sessão do clubinho não encontrada.");
+      }
+      const session = readSessionForJoin(sessionSnap.data() as Record<string, unknown>);
+      if (session.status !== "scheduled") {
+        throw new HttpsError("failed-precondition", "Esta sessão não está mais aberta.");
+      }
+      if (session.startAtMs != null && nowMs >= session.startAtMs) {
+        throw new HttpsError("failed-precondition", "Esta sessão já começou.");
+      }
+      if (!session.allowOnsitePayment) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Este clubinho aceita apenas PIX antecipado.",
+        );
+      }
+
+      const participantSnap = await tx.get(participantRef);
+      const existing = participantSnap.exists ?
+        (participantSnap.data() as Record<string, unknown>) :
+        null;
+      const existingStatus = existing ? String(existing["status"] ?? "") : "";
+
+      if (existingStatus === "confirmed") {
+        throw new HttpsError("already-exists", "Você já está na lista desta sessão.");
+      }
+      if (
+        existing &&
+        existingStatus !== "pending_payment" &&
+        !REJOINABLE_STATUSES.has(existingStatus)
+      ) {
+        throw new HttpsError("failed-precondition", "Sua vaga nesta sessão já foi encerrada.");
+      }
+
+      const wasHeld = existingStatus === "pending_payment";
+      if (!wasHeld && session.confirmedCount + session.pendingCount >= session.capacity) {
+        throw new HttpsError("resource-exhausted", "A lista desta sessão está cheia.");
+      }
+
+      tx.set(participantRef, {
+        athleteId: uid,
+        athleteName: display.name,
+        athletePhotoUrl: display.photoUrl,
+        clubId: session.clubId,
+        arenaId: session.arenaId,
+        arenaName: session.arenaName,
+        clubName: session.clubName,
+        date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        startAt: sessionSnap.data()!["startAt"] ?? null,
+        status: "confirmed",
+        paymentMethod: "onsite",
+        amountReais: session.priceReais,
+        platformFeeReais: 0,
+        netReais: 0,
+        asaasPaymentId: null,
+        pixCopyPaste: null,
+        paymentExpiresAt: null,
+        refundStatus: "none",
+        joinedAt: existing?.["joinedAt"] ?? FieldValue.serverTimestamp(),
+        confirmedAt: FieldValue.serverTimestamp(),
+        canceledAt: null,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      tx.set(sessionRef, {
+        confirmedCount: session.confirmedCount + 1,
+        ...(wasHeld ? {pendingCount: Math.max(0, session.pendingCount - 1)} : {}),
+      }, {merge: true});
+
+      return {
+        session,
+        previousAsaasPaymentId: typeof existing?.["asaasPaymentId"] === "string" ?
+          (existing["asaasPaymentId"] as string).trim() :
+          "",
+      };
+    });
+
+    // Solta a cobrança PIX antiga se o atleta trocou pra pagar na arena.
+    if (onsiteResult.previousAsaasPaymentId) {
+      await deleteAsaasPaymentIfOpen(onsiteResult.previousAsaasPaymentId);
+    }
+
+    try {
+      await deliverNotificationToUser({
+        userId: uid,
+        title: "Vaga garantida! 🎾",
+        body: `Seu nome está na lista do ${onsiteResult.session.clubName} — pague ` +
+          `R$ ${roundMoney(onsiteResult.session.priceReais).toFixed(2).replace(".", ",")} ` +
+          "na arena no dia.",
+        type: "club_join_confirmed",
+        data: {clubSessionId: sessionId, arenaId: onsiteResult.session.arenaId},
+        requireInteraction: false,
+      });
+    } catch (e) {
+      logger.warn("joinArenaClubSession: notificação onsite falhou", {sessionId, uid, error: e});
+    }
+
+    return {
+      sessionId,
+      status: "confirmed",
+      paymentMethod: "onsite",
+      amountReais: roundMoney(onsiteResult.session.priceReais),
+    };
+  }
 
   // Reserva a vaga em transação (held enquanto pending_payment).
   const txResult = await db.runTransaction(async (tx: Transaction) => {
@@ -194,6 +311,7 @@ export const joinArenaClubSession = onCall({
       endTime: session.endTime,
       startAt: sessionSnap.data()!["startAt"] ?? null,
       status: "pending_payment",
+      paymentMethod: "pix",
       amountReais: session.priceReais,
       platformFeeReais: null,
       netReais: null,
@@ -393,8 +511,30 @@ export const leaveArenaClubSession = onCall({
     );
   }
 
-  // Prazo de cancelamento com estorno (configurado por clubinho).
+  const participantMethod = participant["paymentMethod"] === "onsite" ? "onsite" : "pix";
   const nowMs = Date.now();
+
+  // Vaga "paga na arena": sem dinheiro envolvido — pode sair até o início.
+  if (participantMethod === "onsite") {
+    if (session.startAtMs != null && nowMs >= session.startAtMs) {
+      throw new HttpsError("failed-precondition", "Esta sessão já começou.");
+    }
+    await db.runTransaction(async (tx: Transaction) => {
+      const snap = await tx.get(participantRef);
+      if (String(snap.data()?.["status"]) !== "confirmed") return;
+      const sSnap = await tx.get(sessionRef);
+      const confirmed = Number(sSnap.data()?.["confirmedCount"] ?? 0);
+      tx.set(participantRef, {
+        status: "canceled",
+        canceledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      tx.set(sessionRef, {confirmedCount: Math.max(0, confirmed - 1)}, {merge: true});
+    });
+    return {sessionId, status: "canceled", refunded: false};
+  }
+
+  // Prazo de cancelamento com estorno (configurado por clubinho).
   if (session.startAtMs != null) {
     const deadlineMs = session.startAtMs - session.cancelWindowHours * 60 * 60 * 1000;
     if (nowMs > deadlineMs) {

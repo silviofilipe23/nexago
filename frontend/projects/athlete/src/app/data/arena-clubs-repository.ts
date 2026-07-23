@@ -51,6 +51,8 @@ export interface ClubSession {
   capacity: number;
   priceReais: number;
   cancelWindowHours: number;
+  /** Aceita reservar vaga pagando na arena (sem PIX antecipado). */
+  allowOnsitePayment: boolean;
   confirmedCount: number;
   pendingCount: number;
   status: 'scheduled' | 'canceled' | 'completed';
@@ -62,6 +64,8 @@ export interface ClubParticipant {
   athleteName: string;
   athletePhotoUrl: string | null;
   status: ClubParticipantStatus;
+  /** 'onsite' = paga na arena; ausente em docs antigos = 'pix'. */
+  paymentMethod: 'pix' | 'onsite';
   amountReais: number;
   joinedAt: Date | null;
 }
@@ -109,6 +113,7 @@ export function clubSessionFromDoc(docSnap: QueryDocumentSnapshot | DocumentSnap
     capacity: num(d['capacity']),
     priceReais: num(d['priceReais']),
     cancelWindowHours: num(d['cancelWindowHours']),
+    allowOnsitePayment: d['allowOnsitePayment'] !== false,
     confirmedCount: num(d['confirmedCount']),
     pendingCount: num(d['pendingCount']),
     status: (str(d['status'], 'scheduled') as ClubSession['status']) || 'scheduled',
@@ -124,6 +129,7 @@ function participantFromDoc(docSnap: QueryDocumentSnapshot): ClubParticipant {
     athletePhotoUrl:
       typeof d['athletePhotoUrl'] === 'string' && d['athletePhotoUrl'] ? d['athletePhotoUrl'] : null,
     status: (str(d['status']) as ClubParticipantStatus) || 'pending_payment',
+    paymentMethod: d['paymentMethod'] === 'onsite' ? 'onsite' : 'pix',
     amountReais: num(d['amountReais']),
     joinedAt: toDate(d['joinedAt']),
   };
@@ -245,6 +251,22 @@ export async function joinClubSession(
       functions,
       'joinArenaClubSession',
     )({ sessionId, cpfCnpj: cpfCnpj || undefined });
+    return result.data;
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
+/** Garante a vaga pagando na arena no dia (se o clubinho aceitar) — confirma na hora. */
+export async function joinClubSessionOnsite(
+  functions: Functions,
+  sessionId: string,
+): Promise<{ sessionId: string; status: string; amountReais: number }> {
+  try {
+    const result = await httpsCallable<
+      { sessionId: string; paymentMethod: 'onsite' },
+      { sessionId: string; status: string; amountReais: number }
+    >(functions, 'joinArenaClubSession')({ sessionId, paymentMethod: 'onsite' });
     return result.data;
   } catch (err) {
     throw mapFunctionsError(err);

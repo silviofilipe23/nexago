@@ -76,6 +76,11 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
         participantsAsync.valueOrNull ?? const <ClubParticipant>[];
     final confirmed = participants.where((p) => p.isConfirmed).length;
     final pending = participants.where((p) => p.isPendingPayment).length;
+    // Só quem confirmou via PIX conta como recebido online; onsite paga na
+    // arena no dia (e é o único que não entra em estorno ao cancelar).
+    final confirmedOnsite =
+        participants.where((p) => p.isConfirmed && p.isOnsite).length;
+    final confirmedPix = confirmed - confirmedOnsite;
 
     final date = session.dateOnly;
     final dateLabel = date != null
@@ -164,6 +169,17 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
                     ),
                   ],
                 ),
+                if (confirmedOnsite > 0) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    '$confirmedOnsite confirmado(s) pagam na arena no dia — '
+                    'recebido online: $confirmedPix PIX confirmado(s).',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -210,8 +226,9 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
         if (!session.isCanceled) ...[
           const SizedBox(height: 24),
           OutlinedButton.icon(
-            onPressed:
-                _cancelling ? null : () => _confirmCancel(session, confirmed),
+            onPressed: _cancelling
+                ? null
+                : () => _confirmCancel(session, confirmedPix),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.live,
               side: BorderSide(color: AppColors.live.withValues(alpha: 0.5)),
@@ -244,9 +261,11 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
     );
   }
 
+  /// [pixConfirmedCount] conta só os confirmados via PIX — vagas "paga na
+  /// arena" não têm dinheiro online e não entram no estorno.
   Future<void> _confirmCancel(
     ArenaClubSession session,
-    int confirmedCount,
+    int pixConfirmedCount,
   ) async {
     final confirmedCancel = await showDialog<bool>(
       context: context,
@@ -255,7 +274,7 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
         title: const Text('Cancelar esta sessão?'),
         content: Text(
           '${session.dateShortLabel} · ${session.timeRangeLabel}.\n\n'
-          '${confirmedCount > 0 ? 'Os $confirmedCount pagamento(s) confirmado(s) serão estornados automaticamente no PIX e os' : 'Os'} '
+          '${pixConfirmedCount > 0 ? 'Os $pixConfirmedCount pagamento(s) PIX confirmado(s) serão estornados automaticamente e os' : 'Os'} '
           'PIX pendentes serão cancelados. Os atletas são avisados.',
         ),
         actions: [
@@ -487,6 +506,26 @@ class _ParticipantRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (participant.isConfirmed && participant.isOnsite) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.pending.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'Paga na arena',
+                  style: TextStyle(
+                    color: AppColors.pending,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

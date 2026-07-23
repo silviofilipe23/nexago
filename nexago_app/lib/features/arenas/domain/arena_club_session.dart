@@ -20,6 +20,7 @@ class ArenaClubSession {
     required this.capacity,
     required this.priceReais,
     required this.cancelWindowHours,
+    required this.allowOnsitePayment,
     required this.confirmedCount,
     required this.pendingCount,
     required this.status,
@@ -43,6 +44,10 @@ class ArenaClubSession {
   final int capacity;
   final double priceReais;
   final int cancelWindowHours;
+
+  /// Aceita garantir a vaga pagando na arena no dia (sem PIX antecipado)?
+  /// Docs antigos não têm o campo — ausente vale `true`.
+  final bool allowOnsitePayment;
   final int confirmedCount;
   final int pendingCount;
 
@@ -118,6 +123,8 @@ class ArenaClubSession {
       capacity: _intOr(data['capacity'], 0),
       priceReais: _doubleOr(data['priceReais'], 0),
       cancelWindowHours: _intOr(data['cancelWindowHours'], 0),
+      // Mesmo parse do backend: só `false` explícito desliga.
+      allowOnsitePayment: data['allowOnsitePayment'] != false,
       confirmedCount: _intOr(data['confirmedCount'], 0),
       pendingCount: _intOr(data['pendingCount'], 0),
       status: _stringOr(data['status'], ''),
@@ -182,6 +189,7 @@ class ClubParticipant {
     required this.endTime,
     this.startAt,
     required this.status,
+    required this.paymentMethod,
     required this.amountReais,
     required this.refundStatus,
     this.asaasPaymentId,
@@ -210,6 +218,9 @@ class ClubParticipant {
   /// `pending_payment` | `confirmed` | `expired` | `canceled` |
   /// `canceled_refunded` | `canceled_by_arena_refunded`.
   final String status;
+
+  /// `pix` (antecipado, default em docs antigos) | `onsite` (paga na arena).
+  final String paymentMethod;
   final double amountReais;
 
   /// `none` | `done` | `failed`.
@@ -222,6 +233,9 @@ class ClubParticipant {
 
   bool get isConfirmed => status == 'confirmed';
   bool get isPendingPayment => status == 'pending_payment';
+
+  /// Garantiu a vaga para pagar na arena no dia (sem cobrança online)?
+  bool get isOnsite => paymentMethod == 'onsite';
 
   /// Segue na lista (confirmado ou segurando vaga com PIX pendente)?
   bool get isActive => isConfirmed || isPendingPayment;
@@ -257,6 +271,7 @@ class ClubParticipant {
       endTime: ArenaClubSession._normalizeHm(data['endTime']),
       startAt: ArenaClubSession._parseTimestamp(data['startAt']),
       status: ArenaClubSession._stringOr(data['status'], ''),
+      paymentMethod: ArenaClubSession._stringOr(data['paymentMethod'], 'pix'),
       amountReais: ArenaClubSession._doubleOr(data['amountReais'], 0),
       refundStatus: ArenaClubSession._stringOr(data['refundStatus'], 'none'),
       asaasPaymentId: _trimmedOrNull(data['asaasPaymentId']),

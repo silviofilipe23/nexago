@@ -24,8 +24,11 @@ import 'widgets/booking_pix/booking_pix_qr_card.dart';
 import 'widgets/booking_pix/booking_pix_save_cpf_tile.dart';
 import 'widgets/booking_pix/booking_pix_waiting_card.dart';
 
-/// PIX da vaga no Clubinho: gera cobrança via `joinArenaClubSession`, mostra
-/// QR + copia-e-cola e escuta o participante até o webhook confirmar.
+/// Pagamento da vaga no Clubinho. PIX antecipado: gera cobrança via
+/// `joinArenaClubSession`, mostra QR + copia-e-cola e escuta o participante
+/// até o webhook confirmar. Se a sessão aceitar pagar na arena
+/// (`allowOnsitePayment`), um seletor de método aparece antes e o modo
+/// onsite confirma a vaga na hora, sem CPF nem QR.
 class ClubSessionPixPage extends ConsumerStatefulWidget {
   const ClubSessionPixPage({super.key, required this.sessionId});
 
@@ -40,6 +43,9 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
   final _cpfController = TextEditingController();
   ClubJoinPixResult? _pix;
   bool _loadingPix = false;
+  _ClubPayMethod _method = _ClubPayMethod.pix;
+  ClubJoinOnsiteResult? _onsiteResult;
+  bool _loadingOnsite = false;
   String? _pixError;
   bool _confirmed = false;
   bool _expired = false;
@@ -135,6 +141,40 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
     }
   }
 
+  /// Garante a vaga para pagar na arena: a callable confirma na hora.
+  Future<void> _joinOnsite() async {
+    if (_loadingOnsite) return;
+    setState(() {
+      _loadingOnsite = true;
+      _pixError = null;
+    });
+    try {
+      final result =
+          await ref.read(arenaClubsRepositoryProvider).joinSessionOnsite(
+                sessionId: widget.sessionId,
+              );
+      if (!mounted) return;
+      _expiryTimer?.cancel();
+      setState(() {
+        _onsiteResult = result;
+        _confirmed = true;
+        _loadingOnsite = false;
+      });
+    } on ArenaClubException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingOnsite = false;
+        _pixError = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingOnsite = false;
+        _pixError = 'Não foi possível garantir a vaga. Tente novamente.';
+      });
+    }
+  }
+
   void _scheduleExpiry(DateTime expiresAt) {
     _expiryTimer?.cancel();
     final remaining = expiresAt.difference(DateTime.now());
@@ -196,18 +236,35 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
     });
 
     final session = ref.watch(clubSessionProvider(widget.sessionId)).valueOrNull;
+    final myParticipant =
+        ref.watch(myClubParticipantProvider(widget.sessionId)).valueOrNull;
     final amountReais = _pix?.amountReais ?? session?.priceReais ?? 0;
     final showQr = _pix != null && !_loadingPix;
+    final allowOnsite = session?.allowOnsitePayment ?? false;
+    final onsiteSelected = allowOnsite && _method == _ClubPayMethod.onsite;
 
     if (_confirmed) {
+      final isOnsite =
+          _onsiteResult != null || myParticipant?.isOnsite == true;
+      final onsiteAmount = _onsiteResult?.amountReais ??
+          myParticipant?.amountReais ??
+          session?.priceReais ??
+          0;
+      final sessionLabel = session != null
+          ? '${session.clubName} · ${session.dateShortLabel} · '
+              '${session.timeRangeLabel}'
+          : null;
       return Scaffold(
         backgroundColor: context.themeColors.canvas,
         body: FeedbackPage.success(
-          title: 'Você está na lista!',
-          description: session != null
-              ? '${session.clubName} · ${session.dateShortLabel} · '
-                  '${session.timeRangeLabel}\nBom jogo!'
-              : 'Pagamento confirmado. Bom jogo!',
+          title: isOnsite ? 'Vaga garantida!' : 'Você está na lista!',
+          description: isOnsite
+              ? '${sessionLabel != null ? '$sessionLabel\n' : ''}'
+                  'Pague ${formatBRL(onsiteAmount)} na arena no dia. '
+                  'Bom jogo!'
+              : sessionLabel != null
+                  ? '$sessionLabel\nBom jogo!'
+                  : 'Pagamento confirmado. Bom jogo!',
           primaryAction: FeedbackAction(
             label: 'Ver a lista',
             onPressed: _onBack,
@@ -251,23 +308,46 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (!showQr) ...[
-                    BookingPixMethodCard(
-                      amountLabel: formatBRL(amountReais),
-                    ),
-                    const SizedBox(height: 20),
-                    BookingPixCpfField(
-                      controller: _cpfController,
-                      errorText: _cpfHint,
-                      onSubmitted: _hasValidCpf ? _loadPix : null,
-                    ),
-                    const SizedBox(height: 12),
-                    BookingPixSaveCpfTile(
-                      value: _saveCpf,
-                      onChanged: (v) => setState(() => _saveCpf = v),
-                    ),
-                    if (_pixError != null) ...[
-                      const SizedBox(height: 16),
-                      _PixErrorCard(message: _pixError!, onRetry: _loadPix),
+                    if (allowOnsite) ...[
+                      _MethodSelector(
+                        method: _method,
+                        amountLabel: formatBRL(amountReais),
+                        onChanged: (m) => setState(() {
+                          _method = m;
+                          _pixError = null;
+                        }),
+                      ),
+                      const SizedBox(height: 20),
+                    ] else ...[
+                      BookingPixMethodCard(
+                        amountLabel: formatBRL(amountReais),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    if (onsiteSelected) ...[
+                      _OnsiteInfoCard(amountLabel: formatBRL(amountReais)),
+                      if (_pixError != null) ...[
+                        const SizedBox(height: 16),
+                        _PixErrorCard(
+                          message: _pixError!,
+                          onRetry: _joinOnsite,
+                        ),
+                      ],
+                    ] else ...[
+                      BookingPixCpfField(
+                        controller: _cpfController,
+                        errorText: _cpfHint,
+                        onSubmitted: _hasValidCpf ? _loadPix : null,
+                      ),
+                      const SizedBox(height: 12),
+                      BookingPixSaveCpfTile(
+                        value: _saveCpf,
+                        onChanged: (v) => setState(() => _saveCpf = v),
+                      ),
+                      if (_pixError != null) ...[
+                        const SizedBox(height: 16),
+                        _PixErrorCard(message: _pixError!, onRetry: _loadPix),
+                      ],
                     ],
                   ] else ...[
                     BookingPixExpiryCard(
@@ -302,11 +382,198 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
             ),
           ),
           if (!showQr)
-            BookingPixGenerateBar(
-              enabled: _hasValidCpf,
-              loading: _loadingPix,
-              onPressed: _loadPix,
+            onsiteSelected
+                ? BookingPixGenerateBar(
+                    enabled: true,
+                    loading: _loadingOnsite,
+                    label: 'Garantir vaga · pagar na arena',
+                    onPressed: _joinOnsite,
+                  )
+                : BookingPixGenerateBar(
+                    enabled: _hasValidCpf,
+                    loading: _loadingPix,
+                    onPressed: _loadPix,
+                  ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Como o atleta paga a vaga: PIX antecipado ou direto na arena no dia.
+enum _ClubPayMethod { pix, onsite }
+
+class _MethodSelector extends StatelessWidget {
+  const _MethodSelector({
+    required this.method,
+    required this.amountLabel,
+    required this.onChanged,
+  });
+
+  final _ClubPayMethod method;
+  final String amountLabel;
+  final ValueChanged<_ClubPayMethod> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _MethodOption(
+          icon: Icons.pix_rounded,
+          iconColor: AppColors.win,
+          title: 'PIX antecipado',
+          subtitle: '$amountLabel agora · aprovação na hora',
+          selected: method == _ClubPayMethod.pix,
+          onTap: () => onChanged(_ClubPayMethod.pix),
+        ),
+        const SizedBox(height: 10),
+        _MethodOption(
+          icon: Icons.storefront_rounded,
+          iconColor: AppColors.brand,
+          title: 'Pagar na arena',
+          subtitle: '$amountLabel no dia · vaga garantida agora',
+          selected: method == _ClubPayMethod.onsite,
+          onTap: () => onChanged(_ClubPayMethod.onsite),
+        ),
+      ],
+    );
+  }
+}
+
+class _MethodOption extends StatelessWidget {
+  const _MethodOption({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: context.themeColors.surfaceCard,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? AppColors.brand
+                  : context.themeColors.surfaceRaised,
+              width: selected ? 1.6 : 1,
             ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_off_rounded,
+                color: selected
+                    ? AppColors.brand
+                    : context.themeColors.onSurfaceMuted,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnsiteInfoCard extends StatelessWidget {
+  const _OnsiteInfoCard({required this.amountLabel});
+
+  final String amountLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.themeColors.surfaceRaised),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.check_circle_outline_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Sem PIX agora',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Sua vaga é confirmada na hora e você paga $amountLabel direto '
+            'na arena no dia do jogo. Se não puder ir, saia da lista até o '
+            'início da sessão para liberar a vaga.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );

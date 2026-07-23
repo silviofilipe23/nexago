@@ -19,6 +19,7 @@ class ArenaClub {
     required this.capacity,
     required this.priceReais,
     required this.cancelWindowHours,
+    required this.allowOnsitePayment,
     required this.status,
     required this.startDate,
     this.endDate,
@@ -41,6 +42,10 @@ class ArenaClub {
   final int capacity;
   final double priceReais;
   final int cancelWindowHours;
+
+  /// Aceita garantir a vaga pagando na arena no dia (sem PIX antecipado)?
+  /// Docs antigos não têm o campo — ausente vale `true`.
+  final bool allowOnsitePayment;
 
   /// `active` | `paused` | `archived`.
   final String status;
@@ -104,6 +109,8 @@ class ArenaClub {
       capacity: _intOr(data['capacity'], 0),
       priceReais: _doubleOr(data['priceReais'], 0),
       cancelWindowHours: _intOr(data['cancelWindowHours'], 0),
+      // Mesmo parse do backend: só `false` explícito desliga.
+      allowOnsitePayment: data['allowOnsitePayment'] != false,
       status: _stringOr(data['status'], ''),
       startDate: _stringOr(data['startDate'], ''),
       endDate: _trimmedOrNull(data['endDate']),

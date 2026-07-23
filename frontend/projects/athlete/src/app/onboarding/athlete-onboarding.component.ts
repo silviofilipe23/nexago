@@ -10,7 +10,7 @@ import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../
 import { athleteFunctions } from '../data/functions';
 import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
-import { birthDateBrToIso, validateBirthDate, validatePhone } from './onboarding-validators';
+import { birthDateBrToIso, validateBirthDate } from './onboarding-validators';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
@@ -58,18 +58,6 @@ function createFirestore(): Firestore | null {
   }
   const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
   return getFirestore(app);
-}
-
-/** `dd/mm/aaaa` → `YYYY-MM-DD` (mesma convenção do Flutter, athlete_firestore_codes.dart). */
-function birthDateBrToIso(raw: string): string | null {
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
-  if (!match) return null;
-  const [, d, m, y] = match;
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  if (date.getFullYear() !== Number(y) || date.getMonth() !== Number(m) - 1 || date.getDate() !== Number(d)) {
-    return null;
-  }
-  return `${y}-${m}-${d}`;
 }
 
 @Component({
@@ -126,7 +114,6 @@ export class AthleteOnboardingComponent {
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
   protected readonly phoneError = computed(() =>
-    this.touched() ? validatePhone(this.phone()) : null,
     this.touched() && !this.phoneVerified() ? 'Verifique seu WhatsApp' : null,
   );
   protected readonly birthDateError = computed(() =>
@@ -137,10 +124,8 @@ export class AthleteOnboardingComponent {
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
-      validatePhone(this.phone()) == null &&
-      validateBirthDate(this.birthDateInput()) == null &&
       this.phoneVerified() &&
-      birthDateBrToIso(this.birthDateInput()) != null &&
+      validateBirthDate(this.birthDateInput()) == null &&
       this.gender() != null,
   );
 

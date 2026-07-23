@@ -201,6 +201,11 @@ class ClubParticipant {
 
   /// Id do doc pai (`arenaClubSessions/{sessionId}`).
   final String sessionId;
+
+  /// Uid do atleta da plataforma. Convidados adicionados pelo gestor têm
+  /// `athleteId: null` no doc (docId `guest_*`) — o parse cai no docId, então
+  /// este campo é sempre igual ao id do participante (útil p/ callables de
+  /// gestão).
   final String athleteId;
   final String athleteName;
   final String? athletePhotoUrl;
@@ -236,6 +241,10 @@ class ClubParticipant {
 
   /// Garantiu a vaga para pagar na arena no dia (sem cobrança online)?
   bool get isOnsite => paymentMethod == 'onsite';
+
+  /// Convidado sem conta adicionado pelo gestor (doc `guest_*`,
+  /// `athleteId` nulo no Firestore).
+  bool get isGuest => athleteId.startsWith('guest_');
 
   /// Segue na lista (confirmado ou segurando vaga com PIX pendente)?
   bool get isActive => isConfirmed || isPendingPayment;

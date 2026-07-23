@@ -27,6 +27,38 @@ class ArenaClubUpsertResult {
   final List<String> skippedDates;
 }
 
+/// Resultado de `addArenaClubParticipant` (gestor adiciona à lista).
+class ArenaClubAddParticipantResult {
+  const ArenaClubAddParticipantResult({
+    required this.sessionId,
+    required this.participantId,
+    required this.converted,
+  });
+
+  final String sessionId;
+
+  /// Uid do atleta ou `guest_*` para convidado sem conta.
+  final String participantId;
+
+  /// O atleta tinha PIX pendente e foi convertido para pagar na arena.
+  final bool converted;
+}
+
+/// Resultado de `removeArenaClubParticipant` (gestor remove da lista).
+class ArenaClubRemoveParticipantResult {
+  const ArenaClubRemoveParticipantResult({
+    required this.sessionId,
+    required this.participantId,
+    required this.refunded,
+  });
+
+  final String sessionId;
+  final String participantId;
+
+  /// PIX confirmado estornado automaticamente (com débito na carteira).
+  final bool refunded;
+}
+
 /// Resultado de `cancelArenaClubSession` (estorno em massa automático).
 class ArenaClubCancelSessionResult {
   const ArenaClubCancelSessionResult({
@@ -199,6 +231,85 @@ class ArenaClubService {
       return (
         sessionId: sessionId,
         skippedCourtIds: _stringList(map['skippedCourtIds']),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw ArenaClubAdminException(_mapMessage(e), code: e.code);
+    }
+  }
+
+  /// Adiciona alguém à lista pela mão do gestor: atleta da plataforma
+  /// ([athleteId]) OU convidado sem conta ([customerName]) — exatamente um.
+  /// Entra direto como `confirmed` pagando na arena, mesmo em clubinho
+  /// só-PIX; PIX pendente do atleta é convertido pelo backend.
+  Future<ArenaClubAddParticipantResult> addParticipant({
+    required String sessionId,
+    String? athleteId,
+    String? customerName,
+  }) async {
+    final id = sessionId.trim();
+    final uid = athleteId?.trim() ?? '';
+    final guestName = customerName?.trim() ?? '';
+    if (id.isEmpty) {
+      throw ArenaClubAdminException('Sessão inválida.');
+    }
+    if (uid.isEmpty == guestName.isEmpty) {
+      throw ArenaClubAdminException(
+        'Informe o atleta OU o nome do convidado (apenas um).',
+      );
+    }
+    try {
+      final result =
+          await _functions.httpsCallable('addArenaClubParticipant').call({
+        'sessionId': id,
+        if (uid.isNotEmpty) 'athleteId': uid,
+        if (guestName.isNotEmpty) 'customerName': guestName,
+      });
+      final data = result.data;
+      if (data is! Map) {
+        throw ArenaClubAdminException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      final participantId = (map['participantId'] as String?)?.trim();
+      if (participantId == null || participantId.isEmpty) {
+        throw ArenaClubAdminException('Resposta inválida do servidor.');
+      }
+      return ArenaClubAddParticipantResult(
+        sessionId: (map['sessionId'] as String?)?.trim() ?? id,
+        participantId: participantId,
+        converted: map['converted'] == true,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw ArenaClubAdminException(_mapMessage(e), code: e.code);
+    }
+  }
+
+  /// Remove um participante pela mão do gestor. PIX confirmado → estorno
+  /// automático + débito na carteira (`refunded` true); onsite/convidado/
+  /// pendente → só cancela. A vaga reabre.
+  Future<ArenaClubRemoveParticipantResult> removeParticipant({
+    required String sessionId,
+    required String participantId,
+  }) async {
+    final id = sessionId.trim();
+    final pid = participantId.trim();
+    if (id.isEmpty || pid.isEmpty) {
+      throw ArenaClubAdminException('Sessão ou participante inválido.');
+    }
+    try {
+      final result =
+          await _functions.httpsCallable('removeArenaClubParticipant').call({
+        'sessionId': id,
+        'participantId': pid,
+      });
+      final data = result.data;
+      if (data is! Map) {
+        throw ArenaClubAdminException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      return ArenaClubRemoveParticipantResult(
+        sessionId: (map['sessionId'] as String?)?.trim() ?? id,
+        participantId: (map['participantId'] as String?)?.trim() ?? pid,
+        refunded: map['refunded'] == true,
       );
     } on FirebaseFunctionsException catch (e) {
       throw ArenaClubAdminException(_mapMessage(e), code: e.code);

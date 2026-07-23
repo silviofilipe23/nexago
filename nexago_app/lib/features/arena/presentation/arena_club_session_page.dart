@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import '../../../core/search/search_keywords.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -13,8 +18,9 @@ import '../data/arena_club_service.dart';
 import '../domain/arena_club_admin_providers.dart';
 import 'widgets/arena_async_state.dart';
 
-/// Sessão do clubinho (gestor): participantes ao vivo com status e
-/// cancelamento da sessão com estorno em massa automático.
+/// Sessão do clubinho (gestor): participantes ao vivo com status,
+/// adicionar/remover atleta pela mão do gestor e cancelamento da sessão
+/// com estorno em massa automático.
 class ArenaClubSessionPage extends ConsumerStatefulWidget {
   const ArenaClubSessionPage({super.key, required this.sessionId});
 
@@ -27,6 +33,9 @@ class ArenaClubSessionPage extends ConsumerStatefulWidget {
 
 class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
   bool _cancelling = false;
+
+  /// Ids de participantes com remoção em andamento (desabilita o botão).
+  final Set<String> _removing = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -185,13 +194,36 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
           ),
         ),
         const SizedBox(height: 24),
-        Text(
-          'PARTICIPANTES (${participants.length})',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: context.themeColors.onSurfaceMuted,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.6,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'PARTICIPANTES (${participants.length})',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+            if (session.isScheduled)
+              TextButton.icon(
+                onPressed: () => _openAddSheet(participants),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.brand,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                label: const Text(
+                  'Adicionar',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
         participantsAsync.when(
@@ -212,7 +244,14 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
                 for (final p in all)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _ParticipantRow(participant: p),
+                    child: _ParticipantRow(
+                      participant: p,
+                      onRemove: session.isScheduled &&
+                              p.isActive &&
+                              !_removing.contains(p.athleteId)
+                          ? () => _confirmRemove(p)
+                          : null,
+                    ),
                   ),
               ],
             );
@@ -259,6 +298,88 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
         ],
       ],
     );
+  }
+
+  /// Sheet de adicionar: busca atleta da plataforma ou convidado sem conta.
+  /// A lista é onSnapshot — atualiza sozinha após a callable.
+  Future<void> _openAddSheet(List<ClubParticipant> participants) async {
+    final activeIds = <String>{
+      for (final p in participants)
+        if (p.isActive) p.athleteId,
+    };
+    final message = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddParticipantSheet(
+        sessionId: widget.sessionId,
+        activeParticipantIds: activeIds,
+      ),
+    );
+    if (message != null && mounted) {
+      showAppSnackBar(context, message);
+    }
+  }
+
+  Future<void> _confirmRemove(ClubParticipant participant) async {
+    // Só PIX confirmado tem dinheiro online envolvido (estorno + carteira).
+    final isPixPaid = participant.isConfirmed && !participant.isOnsite;
+    final confirmedRemove = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.themeColors.surfaceSheet,
+        title: Text('Remover ${participant.athleteName} da lista?'),
+        content: Text(
+          isPixPaid
+              ? 'O PIX pago será estornado automaticamente e o valor '
+                  'debitado da carteira. A vaga reabre.'
+              : 'A vaga reabre na hora — não há pagamento online envolvido.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.live),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+    if (confirmedRemove != true || !mounted) return;
+
+    setState(() => _removing.add(participant.athleteId));
+    try {
+      final result =
+          await ref.read(arenaClubServiceProvider).removeParticipant(
+                sessionId: widget.sessionId,
+                participantId: participant.athleteId,
+              );
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        result.refunded
+            ? 'Participante removido. O estorno do PIX foi solicitado.'
+            : 'Participante removido. A vaga foi liberada.',
+      );
+    } on ArenaClubAdminException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível remover. Tente novamente.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _removing.remove(participant.athleteId));
+    }
   }
 
   /// [pixConfirmedCount] conta só os confirmados via PIX — vagas "paga na
@@ -440,9 +561,12 @@ class _CounterPill extends StatelessWidget {
 }
 
 class _ParticipantRow extends StatelessWidget {
-  const _ParticipantRow({required this.participant});
+  const _ParticipantRow({required this.participant, this.onRemove});
 
   final ClubParticipant participant;
+
+  /// Habilitado pelo gestor em sessão aberta para confirmados/pendentes.
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -497,7 +621,9 @@ class _ParticipantRow extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    formatBRL(participant.amountReais),
+                    participant.isGuest
+                        ? '${formatBRL(participant.amountReais)} · convidado'
+                        : formatBRL(participant.amountReais),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: context.themeColors.onSurfaceMuted,
                     ),
@@ -543,6 +669,24 @@ class _ParticipantRow extends StatelessWidget {
                 ),
               ),
             ),
+            if (onRemove != null) ...[
+              const SizedBox(width: 2),
+              IconButton(
+                onPressed: onRemove,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+                tooltip: 'Remover da lista',
+                icon: Icon(
+                  Icons.person_remove_rounded,
+                  size: 18,
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ],
           ],
         ),
       ),

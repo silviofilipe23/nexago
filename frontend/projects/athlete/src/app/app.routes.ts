@@ -107,6 +107,12 @@ export const routes: Routes = [
       import('./reservar/arena-booking.component').then((m) => m.ArenaBookingComponent),
   },
   {
+    path: 'clubinho',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./clubinho/clubinho-hub.component').then((m) => m.ClubinhoHubComponent),
+  },
+  {
     path: 'reservar/:arenaId/clubinho/:sessionId/pagamento',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

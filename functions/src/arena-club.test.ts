@@ -4,11 +4,13 @@ import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   type ArenaClubData,
+  addClubParticipantCore,
   cancelClubSessionCore,
   clubBlockBookingId,
   clubSessionId,
   materializeClubSession,
   parseArenaClub,
+  removeClubParticipantCore,
 } from "./arena-club";
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
@@ -256,6 +258,169 @@ describe("arena-club.cancelClubSessionCore", () => {
       "arenaClubSessions/club_c1_2026-07-24/clubParticipants/uid1",
     )!;
     assert.equal(p1After["status"], "canceled_by_arena_refunded");
+  });
+});
+
+describe("arena-club add/remove participante (gestor)", () => {
+  const SESSION = "arenaClubSessions/club_c1_2026-07-24";
+
+  function seedSession(fake: FakeFirestore, overrides: Record<string, unknown> = {}): void {
+    fake.seedDoc(SESSION, {
+      clubId: "c1",
+      arenaId: "arena1",
+      arenaName: "Arena Sol",
+      clubName: "Clubinho de sexta",
+      date: "2026-07-24",
+      startTime: "15:00",
+      endTime: "19:00",
+      status: "scheduled",
+      capacity: 2,
+      confirmedCount: 0,
+      pendingCount: 0,
+      priceReais: 15,
+      blockBookingIds: [],
+      ...overrides,
+    });
+  }
+
+  const noDeps = {
+    refund: async () => undefined,
+    deletePayment: async () => undefined,
+    notify: async () => undefined,
+  };
+
+  it("adiciona atleta da plataforma como confirmado onsite", async () => {
+    const {fake, db} = (() => {
+      const f = new FakeFirestore();
+      return {fake: f, db: f as unknown as Firestore};
+    })();
+    seedSession(fake);
+    const notified: string[] = [];
+
+    const result = await addClubParticipantCore(db, "club_c1_2026-07-24", {
+      athleteId: "uid9",
+      customerName: null,
+      athleteName: "Maria",
+      athletePhotoUrl: null,
+      addedByUid: "manager1",
+    }, {...noDeps, notify: async (i) => {
+      notified.push(i.userId);
+    }});
+
+    assert.equal(result.participantId, "uid9");
+    const p = fake.store.get(`${SESSION}/clubParticipants/uid9`)!;
+    assert.equal(p["status"], "confirmed");
+    assert.equal(p["paymentMethod"], "onsite");
+    assert.equal(p["addedByRole"], "arena_manager");
+    assert.equal(fake.store.get(SESSION)!["confirmedCount"], 1);
+    assert.deepEqual(notified, ["uid9"]);
+  });
+
+  it("adiciona convidado sem conta (guest) e respeita capacidade", async () => {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    seedSession(fake, {capacity: 1});
+
+    const result = await addClubParticipantCore(db, "club_c1_2026-07-24", {
+      athleteId: null,
+      customerName: "Zé do WhatsApp",
+      athleteName: "Zé do WhatsApp",
+      athletePhotoUrl: null,
+      addedByUid: "manager1",
+    }, noDeps);
+    assert.ok(result.participantId.startsWith("guest_"));
+    const p = fake.store.get(`${SESSION}/clubParticipants/${result.participantId}`)!;
+    assert.equal(p["athleteId"], null);
+    assert.equal(p["athleteName"], "Zé do WhatsApp");
+
+    // Lista cheia → erro
+    await assert.rejects(
+      addClubParticipantCore(db, "club_c1_2026-07-24", {
+        athleteId: "uid2",
+        customerName: null,
+        athleteName: "Outro",
+        athletePhotoUrl: null,
+        addedByUid: "manager1",
+      }, noDeps),
+      /cheia/,
+    );
+  });
+
+  it("converte PIX pendente do atleta em confirmado onsite (solta a cobrança)", async () => {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    seedSession(fake, {capacity: 1, pendingCount: 1});
+    fake.seedDoc(`${SESSION}/clubParticipants/uid1`, {
+      athleteId: "uid1",
+      status: "pending_payment",
+      asaasPaymentId: "pay_1",
+      amountReais: 15,
+    });
+    const deleted: string[] = [];
+
+    const result = await addClubParticipantCore(db, "club_c1_2026-07-24", {
+      athleteId: "uid1",
+      customerName: null,
+      athleteName: "João",
+      athletePhotoUrl: null,
+      addedByUid: "manager1",
+    }, {...noDeps, deletePayment: async (id) => {
+      deleted.push(id);
+    }});
+
+    assert.equal(result.converted, true);
+    assert.deepEqual(deleted, ["pay_1"]);
+    const session = fake.store.get(SESSION)!;
+    assert.equal(session["confirmedCount"], 1);
+    assert.equal(session["pendingCount"], 0);
+  });
+
+  it("remove PIX confirmado com estorno + débito na carteira", async () => {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    seedSession(fake, {confirmedCount: 1});
+    fake.seedDoc(`${SESSION}/clubParticipants/uid1`, {
+      athleteId: "uid1",
+      status: "confirmed",
+      paymentMethod: "pix",
+      asaasPaymentId: "pay_1",
+      amountReais: 15,
+      netReais: 14.25,
+    });
+    const refunds: string[] = [];
+
+    const result = await removeClubParticipantCore(db, "club_c1_2026-07-24", "uid1", {
+      ...noDeps,
+      refund: async (id) => {
+        refunds.push(id);
+      },
+    });
+
+    assert.equal(result.refunded, true);
+    assert.deepEqual(refunds, ["pay_1"]);
+    const p = fake.store.get(`${SESSION}/clubParticipants/uid1`)!;
+    assert.equal(p["status"], "canceled_by_arena_refunded");
+    assert.equal(fake.store.get(SESSION)!["confirmedCount"], 0);
+    assert.equal(fake.store.get("arenaWallets/arena1")!["availableReais"], -14.25);
+  });
+
+  it("remove onsite sem estorno", async () => {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    seedSession(fake, {confirmedCount: 1});
+    fake.seedDoc(`${SESSION}/clubParticipants/guest_1`, {
+      athleteId: null,
+      status: "confirmed",
+      paymentMethod: "onsite",
+      amountReais: 15,
+      netReais: 0,
+    });
+
+    const result = await removeClubParticipantCore(db, "club_c1_2026-07-24", "guest_1", noDeps);
+    assert.equal(result.refunded, false);
+    const p = fake.store.get(`${SESSION}/clubParticipants/guest_1`)!;
+    assert.equal(p["status"], "canceled");
+    assert.equal(fake.store.has("arenaWallets/arena1"), false);
   });
 });
 

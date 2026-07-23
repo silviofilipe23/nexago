@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import type { Unsubscribe } from 'firebase/firestore';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { IconComponent } from '../ui/icon.component';
 import { initialsOf } from '../ui/initials';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -19,7 +20,15 @@ import {
   type ClubParticipant,
   type ClubParticipantStatus,
 } from './club.model';
-import { cancelClubSession, watchClubParticipants, watchClubSession } from './clubs-repository';
+import {
+  addClubParticipant,
+  cancelClubSession,
+  removeClubParticipant,
+  searchAthletes,
+  watchClubParticipants,
+  watchClubSession,
+  type AthleteSearchResult,
+} from './clubs-repository';
 
 const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
   pending_payment: 'yellow',
@@ -35,12 +44,16 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
 @Component({
   selector: 'ar-panel-club-session',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, ModalComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, ModalComponent, IconComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()">
         <button type="button" class="ar-mini-btn" (click)="goBack()">Voltar</button>
         @if (session()?.status === 'scheduled') {
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="openAddModal()">
+            <ar-icon name="plus" [size]="14" />
+            Adicionar atleta
+          </button>
           <button type="button" class="ar-mini-btn danger" (click)="cancelModalOpen.set(true)">Cancelar sessão</button>
         }
       </ar-page-header>
@@ -103,6 +116,16 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
                   } @else {
                     <ar-pill [tone]="participantTone[p.status]">{{ participantLabel[p.status] }}</ar-pill>
                   }
+                  <div class="participant-remove">
+                    @if (session()?.status === 'scheduled' && (p.status === 'confirmed' || p.status === 'pending_payment')) {
+                      <button
+                        type="button"
+                        class="remove-btn"
+                        title="Remover da lista"
+                        (click)="askRemove(p)"
+                      >×</button>
+                    }
+                  </div>
                 </div>
               } @empty {
                 <p class="state-text empty-text">Ninguém na lista ainda — compartilhe o clubinho com seus atletas.</p>
@@ -111,6 +134,93 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
           </ar-panel-card>
         }
       </div>
+
+      @if (addModalOpen()) {
+        <ar-modal (close)="addModalOpen.set(false)">
+          <p class="modal-title">Adicionar atleta à lista</p>
+          <p class="modal-text">
+            Entra direto como confirmado, com pagamento acertado na arena (sem PIX).
+          </p>
+
+          <div class="field-label">Buscar atleta da plataforma</div>
+          <input
+            type="text"
+            class="input-box"
+            placeholder="Nome do atleta…"
+            [value]="searchTerm()"
+            (input)="onSearchInput($any($event.target).value)"
+          />
+          @if (searching()) {
+            <p class="modal-hint">Buscando…</p>
+          } @else if (searchResults().length > 0) {
+            <div class="search-results">
+              @for (r of searchResults(); track r.id) {
+                <button type="button" class="search-result" [disabled]="adding()" (click)="addAthlete(r)">
+                  <span class="participant-avatar small">
+                    @if (r.photoUrl) {
+                      <img [src]="r.photoUrl" alt="" />
+                    } @else {
+                      <span>{{ initialsOf(r.name) }}</span>
+                    }
+                  </span>
+                  <span class="search-result-name">{{ r.name }}</span>
+                  <span class="search-result-add">Adicionar</span>
+                </button>
+              }
+            </div>
+          } @else if (searchTerm().trim().length >= 2) {
+            <p class="modal-hint">Nenhum atleta encontrado com esse nome.</p>
+          }
+
+          <div class="modal-divider">ou sem conta na plataforma</div>
+
+          <div class="field-label">Nome do convidado</div>
+          <div class="guest-row">
+            <input
+              type="text"
+              class="input-box"
+              placeholder="Ex.: Zé (grupo do WhatsApp)"
+              [value]="guestName()"
+              (input)="guestName.set($any($event.target).value)"
+            />
+            <button
+              type="button"
+              class="ar-mini-btn ar-mini-btn-primary"
+              [disabled]="guestName().trim().length < 2 || adding()"
+              (click)="addGuest()"
+            >
+              {{ adding() ? 'Adicionando…' : 'Adicionar' }}
+            </button>
+          </div>
+
+          @if (addError(); as err) {
+            <div class="error-banner modal-error">{{ err }}</div>
+          }
+        </ar-modal>
+      }
+
+      @if (removeTarget(); as target) {
+        <ar-modal (close)="removeTarget.set(null)">
+          <p class="modal-title">Remover {{ target.athleteName }} da lista?</p>
+          <p class="modal-text">
+            @if (target.status === 'confirmed' && target.paymentMethod === 'pix') {
+              O PIX pago será <strong>estornado automaticamente</strong> e o valor debitado da
+              carteira da arena. A vaga reabre.
+            } @else {
+              A vaga reabre na hora — não há pagamento online envolvido.
+            }
+          </p>
+          @if (addError(); as err) {
+            <div class="error-banner modal-error">{{ err }}</div>
+          }
+          <div class="modal-actions">
+            <button type="button" class="ar-mini-btn" (click)="removeTarget.set(null)">Voltar</button>
+            <button type="button" class="ar-mini-btn danger" [disabled]="removing()" (click)="confirmRemove()">
+              {{ removing() ? 'Removendo…' : 'Remover da lista' }}
+            </button>
+          </div>
+        </ar-modal>
+      }
 
       @if (cancelModalOpen()) {
         <ar-modal (close)="cancelModalOpen.set(false)">
@@ -228,11 +338,33 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
 
     .participant-row {
       display: grid;
-      grid-template-columns: 28px 36px 1fr 90px 150px;
+      grid-template-columns: 28px 36px 1fr 90px 150px 32px;
       gap: 12px;
       align-items: center;
       padding: 11px 0;
       border-bottom: 1px solid var(--nx-line);
+    }
+
+    .participant-remove {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .remove-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid var(--nx-line-strong);
+      background: transparent;
+      color: var(--nx-text-dim);
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .remove-btn:hover {
+      border-color: rgba(255, 59, 48, 0.5);
+      color: var(--nx-live);
     }
 
     .participant-row:last-child {
@@ -282,6 +414,87 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
     .ar-mini-btn.danger {
       border-color: rgba(255, 59, 48, 0.4);
       color: var(--nx-live);
+    }
+
+    .modal-hint {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: 10px 0 0;
+    }
+
+    .search-results {
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
+      max-height: 220px;
+      overflow: auto;
+    }
+
+    .search-result {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 6px;
+      border: none;
+      border-bottom: 1px solid var(--nx-line);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .search-result:hover {
+      background: var(--nx-surface-1);
+    }
+
+    .search-result-name {
+      flex: 1;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--nx-text);
+    }
+
+    .search-result-add {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-orange-500);
+    }
+
+    .participant-avatar.small {
+      width: 28px;
+      height: 28px;
+      font-size: 10px;
+    }
+
+    .modal-divider {
+      margin: 18px 0 12px;
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-divider::before,
+    .modal-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--nx-line);
+    }
+
+    .guest-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .guest-row .input-box {
+      flex: 1;
     }
 
     .modal-title {
@@ -355,6 +568,17 @@ export class PanelClubSessionComponent implements OnDestroy {
   protected readonly cancelReason = signal('');
   protected readonly canceling = signal(false);
 
+  protected readonly addModalOpen = signal(false);
+  protected readonly searchTerm = signal('');
+  protected readonly searchResults = signal<AthleteSearchResult[]>([]);
+  protected readonly searching = signal(false);
+  protected readonly guestName = signal('');
+  protected readonly adding = signal(false);
+  protected readonly addError = signal<string | null>(null);
+  protected readonly removeTarget = signal<ClubParticipant | null>(null);
+  protected readonly removing = signal(false);
+  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
+
   protected readonly headerTitle = computed(() => {
     const s = this.session();
     return s ? `${s.clubName} · ${formatFullDate(s.date)}` : 'Sessão do clubinho';
@@ -394,6 +618,88 @@ export class PanelClubSessionComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     for (const unsub of this.unsubs) unsub();
+    clearTimeout(this.searchDebounce);
+  }
+
+  protected openAddModal(): void {
+    this.searchTerm.set('');
+    this.searchResults.set([]);
+    this.guestName.set('');
+    this.addError.set(null);
+    this.addModalOpen.set(true);
+  }
+
+  protected onSearchInput(value: string): void {
+    this.searchTerm.set(value);
+    clearTimeout(this.searchDebounce);
+    const term = value.trim();
+    if (term.length < 2) {
+      this.searchResults.set([]);
+      this.searching.set(false);
+      return;
+    }
+    this.searching.set(true);
+    this.searchDebounce = setTimeout(() => void this.runSearch(term), 300);
+  }
+
+  private async runSearch(term: string): Promise<void> {
+    try {
+      const inList = new Set(
+        this.participants()
+          .filter((p) => p.status === 'confirmed' || p.status === 'pending_payment')
+          .map((p) => p.athleteId),
+      );
+      const results = await searchAthletes(arenaFirestore(), term);
+      this.searchResults.set(results.filter((r) => !inList.has(r.id)));
+    } catch {
+      this.searchResults.set([]);
+    } finally {
+      this.searching.set(false);
+    }
+  }
+
+  protected async addAthlete(result: AthleteSearchResult): Promise<void> {
+    await this.runAdd({ athleteId: result.id });
+  }
+
+  protected async addGuest(): Promise<void> {
+    const name = this.guestName().trim();
+    if (name.length < 2) return;
+    await this.runAdd({ customerName: name });
+  }
+
+  private async runAdd(input: { athleteId?: string; customerName?: string }): Promise<void> {
+    if (this.adding()) return;
+    this.adding.set(true);
+    this.addError.set(null);
+    try {
+      await addClubParticipant(arenaFunctions(), this.sessionId, input);
+      this.addModalOpen.set(false);
+    } catch (err) {
+      this.addError.set(err instanceof Error ? err.message : 'Não foi possível adicionar.');
+    } finally {
+      this.adding.set(false);
+    }
+  }
+
+  protected askRemove(participant: ClubParticipant): void {
+    this.addError.set(null);
+    this.removeTarget.set(participant);
+  }
+
+  protected async confirmRemove(): Promise<void> {
+    const target = this.removeTarget();
+    if (!target || this.removing()) return;
+    this.removing.set(true);
+    this.addError.set(null);
+    try {
+      await removeClubParticipant(arenaFunctions(), this.sessionId, target.id);
+      this.removeTarget.set(null);
+    } catch (err) {
+      this.addError.set(err instanceof Error ? err.message : 'Não foi possível remover.');
+    } finally {
+      this.removing.set(false);
+    }
   }
 
   protected goBack(): void {

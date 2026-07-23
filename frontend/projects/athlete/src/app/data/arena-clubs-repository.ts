@@ -81,6 +81,7 @@ export interface MyClubParticipation {
   endTime: string;
   startAt: Date | null;
   status: ClubParticipantStatus;
+  paymentMethod: 'pix' | 'onsite';
   amountReais: number;
 }
 
@@ -225,9 +226,29 @@ export async function fetchMyClubParticipations(
       endTime: str(d['endTime']),
       startAt: toDate(d['startAt']),
       status: (str(d['status']) as ClubParticipantStatus) || 'pending_payment',
+      paymentMethod: d['paymentMethod'] === 'onsite' ? 'onsite' : 'pix',
       amountReais: num(d['amountReais']),
     };
   });
+}
+
+/** Sessões abertas de TODAS as arenas a partir de hoje (aba Descobrir do hub Clubinho).
+ *  Range + orderBy no mesmo campo (`date`) dispensa índice composto; o filtro de
+ *  `scheduled` fica no cliente para não depender de deploy de índice novo. */
+export async function fetchDiscoverClubSessions(
+  db: Firestore,
+  fromDateKey: string,
+  max = 80,
+): Promise<ClubSession[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'arenaClubSessions'),
+      where('date', '>=', fromDateKey),
+      orderBy('date'),
+      limit(max),
+    ),
+  );
+  return snap.docs.map(clubSessionFromDoc).filter((s) => s.status === 'scheduled');
 }
 
 // ── Callables ────────────────────────────────────────────────────────────────

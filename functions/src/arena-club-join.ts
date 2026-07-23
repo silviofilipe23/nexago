@@ -81,7 +81,7 @@ function readSessionForJoin(data: Record<string, unknown>): SessionSnapshotForJo
   };
 }
 
-async function resolveAthleteDisplay(
+export async function resolveAthleteDisplay(
   db: Firestore,
   uid: string,
 ): Promise<{name: string; photoUrl: string | null}> {

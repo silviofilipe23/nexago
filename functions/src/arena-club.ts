@@ -46,6 +46,7 @@ import {
 } from "./asaas-booking-payment";
 import {asaasArenaSecrets} from "./asaas-client";
 import {debitArenaWalletForClubRefund} from "./arena-wallet";
+import {resolveAthleteDisplay} from "./arena-club-join";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -627,6 +628,276 @@ function formatDateBr(dateKey: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Gestor adiciona/remove atleta na lista
+// ---------------------------------------------------------------------------
+
+export interface ManageParticipantDeps {
+  refund: (paymentId: string) => Promise<void>;
+  deletePayment: (paymentId: string) => Promise<void>;
+  notify: (input: {
+    userId: string;
+    title: string;
+    body: string;
+    type: string;
+    data: Record<string, string>;
+  }) => Promise<void>;
+}
+
+const defaultManageDeps: ManageParticipantDeps = {
+  refund: (paymentId) => refundAsaasPayment(paymentId),
+  deletePayment: (paymentId) => deleteAsaasPaymentIfOpen(paymentId),
+  notify: async (input) => {
+    await deliverNotificationToUser({...input, requireInteraction: false});
+  },
+};
+
+export interface AddClubParticipantInput {
+  athleteId: string | null;
+  customerName: string | null;
+  athleteName: string;
+  athletePhotoUrl: string | null;
+  addedByUid: string;
+}
+
+/**
+ * Adiciona um participante pela mão do gestor: atleta da plataforma
+ * (docId = uid) ou convidado sem conta (docId `guest_*`, só o nome).
+ * Entra direto como `confirmed` com pagamento na arena — vale até em
+ * clubinho "só PIX" (prerrogativa do gestor, que cobra no balcão).
+ */
+export async function addClubParticipantCore(
+  db: Firestore,
+  sessionId: string,
+  input: AddClubParticipantInput,
+  deps: ManageParticipantDeps = defaultManageDeps,
+): Promise<{participantId: string; converted: boolean}> {
+  const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
+  const participantRef = input.athleteId ?
+    sessionRef.collection(CLUB_PARTICIPANTS).doc(input.athleteId) :
+    sessionRef.collection(CLUB_PARTICIPANTS).doc(`guest_${db.collection("_").doc().id}`);
+
+  const result = await db.runTransaction(async (tx: Transaction) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists) {
+      throw new HttpsError("not-found", "Sessão do clubinho não encontrada.");
+    }
+    const sessionData = sessionSnap.data() as Record<string, unknown>;
+    const session = parseClubSession(sessionData);
+    if (session.status !== "scheduled") {
+      throw new HttpsError("failed-precondition", "Esta sessão não está mais aberta.");
+    }
+    const startAt = sessionData["startAt"];
+    if (startAt instanceof Timestamp && Date.now() >= startAt.toMillis()) {
+      throw new HttpsError("failed-precondition", "Esta sessão já começou.");
+    }
+
+    const participantSnap = await tx.get(participantRef);
+    const existing = participantSnap.exists ?
+      (participantSnap.data() as Record<string, unknown>) :
+      null;
+    const existingStatus = existing ? String(existing["status"] ?? "") : "";
+
+    if (existingStatus === "confirmed") {
+      throw new HttpsError("already-exists", "Este atleta já está na lista.");
+    }
+
+    const wasHeld = existingStatus === "pending_payment";
+    if (!wasHeld && session.confirmedCount + session.pendingCount >= session.capacity) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "A lista está cheia — aumente as vagas do clubinho para adicionar mais.",
+      );
+    }
+
+    tx.set(participantRef, {
+      athleteId: input.athleteId,
+      athleteName: input.athleteName,
+      athletePhotoUrl: input.athletePhotoUrl,
+      clubId: session.clubId,
+      arenaId: session.arenaId,
+      arenaName: session.arenaName,
+      clubName: session.clubName,
+      date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      startAt: sessionData["startAt"] ?? null,
+      status: "confirmed",
+      paymentMethod: "onsite",
+      amountReais: session.priceReais,
+      platformFeeReais: 0,
+      netReais: 0,
+      asaasPaymentId: null,
+      pixCopyPaste: null,
+      paymentExpiresAt: null,
+      refundStatus: "none",
+      addedByRole: "arena_manager",
+      addedByUid: input.addedByUid,
+      joinedAt: existing?.["joinedAt"] ?? FieldValue.serverTimestamp(),
+      confirmedAt: FieldValue.serverTimestamp(),
+      canceledAt: null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    tx.set(sessionRef, {
+      confirmedCount: session.confirmedCount + 1,
+      ...(wasHeld ? {pendingCount: Math.max(0, session.pendingCount - 1)} : {}),
+    }, {merge: true});
+
+    return {
+      session,
+      previousAsaasPaymentId: typeof existing?.["asaasPaymentId"] === "string" ?
+        (existing["asaasPaymentId"] as string).trim() :
+        "",
+      converted: wasHeld,
+    };
+  });
+
+  if (result.previousAsaasPaymentId) {
+    await deps.deletePayment(result.previousAsaasPaymentId);
+  }
+
+  if (input.athleteId) {
+    try {
+      await deps.notify({
+        userId: input.athleteId,
+        title: "Você está na lista! 🎾",
+        body: `A arena garantiu sua vaga no ${result.session.clubName} em ` +
+          `${formatDateBr(result.session.date)} — pagamento na arena.`,
+        type: "club_join_confirmed",
+        data: {clubSessionId: sessionId, arenaId: result.session.arenaId},
+      });
+    } catch (e) {
+      logger.warn("addClubParticipantCore: notificação falhou", {sessionId, error: e});
+    }
+  }
+
+  return {participantId: participantRef.id, converted: result.converted};
+}
+
+/**
+ * Remove um participante pela mão do gestor. PIX confirmado → estorno
+ * automático (sem janela de prazo: o gestor pode remover até o início);
+ * onsite/convidado/pendente → só cancela. A vaga reabre.
+ */
+export async function removeClubParticipantCore(
+  db: Firestore,
+  sessionId: string,
+  participantId: string,
+  deps: ManageParticipantDeps = defaultManageDeps,
+): Promise<{participantId: string; refunded: boolean}> {
+  const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
+  const participantRef = sessionRef.collection(CLUB_PARTICIPANTS).doc(participantId);
+
+  const sessionSnap = await sessionRef.get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError("not-found", "Sessão do clubinho não encontrada.");
+  }
+  const session = parseClubSession(sessionSnap.data() as Record<string, unknown>);
+
+  const participantSnap = await participantRef.get();
+  if (!participantSnap.exists) {
+    throw new HttpsError("not-found", "Participante não encontrado.");
+  }
+  const participant = participantSnap.data() as Record<string, unknown>;
+  const status = String(participant["status"] ?? "");
+  const paymentMethod = participant["paymentMethod"] === "onsite" ? "onsite" : "pix";
+  const athleteId = typeof participant["athleteId"] === "string" ?
+    (participant["athleteId"] as string).trim() :
+    "";
+  const asaasPaymentId = typeof participant["asaasPaymentId"] === "string" ?
+    (participant["asaasPaymentId"] as string).trim() :
+    "";
+
+  if (status === "pending_payment") {
+    if (asaasPaymentId) await deps.deletePayment(asaasPaymentId);
+    await db.runTransaction(async (tx: Transaction) => {
+      const snap = await tx.get(participantRef);
+      if (String(snap.data()?.["status"]) !== "pending_payment") return;
+      const sSnap = await tx.get(sessionRef);
+      const pending = Number(sSnap.data()?.["pendingCount"] ?? 0);
+      tx.set(participantRef, {
+        status: "canceled",
+        canceledAt: FieldValue.serverTimestamp(),
+        removedByRole: "arena_manager",
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      tx.set(sessionRef, {pendingCount: Math.max(0, pending - 1)}, {merge: true});
+    });
+    return {participantId, refunded: false};
+  }
+
+  if (status !== "confirmed") {
+    throw new HttpsError("failed-precondition", "Este participante já saiu da lista.");
+  }
+
+  const isPixPaid = paymentMethod === "pix";
+  if (isPixPaid && asaasPaymentId) {
+    try {
+      await deps.refund(asaasPaymentId);
+    } catch (e) {
+      await participantRef.set({refundStatus: "failed"}, {merge: true});
+      logger.error("removeClubParticipantCore: estorno falhou", {sessionId, participantId, error: e});
+      throw new HttpsError(
+        "internal",
+        "Não foi possível estornar o PIX agora. Tente novamente em instantes.",
+      );
+    }
+  }
+
+  await db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(participantRef);
+    if (String(snap.data()?.["status"]) !== "confirmed") return;
+    const sSnap = await tx.get(sessionRef);
+    const confirmed = Number(sSnap.data()?.["confirmedCount"] ?? 0);
+    tx.set(participantRef, {
+      status: isPixPaid ? "canceled_by_arena_refunded" : "canceled",
+      ...(isPixPaid ? {refundStatus: "done"} : {}),
+      canceledAt: FieldValue.serverTimestamp(),
+      removedByRole: "arena_manager",
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    tx.set(sessionRef, {confirmedCount: Math.max(0, confirmed - 1)}, {merge: true});
+  });
+
+  if (isPixPaid) {
+    const netReais = Number(participant["netReais"] ?? 0);
+    if (netReais > 0) {
+      try {
+        await debitArenaWalletForClubRefund(db, session.arenaId, {
+          sessionId,
+          participantId,
+          netReais,
+        });
+      } catch (e) {
+        logger.error("removeClubParticipantCore: débito da carteira falhou", {
+          sessionId,
+          participantId,
+          error: e,
+        });
+      }
+    }
+  }
+
+  if (athleteId) {
+    try {
+      await deps.notify({
+        userId: athleteId,
+        title: "Você saiu da lista",
+        body: `A arena removeu seu nome da lista do ${session.clubName} ` +
+          `(${formatDateBr(session.date)})` +
+          (isPixPaid ? " — seu PIX será estornado automaticamente." : "."),
+        type: "club_leave_refunded",
+        data: {clubSessionId: sessionId, arenaId: session.arenaId},
+      });
+    } catch (e) {
+      logger.warn("removeClubParticipantCore: notificação falhou", {sessionId, error: e});
+    }
+  }
+
+  return {participantId, refunded: isPixPaid};
+}
+
+// ---------------------------------------------------------------------------
 // Validação de acesso
 // ---------------------------------------------------------------------------
 
@@ -1079,6 +1350,96 @@ export const cancelArenaClubSession = onCall({
   const result = await cancelClubSessionCore(db, sessionId, reason);
   logger.info("cancelArenaClubSession", result);
   return result;
+});
+
+interface AddParticipantCallableInput {
+  sessionId?: string;
+  athleteId?: string;
+  customerName?: string;
+}
+
+export const addArenaClubParticipant = onCall({
+  secrets: asaasArenaSecrets,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const input = (request.data ?? {}) as AddParticipantCallableInput;
+  const sessionId = input.sessionId?.trim() ?? "";
+  const athleteId = input.athleteId?.trim() || null;
+  const customerName = input.customerName?.trim().slice(0, 80) || null;
+  if (!sessionId) {
+    throw new HttpsError("invalid-argument", "Sessão inválida.");
+  }
+  if ((athleteId == null) === (customerName == null)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Informe o atleta OU o nome do convidado (apenas um).",
+    );
+  }
+
+  const db = getFirestore();
+  const sessionSnap = await db.collection(ARENA_CLUB_SESSIONS).doc(sessionId).get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError("not-found", "Sessão do clubinho não encontrada.");
+  }
+  const session = parseClubSession(sessionSnap.data() as Record<string, unknown>);
+  await requireArenaManager(db, session.arenaId, uid);
+
+  let athleteName = customerName ?? "Atleta";
+  let athletePhotoUrl: string | null = null;
+  if (athleteId) {
+    const userSnap = await db.collection("users").doc(athleteId).get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Atleta não encontrado.");
+    }
+    const display = await resolveAthleteDisplay(db, athleteId);
+    athleteName = display.name;
+    athletePhotoUrl = display.photoUrl;
+  }
+
+  const result = await addClubParticipantCore(db, sessionId, {
+    athleteId,
+    customerName,
+    athleteName,
+    athletePhotoUrl,
+    addedByUid: uid,
+  });
+  logger.info("addArenaClubParticipant", {sessionId, ...result});
+  return {sessionId, ...result};
+});
+
+interface RemoveParticipantCallableInput {
+  sessionId?: string;
+  participantId?: string;
+}
+
+export const removeArenaClubParticipant = onCall({
+  secrets: asaasArenaSecrets,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const input = (request.data ?? {}) as RemoveParticipantCallableInput;
+  const sessionId = input.sessionId?.trim() ?? "";
+  const participantId = input.participantId?.trim() ?? "";
+  if (!sessionId || !participantId) {
+    throw new HttpsError("invalid-argument", "Sessão ou participante inválido.");
+  }
+
+  const db = getFirestore();
+  const sessionSnap = await db.collection(ARENA_CLUB_SESSIONS).doc(sessionId).get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError("not-found", "Sessão do clubinho não encontrada.");
+  }
+  const session = parseClubSession(sessionSnap.data() as Record<string, unknown>);
+  await requireArenaManager(db, session.arenaId, uid);
+
+  const result = await removeClubParticipantCore(db, sessionId, participantId);
+  logger.info("removeArenaClubParticipant", {sessionId, ...result});
+  return {sessionId, ...result};
 });
 
 /** Rótulo "toda sexta-feira, 15:00–19:00" para notificações/logs. */

@@ -85,6 +85,8 @@ export {
   setArenaClubStatus,
   createArenaClubSession,
   cancelArenaClubSession,
+  addArenaClubParticipant,
+  removeArenaClubParticipant,
 } from "./arena-club";
 export {materializeArenaClubSessions} from "./arena-club-materializer";
 export {

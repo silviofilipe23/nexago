@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -140,6 +141,84 @@ export async function createClubSession(
       { clubId: string; date: string },
       { sessionId: string; skippedCourtIds: string[] }
     >(functions, 'createArenaClubSession')({ clubId, date });
+    return result.data;
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
+// ── Gestor adiciona/remove atleta na lista ──────────────────────────────────
+
+export interface AthleteSearchResult {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+}
+
+function normalizeSearchTerm(term: string): string {
+  return term
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/** Busca no espelho público `public_profiles` (mesmo índice keywords do app/portal atleta). */
+export async function searchAthletes(db: Firestore, term: string): Promise<AthleteSearchResult[]> {
+  const normalized = normalizeSearchTerm(term);
+  if (!normalized) return [];
+  const snap = await getDocs(
+    query(
+      collection(db, 'public_profiles'),
+      where('hasAthleteRole', '==', true),
+      where('keywords', 'array-contains', normalized),
+      limit(10),
+    ),
+  );
+  return snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const name =
+      (typeof data['fullName'] === 'string' && data['fullName']) ||
+      (typeof data['name'] === 'string' && data['name']) ||
+      (typeof data['nickname'] === 'string' && data['nickname']) ||
+      'Atleta';
+    const rawPhoto = data['profilePhotoUrl'] ?? data['avatarUrl'] ?? data['photoURL'];
+    return {
+      id: d.id,
+      name,
+      photoUrl: typeof rawPhoto === 'string' && rawPhoto ? rawPhoto : null,
+    };
+  });
+}
+
+/** Adiciona atleta da plataforma (athleteId) OU convidado sem conta (customerName). */
+export async function addClubParticipant(
+  functions: Functions,
+  sessionId: string,
+  input: { athleteId?: string; customerName?: string },
+): Promise<{ participantId: string }> {
+  try {
+    const result = await httpsCallable<
+      { sessionId: string; athleteId?: string; customerName?: string },
+      { participantId: string }
+    >(functions, 'addArenaClubParticipant')({ sessionId, ...input });
+    return result.data;
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
+/** Remove da lista — PIX confirmado é estornado automaticamente; onsite só cancela. */
+export async function removeClubParticipant(
+  functions: Functions,
+  sessionId: string,
+  participantId: string,
+): Promise<{ refunded: boolean }> {
+  try {
+    const result = await httpsCallable<
+      { sessionId: string; participantId: string },
+      { refunded: boolean }
+    >(functions, 'removeArenaClubParticipant')({ sessionId, participantId });
     return result.data;
   } catch (err) {
     throw mapFunctionsError(err);

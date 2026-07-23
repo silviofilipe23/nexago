@@ -10,6 +10,7 @@ import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../
 import { athleteFunctions } from '../data/functions';
 import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
+import { birthDateBrToIso, validateBirthDate, validatePhone } from './onboarding-validators';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
 
@@ -56,24 +57,6 @@ function createFirestore(): Firestore | null {
   }
   const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
   return getFirestore(app);
-}
-
-function isValidWhatsApp(raw: string): boolean {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length >= 10 && digits.length <= 11) return true;
-  return digits.length >= 12 && digits.length <= 13 && digits.startsWith('55');
-}
-
-/** `dd/mm/aaaa` → `YYYY-MM-DD` (mesma convenção do Flutter, athlete_firestore_codes.dart). */
-function birthDateBrToIso(raw: string): string | null {
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
-  if (!match) return null;
-  const [, d, m, y] = match;
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  if (date.getFullYear() !== Number(y) || date.getMonth() !== Number(m) - 1 || date.getDate() !== Number(d)) {
-    return null;
-  }
-  return `${y}-${m}-${d}`;
 }
 
 @Component({
@@ -129,18 +112,18 @@ export class AthleteOnboardingComponent {
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
   protected readonly phoneError = computed(() =>
-    this.touched() && !isValidWhatsApp(this.phone()) ? 'Informe um WhatsApp válido' : null,
+    this.touched() ? validatePhone(this.phone()) : null,
   );
   protected readonly birthDateError = computed(() =>
-    this.touched() && !birthDateBrToIso(this.birthDateInput()) ? 'Data inválida (dd/mm/aaaa)' : null,
+    this.touched() ? validateBirthDate(this.birthDateInput()) : null,
   );
   protected readonly genderError = computed(() => (this.touched() && !this.gender() ? 'Obrigatório' : null));
 
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
-      isValidWhatsApp(this.phone()) &&
-      birthDateBrToIso(this.birthDateInput()) != null &&
+      validatePhone(this.phone()) == null &&
+      validateBirthDate(this.birthDateInput()) == null &&
       this.gender() != null,
   );
 

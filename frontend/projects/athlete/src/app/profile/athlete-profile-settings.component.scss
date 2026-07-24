@@ -196,24 +196,36 @@
 }
 
 // ── Identidade ───────────────────────────────────────────────
+// Hero: capa + avatar sobrepondo pela metade a borda inferior da capa.
+// margin-bottom reserva espaço pra metade do avatar que "vaza" pra fora do hero
+// (36px = metade dos 72px do avatar) + respiro antes do próximo conteúdo.
+.at-profile-hero {
+  position: relative;
+  margin: -18px -18px 44px;
+}
+
 .at-profile-cover {
   position: relative;
   height: 120px;
-  margin: -18px -18px 16px;
   border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
   overflow: hidden;
   border-bottom: 1px solid var(--nx-line);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .at-profile-cover--empty {
   background: linear-gradient(135deg, var(--nx-orange-tint), var(--nx-surface-1));
 }
 
-.at-profile-cover-img {
+.at-profile-cover-img,
+.at-profile-cover-skeleton {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.at-profile-cover-img {
   object-fit: cover;
 }
 
@@ -230,22 +242,17 @@
   backdrop-filter: blur(2px);
 }
 
-.at-profile-avatar-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
 .at-profile-avatar {
-  position: relative;
+  position: absolute;
+  left: 18px;
+  bottom: -36px;
   width: 72px;
   height: 72px;
-  flex: none;
   border-radius: 50%;
   overflow: hidden;
   background: var(--nx-orange-tint);
   border: 1px solid rgba(255, 106, 26, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
   display: grid;
   place-items: center;
 }
@@ -257,11 +264,15 @@
   color: var(--nx-orange-500);
 }
 
-.at-profile-avatar-img {
+.at-profile-avatar-img,
+.at-profile-avatar-skeleton {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.at-profile-avatar-img {
   object-fit: cover;
 }
 
@@ -270,6 +281,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .at-profile-hint {

@@ -15,7 +15,8 @@
     "baseUrl": "./",
     "paths": {
       "@nexago/firebase-config": ["shared/firebase/firebase.config.ts"],
-      "@nexago/arena-discovery": ["shared/arena-discovery/index.ts"]
+      "@nexago/arena-discovery": ["shared/arena-discovery/index.ts"],
+      "@nexago/levels": ["shared/levels/index.ts"]
     }
   },
   "angularCompilerOptions": {

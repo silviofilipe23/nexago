@@ -2,6 +2,7 @@ import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {compositeTeamRating, updateRating, type GlickoRating} from "./glicko";
 import {
+  RATED_SPORT_CODES,
   loadRatingLadderConfig,
   resolveLadderLevel,
   type RatingLadderConfig,
@@ -85,11 +86,6 @@ export function declaredLevelFor(
       const value = (bySport as Record<string, unknown>)[sportCode];
       if (typeof value === "string" && value.trim()) return value.trim();
     }
-  }
-  const legacy = userData["levelsBySportFirestore"];
-  if (legacy != null && typeof legacy === "object") {
-    const value = (legacy as Record<string, unknown>)[sportCode];
-    if (typeof value === "string" && value.trim()) return value.trim();
   }
   const global = userData["level"];
   return typeof global === "string" ? global.trim() : "";
@@ -190,7 +186,12 @@ export async function applyMatchRatingUpdate(
   const sportCode = tournamentSportToLevelSportCode(
     tournamentSnap.data()?.sport,
   );
-  if (!sportCode) {
+  // Ter código de esporte no perfil não basta: só os esportes da escada v1
+  // são rateados (footvolley/beach tennis têm nível declarado, sem rating).
+  if (
+    !sportCode ||
+    !(RATED_SPORT_CODES as readonly string[]).includes(sportCode)
+  ) {
     return {processed: false, reason: "sport_not_rated"};
   }
 

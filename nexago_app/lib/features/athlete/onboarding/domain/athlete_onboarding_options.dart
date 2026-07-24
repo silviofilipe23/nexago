@@ -55,6 +55,11 @@ abstract final class AthleteOnboardingOptions {
       icon: Icons.sports_volleyball,
     ),
     OnboardingSportOption(
+      id: 'footvolley',
+      label: 'Futevôlei',
+      icon: Icons.sports_soccer,
+    ),
+    OnboardingSportOption(
       id: 'football',
       label: 'Futebol',
       icon: Icons.sports_soccer_outlined,
@@ -87,32 +92,9 @@ abstract final class AthleteOnboardingOptions {
     ),
   ];
 
+  /// Escada única de 5 níveis, a mesma para todos os esportes — espelho de
+  /// `AthleteProfileOptions.levels`.
   static const List<OnboardingLevelOption> levels = [
-    OnboardingLevelOption(
-      label: 'Iniciante 1',
-      description: 'Estou começando ou jogo pouco tempo.',
-    ),
-    OnboardingLevelOption(
-      label: 'Iniciante 2',
-      description: 'Jogo com regularidade e tenho boa experiência.',
-    ),
-    OnboardingLevelOption(
-      label: 'Intermediário 1',
-      description: 'Tenho alto nível amador e disputo torneios competitivos.',
-    ),
-    OnboardingLevelOption(
-      label: 'Intermediário 2',
-      description: 'Já domino o básico e jogo com frequência.',
-    ),
-    OnboardingLevelOption(
-      label: 'Open',
-      description: 'Tenho alto nível amador e disputo torneios competitivos.',
-    ),
-  ];
-
-  /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de
-  /// `AthleteProfileOptions.volleyballLevels`.
-  static const List<OnboardingLevelOption> volleyballLevels = [
     OnboardingLevelOption(
       label: 'Iniciante 1',
       description: 'Estou começando ou jogo pouco tempo.',
@@ -134,16 +116,6 @@ abstract final class AthleteOnboardingOptions {
       description: 'Tenho alto nível amador e disputo torneios competitivos.',
     ),
   ];
-
-  static const Set<String> _fiveLevelSportIds = {
-    'beach_volleyball',
-    'indoor_volleyball',
-  };
-
-  /// Escada de níveis conforme o esporte principal escolhido no onboarding.
-  static List<OnboardingLevelOption> levelsForSport(String? sportId) {
-    return _fiveLevelSportIds.contains(sportId) ? volleyballLevels : levels;
-  }
 
   static const List<OnboardingGoalOption> goals = [
     OnboardingGoalOption(

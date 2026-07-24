@@ -83,7 +83,7 @@ describe("isWalkoverMatch / shouldProcessRatingUpdate", () => {
 });
 
 describe("declaredLevelFor / seedRatingState", () => {
-  it("resolve nível por esporte com fallback legado e global", () => {
+  it("resolve nível por esporte com fallback global", () => {
     assert.equal(
       declaredLevelFor(
         {sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
@@ -91,9 +91,13 @@ describe("declaredLevelFor / seedRatingState", () => {
       ),
       "open",
     );
+    // Campo fantasma ignorado — cai no global.
     assert.equal(
-      declaredLevelFor({levelsBySportFirestore: {VOLEI_PRAIA: "iniciante"}}, "VOLEI_PRAIA"),
-      "iniciante",
+      declaredLevelFor(
+        {level: "open", levelsBySportFirestore: {VOLEI_PRAIA: "iniciante"}},
+        "VOLEI_PRAIA",
+      ),
+      "open",
     );
     assert.equal(declaredLevelFor({level: "intermediario"}, "VOLEI_PRAIA"), "intermediario");
     assert.equal(declaredLevelFor(null, "VOLEI_PRAIA"), "");
@@ -176,7 +180,7 @@ describe("applyMatchRatingUpdate", () => {
     assert.equal(ratingDocOf(db, "a1"), undefined);
   });
 
-  it("esporte sem código (futevôlei) e torneio ausente são pulados", async () => {
+  it("esporte não rateado (futevôlei) e torneio ausente são pulados", async () => {
     const db = seededDb();
     db.seedDoc("tournaments/T1", {sport: "footvolley"});
     const skipped = await applyMatchRatingUpdate(db as never, PROJECT, {

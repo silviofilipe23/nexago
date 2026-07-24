@@ -21,6 +21,7 @@ class AppUserProfile {
     this.roles = const [],
     this.primarySportFirestoreId,
     this.levelsBySportFirestore = const {},
+    this.level,
     this.sandRankTrackIndex,
   });
 
@@ -42,6 +43,10 @@ class AppUserProfile {
   /// Nível por esporte em `sportOnboarding.levelsBySport` (código Firestore
   /// do esporte → código do nível, ex.: `intermediario_1`).
   final Map<String, String> levelsBySportFirestore;
+
+  /// Nível global legado (`level`, label) — fallback de leitura para docs
+  /// anteriores ao mapa por esporte.
+  final String? level;
 
   /// Degrau do elo de gamificação (`sandRank.trackIndex`, escrito por CF).
   final int? sandRankTrackIndex;
@@ -85,6 +90,7 @@ class AppUserProfile {
       roles: _stringList(data['roles']),
       primarySportFirestoreId: primarySportFirestoreId,
       levelsBySportFirestore: levelsBySportFirestore,
+      level: _str(data['level']) ?? _str(data['nivel']),
       sandRankTrackIndex: data['sandRank'] is Map
           ? ((data['sandRank'] as Map)['trackIndex'] as num?)?.toInt()
           : null,

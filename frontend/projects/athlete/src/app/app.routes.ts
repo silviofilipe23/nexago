@@ -234,6 +234,14 @@ export const routes: Routes = [
         (m) => m.AthleteProfileSettingsComponent,
       ),
   },
+  {
+    path: 'perfil/esportes',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./profile/athlete-sports-levels.component').then(
+        (m) => m.AthleteSportsLevelsComponent,
+      ),
+  },
   // Fallback: URL desconhecida cai no painel (deslogado, o authGuard manda pro login).
   { path: '**', redirectTo: 'painel' },
 ];

@@ -13,6 +13,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { levelDisplayLabel } from '@nexago/levels';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { initialsOf } from '../ui/initials';
@@ -77,10 +78,30 @@ function readAthleteLink(athleteUid: string, data: Record<string, unknown> | und
   };
 }
 
+/** Nível declarado pela cadeia canônica: `sportOnboarding.levelsBySport`
+ *  (esporte principal) → `category`/`level`/`nivel` legados — sempre mapeado
+ *  pra label de exibição (antes podia vazar código cru tipo `intermediario_1`). */
+function readDeclaredLevel(data: Record<string, unknown> | undefined): string {
+  const onboarding =
+    data?.['sportOnboarding'] && typeof data['sportOnboarding'] === 'object'
+      ? (data['sportOnboarding'] as Record<string, unknown>)
+      : undefined;
+  const levels =
+    onboarding?.['levelsBySport'] && typeof onboarding['levelsBySport'] === 'object'
+      ? (onboarding['levelsBySport'] as Record<string, unknown>)
+      : undefined;
+  const primary =
+    typeof onboarding?.['primarySportId'] === 'string'
+      ? (onboarding['primarySportId'] as string)
+      : '';
+  const perSport = primary && typeof levels?.[primary] === 'string' ? (levels[primary] as string) : '';
+  const raw = perSport || firstNonEmptyString(data, ['category', 'level', 'nivel']);
+  return levelDisplayLabel(raw);
+}
+
 function readPublicProfile(data: Record<string, unknown> | undefined): AthletePublicProfile {
   const displayName = firstNonEmptyString(data, ['fullName', 'name', 'nickname']) || 'Atleta';
-  const category = firstNonEmptyString(data, ['category', 'level', 'nivel']);
-  return { displayName, initials: initialsOf(displayName), category };
+  return { displayName, initials: initialsOf(displayName), category: readDeclaredLevel(data) };
 }
 
 function chunk<T>(list: T[], size: number): T[][] {

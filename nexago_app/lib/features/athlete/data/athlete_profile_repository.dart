@@ -11,7 +11,6 @@ import '../domain/athlete_privacy_preferences.dart';
 import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
-import '../domain/athlete_public_profile_models.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
 
@@ -105,7 +104,6 @@ class AthleteProfileRepository {
     data['hasOrganizerRole'] = searchFields.hasOrganizerRole;
 
     data['discoverSportIds'] = discoverSportIdsForProfile(profile);
-    data['discoverLevelLabel'] = resolveAthleteLevelLabel(profile);
     data['lookingForPartner'] = profile.lookingForPartner;
     if (profile.gameObjective != null && profile.gameObjective!.trim().isNotEmpty) {
       data['gameObjective'] = profile.gameObjective!.trim();
@@ -260,42 +258,50 @@ String? _normalizedGenderForFirestore(String? raw) {
 }
 
 /// Evita que `set(merge)` rebaixe níveis e dispare `athleteLevelsNotDowngraded`.
+///
+/// Os campos legados `level`/`sportProfile.level` não são mais emitidos pelo
+/// `toFirestore` (a escrita canônica é só `sportOnboarding.levelsBySport`);
+/// campo AUSENTE no payload já preserva o valor sob merge, então os clamps
+/// legados só agem se algum caminho ainda incluir o campo (defesa barata —
+/// remover quando os legados aposentarem de vez).
 void _preserveAthleteLevelsOnUpdate({
   required Map<String, dynamic> data,
   required Map<String, dynamic> existing,
 }) {
   final existingLevel = existing['level'];
   final requestLevel = data['level'];
-  if (existingLevel is String && existingLevel.trim().isNotEmpty) {
+  if (requestLevel is String &&
+      existingLevel is String &&
+      existingLevel.trim().isNotEmpty) {
     final existingRank = AthleteProfileOptions.levelRank(existingLevel);
-    final requestRank = requestLevel is String
-        ? AthleteProfileOptions.levelRank(requestLevel)
-        : null;
+    final requestRank = AthleteProfileOptions.levelRank(requestLevel);
     if (existingRank != null &&
         (requestRank == null || requestRank < existingRank)) {
       data['level'] = existingLevel;
     }
   }
 
+  final requestSportProfile = data['sportProfile'];
   final existingSportProfile = existing['sportProfile'];
-  if (existingSportProfile is Map) {
-    final existingCode = existingSportProfile['level']?.toString().trim() ?? '';
-    if (existingCode.isNotEmpty) {
-      final existingRank = AthleteProfileOptions.levelRank(existingCode) ?? -1;
-      final requestSportProfile = data['sportProfile'];
-      final requestCode = requestSportProfile is Map
-          ? requestSportProfile['level']?.toString().trim() ?? ''
-          : '';
-      final requestRank = requestCode.isEmpty
-          ? -1
-          : (AthleteProfileOptions.levelRank(requestCode) ?? -1);
-      if (requestRank < existingRank) {
-        data['sportProfile'] = <String, dynamic>{'level': existingCode};
+  if (requestSportProfile is Map) {
+    if (requestSportProfile.isEmpty) {
+      data.remove('sportProfile');
+    } else if (existingSportProfile is Map) {
+      final existingCode =
+          existingSportProfile['level']?.toString().trim() ?? '';
+      if (existingCode.isNotEmpty) {
+        final existingRank =
+            AthleteProfileOptions.levelRank(existingCode) ?? -1;
+        final requestCode =
+            requestSportProfile['level']?.toString().trim() ?? '';
+        final requestRank = requestCode.isEmpty
+            ? -1
+            : (AthleteProfileOptions.levelRank(requestCode) ?? -1);
+        if (requestRank < existingRank) {
+          data['sportProfile'] = <String, dynamic>{'level': existingCode};
+        }
       }
     }
-  } else if (data['sportProfile'] is Map &&
-      (data['sportProfile'] as Map).isEmpty) {
-    data.remove('sportProfile');
   }
 
   final existingOnboarding = existing['sportOnboarding'];

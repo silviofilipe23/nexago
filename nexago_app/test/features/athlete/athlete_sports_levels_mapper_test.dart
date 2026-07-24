@@ -23,7 +23,7 @@ void main() {
       expect(enrollments.first.levelLabel, 'Intermediário');
     });
 
-    test('fromProfile defaults missing secondary level to Iniciante', () {
+    test('fromProfile defaults missing secondary level to Iniciante 1', () {
       const profile = AthleteProfile(
         id: 'u1',
         name: 'Test',
@@ -38,9 +38,11 @@ void main() {
 
       final enrollments = AthleteSportsLevelsMapper.fromProfile(profile);
       expect(enrollments, hasLength(2));
+      // Código legado salvo continua exibido com o label legado (rank 0).
       expect(enrollments[0].levelLabel, 'Iniciante');
       expect(enrollments[1].appSportId, 'beach_tennis');
-      expect(enrollments[1].levelLabel, 'Iniciante');
+      // Esporte sem nível salvo entra no degrau padrão da escada de 5.
+      expect(enrollments[1].levelLabel, 'Iniciante 1');
     });
 
     test('toProfile round-trip writes all levelsBySport keys', () {

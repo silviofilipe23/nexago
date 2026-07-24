@@ -102,18 +102,31 @@
 }
 
 .at-header-avatar {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--nx-orange-tint);
   border: 1px solid rgba(255, 106, 26, 0.35);
   display: grid;
   place-items: center;
+  text-decoration: none;
+}
+
+.at-header-avatar-fallback {
   font-family: var(--nx-font-display);
   font-weight: 700;
   font-size: 13px;
   color: var(--nx-orange-500);
-  text-decoration: none;
+}
+
+.at-header-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 // ── Body / layout ────────────────────────────────────────────

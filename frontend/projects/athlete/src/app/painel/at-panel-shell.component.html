@@ -76,7 +76,12 @@
     </button>
 
     <a routerLink="/perfil" class="at-user-chip">
-      <span class="at-user-avatar">{{ initials() }}</span>
+      <span class="at-user-avatar">
+        <span class="at-user-avatar-fallback">{{ initials() }}</span>
+        @if (avatarUrl(); as photo) {
+          <img class="at-user-avatar-img" [src]="photo" alt="" loading="lazy" />
+        }
+      </span>
       <span class="at-user-info">
         <span class="at-user-name">{{ userName() }}</span>
         @if (userLevel(); as level) {

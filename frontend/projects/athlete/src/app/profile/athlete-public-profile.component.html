@@ -59,6 +59,11 @@
       <div class="pp-main-grid">
         <div class="pp-col">
           <div class="pp-card pp-identity-card">
+            @if (athlete.coverPhotoUrl; as cover) {
+              <div class="pp-cover">
+                <img class="pp-cover-img" [src]="cover" alt="" loading="lazy" />
+              </div>
+            }
             <div class="pp-identity-head">
               @if (athlete.profilePhotoUrl) {
                 <img class="pp-avatar-img" [src]="athlete.profilePhotoUrl" alt="Foto de {{ athlete.fullName }}" />

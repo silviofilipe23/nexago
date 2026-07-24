@@ -196,6 +196,40 @@
 }
 
 // ── Identidade ───────────────────────────────────────────────
+.at-profile-cover {
+  position: relative;
+  height: 120px;
+  margin: -18px -18px 16px;
+  border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.at-profile-cover--empty {
+  background: linear-gradient(135deg, var(--nx-orange-tint), var(--nx-surface-1));
+}
+
+.at-profile-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.at-profile-cover-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+}
+
+.at-profile-cover-actions .at-mini-btn {
+  background: rgba(10, 10, 10, 0.55);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(2px);
+}
+
 .at-profile-avatar-row {
   display: flex;
   align-items: center;

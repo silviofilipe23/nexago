@@ -383,6 +383,23 @@
 }
 
 // ── Identity card ────────────────────────────────────────────
+.pp-cover {
+  position: relative;
+  height: 120px;
+  margin: -20px -20px 16px;
+  border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.pp-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .pp-identity-head {
   display: flex;
   flex-direction: column;

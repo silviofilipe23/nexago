@@ -37,7 +37,7 @@ interface CompetirSection {
       <header class="ch-page-header">
         <div>
           <h1>Competir</h1>
-          <div class="ch-page-header-sub">Torneios, ranking, equipes e atletas num lugar só</div>
+          <div class="ch-page-header-sub">Torneios, ranking, equipes e atletas</div>
         </div>
       </header>
 
@@ -82,7 +82,7 @@ interface CompetirSection {
     }
     @media (max-width: 640px) {
       .ch-page-header {
-        padding: 16px;
+        padding: 0;
       }
     }
     .ch-page-header h1 {
@@ -107,7 +107,7 @@ interface CompetirSection {
     }
     @media (max-width: 640px) {
       .ch-body {
-        padding: 16px 16px 32px;
+        padding: 16px 0;
       }
     }
     .ch-grid {

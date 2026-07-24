@@ -18,6 +18,11 @@ $rk-bronze: #d98a4b;
   @media (max-width: 640px) {
     padding: 16px;
   }
+
+  @media (max-width: 560px) {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
 }
 
 .rk-page-header-titles {
@@ -54,6 +59,10 @@ $rk-bronze: #d98a4b;
   align-items: center;
   gap: 10px;
   flex: none;
+
+  @media (max-width: 560px) {
+    flex-basis: 100%;
+  }
 }
 
 .rk-search-box {
@@ -87,8 +96,13 @@ $rk-bronze: #d98a4b;
     width: 170px;
   }
 
+  // Antes ficava `display: none` — busca inteira desaparecia no mobile e virava
+  // funcionalidade inalcançável no toque. Agora escala pra largura fluida e
+  // quebra pra linha própria (via .rk-page-header flex-wrap) em vez de sumir.
   @media (max-width: 560px) {
-    display: none;
+    width: auto;
+    flex: 1;
+    min-width: 0;
   }
 }
 
@@ -102,6 +116,10 @@ $rk-bronze: #d98a4b;
   border: 1px solid var(--nx-line-strong);
   border-radius: var(--nx-r-1);
   padding: 2px 5px;
+
+  @media (max-width: 560px) {
+    display: none;
+  }
 }
 
 .rk-bell {

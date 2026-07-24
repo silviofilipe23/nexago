@@ -1,7 +1,11 @@
 import {
   MIN_AGE_YEARS,
+  MIN_NATIVE_BIRTH_DATE_ISO,
   ageOn,
   birthDateBrToIso,
+  birthDateIsoToBr,
+  formatBirthDateMask,
+  maxNativeBirthDateIso,
   normalizeBrMobile,
   validateBirthDate,
   validatePhone,
@@ -119,5 +123,48 @@ describe('normalizeBrMobile', () => {
 
   it('devolve null quando não chega a 11 dígitos', () => {
     expect(normalizeBrMobile('1134567890')).toBeNull();
+  });
+});
+
+describe('formatBirthDateMask', () => {
+  it('insere as barras nas posições 2 e 4 conforme os dígitos chegam', () => {
+    expect(formatBirthDateMask('1')).toBe('1');
+    expect(formatBirthDateMask('15')).toBe('15');
+    expect(formatBirthDateMask('150')).toBe('15/0');
+    expect(formatBirthDateMask('1503')).toBe('15/03');
+    expect(formatBirthDateMask('15031990')).toBe('15/03/1990');
+  });
+
+  it('ignora tudo que não é dígito', () => {
+    expect(formatBirthDateMask('15/03/1990')).toBe('15/03/1990');
+    expect(formatBirthDateMask('ab15cd03ef1990')).toBe('15/03/1990');
+  });
+
+  it('limita a 8 dígitos (dd/mm/aaaa)', () => {
+    expect(formatBirthDateMask('150319909999')).toBe('15/03/1990');
+  });
+
+  it('devolve string vazia para entrada vazia', () => {
+    expect(formatBirthDateMask('')).toBe('');
+  });
+});
+
+describe('birthDateIsoToBr', () => {
+  it('converte o valor do <input type="date"> nativo pro formato do campo mascarado', () => {
+    expect(birthDateIsoToBr('1990-03-15')).toBe('15/03/1990');
+  });
+});
+
+describe('maxNativeBirthDateIso', () => {
+  const HOJE = new Date(2026, 6, 23); // 23/07/2026
+
+  it(`retorna hoje menos ${MIN_AGE_YEARS} anos, em ISO`, () => {
+    expect(maxNativeBirthDateIso(HOJE)).toBe('2013-07-23');
+  });
+});
+
+describe('MIN_NATIVE_BIRTH_DATE_ISO', () => {
+  it('é 1º de janeiro do ano mínimo aceito', () => {
+    expect(MIN_NATIVE_BIRTH_DATE_ISO).toBe('1900-01-01');
   });
 });

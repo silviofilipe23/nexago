@@ -14,6 +14,11 @@
   @media (max-width: 640px) {
     padding: 16px;
   }
+
+  @media (max-width: 560px) {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
 }
 
 .rv-page-header-titles {
@@ -50,6 +55,37 @@
   align-items: center;
   gap: 10px;
   flex: none;
+
+  @media (max-width: 560px) {
+    flex-basis: 100%;
+  }
+}
+
+.rv-clubinho-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: none;
+  flex: none;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  @media (max-width: 560px) {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 .rv-header-avatar {

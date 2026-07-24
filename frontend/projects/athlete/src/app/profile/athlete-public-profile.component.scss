@@ -401,7 +401,7 @@
   height: 120px;
   border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
   overflow: hidden;
-  border-bottom: 1px solid var(--nx-line);
+  // border-bottom: 1px solid var(--nx-line); 
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
@@ -419,6 +419,13 @@
 
 .pp-cover-img {
   object-fit: cover;
+}
+
+.pp-cover-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
 }
 
 .pp-identity-head {

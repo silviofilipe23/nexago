@@ -66,13 +66,14 @@
                     <app-nx-skeleton class="pp-cover-skeleton" [w]="'100%'" [h]="'100%'" [r]="0" />
                   }
                   <img
-                    class="pp-cover-img"
+                    class="pp-cover-img" 
                     [src]="cover"
                     alt=""
                     loading="lazy"
                     (load)="coverLoaded.set(true)"
                     (error)="coverLoaded.set(true)"
                   />
+                  <div class="pp-cover-fade" aria-hidden="true"></div>
                 }
               </div>
 

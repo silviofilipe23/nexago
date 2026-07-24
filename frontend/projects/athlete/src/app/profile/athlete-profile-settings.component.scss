@@ -240,6 +240,13 @@
   object-fit: cover;
 }
 
+.at-profile-cover-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
 .at-profile-cover-actions {
   position: absolute;
   right: 10px;

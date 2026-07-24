@@ -193,7 +193,32 @@
           <label class="nx-field">
             <span class="nx-field-label">Data de nascimento *</span>
             <span class="nx-field-box" [class.nx-field-box--error]="birthDateError()">
-              <input type="text" [value]="birthDateInput()" (input)="birthDateInput.set($any($event.target).value)" placeholder="dd/mm/aaaa" />
+              <input
+                type="text"
+                inputmode="numeric"
+                [value]="birthDateInput()"
+                (input)="onBirthDateInputChanged($any($event.target).value)"
+                placeholder="dd/mm/aaaa"
+                maxlength="10"
+              />
+              <button type="button" (click)="openBirthDatePicker()" aria-label="Escolher data no calendário">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </button>
+              <input
+                #birthDateNative
+                type="date"
+                class="ob-native-date-input"
+                tabindex="-1"
+                aria-hidden="true"
+                [attr.min]="birthDateNativeMin"
+                [attr.max]="birthDateNativeMax"
+                (change)="onBirthDateNativeChange($event)"
+              />
             </span>
             @if (birthDateError(); as e) {
               <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>

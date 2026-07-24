@@ -41,6 +41,37 @@ export function birthDateBrToIso(raw: string): string | null {
   return `${y}-${m}-${d}`;
 }
 
+/** Data mínima aceita pelo `<input type="date">` nativo — mesmo piso de `MIN_BIRTH_YEAR`. */
+export const MIN_NATIVE_BIRTH_DATE_ISO = `${MIN_BIRTH_YEAR}-01-01`;
+
+/** Data máxima aceita pelo `<input type="date">` nativo — hoje menos `MIN_AGE_YEARS`,
+ *  mesmo piso de idade mínima usado em `validateBirthDate`. Formato ISO (`YYYY-MM-DD`). */
+export function maxNativeBirthDateIso(today: Date = new Date()): string {
+  const year = today.getFullYear() - MIN_AGE_YEARS;
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Aplica a máscara `dd/mm/aaaa` enquanto o atleta digita — mesma lógica do
+ *  `BrDateInputFormatter` do Flutter (`onboarding_input_formatters.dart`), portada
+ *  pra manter paridade entre os dois clientes. */
+export function formatBirthDateMask(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  let result = '';
+  for (let i = 0; i < digits.length; i++) {
+    if (i === 2 || i === 4) result += '/';
+    result += digits[i];
+  }
+  return result;
+}
+
+/** `YYYY-MM-DD` (valor do `<input type="date">` nativo) → `dd/mm/aaaa` (formato do campo mascarado). */
+export function birthDateIsoToBr(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 /** Idade completa em anos na data de referência. */
 export function ageOn(birth: Date, reference: Date): number {
   const age = reference.getFullYear() - birth.getFullYear();

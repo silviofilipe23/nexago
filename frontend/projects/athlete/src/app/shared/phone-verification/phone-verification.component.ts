@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, outpu
 import type { RecaptchaVerifier } from 'firebase/auth';
 import { mapFirebaseAuthError } from '../../auth/firebase-auth-errors';
 import { PhoneVerificationService, type PhoneVerificationSession } from './phone-verification.service';
-import { isValidPhoneNumber } from './phone-verification.util';
+import { formatBrPhoneMask, isValidPhoneNumber } from './phone-verification.util';
 
 type Step = 'phone' | 'code';
 
@@ -52,7 +52,7 @@ export class PhoneVerificationComponent {
   }
 
   protected setPhone(value: string): void {
-    this.phone.set(value);
+    this.phone.set(formatBrPhoneMask(value));
   }
 
   protected setCode(value: string): void {

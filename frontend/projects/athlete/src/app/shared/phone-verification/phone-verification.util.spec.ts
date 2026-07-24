@@ -1,4 +1,4 @@
-import { isValidPhoneNumber, phoneLinkMethod, toE164BR } from './phone-verification.util';
+import { formatBrPhoneMask, isValidPhoneNumber, phoneLinkMethod, toE164BR } from './phone-verification.util';
 
 describe('isValidPhoneNumber', () => {
   it('aceita 11 dígitos (celular com 9)', () => {
@@ -40,5 +40,34 @@ describe('phoneLinkMethod', () => {
 
   it('usa update quando a conta já tem credencial de telefone vinculada', () => {
     expect(phoneLinkMethod(['password', 'phone'])).toBe('update');
+  });
+});
+
+describe('formatBrPhoneMask', () => {
+  it('monta a máscara de celular (00) 00000-0000 progressivamente, enquanto digita', () => {
+    expect(formatBrPhoneMask('1')).toBe('(1');
+    expect(formatBrPhoneMask('11')).toBe('(11) ');
+    expect(formatBrPhoneMask('119')).toBe('(11) 9');
+    expect(formatBrPhoneMask('1198765')).toBe('(11) 98765');
+    expect(formatBrPhoneMask('11987654')).toBe('(11) 98765-4');
+    expect(formatBrPhoneMask('11987654321')).toBe('(11) 98765-4321');
+  });
+
+  it('monta a máscara de fixo (00) 0000-0000 quando não começa com 9 depois do DDD', () => {
+    expect(formatBrPhoneMask('1134567890')).toBe('(11) 3456-7890');
+  });
+
+  it('ignora tudo que não é dígito e limita a 11 dígitos', () => {
+    expect(formatBrPhoneMask('(11) 98765-4321')).toBe('(11) 98765-4321');
+    expect(formatBrPhoneMask('11987654321999')).toBe('(11) 98765-4321');
+  });
+
+  it('devolve string vazia para entrada vazia', () => {
+    expect(formatBrPhoneMask('')).toBe('');
+  });
+
+  it('remove o código do país (+55) antes de aplicar a máscara', () => {
+    expect(formatBrPhoneMask('+55 11 98765-4321')).toBe('(11) 98765-4321');
+    expect(formatBrPhoneMask('5511987654321')).toBe('(11) 98765-4321');
   });
 });

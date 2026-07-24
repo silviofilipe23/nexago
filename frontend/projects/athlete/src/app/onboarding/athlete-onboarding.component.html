@@ -213,6 +213,8 @@
                 #birthDateNative
                 type="date"
                 class="ob-native-date-input"
+                tabindex="-1"
+                aria-hidden="true"
                 [attr.min]="birthDateNativeMin"
                 [attr.max]="birthDateNativeMax"
                 (change)="onBirthDateNativeChange($event)"

@@ -65,4 +65,9 @@ describe('formatBrPhoneMask', () => {
   it('devolve string vazia para entrada vazia', () => {
     expect(formatBrPhoneMask('')).toBe('');
   });
+
+  it('remove o código do país (+55) antes de aplicar a máscara', () => {
+    expect(formatBrPhoneMask('+55 11 98765-4321')).toBe('(11) 98765-4321');
+    expect(formatBrPhoneMask('5511987654321')).toBe('(11) 98765-4321');
+  });
 });

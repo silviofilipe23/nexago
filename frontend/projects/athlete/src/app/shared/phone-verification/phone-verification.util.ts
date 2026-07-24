@@ -35,6 +35,9 @@ export function phoneLinkMethod(providerIds: readonly string[]): 'link' | 'updat
 export function formatBrPhoneMask(raw: string): string {
   let digits = raw.replace(/\D/g, '');
   if (digits.length === 0) return '';
+  if (digits.length >= 12 && digits.length <= 13 && digits.startsWith('55')) {
+    digits = digits.slice(2);
+  }
   if (digits.length > 11) digits = digits.slice(0, 11);
 
   const ddd = digits.length >= 2 ? digits.slice(0, 2) : digits;

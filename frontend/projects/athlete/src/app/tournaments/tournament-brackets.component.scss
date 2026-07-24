@@ -57,6 +57,10 @@
   &:hover {
     color: var(--nx-text);
   }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+  }
 }
 
 .bx-dim {
@@ -216,8 +220,17 @@
   color: var(--nx-text-dim);
 }
 
+// Wrapper próprio de scroll — a tabela de classificação pode ter mais colunas
+// do que cabe em 375px; sem isso o `overflow: hidden` do `.bx-group` cortava
+// as últimas colunas (Sets/Pts) silenciosamente, sem indicação de que faltava
+// conteúdo.
+.bx-table-scroll {
+  overflow-x: auto;
+}
+
 .bx-standings-table {
   width: 100%;
+  min-width: 360px;
   border-collapse: collapse;
   font-family: var(--nx-font-ui);
   font-size: 12.5px;
@@ -313,6 +326,12 @@
   &:hover {
     color: var(--nx-text);
   }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .bx-bracket {
@@ -320,6 +339,16 @@
   gap: 48px;
   overflow-x: auto;
   padding: 8px 4px 12px;
+
+  // No mobile a chave é mais larga que a tela — isso é esperado (padrão de UX
+  // pra brackets), mas o scroll fica contido aqui dentro (nunca na página).
+  // Fade só na borda direita (não na esquerda, pra não escurecer a 1ª rodada
+  // logo na chegada) deixa claro que há mais colunas fora da viewport, em vez
+  // de cortar abruptamente.
+  @media (max-width: 640px) {
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  }
 }
 
 .bx-round {

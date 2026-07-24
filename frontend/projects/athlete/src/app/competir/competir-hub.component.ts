@@ -77,8 +77,13 @@ interface CompetirSection {
       display: flex;
       align-items: center;
       gap: 16px;
-      padding: 20px 28px;
+      padding: 20px 24px;
       border-bottom: 1px solid var(--nx-line);
+    }
+    @media (max-width: 640px) {
+      .ch-page-header {
+        padding: 16px;
+      }
     }
     .ch-page-header h1 {
       margin: 0;
@@ -98,7 +103,12 @@ interface CompetirSection {
       color: var(--nx-text-dim);
     }
     .ch-body {
-      padding: 22px 28px 32px;
+      padding: 22px 24px 32px;
+    }
+    @media (max-width: 640px) {
+      .ch-body {
+        padding: 16px 16px 32px;
+      }
     }
     .ch-grid {
       display: grid;

@@ -300,6 +300,11 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 
+  // Evita o zoom automático do iOS ao focar.
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
+
   &:focus-visible {
     outline: 2px solid var(--nx-orange-500);
     outline-offset: 1px;
@@ -349,13 +354,17 @@
   flex: none;
   background: transparent;
   border: none;
-  padding: 0;
+  padding: 0 2px;
   color: var(--nx-text-dim);
   font-family: var(--nx-font-ui);
   font-weight: 600;
   font-size: 12px;
   text-decoration: underline;
   cursor: pointer;
+  // Alvo de toque: era só o texto sublinhado, sem altura tocável mínima.
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 
   &:hover {
     color: var(--nx-text);
@@ -588,6 +597,11 @@
   font-family: var(--nx-font-mono);
   font-size: 14px;
 
+  // Evita o zoom automático do iOS ao focar.
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
+
   &:focus-visible {
     outline: 2px solid var(--nx-orange-500);
     outline-offset: 1px;
@@ -678,10 +692,17 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+
+  // "Dividir com amigos" é o rótulo mais longo dos dois — em telas bem
+  // estreitas as duas colunas ficam apertadas demais lado a lado.
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .pm-split-tab {
   height: 38px;
+  padding: 0 6px;
   border-radius: var(--nx-r-2);
   background: var(--nx-surface-1);
   border: 1px solid var(--nx-line);
@@ -734,6 +755,11 @@
   color: var(--nx-text);
   font-family: var(--nx-font-ui);
   font-size: 13.5px;
+
+  // Evita o zoom automático do iOS ao focar.
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
 
   &:focus-visible {
     outline: 2px solid var(--nx-orange-500);
@@ -882,6 +908,13 @@
   font-size: 13px;
   text-align: right;
 
+  // Evita o zoom automático do iOS ao focar; um pouco mais largo pra caber
+  // o valor com a fonte maior.
+  @media (max-width: 640px) {
+    width: 80px;
+    font-size: 16px;
+  }
+
   &:focus-visible {
     outline: none;
   }
@@ -904,6 +937,13 @@
   cursor: pointer;
   display: grid;
   place-items: center;
+
+  // Alvo de toque ≥44px no mobile — remover um participante da divisão é
+  // uma ação sensível, precisa de precisão.
+  @media (max-width: 640px) {
+    width: 44px;
+    height: 44px;
+  }
 
   &:hover {
     border-color: var(--nx-live);

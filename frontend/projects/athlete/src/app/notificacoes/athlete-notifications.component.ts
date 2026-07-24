@@ -134,6 +134,12 @@ function toneOf(type: string | null): NotifTone {
       gap: 16px;
       padding: 20px 28px;
       border-bottom: 1px solid var(--nx-line);
+
+      @media (max-width: 640px) {
+        flex-wrap: wrap;
+        padding: 16px;
+        gap: 12px;
+      }
     }
     .nt-page-header h1 {
       margin: 0;
@@ -154,6 +160,11 @@ function toneOf(type: string | null): NotifTone {
     }
     .nt-page-header-spacer {
       flex: 1;
+
+      @media (max-width: 640px) {
+        flex-basis: 100%;
+        height: 0;
+      }
     }
     .nt-mark-all {
       height: 34px;
@@ -166,6 +177,16 @@ function toneOf(type: string | null): NotifTone {
       font-weight: 600;
       font-size: 12.5px;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+
+      @media (max-width: 640px) {
+        height: 44px;
+        flex: 1;
+      }
     }
     .nt-mark-all:hover:not(:disabled) {
       color: var(--nx-text);
@@ -178,6 +199,10 @@ function toneOf(type: string | null): NotifTone {
     .nt-body {
       padding: 20px 28px 32px;
       max-width: 720px;
+
+      @media (max-width: 640px) {
+        padding: 16px 16px 32px;
+      }
     }
     .nt-list {
       display: flex;
@@ -229,6 +254,8 @@ function toneOf(type: string | null): NotifTone {
     }
     .nt-item-title {
       flex: 1;
+      min-width: 0;
+      overflow-wrap: break-word;
       font-family: var(--nx-font-display);
       font-weight: 700;
       font-size: 13.5px;

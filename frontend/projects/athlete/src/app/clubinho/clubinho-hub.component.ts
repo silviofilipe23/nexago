@@ -529,6 +529,20 @@ function formatBRL(value: number): string {
       .ch-price {
         width: auto;
       }
+
+      /* Alvos de toque: 30px/32px ficam abaixo do mínimo de 44px no mobile. */
+      .ch-tabs {
+        gap: var(--nx-s-2);
+      }
+
+      .ch-tab {
+        height: 44px;
+        padding: 0 18px;
+      }
+
+      .ch-btn {
+        height: 44px;
+      }
     }
   `,
 })

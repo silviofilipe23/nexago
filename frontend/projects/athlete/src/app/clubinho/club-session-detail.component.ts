@@ -483,6 +483,17 @@ function formatFullDate(dateKey: string): string {
       .cs-grid {
         grid-template-columns: 1fr;
       }
+
+      /* Alvos de toque: 40px fica abaixo do mínimo de 44px no mobile; o link
+         "Voltar" também não tinha padding, então a área tocável era só o texto. */
+      .cs-btn-ghost,
+      .cs-btn-danger {
+        min-height: 44px;
+      }
+
+      .cs-back {
+        padding: 13px 6px;
+      }
     }
   `,
 })

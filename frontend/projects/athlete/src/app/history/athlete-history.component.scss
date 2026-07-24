@@ -171,6 +171,17 @@
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-r-3);
   width: fit-content;
+  max-width: 100%;
+  // 4 abas ("Torneios e Ligas" incluso) somam mais que os ~343px úteis num viewport de
+  // 375px; sem isso o row não quebra nem encolhe (largura fit-content) e estoura a
+  // página inteira. Scroll horizontal contido só nesta faixa, nunca na página.
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .hs-tab {
@@ -184,6 +195,8 @@
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--nx-d-fast);
 
   &:hover {
@@ -231,7 +244,10 @@
   font-family: var(--nx-font-mono);
   font-size: 11px;
   color: var(--nx-text-dim);
-  white-space: nowrap;
+  // Texto gerado dinamicamente ("N jogos · N vitórias · R$ X gastos") — sem largura
+  // limite. nowrap forçava esse item de flex a nunca encolher, podendo estourar a
+  // largura da página em meses com números grandes; deixa quebrar linha em vez disso.
+  max-width: 100%;
 }
 
 .hs-row-list {

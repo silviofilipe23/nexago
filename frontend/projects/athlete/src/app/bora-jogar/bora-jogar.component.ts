@@ -168,6 +168,10 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       gap: 16px;
       padding: 20px 28px;
       border-bottom: 1px solid var(--nx-line);
+
+      @media (max-width: 640px) {
+        padding: 16px;
+      }
     }
     .bj-page-header h1 {
       margin: 0;
@@ -195,6 +199,10 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       display: flex;
       flex-direction: column;
       gap: 12px;
+
+      @media (max-width: 640px) {
+        padding: 16px 16px 32px;
+      }
     }
     .bj-section-title {
       margin: 8px 0 0;
@@ -218,6 +226,11 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       border-radius: var(--nx-r-4);
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
+
+      @media (max-width: 640px) {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
     .bj-card--invite {
       border-color: rgba(255, 106, 26, 0.3);
@@ -233,9 +246,13 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
     .bj-card-top {
       display: flex;
       align-items: center;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 6px 10px;
     }
     .bj-card-title {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: break-word;
       font-family: var(--nx-font-display);
       font-weight: 700;
       font-size: 14px;
@@ -255,6 +272,10 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       display: flex;
       gap: 8px;
       flex: none;
+
+      @media (max-width: 640px) {
+        width: 100%;
+      }
     }
     .bj-btn {
       height: 32px;
@@ -267,6 +288,11 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       font-weight: 600;
       font-size: 12px;
       cursor: pointer;
+
+      @media (max-width: 640px) {
+        flex: 1;
+        height: 44px;
+      }
     }
     .bj-btn:hover:not(:disabled) {
       color: var(--nx-text);
@@ -289,6 +315,8 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       border-radius: 999px;
       display: inline-flex;
       align-items: center;
+      flex: none;
+      white-space: nowrap;
       font-family: var(--nx-font-mono);
       font-size: 9px;
       font-weight: 700;

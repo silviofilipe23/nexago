@@ -332,8 +332,10 @@ function onlyDigits(v: string): string {
       border: 1px solid var(--nx-line);
       color: var(--nx-text);
       font-family: var(--nx-font-ui);
-      font-size: 14px;
+      /* >= 16px evita o zoom automático do iOS ao focar o campo. */
+      font-size: 16px;
       padding: 0 14px;
+      width: 100%;
     }
 
     .cp-input:focus {
@@ -370,7 +372,7 @@ function onlyDigits(v: string): string {
       display: inline-flex;
       justify-content: center;
       align-items: center;
-      height: 42px;
+      height: 44px;
       padding: 0 16px;
       border-radius: var(--nx-r-2);
       background: transparent;
@@ -432,6 +434,11 @@ function onlyDigits(v: string): string {
     @media (max-width: 720px) {
       .cp-body {
         padding: 18px 16px 32px;
+      }
+
+      /* Alvo de toque: o link "Voltar" só tinha a área do texto/ícone (sem padding). */
+      .cp-back {
+        padding: 13px 6px;
       }
     }
   `,

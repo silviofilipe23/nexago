@@ -677,6 +677,12 @@ $ag-kind-colors: (
   &:hover {
     background: var(--nx-orange-400);
   }
+
+  // CTA principal de cada linha de evento — toque frequente, precisa de alvo maior no mobile.
+  @media (max-width: 640px) {
+    height: 44px;
+    padding: 0 16px;
+  }
 }
 
 .ag-event-cta--ghost {
@@ -888,6 +894,12 @@ $ag-kind-colors: (
   height: 34px;
   padding: 0 12px;
   font-size: 12.5px;
+
+  // Aceitar/Recusar convite e confirmar/cancelar uniforme são ações frequentes —
+  // 34px de altura fica abaixo do alvo de toque confortável no mobile.
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 // ── Month stats ──────────────────────────────────────────────

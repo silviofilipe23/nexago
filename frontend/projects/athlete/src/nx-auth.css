@@ -389,7 +389,8 @@
   border: none;
   outline: none;
   font-family: var(--nx-font-ui);
-  font-size: 15px;
+  /* 16px (não 15px) evita o zoom automático do iOS Safari ao focar o campo. */
+  font-size: 16px;
   font-weight: 500;
   color: var(--nx-text);
   letter-spacing: -0.005em;
@@ -401,6 +402,7 @@
 }
 
 .nx-field-box button {
+  position: relative;
   flex: none;
   background: transparent;
   border: none;
@@ -410,6 +412,14 @@
   display: grid;
   place-items: center;
   border-radius: 8px;
+}
+
+/* Área de toque visualmente invisível: o botão (ícone de olho / calendário)
+   renderiza em ~32px, abaixo do alvo mínimo de 44px recomendado para toque. */
+.nx-field-box button::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 
 .nx-field-msg {

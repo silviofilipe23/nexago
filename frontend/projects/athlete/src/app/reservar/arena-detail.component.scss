@@ -105,6 +105,11 @@
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
+  // Alvo de toque: era só o texto (sem padding), bem abaixo de 44px de altura.
+  min-height: 44px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
 
   &:hover {
     color: #fff;

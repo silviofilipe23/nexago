@@ -31,6 +31,11 @@
   color: var(--nx-text);
   margin: 0;
   white-space: nowrap;
+
+  @media (max-width: 640px) {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
 }
 
 .at-page-header-sub {
@@ -41,6 +46,11 @@
   text-transform: uppercase;
   color: var(--nx-text-dim);
   white-space: nowrap;
+
+  @media (max-width: 640px) {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
 }
 
 .at-page-header-spacer {
@@ -392,6 +402,13 @@
   justify-content: center;
   text-decoration: none;
   white-space: nowrap;
+
+  // Alvo de toque real (Aceitar/Recusar convite, Como chegar/Detalhes) fica curto
+  // demais em telas pequenas — 32px de altura some sob o mínimo de toque confortável.
+  @media (max-width: 640px) {
+    height: 44px;
+    padding: 0 16px;
+  }
 }
 
 .at-mini-btn--primary {

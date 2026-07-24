@@ -335,6 +335,24 @@
   background: var(--nx-surface-1);
 }
 
+// Agrupa avatar + texto num item flexível só; separado das ações (botões)
+// pra que, sem espaço, o grupo de botões quebre pra própria linha em vez de
+// espremer o texto numa coluna de poucos px (ver @media no fim do arquivo).
+.ob-photo-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ob-photo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
 .ob-photo-copy {
   flex: 1;
   min-width: 0;
@@ -424,4 +442,30 @@
   color: var(--nx-text-on-orange);
   display: grid;
   place-items: center;
+}
+
+// ── Mobile (≤640px) ──────────────────────────────────────────
+// O painel já herda largura fluida do auth-shell (max-width: 400px + padding
+// 24px), então grids/flex com fr/gap não estouram a 375px. O que falta nesse
+// breakpoint é: alvos de toque abaixo de 44px e o agrupamento foto+texto vs.
+// botões, que sem espaço fica espremido numa coluna de poucos px.
+@media (max-width: 640px) {
+  .ob-back-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .ob-mini-btn {
+    min-height: 44px;
+  }
+
+  .ob-gender-tile {
+    min-height: 44px;
+  }
+
+  // Força o grupo de ações (Remover/Trocar/Escolher) a quebrar pra própria
+  // linha em vez de espremer ob-photo-copy até poucos px de largura.
+  .ob-photo-main {
+    min-width: 180px;
+  }
 }

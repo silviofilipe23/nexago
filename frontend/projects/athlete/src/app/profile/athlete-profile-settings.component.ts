@@ -40,6 +40,7 @@ interface AthleteProfileData {
   bio: string;
   publicProfileId: string | null;
   publicProfileEnabled: boolean;
+  profilePhotoUrl: string | null;
 }
 
 const EMPTY_PROFILE: AthleteProfileData = {
@@ -52,6 +53,7 @@ const EMPTY_PROFILE: AthleteProfileData = {
   bio: '',
   publicProfileId: null,
   publicProfileEnabled: true,
+  profilePhotoUrl: null,
 };
 
 interface StatRow {
@@ -160,6 +162,11 @@ export class AthleteProfileSettingsComponent {
 
   protected readonly displayName = computed(() => this.profileState().fullName || this.fallbackAccountLabel());
   protected readonly initials = computed(() => initialsOf(this.displayName()));
+  /** Foto do onboarding (Firestore `users/{uid}.profilePhotoUrl`) tem prioridade;
+   *  cai pro `photoURL` do Firebase Auth (Google/Apple) quando não há uma. */
+  protected readonly avatarUrl = computed(
+    () => this.profileState().profilePhotoUrl ?? this.auth.user()?.photoURL ?? null,
+  );
   protected readonly handle = computed(() => slugify(this.displayName()) || 'atleta');
   protected readonly cityStateLabel = computed(
     () => joinCityState(this.profileState().city, this.profileState().state) || 'Cidade não informada',
@@ -579,6 +586,7 @@ export class AthleteProfileSettingsComponent {
         // Só false quando o doc já existe e diz explicitamente false (ex.: privacidade desativada
         // no app) — um doc novo ou sem esse campo deve poder ser encontrado pelo perfil público.
         publicProfileEnabled: profileData?.['publicProfileEnabled'] !== false,
+        profilePhotoUrl: readString(userData, ['profilePhotoUrl']),
       });
       this.referredBy.set(readString(userData, ['referredBy']));
     } catch {

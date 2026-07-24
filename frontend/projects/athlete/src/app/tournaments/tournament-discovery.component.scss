@@ -401,6 +401,10 @@
     color: var(--nx-text);
     border-color: var(--nx-line-strong);
   }
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .cp-chip--active {
@@ -466,6 +470,10 @@
 .cp-switch--standalone {
   padding-top: 4px;
   border-top: 1px solid var(--nx-line);
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+  }
 }
 
 // ── Section ──────────────────────────────────────────────────

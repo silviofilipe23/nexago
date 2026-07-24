@@ -30,6 +30,10 @@
   &:hover {
     color: var(--nx-text);
   }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+  }
 }
 
 .tdv-notice {
@@ -228,6 +232,12 @@
   &:hover {
     color: #fff;
   }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .tdv-hero-title {
@@ -275,6 +285,10 @@
 
   &:hover {
     text-decoration: underline;
+  }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
   }
 }
 
@@ -550,6 +564,10 @@
   &:hover {
     background: var(--nx-orange-400);
   }
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .tdv-btn-full {
@@ -582,6 +600,10 @@
 
   &:hover {
     border-color: var(--nx-line-strong);
+  }
+
+  @media (max-width: 640px) {
+    height: 44px;
   }
 }
 

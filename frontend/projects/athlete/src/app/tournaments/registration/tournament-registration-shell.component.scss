@@ -57,6 +57,10 @@
   &:hover {
     color: var(--nx-text);
   }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+  }
 }
 
 .rg-notice {
@@ -135,6 +139,12 @@
   &:focus {
     outline: none;
     border-color: var(--nx-orange-500, #ff6a1a);
+  }
+
+  // font-size < 16px faz o iOS dar zoom automático ao focar o campo.
+  @media (max-width: 640px) {
+    height: 44px;
+    font-size: 16px;
   }
 }
 
@@ -252,6 +262,12 @@
 
   &:hover {
     color: var(--nx-text);
+  }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 }
 
@@ -561,6 +577,10 @@
   &:hover {
     border-color: var(--nx-line-strong);
   }
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .rg-btn-full {
@@ -629,6 +649,10 @@
 .rg-btn-save-uniform {
   align-self: flex-start;
   height: 40px;
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .rg-uniform-note {

@@ -13,6 +13,11 @@
 
   @media (max-width: 640px) {
     padding: 16px;
+    // Editando o perfil mostra 2 botões (Cancelar + Salvar alterações); sem wrap eles
+    // ficam flex:none e espremem o título+subtítulo numa coluna de ~90px, quebrando
+    // "Editando perfil" em 2 linhas e o subtítulo em 4. Deixa a ação cair pra 2ª linha.
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 }
 
@@ -50,6 +55,12 @@
   align-items: center;
   gap: 10px;
   flex: none;
+
+  @media (max-width: 640px) {
+    // Com o header em flex-wrap, esse bloco cai pra própria linha — mantém
+    // os botões encostados na borda direita em vez de colar no título.
+    margin-left: auto;
+  }
 }
 
 // ── Body / layout ────────────────────────────────────────────
@@ -439,6 +450,12 @@
     border: 1px solid var(--nx-line-strong);
     border-radius: var(--nx-r-2);
     padding: 10px 12px;
+    width: 100%;
+
+    // <16px faz o iOS Safari dar zoom automático no foco do campo.
+    @media (max-width: 640px) {
+      font-size: 16px;
+    }
 
     &:disabled {
       opacity: 0.6;

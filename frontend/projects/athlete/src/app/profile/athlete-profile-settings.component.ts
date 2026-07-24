@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, updateProfile } from 'firebase/auth';
@@ -29,6 +29,13 @@ import {
 } from '../data/athlete-referral-repository';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
 import { BrLocationsService } from '../shared/br-locations/br-locations.service';
+import {
+  isAllowedAvatarFile,
+  prepareAvatarJpeg,
+  uploadAthleteAvatar,
+  uploadAthleteCoverPhoto,
+} from '../data/athlete-avatar-upload';
+import { athleteStorage } from '../data/storage';
 
 interface AthleteProfileData {
   fullName: string;
@@ -41,6 +48,7 @@ interface AthleteProfileData {
   publicProfileId: string | null;
   publicProfileEnabled: boolean;
   profilePhotoUrl: string | null;
+  coverPhotoUrl: string | null;
 }
 
 const EMPTY_PROFILE: AthleteProfileData = {
@@ -54,6 +62,7 @@ const EMPTY_PROFILE: AthleteProfileData = {
   publicProfileId: null,
   publicProfileEnabled: true,
   profilePhotoUrl: null,
+  coverPhotoUrl: null,
 };
 
 interface StatRow {
@@ -129,6 +138,13 @@ export class AthleteProfileSettingsComponent {
   protected readonly resetError = signal<string | null>(null);
   protected readonly changingPhone = signal(false);
   protected readonly cityOptions = signal<string[]>([]);
+  protected readonly uploadingAvatar = signal(false);
+  protected readonly avatarUploadError = signal<string | null>(null);
+  protected readonly uploadingCover = signal(false);
+  protected readonly coverUploadError = signal<string | null>(null);
+
+  protected readonly avatarInput = viewChild<ElementRef<HTMLInputElement>>('avatarInput');
+  protected readonly coverInput = viewChild<ElementRef<HTMLInputElement>>('coverInput');
 
   // Programa de indicação (referral) — `referredBy` vem de `users/{uid}`, carregado junto
   // com o resto do perfil em loadRemoteProfile. `null` = ainda sem indicador vinculado,
@@ -167,6 +183,7 @@ export class AthleteProfileSettingsComponent {
   protected readonly avatarUrl = computed(
     () => this.profileState().profilePhotoUrl ?? this.auth.user()?.photoURL ?? null,
   );
+  protected readonly coverUrl = computed(() => this.profileState().coverPhotoUrl);
   protected readonly handle = computed(() => slugify(this.displayName()) || 'atleta');
   protected readonly cityStateLabel = computed(
     () => joinCityState(this.profileState().city, this.profileState().state) || 'Cidade não informada',
@@ -313,6 +330,80 @@ export class AthleteProfileSettingsComponent {
 
   protected toggleAllAchievements(): void {
     this.showAllAchievements.update((value) => !value);
+  }
+
+  protected chooseAvatarFile(): void {
+    this.avatarInput()?.nativeElement.click();
+  }
+
+  protected chooseCoverFile(): void {
+    this.coverInput()?.nativeElement.click();
+  }
+
+  /** Upload imediato ao selecionar — não depende de "Salvar alterações" (mesmo
+   *  contrato de storage.rules/profiles do onboarding, ver athlete-avatar-upload.ts). */
+  protected async onAvatarFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    this.avatarUploadError.set(null);
+    const fileError = isAllowedAvatarFile(file);
+    if (fileError) {
+      this.avatarUploadError.set(fileError);
+      return;
+    }
+
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.firestore) {
+      this.avatarUploadError.set('Faça login para trocar sua foto.');
+      return;
+    }
+
+    this.uploadingAvatar.set(true);
+    try {
+      const jpeg = await prepareAvatarJpeg(file);
+      const url = await uploadAthleteAvatar(athleteStorage(), uid, jpeg);
+      await setDoc(doc(this.firestore, 'users', uid), { profilePhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+      this.profileState.update((current) => ({ ...current, profilePhotoUrl: url }));
+    } catch {
+      this.avatarUploadError.set('Não foi possível enviar a foto agora. Tente novamente.');
+    } finally {
+      this.uploadingAvatar.set(false);
+    }
+  }
+
+  protected async onCoverFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    this.coverUploadError.set(null);
+    const fileError = isAllowedAvatarFile(file);
+    if (fileError) {
+      this.coverUploadError.set(fileError);
+      return;
+    }
+
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.firestore) {
+      this.coverUploadError.set('Faça login para trocar sua capa.');
+      return;
+    }
+
+    this.uploadingCover.set(true);
+    try {
+      const jpeg = await prepareAvatarJpeg(file, 1600);
+      const url = await uploadAthleteCoverPhoto(athleteStorage(), uid, jpeg);
+      await setDoc(doc(this.firestore, 'users', uid), { coverPhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+      this.profileState.update((current) => ({ ...current, coverPhotoUrl: url }));
+    } catch {
+      this.coverUploadError.set('Não foi possível enviar a capa agora. Tente novamente.');
+    } finally {
+      this.uploadingCover.set(false);
+    }
   }
 
   protected async save(): Promise<void> {
@@ -587,6 +678,7 @@ export class AthleteProfileSettingsComponent {
         // no app) — um doc novo ou sem esse campo deve poder ser encontrado pelo perfil público.
         publicProfileEnabled: profileData?.['publicProfileEnabled'] !== false,
         profilePhotoUrl: readString(userData, ['profilePhotoUrl']),
+        coverPhotoUrl: readString(userData, ['coverPhotoUrl']),
       });
       this.referredBy.set(readString(userData, ['referredBy']));
     } catch {

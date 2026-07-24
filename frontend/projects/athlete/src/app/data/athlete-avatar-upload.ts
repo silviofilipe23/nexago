@@ -50,3 +50,15 @@ export async function uploadAthleteAvatar(
   await uploadBytes(fileRef, bytes, { contentType });
   return getDownloadURL(fileRef);
 }
+
+/** Upload em `profiles/{uid}/cover.jpg` (mesma regra de storage.rules do avatar) e retorna a URL pública. */
+export async function uploadAthleteCoverPhoto(
+  storage: FirebaseStorage,
+  uid: string,
+  bytes: Blob,
+  contentType = 'image/jpeg',
+): Promise<string> {
+  const fileRef = ref(storage, `profiles/${uid}/cover.jpg`);
+  await uploadBytes(fileRef, bytes, { contentType });
+  return getDownloadURL(fileRef);
+}

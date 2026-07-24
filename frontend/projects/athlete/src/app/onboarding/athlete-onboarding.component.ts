@@ -10,7 +10,14 @@ import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../
 import { athleteFunctions } from '../data/functions';
 import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
-import { birthDateBrToIso, validateBirthDate } from './onboarding-validators';
+import {
+  MIN_NATIVE_BIRTH_DATE_ISO,
+  birthDateBrToIso,
+  birthDateIsoToBr,
+  formatBirthDateMask,
+  maxNativeBirthDateIso,
+  validateBirthDate,
+} from './onboarding-validators';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
@@ -97,6 +104,8 @@ export class AthleteOnboardingComponent {
   protected readonly phoneVerified = signal(false);
   protected readonly verifiedPhoneNumber = signal<string | null>(null);
   protected readonly birthDateInput = signal('');
+  protected readonly birthDateNativeMin = MIN_NATIVE_BIRTH_DATE_ISO;
+  protected readonly birthDateNativeMax = maxNativeBirthDateIso();
   protected readonly gender = signal<string | null>(null);
   protected readonly touched = signal(false);
 
@@ -108,6 +117,7 @@ export class AthleteOnboardingComponent {
   protected readonly photoFile = signal<File | null>(null);
   protected readonly photoPreviewUrl = signal<string | null>(null);
   private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
+  private readonly birthDateNativeInput = viewChild<ElementRef<HTMLInputElement>>('birthDateNative');
   private photoObjectUrl: string | null = null;
 
   protected readonly nameError = computed(() =>
@@ -167,6 +177,30 @@ export class AthleteOnboardingComponent {
   protected onPhoneVerified(event: { phoneNumber: string }): void {
     this.verifiedPhoneNumber.set(event.phoneNumber);
     this.phoneVerified.set(true);
+  }
+
+  protected onBirthDateInputChanged(value: string): void {
+    this.birthDateInput.set(formatBirthDateMask(value));
+  }
+
+  protected openBirthDatePicker(): void {
+    const input = this.birthDateNativeInput()?.nativeElement;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // Navegador recusou (ex.: fora de gesto do usuário) — cai no fallback abaixo.
+      }
+    }
+    input.click();
+  }
+
+  protected onBirthDateNativeChange(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (!value) return;
+    this.birthDateInput.set(birthDateIsoToBr(value));
   }
 
   protected goToStep(step: ObStep): void {

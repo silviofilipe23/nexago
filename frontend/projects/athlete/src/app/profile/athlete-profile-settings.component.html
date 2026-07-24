@@ -30,7 +30,12 @@
         <div class="at-col">
           <section class="at-card at-profile-identity">
             <div class="at-profile-avatar-row">
-              <div class="at-profile-avatar" aria-hidden="true">{{ initials() }}</div>
+              <div class="at-profile-avatar" aria-hidden="true">
+                <span class="at-profile-avatar-fallback">{{ initials() }}</span>
+                @if (avatarUrl(); as photo) {
+                  <img class="at-profile-avatar-img" [src]="photo" alt="" loading="lazy" />
+                }
+              </div>
               @if (isEditing()) {
                 <div class="at-profile-avatar-actions">
                   <button type="button" class="at-mini-btn" disabled title="Em breve">Trocar foto</button>

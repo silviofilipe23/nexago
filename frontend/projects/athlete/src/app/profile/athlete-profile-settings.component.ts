@@ -16,6 +16,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
@@ -113,6 +114,7 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
     AtPanelShellComponent,
     SandRankCardComponent,
     NxPageLoadingComponent,
+    NxSkeletonComponent,
     NxSpinnerComponent,
     PhoneVerificationComponent,
   ],
@@ -142,6 +144,9 @@ export class AthleteProfileSettingsComponent {
   protected readonly avatarUploadError = signal<string | null>(null);
   protected readonly uploadingCover = signal(false);
   protected readonly coverUploadError = signal<string | null>(null);
+  /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
+  protected readonly avatarLoaded = signal(false);
+  protected readonly coverLoaded = signal(false);
 
   protected readonly avatarInput = viewChild<ElementRef<HTMLInputElement>>('avatarInput');
   protected readonly coverInput = viewChild<ElementRef<HTMLInputElement>>('coverInput');
@@ -306,6 +311,8 @@ export class AthleteProfileSettingsComponent {
     this.cityOptions.set(this.brLocations.citiesFor(current.state));
     this.saveError.set(null);
     this.saveSuccess.set(null);
+    this.avatarUploadError.set(null);
+    this.coverUploadError.set(null);
     this.isEditing.set(true);
 
     await this.brLocations.ready;
@@ -326,6 +333,8 @@ export class AthleteProfileSettingsComponent {
   protected cancelEdit(): void {
     this.isEditing.set(false);
     this.saveError.set(null);
+    this.avatarUploadError.set(null);
+    this.coverUploadError.set(null);
   }
 
   protected toggleAllAchievements(): void {
@@ -366,6 +375,7 @@ export class AthleteProfileSettingsComponent {
       const jpeg = await prepareAvatarJpeg(file);
       const url = await uploadAthleteAvatar(athleteStorage(), uid, jpeg);
       await setDoc(doc(this.firestore, 'users', uid), { profilePhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+      this.avatarLoaded.set(false);
       this.profileState.update((current) => ({ ...current, profilePhotoUrl: url }));
     } catch {
       this.avatarUploadError.set('Não foi possível enviar a foto agora. Tente novamente.');
@@ -398,6 +408,7 @@ export class AthleteProfileSettingsComponent {
       const jpeg = await prepareAvatarJpeg(file, 1600);
       const url = await uploadAthleteCoverPhoto(athleteStorage(), uid, jpeg);
       await setDoc(doc(this.firestore, 'users', uid), { coverPhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+      this.coverLoaded.set(false);
       this.profileState.update((current) => ({ ...current, coverPhotoUrl: url }));
     } catch {
       this.coverUploadError.set('Não foi possível enviar a capa agora. Tente novamente.');

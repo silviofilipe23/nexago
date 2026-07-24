@@ -59,20 +59,46 @@
       <div class="pp-main-grid">
         <div class="pp-col">
           <div class="pp-card pp-identity-card">
-            @if (athlete.coverPhotoUrl; as cover) {
-              <div class="pp-cover">
-                <img class="pp-cover-img" [src]="cover" alt="" loading="lazy" />
+            <div class="pp-hero">
+              <div class="pp-cover" [class.pp-cover--empty]="!athlete.coverPhotoUrl">
+                @if (athlete.coverPhotoUrl; as cover) {
+                  @if (!coverLoaded()) {
+                    <app-nx-skeleton class="pp-cover-skeleton" [w]="'100%'" [h]="'100%'" [r]="0" />
+                  }
+                  <img
+                    class="pp-cover-img"
+                    [src]="cover"
+                    alt=""
+                    loading="lazy"
+                    (load)="coverLoaded.set(true)"
+                    (error)="coverLoaded.set(true)"
+                  />
+                }
               </div>
-            }
+
+              <div class="pp-avatar-wrap">
+                <div class="pp-avatar" aria-hidden="true">
+                  <span class="pp-avatar-fallback">{{ athlete.fullName.charAt(0) }}</span>
+                  @if (athlete.profilePhotoUrl; as photo) {
+                    @if (!avatarLoaded()) {
+                      <app-nx-skeleton class="pp-avatar-skeleton" [w]="'100%'" [h]="'100%'" [r]="'50%'" />
+                    }
+                    <img
+                      class="pp-avatar-img"
+                      [src]="photo"
+                      alt=""
+                      loading="lazy"
+                      (load)="avatarLoaded.set(true)"
+                      (error)="avatarLoaded.set(true)"
+                    />
+                  }
+                </div>
+                @if (demoExtras(); as extra) {
+                  <span class="pp-level-badge">LV {{ extra.levelNumber }}</span>
+                }
+              </div>
+            </div>
             <div class="pp-identity-head">
-              @if (athlete.profilePhotoUrl) {
-                <img class="pp-avatar-img" [src]="athlete.profilePhotoUrl" alt="Foto de {{ athlete.fullName }}" />
-              } @else {
-                <div class="pp-avatar">{{ athlete.fullName.charAt(0) }}</div>
-              }
-              @if (demoExtras(); as extra) {
-                <span class="pp-level-badge">LV {{ extra.levelNumber }}</span>
-              }
               <h2 class="pp-name">{{ athlete.fullName }}</h2>
               <p class="pp-handle">&#64;{{ athlete.handle }} · {{ athlete.locationLabel }}</p>
               <div class="pp-pill-row">

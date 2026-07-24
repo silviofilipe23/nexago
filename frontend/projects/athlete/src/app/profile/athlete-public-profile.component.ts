@@ -8,6 +8,7 @@ import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
 import { athleteLevelLabel } from './profile-format';
@@ -348,7 +349,7 @@ function initialsOf(name: string): string {
 @Component({
   selector: 'app-athlete-public-profile',
   standalone: true,
-  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent, NxPageLoadingComponent, AuthShellComponent],
+  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent, NxPageLoadingComponent, NxSkeletonComponent, AuthShellComponent],
   templateUrl: './athlete-public-profile.component.html',
   styleUrl: './athlete-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -365,6 +366,9 @@ export class AthletePublicProfileComponent {
   protected readonly actionNotice = signal<string | null>(null);
   protected readonly profile = signal<PublicAthleteProfile | null>(null);
   protected readonly followed = signal(false);
+  /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
+  protected readonly avatarLoaded = signal(false);
+  protected readonly coverLoaded = signal(false);
 
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 

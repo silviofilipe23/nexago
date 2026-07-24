@@ -29,58 +29,79 @@
       <div class="at-profile-grid">
         <div class="at-col">
           <section class="at-card at-profile-identity">
-            <div class="at-profile-cover" [class.at-profile-cover--empty]="!coverUrl()">
-              @if (coverUrl(); as cover) {
-                <img class="at-profile-cover-img" [src]="cover" alt="" loading="lazy" />
-              }
-              @if (isEditing()) {
-                <div class="at-profile-cover-actions">
-                  <button type="button" class="at-mini-btn" [disabled]="uploadingCover()" (click)="chooseCoverFile()">
-                    @if (uploadingCover()) {
-                      <app-nx-spinner [size]="12" />
-                    }
-                    {{ uploadingCover() ? 'Enviando...' : (coverUrl() ? 'Trocar capa' : 'Adicionar capa') }}
-                  </button>
-                  <input
-                    #coverInput
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    hidden
-                    (change)="onCoverFileSelected($event)"
+            <div class="at-profile-hero">
+              <div class="at-profile-cover" [class.at-profile-cover--empty]="!coverUrl()">
+                @if (coverUrl(); as cover) {
+                  @if (!coverLoaded()) {
+                    <app-nx-skeleton class="at-profile-cover-skeleton" [w]="'100%'" [h]="'100%'" [r]="0" />
+                  }
+                  <img
+                    class="at-profile-cover-img"
+                    [src]="cover"
+                    alt=""
+                    loading="lazy"
+                    (load)="coverLoaded.set(true)"
+                    (error)="coverLoaded.set(true)"
                   />
-                </div>
-              }
+                }
+                @if (isEditing()) {
+                  <div class="at-profile-cover-actions">
+                    <button type="button" class="at-mini-btn" [disabled]="uploadingCover()" (click)="chooseCoverFile()">
+                      @if (uploadingCover()) {
+                        <app-nx-spinner [size]="12" />
+                      }
+                      {{ uploadingCover() ? 'Enviando...' : (coverUrl() ? 'Trocar capa' : 'Adicionar capa') }}
+                    </button>
+                    <input
+                      #coverInput
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      hidden
+                      (change)="onCoverFileSelected($event)"
+                    />
+                  </div>
+                }
+              </div>
+
+              <div class="at-profile-avatar" aria-hidden="true">
+                <span class="at-profile-avatar-fallback">{{ initials() }}</span>
+                @if (avatarUrl(); as photo) {
+                  @if (!avatarLoaded()) {
+                    <app-nx-skeleton class="at-profile-avatar-skeleton" [w]="'100%'" [h]="'100%'" [r]="'50%'" />
+                  }
+                  <img
+                    class="at-profile-avatar-img"
+                    [src]="photo"
+                    alt=""
+                    loading="lazy"
+                    (load)="avatarLoaded.set(true)"
+                    (error)="avatarLoaded.set(true)"
+                  />
+                }
+              </div>
             </div>
             @if (coverUploadError(); as err) {
               <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
             }
 
-            <div class="at-profile-avatar-row">
-              <div class="at-profile-avatar" aria-hidden="true">
-                <span class="at-profile-avatar-fallback">{{ initials() }}</span>
-                @if (avatarUrl(); as photo) {
-                  <img class="at-profile-avatar-img" [src]="photo" alt="" loading="lazy" />
-                }
+            @if (isEditing()) {
+              <div class="at-profile-avatar-actions">
+                <button type="button" class="at-mini-btn" [disabled]="uploadingAvatar()" (click)="chooseAvatarFile()">
+                  @if (uploadingAvatar()) {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  {{ uploadingAvatar() ? 'Enviando...' : 'Trocar foto' }}
+                </button>
+                <input
+                  #avatarInput
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  (change)="onAvatarFileSelected($event)"
+                />
+                <span class="at-profile-hint">PNG ou JPG · até 2 MB</span>
               </div>
-              @if (isEditing()) {
-                <div class="at-profile-avatar-actions">
-                  <button type="button" class="at-mini-btn" [disabled]="uploadingAvatar()" (click)="chooseAvatarFile()">
-                    @if (uploadingAvatar()) {
-                      <app-nx-spinner [size]="12" />
-                    }
-                    {{ uploadingAvatar() ? 'Enviando...' : 'Trocar foto' }}
-                  </button>
-                  <input
-                    #avatarInput
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    hidden
-                    (change)="onAvatarFileSelected($event)"
-                  />
-                  <span class="at-profile-hint">PNG ou JPG · até 2 MB</span>
-                </div>
-              }
-            </div>
+            }
             @if (avatarUploadError(); as err) {
               <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
             }

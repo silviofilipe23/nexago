@@ -383,20 +383,36 @@
 }
 
 // ── Identity card ────────────────────────────────────────────
+// Hero: capa + avatar sobrepondo pela metade a borda inferior da capa.
+// margin-bottom reserva espaço pra metade do avatar que "vaza" pra fora do hero
+// (42px = metade dos 84px do avatar) + respiro antes do nome.
+.pp-hero {
+  position: relative;
+  margin: -20px -20px 50px;
+}
+
 .pp-cover {
   position: relative;
   height: 120px;
-  margin: -20px -20px 16px;
   border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
   overflow: hidden;
   border-bottom: 1px solid var(--nx-line);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
-.pp-cover-img {
+.pp-cover--empty {
+  background: linear-gradient(135deg, var(--nx-orange-tint), var(--nx-surface-1));
+}
+
+.pp-cover-img,
+.pp-cover-skeleton {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.pp-cover-img {
   object-fit: cover;
 }
 
@@ -406,28 +422,46 @@
   align-items: center;
   text-align: center;
   gap: 4px;
-  position: relative;
   padding-bottom: 4px;
 }
 
-.pp-avatar,
-.pp-avatar-img {
+// Wrapper posicionado sobre o hero — separado de `.pp-avatar` (que recorta a
+// foto em círculo) pra o badge de nível poder "vazar" da borda sem ser cortado.
+.pp-avatar-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: -42px;
+  transform: translateX(-50%);
   width: 84px;
   height: 84px;
-  border-radius: 50%;
-  margin-bottom: 8px;
 }
 
 .pp-avatar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
   background: var(--nx-orange-tint);
   border: 1.5px solid rgba(255, 106, 26, 0.4);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
   display: grid;
   place-items: center;
+}
+
+.pp-avatar-fallback {
   font-family: var(--nx-font-display);
   font-weight: 800;
   font-size: 30px;
   color: var(--nx-orange-500);
-  position: relative;
+}
+
+.pp-avatar-img,
+.pp-avatar-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .pp-avatar-img {
@@ -436,7 +470,7 @@
 
 .pp-level-badge {
   position: absolute;
-  top: 62px;
+  bottom: -11px;
   left: 50%;
   transform: translateX(-50%);
   height: 22px;

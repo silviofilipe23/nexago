@@ -58,13 +58,15 @@ describe("category-level-eligibility · níveis", () => {
 });
 
 describe("category-level-eligibility · mapeamento de esporte", () => {
-  it("mapeia esportes de vôlei", () => {
+  it("mapeia esportes de torneio para o código do perfil", () => {
     assert.equal(tournamentSportToLevelSportCode("beachVolleyball"), "VOLEI_PRAIA");
     assert.equal(tournamentSportToLevelSportCode("indoorVolleyball"), "VOLEI_QUADRA");
+    assert.equal(tournamentSportToLevelSportCode("footvolley"), "FUTEVOLEI");
+    assert.equal(tournamentSportToLevelSportCode("beachTennis"), "BEACH_TENNIS");
   });
 
-  it("footvolley e desconhecidos não têm equivalente", () => {
-    assert.equal(tournamentSportToLevelSportCode("footvolley"), null);
+  it("desconhecidos não têm equivalente", () => {
+    assert.equal(tournamentSportToLevelSportCode("xadrez"), null);
     assert.equal(tournamentSportToLevelSportCode(undefined), null);
   });
 });
@@ -78,12 +80,14 @@ describe("category-level-eligibility · resolução de nível do atleta", () => 
     assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 5);
   });
 
-  it("aceita o campo legado levelsBySportFirestore", () => {
+  it("ignora o campo fantasma levelsBySportFirestore (nunca foi escrito)", () => {
+    // Sem guarda nas rules, aceitar esse campo abriria downgrade por fora —
+    // o nível por esporte vem só de sportOnboarding.levelsBySport.
     const user = {
       level: "iniciante",
       levelsBySportFirestore: {VOLEI_PRAIA: "open"},
     };
-    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 5);
+    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 0);
   });
 
   it("resolve códigos novos por esporte", () => {
@@ -104,7 +108,7 @@ describe("category-level-eligibility · resolução de nível do atleta", () => 
     assert.equal(resolveAthleteLevelRank(null, "VOLEI_PRAIA"), 0);
   });
 
-  it("footvolley (sportCode null) usa nível global", () => {
+  it("esporte sem equivalente (sportCode null) usa nível global", () => {
     const user = {
       level: "open",
       sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "iniciante"}},

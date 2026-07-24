@@ -1,0 +1,119 @@
+<app-at-panel-shell [userName]="displayName()">
+  <header class="at-page-header">
+    <div class="at-page-header-titles">
+      <h1>Esportes e níveis</h1>
+      <span class="at-page-header-sub">Seu nível em cada esporte</span>
+    </div>
+    <a class="at-mini-btn" routerLink="/perfil">Voltar ao perfil</a>
+  </header>
+
+  @if (loading()) {
+    <app-nx-page-loading title="Carregando seus esportes…" />
+  } @else if (loadError(); as error) {
+    <section class="at-card asl-feedback">
+      <p>{{ error }}</p>
+    </section>
+  } @else {
+    <div class="asl-body">
+      <p class="asl-rule-hint">
+        O nível só pode subir — a subida é definitiva. Para reduzir, fale com o suporte.
+      </p>
+
+      @if (notice(); as message) {
+        <p class="asl-notice" role="status">{{ message }}</p>
+      }
+      @if (saveError(); as message) {
+        <p class="asl-error" role="alert">{{ message }}</p>
+      }
+
+      @for (row of rows(); track row.code) {
+        <section class="at-card asl-sport-card">
+          <div class="asl-sport-head">
+            <h2>{{ row.sportLabel }}</h2>
+            @if (row.isPrimary) {
+              <span class="asl-tag">Principal</span>
+            }
+            <span class="asl-current">
+              {{ levelLabelOf(row.savedCode) || 'Nível não informado' }}
+            </span>
+          </div>
+
+          <div class="asl-options" role="radiogroup" [attr.aria-label]="'Nível em ' + row.sportLabel">
+            @for (option of levelOptions; track option.code) {
+              <button
+                type="button"
+                class="asl-option"
+                role="radio"
+                [class.asl-option--selected]="isOptionSelected(row, option)"
+                [class.asl-option--locked]="isOptionLocked(row, option)"
+                [attr.aria-checked]="isOptionSelected(row, option)"
+                [disabled]="isOptionLocked(row, option) || savingSport() != null"
+                (click)="selectLevel(row, option)"
+              >
+                <span class="asl-option-label">
+                  {{ option.label }}
+                  @if (isOptionLocked(row, option)) {
+                    <span class="asl-lock" aria-hidden="true">🔒</span>
+                  }
+                </span>
+                <span class="asl-option-desc">{{ option.description }}</span>
+              </button>
+            }
+          </div>
+
+          @if (pendingFor(row.code); as pending) {
+            <div class="asl-confirm">
+              <p>
+                Confirmar mudança para <strong>{{ levelLabelOf(pending) }}</strong>?
+                A subida de nível é definitiva.
+              </p>
+              <div class="asl-confirm-actions">
+                <button
+                  type="button"
+                  class="at-mini-btn asl-confirm-btn"
+                  [disabled]="savingSport() != null"
+                  (click)="confirmLevel(row)"
+                >
+                  @if (savingSport() === row.code) {
+                    <app-nx-spinner [size]="16" />
+                  } @else {
+                    Confirmar novo nível
+                  }
+                </button>
+                <button
+                  type="button"
+                  class="at-mini-btn asl-cancel-btn"
+                  [disabled]="savingSport() != null"
+                  (click)="cancelPending(row.code)"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+
+      @if (availableToAdd().length > 0) {
+        <section class="at-card asl-add-card">
+          <h2>Adicionar esporte</h2>
+          <p class="asl-add-hint">
+            Novos esportes entram como {{ levelLabelOf('iniciante_1') }} — depois é só subir.
+          </p>
+          <div class="asl-add-list">
+            @for (entry of availableToAdd(); track entry.code) {
+              <button
+                type="button"
+                class="at-mini-btn asl-add-btn"
+                [disabled]="addingSport()"
+                (click)="addSport(entry.code)"
+              >
+                + {{ entry.label }}
+              </button>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</app-at-panel-shell>

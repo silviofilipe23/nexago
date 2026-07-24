@@ -14,7 +14,7 @@ class AthleteSportsLevelsDraft {
   final Set<String> otherAppSportIds;
   final Map<String, String> levelByAppSportId;
 
-  static const String defaultLevel = 'Iniciante';
+  static const String defaultLevel = 'Iniciante 1';
 
   factory AthleteSportsLevelsDraft.fromEnrollments(
     List<AthleteSportEnrollment> enrollments,

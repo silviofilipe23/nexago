@@ -1,3 +1,4 @@
+import { levelDisplayLabel } from '@nexago/levels';
 import { sportLabelForCode } from '../data/sport-catalog';
 
 export function titleCase(input: string): string {
@@ -9,28 +10,11 @@ export function titleCase(input: string): string {
     .join(' ');
 }
 
-/** Espelha `AthleteFirestoreCodes.levelFirestoreToLabel` (app Flutter): códigos de nível
- *  gravados em `sportProfile.level` / `sportOnboarding.levelsBySport` → rótulo de exibição.
- *  Inclui os códigos legados sem sufixo (`iniciante`, `basico`, `intermediario`, `livre`) —
- *  ainda aparecem no fallback de nível global de contas antigas. */
-const LEVEL_CODE_TO_LABEL: Record<string, string> = {
-  open: 'Open',
-  livre: 'Open',
-  iniciante: 'Iniciante',
-  basico: 'Iniciante',
-  iniciante_1: 'Iniciante 1',
-  iniciante_2: 'Iniciante 2',
-  intermediario: 'Intermediário',
-  intermediario_1: 'Intermediário 1',
-  intermediario_2: 'Intermediário 2',
-};
-
+/** Código/label de nível → rótulo de exibição — delega pro vocabulário
+ *  canônico compartilhado (`@nexago/levels`), incluindo os códigos legados sem
+ *  sufixo que ainda aparecem no fallback de nível global de contas antigas. */
 export function athleteLevelLabel(code: string | null | undefined): string {
-  const trimmed = code?.trim() ?? '';
-  if (!trimmed) {
-    return '';
-  }
-  return LEVEL_CODE_TO_LABEL[trimmed.toLowerCase()] ?? trimmed;
+  return levelDisplayLabel(code);
 }
 
 export function nameFromEmail(email: string | null | undefined): string {

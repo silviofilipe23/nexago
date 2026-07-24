@@ -7,6 +7,7 @@ abstract final class AthleteFirestoreCodes {
   static const Map<String, String> _sportAppToFirestore = {
     'beach_volleyball': 'VOLEI_PRAIA',
     'indoor_volleyball': 'VOLEI_QUADRA',
+    'footvolley': 'FUTEVOLEI',
     'football': 'FUTEBOL',
     'basketball': 'BASQUETE',
     'tennis': 'TENIS',
@@ -18,6 +19,7 @@ abstract final class AthleteFirestoreCodes {
   static const Map<String, String> _sportFirestoreToApp = {
     'VOLEI_PRAIA': 'beach_volleyball',
     'VOLEI_QUADRA': 'indoor_volleyball',
+    'FUTEVOLEI': 'footvolley',
     'FUTEBOL': 'football',
     'BASQUETE': 'basketball',
     'TENIS': 'tennis',
@@ -29,6 +31,7 @@ abstract final class AthleteFirestoreCodes {
   static const Map<String, String> _sportFirestoreToLabel = {
     'VOLEI_PRAIA': 'Vôlei de praia',
     'VOLEI_QUADRA': 'Vôlei de quadra',
+    'FUTEVOLEI': 'Futevôlei',
     'FUTEBOL': 'Futebol',
     'BASQUETE': 'Basquete',
     'TENIS': 'Tênis',

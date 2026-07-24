@@ -112,7 +112,9 @@
 
               <div class="at-profile-pills">
                 <span class="at-pill at-pill--orange">{{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }}</span>
-                <span class="at-pill">{{ primarySportLevel()?.levelLabel || 'Nível não informado' }}</span>
+                <a class="at-pill" routerLink="/perfil/esportes" title="Gerenciar esportes e níveis">
+                  {{ primarySportLevel()?.levelLabel || 'Nível não informado' }}
+                </a>
               </div>
 
               @if (otherSportLevels().length > 0) {
@@ -191,8 +193,8 @@
                   <p class="at-profile-readonly-note">
                     {{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }} ·
                     {{ primarySportLevel()?.levelLabel || 'nível não informado' }}
-                    — definidos no cadastro
                   </p>
+                  <a class="at-mini-btn" routerLink="/perfil/esportes">Gerenciar esportes e níveis</a>
                 </div>
 
                 <label class="at-field">

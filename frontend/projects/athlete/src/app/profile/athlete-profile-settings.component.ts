@@ -1,5 +1,6 @@
 import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, updateProfile } from 'firebase/auth';
 import {
@@ -111,6 +112,7 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
   standalone: true,
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     AtPanelShellComponent,
     SandRankCardComponent,
     NxPageLoadingComponent,

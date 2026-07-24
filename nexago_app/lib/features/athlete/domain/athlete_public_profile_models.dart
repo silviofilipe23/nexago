@@ -2,7 +2,8 @@ import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_profile_options.dart';
 
-const athleteLevelSegmentCount = 3;
+/// Barras de nível acompanham a escada única de 5 níveis.
+const athleteLevelSegmentCount = 5;
 
 class AthletePublicSportEntry {
   const AthletePublicSportEntry({
@@ -95,30 +96,26 @@ List<AthletePublicSportEntry> buildPublicSportEntries(AthleteProfile profile) {
   return entries;
 }
 
+/// Segmentos preenchidos da barra (1..[athleteLevelSegmentCount]) a partir do
+/// rank unificado: 0→1, 1→2, 2→3, 3→4, Open→5. Desconhecido/ausente → 1.
 int levelSegmentsFromCode(String? raw) {
-  if (raw == null || raw.trim().isEmpty) return 1;
-
-  final normalizedLabel = AthleteProfileOptions.normalizeLevel(raw);
-  final code = AthleteFirestoreCodes.levelLabelToFirestore(
-    normalizedLabel.isNotEmpty ? normalizedLabel : raw,
-  ).toLowerCase();
-
-  const map = {
-    'iniciante': 1,
-    'basico': 1,
-    'básico': 1,
-    'intermediario': 2,
-    'intermediário': 2,
-    'open': 3,
-  };
-  if (map.containsKey(code)) return map[code]!;
-  for (final entry in map.entries) {
-    if (code.contains(entry.key)) return entry.value;
+  final rank = AthleteProfileOptions.levelRank(raw);
+  if (rank == null) return 1;
+  switch (rank) {
+    case 0:
+      return 1;
+    case 1:
+      return 2;
+    case 2:
+      return 3;
+    case 3:
+      return 4;
+    default:
+      return athleteLevelSegmentCount;
   }
-  return 1;
 }
 
-/// Níveis oficiais: Iniciante, Intermediário, Open e Pro.
+/// Níveis oficiais: Iniciante 1/2, Intermediário 1/2 e Open.
 String resolveAthleteLevelLabel(
   AthleteProfile profile, {
   String? sportFirestoreId,

@@ -5,6 +5,7 @@ abstract final class AthleteProfileOptions {
   static const List<String> sports = [
     'Vôlei de praia',
     'Vôlei de quadra',
+    'Futevôlei',
     'Futebol',
     'Basquete',
     'Tênis',
@@ -13,8 +14,8 @@ abstract final class AthleteProfileOptions {
     'Outros',
   ];
 
-  /// Escada legada de 3 níveis — segue valendo para esportes sem escada
-  /// própria (e para o nível global do perfil).
+  /// Escada única de 5 níveis, a mesma para TODOS os esportes — espelho de
+  /// `LEVEL_CODES` em `functions/src/category-level-eligibility.ts`.
   static const List<String> levels = [
     'Iniciante 1',
     'Iniciante 2',
@@ -22,28 +23,6 @@ abstract final class AthleteProfileOptions {
     'Intermediário 2',
     'Open',
   ];
-
-  /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de
-  /// `ratingLadders/{VOLEI_PRAIA|VOLEI_QUADRA}` do backend.
-  static const List<String> volleyballLevels = [
-    'Iniciante 1',
-    'Iniciante 2',
-    'Intermediário 1',
-    'Intermediário 2',
-    'Open',
-  ];
-
-  /// Esportes (código Firestore) que usam a escada de 5 níveis.
-  static const Set<String> fiveLevelSportCodes = {
-    'VOLEI_PRAIA',
-    'VOLEI_QUADRA',
-  };
-
-  /// Labels de nível para o esporte (código Firestore, ex.: `VOLEI_PRAIA`).
-  static List<String> levelsForSportCode(String? firestoreSportCode) {
-    final code = firestoreSportCode?.trim().toUpperCase() ?? '';
-    return fiveLevelSportCodes.contains(code) ? volleyballLevels : levels;
-  }
 
   static const List<String> genders = ['Masculino', 'Feminino'];
 
@@ -66,9 +45,10 @@ abstract final class AthleteProfileOptions {
   ///
   /// Espelho de `LEVEL_RANK` de `functions/src/category-level-eligibility.ts`:
   /// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
-  /// Intermediário 2 (3) < Open (5) — ranks 1 e 4 reservados à escada D/C/B/A
-  /// do beach tennis no futuro. Legados se comportam como o degrau inferior
-  /// do split: `iniciante`→0, `intermediario`→2, `open`→5.
+  /// Intermediário 2 (3) < Open (5) — rank 4 sem uso; a numeração é fixa
+  /// (gravada em `athleteRatings.levelRank` e nas rules). Legados se
+  /// comportam como o degrau inferior do split: `iniciante`→0,
+  /// `intermediario`→2, `open`→5.
   static int? levelRank(String? raw) {
     final normalized = normalizeLevel(raw)
         .toLowerCase()
@@ -126,12 +106,12 @@ abstract final class AthleteProfileOptions {
     return 'Open';
   }
 
-  /// Normaliza esporte legado (ex.: Futevôlei, Beach tênis).
+  /// Normaliza esporte legado (ex.: Beach tênis). Futevôlei deixou de ser
+  /// alias de Futebol — virou esporte próprio (FUTEVOLEI).
   static String normalizeSport(String? raw) {
     final v = raw?.trim() ?? '';
     if (v.isEmpty) return '';
     const legacy = <String, String>{
-      'Futevôlei': 'Futebol',
       'Beach tênis': 'Beach tennis',
       'Outro': 'Outros',
     };

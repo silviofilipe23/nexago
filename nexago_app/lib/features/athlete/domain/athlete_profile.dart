@@ -380,7 +380,7 @@ class AthleteProfile {
     for (final sportId in enrolledIds) {
       if (!levelsBySport.containsKey(sportId) || levelsBySport[sportId]!.isEmpty) {
         levelsBySport[sportId] =
-            sportId == primaryFs && levelFs.isNotEmpty ? levelFs : 'iniciante';
+            sportId == primaryFs && levelFs.isNotEmpty ? levelFs : 'iniciante_1';
       }
     }
     if (primaryFs != null &&
@@ -410,12 +410,12 @@ class AthleteProfile {
       if (avatarUrl != null && avatarUrl!.isNotEmpty)
         'profilePhotoUrl': avatarUrl!.trim(),
       if (isProfileComplete) 'isProfileComplete': true,
+      // Nível: `sportOnboarding.levelsBySport` é a ÚNICA escrita — os campos
+      // legados `level` (label global) e `sportProfile.level` não são mais
+      // gravados; docs antigos seguem legíveis pelos fallbacks do parse.
       'sportOnboarding': sportOnboarding,
       if (sport.trim().isNotEmpty) 'sport': sport.trim(),
-      if (level.trim().isNotEmpty) 'level': level.trim(),
       'sports': sports,
-      if (levelFs.isNotEmpty)
-        'sportProfile': <String, dynamic>{'level': levelFs},
       'useBiometric': useBiometric,
       'city': city.trim(),
       if (state != null && state!.trim().isNotEmpty)

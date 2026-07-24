@@ -20,7 +20,8 @@ void main() {
     });
 
     test('normalizeSport maps legacy labels', () {
-      expect(AthleteProfileOptions.normalizeSport('Futevôlei'), 'Futebol');
+      // Futevôlei virou esporte próprio — não é mais alias de Futebol.
+      expect(AthleteProfileOptions.normalizeSport('Futevôlei'), 'Futevôlei');
       expect(
         AthleteProfileOptions.normalizeSport('Beach tênis'),
         'Beach tennis',
@@ -51,7 +52,10 @@ void main() {
       expect(data['fullName'], 'Ana');
       expect(data['isProfileComplete'], isTrue);
       expect(data['birthDate'], '2000-01-01');
-      expect(data['sportProfile'], {'level': 'intermediario'});
+      // Nível: só `sportOnboarding.levelsBySport` é escrito — os legados
+      // `level` e `sportProfile` saíram do payload.
+      expect(data.containsKey('level'), isFalse);
+      expect(data.containsKey('sportProfile'), isFalse);
 
       final onboarding = data['sportOnboarding'] as Map<String, dynamic>;
       expect(onboarding['version'], 1);
@@ -59,7 +63,7 @@ void main() {
       expect(onboarding['secondarySportIds'], ['BEACH_TENNIS']);
       expect(onboarding['levelsBySport'], {
         'VOLEI_PRAIA': 'intermediario',
-        'BEACH_TENNIS': 'iniciante',
+        'BEACH_TENNIS': 'iniciante_1',
       });
       expect(onboarding['goals'], ['RESERVAR_ARENA', 'COMPETIR']);
       expect(onboarding.containsKey('completedAt'), isTrue);

@@ -216,17 +216,19 @@ List<RankingListEntry> filterRankingEntriesBySearch(
   return entries.where((e) => e.matchesSearch(q)).toList();
 }
 
-/// Rank de nível do atleta pro ranking geral: resolvido pelo esporte
-/// principal (`levelsBySportFirestore[primarySportFirestoreId]`). Sem
-/// fallback pro nível global legado — perfil sem esporte principal, ou sem
-/// nível registrado nele, fica sem nível resolvido (`null`).
+/// Rank de nível do atleta pro ranking geral: cadeia canônica de leitura —
+/// esporte principal (`levelsBySportFirestore[primarySportFirestoreId]`) →
+/// nível global legado (`level`) → `null` (sem nível resolvido; some do
+/// filtro por nível, nunca chuta um degrau).
 int? athleteLevelRank(AppUserProfile? profile) {
   if (profile == null) return null;
   final sportCode = profile.primarySportFirestoreId;
-  if (sportCode == null || sportCode.isEmpty) return null;
-  return AthleteProfileOptions.levelRank(
-    profile.levelsBySportFirestore[sportCode],
-  );
+  if (sportCode != null && sportCode.isNotEmpty) {
+    final perSport =
+        AthleteProfileOptions.levelRank(profile.levelsBySportFirestore[sportCode]);
+    if (perSport != null) return perSport;
+  }
+  return AthleteProfileOptions.levelRank(profile.level);
 }
 
 /// Rank de nível da dupla: o maior entre os dois atletas (mesma regra do

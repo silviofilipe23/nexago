@@ -9,6 +9,13 @@ import {levelRank} from "./category-level-eligibility";
  * triggers. Ajustes de banda/flag em produção são edição de config, sem deploy.
  */
 
+/**
+ * Esportes com escada de rating no v1 (beach tennis/futevôlei adiados — sem
+ * volume de torneios ainda). Gate explícito da engine: ter código de esporte
+ * no perfil NÃO significa ser rateado.
+ */
+export const RATED_SPORT_CODES = ["VOLEI_PRAIA", "VOLEI_QUADRA"] as const;
+
 export interface RatingLadderLevel {
   code: string;
   rank: number;
@@ -56,9 +63,9 @@ export interface RatingLadderConfig {
 }
 
 /**
- * Escada de 5 níveis do vôlei (praia e quadra). `open` fica no rank 5 de
- * propósito — os ranks 1 e 4 estão reservados para a escada de federação do
- * beach tennis (D/C/B/A) numa entrega futura, sem renumerar nada.
+ * Escada de 5 níveis (a mesma para todos os esportes). `open` fica no rank 5
+ * por compatibilidade histórica — o rank 4 não é usado e a numeração não pode
+ * mudar (está gravada em `athleteRatings.levelRank` e nas rules deployadas).
  */
 const VOLLEYBALL_LEVELS: RatingLadderLevel[] = [
   {code: "iniciante_1", rank: 0, label: "Iniciante 1", initialRating: 1250, promoteAt: 1420, demoteAt: null},

@@ -8,6 +8,7 @@ export interface SportCatalogEntry {
 export const SPORT_CATALOG: readonly SportCatalogEntry[] = [
   { code: 'VOLEI_PRAIA', label: 'Vôlei de praia', icon: 'ball' },
   { code: 'VOLEI_QUADRA', label: 'Vôlei de quadra', icon: 'ball' },
+  { code: 'FUTEVOLEI', label: 'Futevôlei', icon: 'ball' },
   { code: 'FUTEBOL', label: 'Futebol', icon: 'ball' },
   { code: 'BASQUETE', label: 'Basquete', icon: 'ball' },
   { code: 'TENIS', label: 'Tênis', icon: 'racket' },

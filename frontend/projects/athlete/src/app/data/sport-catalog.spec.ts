@@ -2,10 +2,11 @@ import { SPORT_CATALOG, sportLabelForCode } from './sport-catalog';
 
 describe('sport-catalog', () => {
   describe('SPORT_CATALOG', () => {
-    it('includes the 8 sports used by onboarding, in a stable order', () => {
+    it('includes the 9 sports used by onboarding, in a stable order', () => {
       expect(SPORT_CATALOG.map((entry) => entry.code)).toEqual([
         'VOLEI_PRAIA',
         'VOLEI_QUADRA',
+        'FUTEVOLEI',
         'FUTEBOL',
         'BASQUETE',
         'TENIS',

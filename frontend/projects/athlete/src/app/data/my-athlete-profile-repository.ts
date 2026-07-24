@@ -14,6 +14,8 @@ export interface MyAthleteProfile {
   levelsBySport: Record<string, string>;
   fullName: string | null;
   nickname: string | null;
+  /** Foto enviada no onboarding (`profilePhotoUrl`) — null quando o atleta não enviou uma. */
+  profilePhotoUrl: string | null;
 }
 
 function optionalStr(v: unknown): string | null {
@@ -38,5 +40,6 @@ export async function fetchMyAthleteProfile(db: Firestore, uid: string): Promise
     levelsBySport,
     fullName: optionalStr(data['fullName']) ?? optionalStr(data['name']),
     nickname: optionalStr(data['nickname']),
+    profilePhotoUrl: optionalStr(data['profilePhotoUrl']),
   };
 }

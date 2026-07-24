@@ -16,6 +16,7 @@ import {
   watchMyBookings,
   type MyBooking,
 } from './data/my-bookings-repository';
+import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
 import {
@@ -398,6 +399,8 @@ export class AthletePainelComponent {
   /** Convites de parceiro pendentes — mostrados aqui pra não depender de o atleta navegar
    *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. */
   private readonly pendingInvitesState = signal<PendingInviteItem[]>([]);
+  /** Foto enviada no onboarding — prioridade sobre o `photoURL` do Firebase Auth. */
+  private readonly profilePhotoUrlState = signal<string | null>(null);
   protected readonly respondingInviteId = signal<string | null>(null);
   /** Relógio de 1 min: mantém "Hoje/Amanhã" e o corte de reserva passada corretos
    *  numa aba deixada aberta. */
@@ -443,6 +446,9 @@ export class AthletePainelComponent {
   });
   protected readonly firstName = computed(() => firstWord(this.accountLabel()));
   protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
+  protected readonly headerAvatarUrl = computed(
+    () => this.profilePhotoUrlState() ?? this.auth.user()?.photoURL ?? null,
+  );
   protected readonly reservations = computed(() =>
     upcomingReservations(this.bookingsState(), this.now()),
   );
@@ -601,6 +607,7 @@ export class AthletePainelComponent {
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
         this.pendingInvitesState.set([]);
+        this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
         this.bootLoadingState.set(false);
         return;
@@ -647,6 +654,7 @@ export class AthletePainelComponent {
       void this.loadMatchHistory(user.uid);
       void this.loadMyTournaments(user.uid);
       void this.loadPendingInvites(user.uid);
+      void this.loadProfilePhoto(user.uid);
 
       onCleanup(() => {
         stopBookings();
@@ -766,6 +774,18 @@ export class AthletePainelComponent {
     } catch {
       // Sem card de convites é estado válido; sem banner por falha pontual (mesmo padrão de "Meus torneios").
       this.pendingInvitesState.set([]);
+    }
+  }
+
+  private async loadProfilePhoto(uid: string): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      const profile = await fetchMyAthleteProfile(db, uid);
+      if (this.auth.user()?.uid !== uid) return;
+      this.profilePhotoUrlState.set(profile?.profilePhotoUrl ?? null);
+    } catch {
+      this.profilePhotoUrlState.set(null);
     }
   }
 

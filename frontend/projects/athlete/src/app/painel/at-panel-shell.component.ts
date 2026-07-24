@@ -6,6 +6,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { filter, map, startWith } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { fetchMyPendingPartnerInvites } from '../data/tournament-registrations-repository';
 
 /** Rotas que o hub Competir agrupa — mantêm o item "Competir" aceso na bottom-nav mobile. */
@@ -46,6 +47,11 @@ export class AtPanelShellComponent {
 
   protected readonly initials = computed(() => initialsOf(this.userName()));
 
+  /** Foto enviada no onboarding (Firestore `users/{uid}.profilePhotoUrl`) tem prioridade;
+   *  cai pro `photoURL` do Firebase Auth (Google/Apple) quando não há uma. */
+  private readonly profilePhotoUrl = signal<string | null>(null);
+  protected readonly avatarUrl = computed(() => this.profilePhotoUrl() ?? this.auth.user()?.photoURL ?? null);
+
   /** Convites de parceiro pendentes — calculado aqui (não como input) pra aparecer em
    *  QUALQUER tela, não só quando a Agenda está montada e passa o próprio valor. */
   protected readonly agendaPendingCount = signal(0);
@@ -56,11 +62,15 @@ export class AtPanelShellComponent {
       const db = this.firestore;
       if (!uid || !db) {
         this.agendaPendingCount.set(0);
+        this.profilePhotoUrl.set(null);
         return;
       }
       fetchMyPendingPartnerInvites(db, uid)
         .then((invites) => this.agendaPendingCount.set(invites.length))
         .catch(() => this.agendaPendingCount.set(0));
+      fetchMyAthleteProfile(db, uid)
+        .then((profile) => this.profilePhotoUrl.set(profile?.profilePhotoUrl ?? null))
+        .catch(() => this.profilePhotoUrl.set(null));
     });
   }
 

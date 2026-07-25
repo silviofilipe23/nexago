@@ -63,7 +63,25 @@ export class AuthService {
   /** `remember=false` derruba a sessão ao fechar o navegador (browserSessionPersistence). */
   async signInWithEmail(email: string, password: string, remember: boolean): Promise<void> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
-    await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    const credential = await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    await this.assertOrganizerRole(credential.user);
+  }
+
+  /** Confere a claim `organizer` de forma síncrona ANTES do login resolver — o
+   *  `onAuthStateChanged` do construtor também atualiza `roleClaims`, mas de
+   *  forma assíncrona e desacoplada do redirect pós-login; esperar só por ele
+   *  cria uma corrida em que `organizerGuard` roda com `roleClaims` ainda
+   *  desatualizado (conta some sem erro nenhum — sobretudo pra contas
+   *  multi-role recém-promovidas). Mesmo padrão do `assertArenaRole` do
+   *  portal arena. */
+  private async assertOrganizerRole(user: User): Promise<void> {
+    const roles = await this.readRoleClaims(user);
+    this.roleClaims.set(roles);
+    if (roles.includes('organizer')) return;
+    await this.signOutUser();
+    throw new Error(
+      'Esta conta não tem acesso ao painel do organizador. Use o portal correspondente ao seu perfil.',
+    );
   }
 
   async sendPasswordReset(email: string): Promise<void> {

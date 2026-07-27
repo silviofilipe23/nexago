@@ -425,6 +425,59 @@
   color: var(--nx-text-dim);
 }
 
+// ── Convite externo (parceiro sem conta) ────────────────────
+.rg-option-row--link-invite {
+  cursor: default;
+  margin-bottom: 12px;
+}
+
+.rg-search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px dashed var(--nx-line-strong);
+}
+
+.rg-search-empty-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.rg-search-empty-desc {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+  margin: 0 0 8px;
+}
+
+.rg-btn-invite-external {
+  height: 42px;
+
+  @media (max-width: 640px) {
+    height: 44px;
+    align-self: stretch;
+  }
+}
+
+.rg-external-invite-hint {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .rg-invite-block {
   display: flex;
   align-items: center;

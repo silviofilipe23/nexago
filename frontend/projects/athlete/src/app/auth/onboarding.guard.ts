@@ -35,8 +35,9 @@ async function fetchOnboardingDoc(uid: string): Promise<Record<string, unknown> 
   return snap.exists() ? (snap.data() as Record<string, unknown>) : null;
 }
 
-/** Redireciona pro onboarding quem ainda não completou (checagem real no `users/{uid}`). */
-export const onboardingGuard: CanActivateFn = () => {
+/** Redireciona pro onboarding quem ainda não completou (checagem real no `users/{uid}`).
+ *  Leva o destino tentado via `?redirect=` para o onboarding retomar ao concluir. */
+export const onboardingGuard: CanActivateFn = (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
@@ -54,7 +55,7 @@ export const onboardingGuard: CanActivateFn = () => {
           if (isOnboardingCompleted(data)) {
             return of(true);
           }
-          return of(router.createUrlTree(['/onboarding']));
+          return of(router.createUrlTree(['/onboarding'], { queryParams: { redirect: state.url } }));
         }),
         catchError(() => of(true)),
       );

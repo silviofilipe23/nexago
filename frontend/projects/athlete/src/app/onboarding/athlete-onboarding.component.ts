@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { sanitizeReturnUrl } from '../auth/redirect-url';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
 import { athleteFunctions } from '../data/functions';
@@ -79,6 +80,7 @@ function createFirestore(): Firestore | null {
 export class AthleteOnboardingComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -352,7 +354,14 @@ export class AthleteOnboardingComponent {
     // Quem chegou por convite de dupla cai direto no torneio do convite — quem convidou
     // ainda precisa buscar o nome e enviar o convite real de dupla por lá.
     const invite = takePartnerInviteContext();
-    void this.router.navigateByUrl(invite?.tournamentId ? `/torneios/${invite.tournamentId}` : '/painel');
+    const fallback = invite?.tournamentId ? `/torneios/${invite.tournamentId}` : '/painel';
+    const redirectParam = this.route.snapshot.queryParamMap.get('redirect');
+    // Sem convite, o onboardingGuard pode ter guardado aqui o destino original
+    // (ex.: inscrição de torneio) que o atleta tentou acessar antes de ter conta.
+    const target = redirectParam
+      ? sanitizeReturnUrl(redirectParam, fallback, { trustedOrigins: environment.trustedReturnOrigins })
+      : fallback;
+    void this.router.navigateByUrl(target);
   }
 
   private showNotice(message: string): void {

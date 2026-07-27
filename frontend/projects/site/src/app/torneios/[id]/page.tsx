@@ -101,7 +101,7 @@ export default async function TorneioDetailPage({ params }: Params) {
                     <SpotlightCard className="flex h-full items-center justify-between gap-4 px-5 py-4">
                       <div>
                         <p className="font-600 text-fg">
-                          {c.level ?? 'Categoria'} · {genderLabel(c.genderType)}
+                          {c.categoryName ?? `${c.level ?? 'Categoria'} · ${genderLabel(c.genderType)}`}
                         </p>
                         {typeof c.spotsTotal === 'number' && (
                           <p className="mt-0.5 text-sm text-text-dim">{c.spotsTotal} vagas</p>

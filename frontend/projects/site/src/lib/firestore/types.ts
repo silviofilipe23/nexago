@@ -4,6 +4,7 @@ export type TournamentListingStatus = 'open' | 'almost_full' | 'live' | 'ended';
 export type Sport = 'beachTennis' | 'beachVolleyball' | string;
 
 export interface TournamentCategory {
+  categoryName?: string; // ex.: 'Categoria A', 'Iniciante Misto'
   genderType?: string; // 'male' | 'female' | 'mixed'
   level?: string; // 'Open' | 'Iniciante' | ...
   entryFeeCents?: number;

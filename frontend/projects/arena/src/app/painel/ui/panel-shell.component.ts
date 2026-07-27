@@ -26,6 +26,7 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null },
   { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null },
   { id: 'cupons', label: 'Cupons', icon: 'tag', route: '/painel/cupons', badge: null },
+  { id: 'links', label: 'Links', icon: 'share', route: '/painel/links', badge: null },
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2 },
   { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null },
   { id: 'ocupacao', label: 'Ocupação', icon: 'chart-bar', route: '/painel/relatorios/ocupacao', badge: null },

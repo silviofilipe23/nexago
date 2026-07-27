@@ -297,6 +297,8 @@ export {
   equipSandRankCosmetic,
 } from "./sand-rank-sync";
 
+export {saveLinkPageProfile, trackLinkPageEvent} from "./link-pages";
+
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
 export {completeOrganizerSignup} from "./organizer-signup";

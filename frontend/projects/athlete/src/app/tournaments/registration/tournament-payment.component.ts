@@ -120,7 +120,12 @@ export class TournamentPaymentComponent {
   protected readonly amountDueReais = computed(() => (this.amountType() === 'share' ? this.totalPriceReais() / 2 : this.totalPriceReais()));
   protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
 
-  /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida. */
+  /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida.
+   *
+   *  Merchant City (campo 60) precisa ser uma cidade de verdade — "BRASIL" é
+   *  rejeitado por alguns bancos. Sem cidade na config do Pix do organizador,
+   *  usamos a cidade do torneio; "BRASIL" fica só como último recurso.
+   *  O TXID identifica o torneio no extrato do organizador (era `***`). */
   protected readonly organizerBrCode = computed(() => {
     const t = this.listing();
     const pix = t?.organizerPix;
@@ -129,8 +134,9 @@ export class TournamentPaymentComponent {
       key: pix.key,
       keyType: pix.keyType,
       recipientName: pix.recipientName || 'RECEBEDOR',
-      city: pix.city || 'BRASIL',
+      city: pix.city || t.city || 'BRASIL',
       amount: this.amountDueReais(),
+      txid: `INSC${this.tournamentId()}`,
     });
   });
 

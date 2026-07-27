@@ -1644,7 +1644,9 @@ class _TournamentRegistrationPageState
             // Já pago e sem parceiro: esconde o painel "pague ao organizador";
             // mostra só o convite (parceiro entra sem taxa).
             isDirectOrganizerPayment: isDirectOrganizer && !paidAwaitingPartner,
+            tournamentId: tournament.id,
             tournamentName: tournament.name,
+            tournamentCity: tournament.city,
             organizerManagerId: tournament.managerId,
             organizerPixKey: tournament.organizerPixKey,
             organizerPixKeyType: tournament.organizerPixKeyType,

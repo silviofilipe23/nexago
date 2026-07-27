@@ -23,6 +23,7 @@ import '../../../domain/tournament_registration_logic.dart';
 class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
   const TournamentRegistrationDirectOrganizerPanel({
     super.key,
+    required this.tournamentId,
     required this.tournamentName,
     required this.quote,
     required this.paymentType,
@@ -33,8 +34,10 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
     this.pixKeyType = '',
     this.pixRecipientName = '',
     this.pixCity = '',
+    this.tournamentCity = '',
   });
 
+  final String tournamentId;
   final String tournamentName;
   final TournamentRegistrationQuote quote;
   final String paymentType;
@@ -45,6 +48,11 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
   final String pixKeyType;
   final String pixRecipientName;
   final String pixCity;
+
+  /// Cidade do torneio — fallback quando o organizador não configurou
+  /// cidade na chave PIX (campo 60 exige cidade real; "BRASIL" é rejeitado
+  /// por alguns bancos).
+  final String tournamentCity;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -102,8 +110,11 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
               recipientName: pixRecipientName.isNotEmpty
                   ? pixRecipientName
                   : organizerName,
-              city: pixCity.isNotEmpty ? pixCity : 'BRASIL',
+              city: pixCity.isNotEmpty
+                  ? pixCity
+                  : (tournamentCity.isNotEmpty ? tournamentCity : 'BRASIL'),
               amount: amountForPix,
+              txid: 'INSC$tournamentId',
             ),
             pixKey: pixKey,
             recipientName: pixRecipientName.isNotEmpty

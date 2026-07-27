@@ -15,6 +15,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { athleteFunctions } from '../data/functions';
+import { resolvePixQrSrc } from '../data/pix-qr';
 import {
   ArenaBookingError,
   cancelPendingBookingPayment,
@@ -197,6 +198,8 @@ export class ArenaPaymentComponent {
   protected readonly pixBookingId = signal<string | null>(null);
   protected readonly pixCountdown = signal<string>('');
   protected readonly pixExpired = signal(false);
+  /** QR vetorial do Pix — ver `data/pix-qr.ts` (raster redimensionado sai ilegível). */
+  protected readonly pixQrSrc = signal<string | null>(null);
 
   // ── Dividir com amigos (split de PIX) ─────────────────────────
   protected readonly splitMode = signal(false);
@@ -466,6 +469,7 @@ export class ArenaPaymentComponent {
       this.pixBookingId.set(bookingId);
       this.pixPayment.set(pix);
       this.pixExpired.set(false);
+      this.pixQrSrc.set(await resolvePixQrSrc(pix));
       this.startCountdown(pix.expiresAt);
       this.startBookingWatch(bookingId);
     } catch (err) {
@@ -750,6 +754,7 @@ export class ArenaPaymentComponent {
     this.pixBookingId.set(null);
     this.pixCountdown.set('');
     this.pixExpired.set(false);
+    this.pixQrSrc.set(null);
   }
 
   private showNotice(message: string): void {

@@ -609,13 +609,24 @@
 }
 
 // ── Pix: QR real + aguardando pagamento ──────────────────────
-.pm-qr-img {
-  width: 220px;
-  height: 220px;
+// Borda/arredondamento no frame, nunca no <img> — border-radius no QR corta os
+// quadrados de orientação dos cantos. Ver `data/pix-qr.ts`.
+.pm-qr-frame {
+  width: min(280px, 100%);
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: 8px;
   border-radius: var(--nx-r-3);
   border: 1px solid var(--nx-line);
   background: #fff;
-  padding: 8px;
+}
+
+.pm-qr-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
 }
 
 .pm-countdown {

@@ -321,15 +321,26 @@
   }
 }
 
-.tp-qr-img {
-  width: 220px;
-  height: 220px;
+// O arredondamento e a borda ficam no frame, nunca na imagem: border-radius num
+// <img> de QR corta justamente os quadrados de orientação dos cantos.
+.tp-qr-frame {
+  width: min(280px, 100%);
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: 8px;
   border-radius: var(--nx-r-3);
-  object-fit: contain;
   background: #fff;
   border: 1px solid var(--nx-line);
-  padding: 12px;
-  box-sizing: border-box;
+}
+
+.tp-qr-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  // O SVG já carrega a quiet zone de 4 módulos; `contain` mantém o QR quadrado
+  // caso o fallback raster do provedor venha com proporção diferente.
+  object-fit: contain;
+  background: #fff;
 }
 
 .tp-pix-code-row {

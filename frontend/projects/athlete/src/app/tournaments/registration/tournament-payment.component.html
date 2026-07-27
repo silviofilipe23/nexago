@@ -83,7 +83,9 @@
               @if (organizerBrCode(); as brCode) {
                 <div class="tp-pix-block">
                   @if (organizerQrSrc(); as qrSrc) {
-                    <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix do organizador" width="220" height="220" />
+                    <div class="tp-qr-frame">
+                      <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix do organizador" />
+                    </div>
                   }
                   @if (t.organizerPix; as pix) {
                     @if (pix.recipientName) {
@@ -178,7 +180,9 @@
                     <p class="tp-pix-countdown">Expira em {{ countdown }}</p>
                   }
                   @if (pixQrSrc(); as qrSrc) {
-                    <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix" width="220" height="220" />
+                    <div class="tp-qr-frame">
+                      <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix" />
+                    </div>
                   }
                   <div class="tp-pix-code-row">
                     <span class="tp-pix-code">{{ pixResult()!.qrCode }}</span>

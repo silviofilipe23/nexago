@@ -89,8 +89,10 @@
                   </div>
                 } @else {
                   <div class="pm-pix-block">
-                    @if (pix.qrCodeBase64) {
-                      <img class="pm-qr-img" [src]="'data:image/png;base64,' + pix.qrCodeBase64" alt="QR Code Pix" />
+                    @if (pixQrSrc(); as qrSrc) {
+                      <div class="pm-qr-frame">
+                        <img class="pm-qr-img" [src]="qrSrc" alt="QR Code Pix" />
+                      </div>
                     } @else {
                       <div class="pm-qr-placeholder" aria-hidden="true"><span>USE O CÓDIGO ABAIXO</span></div>
                     }

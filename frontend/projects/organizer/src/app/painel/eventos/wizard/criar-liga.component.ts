@@ -221,7 +221,7 @@ function inputToDate(v: string): Date | null {
                     <og-form-field label="Organização (opcional)">
                       <input class="og-input-el" [value]="draft().organizationName" (input)="patch({ organizationName: $any($event.target).value })" />
                     </og-form-field>
-                    <og-form-field label="UF (opcional)">
+                    <og-form-field label="UF">
                       <select class="og-select-el" [value]="draft().state" (change)="onStateChange($any($event.target).value)">
                         <option value="">Selecione</option>
                         @for (s of brLocations.states; track s.sigla) {

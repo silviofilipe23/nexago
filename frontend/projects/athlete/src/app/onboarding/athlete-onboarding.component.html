@@ -262,9 +262,21 @@
           <header class="nx-form-header nx-center">
             <div class="nx-kicker">Tudo pronto</div>
             <h1>Seu perfil está pronto.</h1>
-            <p>Esporte, nível e objetivos configurados. Bora encontrar sua próxima partida.</p>
+            @if (pendingPartnerInvite(); as invite) {
+              <p>
+                @if (invite.inviterName; as from) {
+                  Avise <strong>{{ from }}</strong> que você chegou — o convite de dupla é enviado dentro do nexaGO.
+                } @else {
+                  Avise seu parceiro que você chegou — o convite de dupla é enviado dentro do nexaGO.
+                }
+              </p>
+            } @else {
+              <p>Esporte, nível e objetivos configurados. Bora encontrar sua próxima partida.</p>
+            }
           </header>
-          <button type="button" class="nx-btn-primary" (click)="finish()">Entrar no nexaGO</button>
+          <button type="button" class="nx-btn-primary" (click)="finish()">
+            {{ pendingPartnerInvite() ? 'Ver o torneio do convite' : 'Entrar no nexaGO' }}
+          </button>
         </div>
       }
     }

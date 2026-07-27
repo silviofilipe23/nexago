@@ -37,6 +37,12 @@ import {
 } from '../tournament-uniform';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import {
+  readPartnerLinkInviteMarker,
+  savePartnerLinkInviteMarker,
+  type PartnerLinkInviteMarker,
+} from '../../shared/partner-invite/partner-invite';
+import { InvitePartnerDialogComponent } from './invite-partner-dialog.component';
 import { UniformFormComponent } from './uniform-form.component';
 
 function titleCase(input: string): string {
@@ -95,7 +101,7 @@ interface CategoryStatus {
  *  UI — o backend continua autoritativo. */
 @Component({
   selector: 'app-tournament-registration-shell',
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, InvitePartnerDialogComponent],
   templateUrl: './tournament-registration-shell.component.html',
   styleUrl: './tournament-registration-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -178,6 +184,24 @@ export class TournamentRegistrationShellComponent {
   protected readonly sentPendingInvites = signal<SentPartnerInvite[]>([]);
   protected readonly cancelingInviteId = signal<string | null>(null);
 
+  // ── Convite externo (parceiro ainda sem conta) ──────────────────────────
+  protected readonly showInviteDialog = signal(false);
+  /** Último termo efetivamente buscado — evita mostrar "não achei" antes do debounce. */
+  private readonly lastSearchedTerm = signal('');
+  /** Busca concluída sem resultado → oferta de convite vira o caminho principal. */
+  protected readonly partnerSearchCameUpEmpty = computed(() => {
+    const term = this.partnerQuery().trim();
+    return (
+      term.length >= 2 &&
+      !this.searchingPartner() &&
+      this.lastSearchedTerm() === term &&
+      this.partnerResults().length === 0
+    );
+  });
+  /** Marcador local "convite por link enviado" da categoria selecionada. */
+  protected readonly linkInviteMarker = signal<PartnerLinkInviteMarker | null>(null);
+  protected readonly referralCode = computed(() => this.auth.user()?.uid ?? '');
+
   /** Convite QUE EU RECEBI pra essa categoria — aceitar/recusar direto aqui, sem depender
    *  de o atleta achar a Agenda (é onde a aceitação sempre viveu até então). */
   protected readonly receivedInvite = signal<TournamentPartnerInvite | null>(null);
@@ -237,6 +261,15 @@ export class TournamentRegistrationShellComponent {
         return;
       }
       void this.loadSentPendingInvites(uid, tournamentId, reg.categoryId);
+    });
+
+    // Marcador local "convite por link enviado" acompanha a categoria selecionada.
+    effect(() => {
+      const tournamentId = this.tournamentId();
+      const category = this.selectedCategory();
+      this.linkInviteMarker.set(
+        tournamentId && category ? readPartnerLinkInviteMarker(tournamentId, category.id) : null,
+      );
     });
 
     // Defaults do uniforme ao trocar de categoria; quando o perfil chega depois do default,
@@ -446,6 +479,7 @@ export class TournamentRegistrationShellComponent {
     const db = this.firestore;
     if (!db || term.trim().length < 2) {
       this.partnerResults.set([]);
+      this.lastSearchedTerm.set('');
       return;
     }
     this.searchingPartner.set(true);
@@ -463,9 +497,27 @@ export class TournamentRegistrationShellComponent {
             (categoryGender == null || categoryGender === 'Mix' || normalizeAthleteGender(p.gender) === categoryGender),
         ),
       );
+      this.lastSearchedTerm.set(term.trim());
     } finally {
       this.searchingPartner.set(false);
     }
+  }
+
+  protected openInviteDialog(): void {
+    this.showInviteDialog.set(true);
+  }
+
+  protected closeInviteDialog(): void {
+    this.showInviteDialog.set(false);
+  }
+
+  /** Convite por link saiu (WhatsApp/cópia) — lembra localmente pra orientar o retorno. */
+  protected onExternalInviteShared(partnerName: string | null): void {
+    const tournamentId = this.tournamentId();
+    const category = this.selectedCategory();
+    if (!tournamentId || !category) return;
+    savePartnerLinkInviteMarker(tournamentId, category.id, partnerName);
+    this.linkInviteMarker.set(readPartnerLinkInviteMarker(tournamentId, category.id));
   }
 
   protected async invitePartner(candidate: AthletePublicProfile): Promise<void> {

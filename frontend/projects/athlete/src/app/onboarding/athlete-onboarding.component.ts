@@ -19,6 +19,7 @@ import {
   validateBirthDate,
 } from './onboarding-validators';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
+import { peekPartnerInviteContext, takePartnerInviteContext } from '../shared/partner-invite/partner-invite';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
 
@@ -340,8 +341,18 @@ export class AthleteOnboardingComponent {
     }
   }
 
+  /** Convite de parceiro pendente (link de cadastro) — dirige o passo final e o destino.
+   *  Sem torneio no contexto é indicação pura: passo final segue o texto padrão. */
+  protected readonly pendingPartnerInvite = computed(() => {
+    const ctx = peekPartnerInviteContext();
+    return ctx?.tournamentId ? ctx : null;
+  });
+
   protected finish(): void {
-    void this.router.navigateByUrl('/painel');
+    // Quem chegou por convite de dupla cai direto no torneio do convite — quem convidou
+    // ainda precisa buscar o nome e enviar o convite real de dupla por lá.
+    const invite = takePartnerInviteContext();
+    void this.router.navigateByUrl(invite?.tournamentId ? `/torneios/${invite.tournamentId}` : '/painel');
   }
 
   private showNotice(message: string): void {

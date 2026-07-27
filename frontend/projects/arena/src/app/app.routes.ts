@@ -211,6 +211,13 @@ export const routes: Routes = [
       import('./painel/coupons/panel-coupon-form.component').then((m) => m.PanelCouponFormComponent),
   },
   {
+    path: 'painel/links',
+    title: 'Links — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/links/panel-links.component').then((m) => m.PanelLinksComponent),
+  },
+  {
     path: 'painel/torneios',
     title: 'Torneios — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard],

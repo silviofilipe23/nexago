@@ -2087,6 +2087,47 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Página pública de links (link-in-bio) de arena/organizador.
+    // Leitura pública: o site renderiza `/a/{slug}` e `/o/{slug}` sem login.
+    // Escrita do PERFIL só via Cloud Function (`saveLinkPageProfile`): trocar o
+    // endereço precisa mover `linkPageSlugs/{slug}` na mesma transação, senão
+    // dois donos reivindicam o mesmo slug. Contadores (views/clicks e os mapas
+    // diários) também são exclusivos da function `trackLinkPageEvent` — o
+    // visitante é anônimo e não pode receber escrita direta no documento.
+    function linkPageOwnerUid(pageData) {
+      return pageData.ownerType == 'organizer'
+        ? pageData.ownerId
+        : get(/databases/$(database)/documents/arenas/$(pageData.ownerId)).data.managerUserId;
+    }
+    function isLinkPageOwner(pageData) {
+      return request.auth != null && (
+        isSuperAdmin() || linkPageOwnerUid(pageData) == request.auth.uid
+      );
+    }
+    match /linkPages/{pageId} {
+      allow read: if true;
+      allow write: if false;
+
+      // Os links em si o dono escreve direto — não há nada atômico a garantir.
+      // Só os contadores ficam de fora (mantidos por `trackLinkPageEvent`).
+      match /links/{linkId} {
+        allow read: if true;
+        allow create: if isLinkPageOwner(get(/databases/$(database)/documents/linkPages/$(pageId)).data) &&
+          request.resource.data.get('clicks', 0) == 0 &&
+          request.resource.data.get('dailyClicks', {}).size() == 0;
+        allow update: if isLinkPageOwner(get(/databases/$(database)/documents/linkPages/$(pageId)).data) &&
+          request.resource.data.get('clicks', 0) == resource.data.get('clicks', 0) &&
+          request.resource.data.get('dailyClicks', {}) == resource.data.get('dailyClicks', {});
+        allow delete: if isLinkPageOwner(get(/databases/$(database)/documents/linkPages/$(pageId)).data);
+      }
+    }
+    // Registro de unicidade de endereço: slug -> pageId. Leitura pública porque
+    // é o índice que resolve a URL; escrita só pela function.
+    match /linkPageSlugs/{slug} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // NEGAÇÃO padrão para caminhos não mapeados.
     // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
     // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE

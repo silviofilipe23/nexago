@@ -70,6 +70,11 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/eventos/wizard/criar-etapa.component').then((m) => m.CriarEtapaComponent),
       },
       {
+        path: 'links',
+        title: 'Links — NexaGO Organizador',
+        loadComponent: () => import('./painel/links/links.component').then((m) => m.LinksComponent),
+      },
+      {
         path: 'config',
         title: 'Configurações — NexaGO Organizador',
         loadComponent: () => import('./painel/config/config.component').then((m) => m.ConfigComponent),

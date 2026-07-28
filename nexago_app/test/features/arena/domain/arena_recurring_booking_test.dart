@@ -179,12 +179,13 @@ void main() {
       expect(booking.skippedDates, isEmpty);
     });
 
-    test('status canceled não é ativo', () {
+    test('status canceled não é ativo, é canceled', () {
       final booking = ArenaRecurringBooking.fromFirestore(
         _FakeDoc(id: 'rec9', data: {'status': 'canceled'}),
       );
 
       expect(booking.isActive, isFalse);
+      expect(booking.isCanceled, isTrue);
     });
 
     test('status paused não é ativo, é pausado', () {
@@ -194,6 +195,7 @@ void main() {
 
       expect(booking.isActive, isFalse);
       expect(booking.isPaused, isTrue);
+      expect(booking.isCanceled, isFalse);
     });
 
     test('paymentType ausente vira per_occurrence (retrocompatibilidade)', () {

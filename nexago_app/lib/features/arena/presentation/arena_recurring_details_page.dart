@@ -246,7 +246,7 @@ class _SeriesDetails extends ConsumerWidget {
           ),
           error: (e, _) => ArenaErrorState(message: '$e'),
         ),
-        if (series.isActive) ...[
+        if (!series.isCanceled) ...[
           SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: () => _confirmCancelSeries(context, ref),
@@ -332,10 +332,20 @@ class _SeriesHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statusColor = series.isActive
-        ? AppColors.win
-        : context.themeColors.onSurfaceMuted;
-    final statusLabel = series.isActive ? 'ATIVO' : 'ENCERRADO';
+    final Color statusColor;
+    final String statusLabel;
+    if (series.isActive) {
+      statusColor = AppColors.win;
+      statusLabel = 'ATIVO';
+    } else if (series.isPaused) {
+      // Mesmo tom de âmbar do badge "PAUSADO" na lista de horários fixos
+      // (`arena_recurring_list_page.dart`), pra consistência visual.
+      statusColor = const Color(0xFFF4C543);
+      statusLabel = 'PAUSADO';
+    } else {
+      statusColor = context.themeColors.onSurfaceMuted;
+      statusLabel = 'ENCERRADO';
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(22),

@@ -70,6 +70,7 @@ class ArenaRecurringBooking {
 
   bool get isActive => status == 'active';
   bool get isPaused => status == 'paused';
+  bool get isCanceled => status == 'canceled';
 
   static const List<String> _weekdayLabels = [
     'Segunda-feira',

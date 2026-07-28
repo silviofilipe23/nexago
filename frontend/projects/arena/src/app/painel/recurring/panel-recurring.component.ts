@@ -294,7 +294,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 1.3fr 1.4fr 0.8fr 1fr 140px 130px;
+      grid-template-columns: 1.3fr 1.4fr 0.8fr 1fr 140px 180px;
       gap: 14px;
       align-items: center;
     }

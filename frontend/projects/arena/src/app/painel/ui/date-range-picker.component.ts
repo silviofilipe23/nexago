@@ -281,9 +281,11 @@ export class DateRangePickerComponent {
     if (dateKey < start) {
       this.draftEnd.set(start);
       this.draftStart.set(dateKey);
+      this.draftOpenEnd.set(false);
       return;
     }
     this.draftEnd.set(dateKey);
+    this.draftOpenEnd.set(false);
   }
 
   protected isInRange(dateKey: string): boolean {

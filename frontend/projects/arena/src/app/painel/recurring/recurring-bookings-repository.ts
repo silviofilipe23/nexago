@@ -1,6 +1,6 @@
 import { collection, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
-import { arenaRecurringBookingFromDoc, type ArenaRecurringBooking } from './arena-recurring-booking.model';
+import { arenaRecurringBookingFromDoc, type ArenaRecurringBooking, type ArenaRecurringPaymentType } from './arena-recurring-booking.model';
 
 /** Espelha `RecurringBookingService` (Flutter): leitura direta de `arenaRecurringBookings`
  *  (rules permitem pro gestor da arena), escrita 100% via Cloud Functions — a série exige
@@ -8,9 +8,13 @@ import { arenaRecurringBookingFromDoc, type ArenaRecurringBooking } from './aren
 
 export class RecurringBookingError extends Error {}
 
-export function watchActiveSeries(db: Firestore, arenaId: string, onChange: (series: ArenaRecurringBooking[]) => void): Unsubscribe {
+export function watchVisibleSeries(db: Firestore, arenaId: string, onChange: (series: ArenaRecurringBooking[]) => void): Unsubscribe {
   return onSnapshot(
-    query(collection(db, 'arenaRecurringBookings'), where('arenaId', '==', arenaId), where('status', '==', 'active')),
+    query(
+      collection(db, 'arenaRecurringBookings'),
+      where('arenaId', '==', arenaId),
+      where('status', 'in', ['active', 'paused']),
+    ),
     (snap) => {
       const list = snap.docs
         .map(arenaRecurringBookingFromDoc)
@@ -32,6 +36,14 @@ export interface CreateRecurringSeriesInput {
   customerName?: string;
   startDate?: string;
   endDate?: string;
+  // Opcional (não `paymentType: ArenaRecurringPaymentType` obrigatório) de propósito: o
+  // backend já assume 'per_occurrence' quando ausente (Task 1), e isso evita quebrar a
+  // chamada em panel-recurring.component.ts antes da Task 11 reescrever o formulário.
+  paymentType?: ArenaRecurringPaymentType;
+}
+
+export interface UpdateRecurringSeriesInput extends CreateRecurringSeriesInput {
+  seriesId: string;
 }
 
 export interface CreateRecurringSeriesResult {
@@ -55,10 +67,38 @@ export async function createRecurringSeries(functions: Functions, input: CreateR
   }
 }
 
+export async function updateRecurringSeries(functions: Functions, input: UpdateRecurringSeriesInput): Promise<CreateRecurringSeriesResult> {
+  const call = httpsCallable<UpdateRecurringSeriesInput, CreateRecurringSeriesResult>(functions, 'updateArenaRecurringBooking');
+  try {
+    const result = await call(input);
+    return result.data;
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
 export async function cancelRecurringSeries(functions: Functions, seriesId: string, reason?: string): Promise<void> {
   const call = httpsCallable(functions, 'cancelArenaRecurringBooking');
   try {
     await call({ seriesId, ...(reason ? { reason } : {}) });
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
+export async function pauseRecurringSeries(functions: Functions, seriesId: string, reason?: string): Promise<void> {
+  const call = httpsCallable(functions, 'pauseArenaRecurringBooking');
+  try {
+    await call({ seriesId, ...(reason ? { reason } : {}) });
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
+export async function resumeRecurringSeries(functions: Functions, seriesId: string): Promise<void> {
+  const call = httpsCallable(functions, 'resumeArenaRecurringBooking');
+  try {
+    await call({ seriesId });
   } catch (err) {
     throw mapFunctionsError(err);
   }

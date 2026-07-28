@@ -43,6 +43,29 @@ export interface RecurringSeriesData {
   skippedDates: string[];
 }
 
+/** Reconstrói `RecurringSeriesData` a partir do doc cru de `arenaRecurringBookings`
+ *  — usado tanto pelo scheduler diário quanto por `resumeArenaRecurringBooking`. */
+export function parseRecurringSeriesData(data: Record<string, unknown>): RecurringSeriesData {
+  return {
+    arenaId: String(data["arenaId"] ?? ""),
+    arenaName: String(data["arenaName"] ?? "Arena"),
+    courtId: String(data["courtId"] ?? ""),
+    courtName: String(data["courtName"] ?? "Quadra"),
+    weekday: Number(data["weekday"] ?? 0),
+    startTime: String(data["startTime"] ?? ""),
+    endTime: String(data["endTime"] ?? ""),
+    athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null,
+    customerName: typeof data["customerName"] === "string" ? data["customerName"] : null,
+    amountReais: Number(data["amountReais"] ?? 0),
+    status: String(data["status"] ?? ""),
+    startDate: String(data["startDate"] ?? ""),
+    endDate: typeof data["endDate"] === "string" ? data["endDate"] : null,
+    skippedDates: Array.isArray(data["skippedDates"]) ?
+      (data["skippedDates"] as unknown[]).map(String) :
+      [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Helpers puros (exportados para testes)
 // ---------------------------------------------------------------------------
@@ -981,3 +1004,133 @@ async function updateArenaRecurringBookingHandler(
 
   return {seriesId, canceledDates, createdDates, skippedDates};
 }
+
+interface PauseSeriesInput {
+  seriesId?: string;
+  reason?: string;
+}
+
+export const pauseArenaRecurringBooking = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const input = (request.data ?? {}) as PauseSeriesInput;
+  const seriesId = input.seriesId?.trim() ?? "";
+  if (!seriesId) {
+    throw new HttpsError("invalid-argument", "Horário fixo inválido.");
+  }
+
+  const db = getFirestore();
+  const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
+  const seriesSnap = await seriesRef.get();
+  if (!seriesSnap.exists) {
+    throw new HttpsError("not-found", "Horário fixo não encontrado.");
+  }
+  const seriesData = seriesSnap.data() as Record<string, unknown>;
+  const arenaId = String(seriesData["arenaId"] ?? "");
+  await requireArenaManager(db, arenaId, uid);
+
+  if (String(seriesData["status"]) !== "active") {
+    throw new HttpsError("failed-precondition", "Só é possível pausar um horário fixo ativo.");
+  }
+
+  const reason = input.reason?.trim().slice(0, 500) || null;
+  await seriesRef.set({
+    status: "paused",
+    pausedAt: FieldValue.serverTimestamp(),
+    pauseReason: reason,
+  }, {merge: true});
+
+  const releasedDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_paused");
+
+  await notifyLinkedAthleteSafe({
+    athleteId: (seriesData["athleteId"] as string | null) ?? null,
+    title: "Horário fixo pausado",
+    body: `Seu horário fixo em ${String(seriesData["arenaName"] ?? "Arena")} foi pausado ` +
+      "pela arena. As próximas reservas foram liberadas.",
+    type: "recurring_booking_paused",
+    data: {recurringBookingId: seriesId, arenaId},
+  });
+
+  logger.info("pauseArenaRecurringBooking: série pausada", {
+    seriesId,
+    arenaId,
+    released: releasedDates.length,
+  });
+
+  return {seriesId, releasedDates};
+});
+
+interface ResumeSeriesInput {
+  seriesId?: string;
+}
+
+export const resumeArenaRecurringBooking = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const input = (request.data ?? {}) as ResumeSeriesInput;
+  const seriesId = input.seriesId?.trim() ?? "";
+  if (!seriesId) {
+    throw new HttpsError("invalid-argument", "Horário fixo inválido.");
+  }
+
+  const db = getFirestore();
+  const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
+  const seriesSnap = await seriesRef.get();
+  if (!seriesSnap.exists) {
+    throw new HttpsError("not-found", "Horário fixo não encontrado.");
+  }
+  const seriesData = seriesSnap.data() as Record<string, unknown>;
+  const arenaId = String(seriesData["arenaId"] ?? "");
+  await requireArenaManager(db, arenaId, uid);
+
+  if (String(seriesData["status"]) !== "paused") {
+    throw new HttpsError("failed-precondition", "Só é possível retomar um horário fixo pausado.");
+  }
+
+  await seriesRef.set({
+    status: "active",
+    pausedAt: null,
+    pauseReason: null,
+  }, {merge: true});
+
+  const series = parseRecurringSeriesData({...seriesData, status: "active"});
+  const todayKey = dayKeyFromEventDate(new Date());
+  const horizonKey = addDaysToDateKey(todayKey, RECURRING_HORIZON_DAYS);
+  const result = await materializeSeriesOccurrences(
+    db,
+    seriesId,
+    series,
+    addDaysToDateKey(todayKey, -1),
+    horizonKey,
+  );
+
+  // `series.skippedDates` (via parseRecurringSeriesData) já carrega as datas
+  // canceladas individualmente antes da pausa (cancelArenaRecurringOccurrence)
+  // — mescla com qualquer conflito novo encontrado nesta materialização, sem
+  // isso o registro das cancelamentos pontuais se perderia no retomar.
+  await seriesRef.set({
+    materializedUntil: horizonKey,
+    skippedDates: Array.from(new Set([...series.skippedDates, ...result.skippedDates])),
+  }, {merge: true});
+
+  await notifyLinkedAthleteSafe({
+    athleteId: series.athleteId,
+    title: "Horário fixo retomado",
+    body: `Seu horário fixo em ${series.arenaName} foi retomado pela arena.`,
+    type: "recurring_booking_resumed",
+    data: {recurringBookingId: seriesId, arenaId},
+  });
+
+  logger.info("resumeArenaRecurringBooking: série retomada", {
+    seriesId,
+    arenaId,
+    created: result.createdDates.length,
+    skipped: result.skippedDates.length,
+  });
+
+  return {seriesId, createdDates: result.createdDates, skippedDates: result.skippedDates};
+});

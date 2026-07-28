@@ -8,31 +8,10 @@ import {
   addDaysToDateKey,
   cancelFutureOccurrences,
   materializeSeriesOccurrences,
-  type RecurringSeriesData,
+  parseRecurringSeriesData,
 } from "./arena-recurring-booking";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
-
-function parseSeries(data: Record<string, unknown>): RecurringSeriesData {
-  return {
-    arenaId: String(data["arenaId"] ?? ""),
-    arenaName: String(data["arenaName"] ?? "Arena"),
-    courtId: String(data["courtId"] ?? ""),
-    courtName: String(data["courtName"] ?? "Quadra"),
-    weekday: Number(data["weekday"] ?? 0),
-    startTime: String(data["startTime"] ?? ""),
-    endTime: String(data["endTime"] ?? ""),
-    athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null,
-    customerName: typeof data["customerName"] === "string" ? data["customerName"] : null,
-    amountReais: Number(data["amountReais"] ?? 0),
-    status: String(data["status"] ?? ""),
-    startDate: String(data["startDate"] ?? ""),
-    endDate: typeof data["endDate"] === "string" ? data["endDate"] : null,
-    skippedDates: Array.isArray(data["skippedDates"]) ?
-      (data["skippedDates"] as unknown[]).map(String) :
-      [],
-  };
-}
 
 async function notifyManagerSafe(
   managerUserId: string,
@@ -82,7 +61,7 @@ export const materializeArenaRecurringBookings = onSchedule({
   let autoCanceled = 0;
 
   for (const doc of seriesSnap.docs) {
-    const series = parseSeries(doc.data() as Record<string, unknown>);
+    const series = parseRecurringSeriesData(doc.data() as Record<string, unknown>);
     const materializedUntil = String(doc.data()["materializedUntil"] ?? todayKey);
 
     const arenaSnap = await db.collection("arenas").doc(series.arenaId).get();

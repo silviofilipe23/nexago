@@ -77,6 +77,8 @@ import {
   cancelArenaRecurringBooking,
   cancelArenaRecurringOccurrence,
   updateArenaRecurringBooking,
+  pauseArenaRecurringBooking,
+  resumeArenaRecurringBooking,
 } from "./arena-recurring-booking";
 import {materializeArenaRecurringBookings} from "./arena-recurring-materializer";
 
@@ -192,6 +194,8 @@ export {
   cancelArenaRecurringBooking,
   cancelArenaRecurringOccurrence,
   updateArenaRecurringBooking,
+  pauseArenaRecurringBooking,
+  resumeArenaRecurringBooking,
   materializeArenaRecurringBookings,
 };
 

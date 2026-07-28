@@ -432,6 +432,37 @@ async function requireArenaManager(
   return arenaData;
 }
 
+/**
+ * Confere que a quadra existe e, se houver atleta vinculado, que o usuário
+ * existe — validação comum a criar e editar horário fixo. Lança
+ * HttpsError("not-found", ...) no primeiro problema encontrado.
+ */
+async function resolveCourtAndAthlete(
+  db: Firestore,
+  arenaId: string,
+  courtId: string,
+  athleteId: string | null,
+): Promise<{courtName: string}> {
+  const courtSnap = await db
+    .collection("arenas").doc(arenaId)
+    .collection("courts").doc(courtId)
+    .get();
+  if (!courtSnap.exists) {
+    throw new HttpsError("not-found", "Quadra não encontrada.");
+  }
+  if (athleteId != null) {
+    const userSnap = await db.collection("users").doc(athleteId).get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
+    }
+  }
+  const courtData = courtSnap.data() as Record<string, unknown>;
+  const courtName = typeof courtData["name"] === "string" ?
+    (courtData["name"] as string).trim() || "Quadra" :
+    "Quadra";
+  return {courtName};
+}
+
 async function notifyLinkedAthleteSafe(input: {
   athleteId: string | null;
   title: string;
@@ -576,20 +607,7 @@ async function createArenaRecurringBookingHandler(
   const db = getFirestore();
   const arenaData = await requireArenaManager(db, arenaId, uid);
 
-  const courtSnap = await db
-    .collection("arenas").doc(arenaId)
-    .collection("courts").doc(courtId)
-    .get();
-  if (!courtSnap.exists) {
-    throw new HttpsError("not-found", "Quadra não encontrada.");
-  }
-
-  if (athleteId != null) {
-    const userSnap = await db.collection("users").doc(athleteId).get();
-    if (!userSnap.exists) {
-      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
-    }
-  }
+  const {courtName} = await resolveCourtAndAthlete(db, arenaId, courtId, athleteId);
 
   // Gate de plano: Essencial (sem titularidade Pro/Parceiro) tem limite de séries ativas.
   if (!isArenaEntitledPro(arenaData, Date.now())) {
@@ -611,10 +629,6 @@ async function createArenaRecurringBookingHandler(
   const arenaName = typeof arenaData["name"] === "string" ?
     (arenaData["name"] as string).trim() || "Arena" :
     "Arena";
-  const courtData = courtSnap.data() as Record<string, unknown>;
-  const courtName = typeof courtData["name"] === "string" ?
-    (courtData["name"] as string).trim() || "Quadra" :
-    "Quadra";
 
   const series: RecurringSeriesData = {
     arenaId,
@@ -878,24 +892,7 @@ async function updateArenaRecurringBookingHandler(
   const todayKey = dayKeyFromEventDate(new Date());
   const validated = validateRecurringInput({...input, arenaId}, todayKey, {allowPastStartDate: true});
 
-  const courtSnap = await db
-    .collection("arenas").doc(arenaId)
-    .collection("courts").doc(validated.courtId)
-    .get();
-  if (!courtSnap.exists) {
-    throw new HttpsError("not-found", "Quadra não encontrada.");
-  }
-  if (validated.athleteId != null) {
-    const userSnap = await db.collection("users").doc(validated.athleteId).get();
-    if (!userSnap.exists) {
-      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
-    }
-  }
-
-  const courtData = courtSnap.data() as Record<string, unknown>;
-  const courtName = typeof courtData["name"] === "string" ?
-    (courtData["name"] as string).trim() || "Quadra" :
-    "Quadra";
+  const {courtName} = await resolveCourtAndAthlete(db, arenaId, validated.courtId, validated.athleteId);
   const arenaName = String(currentData["arenaName"] ?? "Arena");
 
   const series: RecurringSeriesData = {
@@ -923,24 +920,40 @@ async function updateArenaRecurringBookingHandler(
   let skippedDates: string[] = [];
 
   if (currentStatus === "active") {
+    // Grava a config nova já ANTES de cancelar/materializar, com
+    // `materializedUntil` propositalmente desatualizado — mesmo padrão de
+    // createArenaRecurringBookingHandler. Se cancelFutureOccurrences ou
+    // materializeSeriesOccurrences falhar no meio, o cron
+    // (`materializeArenaRecurringBookings`, filtro `materializedUntil <
+    // horizonKey`) retoma a série depois, já com a config nova.
+    await seriesRef.set({
+      ...series,
+      paymentType: validated.paymentType,
+      materializedUntil: todayMinusOne,
+    }, {merge: true});
+
     // Config antiga sai da agenda, config nova entra — garante que nenhuma
     // ocorrência futura fica com dia/horário/quadra/valor desatualizados.
     canceledDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_updated");
     const result = await materializeSeriesOccurrences(db, seriesId, series, todayMinusOne, horizonKey);
     createdDates = result.createdDates;
     skippedDates = result.skippedDates;
-  }
-  // Se `paused`: só os campos da série mudam agora — a rematerialização
-  // acontece em resumeArenaRecurringBooking, com a config já atualizada.
 
-  await seriesRef.set({
-    ...series,
-    paymentType: validated.paymentType,
-    skippedDates,
-    materializedUntil: currentStatus === "active" ?
-      horizonKey :
-      String(currentData["materializedUntil"] ?? todayMinusOne),
-  }, {merge: true});
+    await seriesRef.set({
+      materializedUntil: horizonKey,
+      skippedDates,
+    }, {merge: true});
+  } else {
+    // Se `paused`: só os campos da série mudam agora — a rematerialização
+    // acontece em resumeArenaRecurringBooking, com a config já atualizada.
+    // Nenhuma operação multi-etapa acontece aqui, então um único write basta.
+    await seriesRef.set({
+      ...series,
+      paymentType: validated.paymentType,
+      skippedDates,
+      materializedUntil: String(currentData["materializedUntil"] ?? todayMinusOne),
+    }, {merge: true});
+  }
 
   logger.info("updateArenaRecurringBooking: série atualizada", {
     seriesId,

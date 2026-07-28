@@ -15,6 +15,7 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
 import { StatusDotComponent } from '../ui/status-dot.component';
+import { DateRangePickerComponent } from '../ui/date-range-picker.component';
 import {
   RECURRING_WEEKDAYS,
   RECURRING_WEEKDAY_LABEL,
@@ -24,6 +25,8 @@ import {
   type ArenaRecurringPaymentType,
 } from './arena-recurring-booking.model';
 import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, resumeRecurringSeries, updateRecurringSeries, watchVisibleSeries } from './recurring-bookings-repository';
+import { AthleteSearchFieldComponent } from './athlete-search-field.component';
+import type { AthleteCandidate } from './athlete-search-filter';
 
 /** Tela Horários fixos (mensalista): leitura direta de `arenaRecurringBookings`, escrita
  *  100% via Cloud Functions (`createArenaRecurringBooking`/`cancelArenaRecurringBooking`) —
@@ -41,6 +44,8 @@ import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, res
     StatusDotComponent,
     RouterLink,
     DatePipe,
+    DateRangePickerComponent,
+    AthleteSearchFieldComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -132,12 +137,12 @@ import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, res
         }
       </div>
 
-      @if (showCreate()) {
-        <ar-modal (close)="showCreate.set(false)">
-          <h2 class="modal-title">Novo horário fixo</h2>
+      @if (formOpen()) {
+        <ar-modal (close)="closeForm()">
+          <h2 class="modal-title">{{ editTarget() ? 'Editar horário fixo' : 'Novo horário fixo' }}</h2>
           <p class="modal-subtitle">Reserva semanal recorrente (mensalista) — as próximas ocorrências são criadas automaticamente.</p>
 
-          @if (createError(); as err) {
+          @if (formError(); as err) {
             <div class="error-banner">{{ err }}</div>
           }
 
@@ -167,14 +172,34 @@ import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, res
             </div>
           </div>
 
-          <div class="field-label">Nome do mensalista</div>
-          <input
-            type="text"
-            class="input-box"
-            placeholder="Ex.: João Silva"
-            [value]="customerName()"
-            (input)="customerName.set($any($event.target).value)"
+          <div class="field-label">Data de início / término</div>
+          <ar-date-range-picker
+            [startDate]="startDate()"
+            [endDate]="endDate()"
+            (rangeChange)="onRangeChange($event)"
           />
+          <div class="spacer"></div>
+
+          <div class="field-label">Mensalista</div>
+          <div class="ar-filter-bar weekday-bar">
+            <button type="button" class="ar-chip" [class.active]="mensalistaMode() === 'atleta'" (click)="setMensalistaMode('atleta')">Atleta cadastrado</button>
+            <button type="button" class="ar-chip" [class.active]="mensalistaMode() === 'avulso'" (click)="setMensalistaMode('avulso')">Avulso</button>
+          </div>
+
+          @if (mensalistaMode() === 'atleta') {
+            <ar-athlete-search-field [arenaId]="arenaContext.arenaId() ?? ''" (selected)="onAthleteSelected($event)" />
+            @if (athleteId()) {
+              <p class="athlete-selected-hint">Selecionado: {{ athleteName() }}</p>
+            }
+          } @else {
+            <input
+              type="text"
+              class="input-box"
+              placeholder="Ex.: João Silva"
+              [value]="customerName()"
+              (input)="customerName.set($any($event.target).value)"
+            />
+          }
 
           <div class="field-label">Valor por ocorrência (R$)</div>
           <input
@@ -185,11 +210,18 @@ import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, res
             [value]="amountValue()"
             (input)="amountValue.set($any($event.target).value)"
           />
+          <p class="monthly-hint">≈ {{ formatBRL(estimateMonthlyReais(parsedAmount())) }}/mês</p>
+
+          <div class="field-label">Forma de pagamento</div>
+          <div class="ar-filter-bar weekday-bar">
+            <button type="button" class="ar-chip" [class.active]="paymentType() === 'monthly'" (click)="paymentType.set('monthly')">Mensal</button>
+            <button type="button" class="ar-chip" [class.active]="paymentType() === 'per_occurrence'" (click)="paymentType.set('per_occurrence')">Por ocorrência</button>
+          </div>
 
           <div class="actions">
-            <button type="button" class="ar-ghost-btn" [disabled]="creating()" (click)="showCreate.set(false)">Cancelar</button>
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="!canCreate()" (click)="create()">
-              {{ creating() ? 'Criando…' : 'Criar horário fixo' }}
+            <button type="button" class="ar-ghost-btn" [disabled]="saving()" (click)="closeForm()">Cancelar</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="!canSubmit()" (click)="submitForm()">
+              {{ saving() ? 'Salvando…' : (editTarget() ? 'Salvar alterações' : 'Criar horário fixo') }}
             </button>
           </div>
         </ar-modal>
@@ -433,6 +465,17 @@ import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, res
       margin-bottom: 18px;
     }
 
+    .spacer {
+      height: 18px;
+    }
+
+    .athlete-selected-hint,
+    .monthly-hint {
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+      margin: -8px 0 18px;
+    }
+
     .time-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -466,7 +509,7 @@ import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, res
   `,
 })
 export class PanelRecurringComponent {
-  private readonly arenaContext = inject(ArenaContextService);
+  protected readonly arenaContext = inject(ArenaContextService);
 
   protected readonly weekdayOptions = RECURRING_WEEKDAYS;
   protected readonly weekdayLabel = RECURRING_WEEKDAY_LABEL;
@@ -486,15 +529,22 @@ export class PanelRecurringComponent {
     return max != null && this.series().length >= max;
   });
 
-  protected readonly showCreate = signal(false);
+  protected readonly formOpen = signal(false);
+  protected readonly editTarget = signal<ArenaRecurringBooking | null>(null);
   protected readonly courtId = signal('');
   protected readonly weekday = signal(1);
   protected readonly startTime = signal('19:00');
   protected readonly endTime = signal('20:00');
+  protected readonly startDate = signal<string | null>(null);
+  protected readonly endDate = signal<string | null>(null);
+  protected readonly mensalistaMode = signal<'atleta' | 'avulso'>('avulso');
+  protected readonly athleteId = signal<string | null>(null);
+  protected readonly athleteName = signal('');
   protected readonly customerName = signal('');
   protected readonly amountValue = signal('');
-  protected readonly creating = signal(false);
-  protected readonly createError = signal<string | null>(null);
+  protected readonly paymentType = signal<ArenaRecurringPaymentType>('per_occurrence');
+  protected readonly saving = signal(false);
+  protected readonly formError = signal<string | null>(null);
 
   protected readonly cancelTarget = signal<ArenaRecurringBooking | null>(null);
   protected readonly canceling = signal(false);
@@ -503,14 +553,15 @@ export class PanelRecurringComponent {
   protected readonly listKicker = computed(() => `${this.series().length} ativos`);
   protected readonly headerSubtitle = computed(() => `${this.arenaContext.arenaName() ?? 'Arena'} · mensalistas recorrentes`);
 
-  protected readonly canCreate = computed(() => {
+  protected readonly canSubmit = computed(() => {
     return (
-      !this.creating() &&
+      !this.saving() &&
       this.courtId().length > 0 &&
-      this.customerName().trim().length > 0 &&
       this.startTime().length === 5 &&
       this.endTime().length === 5 &&
-      this.parsedAmount() > 0
+      this.startDate() != null &&
+      this.parsedAmount() > 0 &&
+      (this.mensalistaMode() === 'atleta' ? this.athleteId() != null : this.customerName().trim().length > 0)
     );
   });
 
@@ -533,7 +584,7 @@ export class PanelRecurringComponent {
     });
   }
 
-  private parsedAmount(): number {
+  protected parsedAmount(): number {
     const normalized = this.amountValue().trim().replace(/\./g, '').replace(',', '.');
     const value = Number(normalized);
     return Number.isFinite(value) ? value : 0;
@@ -541,38 +592,96 @@ export class PanelRecurringComponent {
 
   protected openCreate(): void {
     if (this.atCap()) return;
+    this.editTarget.set(null);
     this.courtId.set(this.courts()[0]?.id ?? '');
     this.weekday.set(1);
     this.startTime.set('19:00');
     this.endTime.set('20:00');
+    this.startDate.set(null);
+    this.endDate.set(null);
+    this.mensalistaMode.set('avulso');
+    this.athleteId.set(null);
+    this.athleteName.set('');
     this.customerName.set('');
     this.amountValue.set('');
-    this.createError.set(null);
-    this.showCreate.set(true);
+    this.paymentType.set('per_occurrence');
+    this.formError.set(null);
+    this.formOpen.set(true);
   }
 
-  protected async create(): Promise<void> {
-    if (!this.canCreate()) return;
+  protected openEdit(series: ArenaRecurringBooking): void {
+    this.editTarget.set(series);
+    this.courtId.set(series.courtId);
+    this.weekday.set(series.weekday);
+    this.startTime.set(series.startTime);
+    this.endTime.set(series.endTime);
+    this.startDate.set(series.startDate);
+    this.endDate.set(series.endDate);
+    this.mensalistaMode.set(series.athleteId ? 'atleta' : 'avulso');
+    this.athleteId.set(series.athleteId);
+    this.athleteName.set(series.customerName ?? (series.athleteId ? recurringCustomerLabel(series) : ''));
+    this.customerName.set(series.customerName ?? '');
+    this.amountValue.set(series.amountReais.toString().replace('.', ','));
+    this.paymentType.set(series.paymentType);
+    this.formError.set(null);
+    this.formOpen.set(true);
+  }
+
+  protected closeForm(): void {
+    this.formOpen.set(false);
+  }
+
+  protected setMensalistaMode(mode: 'atleta' | 'avulso'): void {
+    this.mensalistaMode.set(mode);
+    this.athleteId.set(null);
+    this.athleteName.set('');
+    this.customerName.set('');
+  }
+
+  protected onAthleteSelected(candidate: AthleteCandidate): void {
+    this.athleteId.set(candidate.athleteId);
+    this.athleteName.set(candidate.name);
+  }
+
+  protected onRangeChange(range: { startDate: string; endDate: string | null }): void {
+    this.startDate.set(range.startDate);
+    this.endDate.set(range.endDate);
+  }
+
+  protected async submitForm(): Promise<void> {
+    if (!this.canSubmit()) return;
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId) return;
 
-    this.creating.set(true);
-    this.createError.set(null);
+    this.saving.set(true);
+    this.formError.set(null);
     try {
-      await createRecurringSeries(arenaFunctions(), {
+      const payload = {
         arenaId,
         courtId: this.courtId(),
         weekday: this.weekday(),
         startTime: this.startTime(),
         endTime: this.endTime(),
         amountReais: this.parsedAmount(),
-        customerName: this.customerName().trim(),
-      });
-      this.showCreate.set(false);
+        paymentType: this.paymentType(),
+        startDate: this.startDate() ?? undefined,
+        endDate: this.endDate() ?? undefined,
+        ...(this.mensalistaMode() === 'atleta'
+          ? { athleteId: this.athleteId() ?? undefined }
+          : { customerName: this.customerName().trim() }),
+      };
+
+      const target = this.editTarget();
+      if (target) {
+        await updateRecurringSeries(arenaFunctions(), { ...payload, seriesId: target.id });
+      } else {
+        await createRecurringSeries(arenaFunctions(), payload);
+      }
+      this.formOpen.set(false);
     } catch (err) {
-      this.createError.set(err instanceof Error ? err.message : 'Não foi possível criar o horário fixo.');
+      this.formError.set(err instanceof Error ? err.message : 'Não foi possível salvar o horário fixo.');
     } finally {
-      this.creating.set(false);
+      this.saving.set(false);
     }
   }
 
@@ -598,10 +707,6 @@ export class PanelRecurringComponent {
 
   protected readonly resuming = signal<string | null>(null);
   protected readonly estimateMonthlyReais = estimateMonthlyReais;
-
-  protected openEdit(_series: ArenaRecurringBooking): void {
-    // implementado na Task 11
-  }
 
   protected openPause(_series: ArenaRecurringBooking): void {
     // implementado na Task 12

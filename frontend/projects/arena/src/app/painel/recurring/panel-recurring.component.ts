@@ -227,20 +227,25 @@ import type { AthleteCandidate } from './athlete-search-filter';
         </ar-modal>
       }
 
-      @if (cancelTarget(); as target) {
-        <ar-modal (close)="cancelTarget.set(null)">
-          <h2 class="confirm-title">Encerrar horário fixo?</h2>
+      @if (confirmTarget(); as target) {
+        <ar-modal (close)="closeConfirm()">
+          <h2 class="confirm-title">{{ confirmMode() === 'pause' ? 'Pausar horário fixo?' : 'Encerrar horário fixo?' }}</h2>
           <p class="confirm-body">
             {{ weekdayLabel[target.weekday] }} · {{ target.startTime }}–{{ target.endTime }} · {{ target.courtName }} ·
-            {{ customerLabel(target) }}. As ocorrências futuras são canceladas; as já feitas ficam preservadas no histórico.
+            {{ customerLabel(target) }}.
+            @if (confirmMode() === 'pause') {
+              As ocorrências futuras já agendadas serão liberadas da agenda até você retomar.
+            } @else {
+              As ocorrências futuras são canceladas; as já feitas ficam preservadas no histórico.
+            }
           </p>
-          @if (cancelError(); as err) {
+          @if (confirmError(); as err) {
             <div class="error-banner">{{ err }}</div>
           }
           <div class="confirm-actions">
-            <button type="button" class="ar-ghost-btn" [disabled]="canceling()" (click)="cancelTarget.set(null)">Voltar</button>
-            <button type="button" class="ar-mini-btn danger-btn" [disabled]="canceling()" (click)="confirmCancel()">
-              {{ canceling() ? 'Encerrando…' : 'Encerrar horário fixo' }}
+            <button type="button" class="ar-ghost-btn" [disabled]="confirming()" (click)="closeConfirm()">Voltar</button>
+            <button type="button" class="ar-mini-btn danger-btn" [disabled]="confirming()" (click)="confirmAction()">
+              {{ confirming() ? (confirmMode() === 'pause' ? 'Pausando…' : 'Encerrando…') : (confirmMode() === 'pause' ? 'Pausar horário fixo' : 'Encerrar horário fixo') }}
             </button>
           </div>
         </ar-modal>
@@ -546,9 +551,10 @@ export class PanelRecurringComponent {
   protected readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
 
-  protected readonly cancelTarget = signal<ArenaRecurringBooking | null>(null);
-  protected readonly canceling = signal(false);
-  protected readonly cancelError = signal<string | null>(null);
+  protected readonly confirmTarget = signal<ArenaRecurringBooking | null>(null);
+  protected readonly confirmMode = signal<'pause' | 'cancel'>('cancel');
+  protected readonly confirming = signal(false);
+  protected readonly confirmError = signal<string | null>(null);
 
   protected readonly listKicker = computed(() => `${this.series().length} ativos`);
   protected readonly headerSubtitle = computed(() => `${this.arenaContext.arenaName() ?? 'Arena'} · mensalistas recorrentes`);
@@ -686,34 +692,55 @@ export class PanelRecurringComponent {
     }
   }
 
-  protected openCancel(series: ArenaRecurringBooking): void {
-    this.cancelError.set(null);
-    this.cancelTarget.set(series);
-  }
-
-  protected async confirmCancel(): Promise<void> {
-    const target = this.cancelTarget();
-    if (!target) return;
-    this.canceling.set(true);
-    this.cancelError.set(null);
-    try {
-      await cancelRecurringSeries(arenaFunctions(), target.id);
-      this.cancelTarget.set(null);
-    } catch (err) {
-      this.cancelError.set(err instanceof Error ? err.message : 'Não foi possível encerrar o horário fixo.');
-    } finally {
-      this.canceling.set(false);
-    }
-  }
-
   protected readonly resuming = signal<string | null>(null);
   protected readonly estimateMonthlyReais = estimateMonthlyReais;
 
-  protected openPause(_series: ArenaRecurringBooking): void {
-    // implementado na Task 12
+  protected openPause(series: ArenaRecurringBooking): void {
+    this.confirmMode.set('pause');
+    this.confirmError.set(null);
+    this.confirmTarget.set(series);
   }
 
-  protected async resume(_series: ArenaRecurringBooking): Promise<void> {
-    // implementado na Task 12
+  protected openCancel(series: ArenaRecurringBooking): void {
+    this.confirmMode.set('cancel');
+    this.confirmError.set(null);
+    this.confirmTarget.set(series);
+  }
+
+  protected closeConfirm(): void {
+    this.confirmTarget.set(null);
+  }
+
+  protected async confirmAction(): Promise<void> {
+    const target = this.confirmTarget();
+    if (!target) return;
+    this.confirming.set(true);
+    this.confirmError.set(null);
+    try {
+      if (this.confirmMode() === 'pause') {
+        await pauseRecurringSeries(arenaFunctions(), target.id);
+      } else {
+        await cancelRecurringSeries(arenaFunctions(), target.id);
+      }
+      this.confirmTarget.set(null);
+    } catch (err) {
+      const fallback = this.confirmMode() === 'pause' ? 'Não foi possível pausar o horário fixo.' : 'Não foi possível encerrar o horário fixo.';
+      this.confirmError.set(err instanceof Error ? err.message : fallback);
+    } finally {
+      this.confirming.set(false);
+    }
+  }
+
+  protected async resume(series: ArenaRecurringBooking): Promise<void> {
+    this.resuming.set(series.id);
+    try {
+      await resumeRecurringSeries(arenaFunctions(), series.id);
+    } catch {
+      // A linha volta a mostrar "Pausado" via onSnapshot — sem toast no
+      // portal (não existe componente de toast aqui hoje); se falhar, o
+      // gestor tenta de novo pelo mesmo botão.
+    } finally {
+      this.resuming.set(null);
+    }
   }
 }

@@ -975,13 +975,18 @@ async function updateArenaRecurringBookingHandler(
     canceledDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_updated");
     const result = await materializeSeriesOccurrences(db, seriesId, series, todayMinusOne, horizonKey);
     createdDates = result.createdDates;
-    // Mescla com as datas já canceladas individualmente antes da edição —
-    // não substitui, senão a exclusão anterior se perde.
-    skippedDates = Array.from(new Set([...carriedSkippedDates, ...result.skippedDates]));
+    // O que é PERSISTIDO no doc é só o que já estava lá (cancelamentos
+    // deliberados via cancelArenaRecurringOccurrence) — os conflitos desta
+    // rodada de materialização (`result.skippedDates`) são transitórios (o
+    // horário estava travado naquele instante) e não podem ser excluídos
+    // para sempre, senão a próxima edição/retomada nunca mais tenta essa
+    // data de novo. O RETORNO ao chamador ainda reporta os conflitos desta
+    // rodada, para feedback imediato na UI.
+    skippedDates = result.skippedDates;
 
     await seriesRef.set({
       materializedUntil: horizonKey,
-      skippedDates,
+      skippedDates: carriedSkippedDates,
     }, {merge: true});
   } else {
     // Se `paused`: só os campos da série mudam agora — a rematerialização
@@ -995,6 +1000,18 @@ async function updateArenaRecurringBookingHandler(
       materializedUntil: String(currentData["materializedUntil"] ?? todayMinusOne),
     }, {merge: true});
   }
+
+  // Editar pode mover a reserva confirmada do atleta pra outro dia/horário/
+  // quadra/valor — dispara tanto ativo quanto pausado, o atleta precisa
+  // saber da mudança de config independente do estado atual da série.
+  await notifyLinkedAthleteSafe({
+    athleteId: validated.athleteId,
+    title: "Horário fixo atualizado",
+    body: `Seu horário fixo em ${arenaName} foi atualizado pela arena. ` +
+      "Confira os novos detalhes.",
+    type: "recurring_booking_updated",
+    data: {recurringBookingId: seriesId, arenaId},
+  });
 
   logger.info("updateArenaRecurringBooking: série atualizada", {
     seriesId,
@@ -1113,11 +1130,13 @@ export const resumeArenaRecurringBooking = onCall(async (request) => {
 
   // `series.skippedDates` (via parseRecurringSeriesData) já carrega as datas
   // canceladas individualmente antes da pausa (cancelArenaRecurringOccurrence)
-  // — mescla com qualquer conflito novo encontrado nesta materialização, sem
-  // isso o registro das cancelamentos pontuais se perderia no retomar.
+  // — é isso, e só isso, que fica PERSISTIDO. Conflitos desta rodada de
+  // materialização (`result.skippedDates`) são transitórios e não devem ser
+  // excluídos para sempre; o retorno ao chamador (abaixo) já reporta esses
+  // conflitos para feedback imediato na UI.
   await seriesRef.set({
     materializedUntil: horizonKey,
-    skippedDates: Array.from(new Set([...series.skippedDates, ...result.skippedDates])),
+    skippedDates: series.skippedDates,
   }, {merge: true});
 
   await notifyLinkedAthleteSafe({

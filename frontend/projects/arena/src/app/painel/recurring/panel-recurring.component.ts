@@ -632,6 +632,7 @@ export class PanelRecurringComponent {
   }
 
   protected setMensalistaMode(mode: 'atleta' | 'avulso'): void {
+    if (this.mensalistaMode() === mode) return;
     this.mensalistaMode.set(mode);
     this.athleteId.set(null);
     this.athleteName.set('');

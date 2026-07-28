@@ -824,3 +824,132 @@ export const cancelArenaRecurringOccurrence = onCall(async (request) => {
 
   return {bookingId, seriesId, dateKey};
 });
+
+interface UpdateSeriesInput extends RawRecurringInput {
+  seriesId?: string;
+}
+
+export const updateArenaRecurringBooking = onCall(async (request) => {
+  try {
+    return await updateArenaRecurringBookingHandler(request);
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    logger.error("updateArenaRecurringBooking: falha inesperada", e);
+    throw new HttpsError(
+      "internal",
+      "Não foi possível salvar as alterações. Tente novamente em instantes.",
+    );
+  }
+});
+
+async function updateArenaRecurringBookingHandler(
+  request: Parameters<Parameters<typeof onCall>[0]>[0],
+) {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+
+  const input = (request.data ?? {}) as UpdateSeriesInput;
+  const seriesId = input.seriesId?.trim() ?? "";
+  if (!seriesId) {
+    throw new HttpsError("invalid-argument", "Horário fixo inválido.");
+  }
+
+  const db = getFirestore();
+  const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
+  const seriesSnap = await seriesRef.get();
+  if (!seriesSnap.exists) {
+    throw new HttpsError("not-found", "Horário fixo não encontrado.");
+  }
+  const currentData = seriesSnap.data() as Record<string, unknown>;
+  const currentStatus = String(currentData["status"] ?? "");
+  if (currentStatus !== "active" && currentStatus !== "paused") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Este horário fixo já foi encerrado e não pode ser editado.",
+    );
+  }
+  // arenaId sempre vem do doc já existente, nunca do payload do client
+  // (evita um client mal-intencionado tentar editar sob outra arena).
+  const arenaId = String(currentData["arenaId"] ?? "");
+  await requireArenaManager(db, arenaId, uid);
+
+  const todayKey = dayKeyFromEventDate(new Date());
+  const validated = validateRecurringInput({...input, arenaId}, todayKey, {allowPastStartDate: true});
+
+  const courtSnap = await db
+    .collection("arenas").doc(arenaId)
+    .collection("courts").doc(validated.courtId)
+    .get();
+  if (!courtSnap.exists) {
+    throw new HttpsError("not-found", "Quadra não encontrada.");
+  }
+  if (validated.athleteId != null) {
+    const userSnap = await db.collection("users").doc(validated.athleteId).get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
+    }
+  }
+
+  const courtData = courtSnap.data() as Record<string, unknown>;
+  const courtName = typeof courtData["name"] === "string" ?
+    (courtData["name"] as string).trim() || "Quadra" :
+    "Quadra";
+  const arenaName = String(currentData["arenaName"] ?? "Arena");
+
+  const series: RecurringSeriesData = {
+    arenaId,
+    arenaName,
+    courtId: validated.courtId,
+    courtName,
+    weekday: validated.weekday,
+    startTime: validated.startTime,
+    endTime: validated.endTime,
+    athleteId: validated.athleteId,
+    customerName: validated.customerName,
+    amountReais: validated.amountReais,
+    status: currentStatus,
+    startDate: validated.startDate,
+    endDate: validated.endDate,
+    skippedDates: [],
+  };
+
+  const todayMinusOne = addDaysToDateKey(todayKey, -1);
+  const horizonKey = addDaysToDateKey(todayKey, RECURRING_HORIZON_DAYS);
+
+  let canceledDates: string[] = [];
+  let createdDates: string[] = [];
+  let skippedDates: string[] = [];
+
+  if (currentStatus === "active") {
+    // Config antiga sai da agenda, config nova entra — garante que nenhuma
+    // ocorrência futura fica com dia/horário/quadra/valor desatualizados.
+    canceledDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_updated");
+    const result = await materializeSeriesOccurrences(db, seriesId, series, todayMinusOne, horizonKey);
+    createdDates = result.createdDates;
+    skippedDates = result.skippedDates;
+  }
+  // Se `paused`: só os campos da série mudam agora — a rematerialização
+  // acontece em resumeArenaRecurringBooking, com a config já atualizada.
+
+  await seriesRef.set({
+    ...series,
+    paymentType: validated.paymentType,
+    skippedDates,
+    materializedUntil: currentStatus === "active" ?
+      horizonKey :
+      String(currentData["materializedUntil"] ?? todayMinusOne),
+  }, {merge: true});
+
+  logger.info("updateArenaRecurringBooking: série atualizada", {
+    seriesId,
+    arenaId,
+    status: currentStatus,
+    canceled: canceledDates.length,
+    created: createdDates.length,
+    skipped: skippedDates.length,
+  });
+
+  return {seriesId, canceledDates, createdDates, skippedDates};
+}

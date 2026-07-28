@@ -17,7 +17,16 @@ export const RECURRING_WEEKDAY_LABEL: Record<number, string> = {
   7: 'Domingo',
 };
 
-export type ArenaRecurringStatus = 'active' | 'canceled';
+export type ArenaRecurringStatus = 'active' | 'paused' | 'canceled';
+export type ArenaRecurringPaymentType = 'per_occurrence' | 'monthly';
+
+/** Média de ocorrências por mês pra recorrência semanal de 1 dia (52 semanas / 12 meses). */
+export const AVG_OCCURRENCES_PER_MONTH = 52 / 12;
+
+export function estimateMonthlyReais(amountReais: number): number {
+  if (!Number.isFinite(amountReais) || amountReais <= 0) return 0;
+  return amountReais * AVG_OCCURRENCES_PER_MONTH;
+}
 
 export interface ArenaRecurringBooking {
   id: string;
@@ -33,6 +42,8 @@ export interface ArenaRecurringBooking {
   customerName: string | null;
   amountReais: number;
   status: ArenaRecurringStatus;
+  paymentType: ArenaRecurringPaymentType;
+  pausedAt: Date | null;
   startDate: string;
   endDate: string | null;
   skippedDates: string[];
@@ -53,6 +64,15 @@ function time(v: unknown): string {
   return t.length >= 5 ? t.slice(0, 5) : t;
 }
 
+function parseStatus(v: unknown): ArenaRecurringStatus {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s === 'paused' || s === 'canceled' ? s : 'active';
+}
+
+function parsePaymentType(v: unknown): ArenaRecurringPaymentType {
+  return v === 'monthly' ? 'monthly' : 'per_occurrence';
+}
+
 export function arenaRecurringBookingFromDoc(doc: QueryDocumentSnapshot): ArenaRecurringBooking {
   const d = doc.data() as Record<string, unknown>;
   const skipped = Array.isArray(d['skippedDates'])
@@ -71,7 +91,9 @@ export function arenaRecurringBookingFromDoc(doc: QueryDocumentSnapshot): ArenaR
     athleteId: optional(d['athleteId']),
     customerName: optional(d['customerName']),
     amountReais: typeof d['amountReais'] === 'number' ? d['amountReais'] : 0,
-    status: str(d['status'], 'active') === 'canceled' ? 'canceled' : 'active',
+    status: parseStatus(d['status']),
+    paymentType: parsePaymentType(d['paymentType']),
+    pausedAt: d['pausedAt'] instanceof Timestamp ? (d['pausedAt'] as Timestamp).toDate() : null,
     startDate: str(d['startDate']),
     endDate: optional(d['endDate']),
     skippedDates: skipped,

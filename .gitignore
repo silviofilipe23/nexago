@@ -73,3 +73,6 @@ node_modules/
 
 # macOS
 .DS_Store
+
+# Superpowers subagent-driven-development scratch workspace
+.superpowers/

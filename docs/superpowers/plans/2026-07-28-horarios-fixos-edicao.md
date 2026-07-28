@@ -1803,6 +1803,38 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
       font-size: 12.5px;
       color: var(--nx-text-dim);
     }
+
+    /* `.field-label`/`.input-box` não são classes globais — cada componente
+     * as redefine localmente (mesmo padrão em panel-recurring, panel-agenda,
+     * panel-court-form etc., confirmado durante a Task 8/ar-date-range-picker,
+     * que teve a mesma lacuna). View encapsulation do Angular não deixa o CSS
+     * do modal pai (Task 11) alcançar o template deste componente filho. */
+    .field-label {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      margin-bottom: 10px;
+    }
+
+    .input-box {
+      width: 100%;
+      height: 46px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 14px;
+      padding: 0 14px;
+      box-sizing: border-box;
+    }
+
+    .input-box:focus {
+      outline: none;
+      border-color: var(--nx-orange-500);
+    }
   `,
 })
 export class AthleteSearchFieldComponent {

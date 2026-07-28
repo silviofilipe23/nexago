@@ -680,9 +680,13 @@ export const resumeArenaRecurringBooking = onCall(async (request) => {
     horizonKey,
   );
 
+  // `series.skippedDates` (via parseRecurringSeriesData) já carrega as datas
+  // canceladas individualmente antes da pausa (cancelArenaRecurringOccurrence)
+  // — mescla com qualquer conflito novo encontrado nesta materialização, sem
+  // isso o registro das cancelamentos pontuais se perderia no retomar.
   await seriesRef.set({
     materializedUntil: horizonKey,
-    skippedDates: result.skippedDates,
+    skippedDates: Array.from(new Set([...series.skippedDates, ...result.skippedDates])),
   }, {merge: true});
 
   await notifyLinkedAthleteSafe({

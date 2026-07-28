@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ArenaContextService } from '../data/arena-context.service';
 import { maxRecurringActiveFor } from '../data/arena-plan.model';
@@ -12,13 +13,17 @@ import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { PillComponent } from '../ui/pill.component';
+import { StatusDotComponent } from '../ui/status-dot.component';
 import {
   RECURRING_WEEKDAYS,
   RECURRING_WEEKDAY_LABEL,
+  estimateMonthlyReais,
   recurringCustomerLabel,
   type ArenaRecurringBooking,
+  type ArenaRecurringPaymentType,
 } from './arena-recurring-booking.model';
-import { cancelRecurringSeries, createRecurringSeries, watchActiveSeries } from './recurring-bookings-repository';
+import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, resumeRecurringSeries, updateRecurringSeries, watchVisibleSeries } from './recurring-bookings-repository';
 
 /** Tela Horários fixos (mensalista): leitura direta de `arenaRecurringBookings`, escrita
  *  100% via Cloud Functions (`createArenaRecurringBooking`/`cancelArenaRecurringBooking`) —
@@ -26,7 +31,17 @@ import { cancelRecurringSeries, createRecurringSeries, watchActiveSeries } from 
 @Component({
   selector: 'ar-panel-recurring',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, ModalComponent, RouterLink],
+  imports: [
+    PanelShellComponent,
+    PageHeaderComponent,
+    PanelCardComponent,
+    IconComponent,
+    ModalComponent,
+    PillComponent,
+    StatusDotComponent,
+    RouterLink,
+    DatePipe,
+  ],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Horários fixos" [subtitle]="headerSubtitle()">
@@ -57,17 +72,56 @@ import { cancelRecurringSeries, createRecurringSeries, watchActiveSeries } from 
                 <span>Mensalista</span>
                 <span>Dia / horário</span>
                 <span>Quadra</span>
+                <span>Pagamento</span>
                 <span class="right">Valor</span>
                 <span></span>
               </div>
               <div class="table-list">
                 @for (s of series(); track s.id) {
                   <div class="table-row">
-                    <div class="cell-client">{{ customerLabel(s) }}</div>
+                    <div class="cell-client">
+                      {{ customerLabel(s) }}
+                      @if (s.status === 'paused') {
+                        <div class="paused-hint">
+                          <ar-status-dot tone="yellow" [size]="6" />
+                          Pausado{{ s.pausedAt ? ' desde ' + (s.pausedAt | date: 'dd/MM') : '' }}
+                        </div>
+                      } @else {
+                        <div class="active-hint">
+                          <ar-status-dot tone="green" [size]="6" />
+                          Ativo
+                        </div>
+                      }
+                    </div>
                     <div class="cell-slot">{{ weekdayLabel[s.weekday] }} · {{ s.startTime }}–{{ s.endTime }}</div>
                     <div class="cell-court">{{ s.courtName }}</div>
-                    <div class="cell-amount right">{{ formatBRL(s.amountReais) }}</div>
+                    <div class="cell-payment">
+                      <ar-pill [tone]="s.paymentType === 'monthly' ? 'orange' : 'dim'">
+                        {{ s.paymentType === 'monthly' ? 'Mensal' : 'Por ocorrência' }}
+                      </ar-pill>
+                    </div>
+                    <div class="cell-amount right">
+                      @if (s.paymentType === 'monthly') {
+                        <div class="amount-primary">{{ formatBRL(estimateMonthlyReais(s.amountReais)) }}/mês</div>
+                        <div class="amount-secondary">{{ formatBRL(s.amountReais) }}/ocorrência</div>
+                      } @else {
+                        <div class="amount-primary">{{ formatBRL(s.amountReais) }}/ocorrência</div>
+                        <div class="amount-secondary">≈ {{ formatBRL(estimateMonthlyReais(s.amountReais)) }}/mês</div>
+                      }
+                    </div>
                     <div class="cell-actions">
+                      <button type="button" class="icon-action" [attr.aria-label]="'Editar'" (click)="openEdit(s)">
+                        <ar-icon name="edit" [size]="15" />
+                      </button>
+                      @if (s.status === 'active') {
+                        <button type="button" class="icon-action" [attr.aria-label]="'Pausar'" (click)="openPause(s)">
+                          <ar-icon name="pause" [size]="15" />
+                        </button>
+                      } @else {
+                        <button type="button" class="icon-action" [attr.aria-label]="'Retomar'" [disabled]="resuming() === s.id" (click)="resume(s)">
+                          <ar-icon name="play" [size]="15" />
+                        </button>
+                      }
                       <button type="button" class="ar-ghost-btn danger-link" (click)="openCancel(s)">Encerrar</button>
                     </div>
                   </div>
@@ -203,7 +257,7 @@ import { cancelRecurringSeries, createRecurringSeries, watchActiveSeries } from 
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 1.3fr 1.6fr 1fr 120px 100px;
+      grid-template-columns: 1.3fr 1.4fr 0.8fr 1fr 140px 130px;
       gap: 14px;
       align-items: center;
     }
@@ -250,19 +304,62 @@ import { cancelRecurringSeries, createRecurringSeries, watchActiveSeries } from 
       color: var(--nx-text-mute);
     }
 
-    .cell-amount {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--nx-text);
-    }
-
     .right {
       text-align: right;
     }
 
     .cell-actions {
       text-align: right;
+    }
+
+    .paused-hint,
+    .active-hint {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 3px;
+      font-size: 10.5px;
+      color: var(--nx-text-dim);
+    }
+
+    .cell-payment {
+      display: flex;
+    }
+
+    .amount-primary {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 13.5px;
+      color: var(--nx-text);
+    }
+
+    .amount-secondary {
+      font-size: 10.5px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
+    }
+
+    .icon-action {
+      display: inline-grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: var(--nx-r-2);
+      background: transparent;
+      border: none;
+      color: var(--nx-text-mute);
+      cursor: pointer;
+      margin-right: 2px;
+    }
+
+    .icon-action:hover:not(:disabled) {
+      background: var(--nx-surface-2);
+      color: var(--nx-text);
+    }
+
+    .icon-action:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     .danger-link {
@@ -429,7 +526,7 @@ export class PanelRecurringComponent {
       this.loading.set(true);
       const db = arenaFirestore();
       void fetchCourtsList(db, arenaId).then((list) => this.courts.set(list));
-      this.unsubscribeSeries = watchActiveSeries(db, arenaId, (list) => {
+      this.unsubscribeSeries = watchVisibleSeries(db, arenaId, (list) => {
         this.series.set(list);
         this.loading.set(false);
       });
@@ -497,5 +594,20 @@ export class PanelRecurringComponent {
     } finally {
       this.canceling.set(false);
     }
+  }
+
+  protected readonly resuming = signal<string | null>(null);
+  protected readonly estimateMonthlyReais = estimateMonthlyReais;
+
+  protected openEdit(_series: ArenaRecurringBooking): void {
+    // implementado na Task 11
+  }
+
+  protected openPause(_series: ArenaRecurringBooking): void {
+    // implementado na Task 12
+  }
+
+  protected async resume(_series: ArenaRecurringBooking): Promise<void> {
+    // implementado na Task 12
   }
 }

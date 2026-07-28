@@ -32,7 +32,9 @@ export type PanelIconName =
   | 'users'
   | 'log-out'
   | 'camera'
-  | 'chart-bar';
+  | 'chart-bar'
+  | 'pause'
+  | 'play';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
@@ -155,6 +157,12 @@ export type PanelIconName =
         @case ('chart-bar') {
           <path d="M4 3.5v17h16.5" /><rect x="7.2" y="12" width="3" height="6" rx="0.6" />
           <rect x="12.4" y="8.5" width="3" height="9.5" rx="0.6" /><rect x="17.6" y="5.5" width="3" height="12.5" rx="0.6" />
+        }
+        @case ('pause') {
+          <rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" />
+        }
+        @case ('play') {
+          <path d="M8 5v14l11-7z" stroke-linejoin="round" />
         }
       }
     </svg>

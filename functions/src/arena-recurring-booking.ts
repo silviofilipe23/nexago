@@ -459,7 +459,7 @@ async function notifyLinkedAthleteSafe(input: {
 // Callables
 // ---------------------------------------------------------------------------
 
-interface CreateRecurringInput {
+export interface RawRecurringInput {
   arenaId?: string;
   courtId?: string;
   weekday?: number;
@@ -470,6 +470,79 @@ interface CreateRecurringInput {
   amountReais?: number;
   startDate?: string;
   endDate?: string;
+  paymentType?: string;
+}
+
+export interface ValidatedRecurringInput {
+  arenaId: string;
+  courtId: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  athleteId: string | null;
+  customerName: string | null;
+  amountReais: number;
+  startDate: string;
+  endDate: string | null;
+  paymentType: "per_occurrence" | "monthly";
+}
+
+/**
+ * Valida e normaliza o payload comum a criar/editar horário fixo. Lança
+ * HttpsError("invalid-argument", ...) no primeiro problema encontrado.
+ * `allowPastStartDate` é usado pela edição: uma série já iniciada tem
+ * `startDate` no passado por natureza, e reenviar o mesmo valor não deve
+ * ser rejeitado.
+ */
+export function validateRecurringInput(
+  input: RawRecurringInput,
+  todayKey: string,
+  opts: {allowPastStartDate?: boolean} = {},
+): ValidatedRecurringInput {
+  const arenaId = input.arenaId?.trim() ?? "";
+  const courtId = input.courtId?.trim() ?? "";
+  const weekday = Number(input.weekday);
+  const startTime = input.startTime?.trim() ?? "";
+  const endTime = input.endTime?.trim() ?? "";
+  const athleteId = input.athleteId?.trim() || null;
+  const customerName = input.customerName?.trim() || null;
+  const amountReais = Number(input.amountReais);
+  const startDate = input.startDate?.trim() || todayKey;
+  const endDate = input.endDate?.trim() || null;
+  const paymentType: "per_occurrence" | "monthly" = input.paymentType === "monthly" ? "monthly" : "per_occurrence";
+
+  if (!arenaId || !courtId) {
+    throw new HttpsError("invalid-argument", "Arena e quadra são obrigatórias.");
+  }
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
+    throw new HttpsError("invalid-argument", "Dia da semana inválido.");
+  }
+  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+    throw new HttpsError("invalid-argument", "Horário inválido.");
+  }
+  const startMin = toMinutes(startTime);
+  let endMin = toMinutes(endTime);
+  if (endMin === 0 && startMin > 0) endMin = 24 * 60;
+  if (endMin <= startMin) {
+    throw new HttpsError("invalid-argument", "Intervalo de horário inválido.");
+  }
+  if (!Number.isFinite(amountReais) || amountReais <= 0) {
+    throw new HttpsError("invalid-argument", "Informe o valor por ocorrência.");
+  }
+  if (!isValidDateKey(startDate) || (!opts.allowPastStartDate && startDate < todayKey)) {
+    throw new HttpsError("invalid-argument", "Data de início inválida.");
+  }
+  if (endDate != null && (!isValidDateKey(endDate) || endDate < startDate)) {
+    throw new HttpsError("invalid-argument", "Data de término inválida.");
+  }
+  if (!athleteId && !customerName) {
+    throw new HttpsError("invalid-argument", "Vincule um atleta ou informe o nome do mensalista.");
+  }
+  if (customerName != null && customerName.length > 80) {
+    throw new HttpsError("invalid-argument", "Nome do mensalista muito longo.");
+  }
+
+  return {arenaId, courtId, weekday, startTime, endTime, athleteId, customerName, amountReais, startDate, endDate, paymentType};
 }
 
 export const createArenaRecurringBooking = onCall(async (request) => {
@@ -493,52 +566,12 @@ async function createArenaRecurringBookingHandler(
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
 
-  const input = (request.data ?? {}) as CreateRecurringInput;
-  const arenaId = input.arenaId?.trim() ?? "";
-  const courtId = input.courtId?.trim() ?? "";
-  const weekday = Number(input.weekday);
-  const startTime = input.startTime?.trim() ?? "";
-  const endTime = input.endTime?.trim() ?? "";
-  const athleteId = input.athleteId?.trim() || null;
-  const customerName = input.customerName?.trim() || null;
-  const amountReais = Number(input.amountReais);
+  const input = (request.data ?? {}) as RawRecurringInput;
   const todayKey = dayKeyFromEventDate(new Date());
-  const startDate = input.startDate?.trim() || todayKey;
-  const endDate = input.endDate?.trim() || null;
-
-  if (!arenaId || !courtId) {
-    throw new HttpsError("invalid-argument", "Arena e quadra são obrigatórias.");
-  }
-  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
-    throw new HttpsError("invalid-argument", "Dia da semana inválido.");
-  }
-  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
-    throw new HttpsError("invalid-argument", "Horário inválido.");
-  }
-  const startMin = toMinutes(startTime);
-  let endMin = toMinutes(endTime);
-  if (endMin === 0 && startMin > 0) endMin = 24 * 60;
-  if (endMin <= startMin) {
-    throw new HttpsError("invalid-argument", "Intervalo de horário inválido.");
-  }
-  if (!Number.isFinite(amountReais) || amountReais <= 0) {
-    throw new HttpsError("invalid-argument", "Informe o valor por ocorrência.");
-  }
-  if (!isValidDateKey(startDate) || startDate < todayKey) {
-    throw new HttpsError("invalid-argument", "Data de início inválida.");
-  }
-  if (endDate != null && (!isValidDateKey(endDate) || endDate < startDate)) {
-    throw new HttpsError("invalid-argument", "Data de término inválida.");
-  }
-  if (!athleteId && !customerName) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Vincule um atleta ou informe o nome do mensalista.",
-    );
-  }
-  if (customerName != null && customerName.length > 80) {
-    throw new HttpsError("invalid-argument", "Nome do mensalista muito longo.");
-  }
+  const {
+    arenaId, courtId, weekday, startTime, endTime,
+    athleteId, customerName, amountReais, startDate, endDate, paymentType,
+  } = validateRecurringInput(input, todayKey);
 
   const db = getFirestore();
   const arenaData = await requireArenaManager(db, arenaId, uid);
@@ -605,6 +638,8 @@ async function createArenaRecurringBookingHandler(
 
   await seriesRef.set({
     ...series,
+    paymentType,
+    pausedAt: null,
     // Antes da materialização: o scheduler completa se algo falhar no meio.
     materializedUntil: addDaysToDateKey(todayKey, -1),
     createdBy: uid,

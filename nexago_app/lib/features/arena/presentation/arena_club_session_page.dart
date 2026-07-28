@@ -693,3 +693,320 @@ class _ParticipantRow extends StatelessWidget {
     );
   }
 }
+
+/// Sheet de adicionar participante pela mão do gestor: busca um atleta da
+/// plataforma OU cadastra um convidado sem conta.
+///
+/// Devolve via `pop` a mensagem de sucesso a ser exibida pela página, ou
+/// `null` quando o gestor fecha sem adicionar ninguém. Erros são mostrados
+/// aqui dentro para o gestor poder corrigir sem reabrir o sheet.
+class _AddParticipantSheet extends ConsumerStatefulWidget {
+  const _AddParticipantSheet({
+    required this.sessionId,
+    required this.activeParticipantIds,
+  });
+
+  final String sessionId;
+
+  /// Quem já está na lista — sai dos resultados para não tentar duplicar.
+  final Set<String> activeParticipantIds;
+
+  @override
+  ConsumerState<_AddParticipantSheet> createState() =>
+      _AddParticipantSheetState();
+}
+
+class _AddParticipantSheetState extends ConsumerState<_AddParticipantSheet> {
+  final _searchController = TextEditingController();
+  final _guestController = TextEditingController();
+  Timer? _debounce;
+  List<AppUserProfile> _results = const [];
+  bool _searching = false;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    _guestController.dispose();
+    super.dispose();
+  }
+
+  void _onQueryChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _search(value));
+  }
+
+  Future<void> _search(String term) async {
+    if (!isSearchTermLongEnough(term)) {
+      if (mounted) setState(() => _results = const []);
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final users = await ref
+          .read(usersRepositoryProvider)
+          .searchAthletesByKeywords(term, max: 20);
+      if (!mounted) return;
+      setState(() {
+        _results = users
+            .where((u) => !widget.activeParticipantIds.contains(u.uid))
+            .toList(growable: false);
+        _searching = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _searching = false;
+        _error = 'Não foi possível buscar agora. Tente novamente.';
+      });
+    }
+  }
+
+  /// Exatamente um dos dois: [athleteId] (atleta) ou [customerName] (convidado).
+  Future<void> _add({
+    String? athleteId,
+    String? customerName,
+    required String successLabel,
+  }) async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final result = await ref.read(arenaClubServiceProvider).addParticipant(
+            sessionId: widget.sessionId,
+            athleteId: athleteId,
+            customerName: customerName,
+          );
+      if (!mounted) return;
+      Navigator.of(context).pop(
+        result.converted
+            ? '$successLabel entrou na lista. O PIX pendente virou '
+                'pagamento na arena.'
+            : '$successLabel entrou na lista pagando na arena.',
+      );
+    } on ArenaClubAdminException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = 'Não foi possível adicionar. Tente novamente.';
+      });
+    }
+  }
+
+  Future<void> _addGuest() async {
+    final name = _guestController.text.trim();
+    if (name.length < 2) {
+      setState(() => _error = 'Informe o nome do convidado.');
+      return;
+    }
+    await _add(customerName: name, successLabel: name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (sheetContext, scrollController) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Adicionar à lista',
+                    style: AppTypography.soraRegular(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Entra confirmado pagando na arena.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors.onSurfaceMuted,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    enabled: !_submitting,
+                    onChanged: _onQueryChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Buscar atleta por nome ou apelido',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: colors.surfaceRaised,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: AppColors.live,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_searching || _submitting)
+              const LinearProgressIndicator(minHeight: 2),
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.only(bottom: 24),
+                children: [
+                  if (_results.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 24,
+                      ),
+                      child: Text(
+                        !isSearchTermLongEnough(_searchController.text)
+                            ? 'Digite ao menos 2 letras para buscar um atleta '
+                                'cadastrado — ou adicione um convidado abaixo.'
+                            : (_searching
+                                ? ''
+                                : 'Nenhum atleta encontrado. Você ainda pode '
+                                    'adicionar como convidado abaixo.'),
+                        style: TextStyle(
+                          color: colors.onSurfaceMuted,
+                          height: 1.4,
+                        ),
+                      ),
+                    )
+                  else
+                    ..._results.map((user) {
+                      final photo = user.profilePhotoUrl;
+                      final name = (user.nickname?.trim().isNotEmpty ?? false)
+                          ? user.nickname!.trim()
+                          : (user.fullName?.trim().isNotEmpty ?? false)
+                              ? user.fullName!.trim()
+                              : 'Atleta';
+                      return ListTile(
+                        enabled: !_submitting,
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              AppColors.brand.withValues(alpha: 0.15),
+                          backgroundImage: photo != null && photo.isNotEmpty
+                              ? NetworkImage(photo)
+                              : null,
+                          child: photo == null || photo.isEmpty
+                              ? Text(
+                                  name.substring(0, 1).toUpperCase(),
+                                  style: const TextStyle(
+                                    color: AppColors.brand,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        title: Text(name),
+                        subtitle: (user.fullName?.trim().isNotEmpty ?? false) &&
+                                user.fullName!.trim() != name
+                            ? Text(user.fullName!.trim())
+                            : null,
+                        onTap: _submitting
+                            ? null
+                            : () => _add(
+                                  athleteId: user.uid,
+                                  successLabel: name,
+                                ),
+                      );
+                    }),
+                  const Divider(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Convidado sem conta',
+                          style: AppTypography.soraRegular(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: colors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _guestController,
+                          enabled: !_submitting,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _addGuest(),
+                          decoration: InputDecoration(
+                            hintText: 'Nome do convidado',
+                            prefixIcon: const Icon(Icons.person_add_alt_rounded),
+                            filled: true,
+                            fillColor: colors.surfaceRaised,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 48,
+                          child: FilledButton(
+                            onPressed: _submitting ? null : _addGuest,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              'Adicionar convidado',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

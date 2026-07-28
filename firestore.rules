@@ -1968,6 +1968,14 @@ service cloud.firestore {
       }
     }
 
+    // Versão mínima do app (gate de atualização obrigatória). Leitura pública:
+    // o bloqueio precisa valer também na tela de login, antes de haver auth.
+    // Não guarda nada sensível — só build number, link da loja e textos.
+    match /appConfig/appVersion {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Config de features lida pelo app (ex.: appConfig/friendlyMatch).
     match /appConfig/{docId} {
       allow read: if request.auth != null;

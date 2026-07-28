@@ -12,6 +12,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/app_update/app_update_gate.dart';
 import 'core/layout/nexa_native_liquid_glass.dart';
 import 'core/time/nexago_event_timezone.dart';
 import 'core/auth/auth_providers.dart';
@@ -157,30 +158,32 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     final router = ref.watch(goRouterProvider);
     final themeMode = ref.watch(resolvedThemeModeProvider);
 
-    return BiometricAppGate(
-      child: MaterialApp.router(
-        title: AppStrings.appName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: themeMode,
-        builder: (context, child) {
-          final brightness = Theme.of(context).brightness;
-          return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: systemUiOverlayForBrightness(brightness),
-            child: child ?? const SizedBox.shrink(),
-          );
-        },
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [
-          Locale('pt', 'BR'),
-          Locale('en'),
-        ],
-        routerConfig: router,
+    return AppUpdateGate(
+      child: BiometricAppGate(
+        child: MaterialApp.router(
+          title: AppStrings.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeMode,
+          builder: (context, child) {
+            final brightness = Theme.of(context).brightness;
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: systemUiOverlayForBrightness(brightness),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('pt', 'BR'),
+            Locale('en'),
+          ],
+          routerConfig: router,
+        ),
       ),
     );
   }

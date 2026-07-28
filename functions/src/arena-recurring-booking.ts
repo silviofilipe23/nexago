@@ -900,6 +900,12 @@ async function updateArenaRecurringBookingHandler(
 
   const {courtName} = await resolveCourtAndAthlete(db, arenaId, validated.courtId, validated.athleteId);
   const arenaName = String(currentData["arenaName"] ?? "Arena");
+  // Datas canceladas individualmente via cancelArenaRecurringOccurrence
+  // precisam sobreviver à edição — do contrário a materialização recria a
+  // ocorrência que o gestor cancelou de propósito.
+  const carriedSkippedDates: string[] = Array.isArray(currentData["skippedDates"]) ?
+    (currentData["skippedDates"] as unknown[]).map(String) :
+    [];
 
   const series: RecurringSeriesData = {
     arenaId,
@@ -915,7 +921,7 @@ async function updateArenaRecurringBookingHandler(
     status: currentStatus,
     startDate: validated.startDate,
     endDate: validated.endDate,
-    skippedDates: [],
+    skippedDates: carriedSkippedDates,
   };
 
   const todayMinusOne = addDaysToDateKey(todayKey, -1);
@@ -943,7 +949,9 @@ async function updateArenaRecurringBookingHandler(
     canceledDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_updated");
     const result = await materializeSeriesOccurrences(db, seriesId, series, todayMinusOne, horizonKey);
     createdDates = result.createdDates;
-    skippedDates = result.skippedDates;
+    // Mescla com as datas já canceladas individualmente antes da edição —
+    // não substitui, senão a exclusão anterior se perde.
+    skippedDates = Array.from(new Set([...carriedSkippedDates, ...result.skippedDates]));
 
     await seriesRef.set({
       materializedUntil: horizonKey,
@@ -953,6 +961,7 @@ async function updateArenaRecurringBookingHandler(
     // Se `paused`: só os campos da série mudam agora — a rematerialização
     // acontece em resumeArenaRecurringBooking, com a config já atualizada.
     // Nenhuma operação multi-etapa acontece aqui, então um único write basta.
+    skippedDates = carriedSkippedDates;
     await seriesRef.set({
       ...series,
       paymentType: validated.paymentType,

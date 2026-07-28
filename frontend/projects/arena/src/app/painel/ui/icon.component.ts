@@ -10,6 +10,7 @@ export type PanelIconName =
   | 'person'
   | 'gear'
   | 'chevron-right'
+  | 'chevron-left'
   | 'search'
   | 'bell'
   | 'plus'
@@ -79,6 +80,9 @@ export type PanelIconName =
         }
         @case ('chevron-right') {
           <path d="m9 6 6 6-6 6" />
+        }
+        @case ('chevron-left') {
+          <path d="m15 6-6 6 6 6" />
         }
         @case ('search') {
           <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />

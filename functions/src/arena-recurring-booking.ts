@@ -264,7 +264,13 @@ export async function materializeSeriesOccurrences(
     try {
       const outcome = await db.runTransaction(async (tx: Transaction) => {
         const existing = await tx.get(bookingRef);
-        if (existing.exists) return "exists";
+        if (existing.exists) {
+          const existingStatus = String(existing.data()?.["status"] ?? "").toLowerCase();
+          if (existingStatus !== "cancelled") return "exists";
+          // Doc existe mas foi liberado por cancelFutureOccurrences (edição/
+          // retomada da mesma série) — sobrescreve com a config nova em vez
+          // de bloquear.
+        }
         for (const lock of locks) {
           const snap = await tx.get(lock.ref);
           if (snap.exists) return "conflict";

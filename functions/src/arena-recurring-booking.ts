@@ -640,10 +640,12 @@ async function createArenaRecurringBookingHandler(
 
   // Gate de plano: Essencial (sem titularidade Pro/Parceiro) tem limite de séries ativas.
   if (!isArenaEntitledPro(arenaData, Date.now())) {
+    // Pausada continua contando na cota — senão dá pra "furar" o limite
+    // pausando uma série sem liberar de fato o slot do plano.
     const activeCount = await db
       .collection(ARENA_RECURRING_BOOKINGS)
       .where("arenaId", "==", arenaId)
-      .where("status", "==", "active")
+      .where("status", "in", ["active", "paused"])
       .count()
       .get();
     if (activeCount.data().count >= ESSENCIAL_MAX_ACTIVE_RECURRING) {
@@ -755,7 +757,8 @@ export const cancelArenaRecurringBooking = onCall(async (request) => {
   const arenaId = String(seriesData["arenaId"] ?? "");
   await requireArenaManager(db, arenaId, uid);
 
-  if (String(seriesData["status"]) !== "active") {
+  const currentStatus = String(seriesData["status"] ?? "");
+  if (currentStatus !== "active" && currentStatus !== "paused") {
     throw new HttpsError("failed-precondition", "Este horário fixo já foi encerrado.");
   }
 

@@ -79,7 +79,13 @@ function parseSlotDate(value: unknown): Date | null {
   }
   if (typeof value === 'string') {
     const t = value.trim();
-    const parsed = Date.parse(t.length >= 10 ? t.substring(0, 10) : t);
+    // `YYYY-MM-DD` é dia de calendário local — `Date.parse` trataria como meia-noite UTC,
+    // deslocando o slot pra véspera em fusos negativos (Brasil).
+    const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+    if (iso) {
+      return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    }
+    const parsed = Date.parse(t);
     if (!Number.isNaN(parsed)) {
       const d = new Date(parsed);
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());

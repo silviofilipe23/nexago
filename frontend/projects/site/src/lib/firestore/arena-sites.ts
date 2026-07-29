@@ -12,7 +12,7 @@ export interface PublicArenaSite {
   slug: string;
   arenaId: string;
   arenaName: string;
-  theme: { paletteId: string; primaryHex: string; dark: boolean };
+  theme: { paletteId: string; primaryHex: string; dark: boolean; logoUrl: string | null };
   hero: { headline: string; tagline: string; imageUrl: string | null; ctaLabel: string; ctaUrl: string };
   about: { enabled: boolean; title: string; body: string; imageUrls: string[] };
   contact: { enabled: boolean; whatsapp: string; instagram: string; address: string };
@@ -22,6 +22,16 @@ export interface PublicArenaSite {
   schedule: { enabled: boolean };
   events: { enabled: boolean };
   reviews: { enabled: boolean };
+  gallery: { enabled: boolean; imageUrls: string[] };
+  plans: { enabled: boolean; items: ArenaSitePlanItem[] };
+  faq: { enabled: boolean; items: { q: string; a: string }[] };
+}
+
+export interface ArenaSitePlanItem {
+  name: string;
+  price: string;
+  features: string[];
+  featured: boolean;
 }
 
 function str(value: unknown): string {
@@ -36,6 +46,10 @@ function section(data: DocumentData, key: string): DocumentData {
 /** A function só grava hex do catálogo, mas revalida aqui — o hex vai para CSS inline. */
 function safeHex(value: unknown): string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#FF6A1A';
+}
+
+function storageUrl(value: unknown): string | null {
+  return typeof value === 'string' && value.startsWith('https://firebasestorage.googleapis.com/') ? value : null;
 }
 
 /** `null` quando o slug não existe ou o site foi despublicado. */
@@ -63,6 +77,7 @@ export async function getArenaSiteBySlug(slug: string): Promise<PublicArenaSite 
         paletteId: str(theme.paletteId) || 'laranja',
         primaryHex: safeHex(theme.primaryHex),
         dark: theme.dark !== false,
+        logoUrl: storageUrl(theme.logoUrl),
       },
       hero: {
         headline,
@@ -88,6 +103,36 @@ export async function getArenaSiteBySlug(slug: string): Promise<PublicArenaSite 
       schedule: { enabled: section(data, 'schedule').enabled !== false },
       events: { enabled: section(data, 'events').enabled !== false },
       reviews: { enabled: section(data, 'reviews').enabled !== false },
+      gallery: {
+        enabled: section(data, 'gallery').enabled !== false,
+        imageUrls: (Array.isArray(section(data, 'gallery').imageUrls) ? section(data, 'gallery').imageUrls : [])
+          .map((u: unknown) => storageUrl(u))
+          .filter((u: string | null): u is string => u !== null)
+          .slice(0, 8),
+      },
+      plans: {
+        enabled: section(data, 'plans').enabled !== false,
+        items: (Array.isArray(section(data, 'plans').items) ? section(data, 'plans').items : [])
+          .filter((p: unknown): p is DocumentData => !!p && typeof p === 'object')
+          .map((p: DocumentData) => ({
+            name: str(p.name),
+            price: str(p.price),
+            features: (Array.isArray(p.features) ? p.features : []).filter(
+              (f: unknown): f is string => typeof f === 'string' && f.trim().length > 0,
+            ),
+            featured: p.featured === true,
+          }))
+          .filter((p: ArenaSitePlanItem) => p.name && p.price)
+          .slice(0, 4),
+      },
+      faq: {
+        enabled: section(data, 'faq').enabled !== false,
+        items: (Array.isArray(section(data, 'faq').items) ? section(data, 'faq').items : [])
+          .filter((item: unknown): item is DocumentData => !!item && typeof item === 'object')
+          .map((item: DocumentData) => ({ q: str(item.q), a: str(item.a) }))
+          .filter((item: { q: string; a: string }) => item.q && item.a)
+          .slice(0, 8),
+      },
     };
   } catch {
     return null;

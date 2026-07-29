@@ -39,6 +39,10 @@ const PALETTES: Record<string, string> = {
 };
 
 const MAX_ABOUT_IMAGES = 3;
+const MAX_GALLERY_IMAGES = 8;
+const MAX_PLANS = 4;
+const MAX_PLAN_FEATURES = 6;
+const MAX_FAQ_ITEMS = 8;
 
 function readString(value: unknown, field: string, {max = 200, required = false} = {}): string {
   if (value == null) {
@@ -102,13 +106,45 @@ function readEnabledFlag(draft: Record<string, unknown>, key: string): {enabled:
   return {enabled: section["enabled"] !== false};
 }
 
+/** Planos manuais (mensalista/day use). Itens sem nome ou preço são descartados. */
+function readPlans(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
+    .map((p) => ({
+      name: readString(p["name"], "plan.name", {max: 40}),
+      price: readString(p["price"], "plan.price", {max: 24}),
+      features: (Array.isArray(p["features"]) ? p["features"] : [])
+        .map((f) => (typeof f === "string" ? f.trim().slice(0, 60) : ""))
+        .filter(Boolean)
+        .slice(0, MAX_PLAN_FEATURES),
+      featured: p["featured"] === true
+    }))
+    .filter((p) => p["name"] !== "" && p["price"] !== "")
+    .slice(0, MAX_PLANS);
+}
+
+/** FAQ manual. Itens sem pergunta ou resposta são descartados. */
+function readFaq(value: unknown): Array<{q: string; a: string}> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item) => ({
+      q: readString(item["q"], "faq.q", {max: 120}),
+      a: readString(item["a"], "faq.a", {max: 600})
+    }))
+    .filter((item) => item.q !== "" && item.a !== "")
+    .slice(0, MAX_FAQ_ITEMS);
+}
+
 /** Valida o rascunho e monta o payload público. Campos fora do schema são descartados. */
 function buildPublicPayload(
   draft: Record<string, unknown>,
   arenaId: string,
   slug: string,
   arenaName: string,
-  arenaAddressFallback: string
+  arenaAddressFallback: string,
+  arenaLogoUrl: string | null
 ): Record<string, unknown> {
   const theme = (draft["theme"] ?? {}) as Record<string, unknown>;
   const paletteId = typeof theme["paletteId"] === "string" && PALETTES[theme["paletteId"]]
@@ -142,7 +178,9 @@ function buildPublicPayload(
       template: "clay-v1",
       paletteId,
       primaryHex: PALETTES[paletteId],
-      dark: (draft["theme"] as Record<string, unknown> | undefined)?.["dark"] !== false
+      dark: (draft["theme"] as Record<string, unknown> | undefined)?.["dark"] !== false,
+      // Logo da nav vem do cadastro da arena (já no Storage dela) — um lugar só.
+      logoUrl: arenaLogoUrl
     },
     hero: {
       enabled: true,
@@ -169,6 +207,23 @@ function buildPublicPayload(
     schedule: readEnabledFlag(draft, "schedule"),
     events: readEnabledFlag(draft, "events"),
     reviews: readEnabledFlag(draft, "reviews"),
+    gallery: {
+      enabled: ((draft["gallery"] ?? {}) as Record<string, unknown>)["enabled"] !== false,
+      imageUrls: (Array.isArray(((draft["gallery"] ?? {}) as Record<string, unknown>)["imageUrls"])
+        ? (((draft["gallery"] ?? {}) as Record<string, unknown>)["imageUrls"] as unknown[])
+        : [])
+        .slice(0, MAX_GALLERY_IMAGES)
+        .map((u) => readOwnImageUrl(u, arenaId))
+        .filter((u): u is string => u !== null)
+    },
+    plans: {
+      enabled: ((draft["plans"] ?? {}) as Record<string, unknown>)["enabled"] !== false,
+      items: readPlans(((draft["plans"] ?? {}) as Record<string, unknown>)["items"])
+    },
+    faq: {
+      enabled: ((draft["faq"] ?? {}) as Record<string, unknown>)["enabled"] !== false,
+      items: readFaq(((draft["faq"] ?? {}) as Record<string, unknown>)["items"])
+    },
     publishedAt: FieldValue.serverTimestamp()
   };
 }
@@ -195,6 +250,13 @@ export const publishArenaSite = onCall(async (request) => {
     (arenaSnap.get("city") as string | undefined)?.trim(),
     (arenaSnap.get("state") as string | undefined)?.trim()
   ].filter(Boolean).join(", ");
+  // Logo é opcional e pode ser URL antiga fora do padrão — nesse caso ignora, não falha.
+  let arenaLogoUrl: string | null = null;
+  try {
+    arenaLogoUrl = readOwnImageUrl(arenaSnap.get("logoUrl"), arenaId);
+  } catch {
+    arenaLogoUrl = null;
+  }
 
   const db = getFirestore();
   const draftRef = db.doc(`arenaSites/${arenaId}`);
@@ -212,7 +274,7 @@ export const publishArenaSite = onCall(async (request) => {
     }
 
     const draft = draftSnap.data() as Record<string, unknown>;
-    const payload = buildPublicPayload(draft, arenaId, slug, arenaName, arenaAddressFallback);
+    const payload = buildPublicPayload(draft, arenaId, slug, arenaName, arenaAddressFallback, arenaLogoUrl);
     const previousSlug = draft["slug"] as string | undefined;
 
     tx.set(slugRef, {arenaId, updatedAt: FieldValue.serverTimestamp()});

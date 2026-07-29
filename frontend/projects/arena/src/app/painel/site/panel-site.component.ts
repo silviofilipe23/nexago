@@ -12,19 +12,32 @@ import { ToggleComponent } from '../ui/toggle.component';
 import {
   ARENA_SITE_EMPTY,
   ARENA_SITE_MAX_ABOUT_IMAGES,
+  ARENA_SITE_MAX_FAQ_ITEMS,
+  ARENA_SITE_MAX_GALLERY_IMAGES,
+  ARENA_SITE_MAX_PLANS,
   ARENA_SITE_PALETTES,
   slugifyArenaSite,
   validateArenaSiteForPublish,
   type ArenaSiteDraft,
+  type ArenaSiteFaqItem,
 } from './arena-site.model';
 import {
   fetchArenaSiteDraft,
   publishArenaSite,
   saveArenaSiteDraft,
   unpublishArenaSite,
+  uploadArenaGalleryImage,
   uploadArenaSiteImage,
   type ArenaSiteImageKind,
 } from './arena-site-repository';
+
+/** Estado de edição de um plano: features viram textarea (uma por linha). */
+interface PlanFormItem {
+  name: string;
+  price: string;
+  featuresText: string;
+  featured: boolean;
+}
 
 /** Tela "Meu site": edita o rascunho do mini-site público da arena
  *  (`arenaSites/{arenaId}`) e publica via `publishArenaSite`. Fase 1:
@@ -194,6 +207,94 @@ import {
               </div>
               <ar-toggle [checked]="reviewsEnabled()" (changed)="reviewsEnabled.set($event)" />
             </div>
+          </ar-panel-card>
+
+          <ar-panel-card title="Galeria">
+            <div class="section-toggle">
+              <span>Mostrar seção</span>
+              <ar-toggle [checked]="galleryEnabled()" (changed)="galleryEnabled.set($event)" />
+            </div>
+
+            <div class="field-label row-gap">Fotos (até {{ maxGalleryImages }})</div>
+            <div class="image-row">
+              @for (url of galleryImageUrls(); track url; let i = $index) {
+                <div class="image-thumb-wrap">
+                  <img [src]="url" alt="" class="image-thumb" />
+                  <button type="button" class="thumb-remove" aria-label="Remover foto da galeria" (click)="removeGalleryImage(i)">×</button>
+                </div>
+              }
+              @if (galleryImageUrls().length < maxGalleryImages) {
+                <button type="button" class="ar-mini-btn" [disabled]="uploading()" (click)="galleryFileInput.click()">
+                  <ar-icon name="plus" [size]="14" />
+                  Adicionar foto
+                </button>
+              }
+              <input #galleryFileInput type="file" accept="image/*" class="visually-hidden-input" aria-label="Selecionar foto da galeria" (change)="onGalleryImageSelected($event)" />
+            </div>
+          </ar-panel-card>
+
+          <ar-panel-card title="Planos" kicker="Mensalista, day use, aulas">
+            <div class="section-toggle">
+              <span>Mostrar seção</span>
+              <ar-toggle [checked]="plansEnabled()" (changed)="plansEnabled.set($event)" />
+            </div>
+
+            @for (plan of planItems(); track $index; let i = $index) {
+              <div class="item-block">
+                <div class="item-head">
+                  <span class="item-title">Plano {{ i + 1 }}</span>
+                  <button type="button" class="ar-ghost-btn small" (click)="removePlan(i)">Remover</button>
+                </div>
+                <div class="two-col">
+                  <div>
+                    <div class="field-label">Nome *</div>
+                    <input type="text" class="input-box" maxlength="40" [value]="plan.name" (input)="updatePlan(i, { name: $any($event.target).value })" placeholder="Ex.: Mensalista" />
+                  </div>
+                  <div>
+                    <div class="field-label">Preço *</div>
+                    <input type="text" class="input-box" maxlength="24" [value]="plan.price" (input)="updatePlan(i, { price: $any($event.target).value })" placeholder="Ex.: R$ 249/mês" />
+                  </div>
+                </div>
+                <div class="field-label row-gap">Vantagens (uma por linha)</div>
+                <textarea class="input-box textarea" rows="3" [value]="plan.featuresText" (input)="updatePlan(i, { featuresText: $any($event.target).value })" placeholder="2 horários fixos por semana&#10;Desconto no bar"></textarea>
+                <div class="section-toggle row-gap">
+                  <span>Destacar este plano</span>
+                  <ar-toggle [checked]="plan.featured" (changed)="updatePlan(i, { featured: $event })" />
+                </div>
+              </div>
+            }
+            @if (planItems().length < maxPlans) {
+              <button type="button" class="ar-mini-btn row-gap" (click)="addPlan()">
+                <ar-icon name="plus" [size]="14" />
+                Adicionar plano
+              </button>
+            }
+          </ar-panel-card>
+
+          <ar-panel-card title="Perguntas frequentes">
+            <div class="section-toggle">
+              <span>Mostrar seção</span>
+              <ar-toggle [checked]="faqEnabled()" (changed)="faqEnabled.set($event)" />
+            </div>
+
+            @for (item of faqItems(); track $index; let i = $index) {
+              <div class="item-block">
+                <div class="item-head">
+                  <span class="item-title">Pergunta {{ i + 1 }}</span>
+                  <button type="button" class="ar-ghost-btn small" (click)="removeFaq(i)">Remover</button>
+                </div>
+                <div class="field-label">Pergunta *</div>
+                <input type="text" class="input-box" maxlength="120" [value]="item.q" (input)="updateFaq(i, { q: $any($event.target).value })" placeholder="Ex.: Precisa levar raquete?" />
+                <div class="field-label row-gap">Resposta *</div>
+                <textarea class="input-box textarea" rows="3" maxlength="600" [value]="item.a" (input)="updateFaq(i, { a: $any($event.target).value })" placeholder="Temos raquetes para alugar na recepção…"></textarea>
+              </div>
+            }
+            @if (faqItems().length < maxFaqItems) {
+              <button type="button" class="ar-mini-btn row-gap" (click)="addFaq()">
+                <ar-icon name="plus" [size]="14" />
+                Adicionar pergunta
+              </button>
+            }
           </ar-panel-card>
 
           <ar-panel-card title="Contato">
@@ -409,6 +510,28 @@ import {
       margin-top: 2px;
     }
 
+    .item-block {
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      padding: 14px;
+      margin-top: 14px;
+    }
+
+    .item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .item-title {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-mute);
+    }
+
     .image-row {
       display: flex;
       align-items: center;
@@ -467,6 +590,9 @@ export class PanelSiteComponent {
 
   protected readonly palettes = ARENA_SITE_PALETTES;
   protected readonly maxAboutImages = ARENA_SITE_MAX_ABOUT_IMAGES;
+  protected readonly maxGalleryImages = ARENA_SITE_MAX_GALLERY_IMAGES;
+  protected readonly maxPlans = ARENA_SITE_MAX_PLANS;
+  protected readonly maxFaqItems = ARENA_SITE_MAX_FAQ_ITEMS;
   protected readonly publicBaseUrl = environment.publicSiteUrl;
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
@@ -498,6 +624,19 @@ export class PanelSiteComponent {
   protected readonly scheduleEnabled = linkedSignal(() => this.draft()?.schedule.enabled ?? true);
   protected readonly eventsEnabled = linkedSignal(() => this.draft()?.events.enabled ?? true);
   protected readonly reviewsEnabled = linkedSignal(() => this.draft()?.reviews.enabled ?? true);
+  protected readonly galleryEnabled = linkedSignal(() => this.draft()?.gallery.enabled ?? true);
+  protected readonly galleryImageUrls = linkedSignal(() => this.draft()?.gallery.imageUrls ?? []);
+  protected readonly plansEnabled = linkedSignal(() => this.draft()?.plans.enabled ?? true);
+  protected readonly planItems = linkedSignal<PlanFormItem[]>(() =>
+    (this.draft()?.plans.items ?? []).map((p) => ({
+      name: p.name,
+      price: p.price,
+      featuresText: p.features.join('\n'),
+      featured: p.featured,
+    })),
+  );
+  protected readonly faqEnabled = linkedSignal(() => this.draft()?.faq.enabled ?? true);
+  protected readonly faqItems = linkedSignal<ArenaSiteFaqItem[]>(() => this.draft()?.faq.items ?? []);
   protected readonly contactWhatsapp = linkedSignal(() => this.draft()?.contact.whatsapp ?? '');
   protected readonly contactInstagram = linkedSignal(() => this.draft()?.contact.instagram ?? '');
   protected readonly contactAddress = linkedSignal(() => this.draft()?.contact.address ?? '');
@@ -556,7 +695,71 @@ export class PanelSiteComponent {
       schedule: { enabled: this.scheduleEnabled() },
       events: { enabled: this.eventsEnabled() },
       reviews: { enabled: this.reviewsEnabled() },
+      gallery: { enabled: this.galleryEnabled(), imageUrls: this.galleryImageUrls() },
+      plans: {
+        enabled: this.plansEnabled(),
+        items: this.planItems().map((p) => ({
+          name: p.name,
+          price: p.price,
+          features: p.featuresText.split('\n').map((f) => f.trim()).filter(Boolean),
+          featured: p.featured,
+        })),
+      },
+      faq: { enabled: this.faqEnabled(), items: this.faqItems() },
     };
+  }
+
+  protected addPlan(): void {
+    this.planItems.update((items) =>
+      items.length >= ARENA_SITE_MAX_PLANS ? items : [...items, { name: '', price: '', featuresText: '', featured: false }],
+    );
+  }
+
+  protected removePlan(index: number): void {
+    this.planItems.update((items) => items.filter((_, i) => i !== index));
+  }
+
+  protected updatePlan(index: number, patch: Partial<PlanFormItem>): void {
+    this.planItems.update((items) => items.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+  }
+
+  protected addFaq(): void {
+    this.faqItems.update((items) =>
+      items.length >= ARENA_SITE_MAX_FAQ_ITEMS ? items : [...items, { q: '', a: '' }],
+    );
+  }
+
+  protected removeFaq(index: number): void {
+    this.faqItems.update((items) => items.filter((_, i) => i !== index));
+  }
+
+  protected updateFaq(index: number, patch: Partial<ArenaSiteFaqItem>): void {
+    this.faqItems.update((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+
+  protected onGalleryImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId || this.galleryImageUrls().length >= ARENA_SITE_MAX_GALLERY_IMAGES) return;
+
+    this.actionError.set(null);
+    this.uploading.set(true);
+    void uploadArenaGalleryImage(arenaStorage(), arenaId, file)
+      .then((url) => {
+        this.galleryImageUrls.update((current) => [...current, url].slice(0, ARENA_SITE_MAX_GALLERY_IMAGES));
+      })
+      .catch((err: unknown) => {
+        this.actionError.set(err instanceof Error ? err.message : 'Não foi possível enviar a imagem.');
+      })
+      .finally(() => this.uploading.set(false));
+  }
+
+  protected removeGalleryImage(index: number): void {
+    this.galleryImageUrls.update((current) => current.filter((_, i) => i !== index));
   }
 
   protected async saveDraft(): Promise<void> {

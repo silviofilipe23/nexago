@@ -25,6 +25,22 @@ export const ARENA_SITE_PALETTES: ArenaSitePalette[] = [
 ];
 
 export const ARENA_SITE_MAX_ABOUT_IMAGES = 3;
+export const ARENA_SITE_MAX_GALLERY_IMAGES = 8;
+export const ARENA_SITE_MAX_PLANS = 4;
+export const ARENA_SITE_MAX_FAQ_ITEMS = 8;
+
+export interface ArenaSitePlan {
+  name: string;
+  price: string;
+  /** Uma vantagem por linha no editor; vira array na gravação. */
+  features: string[];
+  featured: boolean;
+}
+
+export interface ArenaSiteFaqItem {
+  q: string;
+  a: string;
+}
 
 export interface ArenaSiteDraft {
   status: ArenaSiteStatus;
@@ -39,6 +55,9 @@ export interface ArenaSiteDraft {
   schedule: { enabled: boolean };
   events: { enabled: boolean };
   reviews: { enabled: boolean };
+  gallery: { enabled: boolean; imageUrls: string[] };
+  plans: { enabled: boolean; items: ArenaSitePlan[] };
+  faq: { enabled: boolean; items: ArenaSiteFaqItem[] };
 }
 
 export const ARENA_SITE_EMPTY: ArenaSiteDraft = {
@@ -51,6 +70,9 @@ export const ARENA_SITE_EMPTY: ArenaSiteDraft = {
   schedule: { enabled: true },
   events: { enabled: true },
   reviews: { enabled: true },
+  gallery: { enabled: true, imageUrls: [] },
+  plans: { enabled: true, items: [] },
+  faq: { enabled: true, items: [] },
 };
 
 const SLUG_MIN = 3;

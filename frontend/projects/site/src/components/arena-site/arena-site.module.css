@@ -10,6 +10,86 @@
   flex-direction: column;
 }
 
+/* ── Nav fixa ─────────────────────────────────────────── */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.navBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--color-fg);
+  min-width: 0;
+}
+
+.navLogo {
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.navLogoFallback {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--arena-accent);
+  color: #0a0a0a;
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.navName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navLinks {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.navLinks::-webkit-scrollbar {
+  display: none;
+}
+
+.navLink {
+  font-size: 13px;
+  color: var(--color-text-mute);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.navLink:hover {
+  color: var(--arena-accent);
+}
+
 /* ── Hero ─────────────────────────────────────────────── */
 
 .hero {
@@ -135,6 +215,8 @@
   font-size: clamp(24px, 3.4vw, 32px);
   letter-spacing: -0.01em;
   margin: 0 0 8px;
+  /* A nav sticky não pode cobrir o título ao navegar por âncora. */
+  scroll-margin-top: 72px;
 }
 
 .sectionRule {
@@ -277,6 +359,194 @@
 .eventBadgeOpen {
   border-color: color-mix(in srgb, var(--arena-accent) 55%, transparent);
   color: var(--arena-accent);
+}
+
+/* ── Galeria ──────────────────────────────────────────── */
+
+.galleryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.galleryImg,
+.galleryImgLead {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius-3);
+  border: 1px solid var(--color-line);
+}
+
+.galleryImgLead {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+@media (max-width: 560px) {
+  .galleryImgLead {
+    grid-column: span 1;
+    grid-row: span 1;
+  }
+}
+
+/* ── Planos ───────────────────────────────────────────── */
+
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.planCard,
+.planCardFeatured {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-4);
+  padding: 22px 20px;
+}
+
+.planCardFeatured {
+  border-color: color-mix(in srgb, var(--arena-accent) 60%, transparent);
+  background: color-mix(in srgb, var(--arena-accent) 6%, var(--color-surface-1));
+}
+
+.planBadge {
+  position: absolute;
+  top: -10px;
+  left: 18px;
+  background: var(--arena-accent);
+  color: #0a0a0a;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.planName {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-mute);
+}
+
+.planPrice {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+
+.planFeatures {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.planFeature {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-mute);
+}
+
+.planFeature svg {
+  color: var(--arena-accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.planCta {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--arena-accent) 55%, transparent);
+  color: var(--arena-accent);
+  font-weight: 500;
+  font-size: 14px;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
+}
+
+.planCta:hover {
+  background: var(--arena-accent);
+  color: #0a0a0a;
+}
+
+/* ── FAQ ──────────────────────────────────────────────── */
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+}
+
+.faqItem {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-3);
+  padding: 0 18px;
+}
+
+.faqItem[open] {
+  border-color: color-mix(in srgb, var(--arena-accent) 40%, transparent);
+}
+
+.faqQuestion {
+  cursor: pointer;
+  list-style: none;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 16px 0;
+  position: relative;
+  padding-right: 28px;
+}
+
+.faqQuestion::-webkit-details-marker {
+  display: none;
+}
+
+.faqQuestion::after {
+  content: '+';
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--arena-accent);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.faqItem[open] .faqQuestion::after {
+  content: '–';
+}
+
+.faqAnswer {
+  margin: 0;
+  padding: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--color-text-mute);
+  white-space: pre-line;
 }
 
 /* ── Avaliações (dados ao vivo) ───────────────────────── */

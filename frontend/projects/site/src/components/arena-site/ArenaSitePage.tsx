@@ -43,10 +43,46 @@ export function ArenaSitePage({
   const instagramUrl = site.contact.instagram ? `https://instagram.com/${site.contact.instagram}` : null;
   const showAbout = site.about.enabled && (site.about.body || site.about.imageUrls.length > 0);
   const showContact = site.contact.enabled && (whatsappUrl || instagramUrl || site.contact.address);
+  const showGallery = site.gallery.enabled && site.gallery.imageUrls.length > 0;
+  const showPlans = site.plans.enabled && site.plans.items.length > 0;
+  const showFaq = site.faq.enabled && site.faq.items.length > 0;
+
+  const anchors = [
+    showAbout && { id: 'sobre', label: 'Sobre' },
+    schedule && { id: 'horarios', label: 'Horários' },
+    tournaments.length > 0 && { id: 'torneios', label: 'Torneios' },
+    showGallery && { id: 'galeria', label: 'Galeria' },
+    showPlans && { id: 'planos', label: 'Planos' },
+    reviews && { id: 'avaliacoes', label: 'Avaliações' },
+    showFaq && { id: 'faq', label: 'Dúvidas' },
+    showContact && { id: 'contato', label: 'Contato' },
+  ].filter((a): a is { id: string; label: string } => Boolean(a));
 
   return (
     <main className={styles.page} style={{ '--arena-accent': site.theme.primaryHex } as React.CSSProperties}>
-      <section className={styles.hero}>
+      <header className={styles.nav}>
+        <a className={styles.navBrand} href="#top">
+          {site.theme.logoUrl ? (
+            <Image className={styles.navLogo} src={site.theme.logoUrl} alt="" width={30} height={30} />
+          ) : (
+            <span className={styles.navLogoFallback} aria-hidden>
+              {site.arenaName.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className={styles.navName}>{site.arenaName}</span>
+        </a>
+        {anchors.length > 0 && (
+          <nav className={styles.navLinks} aria-label="Seções da página">
+            {anchors.map((a) => (
+              <a key={a.id} className={styles.navLink} href={`#${a.id}`}>
+                {a.label}
+              </a>
+            ))}
+          </nav>
+        )}
+      </header>
+
+      <section className={styles.hero} id="top">
         {site.hero.imageUrl ? (
           <Image className={styles.heroBg} src={site.hero.imageUrl} alt="" fill priority sizes="100vw" />
         ) : (
@@ -135,6 +171,56 @@ export function ArenaSitePage({
         </section>
       )}
 
+      {showGallery && (
+        <section className={styles.section} aria-labelledby="galeria">
+          <h2 id="galeria" className={styles.sectionTitle}>Galeria</h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <div className={styles.galleryGrid}>
+            {site.gallery.imageUrls.map((url, i) => (
+              <Image
+                key={url}
+                className={i === 0 ? styles.galleryImgLead : styles.galleryImg}
+                src={url}
+                alt=""
+                width={i === 0 ? 960 : 480}
+                height={i === 0 ? 600 : 360}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {showPlans && (
+        <section className={styles.section} aria-labelledby="planos">
+          <h2 id="planos" className={styles.sectionTitle}>Planos</h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <div className={styles.planGrid}>
+            {site.plans.items.map((plan) => (
+              <div key={plan.name} className={plan.featured ? styles.planCardFeatured : styles.planCard}>
+                {plan.featured && <span className={styles.planBadge}>Mais procurado</span>}
+                <div className={styles.planName}>{plan.name}</div>
+                <div className={styles.planPrice}>{plan.price}</div>
+                {plan.features.length > 0 && (
+                  <ul className={styles.planFeatures}>
+                    {plan.features.map((f) => (
+                      <li key={f} className={styles.planFeature}>
+                        <CheckGlyph />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {whatsappUrl && (
+                  <a className={styles.planCta} href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                    Falar com a arena
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {reviews && (
         <section className={styles.section} aria-labelledby="avaliacoes">
           <h2 id="avaliacoes" className={styles.sectionTitle}>
@@ -159,6 +245,23 @@ export function ArenaSitePage({
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {showFaq && (
+        <section className={styles.section} aria-labelledby="faq">
+          <h2 id="faq" className={styles.sectionTitle}>
+            Perguntas frequentes
+          </h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <div className={styles.faqList}>
+            {site.faq.items.map((item) => (
+              <details key={item.q} className={styles.faqItem}>
+                <summary className={styles.faqQuestion}>{item.q}</summary>
+                <p className={styles.faqAnswer}>{item.a}</p>
+              </details>
+            ))}
+          </div>
         </section>
       )}
 
@@ -220,6 +323,24 @@ function formatWhatsapp(digits: string): string {
   const ddd = local.slice(0, 2);
   const rest = local.slice(2);
   return `(${ddd}) ${rest.slice(0, rest.length - 4)}-${rest.slice(-4)}`;
+}
+
+function CheckGlyph() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
 }
 
 /** Estrelas cheias por arredondamento simples — sem meia estrela na v2. */

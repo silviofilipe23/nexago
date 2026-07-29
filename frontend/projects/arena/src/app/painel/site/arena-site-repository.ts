@@ -2,7 +2,16 @@ import { doc, getDoc, setDoc, serverTimestamp, type Firestore } from 'firebase/f
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
 import { validateArenaImageFile } from '../profile/arena-profile-repository';
-import { ARENA_SITE_EMPTY, ARENA_SITE_MAX_ABOUT_IMAGES, type ArenaSiteDraft } from './arena-site.model';
+import {
+  ARENA_SITE_EMPTY,
+  ARENA_SITE_MAX_ABOUT_IMAGES,
+  ARENA_SITE_MAX_FAQ_ITEMS,
+  ARENA_SITE_MAX_GALLERY_IMAGES,
+  ARENA_SITE_MAX_PLANS,
+  type ArenaSiteDraft,
+  type ArenaSiteFaqItem,
+  type ArenaSitePlan,
+} from './arena-site.model';
 
 /** Acesso a dados do mini-site: rascunho em `arenaSites/{arenaId}` (escrita direta,
  *  rules exigem managerUserId), publicação via callables. */
@@ -57,7 +66,47 @@ export async function fetchArenaSiteDraft(db: Firestore, arenaId: string): Promi
     schedule: { enabled: readSection(data, 'schedule')['enabled'] !== false },
     events: { enabled: readSection(data, 'events')['enabled'] !== false },
     reviews: { enabled: readSection(data, 'reviews')['enabled'] !== false },
+    gallery: {
+      enabled: readSection(data, 'gallery')['enabled'] !== false,
+      imageUrls: readStringList(readSection(data, 'gallery')['imageUrls'], ARENA_SITE_MAX_GALLERY_IMAGES),
+    },
+    plans: {
+      enabled: readSection(data, 'plans')['enabled'] !== false,
+      items: readPlans(readSection(data, 'plans')['items']),
+    },
+    faq: {
+      enabled: readSection(data, 'faq')['enabled'] !== false,
+      items: readFaqItems(readSection(data, 'faq')['items']),
+    },
   };
+}
+
+function readStringList(value: unknown, max: number): string[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+    .slice(0, max);
+}
+
+function readPlans(value: unknown): ArenaSitePlan[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+    .map((p) => ({
+      name: typeof p['name'] === 'string' ? p['name'] : '',
+      price: typeof p['price'] === 'string' ? p['price'] : '',
+      features: readStringList(p['features'], 6),
+      featured: p['featured'] === true,
+    }))
+    .slice(0, ARENA_SITE_MAX_PLANS);
+}
+
+function readFaqItems(value: unknown): ArenaSiteFaqItem[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      q: typeof item['q'] === 'string' ? item['q'] : '',
+      a: typeof item['a'] === 'string' ? item['a'] : '',
+    }))
+    .slice(0, ARENA_SITE_MAX_FAQ_ITEMS);
 }
 
 /** Salva o rascunho (conteúdo apenas — slug/status são mantidos pela function). */
@@ -89,6 +138,27 @@ export async function saveArenaSiteDraft(db: Firestore, arenaId: string, draft: 
       schedule: { enabled: draft.schedule.enabled },
       events: { enabled: draft.events.enabled },
       reviews: { enabled: draft.reviews.enabled },
+      gallery: {
+        enabled: draft.gallery.enabled,
+        imageUrls: draft.gallery.imageUrls.slice(0, ARENA_SITE_MAX_GALLERY_IMAGES),
+      },
+      plans: {
+        enabled: draft.plans.enabled,
+        items: draft.plans.items
+          .map((p) => ({
+            name: p.name.trim(),
+            price: p.price.trim(),
+            features: p.features.map((f) => f.trim()).filter(Boolean).slice(0, 6),
+            featured: p.featured,
+          }))
+          .slice(0, ARENA_SITE_MAX_PLANS),
+      },
+      faq: {
+        enabled: draft.faq.enabled,
+        items: draft.faq.items
+          .map((item) => ({ q: item.q.trim(), a: item.a.trim() }))
+          .slice(0, ARENA_SITE_MAX_FAQ_ITEMS),
+      },
       updatedAt: serverTimestamp(),
     },
     { merge: true },
@@ -110,6 +180,19 @@ export async function uploadArenaSiteImage(
     throw new Error(error);
   }
   const fileRef = ref(storage, `arenas/${arenaId}/${kind}`);
+  await uploadBytes(fileRef, file, { contentType: file.type });
+  return getDownloadURL(fileRef);
+}
+
+/** Fotos da galeria usam nome único (timestamp): remover uma foto do site não
+ *  pode invalidar a URL de outra que continua publicada — diferente dos slots
+ *  fixos do hero/sobre, aqui a lista é reordenável. Órfãos ocasionais são ok. */
+export async function uploadArenaGalleryImage(storage: FirebaseStorage, arenaId: string, file: File): Promise<string> {
+  const error = validateArenaImageFile(file);
+  if (error) {
+    throw new Error(error);
+  }
+  const fileRef = ref(storage, `arenas/${arenaId}/site-gallery-${Date.now()}`);
   await uploadBytes(fileRef, file, { contentType: file.type });
   return getDownloadURL(fileRef);
 }

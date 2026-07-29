@@ -22,13 +22,6 @@ export function athleteLevelLabel(code: string | null | undefined): string {
   return levelLabelOf(trimmed) ?? trimmed;
 }
 
-/** Código/label de nível → rótulo de exibição — delega pro vocabulário
- *  canônico compartilhado (`@nexago/levels`), incluindo os códigos legados sem
- *  sufixo que ainda aparecem no fallback de nível global de contas antigas. */
-export function athleteLevelLabel(code: string | null | undefined): string {
-  return levelDisplayLabel(code);
-}
-
 export function nameFromEmail(email: string | null | undefined): string {
   const local = email?.split('@')[0]?.trim();
   if (!local) {

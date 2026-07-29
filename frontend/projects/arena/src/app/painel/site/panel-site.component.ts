@@ -49,7 +49,7 @@ interface PlanFormItem {
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, ToggleComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Meu site" subtitle="Landing page pública da arena">
+      <ar-page-header title="Meu site" [subtitle]="headerSubtitle()">
         <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="saveDraft()">
           {{ saving() ? 'Salvando…' : 'Salvar rascunho' }}
         </button>
@@ -74,34 +74,28 @@ interface PlanFormItem {
             <div class="ok-banner">{{ msg }}</div>
           }
 
-          <ar-panel-card title="Endereço">
-            <div class="status-row">
-              <span class="status-pill" [class.live]="status() === 'published'">
-                {{ status() === 'published' ? 'Publicado' : 'Rascunho' }}
-              </span>
-              @if (status() === 'published' && publishedSlug()) {
-                <a class="ar-text-link" [href]="publicUrl()" target="_blank" rel="noopener">
-                  {{ publicUrl() }}
-                </a>
-                <button type="button" class="ar-ghost-btn small" [disabled]="busy()" (click)="unpublish()">
-                  Despublicar
-                </button>
-              }
-            </div>
-            <div class="field-label row-gap">Endereço da página</div>
-            <div class="slug-row">
-              <span class="slug-prefix">{{ publicBaseUrl }}/s/</span>
+          <div class="layout">
+          <div class="col-main">
+          <ar-panel-card kicker="Onde seu site fica no ar" title="Endereço">
+            <span card-actions class="status-pill" [class.live]="status() === 'published'">
+              {{ status() === 'published' ? 'Publicado' : 'Rascunho' }}
+            </span>
+            <div class="field-label">Endereço da página</div>
+            <div class="slug-box">
+              <span class="slug-prefix">{{ displayHost }}/s/</span>
               <input
                 type="text"
-                class="input-box slug-input"
+                class="slug-input"
                 [value]="slug()"
                 (input)="slug.set(normalizeSlugInput($any($event.target).value))"
                 placeholder="minha-arena"
+                aria-label="Endereço da página"
               />
             </div>
+            <p class="hint">Só letras minúsculas, números e hífen. Mudar o endereço quebra links já compartilhados.</p>
           </ar-panel-card>
 
-          <ar-panel-card title="Tema">
+          <ar-panel-card kicker="Identidade visual do site" title="Tema">
             <div class="field-label">Cor de destaque</div>
             <div class="palette-row">
               @for (p of palettes; track p.id) {
@@ -116,9 +110,10 @@ interface PlanFormItem {
                 ></button>
               }
             </div>
+            <p class="hint">Aplicada em botões, links e destaques do site.</p>
           </ar-panel-card>
 
-          <ar-panel-card title="Hero">
+          <ar-panel-card kicker="Primeira dobra — o que o visitante vê primeiro" title="Hero">
             <div class="field-label">Título principal *</div>
             <input type="text" class="input-box" maxlength="80" [value]="heroHeadline()" (input)="heroHeadline.set($any($event.target).value)" placeholder="Ex.: Sua praia é aqui" />
 
@@ -126,17 +121,29 @@ interface PlanFormItem {
             <input type="text" class="input-box" maxlength="140" [value]="heroTagline()" (input)="heroTagline.set($any($event.target).value)" placeholder="Ex.: Beach tennis e vôlei de praia no coração da cidade" />
 
             <div class="field-label row-gap">Imagem de fundo</div>
-            <div class="image-row">
+            <div class="upload-box" [class.filled]="heroImageUrl().trim()">
               @if (heroImageUrl().trim()) {
                 <img [src]="heroImageUrl()" alt="" class="image-thumb wide" />
+                <div class="upload-copy">
+                  <div class="upload-title">Imagem enviada</div>
+                  <div class="upload-meta">Aparece atrás do título, com escurecimento automático.</div>
+                </div>
+              } @else {
+                <div class="upload-empty-thumb" aria-hidden></div>
+                <div class="upload-copy">
+                  <div class="upload-title">Nenhuma imagem enviada</div>
+                  <div class="upload-meta">JPG ou PNG · mín. 1600×900 · até 5 MB</div>
+                </div>
               }
-              <button type="button" class="ar-mini-btn" [disabled]="uploading()" (click)="heroFileInput.click()">
-                <ar-icon name="camera" [size]="14" />
-                {{ heroImageUrl().trim() ? 'Trocar imagem' : 'Enviar imagem' }}
-              </button>
-              @if (heroImageUrl().trim()) {
-                <button type="button" class="ar-ghost-btn small" (click)="heroImageUrl.set('')">Remover</button>
-              }
+              <div class="upload-actions">
+                <button type="button" class="ar-mini-btn" [disabled]="uploading()" (click)="heroFileInput.click()">
+                  <ar-icon name="camera" [size]="14" />
+                  {{ heroImageUrl().trim() ? 'Trocar imagem' : 'Enviar imagem' }}
+                </button>
+                @if (heroImageUrl().trim()) {
+                  <button type="button" class="ar-ghost-btn small" (click)="heroImageUrl.set('')">Remover</button>
+                }
+              </div>
               <input #heroFileInput type="file" accept="image/*" class="visually-hidden-input" aria-label="Selecionar imagem do hero" (change)="onImageSelected($event, 'site-hero')" />
             </div>
 
@@ -152,11 +159,9 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card title="Sobre a arena">
-            <div class="section-toggle">
-              <span>Mostrar seção</span>
-              <ar-toggle [checked]="aboutEnabled()" (changed)="aboutEnabled.set($event)" />
-            </div>
+          <ar-panel-card kicker="Apresentação, história e estrutura" title="Sobre a arena">
+            <ar-toggle card-actions [checked]="aboutEnabled()" (changed)="aboutEnabled.set($event)" label="Mostrar seção" />
+            <p class="hint no-top">Seções ocultas não aparecem no site publicado.</p>
 
             <div class="field-label row-gap">Título</div>
             <input type="text" class="input-box" maxlength="60" [value]="aboutTitle()" (input)="aboutTitle.set($any($event.target).value)" placeholder="Ex.: Sobre a arena" />
@@ -209,11 +214,8 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card title="Galeria">
-            <div class="section-toggle">
-              <span>Mostrar seção</span>
-              <ar-toggle [checked]="galleryEnabled()" (changed)="galleryEnabled.set($event)" />
-            </div>
+          <ar-panel-card kicker="Fotos que vendem a arena" title="Galeria">
+            <ar-toggle card-actions [checked]="galleryEnabled()" (changed)="galleryEnabled.set($event)" label="Mostrar seção" />
 
             <div class="field-label row-gap">Fotos (até {{ maxGalleryImages }})</div>
             <div class="image-row">
@@ -233,11 +235,8 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card title="Planos" kicker="Mensalista, day use, aulas">
-            <div class="section-toggle">
-              <span>Mostrar seção</span>
-              <ar-toggle [checked]="plansEnabled()" (changed)="plansEnabled.set($event)" />
-            </div>
+          <ar-panel-card kicker="Mensalista, day use, aulas" title="Planos">
+            <ar-toggle card-actions [checked]="plansEnabled()" (changed)="plansEnabled.set($event)" label="Mostrar seção" />
 
             @for (plan of planItems(); track $index; let i = $index) {
               <div class="item-block">
@@ -271,11 +270,8 @@ interface PlanFormItem {
             }
           </ar-panel-card>
 
-          <ar-panel-card title="Perguntas frequentes">
-            <div class="section-toggle">
-              <span>Mostrar seção</span>
-              <ar-toggle [checked]="faqEnabled()" (changed)="faqEnabled.set($event)" />
-            </div>
+          <ar-panel-card kicker="O que sempre perguntam antes de jogar" title="Perguntas frequentes">
+            <ar-toggle card-actions [checked]="faqEnabled()" (changed)="faqEnabled.set($event)" label="Mostrar seção" />
 
             @for (item of faqItems(); track $index; let i = $index) {
               <div class="item-block">
@@ -297,11 +293,8 @@ interface PlanFormItem {
             }
           </ar-panel-card>
 
-          <ar-panel-card title="Contato">
-            <div class="section-toggle">
-              <span>Mostrar seção</span>
-              <ar-toggle [checked]="contactEnabled()" (changed)="contactEnabled.set($event)" />
-            </div>
+          <ar-panel-card kicker="Canais que aparecem no site" title="Contato">
+            <ar-toggle card-actions [checked]="contactEnabled()" (changed)="contactEnabled.set($event)" label="Mostrar seção" />
 
             <div class="two-col row-gap">
               <div>
@@ -321,6 +314,76 @@ interface PlanFormItem {
           @if (uploading()) {
             <p class="state-text">Enviando imagem…</p>
           }
+          </div>
+
+          <aside class="col-side">
+            <ar-panel-card title="Publicação" pad="sm">
+              <div class="pub-status">
+                <span class="pub-dot" [class.live]="status() === 'published'" aria-hidden></span>
+                {{ status() === 'published' ? 'Publicado — no ar' : 'Rascunho — não publicado' }}
+              </div>
+              <div class="pub-url">
+                <ar-icon name="share" [size]="14" />
+                <span class="pub-url-text">{{ displayHost }}/s/{{ slug() || 'minha-arena' }}</span>
+              </div>
+              <div class="pub-actions">
+                <button type="button" class="ar-mini-btn" (click)="copyLink()">Copiar link</button>
+                @if (status() === 'published' && publishedSlug()) {
+                  <a class="ar-mini-btn" [href]="publicUrl()" target="_blank" rel="noopener">Ver site</a>
+                  <button type="button" class="ar-ghost-btn small" [disabled]="busy()" (click)="unpublish()">
+                    Despublicar
+                  </button>
+                }
+              </div>
+            </ar-panel-card>
+
+            <ar-panel-card kicker="Atualiza conforme você edita" title="Prévia" pad="sm">
+              <div class="pv">
+                <div class="pv-bar">
+                  <span class="pv-dots" aria-hidden><i></i><i></i><i></i></span>
+                  <span class="pv-bar-url">{{ displayHost }}/s/{{ slug() || 'minha-arena' }}</span>
+                </div>
+                <div class="pv-page">
+                  <div class="pv-nav">
+                    <span class="pv-logo" [style.background]="paletteHex()">{{ arenaInitial() }}</span>
+                    <span class="pv-nav-links">
+                      @for (a of previewAnchors(); track a) {
+                        <span>{{ a }}</span>
+                      }
+                    </span>
+                  </div>
+                  <div class="pv-hero" [style.background-image]="heroImageUrl().trim() ? 'url(' + heroImageUrl() + ')' : null">
+                    <div class="pv-hero-shade" [class.plain]="!heroImageUrl().trim()">
+                      <div class="pv-headline">{{ heroHeadline() || 'Sua praia é aqui' }}</div>
+                      @if (heroTagline()) {
+                        <div class="pv-tagline">{{ heroTagline() }}</div>
+                      }
+                      @if (heroCtaLabel()) {
+                        <span class="pv-cta" [style.background]="paletteHex()">{{ heroCtaLabel() }}</span>
+                      }
+                    </div>
+                  </div>
+                  @if (aboutEnabled()) {
+                    <div class="pv-section">
+                      <div class="pv-section-title" [style.color]="paletteHex()">{{ aboutTitle() || 'Sobre a arena' }}</div>
+                      @if (aboutBody()) {
+                        <p class="pv-body">{{ previewAboutText() }}</p>
+                      } @else {
+                        <div class="pv-skel" aria-hidden></div>
+                        <div class="pv-skel short" aria-hidden></div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            </ar-panel-card>
+
+            <div class="side-note">
+              Alterações só vão ao ar quando você clicar em <strong>Publicar</strong>. Salvar rascunho guarda o
+              progresso sem mudar o site no ar.
+            </div>
+          </aside>
+          </div>
         }
       </div>
     </ar-panel-shell>
@@ -330,7 +393,52 @@ interface PlanFormItem {
       display: flex;
       flex-direction: column;
       gap: 16px;
-      max-width: 760px;
+      max-width: 1160px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .col-main {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .col-side {
+      position: sticky;
+      top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .col-side {
+        position: static;
+      }
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      line-height: 1.5;
+      margin: 8px 0 0;
+    }
+
+    .hint.no-top {
+      margin-top: 0;
+      margin-bottom: 12px;
     }
 
     .state-text {
@@ -355,13 +463,6 @@ interface PlanFormItem {
       border-radius: var(--nx-r-2);
       padding: 10px 14px;
       font-size: 13px;
-    }
-
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
     }
 
     .status-pill {
@@ -418,16 +519,25 @@ interface PlanFormItem {
       font-family: var(--nx-font-ui);
     }
 
-    .slug-row {
+    .slug-box {
       display: flex;
       align-items: center;
-      gap: 8px;
+      height: 46px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      padding: 0 14px;
+      gap: 2px;
+    }
+
+    .slug-box:focus-within {
+      border-color: var(--nx-orange-500);
     }
 
     .slug-prefix {
       font-family: var(--nx-font-mono);
-      font-size: 12px;
-      color: var(--nx-text-mute);
+      font-size: 13px;
+      color: var(--nx-text-dim);
       white-space: nowrap;
     }
 
@@ -435,6 +545,278 @@ interface PlanFormItem {
       flex: 1;
       min-width: 0;
       font-family: var(--nx-font-mono);
+      font-size: 13px;
+      color: var(--nx-text);
+      background: transparent;
+      border: none;
+      height: 100%;
+    }
+
+    .slug-input:focus {
+      outline: none;
+    }
+
+    .upload-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px dashed var(--nx-line);
+      border-radius: var(--nx-r-2);
+      padding: 12px 14px;
+      flex-wrap: wrap;
+    }
+
+    .upload-box.filled {
+      border-style: solid;
+    }
+
+    .upload-empty-thumb {
+      width: 72px;
+      height: 48px;
+      border-radius: var(--nx-r-1);
+      background: repeating-linear-gradient(
+        -45deg,
+        var(--nx-surface-1),
+        var(--nx-surface-1) 6px,
+        transparent 6px,
+        transparent 12px
+      );
+      border: 1px solid var(--nx-line);
+      flex-shrink: 0;
+    }
+
+    .upload-copy {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .upload-title {
+      font-size: 13px;
+      color: var(--nx-text);
+    }
+
+    .upload-meta {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: var(--nx-text-dim);
+      margin-top: 4px;
+    }
+
+    .upload-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pub-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--nx-text);
+    }
+
+    .pub-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--nx-orange-500);
+      flex-shrink: 0;
+    }
+
+    .pub-dot.live {
+      background: #2bd17e;
+    }
+
+    .pub-url {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-orange-500);
+    }
+
+    .pub-url-text {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pub-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .pv {
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      overflow: hidden;
+    }
+
+    .pv-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--nx-surface-1);
+      border-bottom: 1px solid var(--nx-line);
+    }
+
+    .pv-dots {
+      display: inline-flex;
+      gap: 3px;
+    }
+
+    .pv-dots i {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--nx-line);
+      display: block;
+    }
+
+    .pv-bar-url {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      color: var(--nx-text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pv-page {
+      background: #050505;
+      padding-bottom: 14px;
+    }
+
+    .pv-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .pv-logo {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      color: #0a0a0a;
+      font-size: 10px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .pv-nav-links {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+      font-size: 8px;
+      color: rgba(244, 244, 245, 0.62);
+    }
+
+    .pv-hero {
+      background-size: cover;
+      background-position: center;
+    }
+
+    .pv-hero-shade {
+      background: linear-gradient(to top, rgba(5, 5, 5, 0.92), rgba(5, 5, 5, 0.45));
+      padding: 26px 14px 18px;
+      text-align: center;
+    }
+
+    .pv-hero-shade.plain {
+      background: radial-gradient(80% 80% at 50% 0%, rgba(255, 255, 255, 0.05), transparent), #0b0b0c;
+    }
+
+    .pv-headline {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      color: #f4f4f5;
+      line-height: 1.15;
+    }
+
+    .pv-tagline {
+      font-size: 9px;
+      color: rgba(244, 244, 245, 0.62);
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    .pv-cta {
+      display: inline-block;
+      margin-top: 10px;
+      color: #0a0a0a;
+      font-size: 9px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+
+    .pv-section {
+      padding: 12px 14px 0;
+    }
+
+    .pv-section-title {
+      font-family: var(--nx-font-mono);
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .pv-body {
+      font-size: 9px;
+      line-height: 1.5;
+      color: rgba(244, 244, 245, 0.62);
+      margin: 6px 0 0;
+    }
+
+    .pv-skel {
+      height: 8px;
+      border-radius: 3px;
+      margin-top: 8px;
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(255, 255, 255, 0.08),
+        rgba(255, 255, 255, 0.08) 4px,
+        transparent 4px,
+        transparent 8px
+      );
+    }
+
+    .pv-skel.short {
+      width: 60%;
+    }
+
+    .side-note {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--nx-text-dim);
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      padding: 12px 14px;
+    }
+
+    .side-note strong {
+      color: var(--nx-text);
+      font-weight: 600;
     }
 
     .palette-row {
@@ -643,6 +1025,28 @@ export class PanelSiteComponent {
 
   protected readonly busy = computed(() => this.loading() || this.saving() || this.publishing() || this.uploading());
   protected readonly publicUrl = computed(() => `${this.publicBaseUrl}/s/${this.publishedSlug()}`);
+  protected readonly displayHost = environment.publicSiteUrl.replace(/^https?:\/\//, '');
+  protected readonly headerSubtitle = computed(() => {
+    const name = this.arenaContext.arenaName();
+    return `${name ? name + ' · ' : ''}landing page pública da arena — reservas, torneios e contato num só endereço`;
+  });
+  protected readonly paletteHex = computed(
+    () => ARENA_SITE_PALETTES.find((p) => p.id === this.paletteId())?.hex ?? ARENA_SITE_PALETTES[0]!.hex,
+  );
+  protected readonly arenaInitial = computed(() => (this.arenaContext.arenaName() ?? 'A').charAt(0).toUpperCase());
+  protected readonly previewAnchors = computed(() => {
+    const anchors: string[] = [];
+    if (this.aboutEnabled()) anchors.push('Sobre');
+    if (this.scheduleEnabled()) anchors.push('Horários');
+    if (this.galleryEnabled() && this.galleryImageUrls().length > 0) anchors.push('Galeria');
+    if (this.plansEnabled() && this.planItems().length > 0) anchors.push('Planos');
+    if (this.contactEnabled()) anchors.push('Contato');
+    return anchors.slice(0, 3);
+  });
+  protected readonly previewAboutText = computed(() => {
+    const body = this.aboutBody().trim();
+    return body.length > 140 ? `${body.slice(0, 140)}…` : body;
+  });
 
   constructor() {
     effect(() => {
@@ -666,6 +1070,14 @@ export class PanelSiteComponent {
 
   protected normalizeSlugInput(value: string): string {
     return value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  }
+
+  protected copyLink(): void {
+    const url = `${this.publicBaseUrl}/s/${this.slug() || 'minha-arena'}`;
+    void navigator.clipboard
+      .writeText(url)
+      .then(() => this.feedback.set('Link copiado.'))
+      .catch(() => this.actionError.set('Não foi possível copiar o link.'));
   }
 
   private collectDraft(): ArenaSiteDraft {

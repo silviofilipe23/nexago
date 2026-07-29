@@ -12,6 +12,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend/projects/site", "run", "dev", "--", "--port", "3999"],
       "port": 3999
+    },
+    {
+      "name": "arena",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "start:arena", "--", "--port", "4212"],
+      "port": 4212
+    },
+    {
+      "name": "proto",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "/private/tmp/claude-501/-Users-silviodionizio-Documents-projects-volley-nexago-frontend-projects-athlete--claude-worktrees-athlete-avatar-sidebar-navtop-7d6309/425e03d2-7de4-4780-898a-9f02ffdd3ee6/scratchpad/proto", "-l", "4399"],
+      "port": 4399
     }
   ]
 }

@@ -24,6 +24,7 @@ import {
   buildDateStrip,
   clampPickedDate,
   dateOnly,
+  shouldShowMonth,
 } from './booking-dates';
 
 const WEEKDAY_ABBR = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'] as const;
@@ -401,5 +402,10 @@ export class ArenaBookingComponent {
 
   protected isSelectedDate(date: Date): boolean {
     return slotsQueryDateKey(date) === this.selectedDateKey();
+  }
+
+  /** Abreviação do mês para o chip, só no início do strip e em toda virada de mês. */
+  protected monthLabelFor(date: Date, index: number): string | null {
+    return shouldShowMonth(date, index) ? MONTH_ABBR[date.getMonth()]!.toUpperCase() : null;
   }
 }

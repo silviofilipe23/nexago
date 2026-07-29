@@ -27,15 +27,21 @@
           <section class="bk-card">
             <h2 class="bk-card-title">Data</h2>
             <div class="bk-date-row">
-              @for (d of stripDates(); track dateKeyOf(d)) {
+              @for (d of stripDates(); track dateKeyOf(d); let i = $index) {
                 <button
                   type="button"
                   class="bk-date-chip"
                   [class.bk-date-chip--active]="isSelectedDate(d)"
+                  [attr.data-date-key]="dateKeyOf(d)"
                   (click)="selectDate(d)"
                 >
                   <span class="bk-date-weekday">{{ weekdayAbbr[d.getDay()] }}</span>
-                  <span class="bk-date-day">{{ d.getDate() }}</span>
+                  <span class="bk-date-day">
+                    {{ d.getDate() }}
+                    @if (monthLabelFor(d, i); as monthLabel) {
+                      <span class="bk-date-month">{{ monthLabel }}</span>
+                    }
+                  </span>
                   @if (!isSelectedDate(d)) {
                     <span
                       class="bk-date-dot"

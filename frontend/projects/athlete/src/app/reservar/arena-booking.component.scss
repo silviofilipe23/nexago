@@ -119,11 +119,26 @@
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 2px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+
+  @media (min-width: 768px) {
+    // Sinaliza que há mais chips fora da vista. Suaviza também o primeiro e o último
+    // chip nos extremos da rolagem — troca aceita para não depender de listener de scroll.
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+  }
 }
 
 .bk-date-chip {
   flex: none;
-  width: 68px;
+  scroll-snap-align: start;
+  width: 72px;
   height: 78px;
   border-radius: var(--nx-r-3);
   background: var(--nx-surface-1);
@@ -150,6 +165,11 @@
       color: var(--nx-text-on-orange);
       opacity: 0.85;
     }
+
+    .bk-date-month {
+      color: var(--nx-text-on-orange);
+      opacity: 0.85;
+    }
   }
 }
 
@@ -165,6 +185,17 @@
   font-family: var(--nx-font-display);
   font-weight: 800;
   font-size: 20px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.bk-date-month {
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-dim);
 }
 
 .bk-date-dot {

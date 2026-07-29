@@ -14,7 +14,6 @@ import {
   type Firestore,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import type { RankingLevel } from '../ranking/athlete-ranking.models';
 
 /** Espelha `public_profiles/{uid}` (`functions/src/public-profile-sync.ts`) — mirror sem PII
  *  de `users/{uid}`, mantido por Cloud Function trigger a cada escrita em `users`. Nunca tem

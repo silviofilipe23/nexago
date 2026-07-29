@@ -18,7 +18,8 @@ import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
-import { levelBucketOf, fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { levelLabelOf } from '../data/athlete-level';
+import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import {
   fetchAthleteRankingGeneral,
   fetchTeamRankingGeneral,
@@ -250,7 +251,7 @@ export class AthleteRankingComponent {
       name: profile?.displayName ?? `Atleta (…${id.slice(-6)})`,
       city: profile?.city ?? '',
       points,
-      level: levelBucketOf(profile?.levelCode ?? null),
+      level: levelLabelOf(profile?.levelCode ?? null),
       sport: profile?.sportChip ?? 'beachVolleyball',
       trend: 0,
     };
@@ -267,7 +268,7 @@ export class AthleteRankingComponent {
       name: teamDisplayName(team, p1, p2),
       city: p1?.city ?? p2?.city ?? '',
       points,
-      level: levelBucketOf(p1?.levelCode ?? p2?.levelCode ?? null),
+      level: levelLabelOf(p1?.levelCode ?? p2?.levelCode ?? null),
       sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
       trend: 0,
     };

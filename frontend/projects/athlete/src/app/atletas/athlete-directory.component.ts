@@ -20,7 +20,8 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { AtBellComponent } from '../painel/at-bell.component';
-import { fetchAthleteDirectoryPage, levelBucketOf, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { levelLabelOf } from '../data/athlete-level';
+import { fetchAthleteDirectoryPage, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
 import type { AthleteDirectoryEntry } from './athlete-directory.models';
@@ -88,7 +89,7 @@ function entryFromProfile(profile: AthletePublicProfile, rank: number | null): A
     fullName: profile.displayName,
     city: profile.city ?? '',
     sport: profile.sportChip,
-    level: levelBucketOf(profile.levelCode),
+    level: levelLabelOf(profile.levelCode),
     rankingPosition: rank,
     avatarUrl: profile.avatarUrl,
   };

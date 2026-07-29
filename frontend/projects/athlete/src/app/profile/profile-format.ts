@@ -1,3 +1,4 @@
+import { levelLabelOf } from '../data/athlete-level';
 import { levelDisplayLabel } from '@nexago/levels';
 import { sportLabelForCode } from '../data/sport-catalog';
 
@@ -8,6 +9,17 @@ export function titleCase(input: string): string {
     .filter((part) => part.length > 0)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+/** Código de nível (`sportProfile.level` / `sportOnboarding.levelsBySport`) → rótulo da
+ *  escada de 5 (`data/athlete-level.ts`), a MESMA da listagem/ranking/equipes — legados
+ *  caem no degrau equivalente. Código desconhecido passa cru (paridade com o app). */
+export function athleteLevelLabel(code: string | null | undefined): string {
+  const trimmed = code?.trim() ?? '';
+  if (!trimmed) {
+    return '';
+  }
+  return levelLabelOf(trimmed) ?? trimmed;
 }
 
 /** Código/label de nível → rótulo de exibição — delega pro vocabulário

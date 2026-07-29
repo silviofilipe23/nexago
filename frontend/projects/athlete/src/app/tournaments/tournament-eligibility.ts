@@ -3,7 +3,7 @@ import {
   tournamentSportToLevelSportCode as sharedTournamentSportToLevelSportCode,
 } from '@nexago/levels';
 import type { MyAthleteProfile } from '../data/my-athlete-profile-repository';
-import { levelRankOf } from '../data/public-profiles-repository';
+import { levelLabelForRank, levelRankOf } from '../data/athlete-level';
 import type { TournamentCategoryOffer } from '../data/tournaments-repository';
 
 /** Pré-validação de elegibilidade na escolha de categoria — port fiel de

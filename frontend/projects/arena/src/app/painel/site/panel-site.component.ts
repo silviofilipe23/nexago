@@ -76,7 +76,7 @@ interface PlanFormItem {
 
           <div class="layout">
           <div class="col-main">
-          <ar-panel-card kicker="Onde seu site fica no ar" title="Endereço">
+          <ar-panel-card kicker="Onde seu site fica no ar" title="Endereço" pad="lg">
             <span card-actions class="status-pill" [class.live]="status() === 'published'">
               {{ status() === 'published' ? 'Publicado' : 'Rascunho' }}
             </span>
@@ -95,7 +95,7 @@ interface PlanFormItem {
             <p class="hint">Só letras minúsculas, números e hífen. Mudar o endereço quebra links já compartilhados.</p>
           </ar-panel-card>
 
-          <ar-panel-card kicker="Identidade visual do site" title="Tema">
+          <ar-panel-card kicker="Identidade visual do site" title="Tema" pad="lg">
             <div class="field-label">Cor de destaque</div>
             <div class="palette-row">
               @for (p of palettes; track p.id) {
@@ -113,7 +113,7 @@ interface PlanFormItem {
             <p class="hint">Aplicada em botões, links e destaques do site.</p>
           </ar-panel-card>
 
-          <ar-panel-card kicker="Primeira dobra — o que o visitante vê primeiro" title="Hero">
+          <ar-panel-card kicker="Primeira dobra — o que o visitante vê primeiro" title="Hero" pad="lg">
             <div class="field-label">Título principal *</div>
             <input type="text" class="input-box" maxlength="80" [value]="heroHeadline()" (input)="heroHeadline.set($any($event.target).value)" placeholder="Ex.: Sua praia é aqui" />
 
@@ -159,7 +159,7 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card kicker="Apresentação, história e estrutura" title="Sobre a arena">
+          <ar-panel-card kicker="Apresentação, história e estrutura" title="Sobre a arena" pad="lg">
             <ar-toggle card-actions [checked]="aboutEnabled()" (changed)="aboutEnabled.set($event)" label="Mostrar seção" />
             <p class="hint no-top">Seções ocultas não aparecem no site publicado.</p>
 
@@ -187,7 +187,7 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card title="Seções automáticas" kicker="Dados ao vivo do NexaGO">
+          <ar-panel-card title="Seções automáticas" kicker="Dados ao vivo do NexaGO" pad="lg">
             <p class="auto-hint">
               Essas seções mostram dados reais da arena no NexaGO — sempre atualizados, sem precisar republicar o site.
             </p>
@@ -214,7 +214,7 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card kicker="Fotos que vendem a arena" title="Galeria">
+          <ar-panel-card kicker="Fotos que vendem a arena" title="Galeria" pad="lg">
             <ar-toggle card-actions [checked]="galleryEnabled()" (changed)="galleryEnabled.set($event)" label="Mostrar seção" />
 
             <div class="field-label row-gap">Fotos (até {{ maxGalleryImages }})</div>
@@ -235,7 +235,7 @@ interface PlanFormItem {
             </div>
           </ar-panel-card>
 
-          <ar-panel-card kicker="Mensalista, day use, aulas" title="Planos">
+          <ar-panel-card kicker="Mensalista, day use, aulas" title="Planos" pad="lg">
             <ar-toggle card-actions [checked]="plansEnabled()" (changed)="plansEnabled.set($event)" label="Mostrar seção" />
 
             @for (plan of planItems(); track $index; let i = $index) {
@@ -270,7 +270,7 @@ interface PlanFormItem {
             }
           </ar-panel-card>
 
-          <ar-panel-card kicker="O que sempre perguntam antes de jogar" title="Perguntas frequentes">
+          <ar-panel-card kicker="O que sempre perguntam antes de jogar" title="Perguntas frequentes" pad="lg">
             <ar-toggle card-actions [checked]="faqEnabled()" (changed)="faqEnabled.set($event)" label="Mostrar seção" />
 
             @for (item of faqItems(); track $index; let i = $index) {
@@ -293,7 +293,7 @@ interface PlanFormItem {
             }
           </ar-panel-card>
 
-          <ar-panel-card kicker="Canais que aparecem no site" title="Contato">
+          <ar-panel-card kicker="Canais que aparecem no site" title="Contato" pad="lg">
             <ar-toggle card-actions [checked]="contactEnabled()" (changed)="contactEnabled.set($event)" label="Mostrar seção" />
 
             <div class="two-col row-gap">
@@ -317,7 +317,7 @@ interface PlanFormItem {
           </div>
 
           <aside class="col-side">
-            <ar-panel-card title="Publicação" pad="sm">
+            <ar-panel-card title="Publicação">
               <div class="pub-status">
                 <span class="pub-dot" [class.live]="status() === 'published'" aria-hidden></span>
                 {{ status() === 'published' ? 'Publicado — no ar' : 'Rascunho — não publicado' }}
@@ -337,7 +337,7 @@ interface PlanFormItem {
               </div>
             </ar-panel-card>
 
-            <ar-panel-card kicker="Atualiza conforme você edita" title="Prévia" pad="sm">
+            <ar-panel-card kicker="Atualiza conforme você edita" title="Prévia">
               <div class="pv">
                 <div class="pv-bar">
                   <span class="pv-dots" aria-hidden><i></i><i></i><i></i></span>
@@ -392,30 +392,30 @@ interface PlanFormItem {
     .body {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      max-width: 1160px;
+      gap: 20px;
+      max-width: 1200px;
     }
 
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 28px;
       align-items: start;
     }
 
     .col-main {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 24px;
       min-width: 0;
     }
 
     .col-side {
       position: sticky;
-      top: 16px;
+      top: 0;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 24px;
       min-width: 0;
     }
 
@@ -958,12 +958,20 @@ interface PlanFormItem {
       padding: 6px 10px;
     }
 
+    /* Inputs de arquivo escondidos: o ancestral PRECISA ser positioned
+       (.upload-box/.image-row são relative), senão o absolute escapa do
+       scroller do shell e estica o documento — vira scrollbar dupla. */
     .visually-hidden-input {
       position: absolute;
       width: 1px;
       height: 1px;
       opacity: 0;
       pointer-events: none;
+    }
+
+    .upload-box,
+    .image-row {
+      position: relative;
     }
   `,
 })

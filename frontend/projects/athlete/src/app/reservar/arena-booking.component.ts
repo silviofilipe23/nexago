@@ -7,7 +7,7 @@ import {
   arenaSlotIsBlocked,
   arenaSlotIsBooked,
   fetchArenaById,
-  fetchArenaDaySlotsMerged,
+  fetchArenaRangeSlotsMerged,
   fetchCourts,
   isPastSlot,
   slotsQueryDateKey,
@@ -18,12 +18,18 @@ import {
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import {
+  MAX_HORIZON_DAYS,
+  addDays,
+  buildDateStrip,
+  clampPickedDate,
+  dateOnly,
+} from './booking-dates';
 
 const WEEKDAY_ABBR = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'] as const;
 const MONTH_ABBR = [
   'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez',
 ] as const;
-const WEEK_LENGTH = 7;
 const DURATION_MULTIPLIERS = [1, 2, 3] as const;
 
 export interface CourtOptionView {
@@ -62,10 +68,6 @@ function createFirestore(): Firestore | null {
   return getFirestore(app);
 }
 
-function dateOnly(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
 function titleCase(input: string): string {
   return input
     .toLowerCase()
@@ -100,15 +102,6 @@ function formatDurationLabel(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h${m}`;
 }
 
-function parseDateParam(value: string | null): Date | null {
-  if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const [, y, m, d] = match;
-  const parsed = new Date(Number(y), Number(m) - 1, Number(d));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 @Component({
   selector: 'app-arena-booking',
   standalone: true,
@@ -141,18 +134,18 @@ export class ArenaBookingComponent {
 
   private readonly today = dateOnly(new Date());
 
-  protected readonly weekDates = computed<Date[]>(() => {
-    const days: Date[] = [];
-    for (let i = 0; i < WEEK_LENGTH; i++) {
-      const d = new Date(this.today);
-      d.setDate(d.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  });
+  /** Última data selecionável, no formato do `<input type="date">`. */
+  protected readonly minDateKey = slotsQueryDateKey(this.today);
+  protected readonly maxDateKey = slotsQueryDateKey(addDays(this.today, MAX_HORIZON_DAYS));
 
   protected readonly selectedDate = signal<Date>(
-    parseDateParam(this.route.snapshot.queryParamMap.get('date')) ?? this.today,
+    clampPickedDate(this.route.snapshot.queryParamMap.get('date') ?? '', this.today) ?? this.today,
+  );
+
+  /** 30 chips a partir de hoje, estendendo até a data selecionada quando ela cai além
+   *  do strip padrão (limite de MAX_HORIZON_DAYS). */
+  protected readonly stripDates = computed<Date[]>(() =>
+    buildDateStrip(this.today, this.selectedDate()),
   );
   protected readonly selectedCourtId = signal<string | null>(null);
   protected readonly selectedStartSlot = signal<ArenaSlot | null>(null);
@@ -269,7 +262,7 @@ export class ArenaBookingComponent {
   protected readonly dateAvailability = computed<Record<string, 'high' | 'low' | 'none'>>(() => {
     const map = this.slotsByDateKey();
     const result: Record<string, 'high' | 'low' | 'none'> = {};
-    for (const d of this.weekDates()) {
+    for (const d of this.stripDates()) {
       const key = slotsQueryDateKey(d);
       const slots = map[key] ?? [];
       const availableCount = slots.filter(
@@ -337,15 +330,15 @@ export class ArenaBookingComponent {
           : (courts[0]?.id ?? null);
       this.selectedCourtId.set(initialCourtId);
 
-      const dates = this.weekDates();
-      const results = await Promise.all(
-        dates.map((d) => fetchArenaDaySlotsMerged(this.firestore!, id, d)),
+      // Uma leitura só cobre todo o horizonte: qualquer data selecionável já chega com
+      // slots e bolinha de disponibilidade em memória, sem carga sob demanda.
+      const slotsMap = await fetchArenaRangeSlotsMerged(
+        this.firestore!,
+        id,
+        this.today,
+        MAX_HORIZON_DAYS + 1,
       );
-      const map: Record<string, ArenaSlot[]> = {};
-      dates.forEach((d, i) => {
-        map[slotsQueryDateKey(d)] = results[i]!;
-      });
-      this.slotsByDateKey.set(map);
+      this.slotsByDateKey.set(slotsMap);
     } catch (err) {
       if (!environment.production) {
         console.error('[arena-booking] load error', err);

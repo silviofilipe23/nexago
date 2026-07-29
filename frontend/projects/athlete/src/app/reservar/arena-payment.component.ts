@@ -39,6 +39,7 @@ import {
   type SplitShareInput,
 } from '../data/arena-booking-split-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { clampPickedDate, dateOnly } from './booking-dates';
 
 /** Métodos reais do backend: PIX (Asaas, 100% ou 50% agora) e pagamento no local.
  *  **Não existe pagamento por cartão em lugar nenhum do fluxo real** — a aba "cartão"
@@ -89,15 +90,6 @@ function courtSportLabel(data: Record<string, unknown>): string {
   return typeof raw === 'string' && raw.trim().length > 0 ? titleCase(raw.trim()) : 'Esporte não informado';
 }
 
-function parseDateParam(value: string | null): Date | null {
-  if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const [, y, m, d] = match;
-  const parsed = new Date(Number(y), Number(m) - 1, Number(d));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
 function reconstructChain(slots: ArenaSlot[], startTime: string, count: number): ArenaSlot[] | null {
   const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
   const startIdx = sorted.findIndex((s) => s.startTime === startTime);
@@ -145,6 +137,7 @@ export class ArenaPaymentComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
+  private readonly today = dateOnly(new Date());
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
   private countdownInterval: ReturnType<typeof setInterval> | undefined;
   private unwatchBooking: (() => void) | undefined;
@@ -298,7 +291,7 @@ export class ArenaPaymentComponent {
   private async load(): Promise<void> {
     const id = this.arenaId();
     const params = this.bookingQueryParams();
-    const date = parseDateParam(params.date);
+    const date = clampPickedDate(params.date ?? '', this.today);
 
     if (!id || !this.firestore || !params.courtId || !date || !params.time) {
       this.error.set('Dados da reserva incompletos. Volte e selecione o horário novamente.');

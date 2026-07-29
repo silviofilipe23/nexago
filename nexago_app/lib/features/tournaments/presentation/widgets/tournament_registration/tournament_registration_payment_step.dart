@@ -20,7 +20,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.isFullyPaid = false,
     this.isFreeRegistration = false,
     this.isDirectOrganizerPayment = false,
+    this.tournamentId = '',
     this.tournamentName = '',
+    this.tournamentCity = '',
     this.organizerManagerId,
     this.organizerPixKey = '',
     this.organizerPixKeyType = '',
@@ -45,7 +47,12 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final bool isFullyPaid;
   final bool isFreeRegistration;
   final bool isDirectOrganizerPayment;
+  final String tournamentId;
   final String tournamentName;
+
+  /// Cidade do torneio — fallback pro campo 60 do BR Code quando a chave PIX
+  /// do organizador não tem cidade configurada.
+  final String tournamentCity;
   final String? organizerManagerId;
   final String organizerPixKey;
   final String organizerPixKeyType;
@@ -171,6 +178,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
           // ),
           SizedBox(height: 16),
           TournamentRegistrationDirectOrganizerPanel(
+            tournamentId: tournamentId,
             tournamentName: tournamentName,
             quote: quote,
             paymentType: paymentType,
@@ -181,6 +189,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             pixKeyType: organizerPixKeyType,
             pixRecipientName: organizerPixRecipientName,
             pixCity: organizerPixCity,
+            tournamentCity: tournamentCity,
           ),
         ] else ...[
           SizedBox(height: 4),

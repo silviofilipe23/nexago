@@ -3,10 +3,11 @@
 import { usePathname } from 'next/navigation';
 
 /** Rotas que saem sem o chrome institucional (cabeçalho/rodapé do nexaGO). */
-const BARE_PREFIXES = ['/a/', '/o/'];
+const BARE_PREFIXES = ['/a/', '/o/', '/s/'];
 
 /**
- * Esconde o cabeçalho/rodapé do site nas páginas públicas de links.
+ * Esconde o cabeçalho/rodapé do site nas páginas públicas de links e no
+ * mini-site de arena (`/s/{slug}`), que tem nav própria.
  *
  * Essas páginas (`/a/{slug}`, `/o/{slug}`) são a marca da arena/do organizador, não do
  * nexaGO — a única assinatura é o "feito com nexaGO" do rodapé da própria página. Como o

@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -116,6 +126,8 @@ export class ArenaBookingComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly firestore = createFirestore();
+  private readonly injector = inject(Injector);
+  private readonly dateRowRef = viewChild<ElementRef<HTMLElement>>('dateRow');
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -340,6 +352,9 @@ export class ArenaBookingComponent {
         MAX_HORIZON_DAYS + 1,
       );
       this.slotsByDateKey.set(slotsMap);
+
+      // Entrada via ?date= pode apontar para um chip fora da vista inicial.
+      this.scrollSelectedIntoView();
     } catch (err) {
       if (!environment.production) {
         console.error('[arena-booking] load error', err);
@@ -355,6 +370,30 @@ export class ArenaBookingComponent {
     this.selectedDate.set(date);
     this.selectedStartSlot.set(null);
     this.durationSlots.set(1);
+  }
+
+  protected onDatePicked(rawValue: string): void {
+    const picked = clampPickedDate(rawValue, this.today, MAX_HORIZON_DAYS);
+    if (!picked) {
+      return;
+    }
+    this.selectDate(picked);
+    this.scrollSelectedIntoView();
+  }
+
+  /** Rola o chip da data selecionada até o centro do strip. Roda depois da renderização
+   *  porque o strip pode ter acabado de crescer para acomodar a data escolhida. */
+  private scrollSelectedIntoView(): void {
+    afterNextRender(
+      () => {
+        const row = this.dateRowRef()?.nativeElement;
+        const chip = row?.querySelector<HTMLElement>(
+          `[data-date-key="${this.selectedDateKey()}"]`,
+        );
+        chip?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+      },
+      { injector: this.injector },
+    );
   }
 
   protected selectCourt(courtId: string): void {

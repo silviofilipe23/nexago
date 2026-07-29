@@ -25,8 +25,23 @@
       <div class="bk-main-grid">
         <div class="bk-col">
           <section class="bk-card">
-            <h2 class="bk-card-title">Data</h2>
-            <div class="bk-date-row">
+            <div class="bk-date-head">
+              <h2 class="bk-card-title">Data</h2>
+              <label class="bk-date-picker">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                <span aria-hidden="true">Escolher data</span>
+                <input
+                  type="date"
+                  class="bk-date-native"
+                  aria-label="Escolher data da reserva"
+                  [value]="selectedDateKey()"
+                  [min]="minDateKey"
+                  [max]="maxDateKey"
+                  (change)="onDatePicked($any($event.target).value)"
+                />
+              </label>
+            </div>
+            <div class="bk-date-row" #dateRow>
               @for (d of stripDates(); track dateKeyOf(d); let i = $index) {
                 <button
                   type="button"

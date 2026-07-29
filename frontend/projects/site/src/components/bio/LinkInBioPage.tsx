@@ -1,219 +1,88 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { PublicLinkPage } from '@/lib/firestore/link-pages';
+import { HighlightValue } from './HighlightValue';
 import { LinkCard } from './LinkCard';
 import { TrackPageView } from './TrackPageView';
+import styles from './LinkInBioPage.module.css';
 
 /**
  * Página pública estilo link-in-bio (`/a/{slug}` e `/o/{slug}`).
  *
- * Estilos inline de propósito: é uma página de marca do dono, sempre escura, e não deve
- * herdar o tema claro/escuro nem o chrome institucional do site. A mesma composição é
- * espelhada na prévia dos painéis (`nx-link-page-preview`).
+ * Os estilos vivem num CSS Module, não no tema do site: é a página de marca do dono,
+ * sempre escura, e não deve herdar o claro/escuro nem o chrome institucional. A mesma
+ * composição é espelhada na prévia dos painéis (`nx-link-page-preview`).
  */
 export function LinkInBioPage({ page }: { page: PublicLinkPage }) {
-  const initials = initialsOf(page.title);
-  const handle = page.handle ? `@${page.handle.replace(/^@/, '')} · NEXAGO` : 'NEXAGO';
+  // Sem handle preenchido, o slug é a identidade pública da página — sempre existe.
+  const handle = `@${(page.handle || page.slug).replace(/^@/, '')}`;
 
   return (
-    <main
-      style={{
-        minHeight: '100dvh',
-        background: '#050505',
-        color: '#F4F4F5',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
+    <main className={styles.page}>
       <TrackPageView pageId={page.id} />
 
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(120% 40% at 50% -5%, rgba(255,106,26,0.22) 0%, rgba(255,106,26,0.05) 45%, transparent 70%)',
-        }}
-      />
+      <div className={styles.bg} aria-hidden>
+        <div className={styles.glow} />
+        <div className={styles.court} />
+        <div className={`${styles.streak} ${styles.s1}`} />
+        <div className={`${styles.streak} ${styles.s2}`} />
+        <div className={`${styles.streak} ${styles.s3}`} />
+      </div>
 
-      <div style={{ position: 'relative', maxWidth: 430, margin: '0 auto', padding: '0 20px' }}>
-        <header
-          style={{
-            padding: '44px 2px 28px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-          }}
-        >
-          {page.avatarUrl ? (
-            <Image
-              src={page.avatarUrl}
-              alt={page.title}
-              width={88}
-              height={88}
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: 26,
-                objectFit: 'cover',
-                boxShadow: '0 0 0 3px #050505, 0 0 0 5px rgba(255,106,26,0.6), 0 18px 40px rgba(0,0,0,0.5)',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: 26,
-                display: 'grid',
-                placeItems: 'center',
-                background: 'linear-gradient(135deg, #F0A830 0%, #2260B8 100%)',
-                fontFamily: 'var(--font-sora), system-ui',
-                fontWeight: 800,
-                fontSize: 24,
-                color: '#fff',
-                boxShadow: '0 0 0 3px #050505, 0 0 0 5px rgba(255,106,26,0.6), 0 18px 40px rgba(0,0,0,0.5)',
-              }}
-            >
-              {initials}
+      <div className={styles.wrap}>
+        <header className={styles.head}>
+          <div className={styles.avatarRing}>
+            <div className={styles.avatar}>
+              {page.avatarUrl ? (
+                <Image
+                  className={styles.avatarImg}
+                  src={page.avatarUrl}
+                  alt={page.title}
+                  width={100}
+                  height={100}
+                />
+              ) : (
+                <span className={styles.avatarInitials}>{initialsOf(page.title)}</span>
+              )}
             </div>
-          )}
-
-          <h1
-            style={{
-              fontFamily: 'var(--font-sora), system-ui',
-              fontWeight: 800,
-              fontSize: 24,
-              letterSpacing: '-0.02em',
-              margin: '18px 0 0',
-            }}
-          >
-            {page.title}
-          </h1>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 7 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: '#2BD17E' }} />
-            <span
-              style={{
-                fontFamily: 'var(--font-jetbrains), monospace',
-                fontSize: 10.5,
-                fontWeight: 600,
-                letterSpacing: '0.22em',
-                color: 'rgba(244,244,245,0.55)',
-                textTransform: 'uppercase',
-              }}
-            >
-              {handle}
-            </span>
           </div>
 
-          {page.bio && (
-            <p
-              style={{
-                fontSize: 14,
-                lineHeight: 1.55,
-                color: 'rgba(244,244,245,0.72)',
-                margin: '12px 0 0',
-                maxWidth: 300,
-              }}
-            >
-              {page.bio}
-            </p>
-          )}
+          <h1 className={styles.brandName}>{page.title}</h1>
+
+          <div className={styles.handle}>
+            <span className={styles.liveDot} aria-hidden />
+            {handle}
+          </div>
+
+          {page.bio && <p className={styles.tagline}>{page.bio}</p>}
 
           {page.highlights.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <div className={styles.stats}>
               {page.highlights.map((h) => (
-                <div
-                  key={`${h.label}-${h.value}`}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 13,
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    minWidth: 78,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-jetbrains), monospace',
-                      fontWeight: 700,
-                      fontSize: 16,
-                      color: '#FF6A1A',
-                    }}
-                  >
-                    {h.value}
+                <div className={styles.stat} key={`${h.label}-${h.value}`}>
+                  <div className={styles.statValue}>
+                    <HighlightValue value={h.value} />
                   </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-jetbrains), monospace',
-                      fontSize: 7.5,
-                      fontWeight: 600,
-                      letterSpacing: '0.18em',
-                      color: 'rgba(244,244,245,0.55)',
-                      marginTop: 3,
-                    }}
-                  >
-                    {h.label}
-                  </div>
+                  <div className={styles.statLabel}>{h.label}</div>
                 </div>
               ))}
             </div>
           )}
         </header>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 26 }}>
-          {page.links.map((link) => (
-            <LinkCard key={link.id} pageId={page.id} link={link} />
-          ))}
-          {page.links.length === 0 && (
-            <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(244,244,245,0.55)' }}>
-              Esta página ainda não tem links publicados.
-            </p>
-          )}
-        </div>
+        {page.links.length > 0 ? (
+          <nav className={styles.links} aria-label="Links">
+            {page.links.map((link) => (
+              <LinkCard key={link.id} pageId={page.id} link={link} />
+            ))}
+          </nav>
+        ) : (
+          <p className={styles.empty}>Esta página ainda não tem links publicados.</p>
+        )}
 
-        <footer
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: '4px 0 36px',
-          }}
-        >
-          <Link
-            href="/"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              textDecoration: 'none',
-              color: '#FF6A1A',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 4 L5 20 M19 4 L19 20 M5 4 L19 20"
-                stroke="currentColor"
-                strokeWidth="3.4"
-                strokeLinecap="square"
-              />
-            </svg>
-            <span
-              style={{
-                fontFamily: 'var(--font-jetbrains), monospace',
-                fontSize: 9.5,
-                fontWeight: 600,
-                letterSpacing: '0.2em',
-                color: 'rgba(244,244,245,0.55)',
-              }}
-            >
-              FEITO COM NEXAGO
-            </span>
+        <footer className={styles.foot}>
+          <Link className={styles.footLink} href="/">
+            Feito com <b>nexaGO</b>
           </Link>
         </footer>
       </div>

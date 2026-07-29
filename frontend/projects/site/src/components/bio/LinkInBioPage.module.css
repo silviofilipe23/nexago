@@ -1,0 +1,602 @@
+/*
+ * Página pública de links (link-in-bio) — `/a/{slug}` e `/o/{slug}`.
+ *
+ * Os tokens `--nx-*` são declarados AQUI, no escopo da página, e não herdados do
+ * `globals.css` de propósito: esta é a página de marca do dono e precisa ficar escura
+ * sempre, enquanto os `--color-*` do site viram tema claro em `[data-theme='light']`.
+ * Escopo local dá o dark-first sem hex cru espalhado pelas regras.
+ *
+ * A mesma composição é espelhada na prévia dos painéis (`nx-link-page-preview`).
+ */
+
+.page {
+  /* ── Superfícies ── */
+  --nx-bg: #050505;
+  --nx-surface-0: #0b0b0c;
+  --nx-surface-2: #1b1b1f;
+  --nx-line: rgba(255, 255, 255, 0.08);
+  --nx-glass: rgba(20, 20, 22, 0.62);
+
+  /* ── Marca ── */
+  --nx-orange-500: #ff6a1a;
+  --nx-orange-400: #ff8a4a;
+  --nx-orange-600: #e5560e;
+  --nx-orange-tint: rgba(255, 106, 26, 0.12);
+
+  /* ── Texto ──
+     `text-dim` usa 0.55, não o 0.40 do design doc: abaixo disso o texto pequeno
+     (label de destaque, rodapé) não atinge 4.5:1 sobre as superfícies escuras. */
+  --nx-text: #f4f4f5;
+  --nx-text-mute: rgba(244, 244, 245, 0.62);
+  --nx-text-dim: rgba(244, 244, 245, 0.55);
+  --nx-text-on-orange: #0a0a0a;
+
+  --nx-live: #ff3b30;
+  --nx-win: #2bd17e;
+
+  --nx-r-2: 10px;
+  --nx-r-3: 14px;
+  --nx-r-4: 18px;
+  --nx-r-pill: 999px;
+
+  --nx-elev-2: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 8px 24px rgba(0, 0, 0, 0.55);
+  --nx-glow-orange: 0 0 0 1px rgba(255, 106, 26, 0.3), 0 12px 40px rgba(255, 106, 26, 0.25);
+
+  --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --nx-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --nx-d-base: 240ms;
+
+  position: relative;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Fundo ambiente ───────────────────────────────────────────
+   Todas as animações daqui usam só `transform`/`opacity` — o protótipo animava
+   `left`, que faria reflow a cada quadro em três faixas + seis brilhos em loop. */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  left: 50%;
+  top: -340px;
+  width: 720px;
+  height: 720px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(255, 106, 26, 0.16), transparent 62%);
+  animation: breathe 7s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.08);
+  }
+}
+
+/* Linhas da quadra, em diagonal. */
+.court {
+  position: absolute;
+  inset: -20%;
+  background: repeating-linear-gradient(
+    115deg,
+    transparent 0 90px,
+    rgba(255, 255, 255, 0.025) 90px 92px
+  );
+  animation: drift 26s linear infinite;
+}
+
+@keyframes drift {
+  to {
+    transform: translateX(180px);
+  }
+}
+
+.streak {
+  position: absolute;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 106, 26, 0.55), transparent);
+  animation: streak 4.6s var(--nx-ease-out) infinite;
+}
+
+.s1 {
+  width: 220px;
+  top: 22%;
+  animation-delay: 0s;
+}
+.s2 {
+  width: 150px;
+  top: 58%;
+  animation-delay: 1.8s;
+}
+.s3 {
+  width: 180px;
+  top: 80%;
+  animation-delay: 3.1s;
+}
+
+@keyframes streak {
+  0% {
+    transform: translateX(-260px);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateX(100vw);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(100vw);
+    opacity: 0;
+  }
+}
+
+/* ── Coluna ── */
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 52px 22px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Cabeçalho ── */
+/* O respiro até os links vive aqui, não no bloco de destaques: destaques são
+   opcionais, e sem eles o cabeçalho colava no primeiro cartão. */
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.avatarRing {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  animation: pop 0.7s var(--nx-ease-spring) both;
+}
+
+.avatarRing::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--nx-orange-500),
+    transparent 30%,
+    transparent 55%,
+    var(--nx-orange-400),
+    transparent 85%,
+    var(--nx-orange-500)
+  );
+  animation: spin 5s linear infinite;
+}
+
+/* Máscara que abre o buraco do anel. */
+.avatarRing::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  background: var(--nx-bg);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.avatar {
+  position: relative;
+  z-index: 1;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--nx-surface-2), var(--nx-surface-0));
+  display: grid;
+  place-items: center;
+  box-shadow: var(--nx-elev-2);
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatarInitials {
+  font-family: var(--font-sora), system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  color: var(--nx-orange-500);
+}
+
+.brandName {
+  font-family: var(--font-sora), system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 20px 0 0;
+  animation: rise 0.6s var(--nx-ease-out) 0.1s both;
+}
+
+.handle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  animation: rise 0.6s var(--nx-ease-out) 0.18s both;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--nx-win);
+  box-shadow: 0 0 0 0 rgba(43, 209, 126, 0.5);
+  animation: ping 2s infinite;
+}
+
+@keyframes ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(43, 209, 126, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(43, 209, 126, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(43, 209, 126, 0);
+  }
+}
+
+.tagline {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+  max-width: 300px;
+  margin: 14px 0 0;
+  animation: rise 0.6s var(--nx-ease-out) 0.24s both;
+}
+
+/* ── Destaques ── */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 26px 0 0;
+  animation: rise 0.6s var(--nx-ease-out) 0.3s both;
+}
+
+.stat {
+  background: var(--nx-glass);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  padding: 10px 16px;
+  text-align: center;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.statValue {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--nx-orange-400);
+  /* Números tabulares: a contagem animada não muda a largura do cartão a cada quadro. */
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin-top: 3px;
+}
+
+/* ── Links ── */
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 17px 18px;
+  border-radius: var(--nx-r-4);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  text-decoration: none;
+  overflow: hidden;
+  transition:
+    transform var(--nx-d-base) var(--nx-ease-spring),
+    border-color var(--nx-d-base),
+    box-shadow var(--nx-d-base);
+  animation: rise 0.6s var(--nx-ease-out) both;
+}
+
+.link:nth-child(1) {
+  animation-delay: 0.36s;
+}
+.link:nth-child(2) {
+  animation-delay: 0.42s;
+}
+.link:nth-child(3) {
+  animation-delay: 0.48s;
+}
+.link:nth-child(4) {
+  animation-delay: 0.54s;
+}
+.link:nth-child(5) {
+  animation-delay: 0.6s;
+}
+.link:nth-child(n + 6) {
+  animation-delay: 0.66s;
+}
+
+/* Brilho que varre o cartão. 480px cobre a largura máxima da coluna (396px). */
+.link::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: shine 5.5s ease-in-out infinite;
+}
+
+.link:nth-child(2)::after {
+  animation-delay: 0.9s;
+}
+.link:nth-child(3)::after {
+  animation-delay: 1.8s;
+}
+.link:nth-child(4)::after {
+  animation-delay: 2.7s;
+}
+.link:nth-child(n + 5)::after {
+  animation-delay: 3.6s;
+}
+
+@keyframes shine {
+  0% {
+    transform: translateX(-80px);
+  }
+  18% {
+    transform: translateX(480px);
+  }
+  100% {
+    transform: translateX(480px);
+  }
+}
+
+.link:hover {
+  transform: translateY(-3px) scale(1.015);
+  border-color: rgba(255, 106, 26, 0.45);
+  box-shadow: var(--nx-glow-orange);
+}
+
+.link:active {
+  transform: scale(0.985);
+}
+
+/* O protótipo não previa foco visível — sem isso a página fica inutilizável por teclado. */
+.link:focus-visible,
+.footLink:focus-visible {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 3px;
+}
+
+.ic {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-tint);
+  display: grid;
+  place-items: center;
+  color: var(--nx-orange-500);
+  transition: transform var(--nx-d-base) var(--nx-ease-spring);
+}
+
+.link:hover .ic {
+  transform: rotate(-8deg) scale(1.08);
+}
+
+.tx {
+  flex: 1;
+  min-width: 0;
+}
+
+.t {
+  display: block;
+  font-family: var(--font-sora), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15.5px;
+  letter-spacing: -0.01em;
+}
+
+.s {
+  display: block;
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+  margin-top: 3px;
+}
+
+.arrow {
+  flex: none;
+  color: var(--nx-text-dim);
+  transition:
+    transform var(--nx-d-base) var(--nx-ease-out),
+    color var(--nx-d-base);
+}
+
+.link:hover .arrow {
+  transform: translateX(4px);
+  color: var(--nx-orange-500);
+}
+
+/* ── Destaque ── */
+.featured {
+  background: linear-gradient(
+    130deg,
+    var(--nx-orange-600),
+    var(--nx-orange-500) 55%,
+    var(--nx-orange-400)
+  );
+  border-color: transparent;
+}
+
+.featured .t {
+  color: var(--nx-text-on-orange);
+}
+
+/* 0.88, não o 0.68 do protótipo: sobre a ponta escura do gradiente (orange-600)
+   o 0.68 dá 3.6:1, abaixo do mínimo de 4.5:1 para texto pequeno. */
+.featured .s {
+  color: rgba(10, 10, 10, 0.88);
+}
+
+.featured .ic {
+  background: rgba(10, 10, 10, 0.18);
+  color: var(--nx-text-on-orange);
+}
+
+.featured .arrow {
+  color: rgba(10, 10, 10, 0.6);
+}
+
+.featured:hover .arrow {
+  color: var(--nx-text-on-orange);
+}
+
+.featured::after {
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+}
+
+.badge {
+  flex: none;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: var(--nx-r-pill);
+  background: rgba(255, 59, 48, 0.16);
+  color: var(--nx-live);
+  animation: blink 1.6s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.empty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--nx-text-dim);
+  margin: 8px 0 0;
+}
+
+/* ── Rodapé ── */
+.foot {
+  margin-top: 38px;
+  animation: rise 0.6s var(--nx-ease-out) 0.8s both;
+}
+
+.footLink {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.footLink b {
+  color: var(--nx-orange-500);
+  font-weight: 500;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

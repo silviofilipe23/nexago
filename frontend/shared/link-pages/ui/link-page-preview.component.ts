@@ -11,7 +11,12 @@ import { LinkIconComponent } from './link-icon.component';
  *
  *  É a mesma composição que o site renderiza em `/a/{slug}` — mantida aqui para o gestor ver
  *  o resultado enquanto edita, sem precisar abrir a página. Puramente visual: não registra
- *  visita nem clique. */
+ *  visita nem clique.
+ *
+ *  A aparência estática é idêntica à do site; ficam de fora só os enfeites em loop (faixas
+ *  de luz do fundo, brilho varrendo os cartões, pulso do selo AO VIVO), que distrairiam
+ *  quem está editando ao lado. O anel do avatar gira porque o gradiente é assimétrico —
+ *  parado, ele parece um arco quebrado. */
 @Component({
   selector: 'nx-link-page-preview',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,65 +25,81 @@ import { LinkIconComponent } from './link-icon.component';
     <div class="page">
       <div class="glow"></div>
 
-      <header class="head">
-        @if (page().avatarUrl; as avatar) {
-          <img class="avatar" [src]="avatar" [alt]="page().title" />
-        } @else {
-          <div class="avatar avatar-fallback">{{ initials() }}</div>
-        }
-        <div class="name">{{ page().title || 'Sua página' }}</div>
-        @if (handle()) {
-          <div class="handle">
-            <span class="dot"></span>
-            <span>{{ handle() }}</span>
-          </div>
-        }
-        @if (page().bio) {
-          <p class="bio">{{ page().bio }}</p>
-        }
-        @if (page().highlights.length) {
-          <div class="highlights">
-            @for (h of page().highlights; track $index) {
-              <div class="highlight">
-                <div class="highlight-value">{{ h.value }}</div>
-                <div class="highlight-label">{{ h.label }}</div>
-              </div>
-            }
-          </div>
-        }
-      </header>
-
-      <div class="links">
-        @for (link of visibleLinks(); track link.id) {
-          <div class="card" [class.featured]="link.featured">
-            <div class="card-icon">
-              <nx-link-icon [name]="link.icon" [size]="20" />
-            </div>
-            <div class="card-body">
-              <div class="card-title">{{ link.title }}</div>
-              @if (link.subtitle) {
-                <div class="card-sub">{{ link.subtitle }}</div>
+      <div class="wrap">
+        <header class="head">
+          <div class="avatar-ring">
+            <div class="avatar">
+              @if (page().avatarUrl; as avatar) {
+                <img class="avatar-img" [src]="avatar" [alt]="page().title" />
+              } @else {
+                <span class="avatar-initials">{{ initials() }}</span>
               }
             </div>
-            @if (link.live) {
-              <span class="live">LIVE</span>
-            } @else {
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="arrow" aria-hidden="true">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            }
           </div>
-        } @empty {
-          <p class="empty">Nenhum link ativo ainda — os que você ativar aparecem aqui.</p>
-        }
-      </div>
 
-      <footer class="foot">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 4 L5 20 M19 4 L19 20 M5 4 L19 20" stroke="currentColor" stroke-width="3.4" stroke-linecap="square" />
-        </svg>
-        <span>FEITO COM NEXAGO</span>
-      </footer>
+          <div class="name">{{ page().title || 'Sua página' }}</div>
+
+          @if (handle()) {
+            <div class="handle">
+              <span class="dot"></span>
+              <span>{{ handle() }}</span>
+            </div>
+          }
+
+          @if (page().bio) {
+            <p class="tagline">{{ page().bio }}</p>
+          }
+
+          @if (page().highlights.length) {
+            <div class="stats">
+              @for (h of page().highlights; track $index) {
+                <div class="stat">
+                  <div class="stat-value">{{ h.value }}</div>
+                  <div class="stat-label">{{ h.label }}</div>
+                </div>
+              }
+            </div>
+          }
+        </header>
+
+        <div class="links">
+          @for (link of visibleLinks(); track link.id) {
+            <div class="link" [class.featured]="link.featured">
+              <div class="ic">
+                <nx-link-icon [name]="link.icon" [size]="22" />
+              </div>
+              <div class="tx">
+                <div class="t">{{ link.title }}</div>
+                @if (link.subtitle) {
+                  <div class="s">{{ link.subtitle }}</div>
+                }
+              </div>
+              @if (link.live) {
+                <span class="badge">Live</span>
+              } @else {
+                <svg
+                  class="arrow"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              }
+            </div>
+          } @empty {
+            <p class="empty">Nenhum link ativo ainda — os que você ativar aparecem aqui.</p>
+          }
+        </div>
+
+        <footer class="foot">Feito com <b>nexaGO</b></footer>
+      </div>
     </div>
   `,
   styles: `
@@ -87,70 +108,127 @@ import { LinkIconComponent } from './link-icon.component';
     }
 
     .page {
+      position: relative;
       width: 390px;
+      overflow: hidden;
       background: #050505;
       color: var(--nx-text);
       font-family: var(--nx-font-ui);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
     }
 
     .glow {
       position: absolute;
-      inset: 0;
+      left: 50%;
+      top: -340px;
+      width: 720px;
+      height: 720px;
+      transform: translateX(-50%);
       pointer-events: none;
-      background: radial-gradient(120% 40% at 50% -5%, rgba(255, 106, 26, 0.22) 0%, rgba(255, 106, 26, 0.05) 45%, transparent 70%);
+      background: radial-gradient(circle, rgba(255, 106, 26, 0.16), transparent 62%);
     }
 
-    .head {
+    .wrap {
       position: relative;
-      padding: 44px 22px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 52px 22px 44px;
+    }
+
+    /* O respiro até os links vive aqui, não no bloco de destaques: destaques são
+       opcionais, e sem eles o cabeçalho colava no primeiro cartão. */
+    .head {
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .avatar-ring {
+      position: relative;
+      width: 112px;
+      height: 112px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+    }
+
+    .avatar-ring::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 0deg,
+        var(--nx-orange-500),
+        transparent 30%,
+        transparent 55%,
+        var(--nx-orange-400),
+        transparent 85%,
+        var(--nx-orange-500)
+      );
+      animation: spin 5s linear infinite;
+    }
+
+    .avatar-ring::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 50%;
+      background: #050505;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .avatar {
-      width: 88px;
-      height: 88px;
-      border-radius: 26px;
-      object-fit: cover;
-      box-shadow:
-        0 0 0 3px #050505,
-        0 0 0 5px rgba(255, 106, 26, 0.6),
-        0 18px 40px rgba(0, 0, 0, 0.5);
-    }
-
-    .avatar-fallback {
+      position: relative;
+      z-index: 1;
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      overflow: hidden;
       display: grid;
       place-items: center;
-      background: linear-gradient(135deg, #f0a830 0%, #2260b8 100%);
+      background: linear-gradient(160deg, var(--nx-surface-2), var(--nx-surface-0));
+      box-shadow: var(--nx-elev-2);
+    }
+
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .avatar-initials {
       font-family: var(--nx-font-display);
       font-weight: 800;
-      font-size: 24px;
-      color: #fff;
+      font-size: 30px;
+      letter-spacing: -0.02em;
+      color: var(--nx-orange-500);
     }
 
     .name {
       font-family: var(--nx-font-display);
       font-weight: 800;
-      font-size: 24px;
-      letter-spacing: -0.02em;
-      margin-top: 18px;
+      font-size: 30px;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-top: 20px;
     }
 
     .handle {
       display: flex;
       align-items: center;
-      gap: 7px;
-      margin-top: 7px;
+      gap: 8px;
+      margin-top: 8px;
       font-family: var(--nx-font-mono);
-      font-size: 10.5px;
-      font-weight: 600;
-      letter-spacing: 0.22em;
+      font-size: 12px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
     }
@@ -158,134 +236,142 @@ import { LinkIconComponent } from './link-icon.component';
     .dot {
       width: 7px;
       height: 7px;
-      border-radius: 99px;
+      border-radius: 50%;
+      flex: none;
       background: var(--nx-win);
     }
 
-    .bio {
-      font-size: 14px;
-      line-height: 1.55;
+    .tagline {
+      font-size: 14.5px;
+      line-height: 1.5;
       color: var(--nx-text-mute);
-      margin: 12px 0 0;
       max-width: 300px;
+      margin: 14px 0 0;
     }
 
-    .highlights {
+    .stats {
       display: flex;
-      gap: 8px;
-      margin-top: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 26px 0 0;
     }
 
-    .highlight {
-      padding: 10px 14px;
-      border-radius: 13px;
-      background: rgba(255, 255, 255, 0.03);
+    .stat {
+      background: var(--nx-glass);
       border: 1px solid var(--nx-line);
-      min-width: 78px;
+      border-radius: 14px;
+      padding: 10px 16px;
+      text-align: center;
     }
 
-    .highlight-value {
+    .stat-value {
       font-family: var(--nx-font-mono);
       font-weight: 700;
-      font-size: 16px;
-      color: var(--nx-orange-500);
+      font-size: 18px;
+      color: var(--nx-orange-400);
+      font-variant-numeric: tabular-nums;
     }
 
-    .highlight-label {
+    .stat-label {
       font-family: var(--nx-font-mono);
-      font-size: 7.5px;
-      font-weight: 600;
-      letter-spacing: 0.18em;
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
       margin-top: 3px;
     }
 
     .links {
-      position: relative;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding: 0 20px 26px;
+      gap: 14px;
+      width: 100%;
     }
 
-    .card {
+    .link {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 15px 16px;
+      gap: 16px;
+      padding: 17px 18px;
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.035);
+      background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
     }
 
-    .card.featured {
-      background: linear-gradient(135deg, #ff8a3d 0%, #ff6a1a 60%, #f05500 100%);
-      border-color: rgba(255, 255, 255, 0.25);
-      box-shadow: 0 12px 32px rgba(255, 106, 26, 0.28);
+    .link.featured {
+      background: linear-gradient(
+        130deg,
+        var(--nx-orange-600),
+        var(--nx-orange-500) 55%,
+        var(--nx-orange-400)
+      );
+      border-color: transparent;
     }
 
-    .card-icon {
-      width: 42px;
-      height: 42px;
-      border-radius: 13px;
+    .ic {
       flex: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
       display: grid;
       place-items: center;
       background: var(--nx-orange-tint);
       color: var(--nx-orange-500);
     }
 
-    .card.featured .card-icon {
-      background: rgba(0, 0, 0, 0.18);
-      color: #140a04;
+    .link.featured .ic {
+      background: rgba(10, 10, 10, 0.18);
+      color: var(--nx-text-on-orange);
     }
 
-    .card-body {
+    .tx {
       flex: 1;
       min-width: 0;
     }
 
-    .card-title {
+    .t {
       font-family: var(--nx-font-display);
       font-weight: 700;
-      font-size: 15px;
+      font-size: 15.5px;
+      letter-spacing: -0.01em;
       color: var(--nx-text);
     }
 
-    .card-sub {
-      font-size: 12px;
-      margin-top: 2px;
-      color: var(--nx-text-dim);
+    .s {
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+      margin-top: 3px;
     }
 
-    .card.featured .card-title {
-      color: #140a04;
+    .link.featured .t {
+      color: var(--nx-text-on-orange);
     }
 
-    .card.featured .card-sub {
-      color: rgba(20, 10, 4, 0.7);
+    .link.featured .s {
+      color: rgba(10, 10, 10, 0.68);
     }
 
     .arrow {
-      color: rgba(244, 244, 245, 0.35);
       flex: none;
+      color: var(--nx-text-dim);
     }
 
-    .card.featured .arrow {
-      color: #140a04;
+    .link.featured .arrow {
+      color: rgba(10, 10, 10, 0.6);
     }
 
-    .live {
-      padding: 4px 9px;
-      border-radius: 7px;
-      background: rgba(255, 59, 72, 0.14);
+    .badge {
+      flex: none;
       font-family: var(--nx-font-mono);
-      font-size: 9px;
+      font-size: 9.5px;
       font-weight: 700;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border-radius: var(--nx-r-pill, 999px);
+      background: rgba(255, 59, 48, 0.16);
       color: var(--nx-live);
-      flex: none;
     }
 
     .empty {
@@ -296,21 +382,17 @@ import { LinkIconComponent } from './link-icon.component';
     }
 
     .foot {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 4px 0 30px;
-      color: var(--nx-orange-500);
+      margin-top: 38px;
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
     }
 
-    .foot span {
-      font-family: var(--nx-font-mono);
-      font-size: 9.5px;
-      font-weight: 600;
-      letter-spacing: 0.2em;
-      color: var(--nx-text-dim);
+    .foot b {
+      color: var(--nx-orange-500);
+      font-weight: 500;
     }
   `,
 })
@@ -321,7 +403,8 @@ export class LinkPagePreviewComponent {
   protected readonly visibleLinks = computed(() => activePageLinks(this.links()));
   protected readonly initials = computed(() => linkPageInitials(this.page().title));
   protected readonly handle = computed(() => {
-    const raw = this.page().handle.trim();
-    return raw ? `${raw.startsWith('@') ? raw : `@${raw}`} · NEXAGO` : 'NEXAGO';
+    // Sem handle preenchido, o slug é a identidade pública da página.
+    const raw = (this.page().handle || this.page().slug).trim();
+    return raw ? (raw.startsWith('@') ? raw : `@${raw}`) : '';
   });
 }

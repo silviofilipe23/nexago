@@ -394,6 +394,9 @@ interface PlanFormItem {
       flex-direction: column;
       gap: 20px;
       max-width: 1200px;
+      /* Gutter da tela: o shell não dá padding — mesmo ritmo do Perfil/Início. */
+      padding: 22px 32px 28px;
+      box-sizing: border-box;
     }
 
     .layout {
@@ -412,7 +415,7 @@ interface PlanFormItem {
 
     .col-side {
       position: sticky;
-      top: 0;
+      top: 22px;
       display: flex;
       flex-direction: column;
       gap: 24px;

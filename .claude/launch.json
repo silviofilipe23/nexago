@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "start:athlete", "--", "--port", "4211"],
       "port": 4211
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/projects/site", "run", "dev", "--", "--port", "3999"],
+      "port": 3999
     }
   ]
 }

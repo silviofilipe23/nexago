@@ -79,11 +79,14 @@ const SLUG_MIN = 3;
 const SLUG_MAX = 40;
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 
-/** Mesma lista da function `publishArenaSite`. */
+/** Mesma lista da function `publishArenaSite` — inclui nomes de infra/portal
+ *  porque o slug vira subdomínio `{slug}.nexago.com.br` na fase 4. */
 const RESERVED_SLUGS = new Set([
-  'a', 'o', 'api', 'app', 'admin', 'arena', 'arenas', 'blog', 'contato', 'ligas',
-  'login', 'nexago', 'organizadores', 'privacidade', 'rankings', 'sobre', 'suporte',
-  'termos', 'torneios',
+  'a', 'o', 'api', 'app', 'admin', 'arena', 'arenas', 'atleta', 'athlete',
+  'backoffice', 'blog', 'cdn', 'coach', 'contato', 'dev', 'email', 'ftp', 'imap',
+  'ligas', 'login', 'mail', 'nexago', 'ns1', 'ns2', 'organizador', 'organizadores',
+  'organizer', 'painel', 'pop', 'portal', 'privacidade', 'rankings', 'site', 'smtp',
+  'sobre', 'staging', 'static', 'status', 'suporte', 'termos', 'teste', 'torneios', 'www',
 ]);
 
 /** Gera um slug a partir do nome da arena (sugestão inicial do campo). */

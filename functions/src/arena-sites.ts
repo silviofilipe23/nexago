@@ -22,10 +22,16 @@ const SLUG_MIN = 3;
 const SLUG_MAX = 40;
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 
+/** Rotas do site + nomes de infra/portal: com o wildcard `{slug}.nexago.com.br`
+ *  (fase 4), todo slug vira um subdomínio em potencial — reservar antes que
+ *  alguém reivindique `www` ou `atleta`. Espelhar em `arena-site.model.ts` e no
+ *  proxy do site. */
 const RESERVED_SLUGS = new Set([
-  "a", "o", "api", "app", "admin", "arena", "arenas", "blog", "contato", "ligas",
-  "login", "nexago", "organizadores", "privacidade", "rankings", "sobre", "suporte",
-  "termos", "torneios"
+  "a", "o", "api", "app", "admin", "arena", "arenas", "atleta", "athlete",
+  "backoffice", "blog", "cdn", "coach", "contato", "dev", "email", "ftp", "imap",
+  "ligas", "login", "mail", "nexago", "ns1", "ns2", "organizador", "organizadores",
+  "organizer", "painel", "pop", "portal", "privacidade", "rankings", "site", "smtp",
+  "sobre", "staging", "static", "status", "suporte", "termos", "teste", "torneios", "www"
 ]);
 
 /** Catálogo fechado do template clay-v1 — o cliente manda o id, o hex sai daqui. */

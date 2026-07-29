@@ -169,6 +169,33 @@ import {
             </div>
           </ar-panel-card>
 
+          <ar-panel-card title="Seções automáticas" kicker="Dados ao vivo do NexaGO">
+            <p class="auto-hint">
+              Essas seções mostram dados reais da arena no NexaGO — sempre atualizados, sem precisar republicar o site.
+            </p>
+            <div class="auto-row">
+              <div>
+                <div class="auto-title">Horários</div>
+                <div class="auto-desc">Grade semanal de funcionamento, direto da agenda das quadras.</div>
+              </div>
+              <ar-toggle [checked]="scheduleEnabled()" (changed)="scheduleEnabled.set($event)" />
+            </div>
+            <div class="auto-row">
+              <div>
+                <div class="auto-title">Torneios</div>
+                <div class="auto-desc">Próximos torneios e etapas sediados na arena.</div>
+              </div>
+              <ar-toggle [checked]="eventsEnabled()" (changed)="eventsEnabled.set($event)" />
+            </div>
+            <div class="auto-row">
+              <div>
+                <div class="auto-title">Avaliações</div>
+                <div class="auto-desc">Nota média e comentários de atletas que jogaram aí.</div>
+              </div>
+              <ar-toggle [checked]="reviewsEnabled()" (changed)="reviewsEnabled.set($event)" />
+            </div>
+          </ar-panel-card>
+
           <ar-panel-card title="Contato">
             <div class="section-toggle">
               <span>Mostrar seção</span>
@@ -349,6 +376,39 @@ import {
       color: var(--nx-text-mute);
     }
 
+    .auto-hint {
+      font-size: 13px;
+      color: var(--nx-text-mute);
+      margin: 0 0 6px;
+      line-height: 1.5;
+    }
+
+    .auto-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--nx-line);
+    }
+
+    .auto-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .auto-title {
+      font-size: 13px;
+      color: var(--nx-text);
+      font-weight: 500;
+    }
+
+    .auto-desc {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
+    }
+
     .image-row {
       display: flex;
       align-items: center;
@@ -435,6 +495,9 @@ export class PanelSiteComponent {
   protected readonly aboutBody = linkedSignal(() => this.draft()?.about.body ?? '');
   protected readonly aboutImageUrls = linkedSignal(() => this.draft()?.about.imageUrls ?? []);
   protected readonly contactEnabled = linkedSignal(() => this.draft()?.contact.enabled ?? true);
+  protected readonly scheduleEnabled = linkedSignal(() => this.draft()?.schedule.enabled ?? true);
+  protected readonly eventsEnabled = linkedSignal(() => this.draft()?.events.enabled ?? true);
+  protected readonly reviewsEnabled = linkedSignal(() => this.draft()?.reviews.enabled ?? true);
   protected readonly contactWhatsapp = linkedSignal(() => this.draft()?.contact.whatsapp ?? '');
   protected readonly contactInstagram = linkedSignal(() => this.draft()?.contact.instagram ?? '');
   protected readonly contactAddress = linkedSignal(() => this.draft()?.contact.address ?? '');
@@ -490,6 +553,9 @@ export class PanelSiteComponent {
         instagram: this.contactInstagram(),
         address: this.contactAddress(),
       },
+      schedule: { enabled: this.scheduleEnabled() },
+      events: { enabled: this.eventsEnabled() },
+      reviews: { enabled: this.reviewsEnabled() },
     };
   }
 

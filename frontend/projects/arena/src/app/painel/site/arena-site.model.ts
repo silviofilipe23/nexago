@@ -33,6 +33,12 @@ export interface ArenaSiteDraft {
   hero: { headline: string; tagline: string; imageUrl: string; ctaLabel: string; ctaUrl: string };
   about: { enabled: boolean; title: string; body: string; imageUrls: string[] };
   contact: { enabled: boolean; whatsapp: string; instagram: string; address: string };
+  /** Seções automáticas: só liga/desliga — os dados (horários das quadras,
+   *  torneios com `arenaId` da arena, avaliações) o site lê ao vivo das
+   *  coleções públicas; nada é copiado pro rascunho nem pro espelho. */
+  schedule: { enabled: boolean };
+  events: { enabled: boolean };
+  reviews: { enabled: boolean };
 }
 
 export const ARENA_SITE_EMPTY: ArenaSiteDraft = {
@@ -42,6 +48,9 @@ export const ARENA_SITE_EMPTY: ArenaSiteDraft = {
   hero: { headline: '', tagline: '', imageUrl: '', ctaLabel: '', ctaUrl: '' },
   about: { enabled: true, title: '', body: '', imageUrls: [] },
   contact: { enabled: true, whatsapp: '', instagram: '', address: '' },
+  schedule: { enabled: true },
+  events: { enabled: true },
+  reviews: { enabled: true },
 };
 
 const SLUG_MIN = 3;

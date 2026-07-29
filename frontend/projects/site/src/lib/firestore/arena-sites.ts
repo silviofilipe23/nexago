@@ -16,6 +16,12 @@ export interface PublicArenaSite {
   hero: { headline: string; tagline: string; imageUrl: string | null; ctaLabel: string; ctaUrl: string };
   about: { enabled: boolean; title: string; body: string; imageUrls: string[] };
   contact: { enabled: boolean; whatsapp: string; instagram: string; address: string };
+  /** Seções automáticas — só o liga/desliga vem do espelho; os dados são lidos
+   *  ao vivo das coleções públicas (ver `arena-site-data.ts`). Espelhos da
+   *  fase 1 não têm as chaves: ausente = ligado (a página esconde se não houver dado). */
+  schedule: { enabled: boolean };
+  events: { enabled: boolean };
+  reviews: { enabled: boolean };
 }
 
 function str(value: unknown): string {
@@ -79,6 +85,9 @@ export async function getArenaSiteBySlug(slug: string): Promise<PublicArenaSite 
         instagram: str(contact.instagram).replace(/^@/, ''),
         address: str(contact.address),
       },
+      schedule: { enabled: section(data, 'schedule').enabled !== false },
+      events: { enabled: section(data, 'events').enabled !== false },
+      reviews: { enabled: section(data, 'reviews').enabled !== false },
     };
   } catch {
     return null;

@@ -1,10 +1,44 @@
 import Image from 'next/image';
+import Link from 'next/link';
+import type {
+  ArenaSiteReviews,
+  ArenaSiteTournament,
+  WeekSchedule,
+  Weekday,
+} from '@/lib/firestore/arena-site-data';
+import { WEEKDAYS } from '@/lib/firestore/arena-site-data';
 import type { PublicArenaSite } from '@/lib/firestore/arena-sites';
 import styles from './arena-site.module.css';
 
-/** Mini-site público da arena (fase 1: hero + sobre + contato). Server Component
- *  puro — sem interação client-side; o conteúdo já chegou validado do espelho. */
-export function ArenaSitePage({ site }: { site: PublicArenaSite }) {
+const WEEKDAY_LABEL: Record<Weekday, string> = {
+  monday: 'Segunda',
+  tuesday: 'Terça',
+  wednesday: 'Quarta',
+  thursday: 'Quinta',
+  friday: 'Sexta',
+  saturday: 'Sábado',
+  sunday: 'Domingo',
+};
+
+const SPORT_LABEL: Record<string, string> = {
+  beachTennis: 'Beach tennis',
+  beachVolleyball: 'Vôlei de praia',
+  footvolley: 'Futevôlei',
+};
+
+/** Mini-site público da arena: hero + sobre + seções automáticas (horários,
+ *  torneios, avaliações — dados ao vivo) + contato. Server Component puro. */
+export function ArenaSitePage({
+  site,
+  schedule,
+  tournaments,
+  reviews,
+}: {
+  site: PublicArenaSite;
+  schedule: WeekSchedule | null;
+  tournaments: ArenaSiteTournament[];
+  reviews: ArenaSiteReviews | null;
+}) {
   const whatsappUrl = site.contact.whatsapp ? `https://wa.me/${withCountryCode(site.contact.whatsapp)}` : null;
   const instagramUrl = site.contact.instagram ? `https://instagram.com/${site.contact.instagram}` : null;
   const showAbout = site.about.enabled && (site.about.body || site.about.imageUrls.length > 0);
@@ -54,6 +88,77 @@ export function ArenaSitePage({ site }: { site: PublicArenaSite }) {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {schedule && (
+        <section className={styles.section} aria-labelledby="horarios">
+          <h2 id="horarios" className={styles.sectionTitle}>
+            Horários
+          </h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <dl className={styles.scheduleList}>
+            {WEEKDAYS.map((day) => (
+              <div key={day} className={styles.scheduleRow}>
+                <dt className={styles.scheduleDay}>{WEEKDAY_LABEL[day]}</dt>
+                <dd className={schedule[day].closed ? styles.scheduleClosed : styles.scheduleHours}>
+                  {schedule[day].closed ? 'Fechado' : `${schedule[day].open} – ${schedule[day].close}`}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      {tournaments.length > 0 && (
+        <section className={styles.section} aria-labelledby="torneios">
+          <h2 id="torneios" className={styles.sectionTitle}>
+            Torneios na arena
+          </h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <div className={styles.eventList}>
+            {tournaments.map((t) => (
+              <Link key={t.id} className={styles.eventCard} href={`/torneios/${t.id}`}>
+                <div>
+                  <div className={styles.eventName}>{t.name}</div>
+                  <div className={styles.eventMeta}>
+                    {SPORT_LABEL[t.sport] ?? t.sport}
+                    {t.dateLabel ? ` · ${t.dateLabel}` : ''}
+                  </div>
+                </div>
+                <span className={t.listingStatus === 'open' ? styles.eventBadgeOpen : styles.eventBadge}>
+                  {t.listingStatus === 'open' ? 'Inscrições abertas' : 'Em breve'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {reviews && (
+        <section className={styles.section} aria-labelledby="avaliacoes">
+          <h2 id="avaliacoes" className={styles.sectionTitle}>
+            Avaliações
+          </h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <div className={styles.reviewsSummary}>
+            <span className={styles.reviewsScore}>{reviews.ratingAverage.toFixed(1)}</span>
+            <Stars value={reviews.ratingAverage} />
+            <span className={styles.reviewsCount}>
+              {reviews.reviewsCount} {reviews.reviewsCount === 1 ? 'avaliação' : 'avaliações'} de atletas no nexaGO
+            </span>
+          </div>
+          {reviews.comments.length > 0 && (
+            <div className={styles.reviewList}>
+              {reviews.comments.map((r, i) => (
+                <figure key={i} className={styles.reviewCard}>
+                  <Stars value={r.rating} />
+                  <blockquote className={styles.reviewText}>“{r.comment}”</blockquote>
+                  <figcaption className={styles.reviewAuthor}>Atleta nexaGO</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -115,6 +220,30 @@ function formatWhatsapp(digits: string): string {
   const ddd = local.slice(0, 2);
   const rest = local.slice(2);
   return `(${ddd}) ${rest.slice(0, rest.length - 4)}-${rest.slice(-4)}`;
+}
+
+/** Estrelas cheias por arredondamento simples — sem meia estrela na v2. */
+function Stars({ value }: { value: number }) {
+  const filled = Math.round(Math.min(5, Math.max(0, value)));
+  return (
+    <span className={styles.stars} role="img" aria-label={`${value.toFixed(1)} de 5`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <svg
+          key={i}
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill={i < filled ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      ))}
+    </span>
+  );
 }
 
 function PhoneGlyph() {

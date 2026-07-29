@@ -34,6 +34,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
           ownerType="arena"
           [ownerId]="arenaId()"
           [defaultTitle]="arenaName() ?? ''"
+          [fallbackAvatarUrl]="arenaLogoUrl()"
           [publicBaseUrl]="publicBaseUrl"
           [suggestions]="suggestions()"
         />
@@ -61,6 +62,7 @@ export class PanelLinksComponent {
 
   protected readonly arenaId = computed(() => this.arenaContext.arenaId());
   protected readonly arenaName = computed(() => this.arenaContext.arenaName());
+  protected readonly arenaLogoUrl = computed(() => this.arenaContext.arenaLogoUrl());
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
 
   protected readonly headerSubtitle = computed(

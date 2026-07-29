@@ -206,7 +206,11 @@ export interface LinkSuggestion {
             <div class="preview-badge">PRÉVIA · COMO O PÚBLICO VÊ</div>
             <div class="preview-viewport">
               <div class="preview-scale">
-                <nx-link-page-preview [page]="page()!" [links]="links()" />
+                <nx-link-page-preview
+                  [page]="page()!"
+                  [links]="links()"
+                  [fallbackAvatarUrl]="fallbackAvatarUrl()"
+                />
               </div>
             </div>
             <div class="preview-fade"></div>
@@ -741,6 +745,9 @@ export class LinkManagerComponent {
   readonly ownerId = input.required<string | null>();
   /** Nome sugerido ao criar a página (nome da arena / do organizador). */
   readonly defaultTitle = input('');
+  /** Avatar do dono para a prévia quando a página não tem um próprio. Só exibição —
+   *  nunca é salvo no documento; o site resolve o mesmo fallback ao servir a página. */
+  readonly fallbackAvatarUrl = input<string | null>(null);
   /** Host público sem barra final, ex.: `https://nexago.com.br`. */
   readonly publicBaseUrl = input.required<string>();
   readonly suggestions = input<readonly LinkSuggestion[]>([]);

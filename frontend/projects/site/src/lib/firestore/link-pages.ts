@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, type DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getArenaLogoUrl } from './arenas';
 
 /**
  * Página pública de links (link-in-bio) de arenas e organizadores.
@@ -120,8 +121,25 @@ export async function getLinkPageBySlug(
     title: str(data.title) || 'nexaGO',
     handle: str(data.handle),
     bio: str(data.bio),
-    avatarUrl: str(data.avatarUrl) || null,
+    avatarUrl: str(data.avatarUrl) || (await ownerAvatarUrl(ownerType, str(data.ownerId))),
     highlights: mapHighlights(data.highlights),
     links,
   };
+}
+
+/**
+ * Avatar herdado do dono quando a página não tem um próprio.
+ *
+ * Hoje o painel não oferece campo de foto para a página, então `avatarUrl` nasce
+ * sempre vazio — sem isso toda arena cairia nas iniciais mesmo tendo logo. Ler o
+ * logo na hora também mantém a página em dia quando a arena troca a marca.
+ *
+ * Organizador fica de fora: o dono é um usuário, e tanto `users` quanto
+ * `public_profiles` exigem login para leitura — o site é anônimo.
+ */
+async function ownerAvatarUrl(
+  ownerType: LinkPageOwnerType,
+  ownerId: string,
+): Promise<string | null> {
+  return ownerType === 'arena' ? getArenaLogoUrl(ownerId) : null;
 }

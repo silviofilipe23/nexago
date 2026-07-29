@@ -2136,6 +2136,32 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Mini-site público da arena (landing /s/{slug} no site). Produto
+    // SEPARADO do link-in-bio acima. O gestor edita o rascunho direto
+    // (`arenaSites/{arenaId}`), mas o público só lê o espelho
+    // `arenaSitesPublic/{slug}`, escrito exclusivamente pela function
+    // `publishArenaSite` — é lá que conteúdo, tema e URLs são validados.
+    // Status/slug no rascunho são informativos: espelho é a única fonte pública.
+    function isArenaSiteManager(arenaId) {
+      return request.auth != null && (
+        isSuperAdmin() ||
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+      );
+    }
+    match /arenaSites/{arenaId} {
+      allow read, write: if isArenaSiteManager(arenaId);
+    }
+    match /arenaSitesPublic/{slug} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Unicidade de endereço do mini-site: slug -> arenaId. Independente do
+    // linkPageSlugs; escrita só pela function.
+    match /arenaSiteSlugs/{slug} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // NEGAÇÃO padrão para caminhos não mapeados.
     // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
     // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE

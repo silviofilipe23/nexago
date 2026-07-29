@@ -360,3 +360,4 @@ export {
   submitBracketPrediction,
   onTournamentMatchCompletedScoreBracketPredictions,
 } from "./tournament-predictions";
+export {publishArenaSite, unpublishArenaSite} from "./arena-sites";

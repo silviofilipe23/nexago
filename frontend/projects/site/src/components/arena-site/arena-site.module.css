@@ -1,0 +1,243 @@
+/* Mini-site público da arena (template clay-v1, dark-first).
+   A cor de destaque vem do catálogo fechado via `--arena-accent` (inline no <main>). */
+
+.page {
+  min-height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-ui);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Hero ─────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  min-height: 72dvh;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.heroBg {
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+}
+
+.heroFallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(80% 60% at 20% 30%, color-mix(in srgb, var(--arena-accent) 26%, transparent), transparent 70%),
+    radial-gradient(60% 50% at 85% 20%, color-mix(in srgb, var(--arena-accent) 12%, transparent), transparent 70%),
+    var(--color-surface-0);
+}
+
+.heroShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--color-bg) 4%, rgba(5, 5, 5, 0.55) 45%, rgba(5, 5, 5, 0.25));
+}
+
+.heroInner {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 96px 24px 64px;
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--arena-accent);
+  margin-bottom: 14px;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(34px, 6.5vw, 64px);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  margin: 0;
+  max-width: 18ch;
+}
+
+.tagline {
+  margin-top: 16px;
+  font-size: clamp(15px, 2.2vw, 18px);
+  line-height: 1.55;
+  color: var(--color-text-mute);
+  max-width: 52ch;
+}
+
+.heroActions {
+  margin-top: 28px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--arena-accent);
+  color: #0a0a0a;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 14px 26px;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: transform var(--motion-fast) var(--ease-out), filter var(--motion-fast) var(--ease-out);
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.ctaGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--color-line-strong);
+  color: var(--color-fg);
+  font-weight: 500;
+  font-size: 15px;
+  padding: 14px 26px;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.ctaGhost:hover {
+  border-color: var(--arena-accent);
+}
+
+/* ── Seções ───────────────────────────────────────────── */
+
+.section {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 72px 24px 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(24px, 3.4vw, 32px);
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+
+.sectionRule {
+  width: 44px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--arena-accent);
+  margin-bottom: 24px;
+}
+
+.aboutGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .aboutGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aboutBody {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--color-text-mute);
+  white-space: pre-line;
+  margin: 0;
+}
+
+.aboutImages {
+  display: grid;
+  gap: 12px;
+}
+
+.aboutImg {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-4);
+  border: 1px solid var(--color-line);
+  object-fit: cover;
+}
+
+/* ── Contato ──────────────────────────────────────────── */
+
+.contactList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+}
+
+.contactItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-3);
+  padding: 16px 18px;
+  color: var(--color-fg);
+  text-decoration: none;
+  font-size: 15px;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+a.contactItem:hover {
+  border-color: var(--arena-accent);
+}
+
+.contactIcon {
+  color: var(--arena-accent);
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+/* ── Rodapé ───────────────────────────────────────────── */
+
+.footer {
+  margin-top: 88px;
+  border-top: 1px solid var(--color-line);
+  padding: 28px 24px 36px;
+}
+
+.footerInner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--color-text-dim);
+}
+
+.footerBrand {
+  color: var(--color-text-mute);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.footerBrand:hover {
+  color: var(--color-brand);
+}

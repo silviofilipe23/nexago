@@ -19,6 +19,7 @@ export interface ArenaBrief {
 interface ArenaDocData {
   id: string;
   name: string;
+  logoUrl: string | null;
   planStatus: ArenaPlanStatus;
   courtsCount: number;
 }
@@ -29,11 +30,21 @@ function arenaNameOf(data: Record<string, unknown>): string {
   return typeof data['name'] === 'string' && data['name'].trim() ? data['name'] : 'Minha arena';
 }
 
+/** Mesma precedência que o site usa para a marca da arena (`logoUrl` → `logo` → `coverUrl`). */
+function arenaLogoOf(data: Record<string, unknown>): string | null {
+  for (const key of ['logoUrl', 'logo', 'coverUrl']) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return null;
+}
+
 function parseArenaDoc(doc: QueryDocumentSnapshot): ArenaDocData {
   const data = doc.data() as Record<string, unknown>;
   return {
     id: doc.id,
     name: arenaNameOf(data),
+    logoUrl: arenaLogoOf(data),
     planStatus: arenaPlanStatusFromDoc(data),
     courtsCount: typeof data['courtsCount'] === 'number' ? data['courtsCount'] : 0,
   };
@@ -87,6 +98,7 @@ export class ArenaContextService {
 
   readonly arenaId = computed(() => this.arenaDoc()?.id ?? null);
   readonly arenaName = computed(() => this.arenaDoc()?.name ?? null);
+  readonly arenaLogoUrl = computed(() => this.arenaDoc()?.logoUrl ?? null);
   readonly planStatus = computed(() => this.arenaDoc()?.planStatus ?? ARENA_PLAN_STATUS_NONE);
   readonly courtsCount = computed(() => this.arenaDoc()?.courtsCount ?? 0);
 

@@ -29,7 +29,7 @@ import { LinkIconComponent } from './link-icon.component';
         <header class="head">
           <div class="avatar-ring">
             <div class="avatar">
-              @if (page().avatarUrl; as avatar) {
+              @if (avatarUrl(); as avatar) {
                 <img class="avatar-img" [src]="avatar" [alt]="page().title" />
               } @else {
                 <span class="avatar-initials">{{ initials() }}</span>
@@ -399,7 +399,11 @@ import { LinkIconComponent } from './link-icon.component';
 export class LinkPagePreviewComponent {
   readonly page = input.required<LinkPage>();
   readonly links = input.required<readonly PageLink[]>();
+  /** Avatar do dono, usado quando a página não tem um próprio — o site aplica a mesma
+   *  regra em `/a/{slug}`, e sem isso a prévia mostraria iniciais onde o público vê o logo. */
+  readonly fallbackAvatarUrl = input<string | null>(null);
 
+  protected readonly avatarUrl = computed(() => this.page().avatarUrl || this.fallbackAvatarUrl());
   protected readonly visibleLinks = computed(() => activePageLinks(this.links()));
   protected readonly initials = computed(() => linkPageInitials(this.page().title));
   protected readonly handle = computed(() => {

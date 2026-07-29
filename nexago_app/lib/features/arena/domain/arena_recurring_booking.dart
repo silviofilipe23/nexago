@@ -23,6 +23,8 @@ class ArenaRecurringBooking {
     this.customerName,
     this.endDate,
     this.createdAt,
+    this.paymentType = 'per_occurrence',
+    this.pausedAt,
   });
 
   final String id;
@@ -46,8 +48,14 @@ class ArenaRecurringBooking {
   /// Valor por ocorrência (acerto na arena).
   final double amountReais;
 
-  /// `active` | `canceled`.
+  /// `active` | `paused` | `canceled`.
   final String status;
+
+  /// `per_occurrence` | `monthly` — só informativo, sem cobrança automática.
+  final String paymentType;
+
+  /// Quando a série foi pausada (`null` se nunca foi ou já foi retomada).
+  final DateTime? pausedAt;
 
   /// `YYYY-MM-DD`.
   final String startDate;
@@ -61,6 +69,8 @@ class ArenaRecurringBooking {
   final DateTime? createdAt;
 
   bool get isActive => status == 'active';
+  bool get isPaused => status == 'paused';
+  bool get isCanceled => status == 'canceled';
 
   static const List<String> _weekdayLabels = [
     'Segunda-feira',
@@ -94,6 +104,8 @@ class ArenaRecurringBooking {
       status: _str(d['status'], fallback: 'active'),
       startDate: _str(d['startDate']),
       endDate: _optional(d['endDate']),
+      paymentType: _str(d['paymentType'], fallback: 'per_occurrence'),
+      pausedAt: (d['pausedAt'] as Timestamp?)?.toDate(),
       skippedDates: [
         if (d['skippedDates'] is List)
           for (final s in d['skippedDates'] as List)

@@ -45,5 +45,23 @@ List<ArenaAmenityDisplay> activeArenaAmenityDisplays(ArenaAmenities amenities) {
       icon: Icons.roofing_rounded,
     ));
   }
+  if (amenities.hasAccessibleCourt) {
+    out.add(const ArenaAmenityDisplay(
+      label: 'Quadra acessível',
+      icon: Icons.accessible_rounded,
+    ));
+  }
+  if (amenities.hasAccessibleBathroom) {
+    out.add(const ArenaAmenityDisplay(
+      label: 'Banheiro acessível',
+      icon: Icons.wc_rounded,
+    ));
+  }
+  if (amenities.hasPcdParking) {
+    out.add(const ArenaAmenityDisplay(
+      label: 'Vaga PCD',
+      icon: Icons.wheelchair_pickup_rounded,
+    ));
+  }
   return out;
 }

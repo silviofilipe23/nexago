@@ -12,6 +12,10 @@ void main() {
         CommunityFeedType.fromValue('tournament_champions'),
         CommunityFeedType.tournamentChampions,
       );
+      expect(
+        CommunityFeedType.fromValue('organizer_announcement'),
+        CommunityFeedType.organizerAnnouncement,
+      );
       expect(CommunityFeedType.fromValue('algo_novo'), CommunityFeedType.unknown);
       expect(CommunityFeedType.fromValue(null), CommunityFeedType.unknown);
     });

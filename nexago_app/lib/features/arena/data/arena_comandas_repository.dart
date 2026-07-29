@@ -66,6 +66,24 @@ class ArenaComandasRepository {
     });
   }
 
+  /// Comanda vinculada a uma reserva (lado atleta — "Peça na quadra"): hoje
+  /// é o único elo confiável entre uma comanda e o atleta dono dela (ver
+  /// `ArenaComanda.bookingId`, setado pelo gestor ao vincular a reserva na
+  /// abertura). `null` quando a reserva não tem nenhuma comanda aberta ainda.
+  Stream<ArenaComanda?> watchComandaByBookingId(String bookingId) {
+    final id = bookingId.trim();
+    if (id.isEmpty) return Stream.value(null);
+
+    return _comandas
+        .where('bookingId', isEqualTo: id)
+        .limit(1)
+        .snapshots()
+        .map((snap) {
+          if (snap.docs.isEmpty) return null;
+          return ArenaComanda.fromFirestore(snap.docs.first);
+        });
+  }
+
   Stream<List<ArenaComandaItem>> watchComandaItems(String comandaId) {
     final id = comandaId.trim();
     if (id.isEmpty) return Stream.value(const []);
@@ -483,6 +501,36 @@ class ArenaComandasRepository {
     });
 
     return (comanda: updated, payment: createdPayment);
+  }
+
+  Future<ArenaComanda> closeEmptyComanda({required String comandaId}) async {
+    final managerUid = _auth.currentUser?.uid;
+    if (managerUid == null || managerUid.isEmpty) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    final comandaRef = _comandas.doc(comandaId.trim());
+    late ArenaComanda updated;
+
+    await _firestore.runTransaction((txn) async {
+      final comandaSnap = await txn.get(comandaRef);
+      if (!comandaSnap.exists) {
+        throw StateError('Comanda não encontrada.');
+      }
+      final comanda = ArenaComanda.fromFirestore(comandaSnap);
+      if (!canCloseEmptyComanda(comanda)) {
+        throw StateError('Comanda não pode ser fechada sem consumo.');
+      }
+
+      txn.update(comandaRef, {
+        'status': ArenaComandaStatus.closed.firestoreValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      updated = comanda.copyWith(status: ArenaComandaStatus.closed);
+    });
+
+    return updated;
   }
 }
 

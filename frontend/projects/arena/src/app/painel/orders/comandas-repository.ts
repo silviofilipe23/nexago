@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { signedDeltaForMovementType } from '../stock/product.model';
 import {
+  comandaCloseEmptyBlockReason,
   comandaItemReverseBlockReason,
   comandaStatusIsActive,
   formatComandaNumber,
@@ -410,6 +411,30 @@ export async function registerPayment(
     txn.update(comandaRef, {
       paidCents: newPaidCents,
       status: newStatus,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
+/** Fecha uma comanda vazia (sem itens lançados) diretamente, sem pagamento —
+ *  `registerPayment` nunca fecharia essa comanda porque exige `amountCents > 0`.
+ *  Espelha `closeEmptyComanda` do app Flutter (`ArenaComandasRepository`). */
+export async function closeEmptyComanda(db: Firestore, comandaId: string): Promise<void> {
+  const comandaRef = doc(db, 'arenaComandas', comandaId);
+
+  await runTransaction(db, async (txn) => {
+    const comandaSnap = await txn.get(comandaRef);
+    if (!comandaSnap.exists()) {
+      throw new Error('Comanda não encontrada.');
+    }
+    const comanda = comandaFromDoc(comandaSnap.id, comandaSnap.data());
+    const blockReason = comandaCloseEmptyBlockReason(comanda);
+    if (blockReason) {
+      throw new Error(blockReason);
+    }
+
+    txn.update(comandaRef, {
+      status: 'closed',
       updatedAt: serverTimestamp(),
     });
   });

@@ -25,10 +25,12 @@ const testEnv = await initializeTestEnvironment({
   firestore: { rules },
 });
 
+// Sem o campo legado `role`: desde a migração role→roles as rules exigem
+// `!('role' in request.resource.data)` — um doc com `role` residual tem TODO
+// update negado (comportamento intencional; app antigo pré-15/07).
 const baseUser = {
   fullName: 'Atleta Teste',
   email: 'atleta@test.dev',
-  role: 'athlete',
   roles: ['athlete'],
   city: 'Goiânia',
   level: 'Intermediário',
@@ -129,7 +131,6 @@ await expect(
 await seed({
   fullName: 'Novato',
   email: 'atleta@test.dev',
-  role: 'athlete',
   roles: ['athlete'],
 });
 await expect(
@@ -154,6 +155,79 @@ await expect(
   'nível conhecido → valor inválido é bloqueado',
   assertFails(
     updateDoc(doc(ownerDb(), 'users', UID), { level: 'xpto' }),
+  ),
+);
+
+// ── Guarda estendida a TODOS os esportes do perfil ────────────────────────
+const multiSportUser = {
+  ...baseUser,
+  sportOnboarding: {
+    version: 1,
+    primarySportId: 'VOLEI_PRAIA',
+    secondarySportIds: ['FUTEVOLEI', 'FUTEBOL', 'TENIS', 'OUTROS'],
+    levelsBySport: {
+      VOLEI_PRAIA: 'intermediario_1',
+      FUTEVOLEI: 'intermediario_2',
+      FUTEBOL: 'open',
+      TENIS: 'iniciante_2',
+      OUTROS: 'intermediario_1',
+    },
+  },
+};
+
+for (const [sportId, lower] of [
+  ['FUTEVOLEI', 'intermediario_1'],
+  ['FUTEBOL', 'intermediario_2'],
+  ['TENIS', 'iniciante_1'],
+  ['OUTROS', 'iniciante_2'],
+]) {
+  await seed(multiSportUser);
+  await expect(
+    `rebaixar levelsBySport.${sportId} é bloqueado`,
+    assertFails(
+      updateDoc(doc(ownerDb(), 'users', UID), {
+        [`sportOnboarding.levelsBySport.${sportId}`]: lower,
+      }),
+    ),
+  );
+}
+
+await seed(multiSportUser);
+await expect(
+  'subir levelsBySport.FUTEVOLEI é permitido',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.FUTEVOLEI': 'open',
+    }),
+  ),
+);
+
+// Rewrite de MESMO rank é permitido (app antigo regravando código legado).
+await seed(multiSportUser);
+await expect(
+  'rewrite de mesmo rank (intermediario_1 → intermediario) é permitido',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'intermediario',
+    }),
+  ),
+);
+
+// Super admin pode rebaixar (canal de suporte).
+await seed(multiSportUser);
+await expect(
+  'super admin rebaixa nível (bypass)',
+  assertSucceeds(
+    updateDoc(
+      doc(
+        testEnv
+          .authenticatedContext('support-admin', { superAdmin: true })
+          .firestore(),
+        'users',
+        UID,
+      ),
+      { 'sportOnboarding.levelsBySport.FUTEVOLEI': 'iniciante_1' },
+    ),
   ),
 );
 

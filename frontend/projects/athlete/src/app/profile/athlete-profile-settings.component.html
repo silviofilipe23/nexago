@@ -29,24 +29,105 @@
       <div class="at-profile-grid">
         <div class="at-col">
           <section class="at-card at-profile-identity">
-            <div class="at-profile-avatar-row">
-              <div class="at-profile-avatar" aria-hidden="true">{{ initials() }}</div>
-              @if (isEditing()) {
-                <div class="at-profile-avatar-actions">
-                  <button type="button" class="at-mini-btn" disabled title="Em breve">Trocar foto</button>
-                  <span class="at-profile-hint">PNG ou JPG · até 2 MB</span>
-                </div>
-              }
+            <div class="at-profile-hero">
+              <div class="at-profile-cover" [class.at-profile-cover--empty]="!coverUrl()">
+                @if (coverUrl(); as cover) {
+                  @if (!coverLoaded()) {
+                    <app-nx-skeleton class="at-profile-cover-skeleton" [w]="'100%'" [h]="'100%'" [r]="0" />
+                  }
+                  <img
+                    class="at-profile-cover-img"
+                    [src]="cover"
+                    alt=""
+                    loading="lazy"
+                    (load)="coverLoaded.set(true)"
+                    (error)="coverLoaded.set(true)"
+                  />
+                  <div class="at-profile-cover-fade" aria-hidden="true"></div>
+                }
+                @if (isEditing()) {
+                  <div class="at-profile-cover-actions">
+                    <button type="button" class="at-mini-btn" [disabled]="uploadingCover()" (click)="chooseCoverFile()">
+                      @if (uploadingCover()) {
+                        <app-nx-spinner [size]="12" />
+                      }
+                      {{ uploadingCover() ? 'Enviando...' : (coverUrl() ? 'Trocar capa' : 'Adicionar capa') }}
+                    </button>
+                    <input
+                      #coverInput
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      hidden
+                      (change)="onCoverFileSelected($event)"
+                    />
+                  </div>
+                }
+              </div>
+
+              <div class="at-profile-avatar" aria-hidden="true">
+                <span class="at-profile-avatar-fallback">{{ initials() }}</span>
+                @if (avatarUrl(); as photo) {
+                  @if (!avatarLoaded()) {
+                    <app-nx-skeleton class="at-profile-avatar-skeleton" [w]="'100%'" [h]="'100%'" [r]="'50%'" />
+                  }
+                  <img
+                    class="at-profile-avatar-img"
+                    [src]="photo"
+                    alt=""
+                    loading="lazy"
+                    (load)="avatarLoaded.set(true)"
+                    (error)="avatarLoaded.set(true)"
+                  />
+                }
+              </div>
             </div>
+            @if (coverUploadError(); as err) {
+              <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
+            }
+
+            @if (isEditing()) {
+              <div class="at-profile-avatar-actions">
+                <button type="button" class="at-mini-btn" [disabled]="uploadingAvatar()" (click)="chooseAvatarFile()">
+                  @if (uploadingAvatar()) {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  {{ uploadingAvatar() ? 'Enviando...' : 'Trocar foto' }}
+                </button>
+                <input
+                  #avatarInput
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  (change)="onAvatarFileSelected($event)"
+                />
+                <span class="at-profile-hint">PNG ou JPG · até 2 MB</span>
+              </div>
+            }
+            @if (avatarUploadError(); as err) {
+              <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
+            }
 
             @if (!isEditing()) {
               <h2 class="at-profile-name">{{ displayName() }}</h2>
               <p class="at-profile-handle">&#64;{{ handle() }} · {{ cityStateLabel() }}</p>
 
               <div class="at-profile-pills">
-                <span class="at-pill at-pill--orange">{{ sportPillLabel() }}</span>
-                <span class="at-pill">{{ levelLabel() }}</span>
+                <span class="at-pill at-pill--orange">{{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }}</span>
+                <a class="at-pill" routerLink="/perfil/esportes" title="Gerenciar esportes e níveis">
+                  {{ primarySportLevel()?.levelLabel || 'Nível não informado' }}
+                </a>
               </div>
+
+              @if (otherSportLevels().length > 0) {
+                <ul class="at-profile-sport-list">
+                  @for (entry of otherSportLevels(); track entry.code) {
+                    <li class="at-profile-sport-row">
+                      <span>{{ entry.sportLabel }}</span>
+                      <span class="at-pill">{{ entry.levelLabel || 'Nível não informado' }}</span>
+                    </li>
+                  }
+                </ul>
+              }
 
               <div class="at-profile-level">
                 <div class="at-profile-level-head">
@@ -75,14 +156,31 @@
                 </label>
 
                 <label class="at-field">
-                  <span>Cidade</span>
-                  <input type="text" formControlName="cityState" placeholder="Ex.: Aparecida de Goiânia, GO" />
+                  <span>Apelido</span>
+                  <input type="text" formControlName="nickname" placeholder="Como prefere ser chamado" />
+                  <small class="at-field-hint">Opcional — aparece no seu perfil público em vez do nome completo.</small>
                 </label>
 
                 <label class="at-field">
-                  <span>WhatsApp</span>
-                  <input type="text" formControlName="whatsappNumber" placeholder="+55 62 99123-4567" />
-                  <small class="at-field-hint">Usado pra confirmar reservas e times.</small>
+                  <span>Estado</span>
+                  <select formControlName="state" (change)="onStateSelected($any($event.target).value)">
+                    <option value="">Selecione</option>
+                    @for (s of brLocations.states; track s.sigla) {
+                      <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                    }
+                  </select>
+                </label>
+
+                <label class="at-field">
+                  <span>Cidade</span>
+                  <select formControlName="city">
+                    <option value="">
+                      {{ !form.controls.state.value ? 'Selecione o estado primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}
+                    </option>
+                    @for (c of cityOptions(); track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
                 </label>
 
                 <label class="at-field">
@@ -92,19 +190,12 @@
                 </label>
 
                 <div class="at-field">
-                  <span>Esporte principal</span>
-                  <div class="at-profile-sport-tabs">
-                    @for (sport of sportOptions; track sport) {
-                      <button
-                        type="button"
-                        class="at-profile-sport-tab"
-                        [class.at-profile-sport-tab--active]="form.controls.primarySport.value === sport"
-                        (click)="selectSport(sport)"
-                      >
-                        {{ sport }}
-                      </button>
-                    }
-                  </div>
+                  <span>Esporte e nível</span>
+                  <p class="at-profile-readonly-note">
+                    {{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }} ·
+                    {{ primarySportLevel()?.levelLabel || 'nível não informado' }}
+                  </p>
+                  <a class="at-mini-btn" routerLink="/perfil/esportes">Gerenciar esportes e níveis</a>
                 </div>
 
                 <label class="at-field">
@@ -171,8 +262,82 @@
 
           <section class="at-card">
             <div class="at-card-head">
+              <div>
+                <p class="at-card-kicker">Ganhe +{{ xpReferralBonus }} XP</p>
+                <span class="at-card-title">Convide um amigo</span>
+              </div>
+            </div>
+            <p class="at-profile-referral-text">
+              Compartilhe seu link de indicação. Quando seu amigo se cadastrar e jogar a primeira partida, você ganha
+              +{{ xpReferralBonus }} XP.
+            </p>
+            <div class="at-profile-share-row">
+              <input type="text" class="at-profile-share-input" [value]="referralLink()" readonly />
+              <button type="button" class="at-mini-btn" (click)="copyReferralLink()">Copiar</button>
+              <button type="button" class="at-mini-btn at-mini-btn--primary" (click)="shareReferral()">Compartilhar</button>
+            </div>
+            @if (referralCopyFeedback(); as feedback) {
+              <p class="at-profile-copy-feedback">{{ feedback }}</p>
+            }
+
+            @if (referredBy() == null) {
+              <div class="at-profile-referral-apply">
+                <label class="at-field">
+                  <span>Recebeu um código de indicação?</span>
+                  <input
+                    type="text"
+                    [value]="referralApplyCode()"
+                    (input)="onReferralApplyCodeInput($any($event.target).value)"
+                    placeholder="Cole o código do seu amigo"
+                  />
+                </label>
+                <button
+                  type="button"
+                  class="at-mini-btn at-profile-referral-apply-btn"
+                  [disabled]="referralApplying()"
+                  (click)="applyReferralCode()"
+                >
+                  @if (referralApplying()) {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  {{ referralApplying() ? 'Aplicando...' : 'Aplicar código' }}
+                </button>
+              </div>
+              @if (referralApplyError(); as err) {
+                <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
+              }
+              @if (referralApplySuccess(); as success) {
+                <p class="at-profile-feedback at-profile-feedback--success">{{ success }}</p>
+              }
+            }
+          </section>
+
+          <section class="at-card">
+            <div class="at-card-head">
               <span class="at-card-title">Segurança</span>
             </div>
+            <div class="at-profile-security-row">
+              <div>
+                <strong>Telefone</strong>
+                <p>
+                  @if (phoneVerified()) {
+                    {{ phoneNumber() }} · verificado ✓
+                  } @else {
+                    Nenhum telefone verificado ainda.
+                  }
+                </p>
+              </div>
+              @if (!changingPhone()) {
+                <button type="button" class="at-mini-btn" (click)="startChangePhone()">
+                  {{ phoneVerified() ? 'Trocar número' : 'Verificar' }}
+                </button>
+              }
+            </div>
+            @if (changingPhone()) {
+              <app-phone-verification (verified)="onPhoneVerified($event)" />
+              <button type="button" class="at-mini-btn" (click)="cancelChangePhone()">Cancelar</button>
+            }
+
             <div class="at-profile-security-row">
               <div>
                 <strong>Senha</strong>

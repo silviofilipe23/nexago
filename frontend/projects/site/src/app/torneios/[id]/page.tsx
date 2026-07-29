@@ -101,7 +101,7 @@ export default async function TorneioDetailPage({ params }: Params) {
                     <SpotlightCard className="flex h-full items-center justify-between gap-4 px-5 py-4">
                       <div>
                         <p className="font-600 text-fg">
-                          {c.level ?? 'Categoria'} · {genderLabel(c.genderType)}
+                          {c.categoryName ?? `${c.level ?? 'Categoria'} · ${genderLabel(c.genderType)}`}
                         </p>
                         {typeof c.spotsTotal === 'number' && (
                           <p className="mt-0.5 text-sm text-text-dim">{c.spotsTotal} vagas</p>
@@ -126,12 +126,20 @@ export default async function TorneioDetailPage({ params }: Params) {
               <Trophy className="size-6 text-brand" aria-hidden="true" />
               <div>
                 <p className="font-display font-700 text-fg">Quer jogar essa etapa?</p>
-                <p className="text-sm text-text-mute">Inscreva-se pelo app e acompanhe ao vivo.</p>
+                <p className="text-sm text-text-mute">Inscreva-se pelo site ou pelo app e acompanhe ao vivo.</p>
               </div>
             </div>
-            <ButtonLink href="/#download" className="w-full sm:w-auto">
-              Baixar o app
-            </ButtonLink>
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+              <ButtonLink
+                href={`https://atleta.nexago.com.br/torneios/${t.id}/inscricao`}
+                className="w-full sm:w-auto"
+              >
+                Inscreva-se
+              </ButtonLink>
+              <ButtonLink href="https://linktr.ee/nexago" variant="secondary" className="w-full sm:w-auto">
+                Baixar o app
+              </ButtonLink>
+            </div>
           </section>
         </Reveal>
       </div>

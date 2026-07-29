@@ -229,9 +229,22 @@ void main() {
       expect(athleteLevelRank(profile), 2);
     });
 
-    test('returns null when there is no primary sport', () {
+    test('returns null when there is no primary sport nor global level', () {
       const profile = AppUserProfile(uid: 'a2');
       expect(athleteLevelRank(profile), isNull);
+    });
+
+    test('falls back to the legacy global level (canonical read chain)', () {
+      const noPrimary = AppUserProfile(uid: 'a2', level: 'Intermediário 2');
+      expect(athleteLevelRank(noPrimary), 3);
+
+      const noPerSportLevel = AppUserProfile(
+        uid: 'a3',
+        primarySportFirestoreId: 'VOLEI_QUADRA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'open'},
+        level: 'Iniciante 2',
+      );
+      expect(athleteLevelRank(noPerSportLevel), 1);
     });
 
     test('returns null when the primary sport has no level registered', () {

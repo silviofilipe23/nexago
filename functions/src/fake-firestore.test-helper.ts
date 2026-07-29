@@ -38,8 +38,32 @@ function orderValue(raw: unknown): number | string {
   return String(raw ?? "");
 }
 
+export interface FakeDocSnapshot {
+  exists: boolean;
+  id: string;
+  data: () => DocData | undefined;
+  ref: FakeDocRef;
+}
+
+export interface FakeDocRef {
+  path: string;
+  id: string;
+  parent: {parent: FakeDocRef | null};
+  get: () => Promise<FakeDocSnapshot>;
+  set: (data: DocData, opts?: {merge?: boolean}) => Promise<void>;
+  update: (data: DocData) => Promise<void>;
+  delete: () => Promise<void>;
+  collection: (subPath: string) => ReturnType<FakeFirestore["collection"]>;
+}
+
 export class FakeFirestore {
   store = new Map<string, DocData>();
+  private autoIdSeq = 0;
+
+  private nextAutoId(): string {
+    this.autoIdSeq += 1;
+    return `auto_${this.autoIdSeq}`;
+  }
 
   seedDoc(path: string, data: DocData): void {
     this.store.set(path, data);
@@ -49,11 +73,18 @@ export class FakeFirestore {
     return this.makeRef(path);
   }
 
-  private makeRef(path: string) {
+  private makeRef(path: string): FakeDocRef {
     const self = this;
+    // Espelha `DocumentReference.parent.parent`: pula o nome da coleção-pai e
+    // aponta pro documento avô (ex.: "a/b/c/d" -> parent.parent = doc "a/b").
+    const segments = path.split("/");
+    const grandparentPath = segments.length >= 4 ? segments.slice(0, -2).join("/") : null;
     return {
       path,
-      id: path.split("/").pop() ?? "",
+      id: segments[segments.length - 1] ?? "",
+      parent: {
+        parent: grandparentPath ? self.makeRef(grandparentPath) : null,
+      },
       get: async () => self.snapshotOf(path),
       set: async (data: DocData, opts?: {merge?: boolean}) => {
         self.write(path, data, opts);
@@ -62,6 +93,10 @@ export class FakeFirestore {
         if (!self.store.has(path)) throw new Error(`update em doc ausente: ${path}`);
         self.write(path, data, {merge: true});
       },
+      delete: async () => {
+        self.store.delete(path);
+      },
+      collection: (subPath: string) => self.collection(`${path}/${subPath}`),
     };
   }
 
@@ -124,13 +159,17 @@ export class FakeFirestore {
           }
         }
         if (spec.limitCount != null) entries = entries.slice(0, spec.limitCount);
-        return {docs: entries.map(([docPath]) => self.snapshotOf(docPath))};
+        return {
+          docs: entries.map(([docPath]) => self.snapshotOf(docPath)),
+          empty: entries.length === 0,
+          size: entries.length,
+        };
       },
     });
     return {
-      doc: (id: string) => self.makeRef(`${path}/${id}`),
+      doc: (id?: string) => self.makeRef(`${path}/${id ?? self.nextAutoId()}`),
       add: async (data: DocData) => {
-        const id = `auto_${self.store.size}`;
+        const id = self.nextAutoId();
         self.write(`${path}/${id}`, data);
         return self.makeRef(`${path}/${id}`);
       },

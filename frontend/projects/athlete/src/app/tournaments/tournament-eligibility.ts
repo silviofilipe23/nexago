@@ -1,3 +1,7 @@
+import {
+  levelLabelForRank,
+  tournamentSportToLevelSportCode as sharedTournamentSportToLevelSportCode,
+} from '@nexago/levels';
 import type { MyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { levelLabelForRank, levelRankOf } from '../data/athlete-level';
 import type { TournamentCategoryOffer } from '../data/tournaments-repository';
@@ -9,16 +13,9 @@ import type { TournamentCategoryOffer } from '../data/tournaments-repository';
 const HIGHEST_LEVEL_RANK = 5;
 
 /** Esporte do torneio (`tournaments/{id}.sport`) → código de esporte do perfil
- *  (`levelsBySport`). `null` quando não há equivalente (ex.: futevôlei) → usa nível global. */
+ *  (`levelsBySport`). `null` quando não há equivalente → usa nível global. */
 export function tournamentSportToLevelSportCode(sport: string | null): string | null {
-  switch (sport?.trim().toLowerCase()) {
-    case 'beachvolleyball':
-      return 'VOLEI_PRAIA';
-    case 'indoorvolleyball':
-      return 'VOLEI_QUADRA';
-    default:
-      return null;
-  }
+  return sharedTournamentSportToLevelSportCode(sport);
 }
 
 /** Rank do nível da categoria; categoria sem nível → Open (aceita todos). */
@@ -37,7 +34,8 @@ export function athleteLevelRank(profile: MyAthleteProfile | null, tournamentSpo
   return levelRankOf(profile.level) ?? 0;
 }
 
-function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
+
+export function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
   const v = raw?.trim().toLowerCase() ?? '';
   if (!v) return null;
   if (v === 'm' || v.startsWith('masc')) return 'M';

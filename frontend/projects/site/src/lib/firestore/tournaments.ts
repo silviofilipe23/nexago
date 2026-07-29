@@ -59,6 +59,7 @@ function mapSummary(id: string, d: DocumentData): TournamentSummary {
 
 function mapCategory(c: DocumentData): TournamentCategory {
   return {
+    categoryName: typeof c.categoryName === 'string' ? c.categoryName : c.name,
     genderType: c.genderType,
     level: c.level,
     entryFeeCents: typeof c.entryFeeCents === 'number' ? c.entryFeeCents : undefined,

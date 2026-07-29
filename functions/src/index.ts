@@ -76,8 +76,27 @@ import {
   createArenaRecurringBooking,
   cancelArenaRecurringBooking,
   cancelArenaRecurringOccurrence,
+  updateArenaRecurringBooking,
+  pauseArenaRecurringBooking,
+  resumeArenaRecurringBooking,
 } from "./arena-recurring-booking";
 import {materializeArenaRecurringBookings} from "./arena-recurring-materializer";
+
+// Clubinho — jogo aberto com lista pública e PIX por sessão.
+export {
+  upsertArenaClub,
+  setArenaClubStatus,
+  createArenaClubSession,
+  cancelArenaClubSession,
+  addArenaClubParticipant,
+  removeArenaClubParticipant,
+} from "./arena-club";
+export {materializeArenaClubSessions} from "./arena-club-materializer";
+export {
+  joinArenaClubSession,
+  leaveArenaClubSession,
+  expireArenaClubPendingPayments,
+} from "./arena-club-join";
 
 export {
   onArenaCourtCreatedCountUp,
@@ -174,6 +193,9 @@ export {
   createArenaRecurringBooking,
   cancelArenaRecurringBooking,
   cancelArenaRecurringOccurrence,
+  updateArenaRecurringBooking,
+  pauseArenaRecurringBooking,
+  resumeArenaRecurringBooking,
   materializeArenaRecurringBookings,
 };
 
@@ -281,9 +303,13 @@ export {
   equipSandRankCosmetic,
 } from "./sand-rank-sync";
 
+export {saveLinkPageProfile, trackLinkPageEvent} from "./link-pages";
+
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
 export {completeOrganizerSignup} from "./organizer-signup";
+export {grantAthleteRole} from "./athlete-signup";
+export {confirmPhoneVerification} from "./athlete-phone-verification";
 
 export {searchAthleteForCoachInvite} from "./coach-athlete-search";
 export {
@@ -294,3 +320,44 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+// Split de pagamento em reserva de quadra (PIX, multi-pagador).
+export {
+  splitArenaBookingPayment,
+  expireArenaBookingPaymentShares,
+} from "./arena-booking-split";
+// Programa de indicação (referral): código = UID do atleta, recompensa em XP
+// via gamificação (não existe carteira de atleta hoje).
+export {
+  registerReferral,
+  onGamificationSummaryWrittenAwardReferralBonus,
+} from "./athlete-referral";
+// Cupom de marketing da arena (código digitável, validade, limite de uso —
+// complementar às promoções automáticas já existentes).
+export {
+  createArenaCoupon,
+  listArenaCoupons,
+  deactivateArenaCoupon,
+} from "./arena-coupons";
+// --- Relatórios de ocupação de quadra (gestor de arena) ---
+export {getArenaOccupancyReport} from "./arena-occupancy-report";
+export {postTournamentAnnouncement} from "./tournament-announcements";
+// Peça na quadra — atleta lança consumo direto no app numa comanda de
+// arena já aberta pelo balcão (ver arena-comanda-app-orders.ts).
+export {addAppOrderItem} from "./arena-comanda-app-orders";
+// Head-to-head (confronto direto) — item #3 de
+// docs/superpowers/specs/2026-07-20-cinco-features-concorrencia-design.md
+export {getHeadToHeadRecord} from "./head-to-head";
+// Placar ao vivo (games/sets do set em andamento) de partidas In Progress.
+export {updateLiveMatchScore} from "./organizer-match-ops";
+export {
+  joinArenaBookingWaitlist,
+  notifyArenaWaitlistOnSlotFreed,
+  expireArenaBookingWaitlistEntries,
+} from "./arena-booking-waitlist";
+// ─── Palpites da torcida no chaveamento (feature #5, engajamento/gamificação) ───
+export {
+  submitBracketPrediction,
+  onTournamentMatchCompletedScoreBracketPredictions,
+} from "./tournament-predictions";
+export {publishArenaSite, unpublishArenaSite} from "./arena-sites";

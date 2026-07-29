@@ -303,12 +303,12 @@ function inputToDatetime(v: string): Date | null {
                     <og-form-field label="Arena / clube">
                       <input class="og-input-el" [value]="draft().locationName" (input)="patch({ locationName: $any($event.target).value })" placeholder="Ex.: Arena ErreJota" />
                     </og-form-field>
-                    <og-form-field label="Endereço (opcional)">
+                    <og-form-field label="Endereço">
                       <input class="og-input-el" [value]="draft().locationAddress" (input)="patch({ locationAddress: $any($event.target).value })" />
                     </og-form-field>
                   </div>
                   <div class="og-field-grid" style="margin-top:16px">
-                    <og-form-field label="UF (opcional)">
+                    <og-form-field label="UF">
                       <select class="og-select-el" [value]="draft().state" (change)="onStateChange($any($event.target).value)">
                         <option value="">Selecione</option>
                         @for (s of brLocations.states; track s.sigla) {
@@ -673,6 +673,12 @@ export class CriarTorneioComponent {
       if (!editId || this.draft().tournamentId === editId) return;
       void this.loadForEdit(editId);
     });
+    // DEBUG TEMPORÁRIO — remover depois de investigar o bug de estado/cidade na edição.
+    effect(() => {
+      const d = this.draft();
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG torneio draft]', { tournamentId: d.tournamentId, city: d.city, state: d.state });
+    });
   }
 
   private async loadForEdit(id: string): Promise<void> {
@@ -683,6 +689,8 @@ export class CriarTorneioComponent {
         this.feedback.set({ ok: false, message: 'Torneio não encontrado pra edição.' });
         return;
       }
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG torneio loadForEdit] doc carregado:', { city: loaded.draft.city, state: loaded.draft.state, existingListingStatus: loaded.existingListingStatus });
       this.draft.set(loaded.draft);
       this.existingListingStatus = loaded.existingListingStatus;
     } finally {

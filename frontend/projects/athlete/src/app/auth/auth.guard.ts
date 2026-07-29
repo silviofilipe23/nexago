@@ -5,7 +5,7 @@ import { filter, map, take } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 import { persistRedirectIntent } from './redirect-intent';
 
-export const authGuard: CanActivateFn = () => {
+export const authGuard: CanActivateFn = (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
   return toObservable(auth.authReady).pipe(
@@ -15,9 +15,11 @@ export const authGuard: CanActivateFn = () => {
       if (auth.isAuthenticated()) {
         return true;
       }
-      persistRedirectIntent(router.url);
+      // `state.url` é o destino tentado; `router.url` ainda seria a rota anterior
+      // ('/' num deep-link em carga inicial, ex.: vindo do site).
+      persistRedirectIntent(state.url);
       return router.createUrlTree(['/entrar'], {
-        queryParams: { redirect: router.url },
+        queryParams: { redirect: state.url },
       });
     }),
   );

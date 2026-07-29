@@ -8,6 +8,9 @@ import 'athlete_notification_preferences.dart';
 import 'athlete_privacy_preferences.dart';
 import 'athlete_profile_options.dart';
 
+/// Limite máximo de fotos na galeria de destaque do perfil.
+const int maxHighlightPhotos = 6;
+
 /// Perfil do atleta em `users/{uid}` (id = UID do Firebase Auth).
 class AthleteProfile {
   const AthleteProfile({
@@ -41,6 +44,7 @@ class AthleteProfile {
     this.lookingForPartner = false,
     this.gameObjective,
     this.lastActiveAt,
+    this.highlightPhotoUrls = const [],
   });
 
   final String id;
@@ -79,6 +83,9 @@ class AthleteProfile {
   final bool lookingForPartner;
   final String? gameObjective;
   final DateTime? lastActiveAt;
+  /// URLs das fotos de destaque (`profiles/{uid}/highlights/*`), na ordem de
+  /// exibição. Limitado a [maxHighlightPhotos] na UI de edição.
+  final List<String> highlightPhotoUrls;
 
   bool get isDiscoverable =>
       publicProfileEnabled &&
@@ -253,6 +260,8 @@ class AthleteProfile {
       lookingForPartner: data['lookingForPartner'] == true,
       gameObjective: _resolveGameObjective(data),
       lastActiveAt: _readTimestamp(data['lastActiveAt']),
+      highlightPhotoUrls:
+          _stringList(data['highlightPhotoUrls']).take(maxHighlightPhotos).toList(),
     );
   }
 
@@ -371,7 +380,7 @@ class AthleteProfile {
     for (final sportId in enrolledIds) {
       if (!levelsBySport.containsKey(sportId) || levelsBySport[sportId]!.isEmpty) {
         levelsBySport[sportId] =
-            sportId == primaryFs && levelFs.isNotEmpty ? levelFs : 'iniciante';
+            sportId == primaryFs && levelFs.isNotEmpty ? levelFs : 'iniciante_1';
       }
     }
     if (primaryFs != null &&
@@ -401,12 +410,12 @@ class AthleteProfile {
       if (avatarUrl != null && avatarUrl!.isNotEmpty)
         'profilePhotoUrl': avatarUrl!.trim(),
       if (isProfileComplete) 'isProfileComplete': true,
+      // Nível: `sportOnboarding.levelsBySport` é a ÚNICA escrita — os campos
+      // legados `level` (label global) e `sportProfile.level` não são mais
+      // gravados; docs antigos seguem legíveis pelos fallbacks do parse.
       'sportOnboarding': sportOnboarding,
       if (sport.trim().isNotEmpty) 'sport': sport.trim(),
-      if (level.trim().isNotEmpty) 'level': level.trim(),
       'sports': sports,
-      if (levelFs.isNotEmpty)
-        'sportProfile': <String, dynamic>{'level': levelFs},
       'useBiometric': useBiometric,
       'city': city.trim(),
       if (state != null && state!.trim().isNotEmpty)
@@ -415,6 +424,9 @@ class AthleteProfile {
       if (coverPhotoUrl != null && coverPhotoUrl!.trim().isNotEmpty)
         'coverPhotoUrl': coverPhotoUrl!.trim(),
       if (cpfCnpj != null && cpfCnpj!.isNotEmpty) 'cpfCnpj': cpfCnpj,
+      // Sempre grava o array (mesmo vazio): diferente de coverPhotoUrl, não
+      // precisa de FieldValue.delete() para "esvaziar" — [] já sobrescreve.
+      'highlightPhotoUrls': highlightPhotoUrls,
     };
   }
 
@@ -475,6 +487,7 @@ class AthleteProfile {
     bool? lookingForPartner,
     Object? gameObjective = _copyWithUnset,
     Object? lastActiveAt = _copyWithUnset,
+    List<String>? highlightPhotoUrls,
     bool clearAvatar = false,
     bool clearCoverPhoto = false,
     bool clearPhone = false,
@@ -526,6 +539,7 @@ class AthleteProfile {
       lastActiveAt: identical(lastActiveAt, _copyWithUnset)
           ? this.lastActiveAt
           : lastActiveAt as DateTime?,
+      highlightPhotoUrls: highlightPhotoUrls ?? this.highlightPhotoUrls,
     );
   }
 }

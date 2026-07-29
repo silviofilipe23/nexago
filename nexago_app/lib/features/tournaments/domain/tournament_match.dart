@@ -1,3 +1,4 @@
+import 'tournament_match_live_score.dart';
 import 'tournament_match_point_action.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
@@ -46,6 +47,7 @@ class TournamentMatch {
     this.bestOf = 3,
     this.winnerAdvanceMatchNumber,
     this.winnerAdvanceSlot,
+    this.liveScore,
   });
 
   final String id;
@@ -96,6 +98,10 @@ class TournamentMatch {
   final int? winnerAdvanceMatchNumber;
   final String? winnerAdvanceSlot;
 
+  /// Placar parcial "ao vivo" do set em andamento (games/sets), gravado por
+  /// `updateLiveMatchScore`. Só faz sentido exibir quando [isInProgress].
+  final MatchLiveScore? liveScore;
+
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;
     final name = courtName?.trim();
@@ -122,6 +128,8 @@ class TournamentMatch {
   bool get isCompleted => TournamentMatchStatus.isCompleted(status);
 
   bool get isInProgress => TournamentMatchStatus.isInProgress(status);
+
+  bool get isCanceled => TournamentMatchStatus.isCanceled(status);
 
   String get scoreLabel {
     if (sets.isNotEmpty) {

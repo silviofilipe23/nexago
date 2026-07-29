@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../environments/environment';
@@ -16,9 +16,17 @@ import {
   watchMyBookings,
   type MyBooking,
 } from './data/my-bookings-repository';
+import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
-import { fetchMyRegistrations } from './data/tournament-registrations-repository';
+import {
+  acceptPartnerInvite,
+  declinePartnerInvite,
+  fetchMyPendingPartnerInvites,
+  fetchMyRegistrations,
+  TournamentRegistrationError,
+} from './data/tournament-registrations-repository';
+import { athleteFunctions } from './data/functions';
 import { fetchTournamentSummariesByIds } from './data/tournaments-repository';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
 
@@ -72,6 +80,14 @@ interface MissionItem {
   label: string;
   xp: number;
   done: boolean;
+}
+
+interface PendingInviteItem {
+  id: string;
+  inviterName: string;
+  tournamentId: string;
+  categoryId: string;
+  tournamentName: string;
 }
 
 interface MyTournamentItem {
@@ -375,10 +391,17 @@ function communityMessage(item: CommunityFeedItem): string {
 export class AthletePainelComponent {
   protected readonly auth = inject(AuthService);
   private readonly gamification = inject(AthleteGamificationService);
+  private readonly router = inject(Router);
   private readonly firestore = createFirestore();
 
   private readonly bookingsState = signal<readonly MyBooking[]>([]);
   private readonly rankingState = signal<DashboardRanking | null>(null);
+  /** Convites de parceiro pendentes — mostrados aqui pra não depender de o atleta navegar
+   *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. */
+  private readonly pendingInvitesState = signal<PendingInviteItem[]>([]);
+  /** Foto enviada no onboarding — prioridade sobre o `photoURL` do Firebase Auth. */
+  private readonly profilePhotoUrlState = signal<string | null>(null);
+  protected readonly respondingInviteId = signal<string | null>(null);
   /** Relógio de 1 min: mantém "Hoje/Amanhã" e o corte de reserva passada corretos
    *  numa aba deixada aberta. */
   private readonly now = signal(new Date());
@@ -423,6 +446,9 @@ export class AthletePainelComponent {
   });
   protected readonly firstName = computed(() => firstWord(this.accountLabel()));
   protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
+  protected readonly headerAvatarUrl = computed(
+    () => this.profilePhotoUrlState() ?? this.auth.user()?.photoURL ?? null,
+  );
   protected readonly reservations = computed(() =>
     upcomingReservations(this.bookingsState(), this.now()),
   );
@@ -505,6 +531,7 @@ export class AthletePainelComponent {
   protected readonly missionsDone = computed(() => this.missions().filter((mission) => mission.done).length);
 
   protected readonly myTournaments = computed(() => this.myTournamentsState());
+  protected readonly pendingInvites = computed(() => this.pendingInvitesState());
 
   /** Atividade da comunidade — itens reais do `communityFeed` (sem UGC). */
   protected readonly communityActivity = computed<CommunityActivityItem[]>(() =>
@@ -579,6 +606,8 @@ export class AthletePainelComponent {
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
+        this.pendingInvitesState.set([]);
+        this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
         this.bootLoadingState.set(false);
         return;
@@ -624,6 +653,8 @@ export class AthletePainelComponent {
 
       void this.loadMatchHistory(user.uid);
       void this.loadMyTournaments(user.uid);
+      void this.loadPendingInvites(user.uid);
+      void this.loadProfilePhoto(user.uid);
 
       onCleanup(() => {
         stopBookings();
@@ -719,6 +750,75 @@ export class AthletePainelComponent {
     } catch {
       // "Meus torneios" vazio é estado válido; sem banner por falha pontual.
       this.myTournamentsState.set([]);
+    }
+  }
+
+  private async loadPendingInvites(uid: string): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      const invites = await fetchMyPendingPartnerInvites(db, uid);
+      if (this.auth.user()?.uid !== uid) return;
+      const ids = [...new Set(invites.map((i) => i.tournamentId).filter(Boolean))];
+      const summaries = await fetchTournamentSummariesByIds(db, ids);
+      if (this.auth.user()?.uid !== uid) return;
+      this.pendingInvitesState.set(
+        invites.map((i) => ({
+          id: i.id,
+          inviterName: i.inviterName,
+          tournamentId: i.tournamentId,
+          categoryId: i.categoryId,
+          tournamentName: summaries.get(i.tournamentId)?.name ?? 'Torneio',
+        })),
+      );
+    } catch {
+      // Sem card de convites é estado válido; sem banner por falha pontual (mesmo padrão de "Meus torneios").
+      this.pendingInvitesState.set([]);
+    }
+  }
+
+  private async loadProfilePhoto(uid: string): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      const profile = await fetchMyAthleteProfile(db, uid);
+      if (this.auth.user()?.uid !== uid) return;
+      this.profilePhotoUrlState.set(profile?.profilePhotoUrl ?? null);
+    } catch {
+      this.profilePhotoUrlState.set(null);
+    }
+  }
+
+  /** Aceite rápido — sem uniforme aqui (o backend aceita sem, coleta depois na inscrição;
+   *  é o mesmo comportamento de "Salvar uniforme" na tela de inscrição). */
+  protected async acceptInviteQuick(invite: PendingInviteItem): Promise<void> {
+    if (this.respondingInviteId()) return;
+    this.respondingInviteId.set(invite.id);
+    try {
+      await acceptPartnerInvite(athleteFunctions(), invite.id);
+      this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
+      // Depois de aceitar, o próximo passo real é completar a inscrição (uniforme/pagamento)
+      // — leva direto pra lá em vez de deixar o atleta no painel.
+      void this.router.navigate(['/torneios', invite.tournamentId, 'inscricao'], {
+        queryParams: { categoria: invite.categoryId },
+      });
+    } catch (err) {
+      this.syncError.set(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível aceitar o convite agora.');
+    } finally {
+      this.respondingInviteId.set(null);
+    }
+  }
+
+  protected async declineInviteQuick(invite: PendingInviteItem): Promise<void> {
+    if (this.respondingInviteId()) return;
+    this.respondingInviteId.set(invite.id);
+    try {
+      await declinePartnerInvite(athleteFunctions(), invite.id);
+      this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
+    } catch (err) {
+      this.syncError.set(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível recusar o convite agora.');
+    } finally {
+      this.respondingInviteId.set(null);
     }
   }
 

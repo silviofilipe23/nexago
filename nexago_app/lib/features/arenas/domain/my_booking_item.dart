@@ -29,6 +29,8 @@ class MyBookingItem {
     this.confirmedParticipants = 1,
     this.confirmedAthletes = const [],
     this.recurringBookingId,
+    this.couponCode,
+    this.couponDiscountReais,
   });
 
   final String id;
@@ -60,6 +62,13 @@ class MyBookingItem {
 
   /// Série em `arenaRecurringBookings` quando a reserva é de horário fixo.
   final String? recurringBookingId;
+
+  /// Código do cupom de desconto aplicado (`couponCode` gravado por
+  /// `createArenaBooking`) — `null` quando a reserva não usou cupom.
+  final String? couponCode;
+
+  /// Valor em reais descontado pelo cupom — `null` junto com [couponCode].
+  final double? couponDiscountReais;
 
   /// Ocorrência de horário fixo (mensalista) — criada pela arena; o
   /// cancelamento é acertado direto com a arena.
@@ -124,6 +133,12 @@ class MyBookingItem {
         ? participantsRaw
         : (confirmedAthletes.isNotEmpty ? confirmedAthletes.length + 1 : 1);
 
+    final couponCodeRaw = data['couponCode'];
+    final couponCode = couponCodeRaw is String && couponCodeRaw.trim().isNotEmpty
+        ? couponCodeRaw.trim()
+        : null;
+    final couponDiscountReais = (data['couponDiscountReais'] as num?)?.toDouble();
+
     return MyBookingItem(
       id: doc.id,
       arenaId: arenaId,
@@ -149,6 +164,8 @@ class MyBookingItem {
       confirmedParticipants: confirmedParticipants,
       confirmedAthletes: confirmedAthletes,
       recurringBookingId: _pickString(data['recurringBookingId']),
+      couponCode: couponCode,
+      couponDiscountReais: couponDiscountReais,
     );
   }
 

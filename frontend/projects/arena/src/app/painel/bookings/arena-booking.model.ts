@@ -36,6 +36,8 @@ export interface ArenaBooking {
   canceledAt: Date | null;
   cancelReason: string | null;
   createdAt: Date | null;
+  couponCode: string | null;
+  couponDiscountReais: number | null;
 }
 
 function timeStr(v: unknown): string {
@@ -87,6 +89,8 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     canceledAt: toDate(d['canceledAt']),
     cancelReason: optionalTrimmed(d['cancelReason']),
     createdAt: toDate(d['createdAt']),
+    couponCode: optionalTrimmed(d['couponCode']),
+    couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,
   };
 }
 

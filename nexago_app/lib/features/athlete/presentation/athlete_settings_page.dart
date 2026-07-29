@@ -335,7 +335,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   trailingBadge: const AthleteSettingsOrangeBadge(
                     label: '+50 XP',
                   ),
-                  onTap: () => showAthleteSettingsComingSoon(context),
+                  onTap: () => context.pushNamed(AppRouteNames.athleteReferral),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(

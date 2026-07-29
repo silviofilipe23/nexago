@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildStaffAddedNotificationBody,
   buildStaffMirrorData,
+  staffRoleGrantsOrganizerAccess,
   staffRoleLabel,
 } from "./tournament-staff-sync";
 
@@ -30,6 +31,21 @@ describe("buildStaffAddedNotificationBody", () => {
       buildStaffAddedNotificationBody("manager", "  "),
       "Você agora é gestor de um torneio",
     );
+  });
+});
+
+describe("staffRoleGrantsOrganizerAccess", () => {
+  it("grants for manager", () => {
+    assert.equal(staffRoleGrantsOrganizerAccess("manager"), true);
+  });
+
+  it("does not grant for scorer", () => {
+    assert.equal(staffRoleGrantsOrganizerAccess("scorer"), false);
+  });
+
+  it("treats missing/unknown role as manager (same default as the mirror)", () => {
+    assert.equal(staffRoleGrantsOrganizerAccess(undefined), true);
+    assert.equal(staffRoleGrantsOrganizerAccess(""), true);
   });
 });
 

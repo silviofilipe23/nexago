@@ -221,6 +221,9 @@ async function sendFcmToTokens(
     const entry = storedTokens[i];
     if (result.status === "fulfilled") {
       sent += 1;
+      logger.info(
+        `FCM send ok (${entry.platform ?? "unknown"}) user=${userId} doc=${entry.docId} messageId=${result.value}`
+      );
       continue;
     }
 

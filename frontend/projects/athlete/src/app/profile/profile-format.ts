@@ -1,4 +1,6 @@
 import { levelLabelOf } from '../data/athlete-level';
+import { levelDisplayLabel } from '@nexago/levels';
+import { sportLabelForCode } from '../data/sport-catalog';
 
 export function titleCase(input: string): string {
   return input
@@ -18,6 +20,13 @@ export function athleteLevelLabel(code: string | null | undefined): string {
     return '';
   }
   return levelLabelOf(trimmed) ?? trimmed;
+}
+
+/** Código/label de nível → rótulo de exibição — delega pro vocabulário
+ *  canônico compartilhado (`@nexago/levels`), incluindo os códigos legados sem
+ *  sufixo que ainda aparecem no fallback de nível global de contas antigas. */
+export function athleteLevelLabel(code: string | null | undefined): string {
+  return levelDisplayLabel(code);
 }
 
 export function nameFromEmail(email: string | null | undefined): string {
@@ -54,23 +63,6 @@ export function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
-export function splitCityState(input: string): { city: string; state: string } {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return { city: '', state: '' };
-  }
-  const lastComma = trimmed.lastIndexOf(',');
-  if (lastComma === -1) {
-    return { city: trimmed, state: '' };
-  }
-  const city = trimmed.slice(0, lastComma).trim();
-  const state = trimmed.slice(lastComma + 1).trim().toUpperCase();
-  if (!city) {
-    return { city: trimmed, state: '' };
-  }
-  return { city, state };
-}
-
 export function joinCityState(city: string, state: string): string {
   const trimmedCity = city.trim();
   const trimmedState = state.trim();
@@ -78,4 +70,59 @@ export function joinCityState(city: string, state: string): string {
     return '';
   }
   return trimmedState ? `${trimmedCity}, ${trimmedState}` : trimmedCity;
+}
+
+export interface SportLevelEntry {
+  code: string;
+  sportLabel: string;
+  levelLabel: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+}
+
+/** Resolve o nível de habilidade por modalidade a partir de `users/{uid}` (não de
+ *  `athlete_profiles/{uid}.primarySport`, que é texto livre e não bate com `levelsBySport`).
+ *  Ordem do retorno: modalidade principal primeiro, depois as secundárias na ordem de
+ *  `secondarySportIds`. Nível ausente na principal cai pro nível global legado
+ *  (`level`/`nivel`/`sportProfile.level`), mesma precedência de `athlete-public-profile.component.ts`
+ *  — diferente da cadeia de 2 campos (sem `sportProfile.level`) usada em
+ *  `public-profiles-repository.ts` (ranking/diretório), divergência pré-existente entre os
+ *  dois, fora do escopo desta mudança; modalidades secundárias sem entrada em
+ *  `levelsBySport` ficam com `levelLabel: ''` (sem fallback). */
+export function buildSportLevels(userData: Record<string, unknown> | null | undefined): SportLevelEntry[] {
+  const sportOnboarding = asRecord(userData?.['sportOnboarding']);
+  const primarySportId = asString(sportOnboarding?.['primarySportId']);
+  const secondarySportIds = asStringArray(sportOnboarding?.['secondarySportIds']);
+  const levelsBySport = asRecord(sportOnboarding?.['levelsBySport']) ?? {};
+
+  const codes = Array.from(
+    new Set([primarySportId, ...secondarySportIds].filter((code): code is string => !!code)),
+  );
+
+  const legacyLevel =
+    asString(userData?.['level']) ??
+    asString(userData?.['nivel']) ??
+    asString(asRecord(userData?.['sportProfile'])?.['level']);
+
+  return codes.map((code) => {
+    const rawLevel = asString(levelsBySport[code]);
+    const resolvedLevel = rawLevel ?? (code === primarySportId ? legacyLevel : null);
+    return {
+      code,
+      sportLabel: sportLabelForCode(code),
+      levelLabel: athleteLevelLabel(resolvedLevel),
+    };
+  });
 }

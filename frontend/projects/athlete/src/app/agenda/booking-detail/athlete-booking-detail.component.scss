@@ -397,6 +397,24 @@
   margin: 0;
 }
 
+.bd-payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.bd-payment-label {
+  color: var(--nx-text-dim);
+}
+
+.bd-payment-value {
+  color: var(--nx-text);
+  font-weight: 600;
+  text-align: right;
+}
+
 // ── Team ─────────────────────────────────────────────────────
 .bd-team-list {
   display: flex;
@@ -601,6 +619,14 @@
   &:hover {
     color: #ff6259;
   }
+
+  // Abre o fluxo de cancelamento — 4px/2px de padding deixa o alvo de toque
+  // minúsculo (~23px) no mobile; garante o mínimo confortável sem virar botão sólido.
+  @media (max-width: 640px) {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 10px;
+  }
 }
 
 .bd-recurring-note {
@@ -732,12 +758,22 @@
     opacity: 0.5;
     cursor: default;
   }
+
+  // Confirma o cancelamento da reserva — ação destrutiva, precisa de alvo maior no mobile.
+  @media (max-width: 640px) {
+    height: 44px;
+    padding: 0 16px;
+  }
 }
 
 .bd-btn-sm {
   height: 34px;
   padding: 0 14px;
   font-size: 12.5px;
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .bd-btn-full {

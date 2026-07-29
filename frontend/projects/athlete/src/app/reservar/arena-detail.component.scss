@@ -105,6 +105,11 @@
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
+  // Alvo de toque: era só o texto (sem padding), bem abaixo de 44px de altura.
+  min-height: 44px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
 
   &:hover {
     color: #fff;
@@ -605,4 +610,68 @@
   height: 160px;
   border-radius: var(--nx-r-3);
   overflow: hidden;
+}
+
+// ── Clubinho (jogo aberto) ───────────────────────────────────────────────────
+
+.ad-club-list {
+  margin-top: 12px;
+}
+
+.ad-club-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--nx-line);
+  flex-wrap: wrap;
+
+  &:first-child {
+    border-top: none;
+    padding-top: 4px;
+  }
+}
+
+.ad-club-info {
+  flex: 1;
+  min-width: 160px;
+}
+
+.ad-club-name {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.ad-club-when {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-text-mute);
+  margin: 3px 0 0;
+}
+
+.ad-club-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.ad-club-spots {
+  font-family: var(--nx-font-mono);
+  font-size: 11.5px;
+  color: var(--nx-win);
+
+  &.full {
+    color: var(--nx-live);
+  }
+}
+
+.ad-club-price {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--nx-orange-500);
 }

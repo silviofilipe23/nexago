@@ -69,4 +69,20 @@ class OrganizerCategoryOpsService {
     final callable = _functions.httpsCallable('resendRegistrationPayment');
     await callable.call({'registrationId': registrationId.trim()});
   }
+
+  /// Publica um aviso PÚBLICO e PERSISTENTE do torneio inteiro (não uma
+  /// categoria) no feed da Comunidade — diferente de
+  /// [sendCategoryCommunication], que é mensagem direta só pros times já
+  /// inscritos numa categoria e some do feed depois de enviada.
+  Future<Map<String, dynamic>> postTournamentAnnouncement({
+    required String tournamentId,
+    required String message,
+  }) async {
+    final callable = _functions.httpsCallable('postTournamentAnnouncement');
+    final result = await callable.call({
+      'tournamentId': tournamentId.trim(),
+      'message': message.trim(),
+    });
+    return Map<String, dynamic>.from(result.data as Map? ?? {});
+  }
 }

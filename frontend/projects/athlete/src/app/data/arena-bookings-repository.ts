@@ -51,6 +51,11 @@ export interface ArenaBookingQuoteLine {
 export interface ArenaBookingQuote {
   amountReais: number;
   lineItems: ArenaBookingQuoteLine[];
+  /** Cupom de desconto (código digitado pelo atleta) aplicado nesta cotação — não acumula
+   *  com promoção automática, vale o maior desconto (decisão do backend). */
+  couponApplied: boolean;
+  couponId: string | null;
+  couponDiscountReais: number;
 }
 
 export interface CreateArenaBookingResult {
@@ -62,6 +67,9 @@ export interface CreateArenaBookingResult {
   paymentFraction: number;
   /** ISO — só em PIX (prazo pra pagar antes de a reserva expirar). */
   paymentExpiresAt: string | null;
+  couponApplied: boolean;
+  couponId: string | null;
+  couponDiscountReais: number;
 }
 
 export interface ArenaBookingPixPayment {
@@ -104,6 +112,8 @@ export interface ArenaBookingDoc {
   /** Ocorrência de horário fixo (mensalista) — gerida pela arena, sem cancelamento pelo app. */
   recurringBookingId: string | null;
   createdAt: Date | null;
+  couponCode: string | null;
+  couponDiscountReais: number;
 }
 
 export class ArenaBookingError extends Error {
@@ -147,7 +157,7 @@ function mapCallableError(err: unknown): ArenaBookingError {
   }
 }
 
-function callablePayload(args: ArenaBookingArgs): Record<string, unknown> {
+function callablePayload(args: ArenaBookingArgs, couponCode?: string): Record<string, unknown> {
   return {
     arenaId: args.arenaId,
     arenaName: args.arenaName,
@@ -159,16 +169,24 @@ function callablePayload(args: ArenaBookingArgs): Record<string, unknown> {
     ...(args.selectedSlotStartTimes.length > 0
       ? { selectedSlotStartTimes: args.selectedSlotStartTimes }
       : {}),
+    ...(couponCode?.trim() ? { couponCode: couponCode.trim() } : {}),
   };
 }
 
-/** Cota autoritativa (preço por quadra + promoções) — a mesma que o servidor cobra. */
-export async function quoteArenaBooking(functions: Functions, args: ArenaBookingArgs): Promise<ArenaBookingQuote> {
+/** Cota autoritativa (preço por quadra + promoções + cupom) — a mesma que o servidor cobra.
+ *  `couponCode` é opcional: se informado e inválido/expirado/esgotado, o callable lança
+ *  `not-found`/`failed-precondition` com mensagem pronta pro atleta — quem chama decide se
+ *  isso trava a cotação ou só mostra o erro perto do campo de cupom. */
+export async function quoteArenaBooking(
+  functions: Functions,
+  args: ArenaBookingArgs,
+  couponCode?: string,
+): Promise<ArenaBookingQuote> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, { amountReais: number; lineItems?: unknown[] }>(
-      functions,
-      'quoteArenaBooking',
-    )(callablePayload(args));
+    const result = await httpsCallable<
+      Record<string, unknown>,
+      { amountReais: number; lineItems?: unknown[]; couponApplied?: boolean; couponId?: string | null; couponDiscountReais?: number }
+    >(functions, 'quoteArenaBooking')(callablePayload(args, couponCode));
     const amount = Number(result.data.amountReais);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new ArenaBookingError('Configure o preço da quadra antes de reservar.');
@@ -186,7 +204,13 @@ export async function quoteArenaBooking(functions: Functions, args: ArenaBooking
         baseSlotPriceReais: Number(row['baseSlotPriceReais']) || finalPrice,
       });
     }
-    return { amountReais: amount, lineItems };
+    return {
+      amountReais: amount,
+      lineItems,
+      couponApplied: result.data.couponApplied === true,
+      couponId: typeof result.data.couponId === 'string' ? result.data.couponId : null,
+      couponDiscountReais: Number(result.data.couponDiscountReais) || 0,
+    };
   } catch (err) {
     if (err instanceof ArenaBookingError) throw err;
     throw mapCallableError(err);
@@ -198,7 +222,13 @@ export async function quoteArenaBooking(functions: Functions, args: ArenaBooking
 export async function createArenaBooking(
   functions: Functions,
   args: ArenaBookingArgs,
-  options: { clientAmountReais: number; paymentMode: ArenaBookingPaymentMode; paymentFraction?: number },
+  options: {
+    clientAmountReais: number;
+    paymentMode: ArenaBookingPaymentMode;
+    paymentFraction?: number;
+    /** Código já validado numa cotação anterior — só é reenviado se ainda estiver aplicado. */
+    couponCode?: string;
+  },
 ): Promise<CreateArenaBookingResult> {
   if (options.paymentMode === 'pix' && options.paymentFraction !== 0.5 && options.paymentFraction !== 1) {
     throw new ArenaBookingError('Escolha pagar 50% ou 100% via PIX.');
@@ -208,7 +238,7 @@ export async function createArenaBooking(
       functions,
       'createArenaBooking',
     )({
-      ...callablePayload(args),
+      ...callablePayload(args, options.couponCode),
       clientAmountReais: options.clientAmountReais,
       paymentMode: options.paymentMode,
       ...(options.paymentMode === 'pix' ? { paymentFraction: options.paymentFraction } : {}),
@@ -330,7 +360,7 @@ function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBookingDoc | null {
+export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBookingDoc | null {
   const data = snap.data();
   if (!data) return null;
   return {
@@ -358,6 +388,8 @@ function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBooking
     guestAthleteName: optionalStr(data['guestAthleteName']),
     recurringBookingId: optionalStr(data['recurringBookingId']),
     createdAt: toDateOrNull(data['createdAt']),
+    couponCode: optionalStr(data['couponCode']),
+    couponDiscountReais: Number(data['couponDiscountReais']) || 0,
   };
 }
 

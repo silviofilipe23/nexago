@@ -320,3 +320,20 @@ String _mapBookingStatus(String raw) {
       return raw;
   }
 }
+
+/// Cupom de desconto aplicado na reserva (`couponCode`/`couponDiscountReais`
+/// gravados por `createArenaBooking`) — `null` quando não há cupom.
+class ArenaBookingCouponInfo {
+  const ArenaBookingCouponInfo({required this.code, required this.discountReais});
+
+  final String code;
+  final double discountReais;
+}
+
+ArenaBookingCouponInfo? arenaBookingCouponInfo(Map<String, dynamic>? data) {
+  if (data == null) return null;
+  final code = (data['couponCode'] as String?)?.trim();
+  if (code == null || code.isEmpty) return null;
+  final discount = (data['couponDiscountReais'] as num?)?.toDouble() ?? 0;
+  return ArenaBookingCouponInfo(code: code, discountReais: discount);
+}

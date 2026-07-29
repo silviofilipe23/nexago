@@ -1,4 +1,5 @@
 import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
+import type {Firestore} from "firebase-admin/firestore";
 import type {UserRecord} from "firebase-admin/auth";
 import {
   onDocumentUpdated,
@@ -8,11 +9,17 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {callerIsSuperAdmin} from "./auth-roles";
-import {levelRank} from "./category-level-eligibility";
+import {
+  ATHLETE_SPORT_CODES,
+  DEFAULT_LEVEL_CODE,
+  levelCodeForRank,
+  levelRank,
+} from "./category-level-eligibility";
 import {inflateRd} from "./glicko";
 import {artifactsMatchesPath, getFirebaseProjectId} from "./firebase-paths";
 import {MatchStatus} from "./match-status";
 import {
+  RATED_SPORT_CODES,
   loadRatingLadderConfig,
   resolveLadderLevel,
 } from "./rating-config";
@@ -33,8 +40,7 @@ import {
 } from "./rating-engine";
 import {tryAwardGlobalRankingForMatch} from "./tournament-ranking";
 
-/** Esportes com escada de rating no v1 (BT adiado — sem torneios de BT ainda). */
-export const RATED_SPORT_CODES = ["VOLEI_PRAIA", "VOLEI_QUADRA"] as const;
+export {RATED_SPORT_CODES} from "./rating-config";
 
 const WEEK_MS = 7 * 86_400_000;
 
@@ -381,27 +387,156 @@ export const backfillRatingsAndResults = onCall(
   },
 );
 
-const LEGACY_LEVEL_MIGRATION: Record<string, string> = {
-  iniciante: "iniciante_1",
-  basico: "iniciante_1",
-  básico: "iniciante_1",
-  intermediario: "intermediario_1",
-  livre: "open",
-};
+/** Esportes inscritos no perfil (primário + secundários válidos). */
+function enrolledSportsOf(
+  data: Record<string, unknown>,
+): {primary: string | null; secondaries: string[]} {
+  const onboarding = data["sportOnboarding"];
+  if (onboarding == null || typeof onboarding !== "object") {
+    return {primary: null, secondaries: []};
+  }
+  const record = onboarding as Record<string, unknown>;
+  const validCodes = ATHLETE_SPORT_CODES as readonly string[];
+  const primaryRaw = String(record["primarySportId"] ?? "").trim();
+  const primary = validCodes.includes(primaryRaw) ? primaryRaw : null;
+  const secondariesRaw = record["secondarySportIds"];
+  const secondaries = (Array.isArray(secondariesRaw) ? secondariesRaw : [])
+    .map((id) => String(id ?? "").trim())
+    .filter((id) => validCodes.includes(id) && id !== primary);
+  return {primary, secondaries};
+}
 
 /**
- * Migra `sportOnboarding.levelsBySport` do vôlei para a escada de 5 níveis
- * (degrau INFERIOR do split: ninguém fica trancado fora de categorias; a
- * promoção sobe os fortes em ~10 partidas). Nível global `level` e demais
- * esportes ficam intocados. Rodar antes do shadow; repetir com `startAfterId`
- * até `done`.
+ * Uma página do backfill de níveis. Por usuário:
+ *
+ * 1. NORMALIZA todo valor já presente em `sportOnboarding.levelsBySport`
+ *    (qualquer esporte, qualquer formato legado — código 3 níveis, label,
+ *    caixa alta) para o código canônico do MESMO rank via
+ *    [levelRank]+[levelCodeForRank] — rank-neutro, nunca dispara
+ *    self-upgrade. Valores desconhecidos ficam intocados.
+ * 2. SEMEIA entradas ausentes dos esportes inscritos: primário ← `level`
+ *    global (senão `sportProfile.level`, senão iniciante_1); secundários ←
+ *    iniciante_1 (não propagar o global — inflaria rank de esporte nunca
+ *    declarado). Seed de esporte rateado com rank > 0 dispara o trigger de
+ *    self-upgrade (re-seed do rating) — aceito: é o mesmo que a 1ª partida
+ *    rateada faria, e nunca rebaixa ninguém.
+ *
+ * Campos legados (`level`, `sportProfile.level`, `nivel`) ficam intocados no
+ * doc (fallback de leitura de clientes antigos). Idempotente: re-run não
+ * escreve nada. Audita cada chave alterada em `levelHistory`
+ * (`reason: "migration"`).
+ */
+export async function runAthleteLevelsMigrationPage(
+  db: Firestore,
+  params: {
+    pageSize: number;
+    startAfterId?: string;
+    dryRun: boolean;
+    callerUid: string;
+  },
+): Promise<{
+  processed: number;
+  migrated: number;
+  normalized: number;
+  seeded: number;
+  lastId: string | null;
+  done: boolean;
+  dryRun: boolean;
+}> {
+  const {pageSize, startAfterId, dryRun, callerUid} = params;
+
+  let query = db.collection("users").orderBy("__name__").limit(pageSize);
+  if (startAfterId) query = query.startAfter(startAfterId);
+  const snap = await query.get();
+
+  let migrated = 0;
+  let normalized = 0;
+  let seeded = 0;
+  let lastId: string | undefined;
+  for (const doc of snap.docs) {
+    lastId = doc.id;
+    const data = doc.data() as Record<string, unknown>;
+    const bySport = levelsBySportOf(data);
+    const updates: Record<string, string> = {};
+
+    for (const [sportCode, rawValue] of Object.entries(bySport)) {
+      const raw = String(rawValue ?? "").trim();
+      if (!raw) continue;
+      const rank = levelRank(raw);
+      if (rank == null) continue;
+      const canonical = levelCodeForRank(rank);
+      if (canonical !== raw) {
+        updates[sportCode] = canonical;
+        normalized++;
+      }
+    }
+
+    const {primary, secondaries} = enrolledSportsOf(data);
+    const hasLevel = (sportCode: string) =>
+      String(bySport[sportCode] ?? "").trim().length > 0 ||
+      sportCode in updates;
+    if (primary && !hasLevel(primary)) {
+      const globalRank =
+        levelRank(data["level"]) ??
+        levelRank(
+          (data["sportProfile"] as Record<string, unknown> | undefined)?.[
+            "level"
+          ],
+        );
+      updates[primary] =
+        globalRank != null ? levelCodeForRank(globalRank) : DEFAULT_LEVEL_CODE;
+      seeded++;
+    }
+    for (const sportCode of secondaries) {
+      if (hasLevel(sportCode)) continue;
+      updates[sportCode] = DEFAULT_LEVEL_CODE;
+      seeded++;
+    }
+
+    if (Object.keys(updates).length === 0) continue;
+
+    migrated++;
+    if (dryRun) continue;
+
+    await doc.ref.set(
+      {sportOnboarding: {levelsBySport: updates}},
+      {merge: true},
+    );
+    for (const [sportCode, toLevel] of Object.entries(updates)) {
+      const fromRaw = String(bySport[sportCode] ?? "").trim();
+      await db.collection(`users/${doc.id}/levelHistory`).add({
+        sportCode,
+        fromLevel: fromRaw || null,
+        toLevel,
+        reason: "migration",
+        actor: callerUid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  return {
+    processed: snap.docs.length,
+    migrated,
+    normalized,
+    seeded,
+    lastId: lastId ?? null,
+    done: snap.docs.length < pageSize,
+    dryRun,
+  };
+}
+
+/**
+ * Unificação do nível declarado: normaliza `sportOnboarding.levelsBySport`
+ * para os 5 códigos canônicos em TODOS os esportes e semeia os esportes
+ * inscritos que ainda não têm entrada (ver [runAthleteLevelsMigrationPage]).
+ * Repetir com `startAfterId` do retorno até `done`; `dryRun` só conta.
  */
 export const migrateAthleteLevels = onCall(
   {timeoutSeconds: 540},
   async (request) => {
     const callerUid = await superAdminOrThrow(request.auth?.uid);
 
-    const db = getFirestore();
     const pageSize =
       typeof request.data?.pageSize === "number" && request.data.pageSize > 0
         ? Math.min(request.data.pageSize, 500)
@@ -412,54 +547,18 @@ export const migrateAthleteLevels = onCall(
         : undefined;
     const dryRun = request.data?.dryRun === true;
 
-    let query = db.collection("users").orderBy("__name__").limit(pageSize);
-    if (startAfterId) query = query.startAfter(startAfterId);
-    const snap = await query.get();
-
-    let migrated = 0;
-    let lastId: string | undefined;
-    for (const doc of snap.docs) {
-      lastId = doc.id;
-      const bySport = levelsBySportOf(doc.data() as Record<string, unknown>);
-      const updates: Record<string, string> = {};
-      for (const sportCode of RATED_SPORT_CODES) {
-        const raw = String(bySport[sportCode] ?? "").trim().toLowerCase();
-        const mapped = LEGACY_LEVEL_MIGRATION[raw];
-        if (mapped && mapped !== raw) updates[sportCode] = mapped;
-      }
-      if (Object.keys(updates).length === 0) continue;
-
-      migrated++;
-      if (dryRun) continue;
-
-      await doc.ref.set(
-        {sportOnboarding: {levelsBySport: updates}},
-        {merge: true},
-      );
-      for (const [sportCode, toLevel] of Object.entries(updates)) {
-        await db.collection(`users/${doc.id}/levelHistory`).add({
-          sportCode,
-          fromLevel: String(bySport[sportCode] ?? ""),
-          toLevel,
-          reason: "migration",
-          actor: callerUid,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-      }
-    }
-
-    const done = snap.docs.length < pageSize;
-    logger.info(
-      `migrateAthleteLevels: ${snap.docs.length} usuário(s), ${migrated} migrado(s), dryRun=${dryRun}, done=${done}`,
-    );
-    return {
-      success: true,
-      processed: snap.docs.length,
-      migrated,
-      lastId: lastId ?? null,
-      done,
+    const result = await runAthleteLevelsMigrationPage(getFirestore(), {
+      pageSize,
+      startAfterId,
       dryRun,
-    };
+      callerUid,
+    });
+    logger.info(
+      `migrateAthleteLevels: ${result.processed} usuário(s), ` +
+        `${result.migrated} migrado(s) (${result.normalized} normalizado(s), ` +
+        `${result.seeded} semeado(s)), dryRun=${dryRun}, done=${result.done}`,
+    );
+    return {success: true, ...result};
   },
 );
 

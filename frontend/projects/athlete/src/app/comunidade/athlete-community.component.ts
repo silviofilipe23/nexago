@@ -171,6 +171,10 @@ interface RankingRow {
       gap: 16px;
       padding: 20px 28px;
       border-bottom: 1px solid var(--nx-line);
+
+      @media (max-width: 640px) {
+        padding: 16px;
+      }
     }
     .cm-page-header h1 {
       margin: 0;
@@ -194,6 +198,10 @@ interface RankingRow {
     }
     .cm-body {
       padding: 22px 28px 32px;
+
+      @media (max-width: 640px) {
+        padding: 16px 16px 32px;
+      }
     }
     .cm-grid {
       display: grid;
@@ -255,6 +263,8 @@ interface RankingRow {
     }
     .cm-item-title {
       flex: 1;
+      min-width: 0;
+      overflow-wrap: break-word;
       font-family: var(--nx-font-display);
       font-weight: 700;
       font-size: 14px;

@@ -178,6 +178,7 @@ export class PanelShellComponent {
       { label: 'Início', icon: 'home', link: '/painel/inicio' },
       { label: 'Meus eventos', icon: 'trophy', link: '/painel/eventos', matchPrefixes: ['/painel/eventos', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'] },
       { label: 'Financeiro', icon: 'cash', link: '/painel/financeiro' },
+      { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });
 

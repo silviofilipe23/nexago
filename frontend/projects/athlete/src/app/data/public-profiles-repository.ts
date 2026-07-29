@@ -1,4 +1,5 @@
 import { defaultSportChipFromProfile, type ArenaSportChip } from '@nexago/arena-discovery';
+import { levelLabelForRank, levelRankOf as sharedLevelRankOf } from '@nexago/levels';
 import {
   collection,
   doc,
@@ -31,6 +32,8 @@ export interface AthletePublicProfile {
   sportChip: ArenaSportChip;
   /** Código do nível pro esporte principal (ex.: `intermediario_1`), já com fallback pro nível legado. */
   levelCode: string | null;
+  /** `users/{uid}.gender` cru ("Masculino"/"Feminino"/...) — normalizar com `normalizeAthleteGender`. */
+  gender: string | null;
   hasAthleteRole: boolean;
   lookingForPartner: boolean;
   lastActiveAt: Date | null;
@@ -49,6 +52,22 @@ function toDate(v: unknown): Date | null {
 function stripHandle(nickname: string | null): string | null {
   if (!nickname) return null;
   return nickname.startsWith('@') ? nickname.slice(1).trim() || null : nickname;
+}
+
+/** Rank unificado do nível — delega pro vocabulário canônico compartilhado
+ *  (`@nexago/levels`, espelho de `functions/src/category-level-eligibility.ts`). */
+export function levelRankOf(raw: string | null): number | null {
+  return sharedLevelRankOf(raw);
+}
+
+/** Label do nível a partir do rank unificado. Mapeamento EXATO por degrau —
+ *  os ranks são 0,1,2,3,5 (rank 4 sem uso), então thresholds `<=` deslocavam
+ *  3 dos 5 níveis (ex.: `intermediario_1` aparecia como "Iniciante 2").
+ *  "Avançado"/"Profissional" não existem como tiers reais no backend. */
+export function levelBucketOf(raw: string | null): RankingLevel | null {
+  const rank = levelRankOf(raw);
+  if (rank == null) return null;
+  return levelLabelForRank(rank) as RankingLevel;
 }
 
 function readPublicProfileEnabled(data: Record<string, unknown>): boolean {
@@ -85,6 +104,7 @@ export function athletePublicProfileFromDoc(id: string, data: Record<string, unk
     primarySportId,
     sportChip: defaultSportChipFromProfile({ primarySport: primarySportId, sport: optionalTrimmed(data['sport']) }),
     levelCode: levelForPrimarySport ?? optionalTrimmed(data['level']) ?? optionalTrimmed(data['nivel']),
+    gender: optionalTrimmed(data['gender']),
     hasAthleteRole: data['hasAthleteRole'] === true || roles.includes('athlete') || data['role'] === 'athlete',
     lookingForPartner: data['lookingForPartner'] === true,
     lastActiveAt: toDate(data['lastActiveAt']),

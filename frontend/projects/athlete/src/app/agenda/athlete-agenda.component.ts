@@ -9,6 +9,7 @@ import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { athleteFunctions } from '../data/functions';
 import { bookingIsActive, bookingNeedsPayment, fetchMyBookings, type MyBooking } from '../data/my-bookings-repository';
+import { fetchMyClubParticipations, type MyClubParticipation } from '../data/arena-clubs-repository';
 import {
   acceptPartnerInvite,
   declinePartnerInvite,
@@ -30,7 +31,7 @@ import {
   type UniformSelection,
 } from '../tournaments/tournament-uniform';
 
-export type AgendaEventKind = 'tournament' | 'rental';
+export type AgendaEventKind = 'tournament' | 'rental' | 'club';
 export type AgendaStatusTone = 'live' | 'confirmed' | 'warning' | 'neutral';
 
 export interface AgendaEvent {
@@ -82,6 +83,7 @@ export interface AgendaPendingRequest {
   title: string;
   subtitle: string;
   scheduleLine: string;
+  tournamentId: string;
   /** Categoria do convite (com flags de uniforme) — null quando o torneio não carregou. */
   category: TournamentCategoryOffer | null;
 }
@@ -94,6 +96,7 @@ export interface AgendaMonthStat {
 const KIND_LABEL: Record<AgendaEventKind, string> = {
   tournament: 'TORNEIO',
   rental: 'ALUGUEL',
+  club: 'CLUBINHO',
 };
 
 function createFirestore(): Firestore | null {
@@ -292,6 +295,37 @@ export function registrationToEvent(reg: AthleteTournamentRegistration, tourname
   };
 }
 
+/** Sessão de clubinho onde estou na lista (confirmado ou com PIX pendente) → evento. */
+export function clubParticipationToEvent(p: MyClubParticipation, now: Date = new Date()): AgendaEvent | null {
+  if (!p.startAt || !p.sessionId) return null;
+  if (p.status !== 'confirmed' && p.status !== 'pending_payment') return null;
+  const [sh, sm] = p.startTime.split(':').map(Number);
+  const [eh, em] = p.endTime.split(':').map(Number);
+  const startMin = (sh || 0) * 60 + (sm || 0);
+  let endMin = (eh || 0) * 60 + (em || 0);
+  if (endMin <= startMin) endMin = startMin + 120;
+  const isPast = p.startAt.getTime() + (endMin - startMin) * 60_000 <= now.getTime();
+  const pending = p.status === 'pending_payment';
+
+  return {
+    id: `club_${p.sessionId}`,
+    startsAt: p.startAt,
+    durationMin: endMin - startMin,
+    kind: 'club',
+    title: `${p.clubName} · ${p.arenaName}`,
+    subtitle: 'Jogo aberto (clubinho)',
+    location: p.arenaName,
+    statusLabel: isPast ? 'Finalizado' : pending ? 'Pagamento pendente' : 'Na lista',
+    statusTone: isPast ? 'neutral' : pending ? 'warning' : 'confirmed',
+    ctaLabel: pending ? 'Pagar PIX' : 'Ver lista',
+    ctaPrimary: pending && !isPast,
+    link: pending
+      ? ['/reservar', p.arenaId, 'clubinho', p.sessionId, 'pagamento']
+      : ['/reservar', p.arenaId, 'clubinho', p.sessionId],
+    isPast,
+  };
+}
+
 /** Agenda real: mescla reservas (`arenaBookings`) e inscrições em torneio
  *  (`inscriptions` + `tournaments`) — espelha `AthleteAgendaLogic` (Flutter). Sem "desafio"/
  *  "aula"/"liga" como tipos à parte: liga é só um torneio (etapa) por baixo, e não achei
@@ -468,10 +502,12 @@ export class AthleteAgendaComponent {
 
     this.loading.set(true);
     try {
-      const [bookings, registrations, invites] = await Promise.all([
+      const clubsFrom = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+      const [bookings, registrations, invites, clubParticipations] = await Promise.all([
         fetchMyBookings(db, uid),
         fetchMyRegistrations(db, projectId, uid),
         fetchMyPendingPartnerInvites(db, uid),
+        fetchMyClubParticipations(db, uid, clubsFrom).catch(() => [] as MyClubParticipation[]),
       ]);
 
       const tournamentIds = [...new Set([...registrations.map((r) => r.tournamentId), ...invites.map((i) => i.tournamentId)])];
@@ -481,10 +517,13 @@ export class AthleteAgendaComponent {
       const registrationEvents = registrations
         .map((r) => registrationToEvent(r, tournaments.get(r.tournamentId)))
         .filter((e): e is AgendaEvent => e != null);
+      const clubEvents = clubParticipations
+        .map((p) => clubParticipationToEvent(p))
+        .filter((e): e is AgendaEvent => e != null);
       // Mantém eventos passados na lista (ao contrário do default `timeTab: upcoming` do
       // Flutter): o dia selecionado — inclusive hoje — precisa mostrar os jogos que já
       // aconteceram, não só os que ainda vêm. `isPast` continua disponível pra estilização.
-      this.events.set([...bookingEvents, ...registrationEvents]);
+      this.events.set([...bookingEvents, ...registrationEvents, ...clubEvents]);
 
       this.pendingRequests.set(
         invites.map((invite) => {
@@ -503,6 +542,7 @@ export class AthleteAgendaComponent {
             scheduleLine: tournament?.startAt
               ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(tournament.startAt)
               : 'Data a confirmar',
+            tournamentId: invite.tournamentId,
             category,
           };
         }),
@@ -587,7 +627,7 @@ export class AthleteAgendaComponent {
       this.inviteUniform.set(defaultUniformSelectionForCategory(category));
       return;
     }
-    void this.submitAccept(request.id, undefined);
+    void this.submitAccept(request, undefined);
   }
 
   protected async confirmAccept(request: AgendaPendingRequest): Promise<void> {
@@ -599,7 +639,7 @@ export class AthleteAgendaComponent {
       this.showNotice(error);
       return;
     }
-    await this.submitAccept(request.id, toUniformInput(selection));
+    await this.submitAccept(request, toUniformInput(selection));
   }
 
   protected cancelAcceptExpansion(): void {
@@ -612,7 +652,8 @@ export class AthleteAgendaComponent {
     this.inviteUniform.set(next);
   }
 
-  private async submitAccept(id: string, inviteeUniform: UniformInput | undefined): Promise<void> {
+  private async submitAccept(request: AgendaPendingRequest, inviteeUniform: UniformInput | undefined): Promise<void> {
+    const id = request.id;
     this.acceptingId.set(id);
     try {
       await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform);
@@ -620,8 +661,13 @@ export class AthleteAgendaComponent {
       this.expandedInviteId.set(null);
       this.inviteUniform.set(null);
       this.showNotice('Convite aceito! Vocês já formam dupla nessa categoria.');
-      const uid = this.auth.user()?.uid ?? null;
-      void this.loadAgenda(uid);
+      // Depois de aceitar, o próximo passo real é completar a inscrição (uniforme/pagamento)
+      // — leva direto pra lá em vez de deixar o atleta na Agenda.
+      const categoryId = request.category?.id;
+      void this.router.navigate(
+        ['/torneios', request.tournamentId, 'inscricao'],
+        categoryId ? { queryParams: { categoria: categoryId } } : {},
+      );
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível aceitar o convite.');
     } finally {

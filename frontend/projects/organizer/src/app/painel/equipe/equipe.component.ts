@@ -186,7 +186,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           <og-card title="Como funciona" kicker="Adicionar membro" pad="lg">
             <p class="og-equipe-hint">
               Busque um atleta cadastrado no nexaGO pelo nome ou apelido e escolha o papel. O acesso é imediato — sem convite — e pode ser
-              alterado ou revogado quando quiser.
+              alterado ou revogado quando quiser. Quem entra como gestor também passa a conseguir entrar neste portal com a própria conta.
             </p>
           </og-card>
         </div>

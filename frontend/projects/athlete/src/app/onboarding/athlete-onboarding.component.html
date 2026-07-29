@@ -141,23 +141,27 @@
             accept="image/jpeg,image/png,image/webp"
             (change)="onPhotoSelected($event)"
           />
-          @if (photoPreviewUrl(); as preview) {
-            <img class="ob-photo-preview" [src]="preview" alt="Prévia da foto de perfil" width="52" height="52" />
-          } @else {
-            <span class="ob-photo-placeholder" aria-hidden="true">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+          <div class="ob-photo-main">
+            @if (photoPreviewUrl(); as preview) {
+              <img class="ob-photo-preview" [src]="preview" alt="Prévia da foto de perfil" width="52" height="52" />
+            } @else {
+              <span class="ob-photo-placeholder" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+              </span>
+            }
+            <span class="ob-photo-copy">
+              <span class="ob-photo-title">Foto de perfil <span class="ob-dim">(opcional)</span></span>
+              <span class="ob-photo-hint">JPG, PNG ou WebP · até 2 MB</span>
             </span>
-          }
-          <span class="ob-photo-copy">
-            <span class="ob-photo-title">Foto de perfil <span class="ob-dim">(opcional)</span></span>
-            <span class="ob-photo-hint">JPG, PNG ou WebP · até 2 MB</span>
-          </span>
-          @if (photoPreviewUrl()) {
-            <button type="button" class="ob-mini-btn" (click)="clearPhoto()">Remover</button>
-            <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Trocar</button>
-          } @else {
-            <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Escolher</button>
-          }
+          </div>
+          <div class="ob-photo-actions">
+            @if (photoPreviewUrl()) {
+              <button type="button" class="ob-mini-btn" (click)="clearPhoto()">Remover</button>
+              <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Trocar</button>
+            } @else {
+              <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Escolher</button>
+            }
+          </div>
         </div>
 
         <div class="nx-stack">
@@ -178,20 +182,47 @@
             </span>
           </label>
 
-          <label class="nx-field">
+          <div class="nx-field">
             <span class="nx-field-label">WhatsApp *</span>
-            <span class="nx-field-box" [class.nx-field-box--error]="phoneError()">
-              <input type="tel" [value]="phone()" (input)="phone.set($any($event.target).value)" placeholder="(00) 00000-0000" />
-            </span>
+            @if (phoneVerified()) {
+              <div class="nx-alert nx-alert--success" role="status">✓ Telefone verificado</div>
+            } @else {
+              <app-phone-verification (verified)="onPhoneVerified($event)" />
+            }
             @if (phoneError(); as e) {
               <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
             }
-          </label>
+          </div>
 
           <label class="nx-field">
             <span class="nx-field-label">Data de nascimento *</span>
             <span class="nx-field-box" [class.nx-field-box--error]="birthDateError()">
-              <input type="text" [value]="birthDateInput()" (input)="birthDateInput.set($any($event.target).value)" placeholder="dd/mm/aaaa" />
+              <input
+                type="text"
+                inputmode="numeric"
+                [value]="birthDateInput()"
+                (input)="onBirthDateInputChanged($any($event.target).value)"
+                placeholder="dd/mm/aaaa"
+                maxlength="10"
+              />
+              <button type="button" (click)="openBirthDatePicker()" aria-label="Escolher data no calendário">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </button>
+              <input
+                #birthDateNative
+                type="date"
+                class="ob-native-date-input"
+                tabindex="-1"
+                aria-hidden="true"
+                [attr.min]="birthDateNativeMin"
+                [attr.max]="birthDateNativeMax"
+                (change)="onBirthDateNativeChange($event)"
+              />
             </span>
             @if (birthDateError(); as e) {
               <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
@@ -231,9 +262,21 @@
           <header class="nx-form-header nx-center">
             <div class="nx-kicker">Tudo pronto</div>
             <h1>Seu perfil está pronto.</h1>
-            <p>Esporte, nível e objetivos configurados. Bora encontrar sua próxima partida.</p>
+            @if (pendingPartnerInvite(); as invite) {
+              <p>
+                @if (invite.inviterName; as from) {
+                  Avise <strong>{{ from }}</strong> que você chegou — o convite de dupla é enviado dentro do nexaGO.
+                } @else {
+                  Avise seu parceiro que você chegou — o convite de dupla é enviado dentro do nexaGO.
+                }
+              </p>
+            } @else {
+              <p>Esporte, nível e objetivos configurados. Bora encontrar sua próxima partida.</p>
+            }
           </header>
-          <button type="button" class="nx-btn-primary" (click)="finish()">Entrar no nexaGO</button>
+          <button type="button" class="nx-btn-primary" (click)="finish()">
+            {{ pendingPartnerInvite() ? 'Ver o torneio do convite' : 'Entrar no nexaGO' }}
+          </button>
         </div>
       }
     }

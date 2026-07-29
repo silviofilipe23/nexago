@@ -6,9 +6,9 @@ abstract final class AthleteSportsLevelsLabels {
 
   static const List<String> levelLabels = AthleteProfileOptions.levels;
 
-  /// Labels de nível conforme o esporte (vôlei: escada de 5; demais: 3).
+  /// Labels de nível (escada única de 5 para todos os esportes).
   static List<String> levelLabelsFor(String firestoreSportId) {
-    return AthleteProfileOptions.levelsForSportCode(firestoreSportId);
+    return AthleteProfileOptions.levels;
   }
 
   static const Map<String, String> _abbreviations = {

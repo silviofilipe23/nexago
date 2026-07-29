@@ -56,6 +56,23 @@ export async function getPublicArenas(max = 12): Promise<ArenaSummary[]> {
   }
 }
 
+/**
+ * Só o logo da arena, sem as quadras — usado pela página de links, que precisa
+ * apenas do avatar e não justifica a leitura extra da subcoleção `courts`.
+ */
+export async function getArenaLogoUrl(id: string): Promise<string | null> {
+  if (!id) return null;
+  try {
+    const snap = await getDoc(doc(db, 'arenas', id));
+    if (!snap.exists()) return null;
+    const d = snap.data();
+    return firstString(d.logoUrl, d.logo, d.coverUrl);
+  } catch (err) {
+    console.error('[arenas] getArenaLogoUrl failed:', err);
+    return null;
+  }
+}
+
 /** Perfil público de uma arena (arenas/{id} + courts). Retorna null se não existir. */
 export async function getArenaById(id: string): Promise<ArenaDetail | null> {
   try {

@@ -51,6 +51,10 @@
     opacity: 0.5;
     cursor: default;
   }
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .uf-chip--active {
@@ -78,6 +82,11 @@
 
   &:disabled {
     opacity: 0.5;
+  }
+
+  // font-size < 16px faz o iOS dar zoom automático ao focar o campo.
+  @media (max-width: 640px) {
+    font-size: 16px;
   }
 }
 

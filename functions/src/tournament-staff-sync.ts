@@ -2,8 +2,14 @@ import {
   onDocumentDeleted,
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
+import {getAuth} from "firebase-admin/auth";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {
+  applyRolesToClaims,
+  firestoreRolesPayload,
+  rolesFromClaims,
+} from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 
 export const TOURNAMENT_STAFF_ROLES = ["manager", "scorer"] as const;
@@ -23,6 +29,38 @@ export function buildStaffAddedNotificationBody(
     tournamentName.trim() :
     "um torneio";
   return `Você agora é ${staffRoleLabel(role)} de ${name}`;
+}
+
+/** Gestor (manager) ganha acesso ao portal do organizador; mesário não.
+ *  Papel ausente/desconhecido cai em gestor, mesmo default de
+ *  `buildStaffMirrorData` e `staffRoleLabel`. */
+export function staffRoleGrantsOrganizerAccess(role: unknown): boolean {
+  return role !== "scorer";
+}
+
+/**
+ * Garante a role `organizer` (claim + espelho em `users/{uid}`) — é ela que
+ * libera o login no portal do organizador. Só acrescenta, nunca remove: sair
+ * da equipe não revoga o papel, pois o usuário pode ser organizer por conta
+ * própria (autocadastro ou torneios que organiza). Mesmo par
+ * claims+Firestore de `completeOrganizerSignup`/`addUserRole`.
+ */
+async function ensureOrganizerRole(uid: string): Promise<void> {
+  const auth = getAuth();
+  const user = await auth.getUser(uid);
+  const roles = rolesFromClaims(user.customClaims);
+  if (roles.includes("organizer")) return;
+
+  const next = [...roles, "organizer" as const];
+  await auth.setCustomUserClaims(
+    uid,
+    applyRolesToClaims((user.customClaims || {}) as Record<string, unknown>, next),
+  );
+  await getFirestore().doc(`users/${uid}`).set(
+    firestoreRolesPayload(next),
+    {merge: true},
+  );
+  logger.info("tournamentStaff: role organizer concedida a gestor", {uid});
 }
 
 /** Dados do espelho `users/{uid}/tournamentStaff/{tournamentId}`. */
@@ -78,6 +116,19 @@ export const onTournamentStaffWrittenSyncMirror = onDocumentWritten(
       },
       {merge: true},
     );
+
+    // Fora do fluxo do espelho: uma falha aqui não pode engolir a notificação.
+    if (staffRoleGrantsOrganizerAccess(staffData.role)) {
+      try {
+        await ensureOrganizerRole(staffUserId);
+      } catch (error) {
+        logger.error("tournamentStaff: falha ao conceder role organizer", {
+          staffUserId,
+          tournamentId,
+          error,
+        });
+      }
+    }
 
     const isCreate = !event.data?.before?.exists;
     if (!isCreate) return;

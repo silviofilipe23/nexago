@@ -9,6 +9,7 @@ void main() {
       ArenaCapability.pdvComandas: 'PDV e comandas',
       ArenaCapability.estoque: 'Controle de estoque',
       ArenaCapability.promocoes: 'Promoções de horário',
+      ArenaCapability.clubinho: 'Clubinho',
       ArenaCapability.metricasCompletas: 'Métricas completas',
       ArenaCapability.receberTorneios: 'Receber torneios',
       ArenaCapability.multiUnidade: 'Múltiplas unidades',

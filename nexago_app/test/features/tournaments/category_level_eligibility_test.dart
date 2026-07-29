@@ -120,7 +120,7 @@ void main() {
       );
     });
 
-    test('footvolley (sem equivalente) usa nível global', () {
+    test('esporte com código mas sem nível salvo cai no global', () {
       final a = _athlete(
         'open',
         levelsBySportFirestore: {'VOLEI_PRAIA': 'iniciante'},
@@ -136,7 +136,7 @@ void main() {
   });
 
   group('tournamentSportToLevelSportCode', () {
-    test('mapeia esportes de vôlei', () {
+    test('mapeia esportes de torneio para o código do perfil', () {
       expect(
         CategoryLevelEligibility.tournamentSportToLevelSportCode(
           'beachVolleyball',
@@ -151,6 +151,14 @@ void main() {
       );
       expect(
         CategoryLevelEligibility.tournamentSportToLevelSportCode('footvolley'),
+        'FUTEVOLEI',
+      );
+      expect(
+        CategoryLevelEligibility.tournamentSportToLevelSportCode('beachTennis'),
+        'BEACH_TENNIS',
+      );
+      expect(
+        CategoryLevelEligibility.tournamentSportToLevelSportCode('xadrez'),
         isNull,
       );
     });

@@ -22,17 +22,26 @@ export const BOOKING_FEE_PERCENT = 5;
 /** Taxa sobre inscrições de torneio (%). */
 export const TOURNAMENT_FEE_PERCENT = 8;
 
+/** Taxa sobre vagas de clubinho (%) — sem piso: tickets baixos (ex.: R$15). */
+export const CLUB_FEE_PERCENT = 5;
+
 /** Piso mínimo da taxa por transação (R$). */
 export const FEE_FLOOR_REAIS = 1.5;
 
 /**
  * Taxa em reais para um valor pago: `max(piso, valor × %)`, nunca excedendo o
  * próprio valor (deixa ao menos R$0,01 para o recebedor) nem ficando negativa.
+ * `floorReais` permite reduzir/zerar o piso (clubinho usa 0).
  */
-export function computePlatformFeeReais(amountReais: number, percent: number): number {
+export function computePlatformFeeReais(
+  amountReais: number,
+  percent: number,
+  options?: {floorReais?: number},
+): number {
   if (!(amountReais > 0) || !(percent > 0)) return 0;
+  const floorReais = options?.floorReais ?? FEE_FLOOR_REAIS;
   const pctFee = roundMoney((amountReais * percent) / 100);
-  const withFloor = Math.max(FEE_FLOOR_REAIS, pctFee);
+  const withFloor = Math.max(floorReais, pctFee);
   const capped = Math.min(roundMoney(amountReais - 0.01), roundMoney(withFloor));
   return Math.max(0, capped);
 }

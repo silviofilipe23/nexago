@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import QRCode from 'qrcode';
 import { interval } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
@@ -11,6 +10,7 @@ import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { cpfCnpjValidationMessage, formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '../../data/cpf-cnpj';
 import { athleteFunctions } from '../../data/functions';
 import { buildPixBrCode, isLikelyValidPixKey } from '../../data/pix-brcode';
+import { pixQrSvgDataUrl, resolvePixQrSrc } from '../../data/pix-qr';
 import {
   cancelPendingRegistrationPix,
   confirmFreeRegistration,
@@ -25,28 +25,6 @@ import {
 import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
-
-async function qrDataUrlFromPayload(payload: string): Promise<string | null> {
-  const trimmed = payload.trim();
-  if (trimmed.length < 20) return null;
-  try {
-    return await QRCode.toDataURL(trimmed, {
-      errorCorrectionLevel: 'M',
-      margin: 2,
-      width: 440,
-      color: { dark: '#000000', light: '#ffffff' },
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Preferência Asaas (`qrCodeBase64`); se vier vazio, gera o QR no cliente a partir do payload EMV — mesmo fallback do app. */
-async function resolvePixQrSrc(result: PixPaymentResult): Promise<string | null> {
-  const base64 = result.qrCodeBase64?.trim();
-  if (base64) return `data:image/png;base64,${base64}`;
-  return qrDataUrlFromPayload(result.qrCode ?? '');
-}
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -142,7 +120,12 @@ export class TournamentPaymentComponent {
   protected readonly amountDueReais = computed(() => (this.amountType() === 'share' ? this.totalPriceReais() / 2 : this.totalPriceReais()));
   protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
 
-  /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida. */
+  /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida.
+   *
+   *  Merchant City (campo 60) precisa ser uma cidade de verdade — "BRASIL" é
+   *  rejeitado por alguns bancos. Sem cidade na config do Pix do organizador,
+   *  usamos a cidade do torneio; "BRASIL" fica só como último recurso.
+   *  O TXID identifica o torneio no extrato do organizador (era `***`). */
   protected readonly organizerBrCode = computed(() => {
     const t = this.listing();
     const pix = t?.organizerPix;
@@ -151,8 +134,9 @@ export class TournamentPaymentComponent {
       key: pix.key,
       keyType: pix.keyType,
       recipientName: pix.recipientName || 'RECEBEDOR',
-      city: pix.city || 'BRASIL',
+      city: pix.city || t.city || 'BRASIL',
       amount: this.amountDueReais(),
+      txid: `INSC${this.tournamentId()}`,
     });
   });
 
@@ -199,7 +183,7 @@ export class TournamentPaymentComponent {
       onCleanup(() => {
         cancelled = true;
       });
-      void qrDataUrlFromPayload(brCode).then((src) => {
+      void pixQrSvgDataUrl(brCode).then((src) => {
         if (!cancelled) this.organizerQrSrc.set(src);
       });
     });
@@ -378,7 +362,11 @@ export class TournamentPaymentComponent {
     this.processing.set(true);
     try {
       const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id);
-      this.showNotice(result.bothAthletesReserved ? 'Reserva confirmada dos dois lados!' : 'Sua reserva foi registrada — combine o pagamento com o organizador.');
+      this.showNotice(
+        result.bothAthletesReserved
+          ? 'Reserva confirmada dos dois lados! Confirme com o organizador do torneio que o pagamento foi recebido.'
+          : 'Sua reserva foi registrada — confirme com o organizador do torneio que o pagamento foi recebido.',
+      );
     } catch (err) {
       this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível reservar.');
     } finally {

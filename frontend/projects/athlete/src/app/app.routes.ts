@@ -107,6 +107,24 @@ export const routes: Routes = [
       import('./reservar/arena-booking.component').then((m) => m.ArenaBookingComponent),
   },
   {
+    path: 'clubinho',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./clubinho/clubinho-hub.component').then((m) => m.ClubinhoHubComponent),
+  },
+  {
+    path: 'reservar/:arenaId/clubinho/:sessionId/pagamento',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./clubinho/club-session-payment.component').then((m) => m.ClubSessionPaymentComponent),
+  },
+  {
+    path: 'reservar/:arenaId/clubinho/:sessionId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./clubinho/club-session-detail.component').then((m) => m.ClubSessionDetailComponent),
+  },
+  {
     path: 'reservar/:arenaId',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
@@ -214,6 +232,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./profile/athlete-profile-settings.component').then(
         (m) => m.AthleteProfileSettingsComponent,
+      ),
+  },
+  {
+    path: 'perfil/esportes',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./profile/athlete-sports-levels.component').then(
+        (m) => m.AthleteSportsLevelsComponent,
       ),
   },
   // Fallback: URL desconhecida cai no painel (deslogado, o authGuard manda pro login).

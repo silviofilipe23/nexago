@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:nexago_app/core/ui/app_snackbar.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../domain/gamification_providers.dart';
@@ -11,7 +15,9 @@ import '../../domain/sand_rank/sand_rank_catalog.dart';
 import '../../domain/sand_rank/sand_rank_models.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
 import '../../domain/sand_rank/sand_rank_reward_catalog.dart';
+import '../../domain/sand_rank/sand_rank_share_text.dart';
 import 'widgets/sand_rank_emblem.dart';
+import 'widgets/sand_rank_share_capture.dart';
 
 /// Trilha de elos — todos os 16 degraus com recompensas bloqueadas e
 /// desbloqueadas. É o motivador visual central do sistema de elos.
@@ -24,7 +30,46 @@ class SandRankTrackPage extends ConsumerStatefulWidget {
 
 class _SandRankTrackPageState extends ConsumerState<SandRankTrackPage> {
   final _currentStepKey = GlobalKey();
+  final _currentRankCaptureKey = GlobalKey();
   bool _scrolledToCurrent = false;
+  bool _sharingCurrentRank = false;
+
+  Future<void> _shareCurrentRank() async {
+    if (_sharingCurrentRank) return;
+    setState(() => _sharingCurrentRank = true);
+
+    final shareOrigin = nexaSharePositionOrigin(context);
+    final currentStep = ref.read(sandRankProgressProvider).current;
+
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+
+      final file = await captureSandRankSharePng(_currentRankCaptureKey);
+      if (!mounted) return;
+      if (file == null) {
+        showAppSnackBar(context, 'Não foi possível gerar a imagem.');
+        return;
+      }
+
+      final result = await shareSandRankPng(
+        file,
+        sandRankShareText(currentStep),
+        sharePositionOrigin: shareOrigin,
+      );
+      if (!mounted) return;
+      if (result.status == ShareResultStatus.unavailable) {
+        showAppSnackBar(context, 'Não foi possível compartilhar.');
+      }
+    } catch (error, stackTrace) {
+      debugPrint('sand rank track share failed: $error\n$stackTrace');
+      if (mounted) {
+        showAppSnackBar(context, 'Não foi possível compartilhar.');
+      }
+    } finally {
+      if (mounted) setState(() => _sharingCurrentRank = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +148,18 @@ class _SandRankTrackPageState extends ConsumerState<SandRankTrackPage> {
         children: [
           _TierProgressBar(current: progress.current),
           const SizedBox(height: 16),
-          _CurrentRankCard(progress: progress),
+          RepaintBoundary(
+            key: _currentRankCaptureKey,
+            child: ColoredBox(
+              color: context.themeColors.canvas,
+              child: _CurrentRankCard(progress: progress),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ShareCurrentRankButton(
+            sharing: _sharingCurrentRank,
+            onPressed: _shareCurrentRank,
+          ),
           if (conqueredSteps.isNotEmpty) ...[
             const SizedBox(height: 24),
             _SectionLabel(text: 'SUA TRILHA ATÉ AQUI'),
@@ -243,6 +299,52 @@ class _TierGroup extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ShareCurrentRankButton extends StatelessWidget {
+  const _ShareCurrentRankButton({
+    required this.sharing,
+    required this.onPressed,
+  });
+
+  final bool sharing;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: sharing ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.brand,
+          side: BorderSide(color: AppColors.brand.withValues(alpha: 0.5)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        icon: sharing
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: AppColors.brand,
+                ),
+              )
+            : const Icon(Icons.ios_share_rounded, size: 18),
+        label: Text(
+          'Compartilhar meu elo',
+          style: AppTypography.soraRegular(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: AppColors.brand,
+          ),
+        ),
+      ),
     );
   }
 }

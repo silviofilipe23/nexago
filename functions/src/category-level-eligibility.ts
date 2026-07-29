@@ -8,10 +8,10 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * Regra: um atleta pode disputar a sua própria categoria ou categorias ACIMA do
  * seu nível, nunca ABAIXO. Para duplas, vale o atleta de MAIOR nível.
  *
- * Ranks unificados (vôlei com 5 degraus; `open` fica no rank 5 de propósito —
- * os ranks 1 e 4 estão reservados para a escada D/C/B/A do beach tennis numa
- * entrega futura, sem renumerar nada; comparações são sempre dentro do mesmo
- * esporte, então os buracos não afetam nada):
+ * Ranks unificados (mesma escada de 5 degraus para TODOS os esportes; `open`
+ * fica no rank 5 por compatibilidade histórica — o rank 4 não é usado e a
+ * numeração não pode mudar, pois está gravada em `athleteRatings.levelRank` e
+ * nas rules deployadas):
  *
  *   iniciante_1 (0) < iniciante_2 (1) < intermediario_1 (2)
  *     < intermediario_2 (3) < open (5)
@@ -24,6 +24,35 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * ("Intermediário 1") e `sportOnboarding.levelsBySport` guarda o CÓDIGO —
  * [normalizeLevelKey] tira acento/espaço mas preserva underscore.
  */
+
+/** Códigos canônicos dos 5 níveis, em ordem crescente de força. */
+export const LEVEL_CODES = [
+  "iniciante_1",
+  "iniciante_2",
+  "intermediario_1",
+  "intermediario_2",
+  "open",
+] as const;
+
+/** Nível padrão de um esporte recém-adicionado ao perfil. */
+export const DEFAULT_LEVEL_CODE = "iniciante_1";
+
+/**
+ * Códigos de esporte do perfil do atleta (chaves de
+ * `sportOnboarding.levelsBySport`). Espelha `AthleteFirestoreCodes` no app e a
+ * enumeração de `athleteLevelsNotDowngraded()` nas rules.
+ */
+export const ATHLETE_SPORT_CODES = [
+  "VOLEI_PRAIA",
+  "VOLEI_QUADRA",
+  "BEACH_TENNIS",
+  "FUTEVOLEI",
+  "FUTEBOL",
+  "BASQUETE",
+  "TENIS",
+  "CORRIDA",
+  "OUTROS",
+] as const;
 
 export const LEVEL_RANK: Record<string, number> = {
   // Códigos novos (levelsBySport) e labels normalizados (categoria).
@@ -100,6 +129,26 @@ export function levelDisplayLabel(raw: unknown): string | null {
   }
 }
 
+/**
+ * Código canônico para um rank (0..3 → degrau, demais → open). Usado pela
+ * migração para normalizar qualquer formato legado (código ou label) via
+ * [levelRank] sem perder o degrau.
+ */
+export function levelCodeForRank(rank: number): string {
+  switch (rank) {
+    case 0:
+      return "iniciante_1";
+    case 1:
+      return "iniciante_2";
+    case 2:
+      return "intermediario_1";
+    case 3:
+      return "intermediario_2";
+    default:
+      return "open";
+  }
+}
+
 /** Label amigável (PT-BR) para um rank de nível (escada do vôlei). */
 export function levelLabelForRank(rank: number): string {
   switch (rank) {
@@ -118,7 +167,8 @@ export function levelLabelForRank(rank: number): string {
 
 /**
  * Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de esporte
- * do perfil do atleta (`levelsBySportFirestore`). `null` quando não há equivalente.
+ * do perfil do atleta (chave de `sportOnboarding.levelsBySport`). `null` quando
+ * não há equivalente (esporte desconhecido cai no nível global).
  */
 export function tournamentSportToLevelSportCode(sport: unknown): string | null {
   const key = normalizeLevelKey(sport);
@@ -127,16 +177,18 @@ export function tournamentSportToLevelSportCode(sport: unknown): string | null {
       return "VOLEI_PRAIA";
     case "indoorvolleyball":
       return "VOLEI_QUADRA";
+    case "footvolley":
+      return "FUTEVOLEI";
+    case "beachtennis":
+      return "BEACH_TENNIS";
     default:
-      // footvolley e desconhecidos não têm esporte equivalente no perfil.
       return null;
   }
 }
 
 /**
- * Mapa nível-por-esporte do doc `users/{uid}`: o app grava em
- * `sportOnboarding.levelsBySport`; `levelsBySportFirestore` é aceito como
- * legado (nome do campo no modelo Dart).
+ * Mapa nível-por-esporte do doc `users/{uid}` — `sportOnboarding.levelsBySport`
+ * é a ÚNICA fonte de escrita do nível declarado (app, web e rating engine).
  */
 function levelsBySportOf(
   userData: UserAccessData,
@@ -147,10 +199,6 @@ function levelsBySportOf(
     if (bySport != null && typeof bySport === "object") {
       return bySport as Record<string, unknown>;
     }
-  }
-  const legacy = userData.levelsBySportFirestore;
-  if (legacy != null && typeof legacy === "object") {
-    return legacy as Record<string, unknown>;
   }
   return null;
 }

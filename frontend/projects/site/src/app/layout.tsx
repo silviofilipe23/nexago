@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { sora, inter, jetbrains } from '@/lib/fonts';
 import { SiteHeader } from '@/components/sections/SiteHeader';
 import { SiteFooter } from '@/components/sections/SiteFooter';
+import { SiteChrome } from '@/components/sections/SiteChrome';
 import { ToastHost } from '@/components/ui/Toast';
 import '@/styles/globals.css';
 
@@ -100,9 +101,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <SiteHeader />
+        <SiteChrome>
+          <SiteHeader />
+        </SiteChrome>
         {children}
-        <SiteFooter />
+        <SiteChrome>
+          <SiteFooter />
+        </SiteChrome>
         <ToastHost />
       </body>
     </html>

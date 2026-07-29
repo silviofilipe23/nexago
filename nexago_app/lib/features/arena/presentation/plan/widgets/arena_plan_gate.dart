@@ -34,6 +34,13 @@ _UpsellCopy _copyFor(ArenaCapability capability) => switch (capability) {
               'Crie descontos para encher os horários ociosos e atrair quem já '
               'joga na areia.',
         ),
+      ArenaCapability.clubinho => (
+          icon: Icons.groups_rounded,
+          title: 'Clubinho',
+          description:
+              'Abra um jogo recorrente com lista pública: os atletas entram '
+              'na lista e pagam por sessão via PIX antecipado.',
+        ),
       ArenaCapability.metricasCompletas => (
           icon: Icons.insights_rounded,
           title: 'Métricas completas',

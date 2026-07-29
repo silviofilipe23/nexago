@@ -55,7 +55,7 @@ export default function RankingsPage() {
           competir e acompanhar sua posição.
         </p>
         <div className="mt-7 flex justify-center">
-          <ButtonLink href="/#download">Baixar o app</ButtonLink>
+          <ButtonLink href="https://linktr.ee/nexago">Baixar o app</ButtonLink>
         </div>
       </section>
     </main>

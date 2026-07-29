@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../arenas/domain/arena_club_session.dart';
 import '../../../arenas/domain/my_booking_item.dart';
 import '../../../friendly_match/domain/friendly_match_models.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -14,6 +15,7 @@ const athleteAgendaRentalAccent = Color(0xFF6EB5FF);
 const athleteAgendaTournamentAccent = Color(0xFF9B8CFF);
 const athleteAgendaChallengeAccent = Color(0xFFFF6B9D);
 const athleteAgendaFriendlyMatchAccent = Color(0xFF57C785);
+const athleteAgendaClubSessionAccent = Color(0xFFFFB74D);
 
 final _weekdayFmt = DateFormat('EEE', 'pt_BR');
 final _sectionDateFmt = DateFormat('dd/MM', 'pt_BR');
@@ -305,6 +307,32 @@ AthleteAgendaItem mapFriendlyMatchToAgendaItem(
   );
 }
 
+/// Converte uma participação em Clubinho (confirmada ou com PIX pendente)
+/// em item da agenda. Retorna `null` sem horário de início utilizável.
+AthleteAgendaItem? mapClubParticipationToAgendaItem(ClubParticipant p) {
+  final start = p.startAt ?? parseBookingDateTime(p.date, p.startTime);
+  if (start == null) return null;
+  final end = parseBookingDateTime(p.date, p.endTime);
+  final pending = p.isPendingPayment;
+
+  return AthleteAgendaItem(
+    id: 'club-${p.sessionId}',
+    kind: AthleteAgendaItemKind.clubSession,
+    startsAt: start,
+    endsAt: end != null && end.isAfter(start) ? end : null,
+    title: p.clubName,
+    subtitle: '${p.arenaName} · Clubinho',
+    statusLabel: pending ? 'PAGAR PIX' : 'NA LISTA',
+    accentColor: athleteAgendaClubSessionAccent,
+    clubSession: AthleteAgendaClubSessionPayload(
+      sessionId: p.sessionId,
+      arenaName: p.arenaName,
+      clubName: p.clubName,
+      pendingPayment: pending,
+    ),
+  );
+}
+
 bool isAgendaTournamentAllDayStart(DateTime startsAt) =>
     startsAt.hour == 0 && startsAt.minute == 0;
 
@@ -321,12 +349,14 @@ List<AthleteAgendaItem> mergeAgendaItems({
   required List<AthleteAgendaItem> tournaments,
   required List<AthleteAgendaItem> challenges,
   List<AthleteAgendaItem> friendlyMatches = const [],
+  List<AthleteAgendaItem> clubSessions = const [],
 }) {
   final merged = [
     ...bookings,
     ...tournaments,
     ...challenges,
     ...friendlyMatches,
+    ...clubSessions,
   ];
   merged.sort((a, b) => a.startsAt.compareTo(b.startsAt));
   return merged;
@@ -339,6 +369,7 @@ AthleteAgendaFilterCounts countAgendaFilters(List<AthleteAgendaItem> items) {
   for (final item in items) {
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
+      case AthleteAgendaItemKind.clubSession:
         rentals++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
@@ -441,7 +472,9 @@ List<AthleteAgendaItem> filterAgendaItems({
   filtered = switch (filter) {
     AthleteAgendaFilter.all => filtered,
     AthleteAgendaFilter.rentals => filtered.where(
-      (i) => i.kind == AthleteAgendaItemKind.rental,
+      (i) =>
+          i.kind == AthleteAgendaItemKind.rental ||
+          i.kind == AthleteAgendaItemKind.clubSession,
     ),
     AthleteAgendaFilter.tournaments => filtered.where(
       (i) => i.kind == AthleteAgendaItemKind.tournament,
@@ -501,6 +534,7 @@ AthleteAgendaDaySummary buildDaySummary(
     }
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
+      case AthleteAgendaItemKind.clubSession:
         rentals++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
@@ -550,6 +584,7 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
     for (final item in dayItems) {
       switch (item.kind) {
         case AthleteAgendaItemKind.rental:
+        case AthleteAgendaItemKind.clubSession:
           rentals++;
         case AthleteAgendaItemKind.tournament:
           tournaments++;
@@ -600,6 +635,7 @@ Color dominantAgendaKindColor(List<AthleteAgendaItem> items) {
   for (final item in items) {
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
+      case AthleteAgendaItemKind.clubSession:
         rentals++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
@@ -632,6 +668,7 @@ String buildMonthSummaryDescription(List<AthleteAgendaItem> items) {
       AthleteAgendaItemKind.tournament => 'Torneio',
       AthleteAgendaItemKind.challenge => 'Desafio',
       AthleteAgendaItemKind.friendlyMatch => 'Jogo',
+      AthleteAgendaItemKind.clubSession => 'Clubinho',
     };
     parts.add('$label · ${item.title}');
   }
@@ -748,6 +785,7 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
     for (final item in dayItems) {
       switch (item.kind) {
         case AthleteAgendaItemKind.rental:
+        case AthleteAgendaItemKind.clubSession:
           rentals++;
         case AthleteAgendaItemKind.tournament:
           tournaments++;

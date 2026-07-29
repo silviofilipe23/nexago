@@ -59,7 +59,12 @@ export function sendCategoryCommunication(params: {
   message: string;
   audience: string;
   sendPush?: boolean;
-}): Promise<{ sent?: number }> {
+}): Promise<{
+  pushCount?: number;
+  pushNoChannel?: number;
+  pushFailed?: number;
+  whatsappLinks?: Array<{ teamId: string; links: string[] }>;
+}> {
   return call('sendCategoryCommunication', {
     tournamentId: params.tournamentId.trim(),
     categoryId: params.categoryId.trim(),

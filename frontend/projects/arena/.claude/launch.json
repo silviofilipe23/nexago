@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "arena",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/silviodionizio/Documents/projects/volley/nexago/.claude/worktrees/feat-fechar-comanda-vazia/frontend && npx ng serve arena --port 4317"
+      ],
+      "port": 4317,
+      "autoPort": false
+    }
+  ]
+}

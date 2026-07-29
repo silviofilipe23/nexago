@@ -7,15 +7,21 @@ import {
 } from "./asaas-client";
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {getAsaasPayment} from "./asaas-booking-payment";
-import {processArenaBookingAsaasNotification} from "./asaas-arena-booking-webhook";
+import {
+  processArenaBookingAsaasNotification,
+  processArenaBookingShareAsaasNotification,
+} from "./asaas-arena-booking-webhook";
 import {
   ARENA_BOOKING_PAYMENT_REF_PREFIX,
+  ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX,
   ARENA_SUBSCRIPTION_REF_PREFIX,
   TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX,
 } from "./arena-booking-payment-constants";
 import {processArenaWithdrawalTransferWebhook} from "./asaas-withdrawal-webhook";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscription-webhook";
+import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
+import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
 import {getFirebaseProjectId} from "./firebase-paths";
 
 const PAYMENT_EVENTS = new Set([
@@ -125,6 +131,10 @@ export const asaasWebhook = onRequest({
         payment,
         processedRef,
       );
+    } else if (externalRef.startsWith(ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX)) {
+      await processArenaClubSessionAsaasNotification(db, paymentId, payment, processedRef);
+    } else if (externalRef.startsWith(ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX)) {
+      await processArenaBookingShareAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_BOOKING_PAYMENT_REF_PREFIX)) {
       await processArenaBookingAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_SUBSCRIPTION_REF_PREFIX) || subscriptionRef) {

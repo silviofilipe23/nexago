@@ -227,9 +227,10 @@ export const SKILL_LEVEL_LABEL: Record<SkillLevel, string> = {
   intermediario2: 'Intermediário 2',
 };
 
-/** Escada de 5 níveis pro vôlei; legada de 3 pro futevôlei (espelha `skillLevelOptionsForSport`). */
+/** Escada única de 5 níveis para categorias novas de TODOS os esportes.
+ *  Os membros legados de `SkillLevel` (`beginner`/`intermediate`) seguem no
+ *  tipo só pra reabrir categorias antigas — o editor não os oferece mais. */
 export function skillLevelOptionsForSport(sport: TournamentSport): SkillLevel[] {
-  if (sport === 'footvolley') return ['beginner', 'intermediate', 'open'];
   return ['iniciante1', 'iniciante2', 'intermediario1', 'intermediario2', 'open'];
 }
 

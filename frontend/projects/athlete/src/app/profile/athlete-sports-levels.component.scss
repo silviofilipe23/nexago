@@ -1,0 +1,240 @@
+:host {
+  display: block;
+}
+
+// ── Header (mesma convenção de athlete-profile-settings.component.scss) ──
+.at-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+
+  @media (max-width: 640px) {
+    padding: 16px;
+  }
+}
+
+.at-page-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.at-page-header-titles h1 {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.at-page-header-sub {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.at-card {
+  background: var(--nx-surface);
+  border: 1px solid var(--nx-line);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.at-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--nx-line);
+  background: transparent;
+  color: var(--nx-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+}
+
+// ── Corpo ──
+.asl-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+  max-width: 760px;
+
+  @media (max-width: 640px) {
+    padding: 16px;
+  }
+}
+
+.asl-rule-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nx-text-dim);
+}
+
+.asl-notice,
+.asl-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.asl-notice {
+  background: color-mix(in srgb, var(--nx-accent, #f97316) 12%, transparent);
+  color: var(--nx-text);
+}
+
+.asl-error {
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #ef4444;
+}
+
+.asl-feedback {
+  margin: 20px 24px;
+}
+
+// ── Card por esporte ──
+.asl-sport-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+}
+
+.asl-tag {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-dim);
+}
+
+.asl-current {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nx-accent, #f97316);
+}
+
+.asl-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.asl-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--nx-line);
+  background: transparent;
+  cursor: pointer;
+
+  &:not(:disabled):hover {
+    border-color: var(--nx-accent, #f97316);
+  }
+}
+
+.asl-option--selected {
+  border-color: var(--nx-accent, #f97316);
+  background: color-mix(in srgb, var(--nx-accent, #f97316) 10%, transparent);
+}
+
+.asl-option--locked {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.asl-option-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.asl-lock {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+.asl-option-desc {
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+// ── Confirmação da subida ──
+.asl-confirm {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--nx-line);
+
+  p {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: var(--nx-text);
+  }
+}
+
+.asl-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.asl-confirm-btn {
+  border-color: var(--nx-accent, #f97316);
+  color: var(--nx-accent, #f97316);
+}
+
+// ── Adicionar esporte ──
+.asl-add-card {
+  h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+}
+
+.asl-add-hint {
+  margin: 6px 0 12px;
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.asl-add-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

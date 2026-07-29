@@ -289,40 +289,73 @@ service cloud.firestore {
         request.resource.data.roles.size() > 0;
     }
     // ── Regra "nível só sobe" (anti-sandbagging) ─────────────────────────
-    // O próprio atleta nunca reduz um nível já salvo — nem o global
-    // (`level`, `sportProfile.level`) nem o por esporte
-    // (`sportOnboarding.levelsBySport`). Downgrade só via super admin
-    // (suporte). Primeira definição é livre (campo ausente/valor
-    // desconhecido → rank -1); sobrescrever nível conhecido por valor
-    // inválido é bloqueado.
-    // Ranks unificados da escada de 5 níveis do vôlei (Iniciante 1/2,
-    // Intermediário 1/2, Open no rank 5 — ranks 1 e 4 reservados para a
-    // escada D/C/B/A do beach tennis no futuro). Legados se comportam como o
-    // degrau inferior do split (iniciante→0, intermediario→2).
+    // O próprio atleta nunca reduz um nível já salvo — nem os legados
+    // (`level`, `sportProfile.level`, que clientes antigos ainda escrevem)
+    // nem o canônico por esporte (`sportOnboarding.levelsBySport`, única
+    // escrita dos clientes novos). Downgrade só via super admin (suporte).
+    // Primeira definição é livre (campo ausente/valor desconhecido →
+    // rank -1); sobrescrever nível conhecido por valor inválido é bloqueado.
+    // Escada única de 5 níveis para TODOS os esportes (Iniciante 1/2,
+    // Intermediário 1/2, Open no rank 5 — rank 4 sem uso, numeração fixa por
+    // compatibilidade com athleteRatings.levelRank). Legados se comportam
+    // como o degrau inferior do split (iniciante→0, intermediario→2).
+    // Lookup por map literal (barato) em vez de cadeias de `in` sobre listas:
+    // a guarda roda para 9 esportes por update e a versão com ternários
+    // estourava o limite de expressões avaliadas por request.
     function athleteLevelRank(value) {
-      return value in ['iniciante', 'Iniciante', 'basico', 'básico', 'Básico', 'iniciante_1', 'Iniciante 1'] ? 0
-        : (value in ['iniciante_2', 'Iniciante 2'] ? 1
-        : (value in ['intermediario', 'Intermediário', 'intermediario_1', 'Intermediário 1'] ? 2
-        : (value in ['intermediario_2', 'Intermediário 2'] ? 3
-        : (value in ['open', 'Open', 'livre', 'Livre', 'Open / federado'] ? 5 : -1))));
+      let ranks = {
+        'iniciante': 0, 'Iniciante': 0, 'basico': 0, 'básico': 0,
+        'Básico': 0, 'iniciante_1': 0, 'Iniciante 1': 0,
+        'iniciante_2': 1, 'Iniciante 2': 1,
+        'intermediario': 2, 'Intermediário': 2,
+        'intermediario_1': 2, 'Intermediário 1': 2,
+        'intermediario_2': 3, 'Intermediário 2': 3,
+        'open': 5, 'Open': 5, 'livre': 5, 'Livre': 5, 'Open / federado': 5
+      };
+      return value is string ? ranks.get(value, -1) : -1;
     }
     function levelsBySportOf(data) {
       return data.get('sportOnboarding', {}).get('levelsBySport', {});
     }
-    function sportLevelNotLowered(sportId) {
-      return athleteLevelRank(levelsBySportOf(request.resource.data).get(sportId, null)) >=
-        athleteLevelRank(levelsBySportOf(resource.data).get(sportId, null));
+    // Valor inalterado curto-circuita ANTES de rankear: só o campo que mudou
+    // paga o custo do lookup (essencial para caber no limite de expressões).
+    function levelNotLowered(reqValue, curValue) {
+      return reqValue == curValue ||
+        athleteLevelRank(reqValue) >= athleteLevelRank(curValue);
     }
-    // Guarda os esportes com torneios (elegibilidade por nível) + o nível
-    // global, que é o fallback do backend para os demais esportes.
+    function sportLevelNotLowered(reqLevels, curLevels, sportId) {
+      return levelNotLowered(
+        reqLevels.get(sportId, null),
+        curLevels.get(sportId, null)
+      );
+    }
+    // Guarda TODOS os esportes do perfil (rules não iteram mapas — a lista
+    // espelha ATHLETE_SPORT_CODES em functions/src/category-level-eligibility.ts
+    // e AthleteFirestoreCodes no app) + os campos legados de nível global,
+    // fallback do backend para docs antigos. Mapa inalterado curto-circuita
+    // os 9 checks por esporte (caso comum: update sem mexer em nível).
     function athleteLevelsNotDowngraded() {
-      return athleteLevelRank(request.resource.data.get('level', null)) >=
-          athleteLevelRank(resource.data.get('level', null)) &&
-        athleteLevelRank(request.resource.data.get('sportProfile', {}).get('level', null)) >=
-          athleteLevelRank(resource.data.get('sportProfile', {}).get('level', null)) &&
-        sportLevelNotLowered('VOLEI_PRAIA') &&
-        sportLevelNotLowered('VOLEI_QUADRA') &&
-        sportLevelNotLowered('BEACH_TENNIS');
+      let reqLevels = levelsBySportOf(request.resource.data);
+      let curLevels = levelsBySportOf(resource.data);
+      return levelNotLowered(
+          request.resource.data.get('level', null),
+          resource.data.get('level', null)
+        ) &&
+        levelNotLowered(
+          request.resource.data.get('sportProfile', {}).get('level', null),
+          resource.data.get('sportProfile', {}).get('level', null)
+        ) &&
+        (reqLevels == curLevels || (
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'TENIS') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA') &&
+          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS')
+        ));
     }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
@@ -731,6 +764,26 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    match /arenas/{arenaId}/coupons/{couponId} {
+      // Cupom de marketing (código + validade + limite de uso) — complementar
+      // às `promotions` acima. Escrita só via Cloud Functions
+      // (`arena-coupons.ts`, mesmo padrão de `arenaWallets`): precisa
+      // validar vigência/limites/XOR de desconto e gravar resgates de forma
+      // atômica, o que uma regra de segurança não garante sozinha.
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+      );
+      allow write: if false;
+      match /redemptions/{athleteId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+          request.auth.uid == athleteId
+        );
+        allow write: if false;
+      }
+    }
     match /arenaWallets/{arenaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
@@ -801,7 +854,11 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /arenas/{arenaId}/products/{productId} {
-      allow read: if canManageArenaProducts(arenaId);
+      // Leitura aberta a qualquer usuário autenticado: é o cardápio/catálogo
+      // que o atleta vê no "Peça na quadra" (não é dado sensível, mesmo nível
+      // de exposição de arenas/{arenaId}/courts e /promotions, só que exige
+      // login). Escrita (criar/editar/repor/excluir) continua só do gestor.
+      allow read: if request.auth != null;
       allow create: if canManageArenaProducts(arenaId) &&
         (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro'])) &&
         isValidArenaProductData(request.resource.data) &&
@@ -848,10 +905,23 @@ service cloud.firestore {
         );
       allow delete: if false;
     }
+    // Dono da comanda pelo lado do atleta (Peça na quadra / pedido pelo
+    // app): hoje só existe elo comanda→atleta quando a comanda foi aberta
+    // vinculada a uma reserva (bookingId) — comandas "sem vínculo" (walk-in,
+    // cliente que não é usuário do app) não têm dono identificável aqui.
+    // Escrita em items/payments continua vedada ao client mesmo para o
+    // dono: só a Cloud Function addAppOrderItem grava (Admin SDK).
+    function isArenaComandaOwnerAthlete(comandaData) {
+      let bookingId = comandaData.get('bookingId', null);
+      return bookingId != null &&
+        exists(/databases/$(database)/documents/arenaBookings/$(bookingId)) &&
+        get(/databases/$(database)/documents/arenaBookings/$(bookingId)).data.athleteId == request.auth.uid;
+    }
     match /arenaComandas/{comandaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
-        (resource != null && isArenaManagerByArenaId(resource.data.arenaId))
+        (resource != null && isArenaManagerByArenaId(resource.data.arenaId)) ||
+        (resource != null && isArenaComandaOwnerAthlete(resource.data))
       );
       allow create: if request.auth != null &&
         isValidArenaComandaCreate(request.resource.data) &&
@@ -869,6 +939,9 @@ service cloud.firestore {
           isSuperAdmin() ||
           canManageArenaProducts(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          ) ||
+          isArenaComandaOwnerAthlete(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
           )
         );
         // Adicionar item exige titularidade Pro: uma arena que caiu pro
@@ -892,6 +965,9 @@ service cloud.firestore {
           isSuperAdmin() ||
           canManageArenaProducts(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          ) ||
+          isArenaComandaOwnerAthlete(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
           )
         );
         allow create: if request.auth != null &&
@@ -994,6 +1070,33 @@ service cloud.firestore {
         )
       );
       allow delete: if false;
+
+      // Split de pagamento: fatia PIX de um convidado. Só o próprio pagador
+      // ou o dono da reserva leem; escrita é sempre via Cloud Function
+      // (Admin SDK) — cria a cobrança Asaas antes de gravar o doc.
+      match /paymentShares/{shareId} {
+        allow read: if request.auth != null && (
+          resource.data.payerAthleteId == request.auth.uid ||
+          get(/databases/$(database)/documents/arenaBookings/$(bookingId)).data.athleteId
+            == request.auth.uid ||
+          isSuperAdmin()
+        );
+        allow write: if false;
+      }
+    }
+
+    // Lista de espera de horário de quadra lotado (domínio distinto da lista
+    // de espera de INSCRIÇÃO em torneio). Só o próprio atleta e o gestor da
+    // arena podem ler; toda escrita é feita pelas Cloud Functions
+    // (joinArenaBookingWaitlist / notifyArenaWaitlistOnSlotFreed /
+    // expireArenaBookingWaitlistEntries) — client nunca escreve direto.
+    match /arenaBookingWaitlist/{waitlistId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        isArenaManagerByArenaId(resource.data.arenaId) ||
+        isSuperAdmin()
+      );
+      allow write: if false;
     }
 
     // Convites de reserva ("Convite para jogar" via link compartilhado).
@@ -1028,6 +1131,31 @@ service cloud.firestore {
          get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
         isSuperAdmin()
       );
+      allow create, update, delete: if false;
+    }
+
+    // Clubinho — jogo aberto da arena (lista pública + PIX por sessão).
+    // Escrita 100% via Cloud Functions: criação exige gate de plano
+    // (Pro/Parceiro), bloqueio de agenda com locks e contadores de vaga em
+    // transação; pagamento/estorno passam pelo Asaas.
+    match /arenaClubs/{clubId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+    match /arenaClubSessions/{sessionId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+
+      // A lista visível de nomes É o produto (como no grupo de WhatsApp).
+      match /clubParticipants/{athleteId} {
+        allow read: if request.auth != null;
+        allow create, update, delete: if false;
+      }
+    }
+    // Collection group "meus clubinhos": o atleta lê só as próprias inscrições.
+    match /{path=**}/clubParticipants/{athleteId} {
+      allow read: if request.auth != null &&
+        resource.data.athleteId == request.auth.uid;
       allow create, update, delete: if false;
     }
 
@@ -1103,7 +1231,17 @@ service cloud.firestore {
           (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false) &&
           // Reputação (Bora Jogar) é derivada por Cloud Function — usuário
           // novo não pode nascer com reputação pré-fabricada.
-          !('reputation' in request.resource.data)
+          !('reputation' in request.resource.data) &&
+          // Vínculo do programa de indicação (referral) só é gravado pela
+          // Cloud Function `registerReferral` (idempotente, valida
+          // auto-indicação) — o client não pode se auto-declarar indicado.
+          !('referredBy' in request.resource.data) &&
+          // Telefone verificado (SMS via Firebase Phone Auth) só é gravado
+          // pela Cloud Function `confirmPhoneVerification` — usuário novo
+          // não pode nascer já com telefone verificado.
+          !('phoneNumber' in request.resource.data) &&
+          !('phoneVerified' in request.resource.data) &&
+          !('phoneVerifiedAt' in request.resource.data)
         ) ||
         isAdmin() ||
         isPartnerPreRegistrationCreate(userId)
@@ -1125,7 +1263,10 @@ service cloud.firestore {
           !('role' in request.resource.data) &&
           (
             !('roles' in request.resource.data) ||
-            request.resource.data.roles == resource.data.roles
+            (
+              'roles' in resource.data &&
+              request.resource.data.roles == resource.data.roles
+            )
           ) &&
           (
             !('superAdmin' in request.resource.data) ||
@@ -1154,6 +1295,41 @@ service cloud.firestore {
             (
               'sandRankCosmetics' in resource.data &&
               request.resource.data.sandRankCosmetics == resource.data.sandRankCosmetics
+            )
+          ) &&
+          // Vínculo de indicação é derivado por Cloud Function
+          // (`registerReferral`) — o dono não pode criá-lo nem alterá-lo
+          // diretamente (idempotência/anti-auto-indicação só valem no callable).
+          (
+            !('referredBy' in request.resource.data) ||
+            (
+              'referredBy' in resource.data &&
+              request.resource.data.referredBy == resource.data.referredBy
+            )
+          ) &&
+          // Telefone verificado é derivado por Cloud Function
+          // (`confirmPhoneVerification`, a partir do UserRecord do Firebase
+          // Auth) — o dono não pode criá-lo nem alterá-lo diretamente
+          // (anti-fraude: impede auto-declarar telefone verificado sem SMS).
+          (
+            !('phoneNumber' in request.resource.data) ||
+            (
+              'phoneNumber' in resource.data &&
+              request.resource.data.phoneNumber == resource.data.phoneNumber
+            )
+          ) &&
+          (
+            !('phoneVerified' in request.resource.data) ||
+            (
+              'phoneVerified' in resource.data &&
+              request.resource.data.phoneVerified == resource.data.phoneVerified
+            )
+          ) &&
+          (
+            !('phoneVerifiedAt' in request.resource.data) ||
+            (
+              'phoneVerifiedAt' in resource.data &&
+              request.resource.data.phoneVerifiedAt == resource.data.phoneVerifiedAt
             )
           ) &&
           athleteLevelsNotDowngraded()
@@ -1443,6 +1619,13 @@ service cloud.firestore {
           request.resource.data.role in ['manager', 'scorer'] &&
           request.resource.data.status == 'active';
         allow delete: if request.auth != null && isTournamentOwner(tournamentId);
+      }
+
+      match /categoryCommunications/{commId} {
+        // Histórico de sendCategoryCommunication — só quem gerencia o
+        // torneio lê; escrita só via Admin SDK (Cloud Function).
+        allow read: if canManageTournament(tournamentId);
+        allow write: if false;
       }
     }
 
@@ -1785,6 +1968,14 @@ service cloud.firestore {
       }
     }
 
+    // Versão mínima do app (gate de atualização obrigatória). Leitura pública:
+    // o bloqueio precisa valer também na tela de login, antes de haver auth.
+    // Não guarda nada sensível — só build number, link da loja e textos.
+    match /appConfig/appVersion {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Config de features lida pelo app (ex.: appConfig/friendlyMatch).
     match /appConfig/{docId} {
       allow read: if request.auth != null;
@@ -1890,6 +2081,85 @@ service cloud.firestore {
       );
       allow list: if false;
       allow create, update, delete: if false;
+    }
+
+    // Palpites da torcida no chaveamento (feature de engajamento/gamificação,
+    // sem dinheiro real) — tournamentPredictions/{tournamentId}/entries/{userId}.
+    // Leitura pública: é torcida, a graça é um leaderboard público de quem
+    // acerta mais palpites. Escrita exclusiva via Cloud Function
+    // (`submitBracketPrediction` valida uid/torneio/status da partida antes
+    // de gravar; a pontuação é creditada pelo trigger de conclusão de
+    // partida) — nunca client-write direto.
+    match /tournamentPredictions/{tournamentId}/entries/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Página pública de links (link-in-bio) de arena/organizador.
+    // Leitura pública: o site renderiza `/a/{slug}` e `/o/{slug}` sem login.
+    // Escrita do PERFIL só via Cloud Function (`saveLinkPageProfile`): trocar o
+    // endereço precisa mover `linkPageSlugs/{slug}` na mesma transação, senão
+    // dois donos reivindicam o mesmo slug. Contadores (views/clicks e os mapas
+    // diários) também são exclusivos da function `trackLinkPageEvent` — o
+    // visitante é anônimo e não pode receber escrita direta no documento.
+    function linkPageOwnerUid(pageData) {
+      return pageData.ownerType == 'organizer'
+        ? pageData.ownerId
+        : get(/databases/$(database)/documents/arenas/$(pageData.ownerId)).data.managerUserId;
+    }
+    function isLinkPageOwner(pageData) {
+      return request.auth != null && (
+        isSuperAdmin() || linkPageOwnerUid(pageData) == request.auth.uid
+      );
+    }
+    match /linkPages/{pageId} {
+      allow read: if true;
+      allow write: if false;
+
+      // Os links em si o dono escreve direto — não há nada atômico a garantir.
+      // Só os contadores ficam de fora (mantidos por `trackLinkPageEvent`).
+      match /links/{linkId} {
+        allow read: if true;
+        allow create: if isLinkPageOwner(get(/databases/$(database)/documents/linkPages/$(pageId)).data) &&
+          request.resource.data.get('clicks', 0) == 0 &&
+          request.resource.data.get('dailyClicks', {}).size() == 0;
+        allow update: if isLinkPageOwner(get(/databases/$(database)/documents/linkPages/$(pageId)).data) &&
+          request.resource.data.get('clicks', 0) == resource.data.get('clicks', 0) &&
+          request.resource.data.get('dailyClicks', {}) == resource.data.get('dailyClicks', {});
+        allow delete: if isLinkPageOwner(get(/databases/$(database)/documents/linkPages/$(pageId)).data);
+      }
+    }
+    // Registro de unicidade de endereço: slug -> pageId. Leitura pública porque
+    // é o índice que resolve a URL; escrita só pela function.
+    match /linkPageSlugs/{slug} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Mini-site público da arena (landing /s/{slug} no site). Produto
+    // SEPARADO do link-in-bio acima. O gestor edita o rascunho direto
+    // (`arenaSites/{arenaId}`), mas o público só lê o espelho
+    // `arenaSitesPublic/{slug}`, escrito exclusivamente pela function
+    // `publishArenaSite` — é lá que conteúdo, tema e URLs são validados.
+    // Status/slug no rascunho são informativos: espelho é a única fonte pública.
+    function isArenaSiteManager(arenaId) {
+      return request.auth != null && (
+        isSuperAdmin() ||
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+      );
+    }
+    match /arenaSites/{arenaId} {
+      allow read, write: if isArenaSiteManager(arenaId);
+    }
+    match /arenaSitesPublic/{slug} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Unicidade de endereço do mini-site: slug -> arenaId. Independente do
+    // linkPageSlugs; escrita só pela function.
+    match /arenaSiteSlugs/{slug} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // NEGAÇÃO padrão para caminhos não mapeados.

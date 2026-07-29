@@ -59,7 +59,26 @@
             </div>
 
             @if (selectedMethod() === 'pix') {
-              @if (pixPayment(); as pix) {
+              @if (splitBookingId()) {
+                <div class="pm-split-status">
+                  <div class="pm-waiting" role="status">
+                    <span class="pm-waiting-dot" aria-hidden="true"></span>
+                    Pix enviado pra cada participante — a reserva já está confirmada.
+                  </div>
+                  <div class="pm-split-share-list">
+                    @for (s of splitShares(); track s.id) {
+                      <div class="pm-split-share-row">
+                        <span class="pm-split-share-name">{{ splitShareName(s.payerAthleteId) }}</span>
+                        <span class="pm-split-share-amount">{{ formatBRL(s.amountReais) }}</span>
+                        <span class="pm-split-badge" [attr.data-status]="s.status">{{ splitStatusLabel(s.status) }}</span>
+                      </div>
+                    }
+                  </div>
+                  <p class="pm-defer-note">
+                    Quem não pagar a tempo tem a fatia somada ao valor a pagar na arena — sua reserva não é cancelada por isso.
+                  </p>
+                </div>
+              } @else if (pixPayment(); as pix) {
                 @if (pixExpired()) {
                   <div class="pm-placeholder-block">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
@@ -70,8 +89,10 @@
                   </div>
                 } @else {
                   <div class="pm-pix-block">
-                    @if (pix.qrCodeBase64) {
-                      <img class="pm-qr-img" [src]="'data:image/png;base64,' + pix.qrCodeBase64" alt="QR Code Pix" />
+                    @if (pixQrSrc(); as qrSrc) {
+                      <div class="pm-qr-frame">
+                        <img class="pm-qr-img" [src]="qrSrc" alt="QR Code Pix" />
+                      </div>
                     } @else {
                       <div class="pm-qr-placeholder" aria-hidden="true"><span>USE O CÓDIGO ABAIXO</span></div>
                     }
@@ -117,23 +138,144 @@
                     </button>
                   </div>
 
-                  <div class="pm-cpf-field">
-                    <label class="pm-cpf-label" for="pm-cpf">CPF <span class="pm-cpf-optional">(opcional — sai no comprovante do Pix)</span></label>
-                    <input
-                      id="pm-cpf"
-                      class="pm-cpf-input"
-                      type="text"
-                      inputmode="numeric"
-                      autocomplete="off"
-                      placeholder="000.000.000-00"
-                      [value]="cpf()"
-                      (input)="onCpfInput($any($event.target).value)"
-                    />
+                  <div class="pm-split-tabs" role="tablist" aria-label="Como pagar o Pix">
+                    <button
+                      type="button"
+                      class="pm-split-tab"
+                      [class.pm-split-tab--active]="!splitMode()"
+                      [attr.aria-selected]="!splitMode()"
+                      (click)="toggleSplitMode(false)"
+                    >
+                      Pagar sozinho
+                    </button>
+                    <button
+                      type="button"
+                      class="pm-split-tab"
+                      [class.pm-split-tab--active]="splitMode()"
+                      [attr.aria-selected]="splitMode()"
+                      (click)="toggleSplitMode(true)"
+                    >
+                      Dividir com amigos
+                    </button>
                   </div>
 
-                  <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
-                    {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixAmountNow()) }}
-                  </button>
+                  @if (!splitMode()) {
+                    <div class="pm-cpf-field">
+                      <label class="pm-cpf-label" for="pm-cpf">CPF <span class="pm-cpf-optional">(opcional — sai no comprovante do Pix)</span></label>
+                      <input
+                        id="pm-cpf"
+                        class="pm-cpf-input"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        placeholder="000.000.000-00"
+                        [value]="cpf()"
+                        (input)="onCpfInput($any($event.target).value)"
+                      />
+                    </div>
+
+                    <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
+                      {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixAmountNow()) }}
+                    </button>
+                  } @else {
+                    <div class="pm-split-setup">
+                      <p class="pm-split-intro">
+                        Divida {{ formatBRL(pixAmountNow()) }} entre você e seus amigos — cada um recebe seu próprio Pix.
+                        Quem não pagar a tempo tem a fatia somada ao seu valor a pagar na arena.
+                      </p>
+
+                      <div class="pm-split-search">
+                        <input
+                          type="text"
+                          class="pm-split-search-input"
+                          placeholder="Buscar amigo por nome"
+                          [value]="splitFriendQuery()"
+                          (input)="onFriendQueryInput($any($event.target).value)"
+                        />
+                        @if (splitSearching()) {
+                          <p class="pm-split-search-hint">Buscando…</p>
+                        } @else if (splitFriendQuery().trim() && splitFriendResults().length === 0) {
+                          <p class="pm-split-search-hint">Nenhum atleta encontrado.</p>
+                        }
+                        @if (splitFriendResults().length > 0) {
+                          <div class="pm-split-results">
+                            @for (r of splitFriendResults(); track r.id) {
+                              <button type="button" class="pm-split-result" (click)="addParticipant(r)">
+                                <span class="pm-split-avatar" aria-hidden="true">
+                                  <span class="pm-split-avatar-fallback">{{ initialsOf(r.displayName) }}</span>
+                                  @if (r.avatarUrl; as photo) {
+                                    <img [src]="photo" alt="" loading="lazy" />
+                                  }
+                                </span>
+                                <span class="pm-split-result-info">
+                                  <span class="pm-split-result-name">{{ r.displayName }}</span>
+                                  <span class="pm-split-result-city">{{ r.city || 'Cidade não informada' }}</span>
+                                </span>
+                              </button>
+                            }
+                          </div>
+                        }
+                      </div>
+
+                      <div class="pm-split-participants">
+                        @for (p of splitParticipants(); track p.athleteId) {
+                          <div class="pm-split-participant-row">
+                            <span class="pm-split-avatar" aria-hidden="true">
+                              <span class="pm-split-avatar-fallback">{{ initialsOf(p.name) }}</span>
+                              @if (p.avatarUrl; as photo) {
+                                <img [src]="photo" alt="" loading="lazy" />
+                              }
+                            </span>
+                            <span class="pm-split-participant-name">{{ p.isSelf ? 'Você' : p.name }}</span>
+                            <span class="pm-split-amount-field">
+                              <span class="pm-split-amount-prefix">R$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                inputmode="decimal"
+                                class="pm-split-amount-input"
+                                [value]="p.amountReais"
+                                (input)="onParticipantAmountInput(p.athleteId, $any($event.target).value)"
+                              />
+                            </span>
+                            <button
+                              type="button"
+                              class="pm-split-remove"
+                              [attr.aria-label]="'Remover ' + (p.isSelf ? 'você' : p.name)"
+                              (click)="removeParticipant(p.athleteId)"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        } @empty {
+                          <p class="pm-split-empty">Busque um amigo acima para começar a dividir.</p>
+                        }
+                      </div>
+
+                      @if (splitParticipants().length > 0) {
+                        <div class="pm-split-actions-row">
+                          <button type="button" class="pm-btn-ghost" (click)="divideEqually()">Dividir igualmente</button>
+                          <div class="pm-split-sum-row" [class.pm-split-sum-row--ok]="splitSumMatches()">
+                            <span>Soma das fatias</span>
+                            <strong>{{ formatBRL(splitSum()) }} de {{ formatBRL(pixAmountNow()) }}</strong>
+                          </div>
+                        </div>
+                        @if (!splitSumMatches()) {
+                          <p class="pm-split-warning">A soma das fatias precisa ser igual ao valor a pagar agora.</p>
+                        }
+                      }
+
+                      <button
+                        type="button"
+                        class="pm-btn-primary pm-btn-full"
+                        [disabled]="!splitCanSubmit() || splitSubmitting()"
+                        (click)="submitSplit()"
+                      >
+                        {{ splitSubmitting() ? 'Enviando…' : 'Convidar e gerar Pix de cada um' }}
+                      </button>
+                    </div>
+                  }
                 </div>
               }
             } @else {
@@ -176,6 +318,47 @@
               <span class="pm-summary-label">Valor da reserva</span>
               <span class="pm-summary-value">{{ formatBRL(totalPrice()) }}</span>
             </div>
+            @if (appliedCouponCode(); as code) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Cupom {{ code }}</span>
+                <span class="pm-summary-value pm-summary-value--discount">- {{ formatBRL(couponDiscountReais()) }}</span>
+              </div>
+            }
+
+            <div class="pm-coupon-block">
+              @if (appliedCouponCode(); as code) {
+                <div class="pm-coupon-applied">
+                  <span>Cupom <strong>{{ code }}</strong> aplicado</span>
+                  <button type="button" class="pm-coupon-remove" (click)="removeCoupon()">Remover</button>
+                </div>
+              } @else {
+                <label class="pm-coupon-label" for="pm-coupon">Tem um cupom?</label>
+                <div class="pm-coupon-row">
+                  <input
+                    id="pm-coupon"
+                    class="pm-coupon-input"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="CÓDIGO"
+                    [value]="couponCodeInput()"
+                    (input)="couponCodeInput.set($any($event.target).value)"
+                    (keydown.enter)="applyCoupon()"
+                  />
+                  <button
+                    type="button"
+                    class="pm-btn-ghost pm-coupon-apply"
+                    [disabled]="couponApplying() || !couponCodeInput().trim()"
+                    (click)="applyCoupon()"
+                  >
+                    {{ couponApplying() ? '...' : 'Aplicar' }}
+                  </button>
+                </div>
+                @if (couponError(); as err) {
+                  <p class="pm-coupon-error">{{ err }}</p>
+                }
+              }
+            </div>
+
             @if (selectedMethod() === 'pix' && pixFraction() === 0.5) {
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Restante na arena</span>
@@ -183,13 +366,26 @@
               </div>
             }
             <div class="pm-summary-total-row">
-              <span class="pm-summary-label">{{ selectedMethod() === 'pix' ? 'Você paga agora' : 'Você paga na arena' }}</span>
+              <span class="pm-summary-label">
+                {{ splitBookingId() ? 'Dividido com amigos' : selectedMethod() === 'pix' ? 'Você paga agora' : 'Você paga na arena' }}
+              </span>
               <strong class="pm-summary-total">{{ selectedMethod() === 'pix' ? formatBRL(pixAmountNow()) : formatBRL(totalPrice()) }}</strong>
             </div>
 
             @if (selectedMethod() === 'onsite') {
               <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="confirmOnsite()">
                 {{ processing() ? 'Confirmando…' : 'Confirmar reserva' }}
+              </button>
+            } @else if (splitBookingId()) {
+              <p class="pm-defer-note">Acompanhe as fatias ao lado — sua reserva já está confirmada.</p>
+            } @else if (splitMode() && !pixPayment()) {
+              <button
+                type="button"
+                class="pm-btn-primary pm-btn-full"
+                [disabled]="!splitCanSubmit() || splitSubmitting()"
+                (click)="submitSplit()"
+              >
+                {{ splitSubmitting() ? 'Enviando…' : 'Convidar e gerar Pix' }}
               </button>
             } @else if (!pixPayment()) {
               <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">

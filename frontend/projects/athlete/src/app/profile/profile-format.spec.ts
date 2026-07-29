@@ -1,4 +1,4 @@
-import { athleteLevelLabel, buildPublicProfileId, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState, titleCase } from './profile-format';
+import { athleteLevelLabel, buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, titleCase } from './profile-format';
 
 describe('profile-format', () => {
   describe('titleCase', () => {
@@ -52,24 +52,6 @@ describe('profile-format', () => {
     });
   });
 
-  describe('splitCityState', () => {
-    it('splits on the last comma and uppercases the state', () => {
-      expect(splitCityState('Aparecida de Goiânia, GO')).toEqual({ city: 'Aparecida de Goiânia', state: 'GO' });
-    });
-
-    it('handles a missing comma by returning the whole string as city', () => {
-      expect(splitCityState('Recife')).toEqual({ city: 'Recife', state: '' });
-    });
-
-    it('handles an empty string', () => {
-      expect(splitCityState('')).toEqual({ city: '', state: '' });
-    });
-
-    it('trims whitespace and normalizes state casing', () => {
-      expect(splitCityState('Rio de Janeiro,rj')).toEqual({ city: 'Rio de Janeiro', state: 'RJ' });
-    });
-  });
-
   describe('athleteLevelLabel', () => {
     it('converts Firestore level codes to display labels', () => {
       expect(athleteLevelLabel('iniciante_1')).toBe('Iniciante 1');
@@ -113,6 +95,70 @@ describe('profile-format', () => {
 
     it('returns an empty string when city is empty', () => {
       expect(joinCityState('', 'GO')).toBe('');
+    });
+  });
+
+  describe('buildSportLevels', () => {
+    it('returns the primary sport with its resolved level', () => {
+      const userData = {
+        sportOnboarding: {
+          primarySportId: 'VOLEI_PRAIA',
+          secondarySportIds: [],
+          levelsBySport: { VOLEI_PRAIA: 'intermediario_1' },
+        },
+      };
+      expect(buildSportLevels(userData)).toEqual([
+        { code: 'VOLEI_PRAIA', sportLabel: 'Vôlei de praia', levelLabel: 'Intermediário 1' },
+      ]);
+    });
+
+    it('includes secondary sports with their own level, primary first', () => {
+      const userData = {
+        sportOnboarding: {
+          primarySportId: 'VOLEI_PRAIA',
+          secondarySportIds: ['BEACH_TENNIS'],
+          levelsBySport: { VOLEI_PRAIA: 'open', BEACH_TENNIS: 'iniciante_2' },
+        },
+      };
+      expect(buildSportLevels(userData)).toEqual([
+        { code: 'VOLEI_PRAIA', sportLabel: 'Vôlei de praia', levelLabel: 'Open' },
+        { code: 'BEACH_TENNIS', sportLabel: 'Beach tennis', levelLabel: 'Iniciante 2' },
+      ]);
+    });
+
+    it('falls back to the legacy global level for the primary sport when missing from levelsBySport', () => {
+      const userData = {
+        level: 'intermediario_2',
+        sportOnboarding: {
+          primarySportId: 'TENIS',
+          secondarySportIds: [],
+          levelsBySport: {},
+        },
+      };
+      expect(buildSportLevels(userData)).toEqual([
+        { code: 'TENIS', sportLabel: 'Tênis', levelLabel: 'Intermediário 2' },
+      ]);
+    });
+
+    it('does not apply the legacy fallback to secondary sports without a level', () => {
+      const userData = {
+        level: 'open',
+        sportOnboarding: {
+          primarySportId: 'VOLEI_PRAIA',
+          secondarySportIds: ['TENIS'],
+          levelsBySport: { VOLEI_PRAIA: 'iniciante_1' },
+        },
+      };
+      expect(buildSportLevels(userData)).toEqual([
+        { code: 'VOLEI_PRAIA', sportLabel: 'Vôlei de praia', levelLabel: 'Iniciante 1' },
+        { code: 'TENIS', sportLabel: 'Tênis', levelLabel: '' },
+      ]);
+    });
+
+    it('returns an empty list when there is no sportOnboarding data', () => {
+      expect(buildSportLevels({})).toEqual([]);
+      expect(buildSportLevels(null)).toEqual([]);
+      expect(buildSportLevels(undefined)).toEqual([]);
     });
   });
 });

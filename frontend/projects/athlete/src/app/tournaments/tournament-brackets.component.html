@@ -51,35 +51,37 @@
                       <h3 class="bx-group-name">Grupo {{ g.letter }}</h3>
                       <span class="bx-group-count">{{ g.standings.length }} duplas</span>
                     </div>
-                    <table class="bx-standings-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Dupla</th>
-                          <th>V</th>
-                          <th>D</th>
-                          <th>Sets</th>
-                          <th>Pts</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (s of g.standings; track s.rank) {
-                          <tr [class.bx-standing-row--qualifies]="s.qualifies">
-                            <td>{{ s.rank }}</td>
-                            <td class="bx-standing-duo">
-                              {{ s.duo.name }}
-                              @if (s.duo.isViewer) {
-                                <span class="bx-dim">· você</span>
-                              }
-                            </td>
-                            <td>{{ s.wins }}</td>
-                            <td>{{ s.losses }}</td>
-                            <td>{{ s.setsFor }}–{{ s.setsAgainst }}</td>
-                            <td class="bx-standing-pts">{{ s.points }}</td>
+                    <div class="bx-table-scroll">
+                      <table class="bx-standings-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Dupla</th>
+                            <th>V</th>
+                            <th>D</th>
+                            <th>Sets</th>
+                            <th>Pts</th>
                           </tr>
-                        }
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          @for (s of g.standings; track s.rank) {
+                            <tr [class.bx-standing-row--qualifies]="s.qualifies">
+                              <td>{{ s.rank }}</td>
+                              <td class="bx-standing-duo">
+                                {{ s.duo.name }}
+                                @if (s.duo.isViewer) {
+                                  <span class="bx-dim">· você</span>
+                                }
+                              </td>
+                              <td>{{ s.wins }}</td>
+                              <td>{{ s.losses }}</td>
+                              <td>{{ s.setsFor }}–{{ s.setsAgainst }}</td>
+                              <td class="bx-standing-pts">{{ s.points }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 }
               </div>

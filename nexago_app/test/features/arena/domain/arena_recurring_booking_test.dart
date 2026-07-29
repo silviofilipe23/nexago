@@ -179,12 +179,50 @@ void main() {
       expect(booking.skippedDates, isEmpty);
     });
 
-    test('status canceled não é ativo', () {
+    test('status canceled não é ativo, é canceled', () {
       final booking = ArenaRecurringBooking.fromFirestore(
         _FakeDoc(id: 'rec9', data: {'status': 'canceled'}),
       );
 
       expect(booking.isActive, isFalse);
+      expect(booking.isCanceled, isTrue);
+    });
+
+    test('status paused não é ativo, é pausado', () {
+      final booking = ArenaRecurringBooking.fromFirestore(
+        _FakeDoc(id: 'rec10', data: {'status': 'paused'}),
+      );
+
+      expect(booking.isActive, isFalse);
+      expect(booking.isPaused, isTrue);
+      expect(booking.isCanceled, isFalse);
+    });
+
+    test('paymentType ausente vira per_occurrence (retrocompatibilidade)', () {
+      final booking =
+          ArenaRecurringBooking.fromFirestore(_FakeDoc(id: 'rec11', data: {}));
+
+      expect(booking.paymentType, 'per_occurrence');
+    });
+
+    test('paymentType monthly é preservado', () {
+      final booking = ArenaRecurringBooking.fromFirestore(
+        _FakeDoc(id: 'rec12', data: {'paymentType': 'monthly'}),
+      );
+
+      expect(booking.paymentType, 'monthly');
+    });
+
+    test('pausedAt vira DateTime quando presente, null quando ausente', () {
+      final when = DateTime.utc(2026, 7, 20, 12);
+      final paused = ArenaRecurringBooking.fromFirestore(
+        _FakeDoc(id: 'rec13', data: {'pausedAt': Timestamp.fromDate(when)}),
+      );
+      final notPaused =
+          ArenaRecurringBooking.fromFirestore(_FakeDoc(id: 'rec14', data: {}));
+
+      expect(paused.pausedAt?.toUtc(), when);
+      expect(notPaused.pausedAt, isNull);
     });
   });
 

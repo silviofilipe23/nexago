@@ -10,6 +10,8 @@ import '../../features/arenas/presentation/booking_blocked_page.dart';
 import '../../features/arenas/presentation/arena_detail_page.dart';
 import '../../features/arenas/presentation/arena_detail_route_extra.dart';
 import '../../features/arenas/presentation/booking_success_page.dart';
+import '../../features/arenas/presentation/club_session_detail_page.dart';
+import '../../features/arenas/presentation/club_session_pix_page.dart';
 import '../../features/arenas/presentation/slots_page.dart';
 import '../../features/arenas/domain/arena_booking_confirm_args.dart';
 import '../../features/arenas/domain/arena_list_item.dart';
@@ -55,6 +57,7 @@ import '../../features/organizer/presentation/category_ops/organizer_category_se
 import '../../features/organizer/presentation/category_ops/organizer_category_generate_bracket_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_format_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_communicate_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_announce_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_bracket_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_center_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_call_queue_page.dart';
@@ -82,6 +85,7 @@ import '../../features/arena/presentation/arena_edit_profile_page.dart';
 import '../../features/arena/presentation/arena_profile_update_success_page.dart';
 import '../../features/arena/presentation/arena_profile_page.dart';
 import '../../features/arena/presentation/arena_followers_page.dart';
+import '../../features/arena/presentation/arena_occupancy_report_page.dart';
 import '../../features/arena/presentation/arena_reviews_management_page.dart';
 import '../../features/arena/presentation/arena_availability_settings_page.dart';
 import '../../features/arena/presentation/arena_availability_slots_success_page.dart';
@@ -93,6 +97,10 @@ import '../../features/arena/presentation/plan/arena_subscription_pending_page.d
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/domain/arena_recurring_created_args.dart';
 import '../../features/arena/domain/arena_recurring_form_args.dart';
+import '../../features/arena/presentation/arena_club_details_page.dart';
+import '../../features/arena/presentation/arena_club_form_page.dart';
+import '../../features/arena/presentation/arena_club_session_page.dart';
+import '../../features/arena/presentation/arena_clubs_page.dart';
 import '../../features/arena/presentation/arena_recurring_details_page.dart';
 import '../../features/arena/presentation/arena_recurring_created_success_page.dart';
 import '../../features/arena/presentation/arena_recurring_form_page.dart';
@@ -134,6 +142,7 @@ import '../../features/friendly_match/presentation/friendly_match_invite_builder
 import '../../features/athlete/presentation/achievements/athlete_achievements_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
+import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
 import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
@@ -164,6 +173,7 @@ import '../../features/tournaments/presentation/tournament_categories_page.dart'
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
+import '../../features/tournaments/presentation/tournament_predictions_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
@@ -691,6 +701,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
+                path: 'announce',
+                name: AppRouteNames.organizerTournamentAnnounce,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentAnnouncePage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
                 path: 'categories/:categoryId',
                 name: AppRouteNames.organizerCategoryShell,
                 builder: (context, state) {
@@ -893,6 +914,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteSettings,
         name: AppRouteNames.athleteSettings,
         builder: (context, state) => const AthleteSettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteReferral,
+        name: AppRouteNames.athleteReferral,
+        builder: (context, state) => const AthleteReferralPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteSportsLevels,
@@ -1106,6 +1132,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
               return TournamentPrizesPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'palpites',
+            name: AppRouteNames.tournamentPredictions,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentPredictionsPage(tournamentId: id);
             },
           ),
         ],
@@ -1588,6 +1622,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ArenaReviewsManagementPage(),
       ),
       GoRoute(
+        path: AppRoutes.arenaOccupancyReport,
+        name: AppRouteNames.arenaOccupancyReport,
+        builder: (context, state) => const ArenaOccupancyReportPage(),
+      ),
+      GoRoute(
         path: AppRoutes.arenaProfileEdit,
         name: AppRouteNames.arenaProfileEdit,
         builder: (context, state) => const ArenaEditProfilePage(),
@@ -1646,6 +1685,65 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.arenaAvailabilitySlotsSuccess,
         name: AppRouteNames.arenaAvailabilitySlotsSuccess,
         builder: (context, state) => const ArenaAvailabilitySlotsSuccessPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaClubs,
+        name: AppRouteNames.arenaClubs,
+        builder: (context, state) => const ArenaClubsPage(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            name: AppRouteNames.arenaClubNew,
+            builder: (context, state) => const ArenaClubFormPage(),
+          ),
+          GoRoute(
+            path: 'session/:sessionId',
+            name: AppRouteNames.arenaClubSession,
+            builder: (context, state) {
+              final sessionId =
+                  state.pathParameters['sessionId']?.trim() ?? '';
+              return ArenaClubSessionPage(sessionId: sessionId);
+            },
+          ),
+          GoRoute(
+            path: ':clubId',
+            name: AppRouteNames.arenaClubDetail,
+            builder: (context, state) {
+              final clubId = state.pathParameters['clubId']?.trim() ?? '';
+              return ArenaClubDetailsPage(clubId: clubId);
+            },
+            routes: [
+              GoRoute(
+                path: 'edit',
+                name: AppRouteNames.arenaClubEdit,
+                builder: (context, state) {
+                  final clubId =
+                      state.pathParameters['clubId']?.trim() ?? '';
+                  return ArenaClubFormPage(clubId: clubId);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.clubSession,
+        name: AppRouteNames.clubSession,
+        builder: (context, state) {
+          final sessionId = state.pathParameters['sessionId']?.trim() ?? '';
+          return ClubSessionDetailPage(sessionId: sessionId);
+        },
+        routes: [
+          GoRoute(
+            path: 'pix',
+            name: AppRouteNames.clubSessionPix,
+            builder: (context, state) {
+              final sessionId =
+                  state.pathParameters['sessionId']?.trim() ?? '';
+              return ClubSessionPixPage(sessionId: sessionId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.arenaDetail,

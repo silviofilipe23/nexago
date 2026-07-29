@@ -19,5 +19,11 @@ export const ORGANIZER_WITHDRAWAL_REF_PREFIX = "organizerWithdrawal:";
 /** Prefixo de `externalReference` para assinatura de plano de arena (`{arenaId}:{tier}`). */
 export const ARENA_SUBSCRIPTION_REF_PREFIX = "arenaSubscription:";
 
+/**
+ * Prefixo de `externalReference` para fatia de split de pagamento de reserva
+ * (`{bookingId}:{shareId}`, doc em `arenaBookings/{bookingId}/paymentShares/{shareId}`).
+ */
+export const ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX = "arenaBookingShare:";
+
 /** Valor máximo (R$) para tentativa de PIX automático na solicitação do gestor. */
 export const ARENA_WITHDRAWAL_AUTO_MAX_REAIS = 500;

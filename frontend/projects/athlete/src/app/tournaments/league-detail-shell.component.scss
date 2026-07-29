@@ -29,6 +29,10 @@
   &:hover {
     color: var(--nx-text);
   }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+  }
 }
 
 .lg-notice {
@@ -142,6 +146,12 @@
   @media (max-width: 560px) {
     margin-top: 0;
     align-self: flex-start;
+  }
+
+  @media (max-width: 640px) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 }
 
@@ -579,6 +589,10 @@
   &:hover {
     background: var(--nx-orange-400);
   }
+
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 .lg-link-btn {
@@ -591,6 +605,12 @@
 
   &:hover {
     color: var(--nx-text);
+  }
+
+  @media (max-width: 640px) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 }
 
@@ -612,6 +632,10 @@
 
   &:hover {
     border-color: var(--nx-line-strong);
+  }
+
+  @media (max-width: 640px) {
+    height: 44px;
   }
 }
 

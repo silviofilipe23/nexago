@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -79,6 +80,14 @@ class BookingDetailsSheet extends StatelessWidget {
                   icon: Icons.account_balance_wallet_outlined,
                   text: item.paymentDisplay.label,
                 ),
+                if (item.couponCode != null) ...[
+                  SizedBox(height: 8),
+                  _MetaRow(
+                    icon: Icons.local_offer_outlined,
+                    text:
+                        'Cupom ${item.couponCode} (-${formatBRL(item.couponDiscountReais ?? 0)})',
+                  ),
+                ],
                 SizedBox(height: 8),
                 Row(
                   children: [

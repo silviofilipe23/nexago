@@ -18,5 +18,13 @@ void main() {
       expect(target.useCircleCrop, isFalse);
       expect(target.maxOutputWidth, 2200);
     });
+
+    test('highlight uses square crop without circle mask', () {
+      const target = ProfileImageCropTarget.highlight;
+      expect(target.aspectRatio, 1);
+      expect(target.withCircleUi, isFalse);
+      expect(target.useCircleCrop, isFalse);
+      expect(target.maxOutputWidth, 1600);
+    });
   });
 }

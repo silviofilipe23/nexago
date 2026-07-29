@@ -13,6 +13,11 @@
 
   @media (max-width: 640px) {
     padding: 16px;
+    // Editando o perfil mostra 2 botões (Cancelar + Salvar alterações); sem wrap eles
+    // ficam flex:none e espremem o título+subtítulo numa coluna de ~90px, quebrando
+    // "Editando perfil" em 2 linhas e o subtítulo em 4. Deixa a ação cair pra 2ª linha.
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 }
 
@@ -50,6 +55,12 @@
   align-items: center;
   gap: 10px;
   flex: none;
+
+  @media (max-width: 640px) {
+    // Com o header em flex-wrap, esse bloco cai pra própria linha — mantém
+    // os botões encostados na borda direita em vez de colar no título.
+    margin-left: auto;
+  }
 }
 
 // ── Body / layout ────────────────────────────────────────────
@@ -196,26 +207,91 @@
 }
 
 // ── Identidade ───────────────────────────────────────────────
-.at-profile-avatar-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+// Hero: capa + avatar sobrepondo pela metade a borda inferior da capa.
+// margin-bottom reserva espaço pra metade do avatar que "vaza" pra fora do hero
+// (36px = metade dos 72px do avatar) + respiro antes do próximo conteúdo.
+.at-profile-hero {
+  position: relative;
+  margin: -18px -18px 44px;
+}
+
+.at-profile-cover {
+  position: relative;
+  height: 120px;
+  border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
+  overflow: hidden;
+  // border-bottom: 1px solid var(--nx-line);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.at-profile-cover--empty {
+  background: linear-gradient(135deg, var(--nx-orange-tint), var(--nx-surface-1));
+}
+
+.at-profile-cover-img,
+.at-profile-cover-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.at-profile-cover-img {
+  object-fit: cover;
+}
+
+.at-profile-cover-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.95) 100%);
+  pointer-events: none;
+}
+
+.at-profile-cover-actions {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+}
+
+.at-profile-cover-actions .at-mini-btn {
+  background: rgba(10, 10, 10, 0.55);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(2px);
 }
 
 .at-profile-avatar {
+  position: absolute;
+  left: 18px;
+  bottom: -36px;
   width: 72px;
   height: 72px;
-  flex: none;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--nx-orange-tint);
   border: 1px solid rgba(255, 106, 26, 0.35);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
   display: grid;
   place-items: center;
+}
+
+.at-profile-avatar-fallback {
   font-family: var(--nx-font-display);
   font-weight: 700;
   font-size: 22px;
   color: var(--nx-orange-500);
+}
+
+.at-profile-avatar-img,
+.at-profile-avatar-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.at-profile-avatar-img {
+  object-fit: cover;
 }
 
 .at-profile-avatar-actions {
@@ -223,6 +299,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .at-profile-hint {
@@ -250,6 +327,26 @@
   display: flex;
   gap: 8px;
   margin-bottom: 18px;
+}
+
+.at-profile-sport-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.at-profile-sport-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 22px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
 }
 
 .at-profile-level {
@@ -351,6 +448,7 @@
   color: var(--nx-text-mute);
 
   input,
+  select,
   textarea {
     font-family: var(--nx-font-ui);
     font-size: 14px;
@@ -359,6 +457,12 @@
     border: 1px solid var(--nx-line-strong);
     border-radius: var(--nx-r-2);
     padding: 10px 12px;
+    width: 100%;
+
+    // <16px faz o iOS Safari dar zoom automático no foco do campo.
+    @media (max-width: 640px) {
+      font-size: 16px;
+    }
 
     &:disabled {
       opacity: 0.6;
@@ -381,29 +485,11 @@
   color: var(--nx-text-dim);
 }
 
-.at-profile-sport-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.at-profile-sport-tab {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
+.at-profile-readonly-note {
+  margin: 0;
   font-family: var(--nx-font-ui);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.at-profile-sport-tab--active {
-  background: var(--nx-orange-tint);
-  border-color: rgba(255, 106, 26, 0.4);
-  color: var(--nx-orange-500);
-  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text-mute);
 }
 
 // ── Conquistas ───────────────────────────────────────────────
@@ -469,6 +555,37 @@
   font-family: var(--nx-font-ui);
   font-size: 12px;
   color: var(--nx-text-dim);
+}
+
+// ── Convide um amigo ─────────────────────────────────────────
+.at-profile-referral-text {
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--nx-text-mute);
+  margin: 0 0 14px;
+}
+
+.at-profile-referral-apply {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--nx-line);
+
+  .at-field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+  }
+}
+
+.at-profile-referral-apply-btn {
+  flex: none;
 }
 
 // ── Segurança ────────────────────────────────────────────────

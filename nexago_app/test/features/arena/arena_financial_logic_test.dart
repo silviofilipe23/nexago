@@ -92,6 +92,7 @@ void main() {
           ),
         ],
         period: ArenaFinancialPeriod.d30,
+        now: now,
       );
 
       expect(stats.receivedReais, 100);

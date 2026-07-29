@@ -5,7 +5,7 @@ import 'tournament_discovery_models.dart';
 /// Elegibilidade de categoria por nível do atleta (anti-sandbagging).
 ///
 /// Regra: o atleta pode disputar a própria categoria ou categorias ACIMA do seu
-/// nível, nunca ABAIXO. Ranks unificados (escada de 5 do vôlei):
+/// nível, nunca ABAIXO. Ranks unificados (escada única de 5, todos os esportes):
 /// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
 /// Intermediário 2 (3) < Open (5) — legados como o degrau inferior do split.
 ///
@@ -19,14 +19,18 @@ abstract final class CategoryLevelEligibility {
   static const int _highestRank = 5;
 
   /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de
-  /// esporte do perfil (`levelsBySportFirestore`). `null` quando não há
-  /// equivalente (ex.: `footvolley`) — nesse caso usa-se o nível global.
+  /// esporte do perfil (chave de `sportOnboarding.levelsBySport`). `null`
+  /// quando não há equivalente — nesse caso usa-se o nível global.
   static String? tournamentSportToLevelSportCode(String? sport) {
     switch (sport?.trim().toLowerCase()) {
       case 'beachvolleyball':
         return 'VOLEI_PRAIA';
       case 'indoorvolleyball':
         return 'VOLEI_QUADRA';
+      case 'footvolley':
+        return 'FUTEVOLEI';
+      case 'beachtennis':
+        return 'BEACH_TENNIS';
       default:
         return null;
     }

@@ -3,13 +3,17 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/nexa_share.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../domain/sand_rank/sand_rank_catalog.dart';
 import '../../../domain/sand_rank/sand_rank_models.dart';
 import '../../../domain/sand_rank/sand_rank_reward_catalog.dart';
+import '../../../domain/sand_rank/sand_rank_share_text.dart';
 import 'sand_rank_emblem.dart';
+import 'sand_rank_share_capture.dart';
 
 /// Celebração fullscreen de promoção de elo. Mostra o degrau mais alto
 /// recém-alcançado e todas as recompensas ainda não vistas (inclui as
@@ -24,6 +28,7 @@ Future<void> showSandRankPromotionSheet(
       .reduce((a, b) => a > b ? a : b);
   final step = sandRankStepByTrackIndex(highestIndex);
   if (step == null) return;
+  final snackBarMessenger = ScaffoldMessenger.maybeOf(context);
 
   await showGeneralDialog<void>(
     context: context,
@@ -42,25 +47,83 @@ Future<void> showSandRankPromotionSheet(
     pageBuilder: (context, _, __) => _SandRankPromotionDialog(
       step: step,
       unseenRewards: unseenRewards,
+      snackBarMessenger: snackBarMessenger,
     ),
   );
 }
 
-class _SandRankPromotionDialog extends StatelessWidget {
+class _SandRankPromotionDialog extends StatefulWidget {
   const _SandRankPromotionDialog({
     required this.step,
     required this.unseenRewards,
+    this.snackBarMessenger,
   });
 
   final SandRankStep step;
   final List<UserSandRankReward> unseenRewards;
+  final ScaffoldMessengerState? snackBarMessenger;
+
+  @override
+  State<_SandRankPromotionDialog> createState() =>
+      _SandRankPromotionDialogState();
+}
+
+class _SandRankPromotionDialogState extends State<_SandRankPromotionDialog> {
+  final _captureKey = GlobalKey();
+  bool _sharing = false;
+
+  void _showMessage(String message) {
+    final messenger = widget.snackBarMessenger;
+    if (messenger != null) {
+      showAppSnackBar(messenger.context, message);
+    } else if (mounted) {
+      showAppSnackBar(context, message);
+    }
+  }
+
+  Future<void> _share() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+
+    final shareOrigin = nexaSharePositionOrigin(context);
+    final navigator = Navigator.of(context);
+
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      final file = await captureSandRankSharePng(_captureKey);
+      if (file == null) {
+        _showMessage('Não foi possível gerar a imagem.');
+        return;
+      }
+
+      if (navigator.mounted) {
+        navigator.pop();
+        await Future<void>.delayed(const Duration(milliseconds: 280));
+      }
+
+      final result = await shareSandRankPng(
+        file,
+        sandRankShareText(widget.step),
+        sharePositionOrigin: shareOrigin,
+      );
+      if (result.status == ShareResultStatus.unavailable) {
+        _showMessage('Não foi possível compartilhar.');
+      }
+    } catch (error, stackTrace) {
+      debugPrint('sand rank promotion share failed: $error\n$stackTrace');
+      _showMessage('Não foi possível compartilhar.');
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final step = widget.step;
     final rankColor = sandRankColor(step.rankCode);
     final label = sandRankLabel(step);
-    final rewardDefs = unseenRewards
+    final rewardDefs = widget.unseenRewards
         .map((r) => SandRankRewardCatalog.byId(r.rewardId))
         .whereType<SandRankRewardDefinition>()
         .toList(growable: false);
@@ -77,59 +140,70 @@ class _SandRankPromotionDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'PROMOÇÃO DE ELO',
-              style: AppTypography.mono(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.8,
-                color: rankColor,
-              ),
-            ),
-            const SizedBox(height: 22),
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.6, end: 1),
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.elasticOut,
-              builder: (context, scale, child) =>
-                  Transform.scale(scale: scale, child: child),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: rankColor.withValues(alpha: 0.35),
-                      blurRadius: 36,
-                      spreadRadius: 2,
+            RepaintBoundary(
+              key: _captureKey,
+              child: ColoredBox(
+                color: colors.surfaceCard,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'PROMOÇÃO DE ELO',
+                      style: AppTypography.mono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.8,
+                        color: rankColor,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.6, end: 1),
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.elasticOut,
+                      builder: (context, scale, child) =>
+                          Transform.scale(scale: scale, child: child),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: rankColor.withValues(alpha: 0.35),
+                              blurRadius: 36,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: SandRankStepEmblem(
+                          step: step,
+                          size: SandRankEmblemSize.hero,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Você alcançou $label!',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.soraRegular(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: rankColor,
+                        letterSpacing: -0.4,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sua dedicação na areia está deixando marca.',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.soraRegular(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colors.onSurfaceMuted,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
-                child: SandRankStepEmblem(
-                  step: step,
-                  size: SandRankEmblemSize.hero,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Você alcançou $label!',
-              textAlign: TextAlign.center,
-              style: AppTypography.soraRegular(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: rankColor,
-                letterSpacing: -0.4,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sua dedicação na areia está deixando marca.',
-              textAlign: TextAlign.center,
-              style: AppTypography.soraRegular(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: colors.onSurfaceMuted,
-                height: 1.35,
               ),
             ),
             if (rewardDefs.isNotEmpty) ...[
@@ -212,18 +286,21 @@ class _SandRankPromotionDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextButton.icon(
-                    onPressed: () {
-                      nexaShareText(
-                        context,
-                        'Subi pro elo $label no nexaGO! 🏐🔥 '
-                        'Bora pra areia comigo: https://nexago.app',
-                      );
-                    },
-                    icon: Icon(
-                      Icons.ios_share_rounded,
-                      size: 16,
-                      color: AppColors.brand,
-                    ),
+                    onPressed: _sharing ? null : _share,
+                    icon: _sharing
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.brand,
+                            ),
+                          )
+                        : Icon(
+                            Icons.ios_share_rounded,
+                            size: 16,
+                            color: AppColors.brand,
+                          ),
                     label: Text(
                       'Compartilhar',
                       style: AppTypography.soraRegular(

@@ -15,7 +15,7 @@ const NAV = [
 ];
 
 const PERSONAS = [
-  { label: 'Atletas', href: '/#download', description: 'Competir, ranquear e reservar quadra' },
+  { label: 'Atletas', href: 'https://linktr.ee/nexago', description: 'Competir, ranquear e reservar quadra' },
   { label: 'Organizadores', href: '/organizadores', description: 'Gerir torneios sem planilha' },
   { label: 'Arenas', href: '/arenas', description: 'Encher as quadras e receber etapas' },
 ];
@@ -170,7 +170,7 @@ function MobileMenu({ onClose }: { onClose: () => void }) {
           </Link>
         ))}
 
-        <ButtonLink href="/#download" onClick={onClose} className="mt-8 w-full">
+        <ButtonLink href="https://linktr.ee/nexago" onClick={onClose} className="mt-8 w-full">
           Baixar o app
         </ButtonLink>
       </nav>
@@ -255,7 +255,7 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2 md:hidden">
             <Link
-              href="/#download"
+              href="https://linktr.ee/nexago"
               className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-brand px-3.5 font-sora text-[13px] font-bold tracking-tight text-on-brand shadow-glow-orange transition-all duration-200 ease-out hover:bg-brand-light active:scale-[0.98] active:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
             >
               <Download className="size-4" aria-hidden="true" />

@@ -6,6 +6,7 @@ $ag-kind-colors: (
   tournament: #ff6a1a,
   challenge: #ec4899,
   rental: #3b82f6,
+  club: #22c55e,
   class: #a855f7,
   league: #14b8a6,
 );
@@ -21,6 +22,8 @@ $ag-kind-colors: (
 
   @media (max-width: 640px) {
     padding: 16px;
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 }
 
@@ -58,6 +61,37 @@ $ag-kind-colors: (
   align-items: center;
   gap: 10px;
   flex: none;
+
+  @media (max-width: 640px) {
+    flex-basis: 100%;
+  }
+}
+
+.ag-history-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: none;
+  flex: none;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  @media (max-width: 640px) {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 .ag-export-btn {
@@ -676,6 +710,12 @@ $ag-kind-colors: (
   &:hover {
     background: var(--nx-orange-400);
   }
+
+  // CTA principal de cada linha de evento — toque frequente, precisa de alvo maior no mobile.
+  @media (max-width: 640px) {
+    height: 44px;
+    padding: 0 16px;
+  }
 }
 
 .ag-event-cta--ghost {
@@ -887,6 +927,12 @@ $ag-kind-colors: (
   height: 34px;
   padding: 0 12px;
   font-size: 12.5px;
+
+  // Aceitar/Recusar convite e confirmar/cancelar uniforme são ações frequentes —
+  // 34px de altura fica abaixo do alvo de toque confortável no mobile.
+  @media (max-width: 640px) {
+    height: 44px;
+  }
 }
 
 // ── Month stats ──────────────────────────────────────────────

@@ -20,13 +20,13 @@ const COLUMNS = [
       { label: 'Rankings', href: '/rankings' },
       { label: 'Torneios', href: '/torneios' },
       { label: 'Blog', href: '/blog' },
-      { label: 'Baixar o app', href: '/#download' },
+      { label: 'Baixar o app', href: 'https://linktr.ee/nexago' },
     ],
   },
   {
     title: 'Para você',
     links: [
-      { label: 'Atletas', href: '/#download' },
+      { label: 'Atletas', href: 'https://linktr.ee/nexago' },
       { label: 'Organizadores', href: '/organizadores' },
       { label: 'Arenas', href: '/arenas' },
     ],

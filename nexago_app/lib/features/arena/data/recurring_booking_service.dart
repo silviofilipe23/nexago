@@ -28,7 +28,9 @@ class RecurringBookingService {
   static const String collection = 'arenaRecurringBookings';
   static const String _bookingsCollection = 'arenaBookings';
 
-  /// Séries ativas da arena (tempo real).
+  /// Séries visíveis da arena (ativas + pausadas) — pausada não some da
+  /// lista do gestor no app, mesmo sem botão de pausar/retomar aqui ainda
+  /// (isso fica só no portal web nesta rodada).
   Stream<List<ArenaRecurringBooking>> watchActiveSeries(String arenaId) {
     final id = arenaId.trim();
     if (id.isEmpty) {
@@ -37,7 +39,7 @@ class RecurringBookingService {
     return _firestore
         .collection(collection)
         .where('arenaId', isEqualTo: id)
-        .where('status', isEqualTo: 'active')
+        .where('status', whereIn: ['active', 'paused'])
         .snapshots()
         .map((snapshot) {
       final list =

@@ -25,6 +25,17 @@ class TournamentTeam {
     return p1 == p2;
   }
 
+  /// IDs de atleta do time, sem duplicatas nem vazios (1 item se dupla
+  /// incompleta/individual, 2 se completa).
+  List<String> get playerIds {
+    final ids = <String>{};
+    final p1 = player1Id.trim();
+    final p2 = player2Id.trim();
+    if (p1.isNotEmpty) ids.add(p1);
+    if (p2.isNotEmpty) ids.add(p2);
+    return ids.toList();
+  }
+
   bool containsPlayer(String uid) {
     final id = uid.trim();
     if (id.isEmpty) return false;

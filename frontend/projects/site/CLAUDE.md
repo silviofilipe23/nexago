@@ -128,7 +128,7 @@ Regras comuns:
 - Repositórios em `src/lib/firestore/` — componentes **não** falam direto com o SDK. Server Components leem via repositório; páginas usam **ISR** (`export const revalidate = 300`). Repositórios fazem `try/catch` retornando vazio (build não quebra) e tratam Timestamp via `.toDate()`.
 
 **Coleções públicas verificadas** (`allow read: if true`):
-- `tournaments/{id}` — torneios/etapas. Filtrar por `visibility === 'publicListing'`. Campos: `name`, `description`, `sport` (`beachTennis`|`beachVolleyball`), `city`/`state`/`locationName`, `dateLabel`, `startAt`/`endAt` (Timestamp), `categories[]` (`genderType`/`level`/`entryFeeCents`/`spotsTotal`), `listingStatus` (`open`|`almost_full`|`live`|`ended`), `liveMatchesNow`, `enrolledCount`, `leagueId`/`leagueStageName`.
+- `tournaments/{id}` — torneios/etapas. Filtrar por `visibility === 'publicListing'`. Campos: `name`, `description`, `sport` (`beachTennis`|`beachVolleyball`), `city`/`state`/`locationName`, `dateLabel`, `startAt`/`endAt` (Timestamp), `categories[]` (`categoryName`/`genderType`/`level`/`entryFeeCents`/`spotsTotal`), `listingStatus` (`open`|`almost_full`|`live`|`ended`), `liveMatchesNow`, `enrolledCount`, `leagueId`/`leagueStageName`.
 - `leagues/{id}` — `stages[]` com `tournamentIds`, `seasonLabel`.
 - `artifacts/volley-track-dev-4596c/public/data/{teams,athleteRankings,teamRankings,tournamentCategoryResults,leagueAthleteRankings,leagueTeamRankings}` — base = `artifacts/<projectId>/public/data`. `teams` tem `player1DisplayName`/`player2DisplayName` (nomes públicos).
 

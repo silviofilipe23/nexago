@@ -24,6 +24,7 @@ import 'widgets/edit_profile/edit_profile_account_prefs_group.dart';
 import 'widgets/edit_profile/edit_profile_completion_banner.dart';
 import 'widgets/edit_profile/edit_profile_dropdown_field.dart';
 import 'widgets/edit_profile/edit_profile_field_decorations.dart';
+import 'widgets/edit_profile/edit_profile_highlights_section.dart';
 import 'widgets/edit_profile/edit_profile_media_header.dart';
 import 'widgets/edit_profile/edit_profile_section_header.dart';
 import 'widgets/edit_profile/edit_profile_text_field.dart';
@@ -68,6 +69,9 @@ class _AthleteEditProfilePageState
   String? _existingCoverPhotoUrl;
   bool _removeCoverRequested = false;
 
+  List<String> _highlightUrls = const [];
+  final List<ProfilePickedImage> _pendingHighlights = [];
+
   bool _initialized = false;
   bool _saving = false;
   bool _onboardingCompleted = true;
@@ -98,6 +102,8 @@ class _AthleteEditProfilePageState
     _removeCoverRequested = false;
     _pickedCoverBytes = null;
     _pickedCoverContentType = null;
+    _highlightUrls = List<String>.from(p.highlightPhotoUrls);
+    _pendingHighlights.clear();
     _sport = _matchOrFirst(AthleteProfileOptions.sports, p.sport);
     _level = _matchOrFirst(
       AthleteProfileOptions.levels,
@@ -142,6 +148,25 @@ class _AthleteEditProfilePageState
       _pickedCoverContentType = result.contentType;
       _removeCoverRequested = false;
     });
+  }
+
+  Future<void> _addHighlightPhoto() async {
+    final total = _highlightUrls.length + _pendingHighlights.length;
+    if (total >= maxHighlightPhotos) return;
+    final result = await pickProfileImage(
+      context: context,
+      target: ProfileImageCropTarget.highlight,
+    );
+    if (result == null || !mounted) return;
+    setState(() => _pendingHighlights.add(result));
+  }
+
+  void _removeExistingHighlight(int index) {
+    setState(() => _highlightUrls.removeAt(index));
+  }
+
+  void _removePendingHighlight(int index) {
+    setState(() => _pendingHighlights.removeAt(index));
   }
 
   void _scrollToFocus() {
@@ -206,6 +231,19 @@ class _AthleteEditProfilePageState
         _removeCoverRequested = false;
       }
 
+      for (final pending in _pendingHighlights) {
+        final photoId =
+            '${DateTime.now().microsecondsSinceEpoch}_${_highlightUrls.length}';
+        final url = await repo.uploadHighlightPhoto(
+          uid: user.uid,
+          photoId: photoId,
+          bytes: pending.bytes,
+          contentType: pending.contentType,
+        );
+        _highlightUrls = [..._highlightUrls, url];
+      }
+      _pendingHighlights.clear();
+
       final base =
           ref.read(athleteProfileProvider).valueOrNull ??
           AthleteProfile.draft(user);
@@ -239,6 +277,7 @@ class _AthleteEditProfilePageState
         birthDate: _birthDate,
         gender: _gender,
         onboardingCompleted: _onboardingCompleted,
+        highlightPhotoUrls: _highlightUrls,
       );
 
       await repo.saveProfile(profile);
@@ -501,6 +540,21 @@ class _AthleteEditProfilePageState
                     maxLength: 160,
                     showCounter: true,
                     helperText: 'Aparece no seu perfil público.',
+                  ),
+                  SizedBox(height: 28),
+                  const EditProfileSectionHeader(
+                    icon: Icons.photo_library_outlined,
+                    title: 'FOTOS DE DESTAQUE',
+                  ),
+                  EditProfileHighlightsGrid(
+                    existingUrls: _highlightUrls,
+                    pendingBytes: [
+                      for (final p in _pendingHighlights) p.bytes,
+                    ],
+                    maxPhotos: maxHighlightPhotos,
+                    onAdd: _addHighlightPhoto,
+                    onRemoveExisting: _removeExistingHighlight,
+                    onRemovePending: _removePendingHighlight,
                   ),
                   SizedBox(height: 28),
                   const EditProfileSectionHeader(

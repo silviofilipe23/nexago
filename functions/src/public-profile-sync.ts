@@ -22,6 +22,7 @@ const PUBLIC_PROFILE_FIELDS = [
   "avatarUrl",
   "photoURL",
   "coverPhotoUrl",
+  "highlightPhotoUrls",
   "bio",
   "city",
   "state",
@@ -36,6 +37,9 @@ const PUBLIC_PROFILE_FIELDS = [
   "primarySport",
   "sports",
   "discoverSportIds",
+  // Nível: `sportOnboarding.levelsBySport` é a fonte canônica; `level`,
+  // `nivel` e `sportProfile` são LEGADOS (fallback de leitura de docs
+  // antigos) — remover da whitelist quando os fallbacks aposentarem.
   "level",
   "nivel",
   "goals",

@@ -276,6 +276,30 @@ class _SeriesCard extends StatelessWidget {
                           color: context.themeColors.onSurface,
                         ),
                       ),
+                      if (series.isPaused) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            // Mesmo tom de âmbar do status "pendente" no
+                            // portal web (--nx-pending), pra consistência
+                            // visual entre as duas plataformas.
+                            color: const Color(0xFFF4C543).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'PAUSADO',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: const Color(0xFFF4C543),
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       Text(
                         '$name · ${series.courtName}',

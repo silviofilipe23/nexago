@@ -9,11 +9,15 @@ class BookingPixGenerateBar extends StatelessWidget {
     required this.enabled,
     required this.onPressed,
     this.loading = false,
+    this.label = 'Gerar PIX',
   });
 
   final bool enabled;
   final VoidCallback onPressed;
   final bool loading;
+
+  /// Texto do botão (default: 'Gerar PIX').
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -53,15 +57,19 @@ class BookingPixGenerateBar extends StatelessWidget {
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'Gerar PIX',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
+                        Flexible(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
-                        SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded, size: 20),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.arrow_forward_rounded, size: 20),
                       ],
                     ),
             ),

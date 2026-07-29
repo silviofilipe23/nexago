@@ -1,20 +1,28 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
-import { doc, getDoc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
+import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { sanitizeReturnUrl } from '../auth/redirect-url';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
+import { athleteFunctions } from '../data/functions';
+import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
+import {
+  MIN_NATIVE_BIRTH_DATE_ISO,
+  birthDateBrToIso,
+  birthDateIsoToBr,
+  formatBirthDateMask,
+  maxNativeBirthDateIso,
+  validateBirthDate,
+} from './onboarding-validators';
+import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
+import { peekPartnerInviteContext, takePartnerInviteContext } from '../shared/partner-invite/partner-invite';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
-
-export interface SportOption {
-  code: string;
-  label: string;
-  icon: 'ball' | 'racket' | 'running' | 'plus';
-}
 
 export interface LevelOption {
   code: string;
@@ -26,18 +34,6 @@ export interface GoalOption {
   code: string;
   label: string;
 }
-
-/** Mesmos códigos usados pelo app Flutter (athlete_firestore_codes.dart), ordem idêntica. */
-const SPORTS: SportOption[] = [
-  { code: 'VOLEI_PRAIA', label: 'Vôlei de praia', icon: 'ball' },
-  { code: 'VOLEI_QUADRA', label: 'Vôlei de quadra', icon: 'ball' },
-  { code: 'FUTEBOL', label: 'Futebol', icon: 'ball' },
-  { code: 'BASQUETE', label: 'Basquete', icon: 'ball' },
-  { code: 'TENIS', label: 'Tênis', icon: 'racket' },
-  { code: 'BEACH_TENNIS', label: 'Beach tennis', icon: 'racket' },
-  { code: 'CORRIDA', label: 'Corrida', icon: 'running' },
-  { code: 'OUTROS', label: 'Outros', icon: 'plus' },
-];
 
 /** Escada única de 5 níveis (iniciante_1 < iniciante_2 < intermediario_1 < intermediario_2 < open),
  *  mesmos código e labels lidos por firestore.rules / category-level-eligibility.ts /
@@ -73,28 +69,10 @@ function createFirestore(): Firestore | null {
   return getFirestore(app);
 }
 
-function isValidWhatsApp(raw: string): boolean {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length >= 10 && digits.length <= 11) return true;
-  return digits.length >= 12 && digits.length <= 13 && digits.startsWith('55');
-}
-
-/** `dd/mm/aaaa` → `YYYY-MM-DD` (mesma convenção do Flutter, athlete_firestore_codes.dart). */
-function birthDateBrToIso(raw: string): string | null {
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
-  if (!match) return null;
-  const [, d, m, y] = match;
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  if (date.getFullYear() !== Number(y) || date.getMonth() !== Number(m) - 1 || date.getDate() !== Number(d)) {
-    return null;
-  }
-  return `${y}-${m}-${d}`;
-}
-
 @Component({
   selector: 'app-athlete-onboarding',
   standalone: true,
-  imports: [RouterLink, AuthShellComponent],
+  imports: [RouterLink, AuthShellComponent, PhoneVerificationComponent],
   templateUrl: './athlete-onboarding.component.html',
   styleUrl: './athlete-onboarding.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,18 +80,19 @@ function birthDateBrToIso(raw: string): string | null {
 export class AthleteOnboardingComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  protected readonly sports = SPORTS;
+  protected readonly sports = SPORT_CATALOG;
   protected readonly levels = LEVELS;
   protected readonly goals = GOALS;
   protected readonly genders = GENDERS;
 
   protected readonly step = signal<ObStep>(1);
 
-  protected readonly selectedSportCode = signal<string>(SPORTS[0]!.code);
+  protected readonly selectedSportCode = signal<string>(SPORT_CATALOG[0]!.code);
   protected readonly selectedLevelCode = signal<string>(DEFAULT_LEVEL);
   protected readonly selectedGoalCodes = signal<ReadonlySet<string>>(
     new Set(['JOGAR_DIVERSAO', 'COMPETIR']),
@@ -125,8 +104,11 @@ export class AthleteOnboardingComponent {
 
   protected readonly name = signal(this.initialName());
   protected readonly nickname = signal('');
-  protected readonly phone = signal('');
+  protected readonly phoneVerified = signal(false);
+  protected readonly verifiedPhoneNumber = signal<string | null>(null);
   protected readonly birthDateInput = signal('');
+  protected readonly birthDateNativeMin = MIN_NATIVE_BIRTH_DATE_ISO;
+  protected readonly birthDateNativeMax = maxNativeBirthDateIso();
   protected readonly gender = signal<string | null>(null);
   protected readonly touched = signal(false);
 
@@ -138,24 +120,25 @@ export class AthleteOnboardingComponent {
   protected readonly photoFile = signal<File | null>(null);
   protected readonly photoPreviewUrl = signal<string | null>(null);
   private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
+  private readonly birthDateNativeInput = viewChild<ElementRef<HTMLInputElement>>('birthDateNative');
   private photoObjectUrl: string | null = null;
 
   protected readonly nameError = computed(() =>
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
   protected readonly phoneError = computed(() =>
-    this.touched() && !isValidWhatsApp(this.phone()) ? 'Informe um WhatsApp válido' : null,
+    this.touched() && !this.phoneVerified() ? 'Verifique seu WhatsApp' : null,
   );
   protected readonly birthDateError = computed(() =>
-    this.touched() && !birthDateBrToIso(this.birthDateInput()) ? 'Data inválida (dd/mm/aaaa)' : null,
+    this.touched() ? validateBirthDate(this.birthDateInput()) : null,
   );
   protected readonly genderError = computed(() => (this.touched() && !this.gender() ? 'Obrigatório' : null));
 
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
-      isValidWhatsApp(this.phone()) &&
-      birthDateBrToIso(this.birthDateInput()) != null &&
+      this.phoneVerified() &&
+      validateBirthDate(this.birthDateInput()) == null &&
       this.gender() != null,
   );
 
@@ -190,6 +173,37 @@ export class AthleteOnboardingComponent {
 
   protected isGoalSelected(code: string): boolean {
     return this.selectedGoalCodes().has(code);
+  }
+
+  /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
+   *  users/{uid} via Admin SDK — aqui só refletimos o estado na UI. */
+  protected onPhoneVerified(event: { phoneNumber: string }): void {
+    this.verifiedPhoneNumber.set(event.phoneNumber);
+    this.phoneVerified.set(true);
+  }
+
+  protected onBirthDateInputChanged(value: string): void {
+    this.birthDateInput.set(formatBirthDateMask(value));
+  }
+
+  protected openBirthDatePicker(): void {
+    const input = this.birthDateNativeInput()?.nativeElement;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+        // Navegador recusou (ex.: fora de gesto do usuário) — cai no fallback abaixo.
+      }
+    }
+    input.click();
+  }
+
+  protected onBirthDateNativeChange(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (!value) return;
+    this.birthDateInput.set(birthDateIsoToBr(value));
   }
 
   protected goToStep(step: ObStep): void {
@@ -258,18 +272,17 @@ export class AthleteOnboardingComponent {
     this.submitError.set(null);
 
     try {
-      // As rules exigem `roles` no create (`roles.hasOnly(['athlete']) && size() > 0`) e
-      // imutável no update — união com o que já existir, preservando ordem (mesmo padrão do
-      // app mobile em athlete_profile_repository.dart:74-82), nunca só `['athlete']` fixo.
+      // `roles` é imutável no update das rules (só a Cloud Function, via Admin SDK,
+      // pode alterá-lo — mesmo padrão de `completeArenaSignup`). Uma conta que já
+      // veio de outro portal (arena/organizer) teria o próprio save do onboarding
+      // negado por permissão se tentássemos gravar `roles` direto daqui; por isso
+      // o papel é concedido primeiro via `grantAthleteRole`, e o setDoc abaixo nem
+      // toca no campo.
+      const grantAthleteRole = httpsCallable(athleteFunctions(), 'grantAthleteRole');
+      await grantAthleteRole();
+      await this.auth.user()?.getIdToken(true);
+
       const userDocRef = doc(this.firestore, 'users', uid);
-      const userSnap = await getDoc(userDocRef);
-      const existingRoles = userSnap.exists() ? userSnap.data()?.['roles'] : null;
-      const roles = Array.from(
-        new Set([
-          ...(Array.isArray(existingRoles) ? existingRoles.filter((r): r is string => typeof r === 'string') : []),
-          'athlete',
-        ]),
-      );
 
       await Promise.all([
         setDoc(
@@ -277,7 +290,6 @@ export class AthleteOnboardingComponent {
           {
             fullName,
             nickname: this.nickname().trim() || null,
-            phoneNumber: this.phone().trim(),
             gender: this.gender(),
             birthDate: isoBirthDate,
             goals: Array.from(this.selectedGoalCodes()),
@@ -287,7 +299,6 @@ export class AthleteOnboardingComponent {
               levelsBySport: { [sportCode]: levelCode },
               completedAt: serverTimestamp(),
             },
-            roles,
             hasAthleteRole: true,
             onboardingCompleted: true,
             updatedAt: serverTimestamp(),
@@ -332,8 +343,25 @@ export class AthleteOnboardingComponent {
     }
   }
 
+  /** Convite de parceiro pendente (link de cadastro) — dirige o passo final e o destino.
+   *  Sem torneio no contexto é indicação pura: passo final segue o texto padrão. */
+  protected readonly pendingPartnerInvite = computed(() => {
+    const ctx = peekPartnerInviteContext();
+    return ctx?.tournamentId ? ctx : null;
+  });
+
   protected finish(): void {
-    void this.router.navigateByUrl('/painel');
+    // Quem chegou por convite de dupla cai direto no torneio do convite — quem convidou
+    // ainda precisa buscar o nome e enviar o convite real de dupla por lá.
+    const invite = takePartnerInviteContext();
+    const fallback = invite?.tournamentId ? `/torneios/${invite.tournamentId}` : '/painel';
+    const redirectParam = this.route.snapshot.queryParamMap.get('redirect');
+    // Sem convite, o onboardingGuard pode ter guardado aqui o destino original
+    // (ex.: inscrição de torneio) que o atleta tentou acessar antes de ter conta.
+    const target = redirectParam
+      ? sanitizeReturnUrl(redirectParam, fallback, { trustedOrigins: environment.trustedReturnOrigins })
+      : fallback;
+    void this.router.navigateByUrl(target);
   }
 
   private showNotice(message: string): void {

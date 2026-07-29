@@ -27,3 +27,7 @@ export function isMatchInProgress(status: unknown): boolean {
 export function isMatchScheduled(status: unknown): boolean {
   return normalizeMatchStatusKey(status) === "scheduled";
 }
+
+export function isMatchCanceled(status: unknown): boolean {
+  return normalizeMatchStatusKey(status) === "canceled";
+}

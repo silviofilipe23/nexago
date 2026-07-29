@@ -196,14 +196,17 @@ export interface TournamentSummary {
   categories: TournamentCategoryOffer[];
 }
 
-function organizerPixOf(raw: unknown): TournamentSummary['organizerPix'] {
+export function organizerPixOf(raw: unknown): TournamentSummary['organizerPix'] {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const key = optionalStr(o['key']);
   if (!key) return null;
   return {
     key,
-    keyType: optionalStr(o['keyType']) ?? 'random',
+    // Vazio (não `'random'`): o wizard do organizador não pergunta o tipo da
+    // chave, então sem isso `resolveKeyKind` (pix-brcode.ts) nunca cai no
+    // auto-detect por formato e trata telefone/CPF/CNPJ como EVP aleatória.
+    keyType: optionalStr(o['keyType']) ?? '',
     recipientName: optionalStr(o['recipientName']) ?? '',
     city: optionalStr(o['city']) ?? '',
   };

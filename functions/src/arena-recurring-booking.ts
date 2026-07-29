@@ -43,6 +43,29 @@ export interface RecurringSeriesData {
   skippedDates: string[];
 }
 
+/** Reconstrói `RecurringSeriesData` a partir do doc cru de `arenaRecurringBookings`
+ *  — usado tanto pelo scheduler diário quanto por `resumeArenaRecurringBooking`. */
+export function parseRecurringSeriesData(data: Record<string, unknown>): RecurringSeriesData {
+  return {
+    arenaId: String(data["arenaId"] ?? ""),
+    arenaName: String(data["arenaName"] ?? "Arena"),
+    courtId: String(data["courtId"] ?? ""),
+    courtName: String(data["courtName"] ?? "Quadra"),
+    weekday: Number(data["weekday"] ?? 0),
+    startTime: String(data["startTime"] ?? ""),
+    endTime: String(data["endTime"] ?? ""),
+    athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null,
+    customerName: typeof data["customerName"] === "string" ? data["customerName"] : null,
+    amountReais: Number(data["amountReais"] ?? 0),
+    status: String(data["status"] ?? ""),
+    startDate: String(data["startDate"] ?? ""),
+    endDate: typeof data["endDate"] === "string" ? data["endDate"] : null,
+    skippedDates: Array.isArray(data["skippedDates"]) ?
+      (data["skippedDates"] as unknown[]).map(String) :
+      [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Helpers puros (exportados para testes)
 // ---------------------------------------------------------------------------
@@ -63,11 +86,11 @@ export function calendarHoursSpanning(startMin: number, endMin: number): number[
   return hours;
 }
 
-function fmtHourStart(h: number): string {
+export function fmtHourStart(h: number): string {
   return `${Math.min(23, Math.max(0, h)).toString().padStart(2, "0")}:00`;
 }
 
-function fmtHourEnd(h: number): string {
+export function fmtHourEnd(h: number): string {
   if (h >= 23) return "24:00";
   return `${(h + 1).toString().padStart(2, "0")}:00`;
 }
@@ -141,7 +164,7 @@ export const WEEKDAY_LABELS_PT: Record<number, string> = {
 // Materialização (compartilhada entre callable e scheduler)
 // ---------------------------------------------------------------------------
 
-function lockRefsForOccurrence(
+export function lockRefsForOccurrence(
   db: Firestore,
   series: Pick<RecurringSeriesData, "arenaId" | "courtId" | "startTime" | "endTime">,
   dateKey: string,
@@ -162,7 +185,7 @@ function lockRefsForOccurrence(
 
 /** Slots `blocked` da quadra no dia — cobre docs com `date` string e Timestamp
  * (bloqueios criados pelo app gravam Timestamp; functions gravam string). */
-async function hasBlockedSlotOverlap(
+export async function hasBlockedSlotOverlap(
   db: Firestore,
   series: Pick<RecurringSeriesData, "arenaId" | "courtId" | "startTime" | "endTime">,
   dateKey: string,
@@ -264,7 +287,13 @@ export async function materializeSeriesOccurrences(
     try {
       const outcome = await db.runTransaction(async (tx: Transaction) => {
         const existing = await tx.get(bookingRef);
-        if (existing.exists) return "exists";
+        if (existing.exists) {
+          const existingStatus = String(existing.data()?.["status"] ?? "").toLowerCase();
+          if (existingStatus !== "cancelled") return "exists";
+          // Doc existe mas foi liberado por cancelFutureOccurrences (edição/
+          // retomada da mesma série) — sobrescreve com a config nova em vez
+          // de bloquear.
+        }
         for (const lock of locks) {
           const snap = await tx.get(lock.ref);
           if (snap.exists) return "conflict";
@@ -432,6 +461,37 @@ async function requireArenaManager(
   return arenaData;
 }
 
+/**
+ * Confere que a quadra existe e, se houver atleta vinculado, que o usuário
+ * existe — validação comum a criar e editar horário fixo. Lança
+ * HttpsError("not-found", ...) no primeiro problema encontrado.
+ */
+async function resolveCourtAndAthlete(
+  db: Firestore,
+  arenaId: string,
+  courtId: string,
+  athleteId: string | null,
+): Promise<{courtName: string}> {
+  const courtSnap = await db
+    .collection("arenas").doc(arenaId)
+    .collection("courts").doc(courtId)
+    .get();
+  if (!courtSnap.exists) {
+    throw new HttpsError("not-found", "Quadra não encontrada.");
+  }
+  if (athleteId != null) {
+    const userSnap = await db.collection("users").doc(athleteId).get();
+    if (!userSnap.exists) {
+      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
+    }
+  }
+  const courtData = courtSnap.data() as Record<string, unknown>;
+  const courtName = typeof courtData["name"] === "string" ?
+    (courtData["name"] as string).trim() || "Quadra" :
+    "Quadra";
+  return {courtName};
+}
+
 async function notifyLinkedAthleteSafe(input: {
   athleteId: string | null;
   title: string;
@@ -459,7 +519,7 @@ async function notifyLinkedAthleteSafe(input: {
 // Callables
 // ---------------------------------------------------------------------------
 
-interface CreateRecurringInput {
+export interface RawRecurringInput {
   arenaId?: string;
   courtId?: string;
   weekday?: number;
@@ -470,6 +530,79 @@ interface CreateRecurringInput {
   amountReais?: number;
   startDate?: string;
   endDate?: string;
+  paymentType?: string;
+}
+
+export interface ValidatedRecurringInput {
+  arenaId: string;
+  courtId: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  athleteId: string | null;
+  customerName: string | null;
+  amountReais: number;
+  startDate: string;
+  endDate: string | null;
+  paymentType: "per_occurrence" | "monthly";
+}
+
+/**
+ * Valida e normaliza o payload comum a criar/editar horário fixo. Lança
+ * HttpsError("invalid-argument", ...) no primeiro problema encontrado.
+ * `allowPastStartDate` é usado pela edição: uma série já iniciada tem
+ * `startDate` no passado por natureza, e reenviar o mesmo valor não deve
+ * ser rejeitado.
+ */
+export function validateRecurringInput(
+  input: RawRecurringInput,
+  todayKey: string,
+  opts: {allowPastStartDate?: boolean} = {},
+): ValidatedRecurringInput {
+  const arenaId = input.arenaId?.trim() ?? "";
+  const courtId = input.courtId?.trim() ?? "";
+  const weekday = Number(input.weekday);
+  const startTime = input.startTime?.trim() ?? "";
+  const endTime = input.endTime?.trim() ?? "";
+  const athleteId = input.athleteId?.trim() || null;
+  const customerName = input.customerName?.trim() || null;
+  const amountReais = Number(input.amountReais);
+  const startDate = input.startDate?.trim() || todayKey;
+  const endDate = input.endDate?.trim() || null;
+  const paymentType: "per_occurrence" | "monthly" = input.paymentType === "monthly" ? "monthly" : "per_occurrence";
+
+  if (!arenaId || !courtId) {
+    throw new HttpsError("invalid-argument", "Arena e quadra são obrigatórias.");
+  }
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
+    throw new HttpsError("invalid-argument", "Dia da semana inválido.");
+  }
+  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+    throw new HttpsError("invalid-argument", "Horário inválido.");
+  }
+  const startMin = toMinutes(startTime);
+  let endMin = toMinutes(endTime);
+  if (endMin === 0 && startMin > 0) endMin = 24 * 60;
+  if (endMin <= startMin) {
+    throw new HttpsError("invalid-argument", "Intervalo de horário inválido.");
+  }
+  if (!Number.isFinite(amountReais) || amountReais <= 0) {
+    throw new HttpsError("invalid-argument", "Informe o valor por ocorrência.");
+  }
+  if (!isValidDateKey(startDate) || (!opts.allowPastStartDate && startDate < todayKey)) {
+    throw new HttpsError("invalid-argument", "Data de início inválida.");
+  }
+  if (endDate != null && (!isValidDateKey(endDate) || endDate < startDate)) {
+    throw new HttpsError("invalid-argument", "Data de término inválida.");
+  }
+  if (!athleteId && !customerName) {
+    throw new HttpsError("invalid-argument", "Vincule um atleta ou informe o nome do mensalista.");
+  }
+  if (customerName != null && customerName.length > 80) {
+    throw new HttpsError("invalid-argument", "Nome do mensalista muito longo.");
+  }
+
+  return {arenaId, courtId, weekday, startTime, endTime, athleteId, customerName, amountReais, startDate, endDate, paymentType};
 }
 
 export const createArenaRecurringBooking = onCall(async (request) => {
@@ -493,77 +626,26 @@ async function createArenaRecurringBookingHandler(
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
 
-  const input = (request.data ?? {}) as CreateRecurringInput;
-  const arenaId = input.arenaId?.trim() ?? "";
-  const courtId = input.courtId?.trim() ?? "";
-  const weekday = Number(input.weekday);
-  const startTime = input.startTime?.trim() ?? "";
-  const endTime = input.endTime?.trim() ?? "";
-  const athleteId = input.athleteId?.trim() || null;
-  const customerName = input.customerName?.trim() || null;
-  const amountReais = Number(input.amountReais);
+  const input = (request.data ?? {}) as RawRecurringInput;
   const todayKey = dayKeyFromEventDate(new Date());
-  const startDate = input.startDate?.trim() || todayKey;
-  const endDate = input.endDate?.trim() || null;
-
-  if (!arenaId || !courtId) {
-    throw new HttpsError("invalid-argument", "Arena e quadra são obrigatórias.");
-  }
-  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
-    throw new HttpsError("invalid-argument", "Dia da semana inválido.");
-  }
-  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
-    throw new HttpsError("invalid-argument", "Horário inválido.");
-  }
-  const startMin = toMinutes(startTime);
-  let endMin = toMinutes(endTime);
-  if (endMin === 0 && startMin > 0) endMin = 24 * 60;
-  if (endMin <= startMin) {
-    throw new HttpsError("invalid-argument", "Intervalo de horário inválido.");
-  }
-  if (!Number.isFinite(amountReais) || amountReais <= 0) {
-    throw new HttpsError("invalid-argument", "Informe o valor por ocorrência.");
-  }
-  if (!isValidDateKey(startDate) || startDate < todayKey) {
-    throw new HttpsError("invalid-argument", "Data de início inválida.");
-  }
-  if (endDate != null && (!isValidDateKey(endDate) || endDate < startDate)) {
-    throw new HttpsError("invalid-argument", "Data de término inválida.");
-  }
-  if (!athleteId && !customerName) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Vincule um atleta ou informe o nome do mensalista.",
-    );
-  }
-  if (customerName != null && customerName.length > 80) {
-    throw new HttpsError("invalid-argument", "Nome do mensalista muito longo.");
-  }
+  const {
+    arenaId, courtId, weekday, startTime, endTime,
+    athleteId, customerName, amountReais, startDate, endDate, paymentType,
+  } = validateRecurringInput(input, todayKey);
 
   const db = getFirestore();
   const arenaData = await requireArenaManager(db, arenaId, uid);
 
-  const courtSnap = await db
-    .collection("arenas").doc(arenaId)
-    .collection("courts").doc(courtId)
-    .get();
-  if (!courtSnap.exists) {
-    throw new HttpsError("not-found", "Quadra não encontrada.");
-  }
-
-  if (athleteId != null) {
-    const userSnap = await db.collection("users").doc(athleteId).get();
-    if (!userSnap.exists) {
-      throw new HttpsError("not-found", "Atleta vinculado não encontrado.");
-    }
-  }
+  const {courtName} = await resolveCourtAndAthlete(db, arenaId, courtId, athleteId);
 
   // Gate de plano: Essencial (sem titularidade Pro/Parceiro) tem limite de séries ativas.
   if (!isArenaEntitledPro(arenaData, Date.now())) {
+    // Pausada continua contando na cota — senão dá pra "furar" o limite
+    // pausando uma série sem liberar de fato o slot do plano.
     const activeCount = await db
       .collection(ARENA_RECURRING_BOOKINGS)
       .where("arenaId", "==", arenaId)
-      .where("status", "==", "active")
+      .where("status", "in", ["active", "paused"])
       .count()
       .get();
     if (activeCount.data().count >= ESSENCIAL_MAX_ACTIVE_RECURRING) {
@@ -578,10 +660,6 @@ async function createArenaRecurringBookingHandler(
   const arenaName = typeof arenaData["name"] === "string" ?
     (arenaData["name"] as string).trim() || "Arena" :
     "Arena";
-  const courtData = courtSnap.data() as Record<string, unknown>;
-  const courtName = typeof courtData["name"] === "string" ?
-    (courtData["name"] as string).trim() || "Quadra" :
-    "Quadra";
 
   const series: RecurringSeriesData = {
     arenaId,
@@ -605,6 +683,8 @@ async function createArenaRecurringBookingHandler(
 
   await seriesRef.set({
     ...series,
+    paymentType,
+    pausedAt: null,
     // Antes da materialização: o scheduler completa se algo falhar no meio.
     materializedUntil: addDaysToDateKey(todayKey, -1),
     createdBy: uid,
@@ -677,7 +757,8 @@ export const cancelArenaRecurringBooking = onCall(async (request) => {
   const arenaId = String(seriesData["arenaId"] ?? "");
   await requireArenaManager(db, arenaId, uid);
 
-  if (String(seriesData["status"]) !== "active") {
+  const currentStatus = String(seriesData["status"] ?? "");
+  if (currentStatus !== "active" && currentStatus !== "paused") {
     throw new HttpsError("failed-precondition", "Este horário fixo já foi encerrado.");
   }
 
@@ -788,4 +869,290 @@ export const cancelArenaRecurringOccurrence = onCall(async (request) => {
   });
 
   return {bookingId, seriesId, dateKey};
+});
+
+interface UpdateSeriesInput extends RawRecurringInput {
+  seriesId?: string;
+}
+
+export const updateArenaRecurringBooking = onCall(async (request) => {
+  try {
+    return await updateArenaRecurringBookingHandler(request);
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    logger.error("updateArenaRecurringBooking: falha inesperada", e);
+    throw new HttpsError(
+      "internal",
+      "Não foi possível salvar as alterações. Tente novamente em instantes.",
+    );
+  }
+});
+
+async function updateArenaRecurringBookingHandler(
+  request: Parameters<Parameters<typeof onCall>[0]>[0],
+) {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+
+  const input = (request.data ?? {}) as UpdateSeriesInput;
+  const seriesId = input.seriesId?.trim() ?? "";
+  if (!seriesId) {
+    throw new HttpsError("invalid-argument", "Horário fixo inválido.");
+  }
+
+  const db = getFirestore();
+  const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
+  const seriesSnap = await seriesRef.get();
+  if (!seriesSnap.exists) {
+    throw new HttpsError("not-found", "Horário fixo não encontrado.");
+  }
+  const currentData = seriesSnap.data() as Record<string, unknown>;
+  const currentStatus = String(currentData["status"] ?? "");
+  if (currentStatus !== "active" && currentStatus !== "paused") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Este horário fixo já foi encerrado e não pode ser editado.",
+    );
+  }
+  // arenaId sempre vem do doc já existente, nunca do payload do client
+  // (evita um client mal-intencionado tentar editar sob outra arena).
+  const arenaId = String(currentData["arenaId"] ?? "");
+  await requireArenaManager(db, arenaId, uid);
+
+  const todayKey = dayKeyFromEventDate(new Date());
+  const validated = validateRecurringInput({...input, arenaId}, todayKey, {allowPastStartDate: true});
+
+  const {courtName} = await resolveCourtAndAthlete(db, arenaId, validated.courtId, validated.athleteId);
+  const arenaName = String(currentData["arenaName"] ?? "Arena");
+  // Datas canceladas individualmente via cancelArenaRecurringOccurrence
+  // precisam sobreviver à edição — do contrário a materialização recria a
+  // ocorrência que o gestor cancelou de propósito.
+  const carriedSkippedDates: string[] = Array.isArray(currentData["skippedDates"]) ?
+    (currentData["skippedDates"] as unknown[]).map(String) :
+    [];
+
+  const series: RecurringSeriesData = {
+    arenaId,
+    arenaName,
+    courtId: validated.courtId,
+    courtName,
+    weekday: validated.weekday,
+    startTime: validated.startTime,
+    endTime: validated.endTime,
+    athleteId: validated.athleteId,
+    customerName: validated.customerName,
+    amountReais: validated.amountReais,
+    status: currentStatus,
+    startDate: validated.startDate,
+    endDate: validated.endDate,
+    skippedDates: carriedSkippedDates,
+  };
+
+  const todayMinusOne = addDaysToDateKey(todayKey, -1);
+  const horizonKey = addDaysToDateKey(todayKey, RECURRING_HORIZON_DAYS);
+
+  let canceledDates: string[] = [];
+  let createdDates: string[] = [];
+  let skippedDates: string[] = [];
+
+  if (currentStatus === "active") {
+    // Grava a config nova já ANTES de cancelar/materializar, com
+    // `materializedUntil` propositalmente desatualizado — mesmo padrão de
+    // createArenaRecurringBookingHandler. Se cancelFutureOccurrences ou
+    // materializeSeriesOccurrences falhar no meio, o cron
+    // (`materializeArenaRecurringBookings`, filtro `materializedUntil <
+    // horizonKey`) retoma a série depois, já com a config nova.
+    await seriesRef.set({
+      ...series,
+      paymentType: validated.paymentType,
+      materializedUntil: todayMinusOne,
+    }, {merge: true});
+
+    // Config antiga sai da agenda, config nova entra — garante que nenhuma
+    // ocorrência futura fica com dia/horário/quadra/valor desatualizados.
+    canceledDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_updated");
+    const result = await materializeSeriesOccurrences(db, seriesId, series, todayMinusOne, horizonKey);
+    createdDates = result.createdDates;
+    // O que é PERSISTIDO no doc é só o que já estava lá (cancelamentos
+    // deliberados via cancelArenaRecurringOccurrence) — os conflitos desta
+    // rodada de materialização (`result.skippedDates`) são transitórios (o
+    // horário estava travado naquele instante) e não podem ser excluídos
+    // para sempre, senão a próxima edição/retomada nunca mais tenta essa
+    // data de novo. O RETORNO ao chamador ainda reporta os conflitos desta
+    // rodada, para feedback imediato na UI.
+    skippedDates = result.skippedDates;
+
+    await seriesRef.set({
+      materializedUntil: horizonKey,
+      skippedDates: carriedSkippedDates,
+    }, {merge: true});
+  } else {
+    // Se `paused`: só os campos da série mudam agora — a rematerialização
+    // acontece em resumeArenaRecurringBooking, com a config já atualizada.
+    // Nenhuma operação multi-etapa acontece aqui, então um único write basta.
+    skippedDates = carriedSkippedDates;
+    await seriesRef.set({
+      ...series,
+      paymentType: validated.paymentType,
+      skippedDates,
+      materializedUntil: String(currentData["materializedUntil"] ?? todayMinusOne),
+    }, {merge: true});
+  }
+
+  // Editar pode mover a reserva confirmada do atleta pra outro dia/horário/
+  // quadra/valor — dispara tanto ativo quanto pausado, o atleta precisa
+  // saber da mudança de config independente do estado atual da série.
+  await notifyLinkedAthleteSafe({
+    athleteId: validated.athleteId,
+    title: "Horário fixo atualizado",
+    body: `Seu horário fixo em ${arenaName} foi atualizado pela arena. ` +
+      "Confira os novos detalhes.",
+    type: "recurring_booking_updated",
+    data: {recurringBookingId: seriesId, arenaId},
+  });
+
+  logger.info("updateArenaRecurringBooking: série atualizada", {
+    seriesId,
+    arenaId,
+    status: currentStatus,
+    canceled: canceledDates.length,
+    created: createdDates.length,
+    skipped: skippedDates.length,
+  });
+
+  return {seriesId, canceledDates, createdDates, skippedDates};
+}
+
+interface PauseSeriesInput {
+  seriesId?: string;
+  reason?: string;
+}
+
+export const pauseArenaRecurringBooking = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const input = (request.data ?? {}) as PauseSeriesInput;
+  const seriesId = input.seriesId?.trim() ?? "";
+  if (!seriesId) {
+    throw new HttpsError("invalid-argument", "Horário fixo inválido.");
+  }
+
+  const db = getFirestore();
+  const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
+  const seriesSnap = await seriesRef.get();
+  if (!seriesSnap.exists) {
+    throw new HttpsError("not-found", "Horário fixo não encontrado.");
+  }
+  const seriesData = seriesSnap.data() as Record<string, unknown>;
+  const arenaId = String(seriesData["arenaId"] ?? "");
+  await requireArenaManager(db, arenaId, uid);
+
+  if (String(seriesData["status"]) !== "active") {
+    throw new HttpsError("failed-precondition", "Só é possível pausar um horário fixo ativo.");
+  }
+
+  const reason = input.reason?.trim().slice(0, 500) || null;
+  await seriesRef.set({
+    status: "paused",
+    pausedAt: FieldValue.serverTimestamp(),
+    pauseReason: reason,
+  }, {merge: true});
+
+  const releasedDates = await cancelFutureOccurrences(db, seriesId, "recurring_series_paused");
+
+  await notifyLinkedAthleteSafe({
+    athleteId: (seriesData["athleteId"] as string | null) ?? null,
+    title: "Horário fixo pausado",
+    body: `Seu horário fixo em ${String(seriesData["arenaName"] ?? "Arena")} foi pausado ` +
+      "pela arena. As próximas reservas foram liberadas.",
+    type: "recurring_booking_paused",
+    data: {recurringBookingId: seriesId, arenaId},
+  });
+
+  logger.info("pauseArenaRecurringBooking: série pausada", {
+    seriesId,
+    arenaId,
+    released: releasedDates.length,
+  });
+
+  return {seriesId, releasedDates};
+});
+
+interface ResumeSeriesInput {
+  seriesId?: string;
+}
+
+export const resumeArenaRecurringBooking = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const input = (request.data ?? {}) as ResumeSeriesInput;
+  const seriesId = input.seriesId?.trim() ?? "";
+  if (!seriesId) {
+    throw new HttpsError("invalid-argument", "Horário fixo inválido.");
+  }
+
+  const db = getFirestore();
+  const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
+  const seriesSnap = await seriesRef.get();
+  if (!seriesSnap.exists) {
+    throw new HttpsError("not-found", "Horário fixo não encontrado.");
+  }
+  const seriesData = seriesSnap.data() as Record<string, unknown>;
+  const arenaId = String(seriesData["arenaId"] ?? "");
+  await requireArenaManager(db, arenaId, uid);
+
+  if (String(seriesData["status"]) !== "paused") {
+    throw new HttpsError("failed-precondition", "Só é possível retomar um horário fixo pausado.");
+  }
+
+  await seriesRef.set({
+    status: "active",
+    pausedAt: null,
+    pauseReason: null,
+  }, {merge: true});
+
+  const series = parseRecurringSeriesData({...seriesData, status: "active"});
+  const todayKey = dayKeyFromEventDate(new Date());
+  const horizonKey = addDaysToDateKey(todayKey, RECURRING_HORIZON_DAYS);
+  const result = await materializeSeriesOccurrences(
+    db,
+    seriesId,
+    series,
+    addDaysToDateKey(todayKey, -1),
+    horizonKey,
+  );
+
+  // `series.skippedDates` (via parseRecurringSeriesData) já carrega as datas
+  // canceladas individualmente antes da pausa (cancelArenaRecurringOccurrence)
+  // — é isso, e só isso, que fica PERSISTIDO. Conflitos desta rodada de
+  // materialização (`result.skippedDates`) são transitórios e não devem ser
+  // excluídos para sempre; o retorno ao chamador (abaixo) já reporta esses
+  // conflitos para feedback imediato na UI.
+  await seriesRef.set({
+    materializedUntil: horizonKey,
+    skippedDates: series.skippedDates,
+  }, {merge: true});
+
+  await notifyLinkedAthleteSafe({
+    athleteId: series.athleteId,
+    title: "Horário fixo retomado",
+    body: `Seu horário fixo em ${series.arenaName} foi retomado pela arena.`,
+    type: "recurring_booking_resumed",
+    data: {recurringBookingId: seriesId, arenaId},
+  });
+
+  logger.info("resumeArenaRecurringBooking: série retomada", {
+    seriesId,
+    arenaId,
+    created: result.createdDates.length,
+    skipped: result.skippedDates.length,
+  });
+
+  return {seriesId, createdDates: result.createdDates, skippedDates: result.skippedDates};
 });

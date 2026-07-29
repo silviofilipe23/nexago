@@ -105,5 +105,16 @@ void main() {
       expect(profile.onboardingCompleted, isTrue);
       expect(profile.city, '');
     });
+
+    test('referralCode defaults to empty and is preserved by copyWith', () {
+      const draft = AthleteOnboardingDraft();
+      expect(draft.referralCode, '');
+
+      final withCode = draft.copyWith(referralCode: 'referrer-uid');
+      expect(withCode.referralCode, 'referrer-uid');
+
+      // copyWith sem argumento mantém o valor atual (não reseta pro default).
+      expect(withCode.copyWith().referralCode, 'referrer-uid');
+    });
   });
 }

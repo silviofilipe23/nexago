@@ -20,10 +20,20 @@ class ArenaBookingQuote {
   const ArenaBookingQuote({
     required this.amountReais,
     required this.lineItems,
+    this.couponApplied = false,
+    this.couponId,
+    this.couponDiscountReais = 0,
   });
 
   final double amountReais;
   final List<ArenaBookingQuoteLine> lineItems;
+
+  /// `true` quando o código digitado foi aplicado (mais vantajoso que a
+  /// promoção automática já em vigor na quadra). Igual ao web
+  /// (`ArenaBookingQuote.couponApplied`).
+  final bool couponApplied;
+  final String? couponId;
+  final double couponDiscountReais;
 
   /// Preço horário médio (soma dos slots ÷ horas cobradas).
   double? get impliedHourlyRateReais {

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -10,14 +11,15 @@ import '../domain/athlete_privacy_preferences.dart';
 import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
-import '../domain/athlete_public_profile_models.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
 
 class AthleteProfileRepository {
-  AthleteProfileRepository(this._firestore);
+  AthleteProfileRepository(this._firestore, {FirebaseFunctions? functions})
+      : _functions = functions ?? FirebaseFunctions.instance;
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
@@ -74,19 +76,34 @@ class AthleteProfileRepository {
     // Garante papel de atleta em todo save (não só na criação), senão
     // contas que já existiam antes desse campo ficam de fora de queries
     // por `roles`/`hasAthleteRole` para sempre.
-    final existingRoles = exists ? (snap.data()?['roles']) : null;
-    data['roles'] = <String>{
-      if (existingRoles is List) ...existingRoles.whereType<String>(),
-      'athlete',
-    }.toList();
+    //
+    // IMPORTANTE: as rules do Firestore só permitem `update` em
+    // `users/{uid}` quando `roles` (se presente no payload) é IDÊNTICO ao
+    // valor já salvo — só uma Cloud Function via Admin SDK pode alterar
+    // `roles` (anti-privilege-escalation). Por isso `roles` NUNCA é
+    // incluído no payload enviado ao Firestore aqui: quando falta o papel
+    // de atleta, delegamos para a callable `grantAthleteRole` (idempotente,
+    // faz a união preservando os papéis existentes e espelha via Admin
+    // SDK). `existingRoles`/`effectiveRoles` abaixo são só em memória, para
+    // derivar `hasAthleteRole`/`hasOrganizerRole`/`keywords` localmente.
+    final existingRolesRaw = exists ? (snap.data()?['roles']) : null;
+    final existingRoles = existingRolesRaw is List
+        ? existingRolesRaw.whereType<String>().toSet()
+        : <String>{};
+    if (!existingRoles.contains('athlete')) {
+      await _functions.httpsCallable('grantAthleteRole').call<void>();
+    }
+    final effectiveRoles = <String>{...existingRoles, 'athlete'};
 
-    final searchFields = buildUserSearchFields(data);
+    final searchFields = buildUserSearchFields(<String, dynamic>{
+      ...data,
+      'roles': effectiveRoles.toList(),
+    });
     data['keywords'] = searchFields.keywords;
     data['hasAthleteRole'] = searchFields.hasAthleteRole;
     data['hasOrganizerRole'] = searchFields.hasOrganizerRole;
 
     data['discoverSportIds'] = discoverSportIdsForProfile(profile);
-    data['discoverLevelLabel'] = resolveAthleteLevelLabel(profile);
     data['lookingForPartner'] = profile.lookingForPartner;
     if (profile.gameObjective != null && profile.gameObjective!.trim().isNotEmpty) {
       data['gameObjective'] = profile.gameObjective!.trim();
@@ -194,6 +211,41 @@ class AthleteProfileRepository {
     );
     return ref.getDownloadURL();
   }
+
+  /// Upload de uma foto de destaque em
+  /// `profiles/{uid}/highlights/{photoId}.jpg` e retorna a URL de download.
+  /// [photoId] deve ser único por foto (não reaproveitar entre fotos
+  /// diferentes da mesma galeria).
+  Future<String> uploadHighlightPhoto({
+    required String uid,
+    required String photoId,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('profiles')
+        .child(uid)
+        .child('highlights')
+        .child('$photoId.jpg');
+    await ref.putData(
+      bytes,
+      SettableMetadata(contentType: contentType),
+    );
+    return ref.getDownloadURL();
+  }
+
+  /// Remove o arquivo de Storage de uma foto de destaque. Melhor esforço:
+  /// a URL já sai de `highlightPhotoUrls` via [saveProfile] independentemente
+  /// do resultado deste delete (evita bloquear a UI por um arquivo órfão).
+  Future<void> removeHighlightPhoto(String url) async {
+    try {
+      await FirebaseStorage.instance.refFromURL(url).delete();
+    } catch (_) {
+      // Melhor esforço: URL pode já ter sido removida ou não pertencer
+      // mais a este bucket.
+    }
+  }
 }
 
 String? _normalizedGenderForFirestore(String? raw) {
@@ -206,42 +258,50 @@ String? _normalizedGenderForFirestore(String? raw) {
 }
 
 /// Evita que `set(merge)` rebaixe níveis e dispare `athleteLevelsNotDowngraded`.
+///
+/// Os campos legados `level`/`sportProfile.level` não são mais emitidos pelo
+/// `toFirestore` (a escrita canônica é só `sportOnboarding.levelsBySport`);
+/// campo AUSENTE no payload já preserva o valor sob merge, então os clamps
+/// legados só agem se algum caminho ainda incluir o campo (defesa barata —
+/// remover quando os legados aposentarem de vez).
 void _preserveAthleteLevelsOnUpdate({
   required Map<String, dynamic> data,
   required Map<String, dynamic> existing,
 }) {
   final existingLevel = existing['level'];
   final requestLevel = data['level'];
-  if (existingLevel is String && existingLevel.trim().isNotEmpty) {
+  if (requestLevel is String &&
+      existingLevel is String &&
+      existingLevel.trim().isNotEmpty) {
     final existingRank = AthleteProfileOptions.levelRank(existingLevel);
-    final requestRank = requestLevel is String
-        ? AthleteProfileOptions.levelRank(requestLevel)
-        : null;
+    final requestRank = AthleteProfileOptions.levelRank(requestLevel);
     if (existingRank != null &&
         (requestRank == null || requestRank < existingRank)) {
       data['level'] = existingLevel;
     }
   }
 
+  final requestSportProfile = data['sportProfile'];
   final existingSportProfile = existing['sportProfile'];
-  if (existingSportProfile is Map) {
-    final existingCode = existingSportProfile['level']?.toString().trim() ?? '';
-    if (existingCode.isNotEmpty) {
-      final existingRank = AthleteProfileOptions.levelRank(existingCode) ?? -1;
-      final requestSportProfile = data['sportProfile'];
-      final requestCode = requestSportProfile is Map
-          ? requestSportProfile['level']?.toString().trim() ?? ''
-          : '';
-      final requestRank = requestCode.isEmpty
-          ? -1
-          : (AthleteProfileOptions.levelRank(requestCode) ?? -1);
-      if (requestRank < existingRank) {
-        data['sportProfile'] = <String, dynamic>{'level': existingCode};
+  if (requestSportProfile is Map) {
+    if (requestSportProfile.isEmpty) {
+      data.remove('sportProfile');
+    } else if (existingSportProfile is Map) {
+      final existingCode =
+          existingSportProfile['level']?.toString().trim() ?? '';
+      if (existingCode.isNotEmpty) {
+        final existingRank =
+            AthleteProfileOptions.levelRank(existingCode) ?? -1;
+        final requestCode =
+            requestSportProfile['level']?.toString().trim() ?? '';
+        final requestRank = requestCode.isEmpty
+            ? -1
+            : (AthleteProfileOptions.levelRank(requestCode) ?? -1);
+        if (requestRank < existingRank) {
+          data['sportProfile'] = <String, dynamic>{'level': existingCode};
+        }
       }
     }
-  } else if (data['sportProfile'] is Map &&
-      (data['sportProfile'] as Map).isEmpty) {
-    data.remove('sportProfile');
   }
 
   final existingOnboarding = existing['sportOnboarding'];

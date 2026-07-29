@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ARENA_AMENITIES_EMPTY } from '@nexago/arena-discovery';
 import { ArenaContextService } from '../data/arena-context.service';
 import {
   ARENA_AMENITY_KEYS,
@@ -609,13 +610,7 @@ export class PanelProfileComponent {
   protected readonly logoUrl = linkedSignal(() => this.profile()?.logoUrl ?? '');
   protected readonly courtTypes = linkedSignal(() => this.profile()?.courtTypes ?? []);
   protected readonly surfaces = linkedSignal(() => this.profile()?.surfaces ?? []);
-  protected readonly amenities = linkedSignal(() => this.profile()?.amenities ?? {
-    parking: false,
-    lockerRoom: false,
-    coveredCourt: false,
-    bar: false,
-    racketRental: false,
-  });
+  protected readonly amenities = linkedSignal(() => this.profile()?.amenities ?? ARENA_AMENITIES_EMPTY);
   protected readonly onlinePaymentEnabled = linkedSignal(() => this.profile()?.onlinePaymentEnabled ?? true);
   protected readonly onsitePaymentEnabled = linkedSignal(() => this.profile()?.onsitePaymentEnabled ?? true);
 

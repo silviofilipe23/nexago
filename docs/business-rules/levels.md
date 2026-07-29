@@ -3,44 +3,64 @@
 ## Conceito
 "Nível" é diferente de [ranking](ranking.md): não é sobre colocação em torneios, é sobre a **força do atleta**, usada para decidir em quais categorias ele pode se inscrever (anti-sandbagging). Existem duas camadas, hoje coexistindo:
 
-- **Nível declarado** — escolhido pelo próprio atleta no app, só pode subir. É o que vale hoje para elegibilidade de categoria.
+- **Nível declarado** — escolhido pelo próprio atleta (app ou portal web), só pode subir. É o que vale hoje para elegibilidade de categoria.
 - **Rating automático (Glicko-2)** — calculado a partir dos resultados reais em partida, por esporte. Já roda e calcula tudo em produção, mas a promoção/rebaixamento automáticos ainda dependem de flags de rollout (ver seção própria).
 
-Escada unificada (vôlei, hoje): `Iniciante 1 < Iniciante 2 < Intermediário 1 < Intermediário 2 < Open`.
+## Escada única (unificada em 24/07/2026)
+**Todos os esportes usam a mesma escada de 5 níveis** — não existe mais escada de 3 nem planos de escada D/C/B/A separada para beach tennis:
+
+| código (storage) | label | rank |
+|---|---|---|
+| `iniciante_1` | Iniciante 1 | 0 |
+| `iniciante_2` | Iniciante 2 | 1 |
+| `intermediario_1` | Intermediário 1 | 2 |
+| `intermediario_2` | Intermediário 2 | 3 |
+| `open` | Open | 5 |
+
+O rank 4 não é usado; a numeração é fixa (está gravada em `athleteRatings.levelRank` e nas rules deployadas) — **nunca renumerar**. Valores legados são aceitos só em LEITURA, aliasados pro degrau inferior do split: `iniciante`/`basico`→0, `intermediario`→2, `livre`/`Open / federado`→5.
+
+## Onde o nível é guardado (fonte única)
+- **Única escrita**: `users/{uid}.sportOnboarding.levelsBySport.{SPORT_CODE} = <código>`. É onde escrevem o app, o portal web do atleta, a engine de rating (promoção/rebaixamento) e o backfill de migração. Default de esporte recém-adicionado: `iniciante_1`.
+- **Sport codes (9)**: `VOLEI_PRAIA`, `VOLEI_QUADRA`, `BEACH_TENNIS`, `FUTEVOLEI`, `FUTEBOL`, `BASQUETE`, `TENIS`, `CORRIDA`, `OUTROS`. Futevôlei virou esporte próprio do perfil (antes era alias de Futebol); torneios de `footvolley` usam o nível `FUTEVOLEI`.
+- **Campos legados, só leitura** (não são mais escritos por código novo): `level` (label global), `nivel`, `sportProfile.level` (código), `levelsBySportFirestore` (campo fantasma — nunca foi escrito; os fallbacks de leitura no backend foram removidos), `discoverLevelLabel` (nunca lido; escrita removida).
+- **Cadeia canônica de leitura**: `levelsBySport[sportCode]` → `level` global legado → (só exibição: `nivel` → `sportProfile.level`) → ausente. Ausente resolve para: rank 0 (permissivo) em elegibilidade; "sem nível" em exibição; `null` em filtros de ranking.
+- **Vocabulário compartilhado**: `functions/src/category-level-eligibility.ts` (autoritativo, exporta `LEVEL_CODES`/`ATHLETE_SPORT_CODES`), `AthleteProfileOptions` no app, `@nexago/levels` (`frontend/shared/levels`) nos portais web.
 
 ## Nível declarado — regra "só sobe"
 - O atleta pode subir de nível a qualquer momento, com confirmação explícita ("o nível só pode subir; para reduzir, fale com o suporte").
 - Nunca pode descer sozinho — downgrade é operação de suporte/super admin.
-- Independente por esporte (`sportOnboarding.levelsBySport`); esportes sem esporte específico caem no nível global do perfil.
-- Aplicado em 3 camadas, para não depender só da UI: tela "Esportes e níveis" bloqueia visualmente níveis abaixo do salvo; a lógica do app rejeita a troca; as regras do Firestore (`athleteLevelsNotDowngraded`) recusam o update inteiro do documento do usuário se qualquer nível regredir.
+- Aplicado em 3 camadas: UI (app "Esportes e níveis" e portal web `/perfil/esportes` bloqueiam visualmente os níveis abaixo do salvo), lógica do cliente, e as rules do Firestore (`athleteLevelsNotDowngraded`) — que recusam o update inteiro do doc se qualquer nível regredir. A guarda das rules cobre **os 9 esportes** + os campos legados `level`/`sportProfile.level` (clientes antigos ainda os escrevem); rewrite de MESMO rank é permitido (app antigo regravando código legado).
 - **Por quê**: sem o ratchet, o atleta rebaixava o próprio nível na véspera de uma inscrição pra caber numa categoria mais fácil — furava o anti-sandbagging.
 
 ## Elegibilidade de categoria (o que o nível decide)
 - Um atleta só pode disputar a própria categoria ou categorias **acima** do seu nível, nunca abaixo.
 - Numa dupla, vale o nível do integrante **mais forte** — a dupla toda fica restrita pelo nível dele.
-- Categoria sem nível definido (ou "Open") aceita qualquer nível.
+- Categoria sem nível definido (ou "Open") aceita qualquer nível. `categories[].level` guarda o **label** ("Iniciante 1") — formato mantido por retrocompatibilidade; os normalizadores aceitam label e código.
+- Mapeamento esporte do torneio → esporte do perfil: `beachVolleyball`→`VOLEI_PRAIA`, `indoorVolleyball`→`VOLEI_QUADRA`, `footvolley`→`FUTEVOLEI`, `beachTennis`→`BEACH_TENNIS`; sem equivalente → nível global legado.
 
 ## Rating automático (escada Glicko-2)
-- Um rating por atleta **por esporte** (vôlei de praia e vôlei de quadra têm ratings independentes hoje; beach tennis ainda não tem escada própria — sem volume de torneios ainda).
-- 5 degraus no vôlei: Iniciante 1 (rating inicial 1250) → Iniciante 2 (1450, promove ≥1570, rebaixa ≤1350) → Intermediário 1 (1600, promove ≥1720, rebaixa ≤1500) → Intermediário 2 (1750, promove ≥1870, rebaixa ≤1650) → Open (1900, rebaixa ≤1800, topo — sem promoção acima).
-- Toda partida concluída (exceto W.O.) atualiza o rating do atleta com base no rating composto da dupla adversária. W.O. conta para o ranking de pontos, mas não altera rating.
-- Só decide promover/rebaixar quando o atleta já tem pelo menos **10 partidas rateadas** e o grau de incerteza do rating (RD) está baixo o bastante — evita decisão em cima de poucos jogos.
-- **Promoção**: ao cruzar o rating de acesso do degrau, o atleta ganha **120 dias de proteção** contra rebaixamento (mesmo que o rating caia logo depois).
-- **Rebaixamento**: não é imediato. Ao cruzar o piso do degrau, o atleta entra em **90 dias de observação**; só rebaixa de fato se, ao fim da janela, tiver pelo menos 6 partidas rateadas nesse período e continuar no piso ou abaixo. Recuperando o rating (piso + margem) a qualquer momento, volta a "estável" sem penalidade.
-- **Inatividade nunca rebaixa sozinha** — só aumenta a incerteza (RD) do rating, o que bloqueia novas decisões até o atleta voltar a jogar.
-- Correção de um resultado de partida já processado reprocessa (replay) todo o histórico de rating do atleta envolvido, do zero.
-- Hoje a engine calcula e audita tudo (`athleteRatings`, `levelHistory`), mas aplicar de fato a promoção/rebaixamento e disparar notificação depende de flags de rollout guardadas em config (`ratingLadders/{esporte}` no Firestore, editável sem deploy) — checar o doc de config para saber o estado vigente em produção.
+- Um rating por atleta **por esporte**. Esportes rateados no v1: só `VOLEI_PRAIA` e `VOLEI_QUADRA` (`RATED_SPORT_CODES` em `functions/src/rating-config.ts`) — ter nível declarado NÃO significa ter rating: beach tennis e futevôlei têm nível declarado, sem escada de rating ainda (a engine tem gate explícito por `RATED_SPORT_CODES`).
+- 5 degraus: Iniciante 1 (rating inicial 1250) → Iniciante 2 (1450, promove ≥1570, rebaixa ≤1350) → Intermediário 1 (1600, promove ≥1720, rebaixa ≤1500) → Intermediário 2 (1750, promove ≥1870, rebaixa ≤1650) → Open (1900, rebaixa ≤1800, topo).
+- Toda partida concluída (exceto W.O.) atualiza o rating. Só decide promover/rebaixar com ≥10 partidas rateadas e RD baixo. Promoção: 120 dias de proteção. Rebaixamento: 90 dias de observação (≥6 partidas no período). Inatividade nunca rebaixa sozinha.
+- Promoção/rebaixamento efetivos escrevem SÓ `sportOnboarding.levelsBySport.{sportCode}` + auditoria em `users/{uid}/levelHistory`.
+- Flags de rollout em `ratingLadders/{esporte}` no Firestore (editável sem deploy) — checar o doc de config para saber o estado vigente em produção.
 
 ## Nível declarado × rating automático
-- Se o atleta sobe o nível manualmente, a subida é detectada automaticamente e o rating daquele esporte é realinhado para não ficar defasado (nunca abaixo do rating inicial do novo degrau), com o mesmo período de proteção de 120 dias — evita que a engine "rebaixe de volta" logo em seguida.
-- Toda mudança de nível (subida manual, promoção automática, rebaixamento automático, migração de dados) fica registrada no histórico do atleta, com o motivo.
+- Subida manual dispara `onUserWrittenTrackLevelChanges` (observa só `sportOnboarding.levelsBySport`), que realinha o rating do esporte (nunca abaixo do inicial do novo degrau) com proteção de 120 dias.
+- Toda mudança de nível (subida manual `self_upgrade`, promoção/rebaixamento da engine, `migration` do backfill) fica em `users/{uid}/levelHistory` com o motivo.
 
-## O que o atleta vê no app
-- Em "Esportes e níveis": nível atual por esporte; níveis abaixo do salvo aparecem bloqueados; tentar subir pede confirmação.
-- Card de "zona" (só aparece quando a engine já tem dado suficiente para o esporte): estável, zona de acesso (perto de promover), zona de reclassificação, ou "consolidando" (ainda com menos de 10 partidas rateadas).
+## Migração/backfill (`migrateAthleteLevels`, super admin)
+- Normaliza TODO valor presente em `levelsBySport` (qualquer esporte, qualquer formato legado) pro código canônico do MESMO rank (rank-neutro — não dispara self-upgrade).
+- Semeia entradas ausentes dos esportes inscritos: principal ← `level` global normalizado (senão `sportProfile.level`, senão `iniciante_1`); secundários ← `iniciante_1` (o global NÃO propaga pra secundários).
+- Campos legados ficam intocados no doc. Idempotente; paginado (`startAfterId` até `done`); `dryRun` só conta. Obs.: seed de esporte rateado com rank > 0 dispara o re-seed de rating do trigger de self-upgrade — esperado e inofensivo (par de entradas `migration`+`self_upgrade` no levelHistory).
+
+## O que o atleta vê
+- App, "Esportes e níveis": nível atual por esporte (5 chips, qualquer esporte); níveis abaixo do salvo bloqueados; subir pede confirmação. Barras de nível têm 5 segmentos (um por degrau).
+- Portal web do atleta, `/perfil/esportes`: paridade — ver/subir nível por esporte e adicionar esporte (entra como Iniciante 1).
+- Card de "zona" da engine (só esportes rateados com dado suficiente): estável, zona de acesso, zona de reclassificação, ou "consolidando".
 
 ## Regras
 - Nível nunca desce por ação do próprio atleta.
 - Elegibilidade de categoria usa sempre o nível mais alto entre os integrantes da dupla.
-- Nível e rating são sempre por esporte — não existe um valor único cruzando esportes diferentes.
-- Beach tennis ainda usa só o nível declarado, sem escada de rating automática.
+- Nível e rating são sempre por esporte — não existe um valor único cruzando esportes (o `level` global é legado, só fallback de leitura).
+- A escada é uma só (5 níveis) para todos os esportes; rating automático só nos esportes de `RATED_SPORT_CODES`.

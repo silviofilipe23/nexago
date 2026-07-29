@@ -330,6 +330,8 @@ int computeDiscoverCompatibilityScore({
   return (level + location + objective + reputation).clamp(0, 100);
 }
 
+/// Label de nível no Descobrir — o próprio label da escada de 5 (nada de
+/// escala numérica paralela: uma só nomenclatura de nível em todo o app).
 String discoverLevelDisplayLabel(
   AthleteProfile profile, {
   String? sportFirestoreId,
@@ -345,8 +347,7 @@ String discoverLevelDisplayLabel(
     final label = resolveAthleteLevelLabel(profile, sportFirestoreId: sportId);
     return label.isNotEmpty ? 'Nível $label' : '';
   }
-  final numeric = rank >= 5 ? 5.0 : 3.0 + rank * 0.5;
-  return 'Nível ${numeric.toStringAsFixed(1)}';
+  return 'Nível ${AthleteProfileOptions.labelForRank(rank)}';
 }
 
 String discoverStatsLine({

@@ -1,5 +1,6 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, updateProfile } from 'firebase/auth';
 import {
@@ -16,43 +17,54 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
-import { buildPublicProfileId, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState } from './profile-format';
-
-const PRIMARY_SPORT_OPTIONS = [
-  'Volei de praia',
-  'Volei de quadra',
-  'Beach tennis',
-  'Futevolei',
-  'Tenis',
-  'Pickleball',
-  'Padel',
-  'Corrida',
-] as const;
+import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, type SportLevelEntry } from './profile-format';
+import { athleteFunctions } from '../data/functions';
+import {
+  registerReferral,
+  XP_REFERRAL_BONUS,
+  type ReferralRegistrationRejection,
+} from '../data/athlete-referral-repository';
+import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
+import { BrLocationsService } from '../shared/br-locations/br-locations.service';
+import {
+  isAllowedAvatarFile,
+  prepareAvatarJpeg,
+  uploadAthleteAvatar,
+  uploadAthleteCoverPhoto,
+} from '../data/athlete-avatar-upload';
+import { athleteStorage } from '../data/storage';
 
 interface AthleteProfileData {
   fullName: string;
+  nickname: string;
   city: string;
   state: string;
-  whatsappNumber: string;
-  primarySport: string;
+  phoneNumber: string;
+  phoneVerified: boolean;
   bio: string;
   publicProfileId: string | null;
   publicProfileEnabled: boolean;
+  profilePhotoUrl: string | null;
+  coverPhotoUrl: string | null;
 }
 
 const EMPTY_PROFILE: AthleteProfileData = {
   fullName: '',
+  nickname: '',
   city: '',
   state: '',
-  whatsappNumber: '',
-  primarySport: 'Volei de praia',
+  phoneNumber: '',
+  phoneVerified: false,
   bio: '',
   publicProfileId: null,
   publicProfileEnabled: true,
+  profilePhotoUrl: null,
+  coverPhotoUrl: null,
 };
 
 interface StatRow {
@@ -98,7 +110,16 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
 @Component({
   selector: 'app-athlete-profile-settings',
   standalone: true,
-  imports: [ReactiveFormsModule, AtPanelShellComponent, SandRankCardComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    AtPanelShellComponent,
+    SandRankCardComponent,
+    NxPageLoadingComponent,
+    NxSkeletonComponent,
+    NxSpinnerComponent,
+    PhoneVerificationComponent,
+  ],
   templateUrl: './athlete-profile-settings.component.html',
   styleUrl: './athlete-profile-settings.component.scss',
 })
@@ -106,9 +127,8 @@ export class AthleteProfileSettingsComponent {
   private readonly fb = inject(FormBuilder);
   protected readonly auth = inject(AuthService);
   protected readonly gamification = inject(AthleteGamificationService);
+  protected readonly brLocations = inject(BrLocationsService);
   private readonly firestore = createFirestore();
-
-  protected readonly sportOptions = PRIMARY_SPORT_OPTIONS;
 
   protected readonly isEditing = signal(false);
   protected readonly loading = signal(true);
@@ -120,12 +140,36 @@ export class AthleteProfileSettingsComponent {
   protected readonly sendingReset = signal(false);
   protected readonly passwordResetSent = signal(false);
   protected readonly resetError = signal<string | null>(null);
+  protected readonly changingPhone = signal(false);
+  protected readonly cityOptions = signal<string[]>([]);
+  protected readonly uploadingAvatar = signal(false);
+  protected readonly avatarUploadError = signal<string | null>(null);
+  protected readonly uploadingCover = signal(false);
+  protected readonly coverUploadError = signal<string | null>(null);
+  /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
+  protected readonly avatarLoaded = signal(false);
+  protected readonly coverLoaded = signal(false);
+
+  protected readonly avatarInput = viewChild<ElementRef<HTMLInputElement>>('avatarInput');
+  protected readonly coverInput = viewChild<ElementRef<HTMLInputElement>>('coverInput');
+
+  // Programa de indicação (referral) — `referredBy` vem de `users/{uid}`, carregado junto
+  // com o resto do perfil em loadRemoteProfile. `null` = ainda sem indicador vinculado,
+  // então o campo "aplicar código" continua visível.
+  protected readonly xpReferralBonus = XP_REFERRAL_BONUS;
+  protected readonly referredBy = signal<string | null>(null);
+  protected readonly referralCopyFeedback = signal<string | null>(null);
+  protected readonly referralApplyCode = signal('');
+  protected readonly referralApplying = signal(false);
+  protected readonly referralApplyError = signal<string | null>(null);
+  protected readonly referralApplySuccess = signal<string | null>(null);
 
   // undefined (not null) so the very first run isn't mistaken for "already loaded" when there's no
   // user yet (uid is null in that case too) — this bit the dev-auth-bypass path, which never has a
   // real uid, and left the page stuck on "Carregando perfil..." forever.
   private readonly loadedUid = signal<string | null | undefined>(undefined);
   private readonly profileState = signal<AthleteProfileData>(EMPTY_PROFILE);
+  private readonly sportLevels = signal<SportLevelEntry[]>([]);
   private readonly rankingLabel = signal<string | null>(null);
   // `roles` já existentes em users/{uid}, lido em loadRemoteProfile — reutilizado em save()
   // pra satisfazer as rules (create exige roles=['athlete']; update exige roles imutável).
@@ -133,22 +177,31 @@ export class AthleteProfileSettingsComponent {
 
   protected readonly form = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
-    cityState: ['', Validators.required],
-    whatsappNumber: [''],
-    primarySport: ['Volei de praia', Validators.required],
+    nickname: [''],
+    state: ['', Validators.required],
+    city: ['', Validators.required],
     bio: [''],
   });
 
   protected readonly displayName = computed(() => this.profileState().fullName || this.fallbackAccountLabel());
   protected readonly initials = computed(() => initialsOf(this.displayName()));
+  /** Foto do onboarding (Firestore `users/{uid}.profilePhotoUrl`) tem prioridade;
+   *  cai pro `photoURL` do Firebase Auth (Google/Apple) quando não há uma. */
+  protected readonly avatarUrl = computed(
+    () => this.profileState().profilePhotoUrl ?? this.auth.user()?.photoURL ?? null,
+  );
+  protected readonly coverUrl = computed(() => this.profileState().coverPhotoUrl);
   protected readonly handle = computed(() => slugify(this.displayName()) || 'atleta');
   protected readonly cityStateLabel = computed(
     () => joinCityState(this.profileState().city, this.profileState().state) || 'Cidade não informada',
   );
-  protected readonly sportPillLabel = computed(() => this.profileState().primarySport || 'Volei de praia');
+  protected readonly primarySportLevel = computed<SportLevelEntry | null>(() => this.sportLevels()[0] ?? null);
+  protected readonly otherSportLevels = computed(() => this.sportLevels().slice(1));
   protected readonly profileBio = computed(
     () => this.profileState().bio || 'Conte um pouco sobre seu jogo editando o perfil.',
   );
+  protected readonly phoneNumber = computed(() => this.profileState().phoneNumber);
+  protected readonly phoneVerified = computed(() => this.profileState().phoneVerified);
   protected readonly accountEmail = computed(() => this.auth.user()?.email ?? this.auth.devEmail() ?? '');
 
   protected readonly levelLabel = computed(() => `Nível ${this.gamification.summary()?.level ?? 0}`);
@@ -191,6 +244,20 @@ export class AthleteProfileSettingsComponent {
     return uid ? `${origin}/atletas/${uid}` : `${origin}/atletas`;
   });
 
+  // Código de indicação = o próprio UID (mesma decisão do app mobile — sem handle curto
+  // reaproveitável no projeto). `registerReferral` valida o código no backend.
+  protected readonly referralCode = computed(() => this.auth.user()?.uid?.trim() ?? '');
+  protected readonly referralLink = computed(() => {
+    const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
+    const code = this.referralCode();
+    return code ? `${origin}/cadastro?ref=${code}` : `${origin}/cadastro`;
+  });
+  protected readonly referralShareText = computed(
+    () =>
+      `Vem jogar comigo no nexaGO! Use meu código de indicação ${this.referralCode()} ao se cadastrar — ` +
+      `quando você jogar sua primeira partida, eu ganho +${XP_REFERRAL_BONUS} XP. Cadastre-se: ${this.referralLink()}`,
+  );
+
   constructor() {
     effect(() => {
       const uid = this.auth.user()?.uid ?? null;
@@ -207,6 +274,8 @@ export class AthleteProfileSettingsComponent {
       const devEmail = this.auth.devEmail();
       this.profileState.set({ ...EMPTY_PROFILE, fullName: devEmail ? nameFromEmail(devEmail) : '' });
       this.existingUserRoles.set([]);
+      this.referredBy.set(null);
+      this.sportLevels.set([]);
       this.loading.set(false);
     });
 
@@ -232,32 +301,122 @@ export class AthleteProfileSettingsComponent {
     });
   }
 
-  protected startEdit(): void {
+  protected async startEdit(): Promise<void> {
     const current = this.profileState();
     this.form.reset({
       fullName: current.fullName,
-      cityState: joinCityState(current.city, current.state),
-      whatsappNumber: current.whatsappNumber,
-      primarySport: current.primarySport || 'Volei de praia',
+      nickname: current.nickname,
+      state: current.state,
+      city: '',
       bio: current.bio,
     });
+    this.cityOptions.set(this.brLocations.citiesFor(current.state));
     this.saveError.set(null);
     this.saveSuccess.set(null);
+    this.avatarUploadError.set(null);
+    this.coverUploadError.set(null);
     this.isEditing.set(true);
+
+    await this.brLocations.ready;
+    const liveState = this.form.controls.state.value;
+    const cities = this.brLocations.citiesFor(liveState);
+    this.cityOptions.set(cities);
+    if (liveState === current.state) {
+      const matched = cities.find((c) => c.toLowerCase() === current.city.trim().toLowerCase());
+      this.form.patchValue({ city: matched ?? '' });
+    }
+  }
+
+  protected onStateSelected(uf: string): void {
+    this.form.patchValue({ state: uf, city: '' });
+    this.cityOptions.set(this.brLocations.citiesFor(uf));
   }
 
   protected cancelEdit(): void {
     this.isEditing.set(false);
     this.saveError.set(null);
-  }
-
-  protected selectSport(sport: string): void {
-    this.form.controls.primarySport.setValue(sport);
-    this.form.controls.primarySport.markAsDirty();
+    this.avatarUploadError.set(null);
+    this.coverUploadError.set(null);
   }
 
   protected toggleAllAchievements(): void {
     this.showAllAchievements.update((value) => !value);
+  }
+
+  protected chooseAvatarFile(): void {
+    this.avatarInput()?.nativeElement.click();
+  }
+
+  protected chooseCoverFile(): void {
+    this.coverInput()?.nativeElement.click();
+  }
+
+  /** Upload imediato ao selecionar — não depende de "Salvar alterações" (mesmo
+   *  contrato de storage.rules/profiles do onboarding, ver athlete-avatar-upload.ts). */
+  protected async onAvatarFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    this.avatarUploadError.set(null);
+    const fileError = isAllowedAvatarFile(file);
+    if (fileError) {
+      this.avatarUploadError.set(fileError);
+      return;
+    }
+
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.firestore) {
+      this.avatarUploadError.set('Faça login para trocar sua foto.');
+      return;
+    }
+
+    this.uploadingAvatar.set(true);
+    try {
+      const jpeg = await prepareAvatarJpeg(file);
+      const url = await uploadAthleteAvatar(athleteStorage(), uid, jpeg);
+      await setDoc(doc(this.firestore, 'users', uid), { profilePhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+      this.avatarLoaded.set(false);
+      this.profileState.update((current) => ({ ...current, profilePhotoUrl: url }));
+    } catch {
+      this.avatarUploadError.set('Não foi possível enviar a foto agora. Tente novamente.');
+    } finally {
+      this.uploadingAvatar.set(false);
+    }
+  }
+
+  protected async onCoverFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    this.coverUploadError.set(null);
+    const fileError = isAllowedAvatarFile(file);
+    if (fileError) {
+      this.coverUploadError.set(fileError);
+      return;
+    }
+
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.firestore) {
+      this.coverUploadError.set('Faça login para trocar sua capa.');
+      return;
+    }
+
+    this.uploadingCover.set(true);
+    try {
+      const jpeg = await prepareAvatarJpeg(file, 1600);
+      const url = await uploadAthleteCoverPhoto(athleteStorage(), uid, jpeg);
+      await setDoc(doc(this.firestore, 'users', uid), { coverPhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+      this.coverLoaded.set(false);
+      this.profileState.update((current) => ({ ...current, coverPhotoUrl: url }));
+    } catch {
+      this.coverUploadError.set('Não foi possível enviar a capa agora. Tente novamente.');
+    } finally {
+      this.uploadingCover.set(false);
+    }
   }
 
   protected async save(): Promise<void> {
@@ -280,8 +439,8 @@ export class AthleteProfileSettingsComponent {
 
     try {
       const raw = this.form.getRawValue();
-      const { city, state } = splitCityState(raw.cityState);
-      const whatsappNumber = raw.whatsappNumber.trim();
+      const { city, state } = raw;
+      const nickname = raw.nickname.trim() || null;
       const bio = raw.bio.trim();
       const publicProfileId = this.profileState().publicProfileId || buildPublicProfileId(raw.fullName, uid);
       // Preserva um "false" explícito (ex.: privacidade desativada no app); só liga por padrão
@@ -302,7 +461,7 @@ export class AthleteProfileSettingsComponent {
       await Promise.all([
         setDoc(
           doc(this.firestore, 'users', uid),
-          { fullName: raw.fullName, city, state, roles, hasAthleteRole: true, updatedAt: serverTimestamp() },
+          { fullName: raw.fullName, nickname, city, state, roles, hasAthleteRole: true, updatedAt: serverTimestamp() },
           { merge: true },
         ),
         setDoc(
@@ -312,8 +471,6 @@ export class AthleteProfileSettingsComponent {
             displayName: raw.fullName,
             city,
             state,
-            whatsappNumber,
-            primarySport: raw.primarySport,
             bio,
             publicProfileId,
             publicProfileEnabled,
@@ -323,16 +480,16 @@ export class AthleteProfileSettingsComponent {
         ),
       ]);
 
-      this.profileState.set({
+      this.profileState.update((current) => ({
+        ...current,
         fullName: raw.fullName,
+        nickname: nickname ?? '',
         city,
         state,
-        whatsappNumber,
-        primarySport: raw.primarySport,
         bio,
         publicProfileId,
         publicProfileEnabled,
-      });
+      }));
       this.saveSuccess.set('Perfil atualizado.');
       this.isEditing.set(false);
     } catch {
@@ -366,6 +523,102 @@ export class AthleteProfileSettingsComponent {
       }
     }
     await this.copyProfileLink();
+  }
+
+  protected async copyReferralLink(): Promise<void> {
+    this.referralCopyFeedback.set(null);
+    try {
+      await navigator.clipboard.writeText(this.referralLink());
+      this.referralCopyFeedback.set('Link copiado.');
+    } catch {
+      this.referralCopyFeedback.set('Copie manualmente o link de indicação.');
+    }
+  }
+
+  protected async shareReferral(): Promise<void> {
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await (
+          navigator as Navigator & { share: (data: { title: string; text: string; url: string }) => Promise<void> }
+        ).share({
+          title: 'Convide um amigo pro nexaGO',
+          text: this.referralShareText(),
+          url: this.referralLink(),
+        });
+        return;
+      } catch {
+        // usuario cancelou o compartilhamento nativo — cai pro copiar.
+      }
+    }
+    await this.copyReferralLink();
+  }
+
+  protected onReferralApplyCodeInput(value: string): void {
+    this.referralApplyCode.set(value);
+  }
+
+  protected async applyReferralCode(): Promise<void> {
+    this.referralApplyError.set(null);
+    this.referralApplySuccess.set(null);
+
+    const code = this.referralApplyCode().trim();
+    if (!code) {
+      this.referralApplyError.set('Informe um código de indicação.');
+      return;
+    }
+
+    if (!this.auth.user()?.uid) {
+      this.referralApplyError.set('Faça login para aplicar um código de indicação.');
+      return;
+    }
+
+    this.referralApplying.set(true);
+    try {
+      const result = await registerReferral(athleteFunctions(), code);
+      if (result.applied) {
+        this.referredBy.set(code);
+        this.referralApplyCode.set('');
+        this.referralApplySuccess.set(
+          `Código aplicado! Quando você jogar sua primeira partida, seu amigo ganha +${XP_REFERRAL_BONUS} XP.`,
+        );
+      } else {
+        this.referralApplyError.set(this.referralRejectionMessage(result.rejection));
+      }
+    } catch {
+      this.referralApplyError.set('Não foi possível aplicar o código agora. Tente novamente.');
+    } finally {
+      this.referralApplying.set(false);
+    }
+  }
+
+  private referralRejectionMessage(rejection: ReferralRegistrationRejection | null): string {
+    switch (rejection) {
+      case 'MISSING_CODE':
+        return 'Informe um código de indicação.';
+      case 'SELF_REFERRAL':
+        return 'Esse é o seu próprio código — use o código de um amigo.';
+      case 'REFERRER_NOT_FOUND':
+        return 'Não encontramos esse código de indicação.';
+      case 'ALREADY_SET':
+        return 'Você já tem um código de indicação aplicado.';
+      default:
+        return 'Não foi possível aplicar o código agora.';
+    }
+  }
+
+  protected startChangePhone(): void {
+    this.changingPhone.set(true);
+  }
+
+  protected cancelChangePhone(): void {
+    this.changingPhone.set(false);
+  }
+
+  /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
+   *  users/{uid} via Admin SDK — aqui só refletimos o estado na UI. */
+  protected onPhoneVerified(event: { phoneNumber: string }): void {
+    this.profileState.update((current) => ({ ...current, phoneNumber: event.phoneNumber, phoneVerified: true }));
+    this.changingPhone.set(false);
   }
 
   protected async sendPasswordReset(): Promise<void> {
@@ -412,6 +665,8 @@ export class AthleteProfileSettingsComponent {
       const userData = userSnap.exists() ? userSnap.data() : null;
       const profileData = profileSnap.exists() ? profileSnap.data() : null;
 
+      this.sportLevels.set(buildSportLevels(userData));
+
       const rawRoles = userData?.['roles'];
       this.existingUserRoles.set(
         Array.isArray(rawRoles) ? rawRoles.filter((r): r is string => typeof r === 'string') : [],
@@ -425,16 +680,20 @@ export class AthleteProfileSettingsComponent {
 
       this.profileState.set({
         fullName,
+        nickname: readString(userData, ['nickname']) ?? '',
         city: readString(profileData, ['city']) ?? readString(userData, ['city']) ?? '',
         state: readString(profileData, ['state']) ?? readString(userData, ['state']) ?? '',
-        whatsappNumber: readString(profileData, ['whatsappNumber']) ?? '',
-        primarySport: readString(profileData, ['primarySport']) ?? 'Volei de praia',
+        phoneNumber: readString(userData, ['phoneNumber']) ?? '',
+        phoneVerified: userData?.['phoneVerified'] === true,
         bio: readString(profileData, ['bio']) ?? '',
         publicProfileId: readString(profileData, ['publicProfileId', 'athleteId', 'profileIdentifier']),
         // Só false quando o doc já existe e diz explicitamente false (ex.: privacidade desativada
         // no app) — um doc novo ou sem esse campo deve poder ser encontrado pelo perfil público.
         publicProfileEnabled: profileData?.['publicProfileEnabled'] !== false,
+        profilePhotoUrl: readString(userData, ['profilePhotoUrl']),
+        coverPhotoUrl: readString(userData, ['coverPhotoUrl']),
       });
+      this.referredBy.set(readString(userData, ['referredBy']));
     } catch {
       this.saveError.set('Não foi possível carregar seu perfil agora.');
     } finally {

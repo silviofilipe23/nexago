@@ -5,7 +5,8 @@ import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentC
 /** `tournaments/{id}` (top-level, leitura pública, espelha `TournamentDocumentMapper`/
  *  `tournament_create_mapper.dart` + `league_stage_tournament_factory.dart`) filtrado por
  *  `managerId == uid` — mesmo campo que `OrganizerTournamentsRepository.watchManagedTournaments`
- *  (Flutter) usa. Sem paginação, ordena em memória por `startAt` desc. */
+ *  (Flutter) usa — mais os torneios em que o uid é gestor da equipe (espelho
+ *  `users/{uid}/tournamentStaff`). Sem paginação, ordena em memória por `startAt` desc. */
 
 /** Rótulos dos 3 esportes que o wizard do organizador grava (`TournamentSport` no Dart) —
  *  mesmo mapa usado em `frontend/projects/arena/.../tournaments-repository.ts`. */
@@ -125,10 +126,38 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
   };
 }
 
+/** Ids de torneios em que o uid é gestor ativo — espelho `users/{uid}/tournamentStaff`
+ *  mantido por Cloud Function, mesma fonte do `myTournamentStaffEntriesProvider` (Flutter).
+ *  Mesário fica de fora: sem a role `organizer`, ele nem loga neste portal. Falha aqui não
+ *  pode derrubar a lista de torneios próprios (ex.: rules antigas sem a regra do espelho). */
+async function listStaffManagerTournamentIds(uid: string): Promise<string[]> {
+  try {
+    const db = organizerFirestore();
+    const snap = await getDocs(collection(db, 'users', uid, 'tournamentStaff'));
+    return snap.docs
+      .filter((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return data['role'] !== 'scorer' && (data['status'] ?? 'active') === 'active';
+      })
+      .map((d) => d.id);
+  } catch {
+    return [];
+  }
+}
+
+/** Torneios próprios (`managerId == uid`) + torneios em que o uid é gestor da equipe. */
 export async function listMyTournaments(uid: string): Promise<OrganizerTournament[]> {
   const db = organizerFirestore();
-  const snap = await getDocs(query(collection(db, 'tournaments'), where('managerId', '==', uid)));
-  const tournaments = snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>));
+  const [ownedSnap, staffIds] = await Promise.all([
+    getDocs(query(collection(db, 'tournaments'), where('managerId', '==', uid))),
+    listStaffManagerTournamentIds(uid),
+  ]);
+  const tournaments = ownedSnap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>));
+  const ownedIds = new Set(tournaments.map((t) => t.id));
+  const staffSnaps = await Promise.all(staffIds.filter((id) => !ownedIds.has(id)).map((id) => getDoc(doc(db, 'tournaments', id))));
+  for (const snap of staffSnaps) {
+    if (snap.exists()) tournaments.push(tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>));
+  }
   return tournaments.sort((a, b) => (b.startAt?.getTime() ?? 0) - (a.startAt?.getTime() ?? 0));
 }
 

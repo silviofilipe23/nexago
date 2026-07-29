@@ -82,6 +82,9 @@ const UNDO_WINDOW_SECONDS = 60;
               <div class="row"><span class="label">Valor</span><span class="value">{{ formatBRL(booking()!.amountReais) }}</span></div>
               <div class="row"><span class="label">Canal</span><span class="value">{{ booking()!.paymentChannel ?? 'Direto (sem link)' }}</span></div>
               <div class="row"><span class="label">Situação</span><span class="value">{{ booking()!.paymentStatus ?? '—' }}</span></div>
+              @if (booking()!.couponCode; as code) {
+                <div class="row"><span class="label">Cupom</span><span class="value">{{ code }} (-{{ formatBRL(booking()!.couponDiscountReais) }})</span></div>
+              }
             </ar-panel-card>
 
             <ar-panel-card title="Status" class="card-span">

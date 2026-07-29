@@ -179,6 +179,163 @@
   object-fit: cover;
 }
 
+/* ── Horários (dados ao vivo) ─────────────────────────── */
+
+.scheduleList {
+  margin: 0;
+  max-width: 480px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-3);
+  background: var(--color-surface-0);
+  overflow: hidden;
+}
+
+.scheduleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.scheduleRow:last-child {
+  border-bottom: none;
+}
+
+.scheduleDay {
+  font-size: 14px;
+  color: var(--color-text-mute);
+}
+
+.scheduleHours {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-fg);
+}
+
+.scheduleClosed {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Torneios (dados ao vivo) ─────────────────────────── */
+
+.eventList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+}
+
+.eventCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-3);
+  padding: 16px 18px;
+  text-decoration: none;
+  color: var(--color-fg);
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.eventCard:hover {
+  border-color: var(--arena-accent);
+}
+
+.eventName {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.eventMeta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-text-mute);
+}
+
+.eventBadge,
+.eventBadgeOpen {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line-strong);
+  color: var(--color-text-mute);
+}
+
+.eventBadgeOpen {
+  border-color: color-mix(in srgb, var(--arena-accent) 55%, transparent);
+  color: var(--arena-accent);
+}
+
+/* ── Avaliações (dados ao vivo) ───────────────────────── */
+
+.reviewsSummary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reviewsScore {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.stars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--arena-accent);
+}
+
+.reviewsCount {
+  font-size: 14px;
+  color: var(--color-text-mute);
+}
+
+.reviewList {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.reviewCard {
+  margin: 0;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-3);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reviewText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-fg);
+}
+
+.reviewAuthor {
+  font-size: 12px;
+  color: var(--color-text-dim);
+}
+
 /* ── Contato ──────────────────────────────────────────── */
 
 .contactList {

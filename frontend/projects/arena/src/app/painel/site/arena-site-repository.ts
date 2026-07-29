@@ -54,6 +54,9 @@ export async function fetchArenaSiteDraft(db: Firestore, arenaId: string): Promi
       instagram: readString(contact, 'instagram'),
       address: readString(contact, 'address'),
     },
+    schedule: { enabled: readSection(data, 'schedule')['enabled'] !== false },
+    events: { enabled: readSection(data, 'events')['enabled'] !== false },
+    reviews: { enabled: readSection(data, 'reviews')['enabled'] !== false },
   };
 }
 
@@ -83,6 +86,9 @@ export async function saveArenaSiteDraft(db: Firestore, arenaId: string, draft: 
         instagram: draft.contact.instagram.trim().replace(/^@/, ''),
         address: draft.contact.address.trim(),
       },
+      schedule: { enabled: draft.schedule.enabled },
+      events: { enabled: draft.events.enabled },
+      reviews: { enabled: draft.reviews.enabled },
       updatedAt: serverTimestamp(),
     },
     { merge: true },

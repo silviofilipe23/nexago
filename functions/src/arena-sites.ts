@@ -95,12 +95,20 @@ async function assertArenaManager(uid: string, arenaId: string): Promise<Firebas
   return arenaSnap;
 }
 
+/** Seções automáticas: o rascunho só guarda o liga/desliga; os dados (horários,
+ *  torneios, avaliações) o site lê ao vivo das coleções públicas na renderização. */
+function readEnabledFlag(draft: Record<string, unknown>, key: string): {enabled: boolean} {
+  const section = (draft[key] ?? {}) as Record<string, unknown>;
+  return {enabled: section["enabled"] !== false};
+}
+
 /** Valida o rascunho e monta o payload público. Campos fora do schema são descartados. */
 function buildPublicPayload(
   draft: Record<string, unknown>,
   arenaId: string,
   slug: string,
-  arenaName: string
+  arenaName: string,
+  arenaAddressFallback: string
 ): Record<string, unknown> {
   const theme = (draft["theme"] ?? {}) as Record<string, unknown>;
   const paletteId = typeof theme["paletteId"] === "string" && PALETTES[theme["paletteId"]]
@@ -154,8 +162,13 @@ function buildPublicPayload(
       enabled: (contact["enabled"] ?? true) !== false,
       whatsapp: whatsappDigits,
       instagram,
-      address: readString(contact["address"], "contact.address", {max: 160})
+      // Endereço vazio cai pro cadastro da arena — um lugar só de verdade.
+      address: readString(contact["address"], "contact.address", {max: 160}) ||
+        arenaAddressFallback.slice(0, 160)
     },
+    schedule: readEnabledFlag(draft, "schedule"),
+    events: readEnabledFlag(draft, "events"),
+    reviews: readEnabledFlag(draft, "reviews"),
     publishedAt: FieldValue.serverTimestamp()
   };
 }
@@ -177,6 +190,11 @@ export const publishArenaSite = onCall(async (request) => {
   assertValidSlug(slug);
   const arenaSnap = await assertArenaManager(uid, arenaId);
   const arenaName = (arenaSnap.get("name") as string | undefined)?.trim() || "Arena";
+  const arenaAddressFallback = [
+    (arenaSnap.get("address") as string | undefined)?.trim(),
+    (arenaSnap.get("city") as string | undefined)?.trim(),
+    (arenaSnap.get("state") as string | undefined)?.trim()
+  ].filter(Boolean).join(", ");
 
   const db = getFirestore();
   const draftRef = db.doc(`arenaSites/${arenaId}`);
@@ -194,7 +212,7 @@ export const publishArenaSite = onCall(async (request) => {
     }
 
     const draft = draftSnap.data() as Record<string, unknown>;
-    const payload = buildPublicPayload(draft, arenaId, slug, arenaName);
+    const payload = buildPublicPayload(draft, arenaId, slug, arenaName, arenaAddressFallback);
     const previousSlug = draft["slug"] as string | undefined;
 
     tx.set(slugRef, {arenaId, updatedAt: FieldValue.serverTimestamp()});

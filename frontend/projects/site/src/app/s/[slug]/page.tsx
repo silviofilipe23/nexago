@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ArenaSitePage } from '@/components/arena-site/ArenaSitePage';
+import {
+  getArenaReviews,
+  getArenaUpcomingTournaments,
+  getArenaWeekSchedule,
+} from '@/lib/firestore/arena-site-data';
 import { getArenaSiteBySlug } from '@/lib/firestore/arena-sites';
 
 export const revalidate = 300;
@@ -29,11 +34,18 @@ export async function generateMetadata({
   };
 }
 
-/** Mini-site público de uma arena — `nexago.com.br/s/{slug}`. */
+/** Mini-site público de uma arena — `nexago.com.br/s/{slug}`. As seções
+ *  automáticas leem dados públicos ao vivo a cada revalidação (ISR 5 min). */
 export default async function ArenaSiteRoute({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const site = await getArenaSiteBySlug(slug);
   if (!site) notFound();
 
-  return <ArenaSitePage site={site} />;
+  const [schedule, tournaments, reviews] = await Promise.all([
+    site.schedule.enabled ? getArenaWeekSchedule(site.arenaId) : Promise.resolve(null),
+    site.events.enabled ? getArenaUpcomingTournaments(site.arenaId) : Promise.resolve([]),
+    site.reviews.enabled ? getArenaReviews(site.arenaId) : Promise.resolve(null),
+  ]);
+
+  return <ArenaSitePage site={site} schedule={schedule} tournaments={tournaments} reviews={reviews} />;
 }

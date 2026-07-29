@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
@@ -19,6 +20,74 @@ import { db } from '@/lib/firebase';
  * `arena_reviews` (texto público; o autor fica anônimo porque `public_profiles`
  * exige auth). Falha vira vazio/null — a página esconde a seção sem dado.
  */
+
+// ── Dados públicos do cadastro da arena ──────────────────
+
+/** Mesmas chaves do `ArenaAmenities` do lib arena-discovery (Angular — não
+ *  importável aqui, então a lista é espelhada). */
+export const AMENITY_KEYS = [
+  'parking', 'lockerRoom', 'coveredCourt', 'bar',
+  'racketRental', 'hasAccessibleCourt', 'hasAccessibleBathroom', 'hasPcdParking',
+] as const;
+export type AmenityKey = (typeof AMENITY_KEYS)[number];
+
+export interface ArenaPublicInfo {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  amenities: AmenityKey[];
+  courtsCount: number;
+  courtTypes: string[];
+  lat: number | null;
+  lng: number | null;
+}
+
+/** Cadastro público da arena: amenidades (seção Estrutura), endereço/coords
+ *  (mapa e "como chegar") e nº de quadras (badge do hero). */
+export async function getArenaPublicInfo(arenaId: string): Promise<ArenaPublicInfo | null> {
+  try {
+    const [snap, courtsCount] = await Promise.all([
+      getDoc(doc(db, 'arenas', arenaId)),
+      getCountFromServer(collection(db, 'arenas', arenaId, 'courts')).then(
+        (c) => c.data().count,
+        () => 0,
+      ),
+    ]);
+    if (!snap.exists()) return null;
+    const data = snap.data() as DocumentData;
+    const amenitiesRaw = (data.amenities ?? {}) as DocumentData;
+
+    let lat: number | null = null;
+    let lng: number | null = null;
+    if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+      lat = data.lat;
+      lng = data.lng;
+    } else {
+      const geo = data.geo ?? data.coordinates;
+      if (geo && typeof geo === 'object' && typeof geo.lat === 'number' && typeof geo.lng === 'number') {
+        lat = geo.lat;
+        lng = geo.lng;
+      }
+    }
+
+    return {
+      name: str(data.name) || 'Arena',
+      address: str(data.address),
+      city: str(data.city),
+      state: str(data.state),
+      amenities: AMENITY_KEYS.filter((k) => amenitiesRaw[k] === true),
+      courtsCount,
+      courtTypes: (Array.isArray(data.courtTypes) ? data.courtTypes : []).filter(
+        (t: unknown): t is string => typeof t === 'string' && t.trim().length > 0,
+      ),
+      lat,
+      lng,
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ── Horários ─────────────────────────────────────────────
 

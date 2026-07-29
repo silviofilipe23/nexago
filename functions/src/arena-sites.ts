@@ -130,6 +130,19 @@ function readPlans(value: unknown): Array<Record<string, unknown>> {
     .slice(0, MAX_PLANS);
 }
 
+/** Números de destaque do Sobre (ex.: "2 quadras oficiais"). Sem valor = descartado. */
+function readStats(value: unknown): Array<{value: string; label: string}> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((s): s is Record<string, unknown> => !!s && typeof s === "object")
+    .map((s) => ({
+      value: readString(s["value"], "stat.value", {max: 12}),
+      label: readString(s["label"], "stat.label", {max: 24})
+    }))
+    .filter((s) => s.value !== "" && s.label !== "")
+    .slice(0, 3);
+}
+
 /** FAQ manual. Itens sem pergunta ou resposta são descartados. */
 function readFaq(value: unknown): Array<{q: string; a: string}> {
   if (!Array.isArray(value)) return [];
@@ -200,7 +213,8 @@ function buildPublicPayload(
       enabled: (about["enabled"] ?? true) !== false,
       title: readString(about["title"], "about.title", {max: 60}),
       body: readString(about["body"], "about.body", {max: 1200}),
-      imageUrls: aboutImages
+      imageUrls: aboutImages,
+      stats: readStats(about["stats"])
     },
     contact: {
       enabled: (contact["enabled"] ?? true) !== false,

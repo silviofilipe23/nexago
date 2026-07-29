@@ -8,9 +8,11 @@ import {
   ARENA_SITE_MAX_FAQ_ITEMS,
   ARENA_SITE_MAX_GALLERY_IMAGES,
   ARENA_SITE_MAX_PLANS,
+  ARENA_SITE_MAX_STATS,
   type ArenaSiteDraft,
   type ArenaSiteFaqItem,
   type ArenaSitePlan,
+  type ArenaSiteStat,
 } from './arena-site.model';
 
 /** Acesso a dados do mini-site: rascunho em `arenaSites/{arenaId}` (escrita direta,
@@ -56,6 +58,7 @@ export async function fetchArenaSiteDraft(db: Firestore, arenaId: string): Promi
       imageUrls: (Array.isArray(about['imageUrls']) ? about['imageUrls'] : [])
         .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
         .slice(0, ARENA_SITE_MAX_ABOUT_IMAGES),
+      stats: readStatsList(about['stats']),
     },
     contact: {
       enabled: contact['enabled'] !== false,
@@ -99,6 +102,16 @@ function readPlans(value: unknown): ArenaSitePlan[] {
     .slice(0, ARENA_SITE_MAX_PLANS);
 }
 
+function readStatsList(value: unknown): ArenaSiteStat[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+    .map((s) => ({
+      value: typeof s['value'] === 'string' ? s['value'] : '',
+      label: typeof s['label'] === 'string' ? s['label'] : '',
+    }))
+    .slice(0, ARENA_SITE_MAX_STATS);
+}
+
 function readFaqItems(value: unknown): ArenaSiteFaqItem[] {
   return (Array.isArray(value) ? value : [])
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
@@ -128,6 +141,10 @@ export async function saveArenaSiteDraft(db: Firestore, arenaId: string, draft: 
         title: draft.about.title.trim(),
         body: draft.about.body.trim(),
         imageUrls: draft.about.imageUrls.slice(0, ARENA_SITE_MAX_ABOUT_IMAGES),
+        stats: draft.about.stats
+          .map((s) => ({ value: s.value.trim(), label: s.label.trim() }))
+          .filter((s) => s.value || s.label)
+          .slice(0, ARENA_SITE_MAX_STATS),
       },
       contact: {
         enabled: draft.contact.enabled,

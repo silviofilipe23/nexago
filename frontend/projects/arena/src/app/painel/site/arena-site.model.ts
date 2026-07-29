@@ -42,12 +42,20 @@ export interface ArenaSiteFaqItem {
   a: string;
 }
 
+/** Número de destaque do Sobre (ex.: value "120+", label "alunos ativos"). */
+export interface ArenaSiteStat {
+  value: string;
+  label: string;
+}
+
+export const ARENA_SITE_MAX_STATS = 3;
+
 export interface ArenaSiteDraft {
   status: ArenaSiteStatus;
   slug: string;
   theme: { paletteId: string; dark: boolean };
   hero: { headline: string; tagline: string; imageUrl: string; ctaLabel: string; ctaUrl: string };
-  about: { enabled: boolean; title: string; body: string; imageUrls: string[] };
+  about: { enabled: boolean; title: string; body: string; imageUrls: string[]; stats: ArenaSiteStat[] };
   contact: { enabled: boolean; whatsapp: string; instagram: string; address: string };
   /** Seções automáticas: só liga/desliga — os dados (horários das quadras,
    *  torneios com `arenaId` da arena, avaliações) o site lê ao vivo das
@@ -65,7 +73,7 @@ export const ARENA_SITE_EMPTY: ArenaSiteDraft = {
   slug: '',
   theme: { paletteId: 'laranja', dark: true },
   hero: { headline: '', tagline: '', imageUrl: '', ctaLabel: '', ctaUrl: '' },
-  about: { enabled: true, title: '', body: '', imageUrls: [] },
+  about: { enabled: true, title: '', body: '', imageUrls: [], stats: [] },
   contact: { enabled: true, whatsapp: '', instagram: '', address: '' },
   schedule: { enabled: true },
   events: { enabled: true },

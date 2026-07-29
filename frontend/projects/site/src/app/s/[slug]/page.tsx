@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ArenaSitePage } from '@/components/arena-site/ArenaSitePage';
 import {
+  getArenaPublicInfo,
   getArenaReviews,
   getArenaUpcomingTournaments,
   getArenaWeekSchedule,
@@ -41,11 +42,14 @@ export default async function ArenaSiteRoute({ params }: { params: Promise<{ slu
   const site = await getArenaSiteBySlug(slug);
   if (!site) notFound();
 
-  const [schedule, tournaments, reviews] = await Promise.all([
+  const [schedule, tournaments, reviews, arenaInfo] = await Promise.all([
     site.schedule.enabled ? getArenaWeekSchedule(site.arenaId) : Promise.resolve(null),
     site.events.enabled ? getArenaUpcomingTournaments(site.arenaId) : Promise.resolve([]),
     site.reviews.enabled ? getArenaReviews(site.arenaId) : Promise.resolve(null),
+    getArenaPublicInfo(site.arenaId),
   ]);
 
-  return <ArenaSitePage site={site} schedule={schedule} tournaments={tournaments} reviews={reviews} />;
+  return (
+    <ArenaSitePage site={site} schedule={schedule} tournaments={tournaments} reviews={reviews} arenaInfo={arenaInfo} />
+  );
 }

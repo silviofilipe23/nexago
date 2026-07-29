@@ -90,6 +90,64 @@
   color: var(--arena-accent);
 }
 
+.navCta {
+  flex-shrink: 0;
+  background: var(--arena-accent);
+  color: #0a0a0a;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: filter var(--motion-fast) var(--ease-out);
+}
+
+.navCta:hover {
+  filter: brightness(1.06);
+}
+
+/* ── Badges do hero (dados ao vivo) ───────────────────── */
+
+.heroBadges {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.heroBadge,
+.openBadge,
+.closedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--color-text-mute);
+  border: 1px solid var(--color-line-strong);
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  backdrop-filter: blur(6px);
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+}
+
+.openBadge {
+  color: var(--color-win);
+  border-color: color-mix(in srgb, var(--color-win) 45%, transparent);
+}
+
+.closedBadge {
+  color: var(--color-text-dim);
+}
+
+.openDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
 /* ── Hero ─────────────────────────────────────────────── */
 
 .hero {
@@ -253,6 +311,68 @@
   gap: 12px;
 }
 
+.statsRow {
+  margin-top: 26px;
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.statItem {
+  min-width: 90px;
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  color: var(--arena-accent);
+  line-height: 1.1;
+}
+
+.statLabel {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-text-mute);
+}
+
+/* ── Estrutura (amenidades do cadastro) ───────────────── */
+
+.amenityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.amenityCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-3);
+  padding: 16px;
+}
+
+.amenityIcon {
+  color: var(--arena-accent);
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.amenityLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.amenityHint {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--color-text-dim);
+}
+
 .aboutImg {
   width: 100%;
   height: auto;
@@ -282,6 +402,23 @@
 
 .scheduleRow:last-child {
   border-bottom: none;
+}
+
+.scheduleRowToday {
+  composes: scheduleRow;
+  background: color-mix(in srgb, var(--arena-accent) 7%, transparent);
+}
+
+.todayTag {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--arena-accent);
+  border: 1px solid color-mix(in srgb, var(--arena-accent) 50%, transparent);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
 }
 
 .scheduleDay {
@@ -608,11 +745,49 @@
 
 /* ── Contato ──────────────────────────────────────────── */
 
-.contactList {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 480px;
+.contactGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.contactLabel {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  margin-bottom: 4px;
+}
+
+.mapWrap {
+  position: relative;
+  margin-top: 20px;
+  border-radius: var(--radius-4);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+}
+
+.mapFrame {
+  display: block;
+  width: 100%;
+  height: 320px;
+  border: 0;
+  filter: grayscale(0.35) contrast(0.92) brightness(0.9);
+}
+
+.mapDirections {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  background: var(--arena-accent);
+  color: #0a0a0a;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
 }
 
 .contactItem {

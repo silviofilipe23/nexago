@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type {
+  AmenityKey,
+  ArenaPublicInfo,
   ArenaSiteReviews,
   ArenaSiteTournament,
   WeekSchedule,
@@ -8,6 +10,7 @@ import type {
 } from '@/lib/firestore/arena-site-data';
 import { WEEKDAYS } from '@/lib/firestore/arena-site-data';
 import type { PublicArenaSite } from '@/lib/firestore/arena-sites';
+import { OpenNowBadge } from './OpenNowBadge';
 import styles from './arena-site.module.css';
 
 const WEEKDAY_LABEL: Record<Weekday, string> = {
@@ -26,18 +29,43 @@ const SPORT_LABEL: Record<string, string> = {
   footvolley: 'Futevôlei',
 };
 
-/** Mini-site público da arena: hero + sobre + seções automáticas (horários,
- *  torneios, avaliações — dados ao vivo) + contato. Server Component puro. */
+const AMENITY_INFO: Record<AmenityKey, { label: string; hint: string }> = {
+  parking: { label: 'Estacionamento', hint: 'Para clientes da arena' },
+  lockerRoom: { label: 'Vestiários', hint: 'Com chuveiros' },
+  coveredCourt: { label: 'Quadra coberta', hint: 'Jogo com sol ou chuva' },
+  bar: { label: 'Bar & lanchonete', hint: 'Comanda na arena' },
+  racketRental: { label: 'Aluguel de raquete', hint: 'É só chegar e jogar' },
+  hasAccessibleCourt: { label: 'Quadra acessível', hint: 'Estrutura PCD' },
+  hasAccessibleBathroom: { label: 'Banheiro acessível', hint: 'Estrutura PCD' },
+  hasPcdParking: { label: 'Vaga PCD', hint: 'Estacionamento reservado' },
+};
+
+/** Dia da semana em Brasília no momento do render (ISR 5min — margem aceitável). */
+function todayWeekday(): Weekday {
+  const short = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date());
+  const map: Record<string, Weekday> = {
+    Mon: 'monday', Tue: 'tuesday', Wed: 'wednesday', Thu: 'thursday',
+    Fri: 'friday', Sat: 'saturday', Sun: 'sunday',
+  };
+  return map[short] ?? 'monday';
+}
+
+/** Mini-site público da arena: hero com badges ao vivo, sobre + stats,
+ *  estrutura (amenidades do cadastro), horários, torneios, galeria, planos,
+ *  avaliações, FAQ e contato com mapa. Server Component (badge de "aberto
+ *  agora" é o único pedaço client). */
 export function ArenaSitePage({
   site,
   schedule,
   tournaments,
   reviews,
+  arenaInfo,
 }: {
   site: PublicArenaSite;
   schedule: WeekSchedule | null;
   tournaments: ArenaSiteTournament[];
   reviews: ArenaSiteReviews | null;
+  arenaInfo: ArenaPublicInfo | null;
 }) {
   const whatsappUrl = site.contact.whatsapp ? `https://wa.me/${withCountryCode(site.contact.whatsapp)}` : null;
   const instagramUrl = site.contact.instagram ? `https://instagram.com/${site.contact.instagram}` : null;
@@ -46,9 +74,27 @@ export function ArenaSitePage({
   const showGallery = site.gallery.enabled && site.gallery.imageUrls.length > 0;
   const showPlans = site.plans.enabled && site.plans.items.length > 0;
   const showFaq = site.faq.enabled && site.faq.items.length > 0;
+  const amenities = arenaInfo?.amenities ?? [];
+  const showStructure = amenities.length > 0 || (arenaInfo?.courtsCount ?? 0) > 0;
+  const today = todayWeekday();
+
+  const cityLine = [arenaInfo?.city, arenaInfo?.state].filter(Boolean).join(' — ');
+  const reserveUrl = site.hero.ctaUrl || whatsappUrl;
+  const mapSrc =
+    arenaInfo?.lat != null && arenaInfo?.lng != null
+      ? `https://www.openstreetmap.org/export/embed.html?bbox=${arenaInfo.lng - 0.006}%2C${arenaInfo.lat - 0.004}%2C${arenaInfo.lng + 0.006}%2C${arenaInfo.lat + 0.004}&layer=mapnik&marker=${arenaInfo.lat}%2C${arenaInfo.lng}`
+      : null;
+  const address = site.contact.address || arenaInfo?.address || '';
+  const directionsUrl =
+    arenaInfo?.lat != null && arenaInfo?.lng != null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${arenaInfo.lat},${arenaInfo.lng}`
+      : address
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([address, cityLine].filter(Boolean).join(', '))}`
+        : null;
 
   const anchors = [
     showAbout && { id: 'sobre', label: 'Sobre' },
+    showStructure && { id: 'estrutura', label: 'Estrutura' },
     schedule && { id: 'horarios', label: 'Horários' },
     tournaments.length > 0 && { id: 'torneios', label: 'Torneios' },
     showGallery && { id: 'galeria', label: 'Galeria' },
@@ -80,6 +126,11 @@ export function ArenaSitePage({
             ))}
           </nav>
         )}
+        {reserveUrl && (
+          <a className={styles.navCta} href={reserveUrl} target="_blank" rel="noopener noreferrer">
+            Reservar
+          </a>
+        )}
       </header>
 
       <section className={styles.hero} id="top">
@@ -90,7 +141,7 @@ export function ArenaSitePage({
         )}
         <div className={styles.heroShade} aria-hidden />
         <div className={styles.heroInner}>
-          <p className={styles.kicker}>{site.arenaName}</p>
+          <p className={styles.kicker}>{[site.arenaName, arenaInfo?.city].filter(Boolean).join(' · ')}</p>
           <h1 className={styles.headline}>{site.hero.headline}</h1>
           {site.hero.tagline && <p className={styles.tagline}>{site.hero.tagline}</p>}
           <div className={styles.heroActions}>
@@ -105,6 +156,22 @@ export function ArenaSitePage({
               </a>
             )}
           </div>
+          <div className={styles.heroBadges}>
+            {schedule && <OpenNowBadge schedule={schedule} />}
+            {(arenaInfo?.courtsCount ?? 0) > 0 && (
+              <span className={styles.heroBadge}>
+                <CourtGlyph />
+                {arenaInfo!.courtsCount} {arenaInfo!.courtsCount === 1 ? 'quadra' : 'quadras'}
+                {arenaInfo!.courtTypes.length > 0 ? ` · ${arenaInfo!.courtTypes.slice(0, 2).join(', ')}` : ''}
+              </span>
+            )}
+            {cityLine && (
+              <span className={styles.heroBadge}>
+                <PinGlyph />
+                {cityLine}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
@@ -115,7 +182,19 @@ export function ArenaSitePage({
           </h2>
           <div className={styles.sectionRule} aria-hidden />
           <div className={styles.aboutGrid}>
-            {site.about.body && <p className={styles.aboutBody}>{site.about.body}</p>}
+            <div>
+              {site.about.body && <p className={styles.aboutBody}>{site.about.body}</p>}
+              {site.about.stats.length > 0 && (
+                <div className={styles.statsRow}>
+                  {site.about.stats.map((s) => (
+                    <div key={`${s.value}-${s.label}`} className={styles.statItem}>
+                      <div className={styles.statValue}>{s.value}</div>
+                      <div className={styles.statLabel}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             {site.about.imageUrls.length > 0 && (
               <div className={styles.aboutImages}>
                 {site.about.imageUrls.map((url) => (
@@ -123,6 +202,43 @@ export function ArenaSitePage({
                 ))}
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {showStructure && (
+        <section className={styles.section} aria-labelledby="estrutura">
+          <h2 id="estrutura" className={styles.sectionTitle}>
+            Estrutura
+          </h2>
+          <div className={styles.sectionRule} aria-hidden />
+          <div className={styles.amenityGrid}>
+            {(arenaInfo?.courtsCount ?? 0) > 0 && (
+              <div className={styles.amenityCard}>
+                <span className={styles.amenityIcon} aria-hidden>
+                  <CourtGlyph />
+                </span>
+                <div>
+                  <div className={styles.amenityLabel}>
+                    {arenaInfo!.courtsCount} {arenaInfo!.courtsCount === 1 ? 'quadra' : 'quadras'}
+                  </div>
+                  <div className={styles.amenityHint}>
+                    {arenaInfo!.courtTypes.length > 0 ? arenaInfo!.courtTypes.join(' · ') : 'Areia oficial'}
+                  </div>
+                </div>
+              </div>
+            )}
+            {amenities.map((key) => (
+              <div key={key} className={styles.amenityCard}>
+                <span className={styles.amenityIcon} aria-hidden>
+                  <AmenityGlyph amenity={key} />
+                </span>
+                <div>
+                  <div className={styles.amenityLabel}>{AMENITY_INFO[key].label}</div>
+                  <div className={styles.amenityHint}>{AMENITY_INFO[key].hint}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -135,8 +251,11 @@ export function ArenaSitePage({
           <div className={styles.sectionRule} aria-hidden />
           <dl className={styles.scheduleList}>
             {WEEKDAYS.map((day) => (
-              <div key={day} className={styles.scheduleRow}>
-                <dt className={styles.scheduleDay}>{WEEKDAY_LABEL[day]}</dt>
+              <div key={day} className={day === today ? styles.scheduleRowToday : styles.scheduleRow}>
+                <dt className={styles.scheduleDay}>
+                  {WEEKDAY_LABEL[day]}
+                  {day === today && <span className={styles.todayTag}>hoje</span>}
+                </dt>
                 <dd className={schedule[day].closed ? styles.scheduleClosed : styles.scheduleHours}>
                   {schedule[day].closed ? 'Fechado' : `${schedule[day].open} – ${schedule[day].close}`}
                 </dd>
@@ -271,13 +390,16 @@ export function ArenaSitePage({
             Contato
           </h2>
           <div className={styles.sectionRule} aria-hidden />
-          <div className={styles.contactList}>
+          <div className={styles.contactGrid}>
             {whatsappUrl && (
               <a className={styles.contactItem} href={whatsappUrl} target="_blank" rel="noopener noreferrer">
                 <span className={styles.contactIcon} aria-hidden>
                   <PhoneGlyph />
                 </span>
-                WhatsApp · {formatWhatsapp(site.contact.whatsapp)}
+                <span>
+                  <span className={styles.contactLabel}>WhatsApp</span>
+                  {formatWhatsapp(site.contact.whatsapp)}
+                </span>
               </a>
             )}
             {instagramUrl && (
@@ -285,18 +407,62 @@ export function ArenaSitePage({
                 <span className={styles.contactIcon} aria-hidden>
                   <InstagramGlyph />
                 </span>
-                @{site.contact.instagram}
+                <span>
+                  <span className={styles.contactLabel}>Instagram</span>@{site.contact.instagram}
+                </span>
               </a>
             )}
-            {site.contact.address && (
+            {address &&
+              (directionsUrl ? (
+                <a className={styles.contactItem} href={directionsUrl} target="_blank" rel="noopener noreferrer">
+                  <span className={styles.contactIcon} aria-hidden>
+                    <PinGlyph />
+                  </span>
+                  <span>
+                    <span className={styles.contactLabel}>Endereço · como chegar</span>
+                    {address}
+                    {cityLine ? ` — ${cityLine}` : ''}
+                  </span>
+                </a>
+              ) : (
+                <span className={styles.contactItem}>
+                  <span className={styles.contactIcon} aria-hidden>
+                    <PinGlyph />
+                  </span>
+                  <span>
+                    <span className={styles.contactLabel}>Endereço</span>
+                    {address}
+                  </span>
+                </span>
+              ))}
+            {schedule && !schedule[today].closed && (
               <span className={styles.contactItem}>
                 <span className={styles.contactIcon} aria-hidden>
-                  <PinGlyph />
+                  <ClockGlyph />
                 </span>
-                {site.contact.address}
+                <span>
+                  <span className={styles.contactLabel}>Hoje</span>
+                  {schedule[today].open} – {schedule[today].close}
+                </span>
               </span>
             )}
           </div>
+          {mapSrc && (
+            <div className={styles.mapWrap}>
+              <iframe
+                className={styles.mapFrame}
+                src={mapSrc}
+                title={`Mapa — ${site.arenaName}`}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+              {directionsUrl && (
+                <a className={styles.mapDirections} href={directionsUrl} target="_blank" rel="noopener noreferrer">
+                  Como chegar
+                </a>
+              )}
+            </div>
+          )}
         </section>
       )}
 
@@ -365,6 +531,90 @@ function Stars({ value }: { value: number }) {
       ))}
     </span>
   );
+}
+
+function CourtGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <circle cx="12" cy="12" r="2.6" />
+    </svg>
+  );
+}
+
+function ClockGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15.5 14" />
+    </svg>
+  );
+}
+
+/** Ícones de amenidade — traço 1.8, mesmo estilo dos demais glyphs da página. */
+function AmenityGlyph({ amenity }: { amenity: AmenityKey }) {
+  const common = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  switch (amenity) {
+    case 'parking':
+      return (
+        <svg {...common} aria-hidden>
+          <rect x="3" y="3" width="18" height="18" rx="3" />
+          <path d="M9 17V7h4a3 3 0 0 1 0 6H9" />
+        </svg>
+      );
+    case 'lockerRoom':
+      return (
+        <svg {...common} aria-hidden>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+          <line x1="8" y1="9" x2="8" y2="12" />
+          <line x1="16" y1="9" x2="16" y2="12" />
+        </svg>
+      );
+    case 'coveredCourt':
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M3 12a9 9 0 0 1 18 0" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+          <line x1="3" y1="21" x2="21" y2="21" />
+        </svg>
+      );
+    case 'bar':
+      return (
+        <svg {...common} aria-hidden>
+          <path d="M8 3h8l-1 9a3 3 0 0 1-6 0L8 3z" />
+          <line x1="12" y1="15" x2="12" y2="21" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+        </svg>
+      );
+    case 'racketRental':
+      return (
+        <svg {...common} aria-hidden>
+          <ellipse cx="13.5" cy="8.5" rx="6" ry="7" transform="rotate(-20 13.5 8.5)" />
+          <line x1="9" y1="15" x2="5" y2="21" />
+        </svg>
+      );
+    case 'hasAccessibleCourt':
+    case 'hasAccessibleBathroom':
+    case 'hasPcdParking':
+      return (
+        <svg {...common} aria-hidden>
+          <circle cx="12" cy="5" r="2" />
+          <path d="M12 8v5l4 2" />
+          <path d="M8 12a5 5 0 1 0 7 6" />
+        </svg>
+      );
+  }
 }
 
 function PhoneGlyph() {

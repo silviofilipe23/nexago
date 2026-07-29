@@ -15,11 +15,13 @@ import {
   ARENA_SITE_MAX_FAQ_ITEMS,
   ARENA_SITE_MAX_GALLERY_IMAGES,
   ARENA_SITE_MAX_PLANS,
+  ARENA_SITE_MAX_STATS,
   ARENA_SITE_PALETTES,
   slugifyArenaSite,
   validateArenaSiteForPublish,
   type ArenaSiteDraft,
   type ArenaSiteFaqItem,
+  type ArenaSiteStat,
 } from './arena-site.model';
 import {
   fetchArenaSiteDraft,
@@ -168,6 +170,21 @@ interface PlanFormItem {
 
             <div class="field-label row-gap">Texto</div>
             <textarea class="input-box textarea" rows="5" maxlength="1200" [value]="aboutBody()" (input)="aboutBody.set($any($event.target).value)" placeholder="Conte a história da arena, estrutura, diferenciais…"></textarea>
+
+            <div class="field-label row-gap">Números de destaque (até {{ maxStats }})</div>
+            @for (stat of aboutStats(); track $index; let i = $index) {
+              <div class="stat-row">
+                <input type="text" class="input-box stat-value" maxlength="12" [value]="stat.value" (input)="updateStat(i, { value: $any($event.target).value })" placeholder="120+" aria-label="Valor do destaque" />
+                <input type="text" class="input-box" maxlength="24" [value]="stat.label" (input)="updateStat(i, { label: $any($event.target).value })" placeholder="alunos ativos" aria-label="Rótulo do destaque" />
+                <button type="button" class="ar-ghost-btn small" (click)="removeStat(i)">Remover</button>
+              </div>
+            }
+            @if (aboutStats().length < maxStats) {
+              <button type="button" class="ar-mini-btn" (click)="addStat()">
+                <ar-icon name="plus" [size]="14" />
+                Adicionar destaque
+              </button>
+            }
 
             <div class="field-label row-gap">Fotos (até {{ maxAboutImages }})</div>
             <div class="image-row">
@@ -895,6 +912,14 @@ interface PlanFormItem {
       margin-top: 2px;
     }
 
+    .stat-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
     .item-block {
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-2);
@@ -986,6 +1011,7 @@ export class PanelSiteComponent {
   protected readonly maxGalleryImages = ARENA_SITE_MAX_GALLERY_IMAGES;
   protected readonly maxPlans = ARENA_SITE_MAX_PLANS;
   protected readonly maxFaqItems = ARENA_SITE_MAX_FAQ_ITEMS;
+  protected readonly maxStats = ARENA_SITE_MAX_STATS;
   protected readonly publicBaseUrl = environment.publicSiteUrl;
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
@@ -1013,6 +1039,7 @@ export class PanelSiteComponent {
   protected readonly aboutTitle = linkedSignal(() => this.draft()?.about.title ?? '');
   protected readonly aboutBody = linkedSignal(() => this.draft()?.about.body ?? '');
   protected readonly aboutImageUrls = linkedSignal(() => this.draft()?.about.imageUrls ?? []);
+  protected readonly aboutStats = linkedSignal<ArenaSiteStat[]>(() => this.draft()?.about.stats ?? []);
   protected readonly contactEnabled = linkedSignal(() => this.draft()?.contact.enabled ?? true);
   protected readonly scheduleEnabled = linkedSignal(() => this.draft()?.schedule.enabled ?? true);
   protected readonly eventsEnabled = linkedSignal(() => this.draft()?.events.enabled ?? true);
@@ -1108,6 +1135,7 @@ export class PanelSiteComponent {
         title: this.aboutTitle(),
         body: this.aboutBody(),
         imageUrls: this.aboutImageUrls(),
+        stats: this.aboutStats(),
       },
       contact: {
         enabled: this.contactEnabled(),
@@ -1130,6 +1158,18 @@ export class PanelSiteComponent {
       },
       faq: { enabled: this.faqEnabled(), items: this.faqItems() },
     };
+  }
+
+  protected addStat(): void {
+    this.aboutStats.update((stats) => (stats.length >= ARENA_SITE_MAX_STATS ? stats : [...stats, { value: '', label: '' }]));
+  }
+
+  protected removeStat(index: number): void {
+    this.aboutStats.update((stats) => stats.filter((_, i) => i !== index));
+  }
+
+  protected updateStat(index: number, patch: Partial<ArenaSiteStat>): void {
+    this.aboutStats.update((stats) => stats.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
   protected addPlan(): void {

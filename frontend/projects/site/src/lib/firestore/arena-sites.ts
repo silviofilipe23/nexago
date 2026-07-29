@@ -14,7 +14,7 @@ export interface PublicArenaSite {
   arenaName: string;
   theme: { paletteId: string; primaryHex: string; dark: boolean; logoUrl: string | null };
   hero: { headline: string; tagline: string; imageUrl: string | null; ctaLabel: string; ctaUrl: string };
-  about: { enabled: boolean; title: string; body: string; imageUrls: string[] };
+  about: { enabled: boolean; title: string; body: string; imageUrls: string[]; stats: { value: string; label: string }[] };
   contact: { enabled: boolean; whatsapp: string; instagram: string; address: string };
   /** Seções automáticas — só o liga/desliga vem do espelho; os dados são lidos
    *  ao vivo das coleções públicas (ver `arena-site-data.ts`). Espelhos da
@@ -92,6 +92,11 @@ export async function getArenaSiteBySlug(slug: string): Promise<PublicArenaSite 
         body: str(about.body),
         imageUrls: (Array.isArray(about.imageUrls) ? about.imageUrls : [])
           .filter((u): u is string => typeof u === 'string' && u.startsWith('https://firebasestorage.googleapis.com/'))
+          .slice(0, 3),
+        stats: (Array.isArray(about.stats) ? about.stats : [])
+          .filter((s: unknown): s is DocumentData => !!s && typeof s === 'object')
+          .map((s: DocumentData) => ({ value: str(s.value), label: str(s.label) }))
+          .filter((s: { value: string; label: string }) => s.value && s.label)
           .slice(0, 3),
       },
       contact: {

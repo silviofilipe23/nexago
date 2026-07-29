@@ -23,7 +23,12 @@ export type { SlotsQuery } from './slots-query';
 export { slotsQueryDateKey, readArenaFallbackPricePerHour } from './slots-query';
 
 export { fetchAllArenas, fetchArenaById, fetchCourts, type ArenaCourtDoc } from './arenas-repository';
-export { fetchCourtDaySlots, fetchArenaDaySlotsMerged } from './slots-repository';
+export {
+  fetchCourtDaySlots,
+  fetchArenaDaySlotsMerged,
+  fetchArenaRangeSlotsMerged,
+  groupPersistedSlotsByDayAndCourt,
+} from './slots-repository';
 export {
   searchArenas,
   type ArenaSearchFilters,

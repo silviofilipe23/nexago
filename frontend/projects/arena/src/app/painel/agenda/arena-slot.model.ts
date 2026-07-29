@@ -53,7 +53,14 @@ function timeStr(v: unknown): string {
 
 function dateKeyFromDynamic(v: unknown): string {
   if (typeof v === 'string') return v.length >= 10 ? v.slice(0, 10) : v;
-  if (v instanceof Timestamp) return v.toDate().toISOString().slice(0, 10);
+  if (v instanceof Timestamp) {
+    // Dia de calendário LOCAL — mesma regra do app Flutter e da lib do atleta (ISO/UTC
+    // deslocaria o dia pra frente a partir das 21h no fuso do Brasil).
+    const d = v.toDate();
+    const m = `${d.getMonth() + 1}`.padStart(2, '0');
+    const day = `${d.getDate()}`.padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
   return '';
 }
 

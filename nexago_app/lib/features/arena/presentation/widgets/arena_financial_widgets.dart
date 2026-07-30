@@ -374,6 +374,15 @@ class ArenaFinancialWithdrawSection extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'Tarifa de R\$ 1,75 por saque · grátis no plano Elite.',
+          textAlign: TextAlign.center,
+          style: AppTypography.soraRegular(
+            fontSize: 12,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+        ),
       ],
     );
   }
@@ -565,6 +574,19 @@ class ArenaFinancialMovementTile extends StatelessWidget {
                     ),
                   ],
                 ),
+                // Saque com tarifa: o valor acima é o líquido recebido, esta
+                // linha mostra de onde saiu a diferença.
+                if (movement.note case final note?) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    note,
+                    style: AppTypography.soraRegular(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

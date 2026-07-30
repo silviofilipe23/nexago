@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../../core/formatting/app_currency_format.dart';
 import '../data/arena_wallet_repository.dart';
 
 const double arenaMinWithdrawalReais = 20;
@@ -45,16 +46,40 @@ class ArenaFinancialMovement {
     required this.statusLabel,
     required this.isPositive,
     required this.isFailed,
+    this.note,
   });
 
   final String id;
   final ArenaFinancialMovementKind kind;
   final String title;
   final DateTime? at;
+
+  /// Valor exibido: no saque é o LÍQUIDO recebido quando o doc tem `netReais`.
   final double amountReais;
+
   final String statusLabel;
   final bool isPositive;
   final bool isFailed;
+
+  /// Detalhe do saque ("bruto · tarifa"); `null` em docs antigos, sem tarifa.
+  final String? note;
+}
+
+/// Extrato do saque: mostra o líquido que caiu na conta e de onde saiu a
+/// diferença. Docs anteriores à tarifa (sem `feeReais`/`netReais`) seguem
+/// exibindo só o valor. Espelha `withdrawalMovementAmounts` no painel Angular.
+({double amountReais, String? note}) withdrawalMovementAmounts(
+  ArenaWithdrawalItem w,
+) {
+  final fee = w.feeReais;
+  final net = w.netReais;
+  if (net == null || fee == null || fee <= 0) {
+    return (amountReais: net ?? w.amountReais, note: null);
+  }
+  return (
+    amountReais: net,
+    note: 'Bruto ${formatBRL(w.amountReais)} · tarifa ${formatBRL(fee)}',
+  );
 }
 
 class ArenaFinancialPeriodStats {
@@ -114,13 +139,15 @@ List<ArenaFinancialMovement> buildFinancialMovements({
 
   for (final w in withdrawals) {
     final failed = withdrawalIsFailed(w);
+    final amounts = withdrawalMovementAmounts(w);
     items.add(
       ArenaFinancialMovement(
         id: 'withdrawal-${w.id}',
         kind: ArenaFinancialMovementKind.withdrawal,
         title: 'Saque PIX',
         at: w.createdAt,
-        amountReais: w.amountReais,
+        amountReais: amounts.amountReais,
+        note: amounts.note,
         statusLabel: withdrawalStatusLabel(w),
         isPositive: false,
         isFailed: failed,

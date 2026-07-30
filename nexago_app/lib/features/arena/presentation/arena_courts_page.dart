@@ -109,17 +109,31 @@ class _CourtsBody extends ConsumerWidget {
     final monthly = monthlyAsync.valueOrNull ?? const <String, int>{};
     final maxCourts = ref.watch(managedArenaMaxCourtsProvider);
     final atLimit = maxCourts != null && courts.length >= maxCourts;
+    final planStatus = ref.watch(managedArenaPlanStatusProvider).valueOrNull ??
+        ArenaPlanStatus.none;
 
     void onAddCourt() {
       if (atLimit) {
+        // O upsell tem de apontar o degrau seguinte: o Pro também tem teto (5),
+        // então mandar uma arena Pro "assinar o Pro" vende o plano que ela já
+        // tem. Mesma mensagem do painel Angular (`panel-courts.component.ts`).
+        final nextTier = nextCourtsTierFor(
+          planStatus.tier,
+          entitled: planStatus.entitled,
+        );
+        final nextPlan = arenaPlanByTier(nextTier);
+        final nextMax = maxCourtsFor(nextTier, entitled: true);
         showArenaPlanUpsellSheet(
           context,
           capability: ArenaCapability.multiUnidade,
           icon: Icons.grid_view_rounded,
+          badge: nextPlan == null ? null : 'Plano ${nextPlan.name}',
           title: 'Limite de quadras atingido',
-          description:
-              'O plano atual permite até $maxCourts quadras. Assine o Pro '
-              'para adicionar quantas precisar.',
+          description: nextPlan == null
+              ? 'O plano atual permite até $maxCourts quadras.'
+              : 'O plano atual permite até $maxCourts quadras. Assine o '
+                  '${nextPlan.name} para cadastrar '
+                  '${nextMax == null ? 'quantas precisar' : 'até $nextMax'}.',
         );
         return;
       }

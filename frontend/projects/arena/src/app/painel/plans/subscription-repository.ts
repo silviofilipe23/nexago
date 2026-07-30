@@ -1,10 +1,11 @@
 import { doc, getDoc, Timestamp, type Firestore } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
-import type { ArenaBillingCycle, ArenaPlanTier } from '../data/arena-plan.model';
+import { normalizeArenaPlanTier, type ArenaBillingCycle, type ArenaPlanTier } from '../data/arena-plan.model';
 
 /** Espelha `functions/src/arena-subscription.ts` — as duas únicas Cloud Functions reais
- *  de billing de plano (não há callable de troca/upgrade entre dois planos pagos: trocar
- *  de Pro para Parceiro hoje exigiria cancelar e assinar de novo, sem transição limpa). */
+ *  de billing de plano. Não existe callable separada de troca: `createArenaSubscription`
+ *  cancela a assinatura anterior no Asaas antes de criar a nova, então assinar outro plano
+ *  já É a troca (a arena nunca fica com duas assinaturas cobrando). */
 
 export type ArenaAsaasBillingType = 'PIX' | 'CREDIT_CARD' | 'UNDEFINED';
 
@@ -19,6 +20,11 @@ export interface CreateArenaSubscriptionResult {
   /** Só preenchido para PIX. */
   qrCode: string | null;
   qrCodeBase64: string | null;
+  /** Valor REAL da 1ª cobrança em centavos (mensalidade + ativação quando devida) — é o
+   *  valor do QR/checkout, que não é o preço do catálogo na primeira assinatura. */
+  chargedCents: number;
+  /** Parcela de ativação embutida em `chargedCents` (0 quando já foi paga). */
+  activationFeeCents: number;
 }
 
 export async function createArenaSubscription(
@@ -54,6 +60,10 @@ export interface ArenaSubscriptionBilling {
   valueCents: number;
   status: ArenaSubscriptionBillingStatus;
   updatedAt?: Date;
+  /** Presente quando a ativação (R$97, única por arena) já foi cobrada na 1ª fatura da
+   *  primeira assinatura. Campo novo — ausente em billings antigos. Espelha
+   *  `activationFeePaidAt` gravado por `functions/src/asaas-arena-subscription-webhook.ts`. */
+  activationFeePaidAt?: unknown;
 }
 
 /** `arenas/{arenaId}/billing/subscription` — doc único (não histórico), sobrescrito a
@@ -62,9 +72,9 @@ export async function fetchArenaSubscriptionBilling(db: Firestore, arenaId: stri
   const snap = await getDoc(doc(db, 'arenas', arenaId, 'billing', 'subscription'));
   if (!snap.exists()) return null;
   const data = snap.data() as Record<string, unknown>;
-  const tier = data['tier'];
+  const tier = normalizeArenaPlanTier(data['tier']);
   const cycle = data['cycle'];
-  if (tier !== 'essencial' && tier !== 'pro' && tier !== 'parceiro') return null;
+  if (tier == null) return null;
   if (cycle !== 'monthly' && cycle !== 'yearly') return null;
   const status = data['status'];
   const updatedAtRaw = data['updatedAt'];
@@ -75,5 +85,6 @@ export async function fetchArenaSubscriptionBilling(db: Firestore, arenaId: stri
     valueCents: typeof data['valueCents'] === 'number' ? data['valueCents'] : 0,
     status: status === 'active' || status === 'overdue' || status === 'canceled' ? status : 'pending',
     updatedAt: updatedAtRaw instanceof Timestamp ? updatedAtRaw.toDate() : undefined,
+    activationFeePaidAt: data['activationFeePaidAt'],
   };
 }

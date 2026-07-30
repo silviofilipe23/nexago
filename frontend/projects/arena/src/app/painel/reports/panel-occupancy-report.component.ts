@@ -29,16 +29,16 @@ const RANGE_SHORTCUTS: RangeShortcutOption[] = [
 ];
 
 /** Mesma mensagem do gate no servidor (`getArenaOccupancyReportCore`) — usada quando a UI já
- *  sabe pela `ArenaContextService` que a arena não é Pro/Parceiro, sem precisar chamar a function
+ *  sabe pela `ArenaContextService` que a arena não é Pro/Elite, sem precisar chamar a function
  *  só pra receber o erro de volta. */
 const PLAN_GATE_MESSAGE =
-  'Relatórios de ocupação estão disponíveis nos planos Pro e Parceiro. Faça upgrade do plano da arena para acessar.';
+  'Relatórios de ocupação estão disponíveis nos planos Pro e Elite. Faça upgrade do plano da arena para acessar.';
 
 function numberBR(n: number): string {
   return n.toLocaleString('pt-BR');
 }
 
-/** Relatório de ocupação de quadras (Pro/Parceiro): agregação 100% server-side via
+/** Relatório de ocupação de quadras (Pro/Elite): agregação 100% server-side via
  *  `getArenaOccupancyReport` — sem leitura direta de `arenaBookings` aqui, o volume de reservas
  *  no intervalo pode ser grande e a Cloud Function já devolve os totais prontos. */
 @Component({
@@ -56,7 +56,7 @@ function numberBR(n: number): string {
           <p class="state-text">Carregando…</p>
         } @else if (showPaywall()) {
           <ar-panel-card pad="lg">
-            <p class="paywall-title">Relatório de ocupação é um recurso dos planos Pro e Parceiro</p>
+            <p class="paywall-title">Relatório de ocupação é um recurso dos planos Pro e Elite</p>
             <p class="state-text">{{ paywallMessage() }}</p>
             <a routerLink="/painel/planos" class="ar-mini-btn ar-mini-btn-primary paywall-cta">
               <ar-icon name="card" [size]="14" />

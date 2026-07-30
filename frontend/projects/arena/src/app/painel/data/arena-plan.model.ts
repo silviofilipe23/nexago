@@ -1,7 +1,7 @@
 /** Espelha `functions/src/arena-plans.ts` (fonte da verdade do preço no servidor — o
  *  cliente nunca envia valor, só `tier`/`cycle`) e `nexago_app/.../arena/domain/arena_plan.dart`. */
 
-export type ArenaPlanTier = 'essencial' | 'pro' | 'parceiro';
+export type ArenaPlanTier = 'starter' | 'pro' | 'elite';
 export type ArenaBillingCycle = 'monthly' | 'yearly';
 
 /** `active` | `overdue` | `canceling` | `pending` | `none`. */
@@ -16,8 +16,13 @@ export type ArenaCapability =
   | 'receberTorneios'
   | 'multiUnidade';
 
-/** Carência após o vencimento em que a arena `overdue` ainda mantém o Pro (dias). Espelha `firestore.rules`. */
+/** Carência após o vencimento em que a arena `overdue` ainda mantém o plano (dias). Espelha `firestore.rules`. */
 const ARENA_OVERDUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Ativação única na primeira assinatura da arena — cobrada pelo servidor somada à
+ *  1ª fatura (não se repete em renovação nem em re-assinatura). Espelha
+ *  `ACTIVATION_FEE_CENTS` em `functions/src/arena-plans.ts`. */
+export const ARENA_ACTIVATION_FEE_CENTS = 9700;
 
 export interface ArenaPlanStatus {
   tier: ArenaPlanTier | null;
@@ -27,13 +32,19 @@ export interface ArenaPlanStatus {
 
 export const ARENA_PLAN_STATUS_NONE: ArenaPlanStatus = { tier: null, status: 'none', activeUntil: null };
 
-function isKnownTier(value: unknown): value is ArenaPlanTier {
-  return value === 'essencial' || value === 'pro' || value === 'parceiro';
+/** Normaliza um tier lido de doc/ref, aceitando ids legados de docs antigos:
+ *  'parceiro' vira 'elite' (mantém tudo que tinha); 'essencial' (grátis extinto) vira
+ *  null (sem plano). Nenhum doc é migrado — espelha `normalizeArenaPlanTier` em
+ *  `functions/src/arena-plans.ts` e `ArenaPlanTierX.fromId` no Flutter. */
+export function normalizeArenaPlanTier(value: unknown): ArenaPlanTier | null {
+  if (value === 'starter' || value === 'pro' || value === 'elite') return value;
+  if (value === 'parceiro') return 'elite';
+  return null;
 }
 
 export function arenaPlanStatusFromDoc(data: Record<string, unknown> | undefined): ArenaPlanStatus {
   if (!data) return ARENA_PLAN_STATUS_NONE;
-  const tier = isKnownTier(data['planTier']) ? data['planTier'] : null;
+  const tier = normalizeArenaPlanTier(data['planTier']);
   const rawStatus = data['planStatus'];
   const status: ArenaPlanRawStatus =
     typeof rawStatus === 'string' && rawStatus.trim().length > 0 ? (rawStatus as ArenaPlanRawStatus) : 'none';
@@ -57,11 +68,12 @@ export function arenaPlanEntitledAt(planStatus: ArenaPlanStatus, now: Date): boo
   }
 }
 
-/** Sem titularidade, cai para o comportamento do Essencial (sem capabilities Pro). */
+/** Sem titularidade (sem plano, atraso fora da carência, cancelamento já expirado), cai
+ *  para o comportamento de "sem plano": nenhuma capability paga. */
 export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boolean): ReadonlySet<ArenaCapability> {
-  const effectiveTier = entitled ? tier : 'essencial';
+  const effectiveTier = entitled ? tier : null;
   switch (effectiveTier) {
-    case 'parceiro':
+    case 'elite':
       return new Set<ArenaCapability>([
         'pdvComandas',
         'estoque',
@@ -85,19 +97,31 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
   }
 }
 
-/** Máximo de quadras por plano (`null` = ilimitado). Sem titularidade cai pro teto do
- *  Essencial. Espelha `maxCourtsFor` (Flutter) e a rule `arenaCanAddCourt`. */
+/** Máximo de quadras por plano (`null` = ilimitado). Sem titularidade cai pro teto de
+ *  "sem plano". Espelha `maxCourtsFor` (Flutter) e a rule `arenaCanAddCourt`. */
 export function maxCourtsFor(tier: ArenaPlanTier | null, entitled: boolean): number | null {
-  const effectiveTier = entitled ? tier : 'essencial';
-  return effectiveTier === 'pro' || effectiveTier === 'parceiro' ? null : 2;
+  const effectiveTier = entitled ? tier : null;
+  if (effectiveTier === 'elite') return null;
+  if (effectiveTier === 'pro') return 5;
+  return 2;
+}
+
+/** Plano que destrava mais quadras a partir do tier atual (`null` = já é ilimitado).
+ *  Sem plano/Starter (teto 2) sobem para o Pro (teto 5); Pro sobe para o Elite. Espelha
+ *  `nextCourtsTierFor` em `arena_plan.dart` — o upsell não pode vender o plano que a
+ *  arena já tem. */
+export function nextCourtsTierFor(tier: ArenaPlanTier | null, entitled: boolean): ArenaPlanTier | null {
+  const effectiveTier = entitled ? tier : null;
+  if (effectiveTier === 'elite') return null;
+  return effectiveTier === 'pro' ? 'elite' : 'pro';
 }
 
 /** Máximo de horários fixos (mensalista) ativos por plano (`null` = ilimitado). Espelha
- *  `ESSENCIAL_MAX_ACTIVE_RECURRING`/`isArenaEntitledPro` em `functions/src/arena-recurring-booking.ts`
+ *  `maxRecurringBookingsFor` (Flutter) e o gate em `functions/src/arena-recurring-booking.ts`
  *  — aqui é só uma dica de UI; a Cloud Function é quem de fato barra a criação. */
 export function maxRecurringActiveFor(tier: ArenaPlanTier | null, entitled: boolean): number | null {
-  const effectiveTier = entitled ? tier : 'essencial';
-  return effectiveTier === 'pro' || effectiveTier === 'parceiro' ? null : 3;
+  const effectiveTier = entitled ? tier : null;
+  return effectiveTier === 'pro' || effectiveTier === 'elite' ? null : 3;
 }
 
 export interface ArenaPlanCatalogEntry {
@@ -106,62 +130,62 @@ export interface ArenaPlanCatalogEntry {
   tagline: string;
   monthlyCents: number;
   yearlyCents: number;
-  free: boolean;
   features: readonly string[];
 }
 
 /** Catálogo de planos — preços espelham `functions/src/arena-plans.ts` (fonte da verdade
- *  no servidor); features espelham `arenaPlansCatalog` em `arena_plan.dart`/site. */
+ *  no servidor); features/taglines espelham `arenaPlansCatalog` em `arena_plan.dart`/site.
+ *  Não existe mais plano grátis — toda arena sem assinatura ativa é "sem plano" (tier
+ *  `null`) e paga 8% por reserva. */
 export const ARENA_PLAN_CATALOG: Readonly<Record<ArenaPlanTier, ArenaPlanCatalogEntry>> = {
-  essencial: {
-    tier: 'essencial',
-    name: 'Essencial',
-    tagline: 'Comece a receber reservas online sem pagar mensalidade.',
-    monthlyCents: 0,
-    yearlyCents: 0,
-    free: true,
+  starter: {
+    tier: 'starter',
+    name: 'Starter',
+    tagline: 'Ideal para pequenas arenas começarem online.',
+    monthlyCents: 9900,
+    yearlyCents: 108000,
     features: [
-      'Perfil público e listagem na busca',
-      'Reservas online com pagamento PIX',
-      'Agenda e disponibilidade das quadras',
-      'Avaliações da arena',
-      'Carteira e saque via PIX',
+      'Até 2 quadras · 1 admin',
+      'Site institucional + perfil na busca',
+      'Agenda e reservas online (site e app)',
+      'Avaliações e reputação',
+      'Pagamento e saque via PIX',
+      'Taxa de 8% por reserva',
     ],
   },
   pro: {
     tier: 'pro',
     name: 'Pro',
-    tagline: 'A operação completa da arena, do balcão ao torneio.',
-    monthlyCents: 14900,
-    yearlyCents: 149000,
-    free: false,
+    tagline: 'A operação completa da arena.',
+    monthlyCents: 24900,
+    yearlyCents: 273600,
     features: [
-      'Tudo do Essencial',
-      'PDV e comandas',
-      'Controle de estoque e produtos',
-      'Destaque na busca e promoções de horário',
-      'Clubinho: jogo aberto com lista e PIX antecipado',
-      'Dashboard completo, insights e seguidores',
-      'Receber etapas e torneios',
+      'Tudo do Starter · até 5 quadras',
+      'Torneios ilimitados e ranking da arena',
+      'Inscrições com pagamento online',
+      'Relatórios e dashboard',
+      'PDV, comandas e estoque',
+      'Push para atletas · taxa de 6%',
     ],
   },
-  parceiro: {
-    tier: 'parceiro',
-    name: 'Parceiro',
-    tagline: 'Para arenas que querem sediar a Liga nexaGO.',
-    monthlyCents: 39900,
-    yearlyCents: 399000,
-    free: false,
+  elite: {
+    tier: 'elite',
+    name: 'Elite',
+    tagline: 'Para arenas grandes e redes.',
+    monthlyCents: 49900,
+    yearlyCents: 548400,
     features: [
-      'Tudo do Pro',
-      'Quadras ilimitadas',
-      'Prioridade em etapas da Liga nexaGO',
-      'Gerente de conta dedicado',
+      'Tudo do Pro · usuários ilimitados',
+      'Análise financeira + consultoria semanal',
+      'Landing pages ilimitadas',
+      'Área de patrocinadores',
+      'Suporte prioritário',
+      'Taxa de 5% · saque PIX sem tarifa',
     ],
   },
 };
 
-export const ARENA_PLAN_TIER_ORDER: readonly ArenaPlanTier[] = ['essencial', 'pro', 'parceiro'];
+export const ARENA_PLAN_TIER_ORDER: readonly ArenaPlanTier[] = ['starter', 'pro', 'elite'];
 
 export function arenaPlanPriceCents(tier: ArenaPlanTier, cycle: ArenaBillingCycle): number {
   const plan = ARENA_PLAN_CATALOG[tier];

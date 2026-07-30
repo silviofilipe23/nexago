@@ -22,6 +22,8 @@ class ArenaSubscriptionResult {
     required this.billingType,
     required this.tier,
     required this.cycle,
+    required this.chargedCents,
+    required this.activationFeeCents,
     this.invoiceUrl,
     this.qrCode,
     this.qrCodeBase64,
@@ -33,6 +35,13 @@ class ArenaSubscriptionResult {
   final ArenaPlanTier tier;
   final ArenaBillingCycle cycle;
 
+  /// Valor REAL da cobrança gerada, em centavos (mensalidade + ativação quando
+  /// devida). É o valor do QR — nunca exibir o preço do catálogo no lugar dele.
+  final int chargedCents;
+
+  /// Parcela de ativação embutida em [chargedCents] (0 quando já foi paga).
+  final int activationFeeCents;
+
   /// Checkout hospedado Asaas (cartão). Nulo para PIX.
   final String? invoiceUrl;
 
@@ -41,6 +50,8 @@ class ArenaSubscriptionResult {
   final String? qrCodeBase64;
 
   bool get isPix => billingType == 'PIX' && (qrCode?.isNotEmpty ?? false);
+
+  bool get includesActivationFee => activationFeeCents > 0;
 }
 
 class ArenaSubscriptionException implements Exception {
@@ -65,6 +76,28 @@ class ArenaSubscriptionRepository {
     final d = snap.data();
     final raw = (d?['cpfCnpj'] ?? d?['cnpj'] ?? d?['document']) as String?;
     return CpfCnpjValidator.normalize(raw ?? '');
+  }
+
+  /// A arena ainda deve a taxa de ativação (R$97, uma vez por arena)?
+  ///
+  /// `true` quando nunca foi paga (inclusive sem doc de billing — 1ª
+  /// assinatura), `false` quando já foi, e `null` quando não deu para ler: sem
+  /// o dado a UI não afirma a cobrança extra. Espelha `shouldChargeActivationFee`
+  /// em `functions/src/arena-subscription.ts` — quem decide de fato é o servidor.
+  Future<bool?> fetchActivationFeeDue(String arenaId) async {
+    final id = arenaId.trim();
+    if (id.isEmpty) return null;
+    try {
+      final snap = await _firestore
+          .collection('arenas')
+          .doc(id)
+          .collection('billing')
+          .doc('subscription')
+          .get();
+      return snap.data()?['activationFeePaidAt'] == null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Estado do plano em tempo real (campos públicos de `arenas/{id}`).
@@ -111,12 +144,19 @@ class ArenaSubscriptionRepository {
       if (subscriptionId.isEmpty) {
         throw ArenaSubscriptionException('Não foi possível criar a assinatura.');
       }
+      final activationFeeCents = (map['activationFeeCents'] as num?)?.toInt() ?? 0;
       return ArenaSubscriptionResult(
         subscriptionId: subscriptionId,
         paymentId: (map['paymentId'] as String?)?.trim() ?? '',
         billingType: (map['billingType'] as String?)?.trim() ?? method.billingType,
         tier: tier,
         cycle: cycle,
+        // App novo contra backend antigo (sem os campos): cai no preço do
+        // catálogo, que era o comportamento anterior.
+        chargedCents: (map['chargedCents'] as num?)?.toInt() ??
+            arenaPlanByTier(tier)?.priceCents(cycle) ??
+            0,
+        activationFeeCents: activationFeeCents,
         invoiceUrl: (map['invoiceUrl'] as String?)?.trim().isNotEmpty == true
             ? (map['invoiceUrl'] as String).trim()
             : null,

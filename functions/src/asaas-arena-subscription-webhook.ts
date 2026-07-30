@@ -8,7 +8,7 @@ import * as logger from "firebase-functions/logger";
 import {fetchAsaas} from "./asaas-client";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {ARENA_SUBSCRIPTION_REF_PREFIX} from "./arena-booking-payment-constants";
-import {isArenaPlanTier, type ArenaPlanTier} from "./arena-plans";
+import {normalizeArenaPlanTier, type ArenaPlanTier} from "./arena-plans";
 
 const ACTIVE_STATUSES = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
 const OVERDUE_STATUSES = new Set(["OVERDUE"]);
@@ -25,7 +25,7 @@ const CANCEL_STATUSES = new Set(["DELETED"]);
 
 type SubscriptionDetails = {nextDueDate?: string; externalReference?: string};
 
-/** Extrai `{arenaId, tier}` de `arenaSubscription:{arenaId}:{tier}`. */
+/** Extrai `{arenaId, tier}` de `arenaSubscription:{arenaId}:{tier}` (aceita tiers legados). */
 export function parseSubscriptionRef(
   externalReference: string,
 ): {arenaId: string; tier: ArenaPlanTier} | null {
@@ -34,9 +34,63 @@ export function parseSubscriptionRef(
   const sep = rest.lastIndexOf(":");
   if (sep <= 0) return null;
   const arenaId = rest.slice(0, sep).trim();
-  const tier = rest.slice(sep + 1).trim();
-  if (!arenaId || !isArenaPlanTier(tier)) return null;
+  const tier = normalizeArenaPlanTier(rest.slice(sep + 1).trim());
+  if (!arenaId || !tier) return null;
   return {arenaId, tier};
+}
+
+/**
+ * Este pagamento carregava a taxa de ativação (R$97) embutida?
+ *
+ * Mais de uma cobrança com ativação pode ficar em aberto (o gestor gera o PIX
+ * mensal, não paga, volta e escolhe o anual), por isso a decisão consulta a
+ * LISTA `activationPaymentIds`. O escalar `activationPaymentId` é aceito como
+ * legado — billings gravados antes da lista existir só têm ele.
+ */
+export function paymentCarriesActivation(
+  billing: Record<string, unknown> | undefined,
+  paymentId: string,
+): boolean {
+  const id = paymentId.trim();
+  if (!id) return false;
+  const list = billing?.activationPaymentIds;
+  if (Array.isArray(list) && list.some((v) => typeof v === "string" && v.trim() === id)) {
+    return true;
+  }
+  const legacy = billing?.activationPaymentId;
+  return typeof legacy === "string" && legacy.trim() === id;
+}
+
+/**
+ * Deve gravar `activationFeePaidAt` neste pagamento confirmado? Só quando o
+ * pagamento carregava a ativação E ela ainda não foi marcada como paga —
+ * nunca sobrescreve a data já registrada.
+ */
+export function shouldMarkActivationPaid(
+  billing: Record<string, unknown> | undefined,
+  paymentId: string,
+): boolean {
+  if (billing?.activationFeePaidAt) return false;
+  return paymentCarriesActivation(billing, paymentId);
+}
+
+/**
+ * O evento vem de uma assinatura que já foi substituída?
+ *
+ * Trocar de plano cancela a assinatura antiga no Asaas antes de criar a nova,
+ * e esse DELETE gera um evento `DELETED` (ou um `OVERDUE` atrasado) da
+ * assinatura velha. Se ele chegar depois do pagamento da nova, rebaixaria um
+ * plano recém-pago. `false` quando falta um dos ids: sem certeza, não se
+ * ignora o evento.
+ */
+export function eventIsFromSupersededSubscription(
+  billing: Record<string, unknown> | undefined,
+  paymentSubscriptionId: string,
+): boolean {
+  const current = (billing?.asaasSubscriptionId as string | undefined)?.trim();
+  const incoming = paymentSubscriptionId.trim();
+  if (!current || !incoming) return false;
+  return current !== incoming;
 }
 
 /** Converte vencimento (YYYY-MM-DD, fuso SP) em Timestamp. */
@@ -104,29 +158,52 @@ export async function processArenaSubscriptionAsaasNotification(
       },
       {merge: true},
     );
+    const billingData = (await billingRef.get()).data() ?? {};
+    const paidActivation = shouldMarkActivationPaid(billingData, paymentId);
+
     await billingRef.set(
-      {status: "active", lastPaymentId: paymentId, updatedAt: FieldValue.serverTimestamp()},
+      {
+        status: "active",
+        lastPaymentId: paymentId,
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(paidActivation ? {activationFeePaidAt: FieldValue.serverTimestamp()} : {}),
+      },
       {merge: true},
     );
-  } else if (OVERDUE_STATUSES.has(status)) {
-    await arenaRef.set(
-      {planStatus: "overdue", planUpdatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
-    await billingRef.set(
-      {status: "overdue", updatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
-  } else if (CANCEL_STATUSES.has(status)) {
-    // Mantém planTier e planActiveUntil; titularidade expira no fim do período.
-    await arenaRef.set(
-      {planStatus: "canceling", planUpdatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
-    await billingRef.set(
-      {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
+  } else if (OVERDUE_STATUSES.has(status) || CANCEL_STATUSES.has(status)) {
+    // Rebaixamento só vale para a assinatura vigente: o DELETE que a troca de
+    // plano faz na assinatura antiga também vira evento, e ele não pode
+    // derrubar o plano novo se chegar atrasado.
+    const billingData = (await billingRef.get()).data() ?? {};
+    if (eventIsFromSupersededSubscription(billingData, subscriptionId)) {
+      logger.info(
+        "arenaSubscription webhook: evento de assinatura substituída, ignorado",
+        arenaId,
+        subscriptionId,
+        status,
+      );
+      return;
+    }
+    if (OVERDUE_STATUSES.has(status)) {
+      await arenaRef.set(
+        {planStatus: "overdue", planUpdatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+      await billingRef.set(
+        {status: "overdue", updatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+    } else {
+      // Mantém planTier e planActiveUntil; titularidade expira no fim do período.
+      await arenaRef.set(
+        {planStatus: "canceling", planUpdatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+      await billingRef.set(
+        {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+    }
   } else if (HARD_DOWNGRADE_STATUSES.has(status)) {
     await arenaRef.set(
       {
@@ -137,8 +214,22 @@ export async function processArenaSubscriptionAsaasNotification(
       },
       {merge: true},
     );
+    // Se o dinheiro estornado incluía a ativação, ela volta a ser devida —
+    // senão a arena estorna R$196 e reassina sem nunca mais pagar os R$97.
+    const billingData = (await billingRef.get()).data() ?? {};
+    const refundedActivation = paymentCarriesActivation(billingData, paymentId);
     await billingRef.set(
-      {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
+      {
+        status: "canceled",
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(refundedActivation ?
+          {
+            activationFeePaidAt: FieldValue.delete(),
+            activationPaymentId: FieldValue.delete(),
+            activationPaymentIds: FieldValue.delete(),
+          } :
+          {}),
+      },
       {merge: true},
     );
   } else {

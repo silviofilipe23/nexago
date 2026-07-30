@@ -35,7 +35,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'todas', label: 'Todas' },
 ];
 
-/** Tela Comandas do painel: KPIs e lista real de `arenaComandas` (PDV é capability Pro/Parceiro).
+/** Tela Comandas do painel: KPIs e lista real de `arenaComandas` (PDV é capability Pro/Elite).
  *  Abertura de comanda aqui é sempre "sem vínculo" (sem reserva de quadra ligada — essa
  *  integração com a Agenda ainda não existe neste portal) e sem busca de atleta cadastrado. */
 @Component({
@@ -67,7 +67,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
           </ar-panel-card>
         } @else if (showPaywall()) {
           <ar-panel-card pad="lg">
-            <p class="paywall-title">PDV e comandas são um recurso dos planos Pro e Parceiro</p>
+            <p class="paywall-title">PDV e comandas são um recurso dos planos Pro e Elite</p>
             <p class="state-text">Fale com o suporte para fazer upgrade e liberar o PDV da sua arena.</p>
           </ar-panel-card>
         } @else {

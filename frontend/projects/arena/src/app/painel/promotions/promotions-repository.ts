@@ -2,7 +2,7 @@ import { arenaPromotionFromFirestore, type ArenaPromotion } from '@nexago/arena-
 import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, serverTimestamp, Timestamp, updateDoc, type Firestore } from 'firebase/firestore';
 
 /** Espelha `PromotionsRepository` (Flutter) — `arenas/{arenaId}/promotions/{promoId}`. Criar/editar
- *  exige plano Pro/Parceiro (`arenaEntitled`, ver `ArenaContextService.hasCapability('promocoes')`);
+ *  exige plano Pro/Elite (`arenaEntitled`, ver `ArenaContextService.hasCapability('promocoes')`);
  *  excluir é livre. O desconto é XOR: só um entre `discountPercent`/`fixedPricePerHourReais`. */
 
 export interface PromotionInput {

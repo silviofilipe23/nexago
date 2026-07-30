@@ -45,12 +45,23 @@ class ArenaWithdrawalItem {
     required this.status,
     required this.pixKey,
     required this.createdAt,
+    this.feeReais,
+    this.netReais,
     this.payoutStatus,
     this.asaasTransferId,
   });
 
   final String id;
+
+  /// Bruto: o que sai do saldo da carteira.
   final double amountReais;
+
+  /// Tarifa de saque retida (Elite é isento). `null` em docs anteriores à tarifa.
+  final double? feeReais;
+
+  /// Líquido efetivamente transferido por PIX. `null` em docs antigos.
+  final double? netReais;
+
   final String status;
   final String pixKey;
   final DateTime? createdAt;
@@ -64,6 +75,8 @@ class ArenaWithdrawalItem {
     return ArenaWithdrawalItem(
       id: doc.id,
       amountReais: (d['amountReais'] as num?)?.toDouble() ?? 0,
+      feeReais: (d['feeReais'] as num?)?.toDouble(),
+      netReais: (d['netReais'] as num?)?.toDouble(),
       status: (d['status'] as String?) ?? 'pending',
       pixKey: (d['pixKey'] as String?) ?? '',
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),

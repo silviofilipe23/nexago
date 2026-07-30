@@ -25,16 +25,61 @@ void main() {
     required DateTime at,
     String status = 'approved',
     String? payoutStatus = 'sent',
+    double? fee,
+    double? net,
   }) {
     return ArenaWithdrawalItem(
       id: id,
       amountReais: amount,
+      feeReais: fee,
+      netReais: net,
       status: status,
       pixKey: 'key',
       createdAt: at,
       payoutStatus: payoutStatus,
     );
   }
+
+  group('extrato do saque', () {
+    test('com tarifa: exibe o líquido recebido e detalha bruto e tarifa', () {
+      final items = buildFinancialMovements(
+        ledger: [],
+        withdrawals: [
+          withdrawal(id: 'w1', amount: 100, fee: 1.75, net: 98.25, at: now),
+        ],
+        arenaName: 'Arena',
+      );
+
+      expect(items.single.amountReais, 98.25);
+      expect(items.single.note, contains('tarifa'));
+      expect(items.single.note, contains('100'));
+      expect(items.single.note, contains('1,75'));
+    });
+
+    test('doc antigo sem tarifa: exibe só o valor, sem nota', () {
+      final items = buildFinancialMovements(
+        ledger: [],
+        withdrawals: [withdrawal(id: 'w1', amount: 100, at: now)],
+        arenaName: 'Arena',
+      );
+
+      expect(items.single.amountReais, 100);
+      expect(items.single.note, isNull);
+    });
+
+    test('arena isenta (tarifa zero): líquido = bruto, sem nota de tarifa', () {
+      final items = buildFinancialMovements(
+        ledger: [],
+        withdrawals: [
+          withdrawal(id: 'w1', amount: 100, fee: 0, net: 100, at: now),
+        ],
+        arenaName: 'Arena',
+      );
+
+      expect(items.single.amountReais, 100);
+      expect(items.single.note, isNull);
+    });
+  });
 
   group('buildFinancialMovements', () {
     test('merges ledger and withdrawals sorted by date desc', () {

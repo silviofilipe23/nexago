@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ArenaContextService } from '../data/arena-context.service';
 import {
+  ARENA_ACTIVATION_FEE_CENTS,
   ARENA_PLAN_CATALOG,
   ARENA_PLAN_TIER_ORDER,
   arenaPlanPriceCents,
@@ -44,7 +45,8 @@ function formatPlanDate(date: Date | null | undefined): string {
 interface PlanCardAction {
   label: string;
   disabled: boolean;
-  kind: 'current' | 'subscribe' | 'downgrade' | 'blocked';
+  /** `switch` = já existe plano ativo; assinar substitui a assinatura atual. */
+  kind: 'current' | 'subscribe' | 'switch';
 }
 
 /** Tela Planos & assinatura: lê `arenas/{arenaId}` (planTier/planStatus/planActiveUntil/courtsCount)
@@ -54,8 +56,12 @@ interface PlanCardAction {
  *  Fora do escopo desta v1 (não existe backend pra isso hoje, ver conversa/memória do projeto):
  *  número de cartão salvo (Asaas nunca nos entrega isso), "trocar cartão", histórico de
  *  faturas, uso de "equipe"/"torneios" (sem schema), e o conceito de múltiplas unidades no
- *  mesmo painel (sem infra de grupo/franquia). Troca direta entre dois planos pagos (Pro↔Parceiro)
- *  também não é segura hoje — a function só sabe "criar assinatura nova", não substituir a atual. */
+ *  mesmo painel (sem infra de grupo/franquia).
+ *
+ *  Troca de plano (ex.: Pro→Elite) é upgrade automático: `createArenaSubscription` cancela a
+ *  assinatura anterior no Asaas antes de criar a nova, então a arena nunca fica com duas
+ *  cobranças. O diálogo avisa que a assinatura atual será substituída — mesma política e mesma
+ *  mensagem do app Flutter (`arena_plan_page.dart`). */
 @Component({
   selector: 'ar-panel-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -84,7 +90,11 @@ interface PlanCardAction {
               <div class="plan-badge" card-actions>{{ planName() }}{{ billingCycleSuffix() }}</div>
 
               <div class="price-row">
-                <span class="price">{{ priceLabel() }}</span>
+                @if (noPlanContextLine(); as ctx) {
+                  <span class="price no-plan">{{ ctx }}</span>
+                } @else {
+                  <span class="price">{{ priceLabel() }}</span>
+                }
               </div>
 
               @if (statusMessage(); as msg) {
@@ -137,11 +147,7 @@ interface PlanCardAction {
                     }
                   </div>
                   <div class="plan-col-price">
-                    @if (catalog[tier].free) {
-                      Grátis
-                    } @else {
-                      {{ formatBRL(catalog[tier].monthlyCents) }}<span class="per">/mês</span>
-                    }
+                    {{ formatBRL(catalog[tier].monthlyCents) }}<span class="per">/mês</span>
                   </div>
                   <p class="plan-col-tagline">{{ catalog[tier].tagline }}</p>
                   <ul class="plan-features">
@@ -155,7 +161,7 @@ interface PlanCardAction {
                   <button
                     type="button"
                     class="ar-mini-btn plan-cta"
-                    [class.ar-mini-btn-primary]="planCardAction(tier).kind === 'subscribe'"
+                    [class.ar-mini-btn-primary]="planCardAction(tier).kind !== 'current'"
                     [disabled]="planCardAction(tier).disabled"
                     (click)="onPlanCardClick(tier)"
                   >
@@ -170,10 +176,15 @@ interface PlanCardAction {
 
       @if (showSubscribe(); as tier) {
         <ar-modal (close)="closeSubscribe()">
-          <h2 class="modal-title">Assinar {{ catalog[tier].name }}</h2>
+          <h2 class="modal-title">{{ planCardAction(tier).label }}</h2>
 
           @if (subscribeResult(); as result) {
             <p class="modal-subtitle">Quase lá — conclua o pagamento pra ativar o plano.</p>
+
+            <div class="subscribe-price">{{ formatBRL(result.chargedCents) }}</div>
+            @if (result.activationFeeCents > 0) {
+              <p class="activation-fee-note">inclui {{ formatBRL(result.activationFeeCents) }} de ativação (única)</p>
+            }
 
             @if (result.billingType === 'PIX' && result.qrCodeBase64) {
               <img class="pix-qr" [src]="'data:image/png;base64,' + result.qrCodeBase64" alt="QR code Pix" />
@@ -197,11 +208,15 @@ interface PlanCardAction {
               <div class="error-banner">{{ serr }}</div>
             }
 
+            @if (replaceWarning(); as warning) {
+              <p class="modal-subtitle replace-warning">{{ warning }}</p>
+            }
+
             <div class="field-label">Ciclo de cobrança</div>
             <div class="ar-filter-bar filter-block">
               <button type="button" class="ar-chip" [class.active]="subscribeCycle() === 'monthly'" (click)="subscribeCycle.set('monthly')">Mensal</button>
               <button type="button" class="ar-chip" [class.active]="subscribeCycle() === 'yearly'" (click)="subscribeCycle.set('yearly')">
-                Anual · 2 meses grátis
+                Anual · 1 mês grátis
               </button>
             </div>
 
@@ -223,6 +238,16 @@ interface PlanCardAction {
             />
 
             <div class="subscribe-price">{{ formatBRL(previewPriceCents(tier)) }} · {{ cycleLabel[subscribeCycle()] }}</div>
+            @switch (activationFeeState()) {
+              @case ('due') {
+                <p class="activation-fee-note">+ {{ formatBRL(activationFeeCents) }} de ativação (única, somada à 1ª cobrança)</p>
+              }
+              @case ('unknown') {
+                <p class="activation-fee-note">
+                  A 1ª cobrança pode incluir {{ formatBRL(activationFeeCents) }} de ativação (única), se a arena ainda não tiver pago.
+                </p>
+              }
+            }
 
             <div class="actions">
               <button type="button" class="ar-ghost-btn" [disabled]="subscribing()" (click)="closeSubscribe()">Cancelar</button>
@@ -239,7 +264,7 @@ interface PlanCardAction {
           <h2 class="modal-title">Cancelar assinatura?</h2>
           <p class="modal-subtitle">
             Você mantém o acesso {{ planName() }} até {{ formatPlanDate(activeUntil()) }} (fim do período já pago). Depois disso a
-            arena volta pro Essencial automaticamente.
+            arena passa a operar sem plano — taxa de 8% por reserva paga no app.
           </p>
           @if (cancelError(); as cerr) {
             <div class="error-banner">{{ cerr }}</div>
@@ -300,6 +325,15 @@ interface PlanCardAction {
       font-size: 34px;
       letter-spacing: -0.02em;
       color: var(--nx-text);
+    }
+
+    .price.no-plan {
+      display: block;
+      font-family: var(--nx-font-ui);
+      font-weight: 600;
+      font-size: 14.5px;
+      letter-spacing: normal;
+      color: var(--nx-text-mute);
     }
 
     .status-msg {
@@ -488,6 +522,11 @@ interface PlanCardAction {
       margin: 6px 0 20px;
     }
 
+    .replace-warning {
+      color: var(--nx-pending);
+      margin-top: 0;
+    }
+
     .field-label {
       font-family: var(--nx-font-mono);
       font-size: 9px;
@@ -528,7 +567,13 @@ interface PlanCardAction {
       font-weight: 700;
       font-size: 16px;
       color: var(--nx-text);
-      margin-bottom: 20px;
+      margin-bottom: 6px;
+    }
+
+    .activation-fee-note {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: 0 0 20px;
     }
 
     .pix-qr {
@@ -615,27 +660,39 @@ export class PanelPlansComponent {
 
   protected readonly billing = signal<ArenaSubscriptionBilling | null>(null);
   protected readonly billingLoading = signal(true);
+  /** Doc ausente é informação ("nunca assinou"); falha de leitura não é — separar
+   *  as duas evita afirmar cobrança de ativação sem saber. */
+  protected readonly billingLoadFailed = signal(false);
 
-  protected readonly currentTier = computed<ArenaPlanTier>(() => this.arenaContext.planStatus().tier ?? 'essencial');
+  protected readonly currentTier = computed<ArenaPlanTier | null>(() => this.arenaContext.planStatus().tier);
   protected readonly rawStatus = computed(() => this.arenaContext.planStatus().status);
   protected readonly activeUntil = computed(() => this.arenaContext.planStatus().activeUntil);
   protected readonly entitled = computed(() => this.arenaContext.entitled());
 
-  protected readonly planName = computed(() => this.catalog[this.currentTier()].name);
+  protected readonly planName = computed(() => {
+    const tier = this.currentTier();
+    return tier ? this.catalog[tier].name : 'Sem plano';
+  });
   protected readonly billingCycleSuffix = computed(() => {
     const b = this.billing();
-    return b && b.tier === this.currentTier() ? ` · ${this.cycleLabel[b.cycle]}` : '';
+    const tier = this.currentTier();
+    return b && tier != null && b.tier === tier ? ` · ${this.cycleLabel[b.cycle]}` : '';
   });
 
   protected readonly priceLabel = computed(() => {
     const tier = this.currentTier();
-    if (this.catalog[tier].free) return 'Grátis';
+    if (tier == null) return '—';
     const b = this.billing();
     if (b && b.tier === tier) {
       return `${formatCentsBRL(b.valueCents)}${b.cycle === 'yearly' ? '/ano' : '/mês'}`;
     }
     return `${formatCentsBRL(arenaPlanPriceCents(tier, 'monthly'))}/mês`;
   });
+
+  /** Exibida no lugar do preço quando a arena não tem plano ativo. */
+  protected readonly noPlanContextLine = computed<string | null>(() =>
+    this.currentTier() == null ? 'Sem plano ativo — taxa de 8% por reserva paga no app.' : null,
+  );
 
   protected readonly isWarnStatus = computed(() => this.rawStatus() === 'overdue' || this.rawStatus() === 'canceling');
 
@@ -674,7 +731,7 @@ export class PanelPlansComponent {
   protected readonly canCancel = computed(() => {
     const tier = this.arenaContext.planStatus().tier;
     const status = this.rawStatus();
-    return tier != null && tier !== 'essencial' && (status === 'active' || status === 'overdue' || status === 'pending');
+    return tier != null && (status === 'active' || status === 'overdue' || status === 'pending');
   });
 
   protected readonly headerSubtitle = computed(() => `Gerencie o plano da ${this.arenaContext.arenaName() ?? 'sua arena'} na plataforma`);
@@ -686,6 +743,28 @@ export class PanelPlansComponent {
   protected readonly subscribing = signal(false);
   protected readonly subscribeError = signal<string | null>(null);
   protected readonly subscribeResult = signal<CreateArenaSubscriptionResult | null>(null);
+
+  protected readonly activationFeeCents = ARENA_ACTIVATION_FEE_CENTS;
+  /** A arena ainda deve a taxa de ativação (única, somada à 1ª cobrança da primeira
+   *  assinatura)? Espelha `shouldChargeActivationFee` em
+   *  `functions/src/arena-subscription.ts`. `unknown` enquanto o billing não carregou (ou
+   *  se o fetch falhou): não afirmamos uma cobrança extra sem ter o dado — quem decide de
+   *  verdade é o servidor. */
+  protected readonly activationFeeState = computed<'due' | 'paid' | 'unknown'>(() => {
+    if (this.billingLoading() || this.billingLoadFailed()) return 'unknown';
+    return this.billing()?.activationFeePaidAt ? 'paid' : 'due';
+  });
+
+  /** Aviso de substituição: assinar com plano ativo cancela a assinatura atual no Asaas
+   *  (upgrade automático em `createArenaSubscription`). Mesma mensagem do app Flutter. */
+  protected readonly replaceWarning = computed<string | null>(() => {
+    const tier = this.showSubscribe();
+    if (tier == null || this.currentTier() == null) return null;
+    return (
+      `Sua assinatura atual do ${this.planName()} será cancelada e substituída pela do ` +
+      `${this.catalog[tier].name}. A arena não fica com duas cobranças.`
+    );
+  });
 
   protected readonly showCancelConfirm = signal(false);
   protected readonly canceling = signal(false);
@@ -703,8 +782,10 @@ export class PanelPlansComponent {
     this.billingLoading.set(true);
     try {
       this.billing.set(await fetchArenaSubscriptionBilling(arenaFirestore(), arenaId));
+      this.billingLoadFailed.set(false);
     } catch {
       this.billing.set(null);
+      this.billingLoadFailed.set(true);
     } finally {
       this.billingLoading.set(false);
     }
@@ -719,22 +800,16 @@ export class PanelPlansComponent {
     if (tier === current) {
       return { label: 'Plano atual', disabled: true, kind: 'current' };
     }
-    if (tier === 'essencial') {
-      return { label: 'Fazer downgrade', disabled: false, kind: 'downgrade' };
-    }
-    if (current === 'essencial') {
+    if (current === null) {
       return { label: `Assinar ${this.catalog[tier].name}`, disabled: false, kind: 'subscribe' };
     }
-    return { label: 'Fale com o suporte pra trocar', disabled: true, kind: 'blocked' };
+    // Troca self-service: o servidor cancela a assinatura atual antes de criar a nova.
+    return { label: `Mudar para ${this.catalog[tier].name}`, disabled: false, kind: 'switch' };
   }
 
   protected onPlanCardClick(tier: ArenaPlanTier): void {
-    const action = this.planCardAction(tier);
-    if (action.kind === 'subscribe') {
+    if (this.planCardAction(tier).kind !== 'current') {
       this.openSubscribe(tier);
-    } else if (action.kind === 'downgrade') {
-      this.cancelError.set(null);
-      this.showCancelConfirm.set(true);
     }
   }
 

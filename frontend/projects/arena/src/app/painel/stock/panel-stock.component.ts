@@ -32,7 +32,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
 ];
 
 /** Tela Estoque do painel: KPIs e tabela de produtos com filtro por categoria e ajuste rápido,
- *  conectada a `arenas/{arenaId}/products` (estoque é capability Pro/Parceiro). */
+ *  conectada a `arenas/{arenaId}/products` (estoque é capability Pro/Elite). */
 @Component({
   selector: 'ar-panel-stock',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,7 +66,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
           </ar-panel-card>
         } @else if (showPaywall()) {
           <ar-panel-card pad="lg">
-            <p class="paywall-title">Estoque é um recurso dos planos Pro e Parceiro</p>
+            <p class="paywall-title">Estoque é um recurso dos planos Pro e Elite</p>
             <p class="state-text">Fale com o suporte para fazer upgrade e liberar o controle de estoque e produtos da sua arena.</p>
           </ar-panel-card>
         } @else {

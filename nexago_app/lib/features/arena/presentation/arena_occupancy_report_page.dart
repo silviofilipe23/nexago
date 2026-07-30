@@ -19,7 +19,7 @@ import 'widgets/arena_dashboard_tokens.dart';
 
 /// Tela "Relatórios" do painel de arena — ocupação de quadra por período
 /// (horas reservadas, jogadores únicos, taxa de no-show, recorrência).
-/// Recurso avançado (Pro/Parceiro), mesma categoria de
+/// Recurso avançado (Pro/Elite), mesma categoria de
 /// [ArenaCapability.metricasCompletas].
 class ArenaOccupancyReportPage extends ConsumerWidget {
   const ArenaOccupancyReportPage({super.key});

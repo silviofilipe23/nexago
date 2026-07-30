@@ -27,7 +27,7 @@ final managedArenaPlanStatusProvider =
 });
 
 /// Recursos liberados para a arena atualmente gerida. Enquanto o plano carrega,
-/// assume o mínimo (Essencial) — o gate só libera quando o Pro está confirmado.
+/// assume o mínimo (sem plano) — o gate só libera quando o Pro está confirmado.
 final managedArenaCapabilitiesProvider =
     Provider.autoDispose<Set<ArenaCapability>>((ref) {
   final status =

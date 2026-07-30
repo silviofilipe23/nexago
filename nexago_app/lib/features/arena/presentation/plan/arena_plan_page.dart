@@ -96,28 +96,45 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
               status: status,
               isCurrent: _isCurrentPlan(status, plan),
               submitting: _submitting,
-              onSubscribe: plan.free ? null : () => _onSubscribe(arenaId, plan),
-              onDowngrade: plan.free ? () => _onCancel(arenaId) : null,
+              onSubscribe: () => _onSubscribe(arenaId, plan, status),
             ),
             const SizedBox(height: 14),
           ],
-          const SizedBox(height: 8),
-          Text(
-            'Valores ilustrativos — a tabela oficial de planos será confirmada em breve.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceMuted,
+          if (status.tier != null && status.entitled) ...[
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: _submitting ? null : () => _onCancel(arenaId),
+                child: Text(
+                  'Cancelar assinatura',
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurfaceMuted,
+                  ),
                 ),
-          ),
+              ),
+            ),
+          ],
         ]),
       ),
     );
   }
 
-  Future<void> _onSubscribe(String arenaId, ArenaPlan plan) async {
+  Future<void> _onSubscribe(
+    String arenaId,
+    ArenaPlan plan,
+    ArenaPlanStatus status,
+  ) async {
     final repo = ref.read(arenaSubscriptionRepositoryProvider);
     final storedCnpj = await repo.fetchStoredCpfCnpj(arenaId);
+    final activationFeeDue = await repo.fetchActivationFeeDue(arenaId);
     if (!mounted) return;
+
+    // Assinar com plano ativo substitui a assinatura atual (o servidor cancela
+    // a anterior no Asaas antes de criar a nova). Mesma política e mesma
+    // mensagem do painel Angular (`panel-plans.component.ts`).
+    final currentPlan = status.entitled ? arenaPlanByTier(status.tier) : null;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -129,6 +146,8 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       builder: (sheetContext) => _SubscribeSheet(
         plan: plan,
         initialCnpj: storedCnpj,
+        activationFeeDue: activationFeeDue,
+        currentPlanName: currentPlan?.name,
         onSubmit: (choice) => _completeSubscription(
           sheetContext: sheetContext,
           arenaId: arenaId,
@@ -160,11 +179,13 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
 
       Navigator.of(sheetContext).pop();
 
+      // O resultado vai completo nos dois fluxos: a tela pendente precisa do
+      // valor real cobrado (`chargedCents`) mesmo no cartão, onde não há QR.
       final pendingArgs = ArenaSubscriptionPendingArgs(
         arenaId: arenaId,
         plan: plan,
         cycle: _cycle,
-        result: result.isPix ? result : null,
+        result: result,
       );
 
       if (result.isPix) {
@@ -222,11 +243,6 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
 }
 
 bool _isCurrentPlan(ArenaPlanStatus status, ArenaPlan plan) {
-  if (plan.free) {
-    return !status.entitled ||
-        status.tier == ArenaPlanTier.essencial ||
-        status.tier == null;
-  }
   return status.entitled && status.tier == plan.tier;
 }
 
@@ -282,11 +298,21 @@ class _SubscribeSheet extends StatefulWidget {
   const _SubscribeSheet({
     required this.plan,
     required this.initialCnpj,
+    required this.activationFeeDue,
+    required this.currentPlanName,
     required this.onSubmit,
   });
 
   final ArenaPlan plan;
   final String initialCnpj;
+
+  /// A ativação ainda é devida? `null` = não foi possível ler o billing — a
+  /// copy então não afirma a cobrança extra.
+  final bool? activationFeeDue;
+
+  /// Plano ativo hoje; quando presente, esta assinatura substitui a atual.
+  final String? currentPlanName;
+
   final Future<void> Function(_SubscribeChoice choice) onSubmit;
 
   @override
@@ -357,7 +383,9 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Assinar plano ${widget.plan.name}',
+              widget.currentPlanName == null
+                  ? 'Assinar plano ${widget.plan.name}'
+                  : 'Mudar para o plano ${widget.plan.name}',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: colors.onSurface,
@@ -370,6 +398,16 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
                 color: colors.onSurfaceMuted,
               ),
             ),
+            if (widget.currentPlanName case final currentName?) ...[
+              const SizedBox(height: 12),
+              _SheetNote(
+                icon: Icons.swap_horiz_rounded,
+                color: colors.pending,
+                text: 'Sua assinatura atual do $currentName será cancelada e '
+                    'substituída pela do ${widget.plan.name}. A arena não fica '
+                    'com duas cobranças.',
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
@@ -385,6 +423,23 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
                 border: const OutlineInputBorder(),
               ),
             ),
+            // Ativação é cobrada uma única vez por arena: só avisa quando ainda
+            // é devida. Sem o dado (`null`), fala em possibilidade — nunca
+            // afirma uma cobrança extra que talvez não exista.
+            if (widget.activationFeeDue != false) ...[
+              const SizedBox(height: 12),
+              _SheetNote(
+                icon: Icons.info_outline_rounded,
+                color: colors.onSurfaceMuted,
+                text: widget.activationFeeDue == true
+                    ? 'Primeira assinatura tem ativação única de '
+                        '${formatBRL(arenaActivationFeeCents / 100)} somada à '
+                        '1ª cobrança.'
+                    : 'A 1ª cobrança pode incluir '
+                        '${formatBRL(arenaActivationFeeCents / 100)} de ativação '
+                        '(única), se a arena ainda não tiver pago.',
+              ),
+            ],
             if (_submitting) ...[
               const SizedBox(height: 20),
               Row(
@@ -471,6 +526,39 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
   }
 }
 
+/// Linha de aviso do sheet de assinatura (ícone + texto).
+class _SheetNote extends StatelessWidget {
+  const _SheetNote({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  height: 1.35,
+                ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _StatusBanner extends StatelessWidget {
   const _StatusBanner({required this.status, required this.colors});
 
@@ -513,8 +601,9 @@ class _StatusBanner extends StatelessWidget {
           Icons.info_outline_rounded,
         ),
       _ => (
-          'Plano Essencial',
-          'Você está no plano gratuito. Assine para liberar mais.',
+          'Sem plano',
+          'Assine um plano para reduzir a taxa por reserva e liberar mais '
+              'recursos.',
           colors.onSurfaceMuted,
           false,
           Icons.star_outline_rounded,
@@ -657,7 +746,7 @@ class _CycleToggle extends StatelessWidget {
               colors: colors,
               onTap: () => onChanged(ArenaBillingCycle.yearly),
               trailing: _PlanPillBadge(
-                label: '2 MESES GRÁTIS',
+                label: '1 MÊS GRÁTIS',
                 background: AppColors.win.withValues(alpha: 0.16),
                 foreground: AppColors.win,
               ),
@@ -727,7 +816,6 @@ class _PlanCard extends StatelessWidget {
     required this.isCurrent,
     required this.submitting,
     required this.onSubscribe,
-    this.onDowngrade,
   });
 
   final ArenaPlan plan;
@@ -736,22 +824,15 @@ class _PlanCard extends StatelessWidget {
   final ArenaPlanStatus status;
   final bool isCurrent;
   final bool submitting;
-  final VoidCallback? onSubscribe;
-  final VoidCallback? onDowngrade;
-
-  bool get _canDowngrade =>
-      plan.free &&
-      status.entitled &&
-      status.tier != null &&
-      status.tier != ArenaPlanTier.essencial;
-
-  Color get _checkColor => plan.free ? AppColors.win : colors.brand;
+  final VoidCallback onSubscribe;
 
   @override
   Widget build(BuildContext context) {
-    final priceLabel =
-        plan.free ? 'Grátis' : formatBRL(plan.priceCents(cycle) / 100);
+    final priceLabel = formatBRL(plan.priceCents(cycle) / 100);
     final cycleLabel = cycle == ArenaBillingCycle.yearly ? '/ano' : '/mês';
+    final installmentLabel = cycle == ArenaBillingCycle.yearly
+        ? '12× de ${formatBRL(plan.yearlyCents / 12 / 100)} · 1 mês grátis'
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -816,25 +897,34 @@ class _PlanCard extends StatelessWidget {
               Text(
                 priceLabel,
                 style: AppTypography.soraRegular(
-                  fontSize: plan.free ? 34 : 30,
+                  fontSize: 30,
                   fontWeight: FontWeight.w900,
                   color: colors.onSurface,
                   letterSpacing: -0.8,
                 ),
               ),
-              if (!plan.free) ...[
-                const SizedBox(width: 4),
-                Text(
-                  cycleLabel,
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurfaceMuted,
-                  ),
+              const SizedBox(width: 4),
+              Text(
+                cycleLabel,
+                style: AppTypography.soraRegular(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurfaceMuted,
                 ),
-              ],
+              ),
             ],
           ),
+          if (installmentLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              installmentLabel,
+              style: AppTypography.soraRegular(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceMuted,
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           for (final feature in plan.features)
             Padding(
@@ -852,7 +942,7 @@ class _PlanCard extends StatelessWidget {
                     child: Icon(
                       Icons.check_rounded,
                       size: 14,
-                      color: _checkColor,
+                      color: colors.brand,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -870,46 +960,20 @@ class _PlanCard extends StatelessWidget {
                 ],
               ),
             ),
-          if (_buildActionLabel() != null) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: _buildAction(context),
-            ),
-          ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: _buildAction(context),
+          ),
         ],
       ),
     );
   }
 
-  String? _buildActionLabel() {
-    if (_canDowngrade) return 'Downgrade';
-    if (plan.free) return null;
-    if (isCurrent) return 'Plano atual';
-    return 'Assinar';
-  }
+  String get _actionLabel => isCurrent ? 'Plano atual' : 'Assinar';
 
   Widget _buildAction(BuildContext context) {
-    final label = _buildActionLabel()!;
-    final disabled = submitting || (isCurrent && !plan.free);
-
-    if (_canDowngrade) {
-      return OutlinedButton(
-        onPressed: submitting ? null : onDowngrade,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: colors.onSurface,
-          side: BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.35)),
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-      );
-    }
+    final disabled = submitting || isCurrent;
 
     return FilledButton(
       onPressed: disabled ? null : onSubscribe,
@@ -924,7 +988,7 @@ class _PlanCard extends StatelessWidget {
         ),
       ),
       child: Text(
-        label,
+        _actionLabel,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
     );

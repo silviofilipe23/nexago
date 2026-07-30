@@ -27,7 +27,11 @@ import {
   completeArenaWithdrawalPayout,
   isAsaasPayoutError,
 } from "./arena-withdrawal-payout";
-import {resolveWithdrawalPixFields} from "./asaas-payout";
+import {
+  resolveWithdrawalPixFields,
+  resolveWithdrawalTransferAmount,
+} from "./asaas-payout";
+import {resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
 import {AsaasApiError, asaasArenaSecrets} from "./asaas-client";
 import {
   getOrCreateAsaasCustomer,
@@ -453,6 +457,14 @@ export const requestArenaWithdrawal = onCall({
   await assertNoPendingArenaWithdrawal(db, arenaId);
 
   const amount = roundMoney(amountReais);
+  const feeReais = resolveArenaWithdrawalFeeReais(arena, Date.now());
+  const netReais = roundMoney(amount - feeReais);
+  if (netReais <= 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      `O valor do saque precisa ser maior que a tarifa de R$ ${feeReais.toFixed(2)}.`,
+    );
+  }
   try {
     await reserveWithdrawalAmount(db, arenaId, amount);
   } catch (e) {
@@ -470,6 +482,8 @@ export const requestArenaWithdrawal = onCall({
     arenaId,
     managerUserId: uid,
     amountReais: amount,
+    feeReais,
+    netReais,
     pixKey: pixAddressKey,
     pixKeyType: pixAddressKeyType,
     processingMode,
@@ -483,6 +497,8 @@ export const requestArenaWithdrawal = onCall({
   const withdrawalData = {
     arenaId,
     amountReais: amount,
+    feeReais,
+    netReais,
     pixKey: pixAddressKey,
     pixKeyType: pixAddressKeyType,
     payoutStatus: "pending",
@@ -717,7 +733,17 @@ export const reviewArenaWithdrawal = onCall({
       reviewedAt: FieldValue.serverTimestamp(),
       reviewNote: note || "PIX enviado manualmente fora do sistema",
     });
-    return {withdrawalId, status: "approved", payoutStatus: "manual"};
+    // Quem envia o PIX na mão precisa do LÍQUIDO (bruto − tarifa de saque),
+    // que é o mesmo valor que o repasse automático transferiria.
+    const {feeReais, netReais} = resolveWithdrawalTransferAmount(w);
+    return {
+      withdrawalId,
+      status: "approved",
+      payoutStatus: "manual",
+      amountReais,
+      feeReais,
+      netReais,
+    };
   }
 
   try {

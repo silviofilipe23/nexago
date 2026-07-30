@@ -12,6 +12,13 @@ import '../../../domain/arena_shell_providers.dart';
 /// Copy do upsell por recurso bloqueado.
 typedef _UpsellCopy = ({IconData icon, String title, String description});
 
+/// Planos que destravam a capability — o selo tem de dizer a verdade, senão
+/// manda assinar um plano que não libera o recurso. Espelha [capabilitiesFor].
+String _badgeFor(ArenaCapability capability) => switch (capability) {
+      ArenaCapability.multiUnidade => 'Plano Elite',
+      _ => 'Planos Pro e Elite',
+    };
+
 _UpsellCopy _copyFor(ArenaCapability capability) => switch (capability) {
       ArenaCapability.pdvComandas => (
           icon: Icons.receipt_long_rounded,
@@ -70,6 +77,7 @@ class ArenaPlanUpsell extends StatelessWidget {
     this.icon,
     this.title,
     this.description,
+    this.badge,
   });
 
   final ArenaCapability capability;
@@ -79,6 +87,11 @@ class ArenaPlanUpsell extends StatelessWidget {
   final String? title;
   final String? description;
 
+  /// Selo do plano. Por padrão vem do [capability]; telas que fazem upsell de
+  /// um degrau específico (ex.: Starter no teto de quadras → Pro) informam o
+  /// plano real que resolve o caso.
+  final String? badge;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -87,6 +100,7 @@ class ArenaPlanUpsell extends StatelessWidget {
     final effectiveIcon = icon ?? copy.icon;
     final effectiveTitle = title ?? copy.title;
     final effectiveDescription = description ?? copy.description;
+    final effectiveBadge = badge ?? _badgeFor(capability);
 
     return Center(
       child: SingleChildScrollView(
@@ -121,7 +135,7 @@ class ArenaPlanUpsell extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                'Planos Pro e Parceiro',
+                effectiveBadge,
                 style: AppTypography.mono(
                   color: AppColors.brand,
                   fontWeight: FontWeight.w700,
@@ -228,6 +242,7 @@ Future<void> showArenaPlanUpsellSheet(
   IconData? icon,
   String? title,
   String? description,
+  String? badge,
 }) {
   return showArenaShellModalBottomSheet<void>(
     context: context,
@@ -257,6 +272,7 @@ Future<void> showArenaPlanUpsellSheet(
             icon: icon,
             title: title,
             description: description,
+            badge: badge,
           ),
         ],
       ),

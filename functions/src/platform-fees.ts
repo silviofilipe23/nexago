@@ -6,8 +6,8 @@
  * e é sempre descontada do recebedor (arena/organizador recebe líquido); o
  * pagador (atleta) paga o mesmo valor.
  *
- * - Reservas: só arenas no plano gratuito (Essencial). Pro/Parceiro isentos
- *   (a mensalidade substitui a taxa) — o gate usa `isArenaEntitledPro`.
+ * - Reservas: todos os planos — 8% Starter, 6% Pro, 5% Elite; sem plano = 8%.
+ *   Resolução em `arena-entitlement.resolveArenaBookingFeePercent`.
  * - Inscrições de torneio: todos os organizadores.
  */
 
@@ -16,8 +16,15 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Taxa sobre reservas de arena no plano gratuito (%). */
-export const BOOKING_FEE_PERCENT = 5;
+/**
+ * Taxa sobre reservas de arena por plano (%). Todos os planos pagam; arena sem
+ * plano titular paga a taxa do Starter. Resolução em
+ * `arena-entitlement.resolveArenaBookingFeePercent`.
+ */
+export const BOOKING_FEE_PERCENT_BY_TIER = {starter: 8, pro: 6, elite: 5} as const;
+
+/** Taxa de reserva para arena sem plano titular (%). */
+export const BOOKING_FEE_PERCENT_NO_PLAN = 8;
 
 /** Taxa sobre inscrições de torneio (%). */
 export const TOURNAMENT_FEE_PERCENT = 8;
@@ -27,6 +34,9 @@ export const CLUB_FEE_PERCENT = 5;
 
 /** Piso mínimo da taxa por transação (R$). */
 export const FEE_FLOOR_REAIS = 1.5;
+
+/** Tarifa fixa de saque PIX da carteira de arena (R$). Elite é isento. */
+export const ARENA_WITHDRAWAL_FEE_REAIS = 1.75;
 
 /**
  * Taxa em reais para um valor pago: `max(piso, valor × %)`, nunca excedendo o

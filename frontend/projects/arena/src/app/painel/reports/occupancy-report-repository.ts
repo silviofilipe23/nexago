@@ -14,7 +14,7 @@ const GENERIC_MESSAGE = 'Não foi possível carregar o relatório de ocupação.
  *  cai na mensagem genérica, pra nunca expor erro cru de Firebase pro gestor. */
 const SERVER_MESSAGE_CODES = new Set(['functions/failed-precondition', 'functions/invalid-argument']);
 
-/** `isPlanGate` distingue o `failed-precondition` de "arena não é Pro/Parceiro" (mensagem do
+/** `isPlanGate` distingue o `failed-precondition` de "arena não é Pro/Elite" (mensagem do
  *  servidor é exibida como CTA de upgrade) de qualquer outro erro. */
 export class ArenaOccupancyReportError extends Error {
   constructor(

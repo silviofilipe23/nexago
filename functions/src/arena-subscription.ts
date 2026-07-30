@@ -35,6 +35,14 @@ type CreateArenaSubscriptionResult = {
   /** Preenchido apenas para PIX. */
   qrCode: string | null;
   qrCodeBase64: string | null;
+  /**
+   * Valor REAL da 1ª cobrança em centavos (mensalidade + ativação quando
+   * devida). É este o valor do QR/boleto — a UI nunca deve exibir só o preço
+   * do catálogo, que não bate com o PIX gerado.
+   */
+  chargedCents: number;
+  /** Parcela de ativação embutida em `chargedCents` (0 quando já foi paga). */
+  activationFeeCents: number;
 };
 
 /** Data de hoje no fuso de São Paulo (YYYY-MM-DD). */
@@ -63,13 +71,85 @@ export function shouldChargeActivationFee(
   return !billing?.activationFeePaidAt;
 }
 
-/** Campos de ativação a gravar no billing: omitidos quando não houve cobrança nova (preserva auditoria). */
+/**
+ * Campos de ativação a gravar no billing: omitidos quando não houve cobrança
+ * nova (preserva auditoria).
+ *
+ * O id vai para uma LISTA (`activationPaymentIds`, via arrayUnion) porque mais
+ * de uma cobrança com ativação embutida pode ficar em aberto (gestor gera PIX
+ * mensal, não paga, volta e escolhe anual). O escalar `activationPaymentId`
+ * segue gravado com a tentativa mais recente só para retrocompatibilidade de
+ * leitura — quem decide "este pagamento carregava ativação?" é
+ * `paymentCarriesActivation` no webhook, que consulta a lista E o escalar.
+ */
 export function activationBillingFields(
   activationPaymentId: string | null,
 ): Record<string, unknown> {
   return activationPaymentId ?
-    {activationPaymentId, activationFeeCents: ACTIVATION_FEE_CENTS} :
+    {
+      activationPaymentId,
+      activationPaymentIds: FieldValue.arrayUnion(activationPaymentId),
+      activationFeeCents: ACTIVATION_FEE_CENTS,
+    } :
     {};
+}
+
+/**
+ * Chave de idempotência da criação da assinatura no Asaas.
+ *
+ * Sem assinatura anterior mantém a chave histórica (dedup de duplo clique na
+ * 1ª assinatura). Depois de cancelar a assinatura `previousSubscriptionId`
+ * (troca de plano ou "gerar novo PIX"), a chave muda — senão o Asaas
+ * devolveria a resposta cacheada da assinatura que acabamos de deletar e a
+ * arena ficaria sem assinatura nenhuma. Dois cliques no mesmo estado ainda
+ * geram a mesma chave, então o dedup continua valendo.
+ */
+export function subscriptionIdempotencyKey(
+  arenaId: string,
+  tier: ArenaPlanTier,
+  cycle: BillingCycle,
+  previousSubscriptionId: string | null,
+): string {
+  const base = `arena-sub-${arenaId}-${tier}-${cycle}`;
+  const previous = previousSubscriptionId?.trim();
+  return previous ? `${base}-after-${previous}` : base;
+}
+
+/**
+ * Cancela a assinatura anterior no Asaas antes de criar a nova (troca de plano
+ * = substituição, decisão do dono). Falha do DELETE aborta a criação: cobrar
+ * duas assinaturas é pior que não trocar de plano. 404 = já não existe lá,
+ * segue em frente.
+ */
+async function cancelPreviousAsaasSubscription(
+  arenaId: string,
+  subscriptionId: string,
+): Promise<void> {
+  try {
+    await fetchAsaas(`/v3/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: "DELETE",
+    });
+  } catch (e) {
+    if (e instanceof AsaasApiError && e.httpStatus === 404) {
+      logger.info(
+        "createArenaSubscription: assinatura anterior já não existe no Asaas",
+        arenaId,
+        subscriptionId,
+      );
+      return;
+    }
+    logger.error(
+      "createArenaSubscription: falha ao cancelar a assinatura anterior",
+      arenaId,
+      subscriptionId,
+      e,
+    );
+    throw new HttpsError(
+      "failed-precondition",
+      "Não foi possível cancelar a assinatura atual da arena. " +
+        "Nenhuma cobrança nova foi gerada — tente de novo em alguns minutos.",
+    );
+  }
 }
 
 async function assertCallerManagesArena(
@@ -147,6 +227,17 @@ export const createArenaSubscription = onCall(
     const externalReference = `${ARENA_SUBSCRIPTION_REF_PREFIX}${arenaId}:${tier}`;
     const description = `Plano ${ARENA_PLANS[tier].name} (${cycle === "yearly" ? "anual" : "mensal"}) — NexaGO`;
 
+    // Uma arena tem no máximo UMA assinatura viva: antes de criar a nova,
+    // cancela a que estiver registrada (troca de plano ou novo PIX do mesmo
+    // plano). Sem isso o Asaas cobraria as duas.
+    const billingRef = getFirestore().doc(`arenas/${arenaId}/billing/subscription`);
+    const existingBilling = (await billingRef.get()).data();
+    const previousSubscriptionId =
+      (existingBilling?.asaasSubscriptionId as string | undefined)?.trim() || null;
+    if (previousSubscriptionId) {
+      await cancelPreviousAsaasSubscription(arenaId, previousSubscriptionId);
+    }
+
     let subscriptionId: string;
     try {
       const sub = await fetchAsaas<SubscriptionResponse>("/v3/subscriptions", {
@@ -160,7 +251,12 @@ export const createArenaSubscription = onCall(
           description: description.slice(0, 500),
           externalReference,
         },
-        idempotencyKey: `arena-sub-${arenaId}-${tier}-${cycle}`,
+        idempotencyKey: subscriptionIdempotencyKey(
+          arenaId,
+          tier,
+          cycle,
+          previousSubscriptionId,
+        ),
       });
       subscriptionId = sub.id?.trim() ?? "";
     } catch (e) {
@@ -182,8 +278,6 @@ export const createArenaSubscription = onCall(
 
     // Ativação única (R$97) na primeira assinatura: soma na 1ª cobrança da
     // recorrência (um único PIX; renovações vêm no preço normal do plano).
-    const billingRef = getFirestore().doc(`arenas/${arenaId}/billing/subscription`);
-    const existingBilling = (await billingRef.get()).data();
     let activationPaymentId: string | null = null;
     if (shouldChargeActivationFee(existingBilling) && paymentId) {
       const firstChargeReais = Math.round(valueCents + ACTIVATION_FEE_CENTS) / 100;
@@ -234,6 +328,8 @@ export const createArenaSubscription = onCall(
       {merge: true},
     );
 
+    const activationFeeCents = activationPaymentId ? ACTIVATION_FEE_CENTS : 0;
+
     return {
       subscriptionId,
       paymentId,
@@ -243,6 +339,8 @@ export const createArenaSubscription = onCall(
       invoiceUrl,
       qrCode,
       qrCodeBase64,
+      chargedCents: valueCents + activationFeeCents,
+      activationFeeCents,
     };
   },
 );

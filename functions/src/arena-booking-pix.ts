@@ -27,7 +27,10 @@ import {
   completeArenaWithdrawalPayout,
   isAsaasPayoutError,
 } from "./arena-withdrawal-payout";
-import {resolveWithdrawalPixFields} from "./asaas-payout";
+import {
+  resolveWithdrawalPixFields,
+  resolveWithdrawalTransferAmount,
+} from "./asaas-payout";
 import {resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
 import {AsaasApiError, asaasArenaSecrets} from "./asaas-client";
 import {
@@ -730,7 +733,17 @@ export const reviewArenaWithdrawal = onCall({
       reviewedAt: FieldValue.serverTimestamp(),
       reviewNote: note || "PIX enviado manualmente fora do sistema",
     });
-    return {withdrawalId, status: "approved", payoutStatus: "manual"};
+    // Quem envia o PIX na mão precisa do LÍQUIDO (bruto − tarifa de saque),
+    // que é o mesmo valor que o repasse automático transferiria.
+    const {feeReais, netReais} = resolveWithdrawalTransferAmount(w);
+    return {
+      withdrawalId,
+      status: "approved",
+      payoutStatus: "manual",
+      amountReais,
+      feeReais,
+      netReais,
+    };
   }
 
   try {

@@ -141,6 +141,38 @@ type AsaasTransferResponse = {
   status?: string;
 };
 
+export type WithdrawalTransferAmount = {
+  /** Valor bruto pedido pelo gestor (o que sai do saldo da carteira). */
+  amountReais: number;
+  /** Tarifa de saque retida pela plataforma (0 em Elite e em docs antigos). */
+  feeReais: number;
+  /** Valor efetivamente transferido por PIX. É este o `value` do Asaas. */
+  netReais: number;
+};
+
+/**
+ * Aritmética do valor transferido em um saque — o caminho do dinheiro.
+ *
+ * Docs antigos (e todos os saques de ORGANIZADOR, que não têm tarifa) não
+ * gravam `feeReais`: nesse caso a tarifa é 0 e transfere-se o bruto, sem
+ * quebrar saques em voo. Uma tarifa maior que o valor devolve `netReais <= 0`,
+ * que o chamador rejeita — nunca se transfere valor negativo.
+ */
+export function resolveWithdrawalTransferAmount(
+  withdrawal: Record<string, unknown>,
+): WithdrawalTransferAmount {
+  const amountReais = roundMoney(Number(withdrawal.amountReais) || 0);
+  const feeReais = roundMoney(Math.max(0, Number(withdrawal.feeReais) || 0));
+  return {amountReais, feeReais, netReais: roundMoney(amountReais - feeReais)};
+}
+
+/** O valor a transferir é utilizável? Bruto e líquido têm de ser positivos. */
+export function withdrawalTransferAmountIsValid(
+  amounts: Pick<WithdrawalTransferAmount, "amountReais" | "netReais">,
+): boolean {
+  return amounts.amountReais > 0 && amounts.netReais > 0;
+}
+
 /**
  * Envia PIX da conta NexaGO (Asaas) para a chave do saque.
  * Idempotente se `asaasTransferId` já existir com payoutStatus sent.
@@ -163,14 +195,13 @@ export async function sendArenaWithdrawalPixTransfer(
 
   const withdrawalId = withdrawalRef.id;
   const {pixAddressKey, pixAddressKeyType} = resolveWithdrawalPixFromDoc(withdrawal);
-  const amountReais = roundMoney(Number(withdrawal.amountReais) || 0);
-  const feeReais = roundMoney(Math.max(0, Number(withdrawal.feeReais) || 0));
-  const netReais = roundMoney(amountReais - feeReais);
+  const amounts = resolveWithdrawalTransferAmount(withdrawal);
+  const {netReais} = amounts;
 
   if (pixAddressKey.length < 5) {
     throw new Error("PIX_KEY_INVALID");
   }
-  if (amountReais <= 0 || netReais <= 0) {
+  if (!withdrawalTransferAmountIsValid(amounts)) {
     throw new Error("AMOUNT_INVALID");
   }
 

@@ -3,8 +3,16 @@
  *   npx ts-node --transpile-only src/arena-subscription.test.ts
  */
 import {resolvePlanPriceCents, normalizeArenaPlanTier, ACTIVATION_FEE_CENTS} from "./arena-plans";
-import {parseSubscriptionRef} from "./asaas-arena-subscription-webhook";
-import {shouldChargeActivationFee, activationBillingFields} from "./arena-subscription";
+import {
+  parseSubscriptionRef,
+  paymentCarriesActivation,
+  shouldMarkActivationPaid,
+} from "./asaas-arena-subscription-webhook";
+import {
+  shouldChargeActivationFee,
+  activationBillingFields,
+  subscriptionIdempotencyKey,
+} from "./arena-subscription";
 
 let failures = 0;
 
@@ -79,8 +87,85 @@ function run(): void {
     "com paymentId -> grava activationPaymentId + activationFeeCents (9700)",
   );
   assert(
+    withCharge.activationPaymentIds !== undefined,
+    "com paymentId -> acumula o id na lista activationPaymentIds (arrayUnion)",
+  );
+  assert(
     Object.keys(activationBillingFields(null)).length === 0,
     "sem paymentId -> objeto vazio (merge preserva valores anteriores)",
+  );
+
+  // Ativação: "este pagamento confirmado carregava a ativação?".
+  // Cenário real — gestor gera PIX mensal (pay_m), não paga, volta e escolhe
+  // anual (pay_y): as duas tentativas carregam ativação, qualquer uma que
+  // confirmar tem de marcar a ativação como paga.
+  const twoAttempts = {
+    activationPaymentId: "pay_y",
+    activationPaymentIds: ["pay_m", "pay_y"],
+  };
+  assert(
+    paymentCarriesActivation(twoAttempts, "pay_m") === true,
+    "tentativa antiga na lista -> carrega ativação",
+  );
+  assert(
+    paymentCarriesActivation(twoAttempts, "pay_y") === true,
+    "tentativa mais recente -> carrega ativação",
+  );
+  assert(
+    paymentCarriesActivation(twoAttempts, "pay_outro") === false,
+    "pagamento fora da lista -> não carrega ativação",
+  );
+  assert(
+    paymentCarriesActivation({activationPaymentId: "pay_legado"}, "pay_legado") === true,
+    "billing legado (só o escalar, sem lista) -> carrega ativação",
+  );
+  assert(
+    paymentCarriesActivation(undefined, "pay_1") === false,
+    "sem billing -> não carrega ativação",
+  );
+  assert(
+    paymentCarriesActivation({activationPaymentIds: ["pay_1"]}, "") === false,
+    "paymentId vazio -> nunca casa",
+  );
+
+  // Gravação de activationFeePaidAt: uma vez só, nunca sobrescreve.
+  assert(
+    shouldMarkActivationPaid(twoAttempts, "pay_m") === true,
+    "ativação ainda não paga + pagamento com ativação -> marca como paga",
+  );
+  assert(
+    shouldMarkActivationPaid(
+      {...twoAttempts, activationFeePaidAt: {seconds: 1}},
+      "pay_y",
+    ) === false,
+    "ativação já paga -> não regrava (nem com outra tentativa confirmando)",
+  );
+  assert(
+    shouldMarkActivationPaid(twoAttempts, "pay_outro") === false,
+    "pagamento sem ativação embutida -> não marca",
+  );
+
+  // Chave de idempotência: muda depois de cancelar a assinatura anterior, senão
+  // o Asaas devolveria a assinatura recém-deletada em vez de criar a nova.
+  assert(
+    subscriptionIdempotencyKey("arena1", "pro", "monthly", null) ===
+      "arena-sub-arena1-pro-monthly",
+    "1ª assinatura -> chave histórica (dedup de duplo clique)",
+  );
+  assert(
+    subscriptionIdempotencyKey("arena1", "elite", "monthly", "sub_123") ===
+      "arena-sub-arena1-elite-monthly-after-sub_123",
+    "troca de plano -> chave nova (assinatura anterior cancelada)",
+  );
+  assert(
+    subscriptionIdempotencyKey("arena1", "pro", "monthly", "sub_123") ===
+      subscriptionIdempotencyKey("arena1", "pro", "monthly", "sub_123"),
+    "mesmo estado -> mesma chave (duplo clique ainda deduplica)",
+  );
+  assert(
+    subscriptionIdempotencyKey("arena1", "pro", "monthly", "sub_123") !==
+      subscriptionIdempotencyKey("arena1", "pro", "monthly", "sub_456"),
+    "novo PIX do mesmo plano depois de outro cancelamento -> chave diferente",
   );
 
   if (failures > 0) {

@@ -39,6 +39,41 @@ export function parseSubscriptionRef(
   return {arenaId, tier};
 }
 
+/**
+ * Este pagamento carregava a taxa de ativação (R$97) embutida?
+ *
+ * Mais de uma cobrança com ativação pode ficar em aberto (o gestor gera o PIX
+ * mensal, não paga, volta e escolhe o anual), por isso a decisão consulta a
+ * LISTA `activationPaymentIds`. O escalar `activationPaymentId` é aceito como
+ * legado — billings gravados antes da lista existir só têm ele.
+ */
+export function paymentCarriesActivation(
+  billing: Record<string, unknown> | undefined,
+  paymentId: string,
+): boolean {
+  const id = paymentId.trim();
+  if (!id) return false;
+  const list = billing?.activationPaymentIds;
+  if (Array.isArray(list) && list.some((v) => typeof v === "string" && v.trim() === id)) {
+    return true;
+  }
+  const legacy = billing?.activationPaymentId;
+  return typeof legacy === "string" && legacy.trim() === id;
+}
+
+/**
+ * Deve gravar `activationFeePaidAt` neste pagamento confirmado? Só quando o
+ * pagamento carregava a ativação E ela ainda não foi marcada como paga —
+ * nunca sobrescreve a data já registrada.
+ */
+export function shouldMarkActivationPaid(
+  billing: Record<string, unknown> | undefined,
+  paymentId: string,
+): boolean {
+  if (billing?.activationFeePaidAt) return false;
+  return paymentCarriesActivation(billing, paymentId);
+}
+
 /** Converte vencimento (YYYY-MM-DD, fuso SP) em Timestamp. */
 function dueDateToTimestamp(nextDueDate: string | undefined): Timestamp | null {
   if (!nextDueDate) return null;
@@ -105,10 +140,7 @@ export async function processArenaSubscriptionAsaasNotification(
       {merge: true},
     );
     const billingData = (await billingRef.get()).data() ?? {};
-    const paidActivation =
-      typeof billingData.activationPaymentId === "string" &&
-      billingData.activationPaymentId === paymentId &&
-      !billingData.activationFeePaidAt;
+    const paidActivation = shouldMarkActivationPaid(billingData, paymentId);
 
     await billingRef.set(
       {
@@ -148,8 +180,22 @@ export async function processArenaSubscriptionAsaasNotification(
       },
       {merge: true},
     );
+    // Se o dinheiro estornado incluía a ativação, ela volta a ser devida —
+    // senão a arena estorna R$196 e reassina sem nunca mais pagar os R$97.
+    const billingData = (await billingRef.get()).data() ?? {};
+    const refundedActivation = paymentCarriesActivation(billingData, paymentId);
     await billingRef.set(
-      {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
+      {
+        status: "canceled",
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(refundedActivation ?
+          {
+            activationFeePaidAt: FieldValue.delete(),
+            activationPaymentId: FieldValue.delete(),
+            activationPaymentIds: FieldValue.delete(),
+          } :
+          {}),
+      },
       {merge: true},
     );
   } else {

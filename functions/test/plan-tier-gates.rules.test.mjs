@@ -27,6 +27,11 @@ function managerCtx() {
   return testEnv.authenticatedContext(MANAGER_UID);
 }
 
+/** Dono de arena recém-cadastrado (role `arena`), que é quem cria `arenas/{id}`. */
+function arenaRoleCtx() {
+  return testEnv.authenticatedContext('arena-owner-uid', { roles: ['arena'] });
+}
+
 async function seed() {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
@@ -118,5 +123,53 @@ test('starter no teto de 2 nao pode criar quadra', async () => {
   const db = managerCtx().firestore();
   await assertFails(
     setDoc(doc(db, 'arenas', 'arena-starter', 'courts', 'c1'), {}),
+  );
+});
+
+// Campos de plano definem preco (taxa 5% vs 8%, saque sem tarifa) e capabilities.
+// Se o create aceitasse planTier do cliente, qualquer usuario com role `arena`
+// nasceria Elite de graca — o update ja bloqueava, o create nao.
+test('create de arena com planTier e negado (auto-promocao a Elite)', async () => {
+  const db = arenaRoleCtx().firestore();
+  await assertFails(
+    setDoc(doc(db, 'arenas', 'arena-nova-elite'), {
+      managerUserId: 'arena-owner-uid',
+      name: 'Arena Nova',
+      planTier: 'elite',
+      planStatus: 'active',
+    }),
+  );
+});
+
+test('create de arena com planStatus e negado', async () => {
+  const db = arenaRoleCtx().firestore();
+  await assertFails(
+    setDoc(doc(db, 'arenas', 'arena-nova-status'), {
+      managerUserId: 'arena-owner-uid',
+      name: 'Arena Nova',
+      planStatus: 'active',
+    }),
+  );
+});
+
+test('create de arena com planActiveUntil e negado', async () => {
+  const db = arenaRoleCtx().firestore();
+  await assertFails(
+    setDoc(doc(db, 'arenas', 'arena-nova-until'), {
+      managerUserId: 'arena-owner-uid',
+      name: 'Arena Nova',
+      planActiveUntil: new Date(),
+    }),
+  );
+});
+
+test('create de arena sem campos de plano continua permitido', async () => {
+  const db = arenaRoleCtx().firestore();
+  await assertSucceeds(
+    setDoc(doc(db, 'arenas', 'arena-nova-ok'), {
+      managerUserId: 'arena-owner-uid',
+      name: 'Arena Nova',
+      courtsCount: 0,
+    }),
   );
 });

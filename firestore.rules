@@ -695,7 +695,14 @@ service cloud.firestore {
     // Regras para arenas
     match /arenas/{arenaId} {
       allow read: if true;
-      allow create: if request.auth != null && (isAdmin() || isSuperAdmin() || isArena());
+      // Campos de plano definem preço (taxa por reserva, tarifa de saque) e
+      // capabilities: nascer com planTier já valeria plano Elite de graça.
+      // Só as Cloud Functions os gravam (Admin SDK ignora rules), então o
+      // create do cliente tem de vir SEM eles — inclusive para admins, que não
+      // têm por que assinar plano pela UI.
+      allow create: if request.auth != null &&
+        (isAdmin() || isSuperAdmin() || isArena()) &&
+        !request.resource.data.keys().hasAny(['planTier', 'planStatus', 'planActiveUntil']);
       // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
       // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
       allow update: if request.auth != null && (

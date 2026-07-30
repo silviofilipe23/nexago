@@ -8,9 +8,12 @@ import { bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena
 import { resolveAthleteLabel, watchBookingsForArena } from '../bookings/bookings-repository';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
 import { ARENA_SLOT_BLOCK_REASON_LABEL, ARENA_SLOT_BLOCK_REASONS, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
-import { blockSlot, blockVirtualSlot, fetchCourtsRaw, unblockSlot, watchArenaDaySlots } from './schedule-repository';
+import { blockSlot, blockVirtualSlot, fetchCourtsRaw, unblockSlot, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
+import { weekDatesFor, type WeekDay } from './agenda-week-math';
 import { AgendaGridComponent, type AgendaBlock, type AgendaBlockStatus, type AgendaCourt } from '../ui/agenda-grid.component';
+import { AgendaWeekGridComponent, type AgendaWeekBlock } from '../ui/agenda-week-grid.component';
 import { ChartTabsComponent } from '../ui/chart-tabs.component';
+import { DatePickerComponent } from '../ui/date-picker.component';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -59,8 +62,10 @@ function timeToMinutes(time: string): number {
 /** Tela Agenda do painel: grade de quadras × horário (07:00–22:00) com todos os horários do
  *  dia — disponíveis (clicáveis pra bloquear), reservados (`arenaBookings`) e bloqueados
  *  (`arenaSlots`) — espelhando `ArenaSchedulePage`/`VirtualSlotGenerator` (Flutter).
- *  "Semana" continua só cosmético. Sem "Nova reserva": o Flutter também não tem criação de
- *  reserva pelo gestor em lugar nenhum (reserva é sempre iniciada pelo atleta na busca). */
+ *  Toggle "Dia"/"Semana" troca a grade de verdade (grid de 1 dia × quadras ou de 7 dias ×
+ *  quadras), e o calendário no header seleciona qualquer data. Sem "Nova reserva": o Flutter
+ *  também não tem criação de reserva pelo gestor em lugar nenhum (reserva é sempre iniciada
+ *  pelo atleta na busca). */
 @Component({
   selector: 'ar-panel-agenda',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,6 +78,8 @@ function timeToMinutes(time: string): number {
     IconComponent,
     ModalComponent,
     AgendaGridComponent,
+    AgendaWeekGridComponent,
+    DatePickerComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -82,6 +89,7 @@ function timeToMinutes(time: string): number {
           <button type="button" class="ar-ghost-btn nav-btn icon-btn" (click)="shiftDay(-1)">
             <ar-icon name="chevron-right" [size]="14" style="transform: rotate(180deg)" />
           </button>
+          <ar-date-picker [selected]="selectedDateKey()" (dateChange)="onDateKeySelected($event)" />
           <button type="button" class="ar-ghost-btn nav-btn icon-btn" (click)="shiftDay(1)">
             <ar-icon name="chevron-right" [size]="14" />
           </button>
@@ -124,8 +132,16 @@ function timeToMinutes(time: string): number {
 
             @if (courts().length === 0) {
               <p class="state-text">Nenhuma quadra cadastrada ainda.</p>
-            } @else {
+            } @else if (view() === 'Dia') {
               <ar-agenda-grid [courts]="agendaCourts()" [blocks]="agendaBlocks()" (blockClick)="onBlockClick($event)" />
+            } @else {
+              <ar-agenda-week-grid
+                [weekDays]="weekDays()"
+                [courts]="agendaCourts()"
+                [blocks]="agendaWeekBlocks()"
+                (blockClick)="onBlockClick($event)"
+                (dayHeaderClick)="onDateKeySelected($event)"
+              />
             }
           </ar-panel-card>
 
@@ -426,6 +442,7 @@ export class PanelAgendaComponent {
   private readonly courtsRawLoaded = signal(false);
   protected readonly bookings = signal<ArenaBooking[]>([]);
   protected readonly slots = signal<ArenaSlot[]>([]);
+  protected readonly weekSlots = signal<ArenaSlot[]>([]);
   protected readonly athleteLabels = signal<Record<string, string>>({});
   protected readonly selectedDate = signal(new Date());
 
@@ -442,13 +459,32 @@ export class PanelAgendaComponent {
   private unsubscribeBookings: (() => void) | null = null;
   private unsubscribeSlots: (() => void) | null = null;
 
-  private readonly selectedDateKey = computed(() => dateKeyOf(this.selectedDate()));
+  protected readonly selectedDateKey = computed(() => dateKeyOf(this.selectedDate()));
 
   protected readonly slotsWithOverlay = computed(() => applyBookingsOverlay(this.slots(), this.bookings()));
 
   protected readonly filteredSlots = computed(() => applyScheduleFilters(this.slotsWithOverlay(), this.statusFilter(), this.courtFilter()));
 
   protected readonly dayStats = computed(() => scheduleDayStats(this.slotsWithOverlay()));
+
+  protected readonly weekDays = computed<WeekDay[]>(() => weekDatesFor(this.selectedDate()));
+
+  protected readonly weekSlotsWithOverlay = computed(() => applyBookingsOverlay(this.weekSlots(), this.bookings()));
+
+  protected readonly filteredWeekSlots = computed(() => applyScheduleFilters(this.weekSlotsWithOverlay(), this.statusFilter(), this.courtFilter()));
+
+  protected readonly weekStats = computed(() => scheduleDayStats(this.filteredWeekSlots()));
+
+  protected readonly agendaWeekBlocks = computed<AgendaWeekBlock[]>(() => {
+    const blocks: AgendaWeekBlock[] = [];
+    for (const s of this.filteredWeekSlots()) {
+      const start = timeToMinutes(s.startTime);
+      let end = timeToMinutes(s.endTime);
+      if (end <= start) end += 24 * 60;
+      blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s) });
+    }
+    return blocks;
+  });
 
   protected readonly agendaCourts = computed<AgendaCourt[]>(() =>
     this.courts().map((c) => ({ id: c.id, name: c.name, sport: c.types.join(', ') || '—' })),
@@ -516,6 +552,15 @@ export class PanelAgendaComponent {
   protected readonly listKicker = computed(() => `${this.listRows().length} registros`);
 
   protected readonly subtitleLabel = computed(() => {
+    if (this.view() === 'Semana') {
+      const days = this.weekDays();
+      const fmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+      const first = days[0]?.date;
+      const last = days[6]?.date;
+      const range = first && last ? `${fmt.format(first).replace('.', '')} – ${fmt.format(last).replace('.', '')}` : '';
+      const stats = this.weekStats();
+      return `${range} · ${stats.available} livres · ${stats.booked} reservados · ${stats.blocked} bloqueados`;
+    }
     const d = this.selectedDate();
     const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(d).replace('.', '');
     const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(d).replace('.', '');
@@ -546,8 +591,7 @@ export class PanelAgendaComponent {
 
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
-      const dateKey = this.selectedDateKey();
-      const date = this.selectedDate();
+      const view = this.view();
       const courts = this.courtsRaw();
       const rawLoaded = this.courtsRawLoaded();
       this.unsubscribeSlots?.();
@@ -555,15 +599,25 @@ export class PanelAgendaComponent {
       if (!arenaId || !rawLoaded) return;
       if (courts.length === 0) {
         this.slots.set([]);
+        this.weekSlots.set([]);
         this.loading.set(false);
         return;
       }
 
       const db = arenaFirestore();
-      this.unsubscribeSlots = watchArenaDaySlots(db, arenaId, date, dateKey, courts, (list) => {
-        this.slots.set(list);
-        this.loading.set(false);
-      });
+      if (view === 'Dia') {
+        const dateKey = this.selectedDateKey();
+        const date = this.selectedDate();
+        this.unsubscribeSlots = watchArenaDaySlots(db, arenaId, date, dateKey, courts, (list) => {
+          this.slots.set(list);
+          this.loading.set(false);
+        });
+      } else {
+        this.unsubscribeSlots = watchArenaWeekSlots(db, arenaId, this.weekDays(), courts, (list) => {
+          this.weekSlots.set(list);
+          this.loading.set(false);
+        });
+      }
     });
   }
 
@@ -591,6 +645,12 @@ export class PanelAgendaComponent {
     const d = new Date(this.selectedDate());
     d.setDate(d.getDate() + delta);
     this.selectedDate.set(d);
+  }
+
+  protected onDateKeySelected(dateKey: string): void {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    if (!y || !m || !d) return;
+    this.selectedDate.set(new Date(y, m - 1, d));
   }
 
   protected onBlockClick(id: string): void {

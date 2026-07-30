@@ -179,12 +179,17 @@ export class AthleteDirectoryComponent implements AfterViewInit {
     });
   });
 
-  protected readonly totalRegisteredLabel = computed(() => {
+  /** Título da lista: quantos atletas estão em tela e sob qual esporte. Conta o que
+   *  está visível agora (sobe conforme o scroll infinito traz mais páginas). Com o
+   *  filtro em "todos", omite o sufixo — cada linha mostra o próprio ponto de esporte. */
+  protected readonly listSummaryLabel = computed(() => {
     const n = this.filteredOthers().length;
-    const loaded = this.allAthletes().length;
-    if (n === loaded) return `${n} atleta${n === 1 ? '' : 's'}`;
-    return `${n} de ${loaded} carregado${loaded === 1 ? '' : 's'}`;
+    const count = `${n} atleta${n === 1 ? '' : 's'}`;
+    const sport = this.sportFilter();
+    return sport === 'all' ? count : `${count} · ${this.sportShortLabel(sport)}`;
   });
+
+  protected readonly showSportDot = computed(() => this.sportFilter() === 'all');
 
   constructor() {
     this.destroyRef.onDestroy(() => {

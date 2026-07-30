@@ -2,7 +2,7 @@
  * Testes manuais do catálogo de planos e do parse de externalReference — executar com:
  *   npx ts-node --transpile-only src/arena-subscription.test.ts
  */
-import {resolvePlanPriceCents, ARENA_PLANS} from "./arena-plans";
+import {resolvePlanPriceCents, normalizeArenaPlanTier, ACTIVATION_FEE_CENTS} from "./arena-plans";
 import {parseSubscriptionRef} from "./asaas-arena-subscription-webhook";
 
 let failures = 0;
@@ -26,20 +26,33 @@ function expectThrows(fn: () => unknown, label: string): void {
   }
 }
 
+void expectThrows; // Para satisfazer noUnusedLocals
+
 function run(): void {
   // Catálogo: valores vêm do servidor, nunca do cliente.
-  assert(resolvePlanPriceCents("pro", "monthly") === ARENA_PLANS.pro.monthlyCents, "pro mensal");
-  assert(resolvePlanPriceCents("pro", "yearly") === ARENA_PLANS.pro.yearlyCents, "pro anual");
-  assert(resolvePlanPriceCents("parceiro", "monthly") === ARENA_PLANS.parceiro.monthlyCents, "parceiro mensal");
-  expectThrows(() => resolvePlanPriceCents("essencial", "monthly"), "essencial não é cobrável");
+  assert(resolvePlanPriceCents("starter", "monthly") === 9900, "starter mensal");
+  assert(resolvePlanPriceCents("starter", "yearly") === 108000, "starter anual (12× R$90)");
+  assert(resolvePlanPriceCents("pro", "monthly") === 24900, "pro mensal");
+  assert(resolvePlanPriceCents("pro", "yearly") === 273600, "pro anual (12× R$228)");
+  assert(resolvePlanPriceCents("elite", "monthly") === 49900, "elite mensal");
+  assert(resolvePlanPriceCents("elite", "yearly") === 548400, "elite anual (12× R$457)");
+  assert(ACTIVATION_FEE_CENTS === 9700, "ativação R$97");
+
+  // Normalização de legados.
+  assert(normalizeArenaPlanTier("parceiro") === "elite", "parceiro -> elite");
+  assert(normalizeArenaPlanTier("essencial") === null, "essencial -> sem plano");
+  assert(normalizeArenaPlanTier("starter") === "starter", "starter passa direto");
+  assert(normalizeArenaPlanTier("vip") === null, "desconhecido -> null");
 
   // Parse do externalReference.
   const ok = parseSubscriptionRef("arenaSubscription:arena123:pro");
   assert(ok?.arenaId === "arena123" && ok?.tier === "pro", "parse válido");
 
-  // arenaId com caractere ':' (usa o último separador) + tier válido no fim.
-  const withColon = parseSubscriptionRef("arenaSubscription:are:na:parceiro");
-  assert(withColon?.arenaId === "are:na" && withColon?.tier === "parceiro", "parse com ':' no id");
+  const legacy = parseSubscriptionRef("arenaSubscription:arena123:parceiro");
+  assert(legacy?.arenaId === "arena123" && legacy?.tier === "elite", "ref legada parceiro -> elite");
+
+  const withColon = parseSubscriptionRef("arenaSubscription:are:na:elite");
+  assert(withColon?.arenaId === "are:na" && withColon?.tier === "elite", "parse com ':' no id");
 
   assert(parseSubscriptionRef("arenaBooking:arena123:pro") === null, "prefixo errado -> null");
   assert(parseSubscriptionRef("arenaSubscription:arena123:vip") === null, "tier inválido -> null");

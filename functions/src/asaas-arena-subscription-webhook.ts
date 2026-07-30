@@ -8,7 +8,7 @@ import * as logger from "firebase-functions/logger";
 import {fetchAsaas} from "./asaas-client";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {ARENA_SUBSCRIPTION_REF_PREFIX} from "./arena-booking-payment-constants";
-import {isArenaPlanTier, type ArenaPlanTier} from "./arena-plans";
+import {normalizeArenaPlanTier, type ArenaPlanTier} from "./arena-plans";
 
 const ACTIVE_STATUSES = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
 const OVERDUE_STATUSES = new Set(["OVERDUE"]);
@@ -25,7 +25,7 @@ const CANCEL_STATUSES = new Set(["DELETED"]);
 
 type SubscriptionDetails = {nextDueDate?: string; externalReference?: string};
 
-/** Extrai `{arenaId, tier}` de `arenaSubscription:{arenaId}:{tier}`. */
+/** Extrai `{arenaId, tier}` de `arenaSubscription:{arenaId}:{tier}` (aceita tiers legados). */
 export function parseSubscriptionRef(
   externalReference: string,
 ): {arenaId: string; tier: ArenaPlanTier} | null {
@@ -34,8 +34,8 @@ export function parseSubscriptionRef(
   const sep = rest.lastIndexOf(":");
   if (sep <= 0) return null;
   const arenaId = rest.slice(0, sep).trim();
-  const tier = rest.slice(sep + 1).trim();
-  if (!arenaId || !isArenaPlanTier(tier)) return null;
+  const tier = normalizeArenaPlanTier(rest.slice(sep + 1).trim());
+  if (!arenaId || !tier) return null;
   return {arenaId, tier};
 }
 

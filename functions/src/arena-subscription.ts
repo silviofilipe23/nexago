@@ -95,9 +95,6 @@ export const createArenaSubscription = onCall(
     if (!isArenaPlanTier(tier) || !isBillingCycle(cycle)) {
       throw new HttpsError("invalid-argument", "Plano ou ciclo inválido.");
     }
-    if (ARENA_PLANS[tier].free) {
-      throw new HttpsError("failed-precondition", "O plano Essencial é gratuito e não requer cobrança.");
-    }
 
     const {managerUid} = await assertCallerManagesArena(arenaId, callerUid);
 

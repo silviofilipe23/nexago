@@ -1,4 +1,4 @@
-import { doc, getDoc, type DocumentData } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, type DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 /**
@@ -50,6 +50,17 @@ function safeHex(value: unknown): string {
 
 function storageUrl(value: unknown): string | null {
   return typeof value === 'string' && value.startsWith('https://firebasestorage.googleapis.com/') ? value : null;
+}
+
+/** Todos os slugs publicados — usado só no build (generateStaticParams do export estático). */
+export async function getAllArenaSiteSlugs(): Promise<string[]> {
+  try {
+    const snap = await getDocs(collection(db, 'arenaSitesPublic'));
+    return snap.docs.map((d) => d.id);
+  } catch (err) {
+    console.error('[arena-sites] getAllArenaSiteSlugs failed:', err);
+    return [];
+  }
 }
 
 /** `null` quando o slug não existe ou o site foi despublicado. */

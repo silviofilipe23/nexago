@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type MouseEvent } from 'react';
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { Reveal } from '@/components/motion/Reveal';
+import { submitWaitlist } from '@/lib/firestore/public-writes';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -31,15 +32,8 @@ export function Waitlist() {
     setStatus('loading');
     setMessage('');
     try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? 'Não foi possível salvar agora.');
-      }
+      const result = await submitWaitlist(email);
+      if (!result.ok) throw new Error(result.error);
       setStatus('success');
       setEmail('');
     } catch (err) {

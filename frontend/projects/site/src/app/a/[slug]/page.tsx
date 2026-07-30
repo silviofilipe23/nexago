@@ -1,9 +1,15 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { LinkInBioPage } from '@/components/bio/LinkInBioPage';
-import { getLinkPageBySlug } from '@/lib/firestore/link-pages';
+import { getAllLinkPageSlugs, getLinkPageBySlug } from '@/lib/firestore/link-pages';
+import { ensureNonEmptyParams } from '@/lib/slug';
 
 export const revalidate = 300;
+
+export async function generateStaticParams() {
+  const slugs = await getAllLinkPageSlugs('arena');
+  return ensureNonEmptyParams(slugs.map((slug) => ({ slug })), { slug: '_' });
+}
 
 export async function generateMetadata({
   params,

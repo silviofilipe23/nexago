@@ -5,9 +5,9 @@ import { Reveal } from '@/components/motion/Reveal';
 import { ButtonLink } from '@/components/ui/Button';
 import { Download } from '@/components/sections/Download';
 import { LeagueHero } from '@/components/hub/LeagueHero';
-import { getLeagueById } from '@/lib/firestore/leagues';
+import { getLeagueById, getPublicLeagues } from '@/lib/firestore/leagues';
 import { formatDate } from '@/lib/format';
-import { extractId, toSlugId } from '@/lib/slug';
+import { ensureNonEmptyParams, extractId, toSlugId } from '@/lib/slug';
 
 const BASE = 'https://nexago.com.br';
 
@@ -16,6 +16,17 @@ export const revalidate = 300;
 // O segmento `[slug]` aceita "slug-id" (ex.: liga-nexago-2025-aBc123); o id real é
 // extraído do final e links só com o id redirecionam para a URL canônica.
 type Params = { params: Promise<{ slug: string }> };
+
+// Gera a URL canônica (slug-id) e também o id puro — links antigos sem slug
+// batem no param "id puro" e o permanentRedirect resolve pra URL canônica.
+export async function generateStaticParams() {
+  const leagues = await getPublicLeagues(500);
+  const params = leagues.flatMap((l) => {
+    const slug = toSlugId(l.name, l.id);
+    return slug === l.id ? [{ slug: l.id }] : [{ slug }, { slug: l.id }];
+  });
+  return ensureNonEmptyParams(params, { slug: '_' });
+}
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;

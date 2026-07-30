@@ -1,11 +1,21 @@
 import { renderOg, OG_SIZE, OG_CONTENT_TYPE } from '@/lib/og';
-import { getTournamentById } from '@/lib/firestore/tournaments';
+import { getPublicTournaments, getTournamentById } from '@/lib/firestore/tournaments';
 import { sportLabel } from '@/lib/format';
-import { extractId } from '@/lib/slug';
+import { ensureNonEmptyParams, extractId, toSlugId } from '@/lib/slug';
 
+export const dynamic = 'force-static';
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 export const alt = 'Torneio no nexaGO';
+
+export async function generateStaticParams() {
+  const tournaments = await getPublicTournaments(500);
+  const params = tournaments.flatMap((t) => {
+    const slug = toSlugId(t.name, t.id);
+    return slug === t.id ? [{ id: t.id }] : [{ id: slug }, { id: t.id }];
+  });
+  return ensureNonEmptyParams(params, { id: '_' });
+}
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

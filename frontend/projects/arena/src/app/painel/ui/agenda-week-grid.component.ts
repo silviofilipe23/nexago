@@ -49,7 +49,7 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       <div class="header">
         <div class="gutter-spacer"></div>
         @for (day of weekDays(); track day.dateKey) {
-          <div class="day-col-header" [class.today]="day.isToday">
+          <div class="day-col-header" [class.today]="day.isToday" [class.selected]="day.dateKey === selectedDateKey()" [style.minWidth.px]="dayColumnWidth()">
             <button type="button" class="day-title" (click)="dayHeaderClick.emit(day.dateKey)">
               {{ weekdayLabel(day.date) }} · {{ dateLabel(day.date) }}
             </button>
@@ -72,7 +72,7 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 
         <div class="days">
           @for (day of weekDays(); track day.dateKey) {
-            <div class="day-group">
+            <div class="day-group" [style.minWidth.px]="dayColumnWidth()">
               @for (c of courts(); track c.id) {
                 <div class="column">
                   @for (b of positionedByDayAndCourt()[day.dateKey + ':' + c.id] ?? []; track b.start) {
@@ -140,6 +140,10 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 
     .day-col-header.today .day-title {
       color: var(--nx-orange-500);
+    }
+
+    .day-col-header.selected {
+      border-bottom: 2px solid var(--nx-orange-500);
     }
 
     .day-title {
@@ -305,6 +309,7 @@ export class AgendaWeekGridComponent {
   readonly weekDays = input.required<WeekDay[]>();
   readonly courts = input.required<AgendaCourt[]>();
   readonly blocks = input.required<AgendaWeekBlock[]>();
+  readonly selectedDateKey = input.required<string>();
   readonly blockClick = output<string>();
   readonly dayHeaderClick = output<string>();
 
@@ -319,6 +324,10 @@ export class AgendaWeekGridComponent {
       return { offset: i * AGENDA_ROW_HEIGHT, isHour: minute % 60 === 0, label: formatMinutes(minute) };
     }),
   );
+
+  /** Largura mínima de cada grupo-de-dia escala com o nº de quadras visíveis, senão as
+   *  sub-colunas ficam ilegíveis com 4+ quadras em vez de crescer e deixar rolar. */
+  protected readonly dayColumnWidth = computed(() => Math.max(190, this.courts().length * 90));
 
   protected readonly positionedByDayAndCourt = computed<Partial<Record<string, PositionedWeekBlock[]>>>(() => {
     const result: Partial<Record<string, PositionedWeekBlock[]>> = {};

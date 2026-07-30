@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
@@ -139,6 +139,7 @@ function timeToMinutes(time: string): number {
                 [weekDays]="weekDays()"
                 [courts]="agendaCourts()"
                 [blocks]="agendaWeekBlocks()"
+                [selectedDateKey]="selectedDateKey()"
                 (blockClick)="onBlockClick($event)"
                 (dayHeaderClick)="onDateKeySelected($event)"
               />
@@ -469,6 +470,10 @@ export class PanelAgendaComponent {
 
   protected readonly weekDays = computed<WeekDay[]>(() => weekDatesFor(this.selectedDate()));
 
+  /** Identidade da semana (segunda-feira) — ler só isso no efeito evita reabrir o listener
+   *  do Firestore a cada troca de data dentro da MESMA semana (só quando a semana muda). */
+  protected readonly weekStartKey = computed(() => this.weekDays()[0]?.dateKey ?? '');
+
   protected readonly weekSlotsWithOverlay = computed(() => applyBookingsOverlay(this.weekSlots(), this.bookings()));
 
   protected readonly filteredWeekSlots = computed(() => applyScheduleFilters(this.weekSlotsWithOverlay(), this.statusFilter(), this.courtFilter()));
@@ -484,6 +489,16 @@ export class PanelAgendaComponent {
       let end = timeToMinutes(s.endTime);
       if (end <= start) end += 24 * 60;
       blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s) });
+    }
+    const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
+    if (showMaintenance) {
+      for (const day of this.weekDays()) {
+        for (const c of this.courts()) {
+          if (c.status !== 'maintenance') continue;
+          if (this.courtFilter() && this.courtFilter() !== c.id) continue;
+          blocks.push({ id: `maint-${day.dateKey}-${c.id}`, dateKey: day.dateKey, courtId: c.id, start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' });
+        }
+      }
     }
     return blocks;
   });
@@ -556,7 +571,13 @@ export class PanelAgendaComponent {
     return rows;
   });
 
-  protected readonly listKicker = computed(() => `${this.listRows().length} registros`);
+  protected readonly listKicker = computed(() => {
+    const count = `${this.listRows().length} registros`;
+    if (this.view() !== 'Semana') return count;
+    const fmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const label = fmt.format(this.selectedDate()).replace('.', '');
+    return `${label} · ${count}`;
+  });
 
   protected readonly subtitleLabel = computed(() => {
     if (this.view() === 'Semana') {
@@ -613,6 +634,7 @@ export class PanelAgendaComponent {
 
       const db = arenaFirestore();
       if (view === 'Dia') {
+        this.weekSlots.set([]);
         const dateKey = this.selectedDateKey();
         const date = this.selectedDate();
         this.unsubscribeSlots = watchArenaDaySlots(db, arenaId, date, dateKey, courts, (list) => {
@@ -620,7 +642,10 @@ export class PanelAgendaComponent {
           this.loading.set(false);
         });
       } else {
-        this.unsubscribeSlots = watchArenaWeekSlots(db, arenaId, this.weekDays(), courts, (list) => {
+        this.slots.set([]);
+        this.weekStartKey(); // dependência: só a semana (segunda-feira), não a data exata
+        const weekDays = untracked(() => this.weekDays());
+        this.unsubscribeSlots = watchArenaWeekSlots(db, arenaId, weekDays, courts, (list) => {
           this.weekSlots.set(list);
           this.loading.set(false);
         });

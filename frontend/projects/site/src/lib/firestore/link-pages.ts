@@ -72,6 +72,28 @@ function mapHighlights(value: unknown): { value: string; label: string }[] {
     .slice(0, 3);
 }
 
+/** Todos os slugs publicados de um tipo de dono — usado só no build (generateStaticParams do export estático). */
+export async function getAllLinkPageSlugs(ownerType: LinkPageOwnerType): Promise<string[]> {
+  try {
+    const slugsSnap = await getDocs(collection(db, 'linkPageSlugs'));
+    const entries = await Promise.all(
+      slugsSnap.docs.map(async (slugDoc) => {
+        const pageId = str(slugDoc.data().pageId);
+        if (!pageId) return null;
+        const pageSnap = await getDoc(doc(db, 'linkPages', pageId));
+        if (!pageSnap.exists()) return null;
+        const data = pageSnap.data();
+        if (data.published === false || data.ownerType !== ownerType) return null;
+        return slugDoc.id;
+      }),
+    );
+    return entries.filter((s): s is string => s !== null);
+  } catch (err) {
+    console.error('[link-pages] getAllLinkPageSlugs failed:', err);
+    return [];
+  }
+}
+
 /** `null` quando o slug não existe, a página sumiu ou está despublicada. */
 export async function getLinkPageBySlug(
   slug: string,

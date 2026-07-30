@@ -32,3 +32,14 @@ export function extractId(param: string): string {
   const idx = decoded.lastIndexOf('-');
   return idx === -1 ? decoded : decoded.slice(idx + 1);
 }
+
+/**
+ * `output: 'export'` exige que `generateStaticParams` retorne pelo menos 1 item
+ * por rota dinâmica — uma lista vazia (coleção sem itens públicos ainda) faz o
+ * build inteiro falhar. O fallback aponta pra um id inexistente; a página cai
+ * em `notFound()` normalmente e gera uma página estática de 404 morta, que
+ * ninguém acessa.
+ */
+export function ensureNonEmptyParams<T extends Record<string, string>>(params: T[], fallback: T): T[] {
+  return params.length > 0 ? params : [fallback];
+}

@@ -5,13 +5,24 @@ import { Check } from 'lucide-react';
 import { Reveal } from '@/components/motion/Reveal';
 import { ButtonLink } from '@/components/ui/Button';
 import { ArenaHero } from '@/components/hub/ArenaHero';
-import { getArenaById } from '@/lib/firestore/arenas';
+import { getArenaById, getPublicArenas } from '@/lib/firestore/arenas';
 import { sportLabel } from '@/lib/format';
-import { extractId, toSlugId } from '@/lib/slug';
+import { ensureNonEmptyParams, extractId, toSlugId } from '@/lib/slug';
 
 const BASE = 'https://nexago.com.br';
 
 export const revalidate = 300;
+
+// Gera a URL canônica (slug-id) e também o id puro — links antigos sem slug
+// batem no param "id puro" e o permanentRedirect resolve pra URL canônica.
+export async function generateStaticParams() {
+  const arenas = await getPublicArenas(500);
+  const params = arenas.flatMap((a) => {
+    const slug = toSlugId(a.name, a.id);
+    return slug === a.id ? [{ id: a.id }] : [{ id: slug }, { id: a.id }];
+  });
+  return ensureNonEmptyParams(params, { id: '_' });
+}
 
 export async function generateMetadata({
   params,

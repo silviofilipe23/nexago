@@ -7,9 +7,15 @@ import {
   getArenaUpcomingTournaments,
   getArenaWeekSchedule,
 } from '@/lib/firestore/arena-site-data';
-import { getArenaSiteBySlug } from '@/lib/firestore/arena-sites';
+import { getAllArenaSiteSlugs, getArenaSiteBySlug } from '@/lib/firestore/arena-sites';
+import { ensureNonEmptyParams } from '@/lib/slug';
 
 export const revalidate = 300;
+
+export async function generateStaticParams() {
+  const slugs = await getAllArenaSiteSlugs();
+  return ensureNonEmptyParams(slugs.map((slug) => ({ slug })), { slug: '_' });
+}
 
 export async function generateMetadata({
   params,

@@ -1,15 +1,26 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { Trophy } from 'lucide-react';
-import { getTournamentById } from '@/lib/firestore/tournaments';
+import { getPublicTournaments, getTournamentById } from '@/lib/firestore/tournaments';
 import { TournamentHero } from '@/components/hub/TournamentHero';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import { Reveal } from '@/components/motion/Reveal';
 import { ButtonLink } from '@/components/ui/Button';
 import { sportLabel, genderLabel, formatCents } from '@/lib/format';
-import { extractId, toSlugId } from '@/lib/slug';
+import { ensureNonEmptyParams, extractId, toSlugId } from '@/lib/slug';
 
 export const revalidate = 300;
+
+// Gera a URL canônica (slug-id) e também o id puro — links antigos sem slug
+// batem no param "id puro" e o permanentRedirect resolve pra URL canônica.
+export async function generateStaticParams() {
+  const tournaments = await getPublicTournaments(500);
+  const params = tournaments.flatMap((t) => {
+    const slug = toSlugId(t.name, t.id);
+    return slug === t.id ? [{ id: t.id }] : [{ id: slug }, { id: t.id }];
+  });
+  return ensureNonEmptyParams(params, { id: '_' });
+}
 
 // O segmento `[id]` aceita "slug-id" (ex.: copa-de-verao-aBc123); o id real é
 // extraído do final. Links antigos só com o id seguem funcionando (redirect canônico).

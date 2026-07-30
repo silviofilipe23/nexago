@@ -2,10 +2,14 @@
 export const STRIP_DAYS = 30;
 
 /** Offset máximo, em dias a partir de hoje, que o atleta pode selecionar.
- *  Alinhado a RECURRING_HORIZON_DAYS/CLUB_HORIZON_DAYS (35) das Cloud Functions: além
- *  desse ponto as ocorrências de mensalista e clubinho ainda não foram materializadas,
- *  e o dia apareceria livre mesmo já tendo série contratada em cima. */
-export const MAX_HORIZON_DAYS = 35;
+ *  Um dia a menos que RECURRING_HORIZON_DAYS/CLUB_HORIZON_DAYS (35) das Cloud Functions,
+ *  de propósito: esse horizonte não é um teto estático, é uma janela rolante avançada
+ *  pelos materializadores agendados (03:00/03:10 horário de SP), não à meia-noite. A data
+ *  local do cliente pode estar à frente da data em SP (entre 00:00 e 03:00 em SP, ou o dia
+ *  todo em fusos a leste de UTC-3), então usar 35 aqui deixaria o cliente oferecer D+36
+ *  quando só D+35 foi materializado — o dia apareceria livre mesmo com série contratada em
+ *  cima. Mantemos 1 dia de folga em vez de replicar o cálculo de fuso do servidor no cliente. */
+export const MAX_HORIZON_DAYS = 34;
 
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MS_PER_DAY = 86_400_000;

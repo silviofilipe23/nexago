@@ -38,7 +38,7 @@ describe('buildDateStrip', () => {
     expect(daysBetween(TODAY, strip[strip.length - 1]!)).toBe(33);
   });
 
-  it('respeita o teto de 35 dias de offset (36 chips no máximo)', () => {
+  it('respeita o teto de 34 dias de offset (35 chips no máximo)', () => {
     const strip = buildDateStrip(TODAY, addDays(TODAY, MAX_HORIZON_DAYS));
     expect(strip.length).toBe(MAX_HORIZON_DAYS + 1);
     expect(daysBetween(TODAY, strip[strip.length - 1]!)).toBe(MAX_HORIZON_DAYS);
@@ -73,13 +73,13 @@ describe('clampPickedDate', () => {
   });
 
   it('aceita o último dia do horizonte', () => {
-    // 29/07/2026 + 35 dias = 02/09/2026
+    // 29/07/2026 + 34 dias = 01/09/2026
     expect(daysBetween(TODAY, addDays(TODAY, MAX_HORIZON_DAYS))).toBe(MAX_HORIZON_DAYS);
-    expect(clampPickedDate('2026-09-02', TODAY)).not.toBeNull();
+    expect(clampPickedDate('2026-09-01', TODAY)).not.toBeNull();
   });
 
   it('rejeita um dia além do horizonte', () => {
-    expect(clampPickedDate('2026-09-03', TODAY)).toBeNull();
+    expect(clampPickedDate('2026-09-02', TODAY)).toBeNull();
   });
 
   it('rejeita data no passado', () => {

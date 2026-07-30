@@ -48,6 +48,7 @@
                   class="bk-date-chip"
                   [class.bk-date-chip--active]="isSelectedDate(d)"
                   [attr.data-date-key]="dateKeyOf(d)"
+                  [attr.aria-current]="isSelectedDate(d) ? 'date' : null"
                   (click)="selectDate(d)"
                 >
                   <span class="bk-date-weekday">{{ weekdayAbbr[d.getDay()] }}</span>

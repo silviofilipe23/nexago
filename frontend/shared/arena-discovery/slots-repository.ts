@@ -129,7 +129,7 @@ export async function fetchArenaRangeSlotsMerged(
   days: number,
 ): Promise<Record<string, ArenaSlot[]>> {
   const first = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-  const total = Math.max(1, Math.floor(days));
+  const total = Number.isFinite(days) ? Math.max(1, Math.floor(days)) : 1;
 
   const rangeDays: Date[] = [];
   for (let i = 0; i < total; i++) {

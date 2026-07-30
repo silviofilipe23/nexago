@@ -137,7 +137,11 @@
                       }
                       <span class="ad-court-price">R$ {{ c.pricePerHourReais }}/h</span>
                     </div>
-                    <a class="ad-btn-primary" [routerLink]="['/reservar', a.id, 'agendar']" [queryParams]="{ courtId: c.id }">Reservar</a>
+                    <a
+                      class="ad-btn-primary"
+                      [routerLink]="['/reservar', a.id, 'agendar']"
+                      [queryParams]="c.nextSlotLabel ? { courtId: c.id, date: todayKey, time: c.nextSlotLabel } : { courtId: c.id }"
+                    >Reservar</a>
                   </div>
                 }
               </div>

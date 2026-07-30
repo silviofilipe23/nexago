@@ -360,7 +360,7 @@
                   type="button"
                   class="rv-btn-primary rv-btn-reservar"
                   [disabled]="!item.result.hasAvailability"
-                  (click)="$event.stopPropagation(); openConfirm(item.result)"
+                  (click)="$event.stopPropagation(); reservarProximoHorario(item.result)"
                 >
                   Reservar
                 </button>
@@ -372,19 +372,3 @@
     }
   </div>
 </app-at-panel-shell>
-
-@if (confirmResult(); as r) {
-  <div class="rv-modal-backdrop" (click)="closeConfirm()">
-    <div class="rv-modal" (click)="$event.stopPropagation()">
-      <h3 class="rv-modal-title">Confirmar reserva</h3>
-      <p class="rv-modal-arena">{{ r.courtName ? r.arena.name + ' · ' + r.courtName : r.arena.name }}</p>
-      <p class="rv-modal-slot">{{ dateChipLabel() }} às {{ r.selectedSlot?.startTime }}</p>
-      <p class="rv-modal-price">{{ formatPriceWhole(r.displayPricePerHourReais) }}/h</p>
-      <p class="rv-modal-note">
-        A confirmação e o pagamento da reserva chegam em breve por aqui. Por enquanto, combine o horário
-        diretamente com a arena.
-      </p>
-      <button type="button" class="rv-btn-primary rv-modal-close" (click)="closeConfirm()">Entendi</button>
-    </div>
-  </div>
-}

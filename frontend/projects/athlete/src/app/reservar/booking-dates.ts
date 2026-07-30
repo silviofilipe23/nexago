@@ -1,3 +1,5 @@
+import { arenaSlotIsAvailable, isPastSlot, type ArenaSlot } from '@nexago/arena-discovery';
+
 /** Quantidade de chips do strip padrão de datas (offsets 0..29 a partir de hoje). */
 export const STRIP_DAYS = 30;
 
@@ -88,4 +90,28 @@ export function clampPickedDate(
 /** O chip mostra o mês no início do strip e em toda virada de mês. */
 export function shouldShowMonth(date: Date, index: number): boolean {
   return index === 0 || date.getDate() === 1;
+}
+
+/** Acha, entre os slots de uma quadra num dia, o que começa exatamente no horário pedido,
+ *  disponível e ainda não passado. Usado para pré-selecionar o "próximo horário" quando o
+ *  atleta chega na grade de agendamento vindo de um botão "Reservar" que já sabe o horário. */
+export function findSlotByTime(
+  slots: ArenaSlot[],
+  courtId: string,
+  time: string | null,
+  date: Date,
+  now: Date = new Date(),
+): ArenaSlot | null {
+  if (!time) {
+    return null;
+  }
+  return (
+    slots.find(
+      (s) =>
+        s.courtId === courtId &&
+        s.startTime === time &&
+        arenaSlotIsAvailable(s) &&
+        !isPastSlot(date, s.startTime, now),
+    ) ?? null
+  );
 }

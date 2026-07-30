@@ -47,12 +47,25 @@ $ad-sport-colors: (
 }
 
 .ad-page-header-sub {
-  font-family: var(--nx-font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  font-weight: 400;
   color: var(--nx-text-dim);
+  margin: 0;
+}
+
+// Só leitor de tela: rótulos que o layout do protótipo resolve visualmente
+// (esporte pelo ponto colorido, ranking pelo `#`).
+.ad-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ad-page-header-spacer {
@@ -127,31 +140,6 @@ $ad-sport-colors: (
   }
 }
 
-.ad-bell {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--nx-r-2);
-  position: relative;
-  background: var(--nx-surface-0);
-  border: 1px solid var(--nx-line);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  color: var(--nx-text-mute);
-  flex: none;
-}
-
-.ad-bell-dot {
-  position: absolute;
-  top: 8px;
-  right: 9px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--nx-orange-500);
-  box-shadow: 0 0 0 2px #070708;
-}
-
 .ad-header-avatar {
   width: 38px;
   height: 38px;
@@ -171,10 +159,13 @@ $ad-sport-colors: (
 // ── Body ─────────────────────────────────────────────────────
 .ad-body {
   flex: 1;
+  // Lista de linha única em toda largura: limita a medida no desktop pra linha
+  // não virar um vão enorme entre nome e ranking.
+  max-width: 900px;
   padding: 22px 24px 40px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   // Scroll fica no `.at-main` do shell — evita nested scroll que quebra infinite load.
   overflow: visible;
 
@@ -235,30 +226,19 @@ $ad-sport-colors: (
 .ad-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
-.ad-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.ad-section-title {
-  font-family: var(--nx-font-display);
-  font-weight: 800;
-  font-size: 18px;
-  color: var(--nx-text);
-  margin: 0;
-}
-
-.ad-section-count {
+// Contagem + esporte ativo fazem o papel de título da lista (como no protótipo):
+// dizem o que está em tela sem repetir o "Atletas" do cabeçalho.
+.ad-section-summary {
   font-family: var(--nx-font-mono);
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--nx-text-dim);
+  margin: 0;
 }
 
 // ── Empty state ──────────────────────────────────────────────
@@ -289,28 +269,66 @@ $ad-sport-colors: (
   margin: 0;
 }
 
-// ── Grid + cards ─────────────────────────────────────────────
-.ad-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.ad-card {
+// ── Lista de atletas ─────────────────────────────────────────
+.ad-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background: var(--nx-surface-0);
-  border: 1px solid var(--nx-line);
-  border-radius: var(--nx-r-4);
-  padding: 16px;
-  min-width: 0;
 }
 
-.ad-avatar {
+.ad-row {
   position: relative;
-  width: 44px;
-  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  // Margem negativa + padding: o realce de hover/foco respira além do texto
+  // sem deslocar a coluna de conteúdo.
+  margin: 0 -10px;
+  padding: 13px 10px;
+  border-radius: var(--nx-r-2);
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  transition: background var(--nx-d-fast) var(--nx-ease-out);
+
+  // Divisória alinhada à coluna de conteúdo, não à área clicável.
+  &::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 0;
+    height: 1px;
+    background: var(--nx-line);
+  }
+
+  &:last-child::after {
+    display: none;
+  }
+
+  &:hover {
+    background: var(--nx-surface-0);
+  }
+
+  &:active {
+    background: var(--nx-surface-1);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: -2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-row {
+    transition: none;
+  }
+}
+
+.ad-row-avatar {
+  position: relative;
+  width: 46px;
+  height: 46px;
   flex: none;
   border-radius: 50%;
   overflow: hidden;
@@ -318,17 +336,16 @@ $ad-sport-colors: (
   border: 1px solid rgba(255, 106, 26, 0.35);
   display: grid;
   place-items: center;
-  margin-bottom: 4px;
 }
 
-.ad-avatar-fallback {
+.ad-row-avatar-fallback {
   font-family: var(--nx-font-display);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 14.5px;
   color: var(--nx-orange-500);
 }
 
-.ad-avatar-img {
+.ad-row-avatar-img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -336,141 +353,94 @@ $ad-sport-colors: (
   object-fit: cover;
 }
 
-.ad-card-name {
+.ad-row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ad-row-name {
   font-family: var(--nx-font-display);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 16px;
+  letter-spacing: -0.01em;
   color: var(--nx-text);
-  margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.ad-card-handle {
-  font-family: var(--nx-font-ui);
-  font-size: 12px;
-  color: var(--nx-text-dim);
-  margin: 0 0 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ad-pill-row {
+.ad-row-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.ad-sport-pill {
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
-  font-family: var(--nx-font-mono);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.ad-row-city {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-row-dot {
+  flex: none;
+  color: var(--nx-text-dim);
+}
+
+.ad-row-level {
+  flex: none;
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-mute);
   white-space: nowrap;
 }
 
-.ad-sport-dot {
+// Só aparece com o filtro em "todos os esportes" — com um esporte escolhido a
+// linha de contagem já diz qual é, e o ponto viraria ruído.
+.ad-row-sport-dot {
   width: 7px;
   height: 7px;
+  flex: none;
   border-radius: 50%;
   background: var(--nx-orange-500);
-  flex: none;
 }
 
 @each $sport, $color in $ad-sport-colors {
-  .ad-sport-dot[data-sport='#{$sport}'] {
+  .ad-row-sport-dot[data-sport='#{$sport}'] {
     background: $color;
   }
 }
 
-.ad-level-pill {
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
+.ad-row-rank {
+  flex: none;
   font-family: var(--nx-font-mono);
-  font-size: 8px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--nx-orange-500);
 }
 
-.ad-ranking-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  background: var(--nx-surface-1);
-  border-radius: var(--nx-r-2);
-  margin-top: 2px;
-
-  span {
-    font-family: var(--nx-font-mono);
-    font-size: 9.5px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--nx-text-dim);
-  }
-
-  strong {
-    font-family: var(--nx-font-display);
-    font-weight: 800;
-    font-size: 14px;
-    color: var(--nx-text);
-  }
+.ad-row-rank--none {
+  font-weight: 500;
+  color: var(--nx-text-dim);
 }
 
-.ad-reason {
-  font-family: var(--nx-font-ui);
-  font-size: 12px;
-  color: var(--nx-text-mute);
-  margin: 0;
-}
+.ad-row-chevron {
+  flex: none;
+  color: var(--nx-text-dim);
+  transition: color var(--nx-d-fast) var(--nx-ease-out);
 
-.ad-card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.ad-btn-ghost {
-  flex: 1;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: var(--nx-r-2);
-  background: transparent;
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text);
-  font-family: var(--nx-font-display);
-  font-weight: 600;
-  font-size: 12.5px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  white-space: nowrap;
-
-  &:hover {
-    border-color: var(--nx-text-dim);
+  .ad-row:hover & {
+    color: var(--nx-text-mute);
   }
 }
 
@@ -485,37 +455,4 @@ $ad-sport-colors: (
   color: var(--nx-text-mute);
   font-family: var(--nx-font-ui);
   font-size: 13px;
-}
-
-.ad-btn-follow {
-  flex: 1;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: var(--nx-r-2);
-  background: var(--nx-orange-500);
-  border: none;
-  color: var(--nx-text-on-orange);
-  font-family: var(--nx-font-display);
-  font-weight: 700;
-  font-size: 12.5px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  white-space: nowrap;
-
-  &:hover {
-    background: var(--nx-orange-400);
-  }
-}
-
-.ad-btn-follow--active {
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
-
-  &:hover {
-    background: var(--nx-surface-1);
-  }
 }

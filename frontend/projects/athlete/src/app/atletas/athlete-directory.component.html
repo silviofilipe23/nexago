@@ -2,7 +2,7 @@
   <header class="ad-page-header">
     <div class="ad-page-header-titles">
       <h1>Atletas</h1>
-      <div class="ad-page-header-sub">Encontre e siga jogadores da comunidade</div>
+      <p class="ad-page-header-sub">Encontre jogadores perto de você</p>
     </div>
     <div class="ad-page-header-spacer"></div>
     <div class="ad-page-header-actions">
@@ -66,10 +66,7 @@
     </div>
 
     <section class="ad-section">
-      <div class="ad-section-head">
-        <h2 class="ad-section-title">Todos os atletas</h2>
-        <span class="ad-section-count">{{ totalRegisteredLabel() }}</span>
-      </div>
+      <h2 class="ad-section-summary">{{ listSummaryLabel() }}</h2>
 
       @if (loading()) {
         <div class="ad-empty-card">
@@ -81,32 +78,42 @@
           <p class="ad-empty-sub">Ajuste os filtros ou a busca para ver mais opções.</p>
         </div>
       } @else {
-        <div class="ad-grid">
+        <div class="ad-list">
           @for (a of filteredOthers(); track a.id) {
-            <article class="ad-card">
-              <span class="ad-avatar" aria-hidden="true">
-                <span class="ad-avatar-fallback">{{ athleteInitials(a.fullName) }}</span>
+            <a class="ad-row" [routerLink]="['/atletas', a.id]" [queryParams]="{ from: 'atletas' }">
+              <span class="ad-row-avatar" aria-hidden="true">
+                <span class="ad-row-avatar-fallback">{{ athleteInitials(a.fullName) }}</span>
                 @if (a.avatarUrl; as photo) {
-                  <img class="ad-avatar-img" [src]="photo" alt="" loading="lazy" />
+                  <img class="ad-row-avatar-img" [src]="photo" alt="" loading="lazy" />
                 }
               </span>
-              <p class="ad-card-name">{{a.nickname ? a.nickname : a.fullName }}</p>
-              <p class="ad-card-handle">{{ a.city || 'Cidade não informada' }}</p>
-              <div class="ad-pill-row">
-                <span class="ad-sport-pill">
-                  <span class="ad-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>
-                  {{ sportShortLabel(a.sport) }}
+
+              <span class="ad-row-info">
+                <span class="ad-row-name">{{ a.nickname ? a.nickname : a.fullName }}</span>
+                <span class="ad-row-meta">
+                  @if (showSportDot()) {
+                    <span class="ad-row-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>
+                    <span class="ad-sr-only">{{ sportShortLabel(a.sport) }}.</span>
+                  }
+                  <span class="ad-row-city">{{ a.city || 'Cidade não informada' }}</span>
+                  @if (a.level; as level) {
+                    <span class="ad-row-dot" aria-hidden="true">·</span>
+                    <span class="ad-row-level">{{ level }}</span>
+                  }
                 </span>
-                <span class="ad-level-pill">{{ a.level ?? '—' }}</span>
-              </div>
-              <div class="ad-ranking-box">
-                <span>Ranking</span>
-                <strong>{{ a.rankingPosition ? '#' + a.rankingPosition : '—' }}</strong>
-              </div>
-              <div class="ad-card-actions">
-                <a class="ad-btn-ghost" [routerLink]="['/atletas', a.id]" [queryParams]="{ from: 'atletas' }">Ver perfil</a>
-              </div>
-            </article>
+              </span>
+
+              @if (a.rankingPosition; as rank) {
+                <span class="ad-row-rank"><span class="ad-sr-only">Ranking </span>#{{ rank }}</span>
+              } @else {
+                <span class="ad-row-rank ad-row-rank--none">
+                  <span class="ad-sr-only">Sem posição no ranking</span>
+                  <span aria-hidden="true">—</span>
+                </span>
+              }
+
+              <svg class="ad-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+            </a>
           }
         </div>
         @if (hasMore() || loadingMore()) {

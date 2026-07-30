@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import type { WeekDay } from '../agenda/agenda-week-math';
 import {
-  AGENDA_GRID_END_MIN,
   AGENDA_GRID_START_MIN,
   AGENDA_ROW_HEIGHT,
   AGENDA_SLOT_MIN,
   formatMinutes,
+  gridEndMinFor,
   isWithinGrid,
   minutesToRowOffset,
   nowInMinutes,
@@ -315,7 +315,9 @@ export class AgendaWeekGridComponent {
 
   private readonly nowMinutes = signal(nowInMinutes());
 
-  protected readonly rowCount = computed(() => (AGENDA_GRID_END_MIN - AGENDA_GRID_START_MIN) / AGENDA_SLOT_MIN);
+  protected readonly gridEndMin = computed(() => gridEndMinFor(this.blocks()));
+
+  protected readonly rowCount = computed(() => (this.gridEndMin() - AGENDA_GRID_START_MIN) / AGENDA_SLOT_MIN);
   protected readonly gridHeight = computed(() => this.rowCount() * AGENDA_ROW_HEIGHT + 10);
 
   protected readonly rowMarks = computed<RowMark[]>(() =>

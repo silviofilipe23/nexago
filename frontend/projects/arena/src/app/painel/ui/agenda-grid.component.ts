@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import {
-  AGENDA_GRID_END_MIN,
   AGENDA_GRID_START_MIN,
   AGENDA_ROW_HEIGHT,
   AGENDA_SLOT_MIN,
   formatMinutes,
+  gridEndMinFor,
   isWithinGrid,
   minutesToRowOffset,
   nowInMinutes,
@@ -298,8 +298,10 @@ export class AgendaGridComponent {
 
   private readonly nowMinutes = signal(nowInMinutes());
 
+  protected readonly gridEndMin = computed(() => gridEndMinFor(this.blocks()));
+
   protected readonly rowCount = computed(
-    () => (AGENDA_GRID_END_MIN - AGENDA_GRID_START_MIN) / AGENDA_SLOT_MIN,
+    () => (this.gridEndMin() - AGENDA_GRID_START_MIN) / AGENDA_SLOT_MIN,
   );
 
   protected readonly gridHeight = computed(() => this.rowCount() * AGENDA_ROW_HEIGHT + 10);

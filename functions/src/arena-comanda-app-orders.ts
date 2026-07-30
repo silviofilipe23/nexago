@@ -85,7 +85,7 @@ export async function addAppOrderItemCore(
   const arenaSnap = await db.collection(ARENAS).doc(arenaId).get();
   if (!arenaSnap.exists) throw new HttpsError("not-found", "Arena não encontrada.");
   if (!isArenaEntitledPro((arenaSnap.data() ?? {}) as DocData, nowMs)) {
-    // Mesma exigência de titularidade Pro/Parceiro que já vale para o
+    // Mesma exigência de titularidade Pro/Elite que já vale para o
     // lançamento de item pelo balcão (firestore.rules: arenaEntitled no
     // create de arenaComandas/*/items) — evita reabrir pedido pelo app numa
     // arena que baixou de plano depois de abrir a comanda.

@@ -2,9 +2,9 @@
  * Mantém `arenas/{arenaId}.courtsCount` em sincronia com a subcoleção `courts`.
  *
  * O contador é a base do gate de limite de quadras por plano nas
- * `firestore.rules` (Essencial: 2 quadras; Pro/Parceiro: ilimitado). Como as
- * rules não conseguem contar documentos, elas leem este campo — mantido apenas
- * pelo Admin SDK, então é confiável.
+ * `firestore.rules` (sem plano/Starter: até 2 quadras; Pro: até 5; Elite:
+ * ilimitado). Como as rules não conseguem contar documentos, elas leem este
+ * campo — mantido apenas pelo Admin SDK, então é confiável.
  *
  * Há uma pequena janela de corrida: várias criações em rajada podem passar
  * antes do contador atualizar. É aceitável para um limite de volume (não é

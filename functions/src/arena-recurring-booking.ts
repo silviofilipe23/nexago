@@ -638,7 +638,7 @@ async function createArenaRecurringBookingHandler(
 
   const {courtName} = await resolveCourtAndAthlete(db, arenaId, courtId, athleteId);
 
-  // Gate de plano: Essencial (sem titularidade Pro/Parceiro) tem limite de séries ativas.
+  // Gate de plano: sem plano/Starter (sem titularidade Pro/Elite) tem limite de séries ativas.
   if (!isArenaEntitledPro(arenaData, Date.now())) {
     // Pausada continua contando na cota — senão dá pra "furar" o limite
     // pausando uma série sem liberar de fato o slot do plano.

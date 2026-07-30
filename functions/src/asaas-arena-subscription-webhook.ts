@@ -104,8 +104,19 @@ export async function processArenaSubscriptionAsaasNotification(
       },
       {merge: true},
     );
+    const billingData = (await billingRef.get()).data() ?? {};
+    const paidActivation =
+      typeof billingData.activationPaymentId === "string" &&
+      billingData.activationPaymentId === paymentId &&
+      !billingData.activationFeePaidAt;
+
     await billingRef.set(
-      {status: "active", lastPaymentId: paymentId, updatedAt: FieldValue.serverTimestamp()},
+      {
+        status: "active",
+        lastPaymentId: paymentId,
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(paidActivation ? {activationFeePaidAt: FieldValue.serverTimestamp()} : {}),
+      },
       {merge: true},
     );
   } else if (OVERDUE_STATUSES.has(status)) {

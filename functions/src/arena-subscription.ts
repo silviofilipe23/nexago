@@ -12,6 +12,7 @@ import {
   isBillingCycle,
   resolvePlanPriceCents,
   ARENA_PLANS,
+  ACTIVATION_FEE_CENTS,
   type ArenaPlanTier,
   type BillingCycle,
 } from "./arena-plans";
@@ -49,6 +50,17 @@ function todaySaoPaulo(): string {
 function parseBillingType(raw: unknown): AsaasBillingType {
   if (raw === "PIX" || raw === "CREDIT_CARD" || raw === "UNDEFINED") return raw;
   return "UNDEFINED";
+}
+
+/**
+ * A arena ainda deve a taxa de ativação? Só o webhook grava
+ * `activationFeePaidAt` (quando a cobrança com ativação embutida confirma);
+ * uma tentativa anterior não paga (só `activationPaymentId`) cobra de novo.
+ */
+export function shouldChargeActivationFee(
+  billing: Record<string, unknown> | undefined,
+): boolean {
+  return !billing?.activationFeePaidAt;
 }
 
 async function assertCallerManagesArena(
@@ -159,6 +171,29 @@ export const createArenaSubscription = onCall(
     const paymentId = firstPayment?.id?.trim() ?? "";
     const invoiceUrl = firstPayment?.invoiceUrl?.trim() || null;
 
+    // Ativação única (R$97) na primeira assinatura: soma na 1ª cobrança da
+    // recorrência (um único PIX; renovações vêm no preço normal do plano).
+    const billingRef = getFirestore().doc(`arenas/${arenaId}/billing/subscription`);
+    const existingBilling = (await billingRef.get()).data();
+    let activationPaymentId: string | null = null;
+    if (shouldChargeActivationFee(existingBilling) && paymentId) {
+      const firstChargeReais = Math.round(valueCents + ACTIVATION_FEE_CENTS) / 100;
+      try {
+        await fetchAsaas(`/v3/payments/${encodeURIComponent(paymentId)}`, {
+          method: "PUT",
+          body: {
+            value: firstChargeReais,
+            description:
+              `${description} + ativação única R$ 97`.slice(0, 500),
+          },
+        });
+        activationPaymentId = paymentId;
+      } catch (e) {
+        logger.error("createArenaSubscription: falha ao somar ativação na 1ª cobrança", paymentId, e);
+        throw new HttpsError("internal", "Falha ao gerar a cobrança de ativação. Tente novamente.");
+      }
+    }
+
     let qrCode: string | null = null;
     let qrCodeBase64: string | null = null;
     if (billingType === "PIX" && paymentId) {
@@ -171,7 +206,7 @@ export const createArenaSubscription = onCall(
       }
     }
 
-    await getFirestore().doc(`arenas/${arenaId}/billing/subscription`).set(
+    await billingRef.set(
       {
         asaasSubscriptionId: subscriptionId,
         asaasCustomerId: customerId,
@@ -181,6 +216,8 @@ export const createArenaSubscription = onCall(
         valueCents,
         status: "pending",
         lastPaymentId: paymentId || null,
+        activationPaymentId,
+        activationFeeCents: activationPaymentId ? ACTIVATION_FEE_CENTS : null,
         updatedAt: FieldValue.serverTimestamp(),
       },
       {merge: true},

@@ -4,6 +4,7 @@
  */
 import {resolvePlanPriceCents, normalizeArenaPlanTier, ACTIVATION_FEE_CENTS} from "./arena-plans";
 import {parseSubscriptionRef} from "./asaas-arena-subscription-webhook";
+import {shouldChargeActivationFee} from "./arena-subscription";
 
 let failures = 0;
 
@@ -57,6 +58,18 @@ function run(): void {
   assert(parseSubscriptionRef("arenaBooking:arena123:pro") === null, "prefixo errado -> null");
   assert(parseSubscriptionRef("arenaSubscription:arena123:vip") === null, "tier inválido -> null");
   assert(parseSubscriptionRef("arenaSubscription:arena123") === null, "sem tier -> null");
+
+  // Ativação: cobrada uma única vez por arena.
+  assert(shouldChargeActivationFee(undefined) === true, "sem billing -> cobra ativação");
+  assert(shouldChargeActivationFee({}) === true, "billing sem activationFeePaidAt -> cobra");
+  assert(
+    shouldChargeActivationFee({activationFeePaidAt: {seconds: 1}}) === false,
+    "ativação já paga -> não cobra de novo",
+  );
+  assert(
+    shouldChargeActivationFee({activationPaymentId: "pay_1"}) === true,
+    "tentativa anterior não paga -> cobra de novo (novo paymentId substitui)",
+  );
 
   if (failures > 0) {
     throw new Error(`${failures} teste(s) falharam`);

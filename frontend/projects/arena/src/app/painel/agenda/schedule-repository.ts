@@ -2,6 +2,7 @@ import { fetchCourts } from '@nexago/arena-discovery';
 import { addDoc, collection, deleteField, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { arenaSlotFromDoc, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
 import { buildVirtualSlots, mergeSlots } from './virtual-slot-generator';
+import type { WeekDay } from './agenda-week-math';
 
 /** Espelha `SlotsRepository.watchArenaDaySlotsMerged` + `SlotService` (Flutter): um único
  *  listener em `arenaSlots` (por `arenaId`, sem filtro de dia — evita índice composto),
@@ -28,6 +29,35 @@ export function watchArenaDaySlots(
         merged.push(...mergeSlots(persisted, virtual));
       }
       merged.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.courtId.localeCompare(b.courtId));
+      onChange(merged);
+    },
+    () => onChange([]),
+  );
+}
+
+/** Mesma ideia de `watchArenaDaySlots`, para os 7 dias de uma semana de uma vez — sem
+ *  leitura extra do Firestore (o listener já busca todos os slots da arena, sem filtro
+ *  de data); só mais filtragem/geração de slots virtuais em memória. */
+export function watchArenaWeekSlots(
+  db: Firestore,
+  arenaId: string,
+  weekDates: readonly WeekDay[],
+  courts: readonly { id: string; data: Record<string, unknown> }[],
+  onChange: (slots: ArenaSlot[]) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, 'arenaSlots'), where('arenaId', '==', arenaId)),
+    (snap) => {
+      const allPersisted = snap.docs.map(arenaSlotFromDoc);
+      const merged: ArenaSlot[] = [];
+      for (const { date, dateKey } of weekDates) {
+        for (const court of courts) {
+          const persisted = allPersisted.filter((s) => s.dateKey === dateKey && s.courtId.toLowerCase() === court.id.toLowerCase());
+          const virtual = buildVirtualSlots(arenaId, court.id, court.data, date, dateKey);
+          merged.push(...mergeSlots(persisted, virtual));
+        }
+      }
+      merged.sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.startTime.localeCompare(b.startTime) || a.courtId.localeCompare(b.courtId));
       onChange(merged);
     },
     () => onChange([]),

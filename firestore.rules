@@ -1137,7 +1137,7 @@ service cloud.firestore {
 
     // Clubinho — jogo aberto da arena (lista pública + PIX por sessão).
     // Escrita 100% via Cloud Functions: criação exige gate de plano
-    // (Pro/Parceiro), bloqueio de agenda com locks e contadores de vaga em
+    // (Pro/Elite), bloqueio de agenda com locks e contadores de vaga em
     // transação; pagamento/estorno passam pelo Asaas.
     match /arenaClubs/{clubId} {
       allow read: if request.auth != null;

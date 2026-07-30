@@ -927,7 +927,7 @@ function requireClubEntitlement(arenaData: Record<string, unknown>): void {
   if (!isArenaEntitledPro(arenaData, Date.now())) {
     throw new HttpsError(
       "permission-denied",
-      "O Clubinho está disponível nos planos Pro e Parceiro. Faça upgrade para usar.",
+      "O Clubinho está disponível nos planos Pro e Elite. Faça upgrade para usar.",
     );
   }
 }

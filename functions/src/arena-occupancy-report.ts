@@ -241,7 +241,7 @@ function parseInput(raw: unknown): OccupancyReportInput {
 /**
  * Lógica testável do callable (recebe `db`/`uid` injetados). Gate de plano:
  * relatório de ocupação é analytics avançado, mesma categoria de
- * `ArenaCapability.metricasCompletas` no app (Pro/Parceiro — "Dashboard
+ * `ArenaCapability.metricasCompletas` no app (Pro/Elite — "Dashboard
  * completo, insights e seguidores"), então segue a mesma titularidade
  * (`isArenaEntitledPro`) já usada para gatear outras vantagens Pro no
  * servidor (ex. isenção de taxa em `mercadopago-arena-helpers.ts`, limite de
@@ -259,7 +259,7 @@ export async function getArenaOccupancyReportCore(
   if (!isArenaEntitledPro(arenaData, nowMs)) {
     throw new HttpsError(
       "failed-precondition",
-      "Relatórios de ocupação estão disponíveis nos planos Pro e Parceiro. " +
+      "Relatórios de ocupação estão disponíveis nos planos Pro e Elite. " +
       "Faça upgrade do plano da arena para acessar.",
     );
   }

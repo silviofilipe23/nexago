@@ -11,8 +11,8 @@ import * as logger from "firebase-functions/logger";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
 import {roundMoney} from "./mercadopago-arena-helpers";
-import {isArenaEntitledPro} from "./arena-entitlement";
-import {BOOKING_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
+import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {computePlatformFeeReais} from "./platform-fees";
 import {releaseArenaBookingHold} from "./mercadopago-arena-booking-webhook";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {
@@ -108,15 +108,12 @@ export async function processArenaBookingAsaasNotification(
     const paymentStatus = isPartial ? "partial" : "paid";
     const arenaId = booking.arenaId as string | undefined;
 
-    // Taxa só para arenas no plano gratuito; Pro/Parceiro isentos.
+    // Taxa por plano: 8% Starter, 6% Pro, 5% Elite; sem plano titular = 8%.
     let platformFee = 0;
     if (arenaId) {
       const arenaSnap = await db.collection("arenas").doc(arenaId).get();
-      const entitled = arenaSnap.exists &&
-        isArenaEntitledPro(arenaSnap.data() ?? {}, Date.now());
-      platformFee = entitled ?
-        0 :
-        computePlatformFeeReais(paidOnline, BOOKING_FEE_PERCENT);
+      const feePercent = resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, Date.now());
+      platformFee = computePlatformFeeReais(paidOnline, feePercent);
     }
 
     const batch = db.batch();
@@ -266,11 +263,8 @@ export async function processArenaBookingShareAsaasNotification(
     let platformFee = 0;
     if (arenaId) {
       const arenaSnap = await db.collection("arenas").doc(arenaId).get();
-      const entitled = arenaSnap.exists &&
-        isArenaEntitledPro(arenaSnap.data() ?? {}, Date.now());
-      platformFee = entitled ?
-        0 :
-        computePlatformFeeReais(paidOnline, BOOKING_FEE_PERCENT);
+      const feePercent = resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, Date.now());
+      platformFee = computePlatformFeeReais(paidOnline, feePercent);
     }
 
     const batch = db.batch();

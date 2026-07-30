@@ -1,7 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
-  BOOKING_FEE_PERCENT,
   TOURNAMENT_FEE_PERCENT,
   CLUB_FEE_PERCENT,
   FEE_FLOOR_REAIS,
@@ -11,29 +10,29 @@ import {
 describe("platform-fees.computePlatformFeeReais", () => {
   it("aplica o percentual quando acima do piso", () => {
     // 5% de 100 = 5 (> piso 1.5)
-    assert.equal(computePlatformFeeReais(100, BOOKING_FEE_PERCENT), 5);
+    assert.equal(computePlatformFeeReais(100, 5), 5);
     // 8% de 100 = 8
     assert.equal(computePlatformFeeReais(100, TOURNAMENT_FEE_PERCENT), 8);
   });
 
   it("usa o piso mínimo quando o percentual fica abaixo", () => {
     // 5% de 20 = 1 (< piso 1.5) -> piso
-    assert.equal(computePlatformFeeReais(20, BOOKING_FEE_PERCENT), FEE_FLOOR_REAIS);
+    assert.equal(computePlatformFeeReais(20, 5), FEE_FLOOR_REAIS);
   });
 
   it("nunca excede o valor (deixa ao menos R$0,01)", () => {
     // valor 1.00, piso 1.5 -> limita a 0.99
-    assert.equal(computePlatformFeeReais(1, BOOKING_FEE_PERCENT), 0.99);
+    assert.equal(computePlatformFeeReais(1, 5), 0.99);
   });
 
   it("arredonda para centavos", () => {
     // 5% de 33.33 = 1.6665 -> 1.67
-    assert.equal(computePlatformFeeReais(33.33, BOOKING_FEE_PERCENT), 1.67);
+    assert.equal(computePlatformFeeReais(33.33, 5), 1.67);
   });
 
   it("retorna 0 para valores ou percentuais não positivos", () => {
-    assert.equal(computePlatformFeeReais(0, BOOKING_FEE_PERCENT), 0);
-    assert.equal(computePlatformFeeReais(-10, BOOKING_FEE_PERCENT), 0);
+    assert.equal(computePlatformFeeReais(0, 5), 0);
+    assert.equal(computePlatformFeeReais(-10, 5), 0);
     assert.equal(computePlatformFeeReais(100, 0), 0);
   });
 

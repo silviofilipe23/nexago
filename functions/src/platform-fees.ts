@@ -26,9 +26,6 @@ export const BOOKING_FEE_PERCENT_BY_TIER = {starter: 8, pro: 6, elite: 5} as con
 /** Taxa de reserva para arena sem plano titular (%). */
 export const BOOKING_FEE_PERCENT_NO_PLAN = 8;
 
-/** Legado — removido na Task 3 quando os webhooks passarem a usar a tabela por tier. */
-export const BOOKING_FEE_PERCENT = 5;
-
 /** Taxa sobre inscrições de torneio (%). */
 export const TOURNAMENT_FEE_PERCENT = 8;
 

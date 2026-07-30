@@ -164,11 +164,13 @@ export async function sendArenaWithdrawalPixTransfer(
   const withdrawalId = withdrawalRef.id;
   const {pixAddressKey, pixAddressKeyType} = resolveWithdrawalPixFromDoc(withdrawal);
   const amountReais = roundMoney(Number(withdrawal.amountReais) || 0);
+  const feeReais = roundMoney(Math.max(0, Number(withdrawal.feeReais) || 0));
+  const netReais = roundMoney(amountReais - feeReais);
 
   if (pixAddressKey.length < 5) {
     throw new Error("PIX_KEY_INVALID");
   }
-  if (amountReais <= 0) {
+  if (amountReais <= 0 || netReais <= 0) {
     throw new Error("AMOUNT_INVALID");
   }
 
@@ -185,7 +187,7 @@ export async function sendArenaWithdrawalPixTransfer(
     const data = await fetchAsaas<AsaasTransferResponse>("/v3/transfers", {
       method: "POST",
       body: {
-        value: amountReais,
+        value: netReais,
         pixAddressKey,
         pixAddressKeyType,
         externalReference: `${externalRefPrefix}${withdrawalId}`,

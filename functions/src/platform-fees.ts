@@ -35,6 +35,9 @@ export const CLUB_FEE_PERCENT = 5;
 /** Piso mínimo da taxa por transação (R$). */
 export const FEE_FLOOR_REAIS = 1.5;
 
+/** Tarifa fixa de saque PIX da carteira de arena (R$). Elite é isento. */
+export const ARENA_WITHDRAWAL_FEE_REAIS = 1.75;
+
 /**
  * Taxa em reais para um valor pago: `max(piso, valor × %)`, nunca excedendo o
  * próprio valor (deixa ao menos R$0,01 para o recebedor) nem ficando negativa.

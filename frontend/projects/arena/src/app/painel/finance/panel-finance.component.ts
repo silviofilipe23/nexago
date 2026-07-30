@@ -165,6 +165,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
                 <button type="button" class="ar-mini-btn ar-mini-btn-primary submit-btn" [disabled]="!canSubmit()" (click)="submitWithdrawal()">
                   {{ submitting() ? 'Enviando…' : 'Solicitar saque' }}
                 </button>
+                <p class="withdraw-fee-hint">Tarifa de R$ 1,75 por saque · grátis no plano Elite.</p>
               </ar-panel-card>
             </div>
           </div>
@@ -503,6 +504,13 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       width: 100%;
       height: 44px;
       justify-content: center;
+    }
+
+    .withdraw-fee-hint {
+      font-size: 11px;
+      color: var(--nx-text-dim);
+      text-align: center;
+      margin: 8px 0 0;
     }
 
     .modal-title {

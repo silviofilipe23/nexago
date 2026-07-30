@@ -374,6 +374,15 @@ class ArenaFinancialWithdrawSection extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'Tarifa de R\$ 1,75 por saque · grátis no plano Elite.',
+          textAlign: TextAlign.center,
+          style: AppTypography.soraRegular(
+            fontSize: 12,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+        ),
       ],
     );
   }

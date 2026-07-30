@@ -28,6 +28,7 @@ import {
   isAsaasPayoutError,
 } from "./arena-withdrawal-payout";
 import {resolveWithdrawalPixFields} from "./asaas-payout";
+import {resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
 import {AsaasApiError, asaasArenaSecrets} from "./asaas-client";
 import {
   getOrCreateAsaasCustomer,
@@ -453,6 +454,14 @@ export const requestArenaWithdrawal = onCall({
   await assertNoPendingArenaWithdrawal(db, arenaId);
 
   const amount = roundMoney(amountReais);
+  const feeReais = resolveArenaWithdrawalFeeReais(arena, Date.now());
+  const netReais = roundMoney(amount - feeReais);
+  if (netReais <= 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      `O valor do saque precisa ser maior que a tarifa de R$ ${feeReais.toFixed(2)}.`,
+    );
+  }
   try {
     await reserveWithdrawalAmount(db, arenaId, amount);
   } catch (e) {
@@ -470,6 +479,8 @@ export const requestArenaWithdrawal = onCall({
     arenaId,
     managerUserId: uid,
     amountReais: amount,
+    feeReais,
+    netReais,
     pixKey: pixAddressKey,
     pixKeyType: pixAddressKeyType,
     processingMode,
@@ -483,6 +494,8 @@ export const requestArenaWithdrawal = onCall({
   const withdrawalData = {
     arenaId,
     amountReais: amount,
+    feeReais,
+    netReais,
     pixKey: pixAddressKey,
     pixKeyType: pixAddressKeyType,
     payoutStatus: "pending",

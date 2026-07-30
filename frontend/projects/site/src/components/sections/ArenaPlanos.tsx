@@ -20,6 +20,12 @@ type Plan = {
   cta: string;
 };
 
+/** Parcela do anual em pt-BR: preço futuro que não seja múltiplo de 12 renderizaria
+ *  dízima crua ("R$ 90.83333333333333") sem passar por aqui. */
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 // Mantém alinhado com functions/src/arena-plans.ts (fonte da verdade),
 // nexago_app arena_plan.dart e frontend/projects/arena
 // (ARENA_PLAN_CATALOG). Ciclo anual = 1 mês grátis (12× 90/228/457).
@@ -180,7 +186,7 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
                 </div>
                 {yearly && (
                   <p className="mt-1.5 text-sm text-text-mute">
-                    12× de R$ {plan.yearly / 12} · 1 mês grátis
+                    12× de {formatBRL(plan.yearly / 12)} · 1 mês grátis
                   </p>
                 )}
 

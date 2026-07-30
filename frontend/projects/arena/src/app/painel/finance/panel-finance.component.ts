@@ -129,7 +129,12 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="M5 12l7-7 7 7" /></svg>
                         }
                       </div>
-                      <div class="tx-label">{{ tx.title }}</div>
+                      <div class="tx-label">
+                        {{ tx.title }}
+                        @if (tx.note; as note) {
+                          <span class="tx-note">{{ note }}</span>
+                        }
+                      </div>
                       <div class="tx-date">{{ formatFinancialMovementTimestamp(tx.at) }}</div>
                       <ar-pill [tone]="tx.isFailed ? 'red' : tx.isPositive ? 'green' : 'dim'">{{ tx.statusLabel }}</ar-pill>
                       <div class="tx-amount right" [class.in]="tx.isPositive">{{ tx.isPositive ? '+' : '−' }}{{ formatBRL(tx.amountReais) }}</div>
@@ -392,6 +397,14 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       font-weight: 600;
       font-size: 13px;
       color: var(--nx-text);
+    }
+
+    .tx-note {
+      display: block;
+      font-family: var(--nx-font-ui);
+      font-weight: 500;
+      font-size: 11px;
+      color: var(--nx-text-dim);
     }
 
     .tx-date {

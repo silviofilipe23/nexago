@@ -20,7 +20,12 @@ export interface ArenaLedgerEntry {
 
 export interface ArenaWithdrawalItem {
   id: string;
+  /** Bruto: o que sai do saldo da carteira. */
   amountReais: number;
+  /** Tarifa de saque retida (Elite é isento). `null` em docs anteriores à tarifa. */
+  feeReais: number | null;
+  /** Líquido efetivamente transferido por PIX. `null` em docs antigos. */
+  netReais: number | null;
   status: string;
   pixKey: string;
   createdAt: Date | null;
@@ -65,6 +70,8 @@ export function withdrawalFromDoc(doc: QueryDocumentSnapshot): ArenaWithdrawalIt
   return {
     id: doc.id,
     amountReais: typeof d['amountReais'] === 'number' ? d['amountReais'] : 0,
+    feeReais: typeof d['feeReais'] === 'number' ? d['feeReais'] : null,
+    netReais: typeof d['netReais'] === 'number' ? d['netReais'] : null,
     status: typeof d['status'] === 'string' ? d['status'] : 'pending',
     pixKey: typeof d['pixKey'] === 'string' ? d['pixKey'] : '',
     createdAt: toDate(d['createdAt']),
@@ -187,10 +194,29 @@ export interface FinancialMovement {
   kind: 'receipt' | 'withdrawal';
   title: string;
   at: Date | null;
+  /** Valor exibido: no saque é o LÍQUIDO recebido quando o doc tem `netReais`. */
   amountReais: number;
+  /** Detalhe do saque ("bruto − tarifa"); `null` em docs antigos, sem tarifa. */
+  note: string | null;
   statusLabel: string;
   isPositive: boolean;
   isFailed: boolean;
+}
+
+/** Extrato do saque: mostra o líquido que caiu na conta e de onde saiu a diferença.
+ *  Docs anteriores à tarifa (sem `feeReais`/`netReais`) seguem exibindo só o valor. */
+export function withdrawalMovementAmounts(
+  w: Pick<ArenaWithdrawalItem, 'amountReais' | 'feeReais' | 'netReais'>,
+): { amountReais: number; note: string | null } {
+  const fee = w.feeReais;
+  const net = w.netReais;
+  if (typeof net !== 'number' || typeof fee !== 'number' || fee <= 0) {
+    return { amountReais: net ?? w.amountReais, note: null };
+  }
+  return {
+    amountReais: net,
+    note: `Bruto ${formatBRL(w.amountReais)} · tarifa ${formatBRL(fee)}`,
+  };
 }
 
 export function withdrawalIsFailed(item: Pick<ArenaWithdrawalItem, 'status' | 'payoutStatus'>): boolean {
@@ -218,6 +244,7 @@ export function buildFinancialMovements(ledger: readonly ArenaLedgerEntry[], wit
       title: `Reserva · ${arenaLabel}`,
       at: entry.createdAt,
       amountReais: entry.netReais,
+      note: null,
       statusLabel: 'RECEBIDO',
       isPositive: true,
       isFailed: false,
@@ -225,12 +252,14 @@ export function buildFinancialMovements(ledger: readonly ArenaLedgerEntry[], wit
   }
 
   for (const w of withdrawals) {
+    const { amountReais, note } = withdrawalMovementAmounts(w);
     items.push({
       id: `withdrawal-${w.id}`,
       kind: 'withdrawal',
       title: 'Saque PIX',
       at: w.createdAt,
-      amountReais: w.amountReais,
+      amountReais,
+      note,
       statusLabel: withdrawalStatusLabel(w),
       isPositive: false,
       isFailed: withdrawalIsFailed(w),

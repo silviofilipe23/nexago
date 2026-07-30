@@ -3,8 +3,9 @@ import { httpsCallable, type Functions } from 'firebase/functions';
 import { normalizeArenaPlanTier, type ArenaBillingCycle, type ArenaPlanTier } from '../data/arena-plan.model';
 
 /** Espelha `functions/src/arena-subscription.ts` — as duas únicas Cloud Functions reais
- *  de billing de plano (não há callable de troca/upgrade entre dois planos pagos: trocar
- *  de Pro para Elite hoje exigiria cancelar e assinar de novo, sem transição limpa). */
+ *  de billing de plano. Não existe callable separada de troca: `createArenaSubscription`
+ *  cancela a assinatura anterior no Asaas antes de criar a nova, então assinar outro plano
+ *  já É a troca (a arena nunca fica com duas assinaturas cobrando). */
 
 export type ArenaAsaasBillingType = 'PIX' | 'CREDIT_CARD' | 'UNDEFINED';
 
@@ -19,6 +20,11 @@ export interface CreateArenaSubscriptionResult {
   /** Só preenchido para PIX. */
   qrCode: string | null;
   qrCodeBase64: string | null;
+  /** Valor REAL da 1ª cobrança em centavos (mensalidade + ativação quando devida) — é o
+   *  valor do QR/checkout, que não é o preço do catálogo na primeira assinatura. */
+  chargedCents: number;
+  /** Parcela de ativação embutida em `chargedCents` (0 quando já foi paga). */
+  activationFeeCents: number;
 }
 
 export async function createArenaSubscription(

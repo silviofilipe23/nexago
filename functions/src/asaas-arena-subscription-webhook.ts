@@ -74,6 +74,25 @@ export function shouldMarkActivationPaid(
   return paymentCarriesActivation(billing, paymentId);
 }
 
+/**
+ * O evento vem de uma assinatura que já foi substituída?
+ *
+ * Trocar de plano cancela a assinatura antiga no Asaas antes de criar a nova,
+ * e esse DELETE gera um evento `DELETED` (ou um `OVERDUE` atrasado) da
+ * assinatura velha. Se ele chegar depois do pagamento da nova, rebaixaria um
+ * plano recém-pago. `false` quando falta um dos ids: sem certeza, não se
+ * ignora o evento.
+ */
+export function eventIsFromSupersededSubscription(
+  billing: Record<string, unknown> | undefined,
+  paymentSubscriptionId: string,
+): boolean {
+  const current = (billing?.asaasSubscriptionId as string | undefined)?.trim();
+  const incoming = paymentSubscriptionId.trim();
+  if (!current || !incoming) return false;
+  return current !== incoming;
+}
+
 /** Converte vencimento (YYYY-MM-DD, fuso SP) em Timestamp. */
 function dueDateToTimestamp(nextDueDate: string | undefined): Timestamp | null {
   if (!nextDueDate) return null;
@@ -151,25 +170,40 @@ export async function processArenaSubscriptionAsaasNotification(
       },
       {merge: true},
     );
-  } else if (OVERDUE_STATUSES.has(status)) {
-    await arenaRef.set(
-      {planStatus: "overdue", planUpdatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
-    await billingRef.set(
-      {status: "overdue", updatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
-  } else if (CANCEL_STATUSES.has(status)) {
-    // Mantém planTier e planActiveUntil; titularidade expira no fim do período.
-    await arenaRef.set(
-      {planStatus: "canceling", planUpdatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
-    await billingRef.set(
-      {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
-      {merge: true},
-    );
+  } else if (OVERDUE_STATUSES.has(status) || CANCEL_STATUSES.has(status)) {
+    // Rebaixamento só vale para a assinatura vigente: o DELETE que a troca de
+    // plano faz na assinatura antiga também vira evento, e ele não pode
+    // derrubar o plano novo se chegar atrasado.
+    const billingData = (await billingRef.get()).data() ?? {};
+    if (eventIsFromSupersededSubscription(billingData, subscriptionId)) {
+      logger.info(
+        "arenaSubscription webhook: evento de assinatura substituída, ignorado",
+        arenaId,
+        subscriptionId,
+        status,
+      );
+      return;
+    }
+    if (OVERDUE_STATUSES.has(status)) {
+      await arenaRef.set(
+        {planStatus: "overdue", planUpdatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+      await billingRef.set(
+        {status: "overdue", updatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+    } else {
+      // Mantém planTier e planActiveUntil; titularidade expira no fim do período.
+      await arenaRef.set(
+        {planStatus: "canceling", planUpdatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+      await billingRef.set(
+        {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
+        {merge: true},
+      );
+    }
   } else if (HARD_DOWNGRADE_STATUSES.has(status)) {
     await arenaRef.set(
       {

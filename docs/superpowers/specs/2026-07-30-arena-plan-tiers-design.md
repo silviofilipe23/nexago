@@ -49,8 +49,11 @@ Todos os planos pagam mensalidade **e** taxa sobre reservas pagas online (ex.: a
 
 - `createArenaSubscription` passa a aceitar `tier` starter/pro/elite (rejeita legados no input).
 - Após criar a subscription e buscar a 1ª cobrança (fluxo existente), se a arena nunca pagou ativação (`billing/subscription.activationFeePaidAt` ausente): `PUT /v3/payments/{id}` com `value = mensalidade + 97` e descrição mencionando a ativação; QR PIX gerado depois do update. O id dessa cobrança é gravado como `activationPaymentId` em `billing/subscription`.
-- Webhook (`asaas-arena-subscription-webhook.ts`): quando o payment confirmado (`CONFIRMED/RECEIVED`) tem id igual a `activationPaymentId`, grava `activationFeePaidAt`. Mapeamento de status inalterado; `planTier` gravado é o id novo.
-- Idempotência: chave existente `arena-sub-{arenaId}-{tier}-{cycle}` continua; o update da 1ª cobrança é idempotente (re-rodar mantém o mesmo valor).
+- **Troca de plano = substituição** (decisão do dono, 2026-07-30): antes de criar a nova assinatura, `createArenaSubscription` cancela a anterior no Asaas (`DELETE /v3/subscriptions/{id}`). Falha do DELETE aborta a criação (cobrança dupla é pior que troca não concluída); 404 segue em frente. Vale também para reassinar o mesmo tier/ciclo ("gerar novo PIX").
+- Ativação: os ids das cobranças com ativação embutida vão para a lista `activationPaymentIds` (arrayUnion) — mais de uma tentativa pode ficar em aberto. `activationPaymentId` (escalar) permanece só para retrocompat de leitura.
+- Webhook (`asaas-arena-subscription-webhook.ts`): grava `activationFeePaidAt` quando o payment confirmado está na lista OU casa com o escalar legado, e só se ainda não existir. Estorno (`REFUNDED`/`CHARGEBACK`) de um pagamento que carregava a ativação limpa `activationFeePaidAt` e os ids — a próxima assinatura cobra de novo. Eventos de rebaixamento (`OVERDUE`/`DELETED`) vindos de uma assinatura já substituída são ignorados.
+- Idempotência: chave `arena-sub-{arenaId}-{tier}-{cycle}` na 1ª assinatura; depois de cancelar a anterior vira `...-after-{subscriptionIdAntigo}`, senão o Asaas devolveria a assinatura recém-deletada.
+- Retorno do callable inclui `chargedCents`/`activationFeeCents` — a UI exibe o valor real da cobrança, não o preço do catálogo.
 
 ### Limites por plano
 
@@ -79,7 +82,7 @@ Todos os planos pagam mensalidade **e** taxa sobre reservas pagas online (ex.: a
 ### Superfícies de UI
 
 1. **App Flutter** (`arena_plan.dart` + telas): enum ganha `starter`/`elite` (mantém legados para leitura), catálogo com preços/copy novos, tela de plano oferece os 3 pagos, tela de ativação ganha conteúdo do Elite, banner/paywalls seguem funcionando via capabilities.
-2. **Painel Angular arena** (`arena-plan.model.ts`, `panel-plans.component`): catálogo novo; ação de assinar disponível para os 3 planos (hoje só grátis→pago; troca pago→pago continua via suporte); exibe ativação R$97 e taxa do plano.
+2. **Painel Angular arena** (`arena-plan.model.ts`, `panel-plans.component`): catálogo novo; assinar disponível para os 3 planos e troca pago→pago self-service ("Mudar para {nome}", com aviso de substituição da assinatura atual); exibe ativação R$97 (só quando devida) e taxa do plano.
 3. **Site** (`ArenaPlanos.tsx`): cards da imagem — Starter/Pro/Elite, preços, "Mais escolhido" no Pro, ativação R$97 no subtítulo, anual 1 mês grátis, taxa por plano nas features; remove copy "Essencial é grátis para sempre".
 4. **Backoffice**: tela de revisão de saques passa a exibir `feeReais`/`netReais` quando presentes (mudança mínima).
 
@@ -107,5 +110,5 @@ Todos os planos pagam mensalidade **e** taxa sobre reservas pagas online (ex.: a
 
 - Push para atletas/seguidores, landing pages múltiplas, área de patrocinadores, limites de admins/usuários (features inexistentes — só copy).
 - Migração de docs `parceiro`→`elite` (aliases cobrem; script opcional futuro).
-- Troca de plano pago→pago self-service no painel.
 - Estorno de reserva não reverte crédito de carteira (gap pré-existente, rastreado à parte).
+- Proporcional (pró-rata) na troca de plano: a assinatura anterior é cancelada sem devolver os dias já pagos do ciclo corrente.

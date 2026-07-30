@@ -7,6 +7,7 @@ import {
   parseSubscriptionRef,
   paymentCarriesActivation,
   shouldMarkActivationPaid,
+  eventIsFromSupersededSubscription,
 } from "./asaas-arena-subscription-webhook";
 import {
   shouldChargeActivationFee,
@@ -166,6 +167,26 @@ function run(): void {
     subscriptionIdempotencyKey("arena1", "pro", "monthly", "sub_123") !==
       subscriptionIdempotencyKey("arena1", "pro", "monthly", "sub_456"),
     "novo PIX do mesmo plano depois de outro cancelamento -> chave diferente",
+  );
+
+  // Troca de plano cancela a assinatura antiga no Asaas, e esse DELETE gera um
+  // evento DELETED dela. Chegando atrasado, ele rebaixaria o plano novo.
+  const billingElite = {asaasSubscriptionId: "sub_elite"};
+  assert(
+    eventIsFromSupersededSubscription(billingElite, "sub_pro") === true,
+    "evento da assinatura antiga -> ignorado (não rebaixa o plano novo)",
+  );
+  assert(
+    eventIsFromSupersededSubscription(billingElite, "sub_elite") === false,
+    "evento da assinatura vigente -> processado normalmente",
+  );
+  assert(
+    eventIsFromSupersededSubscription(billingElite, "") === false,
+    "pagamento sem subscription -> na dúvida, processa",
+  );
+  assert(
+    eventIsFromSupersededSubscription(undefined, "sub_pro") === false,
+    "sem billing gravado -> na dúvida, processa",
   );
 
   if (failures > 0) {

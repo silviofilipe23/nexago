@@ -3,26 +3,30 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Planos de assinatura da arena. Espelha `functions/src/arena-plans.ts` e a
 /// seção de planos do site (`ArenaPlanos`).
 ///
-/// Eixo de valor: o Essencial (grátis) já entrega reservas online com PIX e
-/// carteira — a plataforma monetiza via taxa sobre reservas. O Pro vende a
-/// operação da arena (PDV/comandas, estoque, destaque, promoções, métricas e
-/// receber torneios). O Parceiro adiciona escala (multi-unidade), prioridade
-/// na Liga nexaGO e gerente de conta.
-enum ArenaPlanTier { essencial, pro, parceiro }
+/// Eixo de valor: não existe mais plano grátis — toda arena sem assinatura
+/// ativa é "sem plano" (tier `null`) e paga 8% por reserva. O Starter cobre o
+/// básico para operar online (site, agenda, reservas, carteira PIX) com taxa
+/// de 8%. O Pro vende a operação completa da arena (PDV/comandas, estoque,
+/// promoções, clubinho, métricas e receber torneios) e reduz a taxa para 6%.
+/// O Elite adiciona escala (multi-unidade), suporte prioritário e taxa de 5%
+/// sem tarifa de saque.
+enum ArenaPlanTier { starter, pro, elite }
 
 enum ArenaBillingCycle { monthly, yearly }
 
 extension ArenaPlanTierX on ArenaPlanTier {
   String get id => switch (this) {
-        ArenaPlanTier.essencial => 'essencial',
+        ArenaPlanTier.starter => 'starter',
         ArenaPlanTier.pro => 'pro',
-        ArenaPlanTier.parceiro => 'parceiro',
+        ArenaPlanTier.elite => 'elite',
       };
 
+  /// Aceita ids legados gravados em docs antigos: 'parceiro' → elite;
+  /// 'essencial' (grátis extinto) → null (sem plano).
   static ArenaPlanTier? fromId(String? id) => switch (id?.trim()) {
-        'essencial' => ArenaPlanTier.essencial,
+        'starter' => ArenaPlanTier.starter,
         'pro' => ArenaPlanTier.pro,
-        'parceiro' => ArenaPlanTier.parceiro,
+        'elite' || 'parceiro' => ArenaPlanTier.elite,
         _ => null,
       };
 }
@@ -59,16 +63,16 @@ enum ArenaCapability {
 
 /// Capabilities de uma arena a partir do seu tier e titularidade.
 ///
-/// Sem titularidade ([ArenaPlanStatus.entitled] falso — Essencial, atraso fora
-/// da carência, cancelamento já expirado) cai para o comportamento do
-/// Essencial: sem capabilities Pro.
+/// Sem titularidade ([ArenaPlanStatus.entitled] falso — sem plano, atraso
+/// fora da carência, cancelamento já expirado) cai para o comportamento de
+/// "sem plano": sem capabilities Pro.
 Set<ArenaCapability> capabilitiesFor(
   ArenaPlanTier? tier, {
   required bool entitled,
 }) {
-  final effectiveTier = entitled ? tier : ArenaPlanTier.essencial;
+  final effectiveTier = entitled ? tier : null;
   return switch (effectiveTier) {
-    ArenaPlanTier.parceiro => {
+    ArenaPlanTier.elite => {
         ArenaCapability.pdvComandas,
         ArenaCapability.estoque,
         ArenaCapability.promocoes,
@@ -85,28 +89,30 @@ Set<ArenaCapability> capabilitiesFor(
         ArenaCapability.metricasCompletas,
         ArenaCapability.receberTorneios,
       },
-    ArenaPlanTier.essencial || null => const <ArenaCapability>{},
+    ArenaPlanTier.starter || null => const <ArenaCapability>{},
   };
 }
 
-/// Máximo de quadras por plano. `null` = ilimitado. Sem titularidade cai para o
-/// teto do Essencial. Espelha o gate em `firestore.rules` (`arenaCanAddCourt`).
+/// Máximo de quadras por plano. `null` = ilimitado. Sem titularidade cai para
+/// o teto de "sem plano". Espelha o gate em `firestore.rules`
+/// (`arenaCanAddCourt`).
 int? maxCourtsFor(ArenaPlanTier? tier, {required bool entitled}) {
-  final effectiveTier = entitled ? tier : ArenaPlanTier.essencial;
+  final effectiveTier = entitled ? tier : null;
   return switch (effectiveTier) {
-    ArenaPlanTier.pro || ArenaPlanTier.parceiro => null,
-    ArenaPlanTier.essencial || null => 2,
+    ArenaPlanTier.elite => null,
+    ArenaPlanTier.pro => 5,
+    ArenaPlanTier.starter || null => 2,
   };
 }
 
 /// Máximo de horários fixos (séries recorrentes) ativos por plano.
 /// `null` = ilimitado. Espelha o gate server-side em
-/// `functions/src/arena-recurring-booking.ts` (ESSENCIAL_MAX_ACTIVE_RECURRING).
+/// `functions/src/arena-recurring-booking.ts`.
 int? maxRecurringBookingsFor(ArenaPlanTier? tier, {required bool entitled}) {
-  final effectiveTier = entitled ? tier : ArenaPlanTier.essencial;
+  final effectiveTier = entitled ? tier : null;
   return switch (effectiveTier) {
-    ArenaPlanTier.pro || ArenaPlanTier.parceiro => null,
-    ArenaPlanTier.essencial || null => 3,
+    ArenaPlanTier.pro || ArenaPlanTier.elite => null,
+    ArenaPlanTier.starter || null => 3,
   };
 }
 
@@ -125,65 +131,69 @@ class ArenaPlan {
   final String name;
   final String tagline;
 
-  /// Valor mensal em centavos (0 = grátis).
+  /// Valor mensal em centavos.
   final int monthlyCents;
 
-  /// Valor anual total em centavos (0 = grátis).
+  /// Valor anual total em centavos.
   final int yearlyCents;
   final List<String> features;
   final bool popular;
-
-  bool get free => monthlyCents == 0 && yearlyCents == 0;
 
   int priceCents(ArenaBillingCycle cycle) =>
       cycle == ArenaBillingCycle.yearly ? yearlyCents : monthlyCents;
 }
 
+/// Ativação única na primeira assinatura (R$97) — cobrada pelo servidor na
+/// 1ª fatura; aqui só para exibição.
+const int arenaActivationFeeCents = 9700;
+
 // Manter alinhado com functions/src/arena-plans.ts (fonte da verdade dos preços
-// no servidor) e a seção de planos do site (ArenaPlanos). Ciclo anual = 2 meses
-// grátis.
+// no servidor) e a seção de planos do site (ArenaPlanos).
 const List<ArenaPlan> arenaPlansCatalog = [
   ArenaPlan(
-    tier: ArenaPlanTier.essencial,
-    name: 'Essencial',
-    tagline: 'Comece a receber reservas online sem pagar mensalidade.',
-    monthlyCents: 0,
-    yearlyCents: 0,
+    tier: ArenaPlanTier.starter,
+    name: 'Starter',
+    tagline: 'Ideal para pequenas arenas começarem online.',
+    monthlyCents: 9900,
+    yearlyCents: 108000,
     features: [
-      'Perfil público e listagem na busca',
-      'Reservas online com pagamento PIX',
-      'Agenda e disponibilidade das quadras',
-      'Avaliações da arena',
-      'Carteira e saque via PIX',
+      'Até 2 quadras · 1 admin',
+      'Site institucional + perfil na busca',
+      'Agenda e reservas online (site e app)',
+      'Avaliações e reputação',
+      'Pagamento e saque via PIX',
+      'Taxa de 8% por reserva',
     ],
   ),
   ArenaPlan(
     tier: ArenaPlanTier.pro,
     name: 'Pro',
-    tagline: 'A operação completa da arena, do balcão ao torneio.',
-    monthlyCents: 14900,
-    yearlyCents: 149000,
+    tagline: 'A operação completa da arena.',
+    monthlyCents: 24900,
+    yearlyCents: 273600,
     popular: true,
     features: [
-      'Tudo do Essencial',
-      'PDV e comandas',
-      'Controle de estoque e produtos',
-      'Destaque na busca e promoções de horário',
-      'Dashboard completo, insights e seguidores',
-      'Receber etapas e torneios',
+      'Tudo do Starter · até 5 quadras',
+      'Torneios ilimitados e ranking da arena',
+      'Inscrições com pagamento online',
+      'Relatórios e dashboard',
+      'PDV, comandas e estoque',
+      'Push para atletas · taxa de 6%',
     ],
   ),
   ArenaPlan(
-    tier: ArenaPlanTier.parceiro,
-    name: 'Parceiro',
-    tagline: 'Para redes e arenas que sediam a Liga nexaGO.',
-    monthlyCents: 39900,
-    yearlyCents: 399000,
+    tier: ArenaPlanTier.elite,
+    name: 'Elite',
+    tagline: 'Para arenas grandes e redes.',
+    monthlyCents: 49900,
+    yearlyCents: 548400,
     features: [
-      'Tudo do Pro',
-      'Múltiplas quadras / unidades, sem limite',
-      'Prioridade em etapas da Liga nexaGO',
-      'Gerente de conta dedicado',
+      'Tudo do Pro · usuários ilimitados',
+      'Análise financeira + consultoria semanal',
+      'Landing pages ilimitadas',
+      'Área de patrocinadores',
+      'Suporte prioritário',
+      'Taxa de 5% · saque PIX sem tarifa',
     ],
   ),
 ];
@@ -226,7 +236,8 @@ class ArenaPlanActivationContent {
   final List<ArenaPlanActivationHighlight> highlights;
 }
 
-/// Conteúdo da tela "Plano ativado" para tiers pagos (Pro / Parceiro).
+/// Conteúdo da tela "Plano ativado" para os 3 tiers pagos
+/// (Starter / Pro / Elite).
 ArenaPlanActivationContent arenaPlanActivationContent(ArenaPlanTier tier) {
   final plan = arenaPlanByTier(tier);
   final name = plan?.name ?? tier.id;
@@ -254,32 +265,48 @@ ArenaPlanActivationContent arenaPlanActivationContent(ArenaPlanTier tier) {
           ),
         ],
       ),
-    ArenaPlanTier.parceiro => ArenaPlanActivationContent(
+    ArenaPlanTier.elite => ArenaPlanActivationContent(
         tier: tier,
         title: 'Plano $name ativado!',
-        subtitle: 'Sua rede está pronta para sediar a Liga nexaGO.',
+        subtitle: 'Sua arena está pronta para operar em grande escala.',
         highlights: const [
           ArenaPlanActivationHighlight(
-            title: 'Múltiplas unidades',
-            subtitle: 'Sem limite de quadras',
+            title: 'Taxa de 5% por reserva',
+            subtitle: 'Já aplicada automaticamente',
           ),
           ArenaPlanActivationHighlight(
-            title: 'Liga nexaGO',
-            subtitle: 'Prioridade nas etapas',
+            title: 'Saque PIX sem tarifa',
+            subtitle: 'Disponível agora',
           ),
           ArenaPlanActivationHighlight(
-            title: 'Gerente dedicado',
-            subtitle: 'Suporte exclusivo',
+            title: 'Suporte prioritário',
+            subtitle: 'Canal exclusivo',
           ),
         ],
       ),
-    ArenaPlanTier.essencial => throw ArgumentError(
-        'Essencial não possui tela de ativação paga.',
+    ArenaPlanTier.starter => ArenaPlanActivationContent(
+        tier: tier,
+        title: 'Plano $name ativado!',
+        subtitle: 'Sua arena já está pronta para receber reservas online.',
+        highlights: const [
+          ArenaPlanActivationHighlight(
+            title: 'Site institucional',
+            subtitle: 'Disponível agora',
+          ),
+          ArenaPlanActivationHighlight(
+            title: 'Reservas online',
+            subtitle: 'Disponível agora',
+          ),
+          ArenaPlanActivationHighlight(
+            title: 'Carteira e saque PIX',
+            subtitle: 'Disponível agora',
+          ),
+        ],
       ),
   };
 }
 
-/// Carência após o vencimento em que a arena `overdue` ainda mantém o Pro,
+/// Carência após o vencimento em que a arena `overdue` ainda mantém o plano,
 /// enquanto o Asaas re-tenta a cobrança. Espelha o gate em `firestore.rules`.
 const Duration arenaOverdueGrace = Duration(days: 7);
 

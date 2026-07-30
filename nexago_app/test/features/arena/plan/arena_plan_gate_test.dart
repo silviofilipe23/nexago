@@ -26,7 +26,7 @@ void main() {
           );
 
           expect(find.text(entry.value), findsOneWidget);
-          expect(find.text('Planos Pro e Parceiro'), findsOneWidget);
+          expect(find.text('Planos Pro e Elite'), findsOneWidget);
           expect(find.text('Ver planos'), findsOneWidget);
         },
       );

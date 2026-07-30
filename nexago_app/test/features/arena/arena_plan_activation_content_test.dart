@@ -20,28 +20,36 @@ void main() {
       expect(content.highlights[2].routeName, 'arenaSettings');
     });
 
-    test('Parceiro tem título, subtítulo e 3 destaques sem rotas', () {
-      final content = arenaPlanActivationContent(ArenaPlanTier.parceiro);
+    test('Elite tem título, subtítulo e 3 destaques sem rotas', () {
+      final content = arenaPlanActivationContent(ArenaPlanTier.elite);
 
-      expect(content.tier, ArenaPlanTier.parceiro);
-      expect(content.title, 'Plano Parceiro ativado!');
+      expect(content.tier, ArenaPlanTier.elite);
+      expect(content.title, 'Plano Elite ativado!');
       expect(
         content.subtitle,
-        'Sua rede está pronta para sediar a Liga nexaGO.',
+        'Sua arena está pronta para operar em grande escala.',
       );
       expect(content.highlights, hasLength(3));
-      expect(content.highlights[0].title, 'Múltiplas unidades');
-      expect(content.highlights[0].subtitle, 'Sem limite de quadras');
+      expect(content.highlights[0].title, 'Taxa de 5% por reserva');
       expect(content.highlights[0].routeName, isNull);
-      expect(content.highlights[1].title, 'Liga nexaGO');
-      expect(content.highlights[2].title, 'Gerente dedicado');
+      expect(content.highlights[1].title, 'Saque PIX sem tarifa');
+      expect(content.highlights[2].title, 'Suporte prioritário');
     });
 
-    test('Essencial lança ArgumentError', () {
+    test('Starter tem título, subtítulo e 3 destaques sem rotas', () {
+      final content = arenaPlanActivationContent(ArenaPlanTier.starter);
+
+      expect(content.tier, ArenaPlanTier.starter);
+      expect(content.title, 'Plano Starter ativado!');
       expect(
-        () => arenaPlanActivationContent(ArenaPlanTier.essencial),
-        throwsArgumentError,
+        content.subtitle,
+        'Sua arena já está pronta para receber reservas online.',
       );
+      expect(content.highlights, hasLength(3));
+      expect(content.highlights[0].title, 'Site institucional');
+      expect(content.highlights[0].routeName, isNull);
+      expect(content.highlights[1].title, 'Reservas online');
+      expect(content.highlights[2].title, 'Carteira e saque PIX');
     });
   });
 }

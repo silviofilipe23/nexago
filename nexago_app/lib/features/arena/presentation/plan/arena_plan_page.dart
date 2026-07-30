@@ -96,8 +96,7 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
               status: status,
               isCurrent: _isCurrentPlan(status, plan),
               submitting: _submitting,
-              onSubscribe: plan.free ? null : () => _onSubscribe(arenaId, plan),
-              onDowngrade: plan.free ? () => _onCancel(arenaId) : null,
+              onSubscribe: () => _onSubscribe(arenaId, plan),
             ),
             const SizedBox(height: 14),
           ],
@@ -109,6 +108,22 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
                   color: colors.onSurfaceMuted,
                 ),
           ),
+          if (status.tier != null && status.entitled) ...[
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: _submitting ? null : () => _onCancel(arenaId),
+                child: Text(
+                  'Cancelar assinatura',
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ]),
       ),
     );
@@ -222,11 +237,6 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
 }
 
 bool _isCurrentPlan(ArenaPlanStatus status, ArenaPlan plan) {
-  if (plan.free) {
-    return !status.entitled ||
-        status.tier == ArenaPlanTier.essencial ||
-        status.tier == null;
-  }
   return status.entitled && status.tier == plan.tier;
 }
 
@@ -385,6 +395,29 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
                 border: const OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 16,
+                  color: colors.onSurfaceMuted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Primeira assinatura tem ativação única de '
+                    '${formatBRL(arenaActivationFeeCents / 100)} somada à '
+                    '1ª cobrança.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceMuted,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             if (_submitting) ...[
               const SizedBox(height: 20),
               Row(
@@ -513,8 +546,9 @@ class _StatusBanner extends StatelessWidget {
           Icons.info_outline_rounded,
         ),
       _ => (
-          'Plano Essencial',
-          'Você está no plano gratuito. Assine para liberar mais.',
+          'Sem plano',
+          'Assine um plano para reduzir a taxa por reserva e liberar mais '
+              'recursos.',
           colors.onSurfaceMuted,
           false,
           Icons.star_outline_rounded,
@@ -727,7 +761,6 @@ class _PlanCard extends StatelessWidget {
     required this.isCurrent,
     required this.submitting,
     required this.onSubscribe,
-    this.onDowngrade,
   });
 
   final ArenaPlan plan;
@@ -736,22 +769,15 @@ class _PlanCard extends StatelessWidget {
   final ArenaPlanStatus status;
   final bool isCurrent;
   final bool submitting;
-  final VoidCallback? onSubscribe;
-  final VoidCallback? onDowngrade;
-
-  bool get _canDowngrade =>
-      plan.free &&
-      status.entitled &&
-      status.tier != null &&
-      status.tier != ArenaPlanTier.essencial;
-
-  Color get _checkColor => plan.free ? AppColors.win : colors.brand;
+  final VoidCallback onSubscribe;
 
   @override
   Widget build(BuildContext context) {
-    final priceLabel =
-        plan.free ? 'Grátis' : formatBRL(plan.priceCents(cycle) / 100);
+    final priceLabel = formatBRL(plan.priceCents(cycle) / 100);
     final cycleLabel = cycle == ArenaBillingCycle.yearly ? '/ano' : '/mês';
+    final installmentLabel = cycle == ArenaBillingCycle.yearly
+        ? '12× de ${formatBRL(plan.yearlyCents / 12 / 100)} · 1 mês grátis'
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -816,25 +842,34 @@ class _PlanCard extends StatelessWidget {
               Text(
                 priceLabel,
                 style: AppTypography.soraRegular(
-                  fontSize: plan.free ? 34 : 30,
+                  fontSize: 30,
                   fontWeight: FontWeight.w900,
                   color: colors.onSurface,
                   letterSpacing: -0.8,
                 ),
               ),
-              if (!plan.free) ...[
-                const SizedBox(width: 4),
-                Text(
-                  cycleLabel,
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurfaceMuted,
-                  ),
+              const SizedBox(width: 4),
+              Text(
+                cycleLabel,
+                style: AppTypography.soraRegular(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurfaceMuted,
                 ),
-              ],
+              ),
             ],
           ),
+          if (installmentLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              installmentLabel,
+              style: AppTypography.soraRegular(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceMuted,
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           for (final feature in plan.features)
             Padding(
@@ -852,7 +887,7 @@ class _PlanCard extends StatelessWidget {
                     child: Icon(
                       Icons.check_rounded,
                       size: 14,
-                      color: _checkColor,
+                      color: colors.brand,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -870,46 +905,20 @@ class _PlanCard extends StatelessWidget {
                 ],
               ),
             ),
-          if (_buildActionLabel() != null) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: _buildAction(context),
-            ),
-          ],
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: _buildAction(context),
+          ),
         ],
       ),
     );
   }
 
-  String? _buildActionLabel() {
-    if (_canDowngrade) return 'Downgrade';
-    if (plan.free) return null;
-    if (isCurrent) return 'Plano atual';
-    return 'Assinar';
-  }
+  String get _actionLabel => isCurrent ? 'Plano atual' : 'Assinar';
 
   Widget _buildAction(BuildContext context) {
-    final label = _buildActionLabel()!;
-    final disabled = submitting || (isCurrent && !plan.free);
-
-    if (_canDowngrade) {
-      return OutlinedButton(
-        onPressed: submitting ? null : onDowngrade,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: colors.onSurface,
-          side: BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.35)),
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-      );
-    }
+    final disabled = submitting || isCurrent;
 
     return FilledButton(
       onPressed: disabled ? null : onSubscribe,
@@ -924,7 +933,7 @@ class _PlanCard extends StatelessWidget {
         ),
       ),
       child: Text(
-        label,
+        _actionLabel,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
     );

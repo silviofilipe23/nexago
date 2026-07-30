@@ -121,7 +121,7 @@ class ArenaPlanUpsell extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                'Planos Pro e Parceiro',
+                'Planos Pro e Elite',
                 style: AppTypography.mono(
                   color: AppColors.brand,
                   fontWeight: FontWeight.w700,

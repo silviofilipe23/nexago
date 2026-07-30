@@ -19,7 +19,7 @@ class ArenaPlanActivatedArgs {
   final ArenaPlanTier tier;
 }
 
-/// Celebração após confirmação do pagamento da assinatura (Pro / Parceiro).
+/// Celebração após confirmação do pagamento da assinatura (planos pagos).
 class ArenaPlanActivatedPage extends StatelessWidget {
   const ArenaPlanActivatedPage({super.key, required this.args});
 
@@ -154,9 +154,9 @@ class ArenaPlanActivatedPage extends StatelessWidget {
 
   static Color _accentForTier(ArenaPlanTier tier, AppThemeColors colors) {
     return switch (tier) {
-      ArenaPlanTier.parceiro => AppColors.pending,
+      ArenaPlanTier.elite => AppColors.pending,
       ArenaPlanTier.pro => colors.brand,
-      ArenaPlanTier.essencial => colors.onSurfaceMuted,
+      ArenaPlanTier.starter => colors.onSurfaceMuted,
     };
   }
 }
@@ -288,17 +288,22 @@ class _HighlightsCard extends StatelessWidget {
   }
 
   static IconData _iconForHighlight(ArenaPlanTier tier, int index) {
-    if (tier == ArenaPlanTier.pro) {
-      return switch (index) {
-        0 => Icons.bolt_rounded,
-        1 => Icons.bar_chart_rounded,
-        _ => Icons.emoji_events_rounded,
-      };
-    }
-    return switch (index) {
-      0 => Icons.stadium_rounded,
-      1 => Icons.emoji_events_rounded,
-      _ => Icons.support_agent_rounded,
+    return switch (tier) {
+      ArenaPlanTier.pro => switch (index) {
+          0 => Icons.bolt_rounded,
+          1 => Icons.bar_chart_rounded,
+          _ => Icons.emoji_events_rounded,
+        },
+      ArenaPlanTier.elite => switch (index) {
+          0 => Icons.percent_rounded,
+          1 => Icons.account_balance_wallet_rounded,
+          _ => Icons.support_agent_rounded,
+        },
+      ArenaPlanTier.starter => switch (index) {
+          0 => Icons.language_rounded,
+          1 => Icons.event_available_rounded,
+          _ => Icons.account_balance_wallet_rounded,
+        },
     };
   }
 }

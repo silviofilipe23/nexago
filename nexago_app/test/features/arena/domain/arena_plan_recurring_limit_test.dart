@@ -3,9 +3,9 @@ import 'package:nexago_app/features/arena/domain/arena_plan.dart';
 
 void main() {
   group('maxRecurringBookingsFor', () {
-    test('Essencial com titularidade limita a 3 séries ativas', () {
+    test('Starter com titularidade limita a 3 séries ativas', () {
       expect(
-        maxRecurringBookingsFor(ArenaPlanTier.essencial, entitled: true),
+        maxRecurringBookingsFor(ArenaPlanTier.starter, entitled: true),
         3,
       );
     });
@@ -17,53 +17,55 @@ void main() {
       );
     });
 
-    test('Parceiro com titularidade é ilimitado (null)', () {
+    test('Elite com titularidade é ilimitado (null)', () {
       expect(
-        maxRecurringBookingsFor(ArenaPlanTier.parceiro, entitled: true),
+        maxRecurringBookingsFor(ArenaPlanTier.elite, entitled: true),
         isNull,
       );
     });
 
-    test('Pro sem titularidade cai para o teto do Essencial (3)', () {
+    test('Pro sem titularidade cai para o teto de sem plano (3)', () {
       expect(
         maxRecurringBookingsFor(ArenaPlanTier.pro, entitled: false),
         3,
       );
     });
 
-    test('Parceiro sem titularidade cai para o teto do Essencial (3)', () {
+    test('Elite sem titularidade cai para o teto de sem plano (3)', () {
       expect(
-        maxRecurringBookingsFor(ArenaPlanTier.parceiro, entitled: false),
+        maxRecurringBookingsFor(ArenaPlanTier.elite, entitled: false),
         3,
       );
     });
 
-    test('tier null (arena sem plano) limita a 3, com ou sem titularidade', () {
+    test('tier null (arena sem plano) limita a 3, com ou sem titularidade',
+        () {
       expect(maxRecurringBookingsFor(null, entitled: true), 3);
       expect(maxRecurringBookingsFor(null, entitled: false), 3);
     });
 
-    test('Essencial sem titularidade mantém o teto de 3', () {
+    test('Starter sem titularidade mantém o teto de 3', () {
       expect(
-        maxRecurringBookingsFor(ArenaPlanTier.essencial, entitled: false),
+        maxRecurringBookingsFor(ArenaPlanTier.starter, entitled: false),
         3,
       );
     });
 
-    test('mesmo shape de maxCourtsFor: pago entitled ilimitado, resto com teto',
+    test('Elite titular é sempre ilimitado nos dois gates', () {
+      expect(maxCourtsFor(ArenaPlanTier.elite, entitled: true), isNull);
+      expect(
+        maxRecurringBookingsFor(ArenaPlanTier.elite, entitled: true),
+        isNull,
+      );
+    });
+
+    test('Pro titular libera recorrência mas mantém teto de quadras (5)',
         () {
-      for (final tier in ArenaPlanTier.values) {
-        for (final entitled in [true, false]) {
-          final courts = maxCourtsFor(tier, entitled: entitled);
-          final recurring = maxRecurringBookingsFor(tier, entitled: entitled);
-          expect(
-            recurring == null,
-            courts == null,
-            reason:
-                'tier=$tier entitled=$entitled deve ser ilimitado nos dois gates ou em nenhum',
-          );
-        }
-      }
+      expect(maxCourtsFor(ArenaPlanTier.pro, entitled: true), 5);
+      expect(
+        maxRecurringBookingsFor(ArenaPlanTier.pro, entitled: true),
+        isNull,
+      );
     });
   });
 }

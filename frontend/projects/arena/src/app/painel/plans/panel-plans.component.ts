@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ArenaContextService } from '../data/arena-context.service';
 import {
+  ARENA_ACTIVATION_FEE_CENTS,
   ARENA_PLAN_CATALOG,
   ARENA_PLAN_TIER_ORDER,
   arenaPlanPriceCents,
@@ -44,7 +45,7 @@ function formatPlanDate(date: Date | null | undefined): string {
 interface PlanCardAction {
   label: string;
   disabled: boolean;
-  kind: 'current' | 'subscribe' | 'downgrade' | 'blocked';
+  kind: 'current' | 'subscribe' | 'blocked';
 }
 
 /** Tela Planos & assinatura: lê `arenas/{arenaId}` (planTier/planStatus/planActiveUntil/courtsCount)
@@ -54,7 +55,7 @@ interface PlanCardAction {
  *  Fora do escopo desta v1 (não existe backend pra isso hoje, ver conversa/memória do projeto):
  *  número de cartão salvo (Asaas nunca nos entrega isso), "trocar cartão", histórico de
  *  faturas, uso de "equipe"/"torneios" (sem schema), e o conceito de múltiplas unidades no
- *  mesmo painel (sem infra de grupo/franquia). Troca direta entre dois planos pagos (Pro↔Parceiro)
+ *  mesmo painel (sem infra de grupo/franquia). Troca direta entre dois planos pagos (ex.: Pro↔Elite)
  *  também não é segura hoje — a function só sabe "criar assinatura nova", não substituir a atual. */
 @Component({
   selector: 'ar-panel-plans',
@@ -84,7 +85,11 @@ interface PlanCardAction {
               <div class="plan-badge" card-actions>{{ planName() }}{{ billingCycleSuffix() }}</div>
 
               <div class="price-row">
-                <span class="price">{{ priceLabel() }}</span>
+                @if (noPlanContextLine(); as ctx) {
+                  <span class="price no-plan">{{ ctx }}</span>
+                } @else {
+                  <span class="price">{{ priceLabel() }}</span>
+                }
               </div>
 
               @if (statusMessage(); as msg) {
@@ -137,11 +142,7 @@ interface PlanCardAction {
                     }
                   </div>
                   <div class="plan-col-price">
-                    @if (catalog[tier].free) {
-                      Grátis
-                    } @else {
-                      {{ formatBRL(catalog[tier].monthlyCents) }}<span class="per">/mês</span>
-                    }
+                    {{ formatBRL(catalog[tier].monthlyCents) }}<span class="per">/mês</span>
                   </div>
                   <p class="plan-col-tagline">{{ catalog[tier].tagline }}</p>
                   <ul class="plan-features">
@@ -201,7 +202,7 @@ interface PlanCardAction {
             <div class="ar-filter-bar filter-block">
               <button type="button" class="ar-chip" [class.active]="subscribeCycle() === 'monthly'" (click)="subscribeCycle.set('monthly')">Mensal</button>
               <button type="button" class="ar-chip" [class.active]="subscribeCycle() === 'yearly'" (click)="subscribeCycle.set('yearly')">
-                Anual · 2 meses grátis
+                Anual · 1 mês grátis
               </button>
             </div>
 
@@ -223,6 +224,9 @@ interface PlanCardAction {
             />
 
             <div class="subscribe-price">{{ formatBRL(previewPriceCents(tier)) }} · {{ cycleLabel[subscribeCycle()] }}</div>
+            @if (showActivationFee()) {
+              <p class="activation-fee-note">+ {{ formatBRL(activationFeeCents) }} de ativação (única, somada à 1ª cobrança)</p>
+            }
 
             <div class="actions">
               <button type="button" class="ar-ghost-btn" [disabled]="subscribing()" (click)="closeSubscribe()">Cancelar</button>
@@ -239,7 +243,7 @@ interface PlanCardAction {
           <h2 class="modal-title">Cancelar assinatura?</h2>
           <p class="modal-subtitle">
             Você mantém o acesso {{ planName() }} até {{ formatPlanDate(activeUntil()) }} (fim do período já pago). Depois disso a
-            arena volta pro Essencial automaticamente.
+            arena passa a operar sem plano — taxa de 8% por reserva paga no app.
           </p>
           @if (cancelError(); as cerr) {
             <div class="error-banner">{{ cerr }}</div>
@@ -300,6 +304,15 @@ interface PlanCardAction {
       font-size: 34px;
       letter-spacing: -0.02em;
       color: var(--nx-text);
+    }
+
+    .price.no-plan {
+      display: block;
+      font-family: var(--nx-font-ui);
+      font-weight: 600;
+      font-size: 14.5px;
+      letter-spacing: normal;
+      color: var(--nx-text-mute);
     }
 
     .status-msg {
@@ -528,7 +541,13 @@ interface PlanCardAction {
       font-weight: 700;
       font-size: 16px;
       color: var(--nx-text);
-      margin-bottom: 20px;
+      margin-bottom: 6px;
+    }
+
+    .activation-fee-note {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: 0 0 20px;
     }
 
     .pix-qr {
@@ -616,26 +635,35 @@ export class PanelPlansComponent {
   protected readonly billing = signal<ArenaSubscriptionBilling | null>(null);
   protected readonly billingLoading = signal(true);
 
-  protected readonly currentTier = computed<ArenaPlanTier>(() => this.arenaContext.planStatus().tier ?? 'essencial');
+  protected readonly currentTier = computed<ArenaPlanTier | null>(() => this.arenaContext.planStatus().tier);
   protected readonly rawStatus = computed(() => this.arenaContext.planStatus().status);
   protected readonly activeUntil = computed(() => this.arenaContext.planStatus().activeUntil);
   protected readonly entitled = computed(() => this.arenaContext.entitled());
 
-  protected readonly planName = computed(() => this.catalog[this.currentTier()].name);
+  protected readonly planName = computed(() => {
+    const tier = this.currentTier();
+    return tier ? this.catalog[tier].name : 'Sem plano';
+  });
   protected readonly billingCycleSuffix = computed(() => {
     const b = this.billing();
-    return b && b.tier === this.currentTier() ? ` · ${this.cycleLabel[b.cycle]}` : '';
+    const tier = this.currentTier();
+    return b && tier != null && b.tier === tier ? ` · ${this.cycleLabel[b.cycle]}` : '';
   });
 
   protected readonly priceLabel = computed(() => {
     const tier = this.currentTier();
-    if (this.catalog[tier].free) return 'Grátis';
+    if (tier == null) return '—';
     const b = this.billing();
     if (b && b.tier === tier) {
       return `${formatCentsBRL(b.valueCents)}${b.cycle === 'yearly' ? '/ano' : '/mês'}`;
     }
     return `${formatCentsBRL(arenaPlanPriceCents(tier, 'monthly'))}/mês`;
   });
+
+  /** Exibida no lugar do preço quando a arena não tem plano ativo. */
+  protected readonly noPlanContextLine = computed<string | null>(() =>
+    this.currentTier() == null ? 'Sem plano ativo — taxa de 8% por reserva paga no app.' : null,
+  );
 
   protected readonly isWarnStatus = computed(() => this.rawStatus() === 'overdue' || this.rawStatus() === 'canceling');
 
@@ -674,7 +702,7 @@ export class PanelPlansComponent {
   protected readonly canCancel = computed(() => {
     const tier = this.arenaContext.planStatus().tier;
     const status = this.rawStatus();
-    return tier != null && tier !== 'essencial' && (status === 'active' || status === 'overdue' || status === 'pending');
+    return tier != null && (status === 'active' || status === 'overdue' || status === 'pending');
   });
 
   protected readonly headerSubtitle = computed(() => `Gerencie o plano da ${this.arenaContext.arenaName() ?? 'sua arena'} na plataforma`);
@@ -686,6 +714,11 @@ export class PanelPlansComponent {
   protected readonly subscribing = signal(false);
   protected readonly subscribeError = signal<string | null>(null);
   protected readonly subscribeResult = signal<CreateArenaSubscriptionResult | null>(null);
+
+  protected readonly activationFeeCents = ARENA_ACTIVATION_FEE_CENTS;
+  /** A arena ainda não pagou a taxa de ativação (única, somada à 1ª cobrança da primeira
+   *  assinatura) — espelha `shouldChargeActivationFee` em `functions/src/arena-subscription.ts`. */
+  protected readonly showActivationFee = computed(() => !this.billing()?.activationFeePaidAt);
 
   protected readonly showCancelConfirm = signal(false);
   protected readonly canceling = signal(false);
@@ -719,10 +752,7 @@ export class PanelPlansComponent {
     if (tier === current) {
       return { label: 'Plano atual', disabled: true, kind: 'current' };
     }
-    if (tier === 'essencial') {
-      return { label: 'Fazer downgrade', disabled: false, kind: 'downgrade' };
-    }
-    if (current === 'essencial') {
+    if (current === null) {
       return { label: `Assinar ${this.catalog[tier].name}`, disabled: false, kind: 'subscribe' };
     }
     return { label: 'Fale com o suporte pra trocar', disabled: true, kind: 'blocked' };
@@ -732,9 +762,6 @@ export class PanelPlansComponent {
     const action = this.planCardAction(tier);
     if (action.kind === 'subscribe') {
       this.openSubscribe(tier);
-    } else if (action.kind === 'downgrade') {
-      this.cancelError.set(null);
-      this.showCancelConfirm.set(true);
     }
   }
 

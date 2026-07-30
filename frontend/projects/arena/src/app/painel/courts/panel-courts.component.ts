@@ -19,8 +19,8 @@ function formatBRL(n: number): string {
 
 /** Tela Quadras do painel: CRUD real de `arenas/{arenaId}/courts`. Sem "ocupação"/"reservas
  *  hoje"/"cobertura" — nenhum desses campos existe no schema real (ocupação é derivada de
- *  reservas, não persistida na quadra). Limite de quadras por plano (Essencial=2,
- *  Pro/Parceiro=ilimitado) já reforçado nas rules — a UI só ajuda a não bater de frente. */
+ *  reservas, não persistida na quadra). Limite de quadras por plano (sem plano/Starter=2,
+ *  Pro=5, Elite=ilimitado) já reforçado nas rules — a UI só ajuda a não bater de frente. */
 @Component({
   selector: 'ar-panel-courts',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,7 +44,7 @@ function formatBRL(n: number): string {
         } @else {
           @if (atCap()) {
             <div class="cap-banner">
-              Limite de {{ maxCourts() }} quadras do plano Essencial atingido — faça upgrade em
+              Limite de {{ maxCourts() }} quadras do seu plano atingido — faça upgrade em
               <a routerLink="/painel/planos" class="link">Planos</a> pra cadastrar mais.
             </div>
           }

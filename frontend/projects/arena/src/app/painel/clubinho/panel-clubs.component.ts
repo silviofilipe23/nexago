@@ -23,7 +23,7 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
 };
 
 /** Lista de clubinhos (jogo aberto): série semanal + sessões avulsas, lista pública com
- *  PIX antecipado. Gate `clubinho` (Pro/Parceiro) no padrão de `panel-promotions`. */
+ *  PIX antecipado. Gate `clubinho` (Pro/Elite) no padrão de `panel-promotions`. */
 @Component({
   selector: 'ar-panel-clubs',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,7 +46,7 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
           <p class="state-text">{{ err }}</p>
         } @else if (showPaywall()) {
           <ar-panel-card pad="lg">
-            <p class="paywall-title">Clubinho é um recurso dos planos Pro e Parceiro</p>
+            <p class="paywall-title">Clubinho é um recurso dos planos Pro e Elite</p>
             <p class="state-text">
               Substitua a lista do WhatsApp: os atletas entram na lista do jogo aberto e pagam
               PIX antecipado pela plataforma. Fale com o suporte para fazer upgrade.

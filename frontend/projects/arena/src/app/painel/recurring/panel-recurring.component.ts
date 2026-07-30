@@ -64,7 +64,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
         } @else {
           @if (atCap()) {
             <div class="cap-banner">
-              Limite de {{ maxActive() }} horários fixos ativos do plano Essencial atingido — faça upgrade em
+              Limite de {{ maxActive() }} horários fixos ativos do seu plano atingido — faça upgrade em
               <a routerLink="/painel/planos" class="link">Planos</a> pra cadastrar mais.
             </div>
           }

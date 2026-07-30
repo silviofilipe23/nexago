@@ -38,7 +38,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
 
 /** Tela Detalhe da comanda: itens reais de `arenaComandas/{id}/items` (adicionar baixa
  *  estoque via `addItemsBatch`, estornar via `reverseComandaItem`) e pagamentos reais via
- *  `registerPayment`. Adicionar item exige plano Pro/Parceiro; estornar item e receber
+ *  `registerPayment`. Adicionar item exige plano Pro/Elite; estornar item e receber
  *  pagamento continuam liberados mesmo com plano rebaixado (mesma regra do Flutter/rules). */
 @Component({
   selector: 'ar-panel-order-detail',

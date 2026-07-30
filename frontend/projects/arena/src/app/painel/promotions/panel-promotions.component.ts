@@ -34,7 +34,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'pausada', label: 'Pausadas' },
 ];
 
-/** Tela Promoções do painel: CRUD real de `arenas/{arenaId}/promotions` (Pro/Parceiro pra
+/** Tela Promoções do painel: CRUD real de `arenas/{arenaId}/promotions` (Pro/Elite pra
  *  criar/editar; excluir é livre). Sem "usos no mês"/"horário mais fraco"/"receita
  *  incremental" — não existe contagem de resgate de promoção no backend, eram só protótipo.
  *  Status "agendada"/"expirada" são derivados de validFrom/validUntil, não persistidos. */
@@ -60,7 +60,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
           <p class="state-text">{{ err }}</p>
         } @else if (showPaywall()) {
           <ar-panel-card pad="lg">
-            <p class="paywall-title">Promoções são um recurso dos planos Pro e Parceiro</p>
+            <p class="paywall-title">Promoções são um recurso dos planos Pro e Elite</p>
             <p class="state-text">Fale com o suporte para fazer upgrade e liberar descontos automáticos por dia/horário.</p>
           </ar-panel-card>
         } @else {

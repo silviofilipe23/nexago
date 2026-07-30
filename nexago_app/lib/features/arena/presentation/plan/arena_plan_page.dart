@@ -691,7 +691,7 @@ class _CycleToggle extends StatelessWidget {
               colors: colors,
               onTap: () => onChanged(ArenaBillingCycle.yearly),
               trailing: _PlanPillBadge(
-                label: '2 MESES GRÁTIS',
+                label: '1 MÊS GRÁTIS',
                 background: AppColors.win.withValues(alpha: 0.16),
                 foreground: AppColors.win,
               ),

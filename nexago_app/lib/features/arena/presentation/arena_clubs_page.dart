@@ -68,7 +68,7 @@ class ArenaClubsPage extends ConsumerWidget {
                       if (!entitled) ...[
                         const ArenaPlanReadOnlyBanner(
                           message:
-                              'O Clubinho faz parte dos planos Pro e Parceiro. '
+                              'O Clubinho faz parte dos planos Pro e Elite. '
                               'Assine para criar novos clubinhos.',
                         ),
                         const SizedBox(height: 12),

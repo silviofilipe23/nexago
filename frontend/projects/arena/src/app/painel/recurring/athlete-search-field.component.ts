@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, input, output, signal } from '@angular/core';
-import { resolveAthleteLabel } from '../bookings/bookings-repository';
+import { fetchArenaAthleteIdsOnce, resolveAthleteLabel } from '../bookings/bookings-repository';
 import { arenaFirestore } from '../data/firestore';
-import { fetchFollowersOnce } from '../followers/followers-repository';
 import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search-filter';
 
-/** Campo de busca de atleta pra vincular um mensalista de horário fixo — pesquisa entre
- *  os seguidores já vinculados à arena (sem busca global, ver spec da feature). */
+/** Campo de busca de atleta pra vincular um mensalista de horário fixo — pesquisa entre os
+ *  atletas que já reservaram nesta arena (mesma base do Ranking de clientes), não uma busca
+ *  global no app. Antes usava `arenas/{arenaId}/followers` (quem clicou "seguir" a arena),
+ *  mas essa base fica vazia na prática — poucos atletas seguem a arena. */
 @Component({
   selector: 'ar-athlete-search-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +27,8 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
       <div class="dropdown">
         @if (loading()) {
           <div class="empty">Carregando…</div>
+        } @else if (loadError()) {
+          <button type="button" class="empty retry" (click)="retryLoad()">Erro ao carregar atletas. Toque para tentar de novo.</button>
         } @else if (results().length === 0) {
           <div class="empty">Nenhum atleta encontrado.</div>
         } @else {
@@ -83,6 +86,16 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
       color: var(--nx-text-dim);
     }
 
+    .retry {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
     /* .field-label/.input-box não são classes globais — cada componente
      * as redefine localmente (mesmo padrão em panel-recurring, panel-agenda,
      * panel-court-form etc., confirmado durante a Task 8/ar-date-range-picker,
@@ -127,11 +140,16 @@ export class AthleteSearchFieldComponent {
 
   protected readonly queryText = signal('');
   protected readonly loading = signal(false);
+  protected readonly loadError = signal(false);
   protected readonly results = signal<AthleteCandidate[]>([]);
   protected readonly open = signal(false);
 
   protected onFocus(): void {
     this.open.set(true);
+    void this.ensureCandidatesLoaded();
+  }
+
+  protected retryLoad(): void {
     void this.ensureCandidatesLoaded();
   }
 
@@ -157,15 +175,19 @@ export class AthleteSearchFieldComponent {
   private async ensureCandidatesLoaded(): Promise<void> {
     if (this.candidates) return;
     this.loading.set(true);
+    this.loadError.set(false);
     try {
-      const followers = await fetchFollowersOnce(this.db, this.arenaId());
+      const athleteIds = await fetchArenaAthleteIdsOnce(this.db, this.arenaId());
       const withNames = await Promise.all(
-        followers.map(async (f): Promise<AthleteCandidate> => ({
-          athleteId: f.userId,
-          name: await resolveAthleteLabel(this.db, f.userId),
+        athleteIds.map(async (athleteId): Promise<AthleteCandidate> => ({
+          athleteId,
+          name: await resolveAthleteLabel(this.db, athleteId),
         })),
       );
       this.candidates = withNames.filter((c) => c.name && c.name !== '—');
+    } catch {
+      this.candidates = null;
+      this.loadError.set(true);
     } finally {
       this.loading.set(false);
       this.runFilter();

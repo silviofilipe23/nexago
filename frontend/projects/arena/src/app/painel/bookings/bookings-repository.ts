@@ -4,6 +4,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   query,
@@ -36,6 +37,19 @@ export function watchBookingsForArena(db: Firestore, arenaId: string, onChange: 
     (snap) => onChange(snap.docs.map(arenaBookingFromDoc)),
     () => onChange([]),
   );
+}
+
+/** Atletas distintos que já reservaram nesta arena — base da busca de mensalista
+ *  (`ar-athlete-search-field`), mesma fonte usada pelo Ranking de clientes
+ *  (`ranked-clients-repository.ts`), só que sem os agregados de jogos/gasto. */
+export async function fetchArenaAthleteIdsOnce(db: Firestore, arenaId: string): Promise<string[]> {
+  const snap = await getDocs(query(bookingsCol(db), where('arenaId', '==', arenaId), limit(ARENA_BOOKINGS_LIMIT)));
+  const ids = new Set<string>();
+  for (const docSnap of snap.docs) {
+    const athleteId = arenaBookingFromDoc(docSnap).athleteId.trim();
+    if (athleteId) ids.add(athleteId);
+  }
+  return [...ids];
 }
 
 export function watchBooking(db: Firestore, bookingId: string, onChange: (booking: ArenaBooking | null) => void): Unsubscribe {

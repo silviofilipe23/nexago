@@ -27,14 +27,15 @@ function slotOverlapsBooking(slot: Pick<ArenaSlot, 'startTime' | 'endTime'>, boo
  *  reservas ATIVAS entram no overlay — uma cancelada não pode prender o horário como ocupado
  *  (o Flutter não filtra isso na função equivalente, mas deixar passar seria mostrar um
  *  horário cancelado como indisponível, o que não serve a ninguém). */
-export function applyBookingsOverlay(slots: readonly ArenaSlot[], bookings: readonly ArenaBooking[], dateKey: string): ArenaSlot[] {
-  if (!dateKey || bookings.length === 0) return [...slots];
-  const dayBookings = bookings.filter((b) => b.dateKey === dateKey && bookingIsActive(b));
-  if (dayBookings.length === 0) return [...slots];
+export function applyBookingsOverlay(slots: readonly ArenaSlot[], bookings: readonly ArenaBooking[]): ArenaSlot[] {
+  if (bookings.length === 0) return [...slots];
+  const activeBookings = bookings.filter(bookingIsActive);
+  if (activeBookings.length === 0) return [...slots];
 
   return slots.map((slot) => {
     if (slot.status === 'booked' || slot.status === 'blocked') return slot;
-    for (const b of dayBookings) {
+    for (const b of activeBookings) {
+      if (b.dateKey !== slot.dateKey) continue;
       const bookingCourt = b.courtId.trim();
       if (bookingCourt && bookingCourt.toLowerCase() !== slot.courtId.trim().toLowerCase()) continue;
       if (!slotOverlapsBooking(slot, b.startTime, b.endTime)) continue;

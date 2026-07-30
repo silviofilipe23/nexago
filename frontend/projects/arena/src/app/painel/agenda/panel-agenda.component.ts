@@ -444,7 +444,7 @@ export class PanelAgendaComponent {
 
   private readonly selectedDateKey = computed(() => dateKeyOf(this.selectedDate()));
 
-  protected readonly slotsWithOverlay = computed(() => applyBookingsOverlay(this.slots(), this.bookings(), this.selectedDateKey()));
+  protected readonly slotsWithOverlay = computed(() => applyBookingsOverlay(this.slots(), this.bookings()));
 
   protected readonly filteredSlots = computed(() => applyScheduleFilters(this.slotsWithOverlay(), this.statusFilter(), this.courtFilter()));
 

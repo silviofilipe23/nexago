@@ -161,4 +161,9 @@ describe('findSlotByTime', () => {
     const slot = makeSlot({ startTime: '18:00' });
     expect(findSlotByTime([slot], 'c1', null, TODAY, TODAY)).toBeNull();
   });
+
+  it('ignora um slot no horário certo, na quadra certa, mas não disponível (ex: já reservado)', () => {
+    const slot = makeSlot({ startTime: '18:00', rawStatus: 'booked' });
+    expect(findSlotByTime([slot], 'c1', '18:00', TODAY, TODAY)).toBeNull();
+  });
 });

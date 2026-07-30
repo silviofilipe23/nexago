@@ -354,8 +354,10 @@ export class ArenaBookingComponent {
       );
       this.slotsByDateKey.set(slotsMap);
 
+      const rawDateParam = this.route.snapshot.queryParamMap.get('date');
+      const dateHonored = !rawDateParam || clampPickedDate(rawDateParam, this.today) != null;
       const requestedTime = this.route.snapshot.queryParamMap.get('time');
-      if (requestedTime) {
+      if (requestedTime && dateHonored) {
         const daySlots = slotsMap[this.selectedDateKey()] ?? [];
         const initialSlot = findSlotByTime(daySlots, initialCourtId ?? '', requestedTime, this.selectedDate());
         if (initialSlot) {

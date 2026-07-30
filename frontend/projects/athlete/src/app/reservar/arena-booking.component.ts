@@ -34,6 +34,7 @@ import {
   buildDateStrip,
   clampPickedDate,
   dateOnly,
+  findSlotByTime,
   shouldShowMonth,
 } from './booking-dates';
 
@@ -352,6 +353,15 @@ export class ArenaBookingComponent {
         MAX_HORIZON_DAYS + 1,
       );
       this.slotsByDateKey.set(slotsMap);
+
+      const requestedTime = this.route.snapshot.queryParamMap.get('time');
+      if (requestedTime) {
+        const daySlots = slotsMap[this.selectedDateKey()] ?? [];
+        const initialSlot = findSlotByTime(daySlots, initialCourtId ?? '', requestedTime, this.selectedDate());
+        if (initialSlot) {
+          this.selectedStartSlot.set(initialSlot);
+        }
+      }
 
       // Entrada via ?date= pode apontar para um chip fora da vista inicial.
       this.scrollSelectedIntoView();

@@ -10,16 +10,15 @@ import {
 
 describe("platform-fees.computePlatformFeeReais", () => {
   it("aplica o percentual quando acima do piso", () => {
-    // 8% de 100 = 8 (> piso 1.5) — BOOKING_FEE_PERCENT agora é starter (8%)
-    assert.equal(computePlatformFeeReais(100, BOOKING_FEE_PERCENT), 8);
+    // 5% de 100 = 5 (> piso 1.5)
+    assert.equal(computePlatformFeeReais(100, BOOKING_FEE_PERCENT), 5);
     // 8% de 100 = 8
     assert.equal(computePlatformFeeReais(100, TOURNAMENT_FEE_PERCENT), 8);
   });
 
   it("usa o piso mínimo quando o percentual fica abaixo", () => {
-    // 8% de 20 = 1.6 (< piso 1.5? não, é > 1.5) — deixa 1.6
-    // 8% de 15 = 1.2 (< piso 1.5) -> piso
-    assert.equal(computePlatformFeeReais(15, BOOKING_FEE_PERCENT), FEE_FLOOR_REAIS);
+    // 5% de 20 = 1 (< piso 1.5) -> piso
+    assert.equal(computePlatformFeeReais(20, BOOKING_FEE_PERCENT), FEE_FLOOR_REAIS);
   });
 
   it("nunca excede o valor (deixa ao menos R$0,01)", () => {
@@ -28,8 +27,8 @@ describe("platform-fees.computePlatformFeeReais", () => {
   });
 
   it("arredonda para centavos", () => {
-    // 8% de 33.33 = 2.6664 -> 2.67
-    assert.equal(computePlatformFeeReais(33.33, BOOKING_FEE_PERCENT), 2.67);
+    // 5% de 33.33 = 1.6665 -> 1.67
+    assert.equal(computePlatformFeeReais(33.33, BOOKING_FEE_PERCENT), 1.67);
   });
 
   it("retorna 0 para valores ou percentuais não positivos", () => {

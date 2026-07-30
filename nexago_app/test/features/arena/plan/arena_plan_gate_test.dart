@@ -5,19 +5,30 @@ import 'package:nexago_app/features/arena/presentation/plan/widgets/arena_plan_g
 
 void main() {
   group('ArenaPlanUpsell', () {
-    const expectedTitleByCapability = {
-      ArenaCapability.pdvComandas: 'PDV e comandas',
-      ArenaCapability.estoque: 'Controle de estoque',
-      ArenaCapability.promocoes: 'Promoções de horário',
-      ArenaCapability.clubinho: 'Clubinho',
-      ArenaCapability.metricasCompletas: 'Métricas completas',
-      ArenaCapability.receberTorneios: 'Receber torneios',
-      ArenaCapability.multiUnidade: 'Múltiplas unidades',
+    // O selo tem de nomear os planos que REALMENTE liberam a capability:
+    // multiUnidade só existe no Elite, então "Planos Pro e Elite" mandaria a
+    // arena assinar um plano que não destrava o recurso.
+    const expectedCopyByCapability = {
+      ArenaCapability.pdvComandas: ('PDV e comandas', 'Planos Pro e Elite'),
+      ArenaCapability.estoque: ('Controle de estoque', 'Planos Pro e Elite'),
+      ArenaCapability.promocoes: ('Promoções de horário', 'Planos Pro e Elite'),
+      ArenaCapability.clubinho: ('Clubinho', 'Planos Pro e Elite'),
+      ArenaCapability.metricasCompletas: (
+        'Métricas completas',
+        'Planos Pro e Elite'
+      ),
+      ArenaCapability.receberTorneios: (
+        'Receber torneios',
+        'Planos Pro e Elite'
+      ),
+      ArenaCapability.multiUnidade: ('Múltiplas unidades', 'Plano Elite'),
     };
 
-    for (final entry in expectedTitleByCapability.entries) {
+    for (final entry in expectedCopyByCapability.entries) {
+      final (title, badge) = entry.value;
       testWidgets(
-        'mostra o paywall de "${entry.value}" para ArenaCapability.${entry.key.name}',
+        'mostra o paywall de "$title" com o selo "$badge" para '
+        'ArenaCapability.${entry.key.name}',
         (tester) async {
           await tester.pumpWidget(
             MaterialApp(
@@ -25,12 +36,36 @@ void main() {
             ),
           );
 
-          expect(find.text(entry.value), findsOneWidget);
-          expect(find.text('Planos Pro e Elite'), findsOneWidget);
+          expect(find.text(title), findsOneWidget);
+          expect(find.text(badge), findsOneWidget);
           expect(find.text('Ver planos'), findsOneWidget);
         },
       );
     }
+
+    testWidgets(
+      'selo customizado aponta o degrau seguinte: uma arena Starter no teto de '
+      'quadras precisa do Pro, não do Elite da capability multiUnidade',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: ArenaPlanUpsell(
+                capability: ArenaCapability.multiUnidade,
+                badge: 'Plano Pro',
+                title: 'Limite de quadras atingido',
+                description:
+                    'O plano atual permite até 2 quadras. Assine o Pro para '
+                    'cadastrar até 5.',
+              ),
+            ),
+          ),
+        );
+
+        expect(find.text('Plano Pro'), findsOneWidget);
+        expect(find.text('Plano Elite'), findsNothing);
+      },
+    );
 
     testWidgets(
       'copy customizada (ex.: "limite atingido") sobrescreve o título e a '

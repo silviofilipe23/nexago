@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { ArenaContextService } from '../data/arena-context.service';
-import { maxCourtsFor } from '../data/arena-plan.model';
+import { ARENA_PLAN_CATALOG, maxCourtsFor, nextCourtsTierFor } from '../data/arena-plan.model';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -44,8 +44,8 @@ function formatBRL(n: number): string {
         } @else {
           @if (atCap()) {
             <div class="cap-banner">
-              Limite de {{ maxCourts() }} quadras do seu plano atingido — faça upgrade em
-              <a routerLink="/painel/planos" class="link">Planos</a> pra cadastrar mais.
+              Limite de {{ maxCourts() }} quadras do seu plano atingido — assine o {{ nextPlanName() }} em
+              <a routerLink="/painel/planos" class="link">Planos</a> pra cadastrar {{ nextPlanCourtsLabel() }}.
             </div>
           }
 
@@ -286,6 +286,19 @@ export class PanelCourtsComponent {
   protected readonly atCap = computed(() => {
     const max = this.maxCourts();
     return max != null && this.courts().length >= max;
+  });
+
+  /** O Pro também tem teto (5): o banner tem de apontar o degrau seguinte, não "faça upgrade". */
+  private readonly nextCourtsTier = computed(() =>
+    nextCourtsTierFor(this.arenaContext.planStatus().tier, this.arenaContext.entitled()),
+  );
+  protected readonly nextPlanName = computed(() => {
+    const tier = this.nextCourtsTier();
+    return tier ? ARENA_PLAN_CATALOG[tier].name : 'Elite';
+  });
+  protected readonly nextPlanCourtsLabel = computed(() => {
+    const max = maxCourtsFor(this.nextCourtsTier(), true);
+    return max == null ? 'quantas precisar' : `até ${max}`;
   });
 
   protected readonly headerSubtitle = computed(

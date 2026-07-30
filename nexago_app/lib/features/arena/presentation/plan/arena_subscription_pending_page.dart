@@ -26,7 +26,8 @@ class ArenaSubscriptionPendingArgs {
   final ArenaPlan plan;
   final ArenaBillingCycle cycle;
 
-  /// Nulo no fluxo cartão (checkout hospedado no navegador).
+  /// Cobrança criada. Nulo só quando a tela é aberta sem ter passado pelo
+  /// callable; nesse caso o valor exibido cai no preço do catálogo.
   final ArenaSubscriptionResult? result;
 }
 
@@ -70,9 +71,20 @@ class _ArenaSubscriptionPendingPageState
     }
 
     final isPix = args.result?.isPix == true;
-    final priceLabel = formatBRL(args.plan.priceCents(args.cycle) / 100);
     final cycleLabel =
         args.cycle == ArenaBillingCycle.yearly ? 'ano' : 'mês';
+
+    // O QR abaixo é da cobrança REAL: na 1ª assinatura ela traz a ativação
+    // somada, então o preço do catálogo não bate com o que o gestor vai pagar.
+    final recurringCents = args.plan.priceCents(args.cycle);
+    final chargedCents = args.result?.chargedCents ?? recurringCents;
+    final activationCents = args.result?.activationFeeCents ?? 0;
+    final chargedLabel = formatBRL(chargedCents / 100);
+    final action =
+        isPix ? 'pague com PIX para ativar' : 'conclua no navegador';
+    final headline = activationCents > 0
+        ? '$chargedLabel — $action'
+        : '$chargedLabel / $cycleLabel — $action';
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -93,13 +105,23 @@ class _ArenaSubscriptionPendingPageState
             ),
             const SizedBox(height: 4),
             Text(
-              isPix
-                  ? '$priceLabel / $cycleLabel — pague com PIX para ativar'
-                  : '$priceLabel / $cycleLabel — conclua no navegador',
+              headline,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colors.onSurfaceMuted,
                   ),
             ),
+            if (activationCents > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Inclui ${formatBRL(activationCents / 100)} de ativação '
+                '(única). Depois, ${formatBRL(recurringCents / 100)} '
+                'por $cycleLabel.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceMuted,
+                      height: 1.35,
+                    ),
+              ),
+            ],
             const SizedBox(height: 20),
             if (isPix) ...[
               BookingPixQrCard(

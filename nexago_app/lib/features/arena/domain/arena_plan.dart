@@ -37,7 +37,7 @@ extension ArenaBillingCycleX on ArenaBillingCycle {
 
 /// Recursos liberados por plano. Fonte única de verdade do gate no app —
 /// evita `if (tier == pro)` espalhado. O gate de segurança correspondente vive
-/// em `firestore.rules` (helper `arenaHasPlan`); este aqui é UX/entitlement.
+/// em `firestore.rules` (helper `arenaEntitled`); este aqui é UX/entitlement.
 enum ArenaCapability {
   /// PDV / comandas (abrir e operar comandas).
   pdvComandas,
@@ -102,6 +102,19 @@ int? maxCourtsFor(ArenaPlanTier? tier, {required bool entitled}) {
     ArenaPlanTier.elite => null,
     ArenaPlanTier.pro => 5,
     ArenaPlanTier.starter || null => 2,
+  };
+}
+
+/// Plano que destrava mais quadras a partir do tier atual. `null` quando já
+/// não há teto (Elite). Sem plano/Starter (teto 2) sobem para o Pro (teto 5);
+/// Pro sobe para o Elite (ilimitado) — mandar uma arena Pro "assinar o Pro"
+/// vende o plano que ela já tem.
+ArenaPlanTier? nextCourtsTierFor(ArenaPlanTier? tier, {required bool entitled}) {
+  final effectiveTier = entitled ? tier : null;
+  return switch (effectiveTier) {
+    ArenaPlanTier.elite => null,
+    ArenaPlanTier.pro => ArenaPlanTier.elite,
+    ArenaPlanTier.starter || null => ArenaPlanTier.pro,
   };
 }
 

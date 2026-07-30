@@ -94,4 +94,49 @@ void main() {
       expect(maxCourtsFor(null, entitled: false), 2);
     });
   });
+
+  group('nextCourtsTierFor', () {
+    test('sem plano e Starter (teto 2) sobem para o Pro', () {
+      expect(nextCourtsTierFor(null, entitled: false), ArenaPlanTier.pro);
+      expect(
+        nextCourtsTierFor(ArenaPlanTier.starter, entitled: true),
+        ArenaPlanTier.pro,
+      );
+    });
+
+    test('Pro no teto de 5 sobe para o Elite, nunca para o próprio Pro', () {
+      expect(
+        nextCourtsTierFor(ArenaPlanTier.pro, entitled: true),
+        ArenaPlanTier.elite,
+      );
+    });
+
+    test('Elite não tem teto, então não há próximo degrau', () {
+      expect(nextCourtsTierFor(ArenaPlanTier.elite, entitled: true), isNull);
+    });
+
+    test('sem titularidade cai para o degrau de "sem plano" (Pro)', () {
+      expect(
+        nextCourtsTierFor(ArenaPlanTier.elite, entitled: false),
+        ArenaPlanTier.pro,
+      );
+    });
+
+    test('o degrau sugerido sempre cabe mais quadras que o atual', () {
+      for (final tier in [null, ...ArenaPlanTier.values]) {
+        final current = maxCourtsFor(tier, entitled: true);
+        final next = nextCourtsTierFor(tier, entitled: true);
+        if (current == null) {
+          expect(next, isNull, reason: 'sem teto não precisa de upsell');
+          continue;
+        }
+        final nextMax = maxCourtsFor(next, entitled: true);
+        expect(
+          nextMax == null || nextMax > current,
+          isTrue,
+          reason: 'upsell de $tier não aumenta o teto de quadras',
+        );
+      }
+    });
+  });
 }

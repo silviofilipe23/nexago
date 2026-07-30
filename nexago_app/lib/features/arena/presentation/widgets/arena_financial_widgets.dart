@@ -574,6 +574,19 @@ class ArenaFinancialMovementTile extends StatelessWidget {
                     ),
                   ],
                 ),
+                // Saque com tarifa: o valor acima é o líquido recebido, esta
+                // linha mostra de onde saiu a diferença.
+                if (movement.note case final note?) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    note,
+                    style: AppTypography.soraRegular(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

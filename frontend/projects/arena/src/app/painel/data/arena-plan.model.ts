@@ -106,6 +106,16 @@ export function maxCourtsFor(tier: ArenaPlanTier | null, entitled: boolean): num
   return 2;
 }
 
+/** Plano que destrava mais quadras a partir do tier atual (`null` = já é ilimitado).
+ *  Sem plano/Starter (teto 2) sobem para o Pro (teto 5); Pro sobe para o Elite. Espelha
+ *  `nextCourtsTierFor` em `arena_plan.dart` — o upsell não pode vender o plano que a
+ *  arena já tem. */
+export function nextCourtsTierFor(tier: ArenaPlanTier | null, entitled: boolean): ArenaPlanTier | null {
+  const effectiveTier = entitled ? tier : null;
+  if (effectiveTier === 'elite') return null;
+  return effectiveTier === 'pro' ? 'elite' : 'pro';
+}
+
 /** Máximo de horários fixos (mensalista) ativos por plano (`null` = ilimitado). Espelha
  *  `maxRecurringBookingsFor` (Flutter) e o gate em `functions/src/arena-recurring-booking.ts`
  *  — aqui é só uma dica de UI; a Cloud Function é quem de fato barra a criação. */

@@ -96,18 +96,10 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
               status: status,
               isCurrent: _isCurrentPlan(status, plan),
               submitting: _submitting,
-              onSubscribe: () => _onSubscribe(arenaId, plan),
+              onSubscribe: () => _onSubscribe(arenaId, plan, status),
             ),
             const SizedBox(height: 14),
           ],
-          const SizedBox(height: 8),
-          Text(
-            'Valores ilustrativos — a tabela oficial de planos será confirmada em breve.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceMuted,
-                ),
-          ),
           if (status.tier != null && status.entitled) ...[
             const SizedBox(height: 16),
             Center(
@@ -129,10 +121,20 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
     );
   }
 
-  Future<void> _onSubscribe(String arenaId, ArenaPlan plan) async {
+  Future<void> _onSubscribe(
+    String arenaId,
+    ArenaPlan plan,
+    ArenaPlanStatus status,
+  ) async {
     final repo = ref.read(arenaSubscriptionRepositoryProvider);
     final storedCnpj = await repo.fetchStoredCpfCnpj(arenaId);
+    final activationFeeDue = await repo.fetchActivationFeeDue(arenaId);
     if (!mounted) return;
+
+    // Assinar com plano ativo substitui a assinatura atual (o servidor cancela
+    // a anterior no Asaas antes de criar a nova). Mesma política e mesma
+    // mensagem do painel Angular (`panel-plans.component.ts`).
+    final currentPlan = status.entitled ? arenaPlanByTier(status.tier) : null;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -144,6 +146,8 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       builder: (sheetContext) => _SubscribeSheet(
         plan: plan,
         initialCnpj: storedCnpj,
+        activationFeeDue: activationFeeDue,
+        currentPlanName: currentPlan?.name,
         onSubmit: (choice) => _completeSubscription(
           sheetContext: sheetContext,
           arenaId: arenaId,
@@ -175,11 +179,13 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
 
       Navigator.of(sheetContext).pop();
 
+      // O resultado vai completo nos dois fluxos: a tela pendente precisa do
+      // valor real cobrado (`chargedCents`) mesmo no cartão, onde não há QR.
       final pendingArgs = ArenaSubscriptionPendingArgs(
         arenaId: arenaId,
         plan: plan,
         cycle: _cycle,
-        result: result.isPix ? result : null,
+        result: result,
       );
 
       if (result.isPix) {
@@ -292,11 +298,21 @@ class _SubscribeSheet extends StatefulWidget {
   const _SubscribeSheet({
     required this.plan,
     required this.initialCnpj,
+    required this.activationFeeDue,
+    required this.currentPlanName,
     required this.onSubmit,
   });
 
   final ArenaPlan plan;
   final String initialCnpj;
+
+  /// A ativação ainda é devida? `null` = não foi possível ler o billing — a
+  /// copy então não afirma a cobrança extra.
+  final bool? activationFeeDue;
+
+  /// Plano ativo hoje; quando presente, esta assinatura substitui a atual.
+  final String? currentPlanName;
+
   final Future<void> Function(_SubscribeChoice choice) onSubmit;
 
   @override
@@ -367,7 +383,9 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Assinar plano ${widget.plan.name}',
+              widget.currentPlanName == null
+                  ? 'Assinar plano ${widget.plan.name}'
+                  : 'Mudar para o plano ${widget.plan.name}',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: colors.onSurface,
@@ -380,6 +398,16 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
                 color: colors.onSurfaceMuted,
               ),
             ),
+            if (widget.currentPlanName case final currentName?) ...[
+              const SizedBox(height: 12),
+              _SheetNote(
+                icon: Icons.swap_horiz_rounded,
+                color: colors.pending,
+                text: 'Sua assinatura atual do $currentName será cancelada e '
+                    'substituída pela do ${widget.plan.name}. A arena não fica '
+                    'com duas cobranças.',
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
@@ -395,29 +423,23 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
                 border: const OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 16,
-                  color: colors.onSurfaceMuted,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Primeira assinatura tem ativação única de '
-                    '${formatBRL(arenaActivationFeeCents / 100)} somada à '
-                    '1ª cobrança.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceMuted,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            // Ativação é cobrada uma única vez por arena: só avisa quando ainda
+            // é devida. Sem o dado (`null`), fala em possibilidade — nunca
+            // afirma uma cobrança extra que talvez não exista.
+            if (widget.activationFeeDue != false) ...[
+              const SizedBox(height: 12),
+              _SheetNote(
+                icon: Icons.info_outline_rounded,
+                color: colors.onSurfaceMuted,
+                text: widget.activationFeeDue == true
+                    ? 'Primeira assinatura tem ativação única de '
+                        '${formatBRL(arenaActivationFeeCents / 100)} somada à '
+                        '1ª cobrança.'
+                    : 'A 1ª cobrança pode incluir '
+                        '${formatBRL(arenaActivationFeeCents / 100)} de ativação '
+                        '(única), se a arena ainda não tiver pago.',
+              ),
+            ],
             if (_submitting) ...[
               const SizedBox(height: 20),
               Row(
@@ -500,6 +522,39 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Linha de aviso do sheet de assinatura (ícone + texto).
+class _SheetNote extends StatelessWidget {
+  const _SheetNote({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  height: 1.35,
+                ),
+          ),
+        ),
+      ],
     );
   }
 }

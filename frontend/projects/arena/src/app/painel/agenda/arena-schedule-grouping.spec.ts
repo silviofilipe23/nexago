@@ -88,4 +88,28 @@ describe('applyBookingsOverlay', () => {
     const result = applyBookingsOverlay(slots, bookings);
     expect(result[0].status).toBe('blocked');
   });
+
+  it('libera um slot booked cuja reserva vinculada foi cancelada', () => {
+    const slots = [makeSlot({ status: 'booked', bookingId: 'b1', bookingAthleteId: 'athlete1' })];
+    const bookings = [makeBooking({ status: 'canceled' })];
+    const result = applyBookingsOverlay(slots, bookings);
+    expect(result[0].status).toBe('available');
+    expect(result[0].bookingId).toBeNull();
+    expect(result[0].bookingAthleteId).toBeNull();
+  });
+
+  it('mantém booked um slot cuja reserva vinculada segue ativa', () => {
+    const slots = [makeSlot({ status: 'booked', bookingId: 'b1', bookingAthleteId: 'athlete1' })];
+    const bookings = [makeBooking()];
+    const result = applyBookingsOverlay(slots, bookings);
+    expect(result[0].status).toBe('booked');
+    expect(result[0].bookingId).toBe('b1');
+  });
+
+  it('mantém booked um slot cujo bookingId não está (ainda) na lista de reservas carregadas', () => {
+    const slots = [makeSlot({ status: 'booked', bookingId: 'b-desconhecido' })];
+    const bookings = [makeBooking()];
+    const result = applyBookingsOverlay(slots, bookings);
+    expect(result[0].status).toBe('booked');
+  });
 });

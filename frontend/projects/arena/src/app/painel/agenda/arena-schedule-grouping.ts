@@ -26,14 +26,26 @@ function slotOverlapsBooking(slot: Pick<ArenaSlot, 'startTime' | 'endTime'>, boo
  *  não tiver sido criado/atualizado em sincronia (webhook, corrida de escrita etc.). Só
  *  reservas ATIVAS entram no overlay — uma cancelada não pode prender o horário como ocupado
  *  (o Flutter não filtra isso na função equivalente, mas deixar passar seria mostrar um
- *  horário cancelado como indisponível, o que não serve a ninguém). */
+ *  horário cancelado como indisponível, o que não serve a ninguém).
+ *
+ *  Mesma regra na direção inversa: um slot já `booked` cujo `bookingId` aponta pra uma reserva
+ *  que virou cancelada é liberado aqui, sem esperar o doc em `arenaSlots` ser atualizado/apagado
+ *  pelo trigger server-side (`onArenaBookingStatusChangedSyncSlotHold`) — evita a corrida entre
+ *  o listener de `arenaBookings` (instantâneo) e o da própria `arenaSlots`. */
 export function applyBookingsOverlay(slots: readonly ArenaSlot[], bookings: readonly ArenaBooking[]): ArenaSlot[] {
   if (bookings.length === 0) return [...slots];
+  const bookingsById = new Map(bookings.map((b) => [b.id, b]));
   const activeBookings = bookings.filter(bookingIsActive);
-  if (activeBookings.length === 0) return [...slots];
 
   return slots.map((slot) => {
-    if (slot.status === 'booked' || slot.status === 'blocked') return slot;
+    if (slot.status === 'booked') {
+      const linkedBooking = slot.bookingId ? bookingsById.get(slot.bookingId) : undefined;
+      if (linkedBooking && !bookingIsActive(linkedBooking)) {
+        return { ...slot, status: 'available' as const, bookingId: null, bookingAthleteId: null };
+      }
+      return slot;
+    }
+    if (slot.status === 'blocked') return slot;
     for (const b of activeBookings) {
       if (b.dateKey !== slot.dateKey) continue;
       const bookingCourt = b.courtId.trim();

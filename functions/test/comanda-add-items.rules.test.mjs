@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   assertFails,
@@ -38,9 +39,13 @@ function managerCtx() {
 async function seedBase() {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    // Comanda/estoque são capabilities Pro+: sem planTier/planStatus a arena
+    // não é "entitled" e todo create abaixo bate em PERMISSION_DENIED.
     await setDoc(doc(db, 'arenas', ARENA_ID), {
       managerUserId: MANAGER_UID,
       name: 'Arena Test',
+      planTier: 'pro',
+      planStatus: 'active',
     });
     await setDoc(doc(db, 'arenaComandas', COMANDA_ID), {
       arenaId: ARENA_ID,
@@ -128,18 +133,21 @@ async function runAddItemsTransaction() {
   });
 }
 
-async function probeIsolated(label, fn) {
-  await testEnv.clearFirestore();
-  await seedBase();
-  try {
+after(() => testEnv.cleanup());
+
+// Cada probe roda isolado: limpa e ressemeia o Firestore antes de agir, para
+// que a escrita de um teste anterior não mascare a regra sob teste. A falha
+// precisa propagar (assertSucceeds dentro de test()) — capturar em try/catch e
+// só logar faz o runner reportar o arquivo inteiro como verde.
+function probe(label, fn) {
+  test(label, async () => {
+    await testEnv.clearFirestore();
+    await seedBase();
     await assertSucceeds(fn());
-    console.log(`PASS ${label}`);
-  } catch (e) {
-    console.log(`FAIL ${label}: ${e.message}`);
-  }
+  });
 }
 
-await probeIsolated('item create', async () => {
+probe('item create', async () => {
   const db = managerCtx().firestore();
   await setDoc(doc(db, 'arenaComandas', COMANDA_ID, 'items', 'item-only'), {
     productId: PRODUCT_ID,
@@ -154,7 +162,7 @@ await probeIsolated('item create', async () => {
   });
 });
 
-await probeIsolated('stock movement create', async () => {
+probe('stock movement create', async () => {
   const db = managerCtx().firestore();
   await setDoc(doc(db, 'arenas', ARENA_ID, 'stockMovements', 'mov-only'), {
     productId: PRODUCT_ID,
@@ -169,7 +177,7 @@ await probeIsolated('stock movement create', async () => {
   });
 });
 
-await probeIsolated('product stock update', async () => {
+probe('product stock update', async () => {
   const db = managerCtx().firestore();
   await updateDoc(doc(db, 'arenas', ARENA_ID, 'products', PRODUCT_ID), {
     stockQuantity: 9,
@@ -177,7 +185,7 @@ await probeIsolated('product stock update', async () => {
   });
 });
 
-await probeIsolated('comanda totals update', async () => {
+probe('comanda totals update', async () => {
   const db = managerCtx().firestore();
   await updateDoc(doc(db, 'arenaComandas', COMANDA_ID), {
     itemsTotalCents: 500,
@@ -187,7 +195,7 @@ await probeIsolated('comanda totals update', async () => {
   });
 });
 
-await probeIsolated('movement + product update transaction', async () => {
+probe('movement + product update transaction', async () => {
   const db = managerCtx().firestore();
   const productRef = doc(db, 'arenas', ARENA_ID, 'products', PRODUCT_ID);
   await runTransaction(db, async (txn) => {
@@ -208,9 +216,9 @@ await probeIsolated('movement + product update transaction', async () => {
   });
 });
 
-await probeIsolated('full addItemsBatch transaction', runAddItemsTransaction);
+probe('full addItemsBatch transaction', runAddItemsTransaction);
 
-await probeIsolated('reverse comanda item transaction', async () => {
+probe('reverse comanda item transaction', async () => {
   const db = managerCtx().firestore();
   const comandaRef = doc(db, 'arenaComandas', COMANDA_ID);
   const productRef = doc(db, 'arenas', ARENA_ID, 'products', PRODUCT_ID);
@@ -264,4 +272,31 @@ await probeIsolated('reverse comanda item transaction', async () => {
   });
 });
 
-await testEnv.cleanup();
+// Contraprova do gate: sem titularidade Pro a comanda fica read-only. Sem
+// isto, um seed sem planTier faria todos os probes acima falharem em silêncio.
+test('item create bloqueado sem titularidade Pro', async () => {
+  await testEnv.clearFirestore();
+  await seedBase();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(
+      doc(ctx.firestore(), 'arenas', ARENA_ID),
+      { planTier: 'starter' },
+      { merge: true },
+    );
+  });
+
+  const db = managerCtx().firestore();
+  await assertFails(
+    setDoc(doc(db, 'arenaComandas', COMANDA_ID, 'items', 'item-gated'), {
+      productId: PRODUCT_ID,
+      productName: 'Agua',
+      quantity: 1,
+      unitPriceCents: 500,
+      lineTotalCents: 500,
+      source: 'counter',
+      addedByName: 'Gestor',
+      addedByUid: MANAGER_UID,
+      createdAt: serverTimestamp(),
+    }),
+  );
+});

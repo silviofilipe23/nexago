@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 type Plan = {
   name: string;
   description: string;
-  /** Valor mensal em reais (0 = grátis). */
+  /** Valor mensal em reais. */
   monthly: number;
   /** Valor total anual em reais. */
   yearly: number;
@@ -20,49 +20,53 @@ type Plan = {
   cta: string;
 };
 
-// Mantém alinhado com functions/src/arena-plans.ts (fonte da verdade) e
-// nexago_app arena_plan.dart. Ciclo anual = 2 meses grátis.
+// Mantém alinhado com functions/src/arena-plans.ts (fonte da verdade),
+// nexago_app arena_plan.dart e frontend/projects/arena
+// (ARENA_PLAN_CATALOG). Ciclo anual = 1 mês grátis (12× 90/228/457).
 const PLANS: Plan[] = [
   {
-    name: 'Essencial',
-    description: 'Comece a receber reservas online sem pagar mensalidade.',
-    monthly: 0,
-    yearly: 0,
+    name: 'Starter',
+    description: 'Ideal para pequenas arenas começarem online.',
+    monthly: 99,
+    yearly: 1080,
     features: [
-      'Perfil público e listagem na busca',
-      'Reservas online com pagamento PIX',
-      'Agenda e disponibilidade das quadras',
-      'Avaliações da arena',
-      'Carteira e saque via PIX',
+      'Até 2 quadras · 1 admin',
+      'Site institucional + perfil na busca',
+      'Agenda e reservas online (site e app)',
+      'Avaliações e reputação',
+      'Pagamento e saque via PIX',
+      'Taxa de 8% por reserva',
     ],
-    cta: 'Começar grátis',
+    cta: 'Começar agora',
   },
   {
     name: 'Pro',
-    description: 'A operação completa da arena, do balcão ao torneio.',
-    monthly: 149,
-    yearly: 1490,
+    description: 'A operação completa da arena.',
+    monthly: 249,
+    yearly: 2736,
     popular: true,
     features: [
-      'Tudo do Essencial',
-      'PDV e comandas',
-      'Controle de estoque e produtos',
-      'Destaque na busca e promoções de horário',
-      'Dashboard completo, insights e seguidores',
-      'Receber etapas e torneios',
+      'Tudo do Starter · até 5 quadras',
+      'Torneios ilimitados e ranking da arena',
+      'Inscrições com pagamento online',
+      'Relatórios e dashboard',
+      'PDV, comandas e estoque',
+      'Push para atletas · taxa de 6%',
     ],
     cta: 'Falar com a gente',
   },
   {
-    name: 'Parceiro',
-    description: 'Para redes e arenas que sediam a Liga nexaGO.',
-    monthly: 399,
-    yearly: 3990,
+    name: 'Elite',
+    description: 'Para arenas grandes e redes.',
+    monthly: 499,
+    yearly: 5484,
     features: [
-      'Tudo do Pro',
-      'Múltiplas quadras / unidades, sem limite',
-      'Prioridade em etapas da Liga nexaGO',
-      'Gerente de conta dedicado',
+      'Tudo do Pro · usuários ilimitados',
+      'Análise financeira + consultoria semanal',
+      'Landing pages ilimitadas',
+      'Área de patrocinadores',
+      'Suporte prioritário',
+      'Taxa de 5% · saque PIX sem tarifa',
     ],
     cta: 'Falar com a gente',
   },
@@ -107,7 +111,7 @@ function BillingSwitch({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
                   active ? 'bg-on-brand/15 text-on-brand' : 'bg-brand-tint text-brand',
                 )}
               >
-                2 meses grátis
+                1 mês grátis
               </span>
             )}
           </button>
@@ -128,8 +132,8 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
           Invista no que enche suas quadras
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-balance text-base text-text-mute sm:text-lg">
-          Comece grátis hoje. Quando a agenda ganhar ritmo, suba de plano para receber torneios,
-          aparecer em destaque e atrair quem já joga na areia — sem fidelidade, no seu tempo.
+          Ativação única de R$ 97 (domínio, site, onboarding e perfil na busca). No anual, 1 mês
+          grátis em todos os planos.
         </p>
       </Reveal>
 
@@ -143,7 +147,6 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
       <div className="mt-14 -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-5 px-5 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:scroll-px-6 sm:px-6 md:mx-0 md:grid md:grid-cols-3 md:items-stretch md:gap-5 md:snap-none md:overflow-visible md:px-0 md:pb-0 md:pt-0">
         {PLANS.map((plan, i) => {
           const value = yearly ? plan.yearly : plan.monthly;
-          const free = plan.monthly === 0;
           return (
             <Reveal
               key={plan.name}
@@ -167,20 +170,19 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
                 <p className="mt-2 text-sm leading-relaxed text-text-mute">{plan.description}</p>
 
                 <div className="mt-6 flex items-baseline gap-1.5">
-                  {free ? (
-                    <span className="font-display text-4xl font-800 tracking-tight text-fg">Grátis</span>
-                  ) : (
-                    <>
-                      <NumberFlow
-                        value={value}
-                        locales="pt-BR"
-                        format={{ style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }}
-                        className="font-display text-4xl font-800 tracking-tight text-fg [font-variant-numeric:tabular-nums]"
-                      />
-                      <span className="text-sm text-text-mute">/{yearly ? 'ano' : 'mês'}</span>
-                    </>
-                  )}
+                  <NumberFlow
+                    value={value}
+                    locales="pt-BR"
+                    format={{ style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }}
+                    className="font-display text-4xl font-800 tracking-tight text-fg [font-variant-numeric:tabular-nums]"
+                  />
+                  <span className="text-sm text-text-mute">/{yearly ? 'ano' : 'mês'}</span>
                 </div>
+                {yearly && (
+                  <p className="mt-1.5 text-sm text-text-mute">
+                    12× de R$ {plan.yearly / 12} · 1 mês grátis
+                  </p>
+                )}
 
                 <a
                   href="#contato"
@@ -216,7 +218,8 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
 
       <Reveal delay={0.1}>
         <p className="mt-10 text-center text-xs text-text-dim">
-          Sem fidelidade. O Essencial é grátis para sempre — você só paga a taxa por reserva paga.
+          Sem fidelidade. Cancele quando quiser — a taxa por reserva paga no app varia por plano
+          (8%, 6% ou 5%).
         </p>
       </Reveal>
     </section>

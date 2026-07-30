@@ -20,8 +20,8 @@ const ARENA_SLOT_LOCKS = "arenaSlotLocks";
  * visíveis na grade do atleta (`slots_page_providers.dart`). */
 export const RECURRING_HORIZON_DAYS = 35;
 
-/** Limite de séries ativas para arenas sem plano pago (Essencial). */
-export const ESSENCIAL_MAX_ACTIVE_RECURRING = 3;
+/** Limite de séries ativas para arenas sem plano Pro+ (sem plano ou Starter). */
+export const STARTER_MAX_ACTIVE_RECURRING = 3;
 
 const ARENA_TIMEZONE_OFFSET = "-03:00";
 
@@ -648,10 +648,10 @@ async function createArenaRecurringBookingHandler(
       .where("status", "in", ["active", "paused"])
       .count()
       .get();
-    if (activeCount.data().count >= ESSENCIAL_MAX_ACTIVE_RECURRING) {
+    if (activeCount.data().count >= STARTER_MAX_ACTIVE_RECURRING) {
       throw new HttpsError(
         "resource-exhausted",
-        `Seu plano permite até ${ESSENCIAL_MAX_ACTIVE_RECURRING} horários fixos ativos. ` +
+        `Seu plano permite até ${STARTER_MAX_ACTIVE_RECURRING} horários fixos ativos. ` +
         "Faça upgrade para criar mais.",
       );
     }

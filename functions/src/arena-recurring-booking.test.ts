@@ -9,7 +9,7 @@ import {
   occurrenceDatesBetween,
   toMinutes,
   validateRecurringInput,
-  ESSENCIAL_MAX_ACTIVE_RECURRING,
+  STARTER_MAX_ACTIVE_RECURRING,
   RECURRING_HORIZON_DAYS,
 } from "./arena-recurring-booking";
 
@@ -127,8 +127,8 @@ describe("constantes de produto", () => {
     assert.ok(RECURRING_HORIZON_DAYS > 21);
   });
 
-  it("limite Essencial é 3 séries ativas", () => {
-    assert.equal(ESSENCIAL_MAX_ACTIVE_RECURRING, 3);
+  it("limite Starter é 3 séries ativas", () => {
+    assert.equal(STARTER_MAX_ACTIVE_RECURRING, 3);
   });
 });
 

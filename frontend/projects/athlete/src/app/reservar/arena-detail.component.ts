@@ -9,6 +9,7 @@ import {
   fetchArenaDaySlotsMerged,
   fetchCourts,
   isPastSlot,
+  slotsQueryDateKey,
   toggleFavoriteArena,
   watchFavoriteArenaIds,
   type ArenaAmenities,
@@ -129,6 +130,7 @@ export class ArenaDetailComponent {
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly googleMapsApiKey = environment.googleMapsApiKey;
+  protected readonly todayKey = slotsQueryDateKey(new Date());
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();

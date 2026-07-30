@@ -101,12 +101,12 @@ function tomorrowKey(): string {
               </div>
               <div class="table-list">
                 @for (b of visibleBookings(); track b.id) {
-                  <div class="table-row" (click)="open(b.id)">
+                  <div class="table-row" [class.row-canceled]="!bookingIsActive(b)" (click)="open(b.id)">
                     <div class="cell-client">{{ customerLabel(b) }}</div>
                     <div class="cell-slot">{{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}</div>
                     <div class="cell-amount right">{{ formatBRL(b.amountReais) }}</div>
                     <div><ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill></div>
-                    <div class="cell-status">{{ statusLabel(b.status) }}</div>
+                    <div class="cell-status" [class.status-canceled]="!bookingIsActive(b)">{{ statusLabel(b.status) }}</div>
                   </div>
                 }
               </div>
@@ -118,12 +118,12 @@ function tomorrowKey(): string {
                 </div>
                 <div class="table-list section-list">
                   @for (b of section.bookings; track b.id) {
-                    <div class="table-row" (click)="open(b.id)">
+                    <div class="table-row" [class.row-canceled]="!bookingIsActive(b)" (click)="open(b.id)">
                       <div class="cell-client">{{ customerLabel(b) }}</div>
                       <div class="cell-slot">{{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}</div>
                       <div class="cell-amount right">{{ formatBRL(b.amountReais) }}</div>
                       <div><ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill></div>
-                      <div class="cell-status">{{ statusLabel(b.status) }}</div>
+                      <div class="cell-status" [class.status-canceled]="!bookingIsActive(b)">{{ statusLabel(b.status) }}</div>
                     </div>
                   }
                 </div>
@@ -242,6 +242,14 @@ function tomorrowKey(): string {
       border-bottom: none;
     }
 
+    .table-row.row-canceled {
+      opacity: 0.55;
+    }
+
+    .cell-status.status-canceled {
+      color: var(--nx-live);
+    }
+
     .cell-client {
       font-family: var(--nx-font-display);
       font-weight: 700;
@@ -316,6 +324,7 @@ export class PanelBookingsComponent {
   protected readonly formatBRL = formatBRL;
   protected readonly attendanceLabel = attendanceLabel;
   protected readonly statusLabel = bookingStatusLabel;
+  protected readonly bookingIsActive = bookingIsActive;
   protected readonly displayBookingCode = displayBookingCode;
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
@@ -341,13 +350,13 @@ export class PanelBookingsComponent {
     const tomorrow = tomorrowKey();
 
     if (mode === 'today') {
-      return all.filter((b) => bookingIsActive(b) && b.dateKey === today).sort(this.sortByStartTime);
+      return all.filter((b) => b.dateKey === today).sort(this.sortByStartTime);
     }
     if (mode === 'tomorrow') {
-      return all.filter((b) => bookingIsActive(b) && b.dateKey === tomorrow).sort(this.sortByStartTime);
+      return all.filter((b) => b.dateKey === tomorrow).sort(this.sortByStartTime);
     }
     if (mode === 'upcoming') {
-      return all.filter((b) => bookingIsActive(b) && b.dateKey.length >= 10 && b.dateKey > tomorrow);
+      return all.filter((b) => b.dateKey.length >= 10 && b.dateKey > tomorrow);
     }
     return all.filter((b) => b.dateKey.length >= 10 && b.dateKey < today);
   });
@@ -370,10 +379,12 @@ export class PanelBookingsComponent {
   });
 
   protected readonly periodTotalReais = computed(() =>
-    this.visibleBookings().reduce((sum, b) => sum + (b.amountReais ?? 0), 0),
+    this.visibleBookings()
+      .filter(bookingIsActive)
+      .reduce((sum, b) => sum + (b.amountReais ?? 0), 0),
   );
 
-  protected readonly recurringCount = computed(() => this.visibleBookings().filter((b) => b.isRecurring).length);
+  protected readonly recurringCount = computed(() => this.visibleBookings().filter((b) => bookingIsActive(b) && b.isRecurring).length);
 
   protected readonly listKicker = computed(() => `${this.visibleBookings().length} registros`);
 
@@ -420,7 +431,7 @@ export class PanelBookingsComponent {
   }
 
   protected sectionTotal(section: BookingSection): number {
-    return section.bookings.reduce((sum, b) => sum + (b.amountReais ?? 0), 0);
+    return section.bookings.filter(bookingIsActive).reduce((sum, b) => sum + (b.amountReais ?? 0), 0);
   }
 
   protected open(bookingId: string): void {

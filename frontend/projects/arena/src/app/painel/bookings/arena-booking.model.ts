@@ -125,6 +125,7 @@ export const ATTENDANCE_LABEL: Record<string, string> = {
   confirmed: 'Confirmado',
   no_show: 'No-show',
   pending: 'Pendente',
+  canceled: 'Cancelado',
 };
 
 export function attendanceLabel(status: string): string {

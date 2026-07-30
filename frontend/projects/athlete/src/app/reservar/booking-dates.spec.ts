@@ -5,8 +5,10 @@ import {
   buildDateStrip,
   clampPickedDate,
   daysBetween,
+  findSlotByTime,
   shouldShowMonth,
 } from './booking-dates';
+import type { ArenaSlot } from '@nexago/arena-discovery';
 
 const TODAY = new Date(2026, 6, 29); // 29/07/2026, quarta
 
@@ -112,5 +114,51 @@ describe('shouldShowMonth', () => {
   it('não mostra o mês nos demais dias', () => {
     expect(shouldShowMonth(new Date(2026, 6, 30), 1)).toBeFalse();
     expect(shouldShowMonth(new Date(2026, 7, 15), 17)).toBeFalse();
+  });
+});
+
+describe('findSlotByTime', () => {
+  function makeSlot(overrides: Partial<ArenaSlot> = {}): ArenaSlot {
+    return {
+      id: 's1',
+      arenaId: 'a1',
+      courtId: 'c1',
+      date: TODAY,
+      startTime: '18:00',
+      endTime: '19:00',
+      rawStatus: 'available',
+      priceReais: 80,
+      basePriceReais: 80,
+      appliedPromotionId: null,
+      isVirtual: false,
+      ...overrides,
+    };
+  }
+
+  it('acha o slot com o horário exato disponível na quadra certa', () => {
+    const slot = makeSlot({ id: 's1', courtId: 'c1', startTime: '18:00' });
+    const other = makeSlot({ id: 's2', courtId: 'c1', startTime: '19:00' });
+    expect(findSlotByTime([slot, other], 'c1', '18:00', TODAY, TODAY)).toBe(slot);
+  });
+
+  it('retorna null quando não há slot com esse horário', () => {
+    const slot = makeSlot({ startTime: '18:00' });
+    expect(findSlotByTime([slot], 'c1', '20:00', TODAY, TODAY)).toBeNull();
+  });
+
+  it('ignora slot de outra quadra mesmo com o mesmo horário', () => {
+    const slot = makeSlot({ courtId: 'c2', startTime: '18:00' });
+    expect(findSlotByTime([slot], 'c1', '18:00', TODAY, TODAY)).toBeNull();
+  });
+
+  it('ignora um slot cujo horário já passou', () => {
+    const slot = makeSlot({ startTime: '18:00' });
+    const now = new Date(2026, 6, 29, 20, 0); // 20h, depois das 18h do mesmo dia
+    expect(findSlotByTime([slot], 'c1', '18:00', TODAY, now)).toBeNull();
+  });
+
+  it('retorna null quando não há horário pedido', () => {
+    const slot = makeSlot({ startTime: '18:00' });
+    expect(findSlotByTime([slot], 'c1', null, TODAY, TODAY)).toBeNull();
   });
 });

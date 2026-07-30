@@ -475,6 +475,8 @@ export class PanelAgendaComponent {
 
   protected readonly weekStats = computed(() => scheduleDayStats(this.filteredWeekSlots()));
 
+  protected readonly activeFilteredSlots = computed(() => (this.view() === 'Semana' ? this.filteredWeekSlots() : this.filteredSlots()));
+
   protected readonly agendaWeekBlocks = computed<AgendaWeekBlock[]>(() => {
     const blocks: AgendaWeekBlock[] = [];
     for (const s of this.filteredWeekSlots()) {
@@ -487,7 +489,9 @@ export class PanelAgendaComponent {
   });
 
   protected readonly agendaCourts = computed<AgendaCourt[]>(() =>
-    this.courts().map((c) => ({ id: c.id, name: c.name, sport: c.types.join(', ') || '—' })),
+    this.courts()
+      .filter((c) => !this.courtFilter() || c.id === this.courtFilter())
+      .map((c) => ({ id: c.id, name: c.name, sport: c.types.join(', ') || '—' })),
   );
 
   private bookingFor(slot: ArenaSlot): ArenaBooking | null {
@@ -530,13 +534,16 @@ export class PanelAgendaComponent {
   });
 
   protected readonly listRows = computed<AgendaListRow[]>(() => {
-    const rows: AgendaListRow[] = this.filteredSlots().map((s) => ({
-      id: s.id,
-      time: s.startTime,
-      court: this.courtName(s.courtId),
-      client: this.clientLabelFor(s),
-      status: this.slotStatusForBlock(s),
-    }));
+    const dateKey = this.selectedDateKey();
+    const rows: AgendaListRow[] = this.activeFilteredSlots()
+      .filter((s) => s.dateKey === dateKey)
+      .map((s) => ({
+        id: s.id,
+        time: s.startTime,
+        court: this.courtName(s.courtId),
+        client: this.clientLabelFor(s),
+        status: this.slotStatusForBlock(s),
+      }));
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
       for (const c of this.courts()) {
@@ -655,7 +662,7 @@ export class PanelAgendaComponent {
 
   protected onBlockClick(id: string): void {
     if (id.startsWith('maint-')) return;
-    const slot = this.filteredSlots().find((s) => s.id === id);
+    const slot = this.activeFilteredSlots().find((s) => s.id === id);
     if (!slot) return;
 
     if (slot.status === 'booked') {

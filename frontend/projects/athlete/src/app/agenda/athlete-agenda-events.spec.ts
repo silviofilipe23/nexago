@@ -88,6 +88,34 @@ describe('bookingToEvent', () => {
     const event = bookingToEvent(booking, NOW);
     expect(event?.isPast).toBe(false);
   });
+
+  it('mostra "Confirmado" para reserva paga mesmo sem check-in (attendanceConfirmed) no dia', () => {
+    // attendanceConfirmed só vira true no check-in presencial no dia do jogo — não deve
+    // rebaixar pra "Aguardando confirmação" uma reserva já paga/confirmada (alinhado com o
+    // status exibido na tela de detalhes da reserva).
+    const booking = makeBooking({
+      dateKey: '2026-07-25',
+      startTime: '10:00',
+      endTime: '11:00',
+      status: 'confirmed',
+      attendanceConfirmed: false,
+    });
+    const event = bookingToEvent(booking, NOW);
+    expect(event?.statusLabel).toBe('Confirmado');
+    expect(event?.statusTone).toBe('confirmed');
+  });
+
+  it('mostra "Pagamento pendente" para reserva com status pending_payment', () => {
+    const booking = makeBooking({
+      dateKey: '2026-07-25',
+      startTime: '10:00',
+      endTime: '11:00',
+      status: 'pending_payment',
+    });
+    const event = bookingToEvent(booking, NOW);
+    expect(event?.statusLabel).toBe('Pagamento pendente');
+    expect(event?.statusTone).toBe('warning');
+  });
 });
 
 describe('registrationToEvent', () => {

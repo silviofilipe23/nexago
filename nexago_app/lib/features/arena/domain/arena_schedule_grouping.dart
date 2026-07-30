@@ -9,6 +9,9 @@ abstract final class ArenaScheduleGrouping {
 
   /// Garante que reservas em `arenaBookings` apareçam na grade mesmo se o doc em
   /// `arenaSlots` tiver `date` em Timestamp UTC (dia errado) ou merge incompleto.
+  ///
+  /// Reservas canceladas não entram no overlay — cancelada não pode prender o
+  /// horário como ocupado (paridade com `applyBookingsOverlay` do painel web).
   static List<ArenaSlot> applyBookingsOverlay({
     required List<ArenaSlot> slots,
     required List<ArenaManagerBooking> bookings,
@@ -16,8 +19,9 @@ abstract final class ArenaScheduleGrouping {
   }) {
     if (dateKey.isEmpty || bookings.isEmpty) return slots;
 
-    final dayBookings =
-        bookings.where((b) => b.dateKey == dateKey).toList(growable: false);
+    final dayBookings = bookings
+        .where((b) => b.dateKey == dateKey && !b.isCanceled)
+        .toList(growable: false);
     if (dayBookings.isEmpty) return slots;
 
     return slots.map((slot) {

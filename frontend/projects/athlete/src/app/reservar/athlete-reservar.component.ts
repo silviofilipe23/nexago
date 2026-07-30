@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getDoc, getFirestore, type Firestore } from 'firebase/firestore';
 import {
@@ -158,6 +158,7 @@ export class AthleteReservarComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -192,8 +193,6 @@ export class AthleteReservarComponent {
   protected readonly favoriteIds = signal<ReadonlySet<string>>(new Set());
   protected readonly pendingFavoriteId = signal<string | null>(null);
   protected readonly favoriteNotice = signal<string | null>(null);
-
-  protected readonly confirmResult = signal<ArenaSearchResult | null>(null);
 
   protected readonly loadedImageIds = signal<ReadonlySet<string>>(new Set());
   protected readonly failedImageIds = signal<ReadonlySet<string>>(new Set());
@@ -438,13 +437,18 @@ export class AthleteReservarComponent {
     setTimeout(() => this.favoriteNotice.set(null), 4000);
   }
 
-  protected openConfirm(result: ArenaSearchResult): void {
-    if (!result.hasAvailability) return;
-    this.confirmResult.set(result);
-  }
-
-  protected closeConfirm(): void {
-    this.confirmResult.set(null);
+  protected reservarProximoHorario(result: ArenaSearchResult): void {
+    const slot = result.selectedSlot;
+    if (!result.hasAvailability || !slot) {
+      return;
+    }
+    void this.router.navigate(['/reservar', result.arena.id, 'agendar'], {
+      queryParams: {
+        courtId: slot.courtId,
+        date: toDateInputValue(this.searchDate()),
+        time: slot.startTime,
+      },
+    });
   }
 
   protected isFavorite(arenaId: string): boolean {

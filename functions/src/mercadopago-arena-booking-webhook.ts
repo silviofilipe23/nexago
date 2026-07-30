@@ -15,6 +15,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
+import {computeSlotLockIds} from "./arena-booking-waitlist";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {isArenaEntitledPro} from "./arena-entitlement";
 import {BOOKING_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
@@ -51,31 +52,6 @@ export type MercadoPagoPaymentPayload = {
   transaction_amount?: number;
 };
 
-function safeIdPart(s: string): string {
-  return s.replace(/\//g, "_");
-}
-
-function toMinutes(hhmm: string): number {
-  const t = hhmm.trim();
-  const parts = t.split(":");
-  const h = parseInt(parts[0] || "0", 10) || 0;
-  const m = parts.length > 1 ? (parseInt(parts[1], 10) || 0) : 0;
-  return h * 60 + m;
-}
-
-function calendarHoursSpanning(startMin: number, endMin: number): number[] {
-  if (endMin <= startMin) {
-    return [];
-  }
-  const startH = Math.floor(startMin / 60);
-  const endH = Math.floor((endMin - 1) / 60);
-  const out: number[] = [];
-  for (let h = startH; h <= endH; h++) {
-    out.push(h);
-  }
-  return out;
-}
-
 function lockDocIdsForBooking(booking: DocumentData): string[] {
   const arenaId = booking.arenaId as string | undefined;
   const courtId = booking.courtId as string | undefined;
@@ -85,14 +61,9 @@ function lockDocIdsForBooking(booking: DocumentData): string[] {
   if (!arenaId || !courtId || !dateKey || !startTime || !endTime) {
     return [];
   }
-  const startMin = toMinutes(startTime);
-  const endMin = toMinutes(endTime);
-  const hours = calendarHoursSpanning(startMin, endMin);
-  const safeArena = safeIdPart(arenaId);
-  const safeCourt = safeIdPart(courtId);
-  return hours.map(
-    (h) => `${safeArena}_${safeCourt}_${dateKey}_h${h.toString().padStart(2, "0")}`,
-  );
+  // Mesma fórmula de `createArenaBooking` — inclusive endTime "00:00" virar
+  // 24:00 (a versão local antiga zerava as horas e deixava locks órfãos).
+  return computeSlotLockIds({arenaId, courtId, dateKey, startTime, endTime});
 }
 
 /**

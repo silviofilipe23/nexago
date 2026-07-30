@@ -14,6 +14,7 @@ import {
 import {createArenaSubscription, cancelArenaSubscription} from "./arena-subscription";
 import {asaasWebhook} from "./asaas-webhook";
 import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
+import {onArenaBookingStatusChangedSyncSlotHold} from "./arena-booking-slot-release";
 import {
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
@@ -140,6 +141,7 @@ export {
   cancelArenaSubscription,
   asaasWebhook,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
+  onArenaBookingStatusChangedSyncSlotHold,
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,

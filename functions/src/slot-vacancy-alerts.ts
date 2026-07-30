@@ -11,7 +11,8 @@ import {
 } from "./notification-delivery";
 
 const SLOT_VACANCY_NOTIFICATION_TYPE = "slot_vacancy_available";
-const CANCELED_STATUSES = new Set(["canceled", "cancelled"]);
+/** Grafias de "cancelado" em `arenaBookings` (clients gravam 'canceled'; functions, 'cancelled'). */
+export const CANCELED_BOOKING_STATUSES = new Set(["canceled", "cancelled"]);
 
 export function normalizeBookingStatus(raw: unknown): string {
   if (typeof raw !== "string") return "";
@@ -25,9 +26,9 @@ export function isBookingCanceledTransition(
 ): boolean {
   if (!after) return false;
   const next = normalizeBookingStatus(after["status"]);
-  if (!CANCELED_STATUSES.has(next)) return false;
+  if (!CANCELED_BOOKING_STATUSES.has(next)) return false;
   const prev = normalizeBookingStatus(before?.["status"]);
-  return !CANCELED_STATUSES.has(prev);
+  return !CANCELED_BOOKING_STATUSES.has(prev);
 }
 
 export function parseDateKeyFromBooking(value: unknown): string | null {

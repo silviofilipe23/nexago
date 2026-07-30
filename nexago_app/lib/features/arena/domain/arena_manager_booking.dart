@@ -39,6 +39,12 @@ class ArenaManagerBooking {
 
   bool get attendanceConfirmed => data['attendanceConfirmed'] == true;
 
+  /// Reserva cancelada não ocupa horário na agenda (espelha `bookingIsActive` do web).
+  bool get isCanceled {
+    final raw = (data['status'] as String?)?.trim().toLowerCase() ?? '';
+    return raw == 'canceled' || raw == 'cancelled';
+  }
+
   /// Ocorrência de um horário fixo (série em `arenaRecurringBookings`).
   bool get isRecurring =>
       data['isRecurring'] == true || recurringBookingId != null;

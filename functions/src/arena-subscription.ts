@@ -63,6 +63,15 @@ export function shouldChargeActivationFee(
   return !billing?.activationFeePaidAt;
 }
 
+/** Campos de ativação a gravar no billing: omitidos quando não houve cobrança nova (preserva auditoria). */
+export function activationBillingFields(
+  activationPaymentId: string | null,
+): Record<string, unknown> {
+  return activationPaymentId ?
+    {activationPaymentId, activationFeeCents: ACTIVATION_FEE_CENTS} :
+    {};
+}
+
 async function assertCallerManagesArena(
   arenaId: string,
   callerUid: string,
@@ -216,8 +225,10 @@ export const createArenaSubscription = onCall(
         valueCents,
         status: "pending",
         lastPaymentId: paymentId || null,
-        activationPaymentId,
-        activationFeeCents: activationPaymentId ? ACTIVATION_FEE_CENTS : null,
+        // Sem cobrança nova nesta chamada (ativação já paga em ciclo anterior):
+        // omite as chaves para o merge preservar o paymentId/valor que já
+        // pagou a ativação, em vez de zerar o rastro de auditoria.
+        ...activationBillingFields(activationPaymentId),
         updatedAt: FieldValue.serverTimestamp(),
       },
       {merge: true},

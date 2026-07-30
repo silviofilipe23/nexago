@@ -4,7 +4,7 @@
  */
 import {resolvePlanPriceCents, normalizeArenaPlanTier, ACTIVATION_FEE_CENTS} from "./arena-plans";
 import {parseSubscriptionRef} from "./asaas-arena-subscription-webhook";
-import {shouldChargeActivationFee} from "./arena-subscription";
+import {shouldChargeActivationFee, activationBillingFields} from "./arena-subscription";
 
 let failures = 0;
 
@@ -69,6 +69,18 @@ function run(): void {
   assert(
     shouldChargeActivationFee({activationPaymentId: "pay_1"}) === true,
     "tentativa anterior não paga -> cobra de novo (novo paymentId substitui)",
+  );
+
+  // Payload de ativação no billing: omitido quando não houve cobrança nova
+  // nesta chamada, para o merge preservar o rastro de auditoria já gravado.
+  const withCharge = activationBillingFields("pay_123");
+  assert(
+    withCharge.activationPaymentId === "pay_123" && withCharge.activationFeeCents === 9700,
+    "com paymentId -> grava activationPaymentId + activationFeeCents (9700)",
+  );
+  assert(
+    Object.keys(activationBillingFields(null)).length === 0,
+    "sem paymentId -> objeto vazio (merge preserva valores anteriores)",
   );
 
   if (failures > 0) {

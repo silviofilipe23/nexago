@@ -371,6 +371,14 @@ void main() {
       expect(isBalancedKnockoutQualifierCount(10), isFalse);
       expect(isBalancedKnockoutQualifierCount(6), isFalse);
     });
+
+    test('rejects odd totals that the old >>1 check accepted', () {
+      expect(isBalancedKnockoutQualifierCount(3), isFalse);
+      expect(isBalancedKnockoutQualifierCount(5), isFalse);
+      expect(isBalancedKnockoutQualifierCount(9), isFalse);
+      expect(isBalancedKnockoutQualifierCount(1), isFalse);
+      expect(isBalancedKnockoutQualifierCount(2), isTrue);
+    });
   });
 
   group('distributeTeamsIntoGroups', () {

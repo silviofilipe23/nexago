@@ -117,6 +117,104 @@ describe("validateBracketDefinition", () => {
   }
 });
 
+/** Invariantes de DUPLA eliminação que o validador estrutural não cobre —
+ *  pegam o bug da planta de 27 (perdedor da WB #8 nunca descia pra LB e a
+ *  dupla era eliminada com UMA derrota), que passava em 300 playthroughs do
+ *  harness de jogabilidade (slot duplo/deadlock) sem acusar nada. */
+describe("invariantes de dupla eliminação das plantas", () => {
+  for (const [numTeams, def] of ALL_BRACKET_DEFINITIONS) {
+    it(`bracket-${numTeams}-teams: seeds 1..${numTeams} exatamente uma vez, na WB`, () => {
+      const seedCount = new Map<number, number>();
+      for (const m of def) {
+        for (const src of [m.teamA, m.teamB]) {
+          if (src.type !== "SEED") continue;
+          seedCount.set(src.seed, (seedCount.get(src.seed) ?? 0) + 1);
+          assert.equal(m.bracket, "WB", `SEED ${src.seed} entra fora da WB (#${m.matchNumber})`);
+        }
+      }
+      for (let s = 1; s <= numTeams; s++) {
+        assert.equal(seedCount.get(s) ?? 0, 1, `SEED ${s} deveria aparecer exatamente 1x`);
+      }
+      assert.equal(seedCount.size, numTeams, "não pode haver SEED fora de 1..N");
+    });
+
+    it(`bracket-${numTeams}-teams: todo perdedor da WB é consumido (2ª chance)`, () => {
+      const consumed = new Set<number>();
+      for (const m of def) {
+        for (const src of [m.teamA, m.teamB]) {
+          if (src.type === "LOSER") consumed.add(src.matchNumber);
+        }
+      }
+      for (const m of def) {
+        if (m.bracket !== "WB") continue;
+        assert.ok(
+          consumed.has(m.matchNumber),
+          `perdedor da WB #${m.matchNumber} não desce pra LB nem disputa 3º lugar ` +
+            "(seria eliminado com uma derrota só)",
+        );
+      }
+    });
+
+    it(`bracket-${numTeams}-teams: ninguém joga com 2 derrotas (fora do 3º lugar)`, () => {
+      const ordered = [...def].sort((a, b) => a.matchNumber - b.matchNumber);
+      // Playthroughs determinísticos: favorito sempre, zebra sempre e 100 mistos.
+      const pickers: Array<(a: number, b: number, i: number) => number> = [
+        (a, b) => Math.min(a, b),
+        (a, b) => Math.max(a, b),
+      ];
+      for (let s = 0; s < 100; s++) {
+        pickers.push((a, b, i) => ((i * 2654435761 + s * 40503) >>> (i % 16)) % 2 === 0 ? a : b);
+      }
+      for (const pick of pickers) {
+        const results = new Map<number, {winner: number; loser: number}>();
+        const losses = new Map<number, number>();
+        const resolve = (src: MatchDefinition["teamA"]): number | null => {
+          if (src.type === "SEED") return src.seed;
+          if (src.type === "BYE") return null;
+          const r = results.get(src.matchNumber);
+          assert.ok(r, `#${src.matchNumber} referenciado antes de ser jogado`);
+          return src.type === "WINNER" ? r!.winner : r!.loser;
+        };
+        let i = 0;
+        for (const m of ordered) {
+          const a = resolve(m.teamA);
+          const b = resolve(m.teamB);
+          assert.ok(a != null && b != null, `#${m.matchNumber} com BYE não resolvido`);
+          assert.notEqual(a, b, `#${m.matchNumber} com a mesma dupla dos dois lados`);
+          if (m.bracket !== "THIRD_PLACE") {
+            assert.ok(
+              (losses.get(a!) ?? 0) < 2,
+              `seed ${a} joga #${m.matchNumber} (${m.bracket}) já eliminado (2 derrotas)`,
+            );
+            assert.ok(
+              (losses.get(b!) ?? 0) < 2,
+              `seed ${b} joga #${m.matchNumber} (${m.bracket}) já eliminado (2 derrotas)`,
+            );
+          }
+          const winner = pick(a!, b!, i++);
+          const loser = winner === a ? b! : a!;
+          losses.set(loser, (losses.get(loser) ?? 0) + 1);
+          results.set(m.matchNumber, {winner, loser});
+        }
+        // Todas as N duplas jogam ao menos uma vez.
+        const played = new Set<number>();
+        for (const r of results.values()) {
+          played.add(r.winner);
+          played.add(r.loser);
+        }
+        assert.equal(played.size, numTeams, "toda dupla precisa jogar ao menos 1 partida");
+        // Campeão da grande final termina com no máximo 1 derrota.
+        const finalMatch = def.find((m) => m.bracket === "FINAL")!;
+        const champion = results.get(finalMatch.matchNumber)!.winner;
+        assert.ok(
+          (losses.get(champion) ?? 0) <= 1,
+          `campeão (seed ${champion}) com ${losses.get(champion)} derrotas`,
+        );
+      }
+    });
+  }
+});
+
 describe("buildMatchesFromDefinition", () => {
   const def: MatchDefinition[] = [
     {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 4}},

@@ -5,6 +5,7 @@ import {
   buildGroupsKnockoutMatches,
   buildSingleEliminationMatches,
   crossoverFirstRoundPairings,
+  isBalancedQualifierTotal,
 } from "./category-bracket-builders";
 import {
   computePoolStandings,
@@ -254,6 +255,66 @@ describe("crossoverFirstRoundPairings", () => {
     assert.deepEqual(pairs[6], {a: {poolId: "G", place: 1}, b: {poolId: "B", place: 2}});
     assert.deepEqual(pairs[7], {a: {poolId: "H", place: 1}, b: {poolId: "A", place: 2}});
   });
+
+  // Regressão: q=1 caía em halfBands=0 e retornava ZERO pares — a chave era
+  // publicada só com a fase de grupos, sem mata-mata nenhum.
+  it("pairs group winners across mirrored groups when only 1 qualifies (4 grupos)", () => {
+    const pairs = crossoverFirstRoundPairings(["A", "B", "C", "D"], 1);
+    assert.deepEqual(pairs, [
+      {a: {poolId: "A", place: 1}, b: {poolId: "D", place: 1}},
+      {a: {poolId: "B", place: 1}, b: {poolId: "C", place: 1}},
+    ]);
+  });
+
+  it("pairs group winners for 8 groups × 1 classificado (quartas)", () => {
+    const pairs = crossoverFirstRoundPairings(["A", "B", "C", "D", "E", "F", "G", "H"], 1);
+    assert.equal(pairs.length, 4);
+    assert.deepEqual(pairs[0], {a: {poolId: "A", place: 1}, b: {poolId: "H", place: 1}});
+    assert.deepEqual(pairs[3], {a: {poolId: "D", place: 1}, b: {poolId: "E", place: 1}});
+  });
+
+  it("keeps two-group behaviour for q=1 (final direta 1A×1B)", () => {
+    assert.deepEqual(crossoverFirstRoundPairings(["A", "B"], 1), [
+      {a: {poolId: "A", place: 1}, b: {poolId: "B", place: 1}},
+    ]);
+  });
+
+  it("emits every qualifier exactly once for odd q with n groups (banda do meio)", () => {
+    const pairs = crossoverFirstRoundPairings(["A", "B", "C", "D"], 3);
+    assert.equal(pairs.length, 6); // 12 classificados → 6 confrontos
+    const seen = new Map<string, number>();
+    for (const pair of pairs) {
+      for (const slot of [pair.a, pair.b]) {
+        const key = `${slot.place}${slot.poolId}`;
+        seen.set(key, (seen.get(key) ?? 0) + 1);
+      }
+    }
+    for (const groupId of ["A", "B", "C", "D"]) {
+      for (let place = 1; place <= 3; place++) {
+        assert.equal(seen.get(`${place}${groupId}`), 1, `${place}º do grupo ${groupId}`);
+      }
+    }
+  });
+});
+
+describe("isBalancedQualifierTotal", () => {
+  it("aceita potências de 2 a partir de 2", () => {
+    for (const total of [2, 4, 8, 16, 32]) {
+      assert.equal(isBalancedQualifierTotal(total), true, String(total));
+    }
+  });
+
+  it("rejeita os totais ímpares que o teste antigo de >>1 aceitava", () => {
+    for (const total of [1, 3, 5, 9, 17]) {
+      assert.equal(isBalancedQualifierTotal(total), false, String(total));
+    }
+  });
+
+  it("rejeita pares que não são potência de 2", () => {
+    for (const total of [6, 10, 12, 24]) {
+      assert.equal(isBalancedQualifierTotal(total), false, String(total));
+    }
+  });
 });
 
 describe("buildGroupsKnockoutMatches", () => {
@@ -459,6 +520,33 @@ describe("buildGroupsKnockoutMatches", () => {
     assert.equal(finalMatch.teamBDescription, "Vencedor Jogo #30");
     assert.equal(thirdPlace.teamADescription, "Perdedor Jogo #29");
     assert.equal(thirdPlace.teamBDescription, "Perdedor Jogo #30");
+  });
+
+  // Regressão: com 1 classificado por grupo e mais de 2 grupos o mata-mata
+  // saía VAZIO (crossover retornava zero pares) — a chave só tinha grupos.
+  it("gera o mata-mata completo com 4 grupos × 1 classificado", () => {
+    const groups = ["A", "B", "C", "D"].map((id, g) => ({
+      id,
+      teamIds: Array.from({length: 3}, (_, t) => `g${g}t${t}`),
+    }));
+    const teamIds = groups.flatMap((g) => g.teamIds);
+    const matches = buildGroupsKnockoutMatches(teamIds, groups, 1);
+
+    const knockout = matches.filter((m) => !m.isGroupMatch);
+    // 2 semifinais (1ºA×1ºD, 1ºB×1ºC) + final + 3º lugar.
+    assert.equal(knockout.length, 4);
+    const semis = knockout
+      .filter((m) => m.matchType === "knockout")
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+    assert.equal(semis.length, 2);
+    assert.equal(semis[0].teamADescription, "1º Grupo A");
+    assert.equal(semis[0].teamBDescription, "1º Grupo D");
+    assert.equal(semis[1].teamADescription, "1º Grupo B");
+    assert.equal(semis[1].teamBDescription, "1º Grupo C");
+    assert.equal(knockout.filter((m) => m.matchType === "Final").length, 1);
+    assert.equal(knockout.filter((m) => m.matchType === "Third Place").length, 1);
+    // Numeração continua a partir da fase de grupos (3 jogos por grupo × 4).
+    assert.equal(semis[0].matchNumber, 13);
   });
 });
 

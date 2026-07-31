@@ -1,0 +1,233 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.arv-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.arv-dialog {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-5);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    padding: 18px 16px;
+  }
+}
+
+.arv-eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.arv-eyebrow {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--nx-orange-500);
+}
+
+.arv-xp-badge {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--nx-orange-500);
+  background: var(--nx-surface-1);
+  border: 1px solid rgba(255, 106, 26, 0.4);
+  border-radius: var(--nx-r-1);
+  padding: 4px 8px;
+}
+
+.arv-title {
+  margin: 4px 0 0;
+  font-family: var(--nx-font-display);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--nx-text);
+}
+
+.arv-title-arena {
+  color: var(--nx-orange-500);
+}
+
+.arv-subtitle {
+  margin: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--nx-text-mute);
+}
+
+.arv-rating-label {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--nx-win);
+}
+
+.arv-stars {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.arv-star {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: var(--nx-surface-1);
+  border: 1px solid transparent;
+  border-radius: var(--nx-r-2);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+  transition:
+    color var(--nx-d-fast),
+    border-color var(--nx-d-fast);
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.arv-star--filled {
+  color: var(--nx-orange-500);
+  border-color: rgba(255, 106, 26, 0.55);
+}
+
+.arv-section-label {
+  margin: 8px 0 0;
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--nx-text-mute);
+}
+
+.arv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.arv-chip {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  color: var(--nx-text-mute);
+  border: 1px solid color-mix(in srgb, var(--nx-text-mute) 35%, transparent);
+  border-radius: var(--nx-r-pill);
+  cursor: pointer;
+  transition:
+    color var(--nx-d-fast),
+    border-color var(--nx-d-fast),
+    background var(--nx-d-fast);
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.arv-chip--on {
+  color: var(--nx-orange-500);
+  border-color: var(--nx-orange-500);
+  background: rgba(255, 106, 26, 0.12);
+}
+
+.arv-comment {
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--nx-text);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+
+  &::placeholder {
+    color: var(--nx-text-mute);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(255, 106, 26, 0.6);
+  }
+}
+
+.arv-error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nx-live);
+}
+
+.arv-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.arv-btn-ghost {
+  flex: none;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  border-radius: var(--nx-r-2);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.arv-btn-primary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #0a0a0a;
+  background: var(--nx-orange-500);
+  border: none;
+  border-radius: var(--nx-r-2);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.75;
+  }
+}

@@ -1,0 +1,91 @@
+<div class="arv-backdrop" (click)="dismiss()" aria-hidden="true"></div>
+
+<div class="arv-dialog" role="dialog" aria-modal="true" aria-labelledby="arv-title">
+  <div class="arv-eyebrow-row">
+    <span class="arv-eyebrow">RESERVA · CONCLUÍDA</span>
+    <span class="arv-xp-badge">+{{ xpReward }} XP</span>
+  </div>
+
+  <h2 id="arv-title" class="arv-title">
+    Como foi o jogo na <span class="arv-title-arena">{{ arenaName() }}</span>?
+  </h2>
+  <p class="arv-subtitle">{{ sessionSubtitle() }}</p>
+
+  @if (ratingText(); as label) {
+    <p class="arv-rating-label">{{ label }}</p>
+  }
+
+  <div class="arv-stars" role="radiogroup" aria-label="Nota da experiência">
+    @for (star of stars; track star) {
+      <button
+        type="button"
+        class="arv-star"
+        [class.arv-star--filled]="rating() >= star"
+        role="radio"
+        [attr.aria-checked]="rating() === star"
+        [attr.aria-label]="star + ' de 5'"
+        [attr.tabindex]="rating() === star ? 0 : -1"
+        [disabled]="sending()"
+        (click)="setRating(star)"
+        (keydown)="onStarKeydown($event, star)"
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" [attr.fill]="rating() >= star ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" />
+        </svg>
+      </button>
+    }
+  </div>
+
+  <p class="arv-section-label">O QUE DESTACOU? OPCIONAL</p>
+  <div class="arv-chips">
+    @for (tag of highlightTags; track tag) {
+      <button
+        type="button"
+        class="arv-chip"
+        [class.arv-chip--on]="isTagSelected(tag)"
+        [attr.aria-pressed]="isTagSelected(tag)"
+        [disabled]="sending()"
+        (click)="toggleTag(tag)"
+      >
+        {{ isTagSelected(tag) ? '✓ ' + tag : tag }}
+      </button>
+    }
+    <button
+      type="button"
+      class="arv-chip"
+      [class.arv-chip--on]="commentOpen()"
+      [attr.aria-pressed]="commentOpen()"
+      [disabled]="sending()"
+      (click)="toggleCommentField()"
+    >
+      + comentário
+    </button>
+  </div>
+
+  @if (commentOpen()) {
+    <textarea
+      class="arv-comment"
+      rows="3"
+      maxlength="500"
+      placeholder="Escreva um comentário…"
+      aria-label="Comentário sobre a experiência"
+      [value]="comment()"
+      [disabled]="sending()"
+      (input)="onCommentInput($any($event.target).value)"
+    ></textarea>
+  }
+
+  @if (error(); as message) {
+    <p class="arv-error" role="alert">{{ message }}</p>
+  }
+
+  <div class="arv-actions">
+    <button type="button" class="arv-btn-ghost" [disabled]="sending()" (click)="dismiss()">Agora não</button>
+    <button type="button" class="arv-btn-primary" [disabled]="sending()" (click)="submit()">
+      @if (sending()) {
+        <app-nx-spinner [size]="16" tone="dark" />
+      }
+      {{ sending() ? 'Enviando…' : 'Enviar e ganhar +' + xpReward + ' XP' }}
+    </button>
+  </div>
+</div>

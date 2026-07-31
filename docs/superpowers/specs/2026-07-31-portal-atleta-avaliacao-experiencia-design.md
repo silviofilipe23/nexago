@@ -91,6 +91,9 @@ Validações, na mesma ordem do Dart, cada uma com a mensagem em português que 
    `bookingAthleteId` / `userId`), reserva não cancelada e concluída →
    `Avaliação permitida apenas após a reserva concluída.` / `Avaliação não permitida para reserva cancelada.`
 
+Como no Dart, quando a data/hora do doc não é utilizável a escrita é **liberada** — a
+checagem anterior já decidiu, e travar aqui bloquearia reserva legítima com doc malformado.
+
 Grava exatamente os mesmos campos do app: `arenaId`, `userId`, `bookingId`, `rating`,
 `comment`, `likesCount: 0`, `reported: false`, `createdAt: serverTimestamp()`.
 
@@ -115,8 +118,13 @@ pickPendingReview(bookings, reviewedIds: ReadonlySet<string>, now: Date): MyBook
 ```
 
 `bookingIsReviewable` devolve `true` quando o status é `completed`/`finalizado`, ou quando
-o fim da reserva + 5 minutos já passou. Cancelada devolve `false` sempre. `bookingEndsAt`
-já resolve a reserva que cruza a meia-noite.
+o fim da reserva + 5 minutos já passou. Cancelada devolve `false` sempre.
+
+A reserva que cruza a meia-noite (22:00→01:00) precisa de tratamento local: o
+`bookingEndsAt` de `my-bookings-repository.ts` **não** soma um dia quando o fim é menor
+que o início — só o `_parseDateTime` do Dart faz isso. Um helper `reviewEndsAt` neste
+módulo aplica o ajuste. Corrigir `bookingEndsAt` na origem mudaria `bookingIsUpcoming`, que
+a Agenda inteira usa, e isso está fora do escopo desta entrega.
 
 `pickPendingReview` filtra por `bookingIsReviewable`, remove as que estão em `reviewedIds`
 e devolve a de **fim mais recente**. Divergência deliberada do app: lá a escolha é a

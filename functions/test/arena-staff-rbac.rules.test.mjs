@@ -72,6 +72,15 @@ async function seed() {
       status: 'active',
       arenaName: 'Arena Pro',
     });
+    // Convite malformado (sem emailLower) — nao pode ser legivel por ninguem
+    // alem do dono/admin, nem por sessao sem e-mail.
+    await setDoc(doc(db, 'arenaStaffInvites', 'convite-sem-email'), {
+      arenaId: 'arena-pro',
+      arenaName: 'Arena Pro',
+      role: 'recepcao',
+      status: 'pending',
+      invitedBy: OWNER,
+    });
   });
 }
 
@@ -144,6 +153,25 @@ test('cliente nao escreve convite', async () => {
       status: 'pending',
     }),
   );
+});
+
+test('sessao sem e-mail nao le convite malformado sem emailLower', async () => {
+  const db = testEnv.authenticatedContext('phone-uid').firestore();
+  await assertFails(getDoc(doc(db, 'arenaStaffInvites/convite-sem-email')));
+});
+
+test('sessao sem e-mail nao le convite normal', async () => {
+  const db = testEnv.authenticatedContext('phone-uid-2').firestore();
+  await assertFails(getDoc(doc(db, 'arenaStaffInvites/convite-1')));
+});
+
+test('sessao com e-mail vazio nao le convite malformado', async () => {
+  const db = testEnv.authenticatedContext('empty-email-uid', { email: '' }).firestore();
+  await assertFails(getDoc(doc(db, 'arenaStaffInvites/convite-sem-email')));
+});
+
+test('dono ainda le o convite malformado da propria arena', async () => {
+  await assertSucceeds(getDoc(doc(ctx(OWNER), 'arenaStaffInvites/convite-sem-email')));
 });
 
 test('usuario le o proprio espelho de arenaStaff', async () => {

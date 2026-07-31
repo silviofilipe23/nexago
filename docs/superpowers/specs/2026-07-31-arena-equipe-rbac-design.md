@@ -132,7 +132,7 @@ A linguagem de rules suporta mapa literal com `.get(chave, default)`, então a m
 function arenaWriteAreas(role) {
   return {
     'gestor':     ['agenda','comandas','estoque','promocoes','site','quadras','perfil','comunidade'],
-    'recepcao':   ['agenda','comandas','comunidade'],
+    'recepcao':   ['agenda','comandas'],
     'financeiro': ['financeiro','promocoes'],
     'manutencao': ['quadras','estoque'],
   }.get(role, []);

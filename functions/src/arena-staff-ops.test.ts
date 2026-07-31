@@ -45,3 +45,8 @@ test("convite sem expiresAt e tratado como valido", () => {
   const invite = {status: "pending", emailLower: "a@b.com"};
   assert.equal(inviteIsClaimable(invite, "a@b.com", NOW), true);
 });
+
+test("convite nao e reivindicavel por sessao sem e-mail", () => {
+  const invite = {status: "pending", emailLower: "", expiresAt: AMANHA};
+  assert.equal(inviteIsClaimable(invite, "", NOW), false);
+});

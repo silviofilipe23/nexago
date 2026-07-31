@@ -54,14 +54,20 @@ async function ensureArenaRole(uid: string): Promise<void> {
   const user = await auth.getUser(uid);
   const roles = rolesFromClaims(user.customClaims);
   const next = withArenaRole(roles);
-  if (next.length === roles.length) return;
 
-  await auth.setCustomUserClaims(
-    uid,
-    applyRolesToClaims((user.customClaims || {}) as Record<string, unknown>, next),
-  );
+  if (next.length !== roles.length) {
+    await auth.setCustomUserClaims(
+      uid,
+      applyRolesToClaims((user.customClaims || {}) as Record<string, unknown>, next),
+    );
+    logger.info("arenaStaff: role arena concedida", {uid});
+  }
+
+  // Write incondicional (mesmo quando a claim já tinha `arena`): o login do
+  // portal lê `users/{uid}`, não a claim, e é fail-closed — se os dois algum
+  // dia saírem de sincronia, esta função tem de se autocurar. O merge é
+  // idempotente, então repeti-lo sempre é seguro e barato.
   await getFirestore().doc(`users/${uid}`).set(firestoreRolesPayload(next), {merge: true});
-  logger.info("arenaStaff: role arena concedida", {uid});
 }
 
 /** Carrega a arena e confere que quem chamou é o dono. */
@@ -92,6 +98,36 @@ async function countUsedSeats(arenaId: string): Promise<number> {
       .get(),
   ]);
   return staff.data().count + invites.data().count;
+}
+
+/** Marca como aceitos todos os convites pendentes deste e-mail nesta arena.
+ *  Usado quando o vínculo é criado pelo caminho direto (pessoa já tinha
+ *  conta): sem isso, um convite antigo continua "pending" — reivindicável
+ *  depois via link antigo (reescrevendo o cargo, ver Finding 1) e ainda
+ *  ocupando assento. */
+async function settlePendingInvitesForEmail(
+  arenaId: string,
+  emailLower: string,
+  acceptedByUid: string,
+): Promise<void> {
+  const db = getFirestore();
+  const pending = await db
+    .collection(INVITES)
+    .where("arenaId", "==", arenaId)
+    .where("emailLower", "==", emailLower)
+    .where("status", "==", "pending")
+    .get();
+  if (pending.empty) return;
+
+  const batch = db.batch();
+  for (const doc of pending.docs) {
+    batch.set(
+      doc.ref,
+      {status: "accepted", acceptedBy: acceptedByUid, acceptedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+  }
+  await batch.commit();
 }
 
 async function createStaffDoc(
@@ -133,11 +169,13 @@ export const inviteArenaStaff = onCall(async (request) => {
 
   const arenaSnap = await loadOwnedArena(arenaId, uid);
   const arenaData = arenaSnap.data() ?? {};
-  const seats = maxArenaStaffSeats(arenaData, Date.now());
-  assertSeatAvailable(seats, await countUsedSeats(arenaId));
-
   const db = getFirestore();
   const arenaName = typeof arenaData.name === "string" ? arenaData.name : "";
+
+  // Checagens de identidade (outright reject) vêm ANTES do assento: senão,
+  // reconvidar alguém já na equipe/dono numa arena lotada mostra "limite de
+  // membros atingido" em vez do motivo real. O assento só é checado depois de
+  // sabermos que o convite/vínculo pode de fato prosseguir.
 
   // Caminho direto: o e-mail já tem conta → vínculo ativo na hora.
   let existing: {uid: string; displayName?: string; photoURL?: string} | null = null;
@@ -159,6 +197,15 @@ export const inviteArenaStaff = onCall(async (request) => {
     if (already.exists) {
       throw new HttpsError("already-exists", "Esta pessoa já está na equipe.");
     }
+
+    const seats = maxArenaStaffSeats(arenaData, Date.now());
+    assertSeatAvailable(seats, await countUsedSeats(arenaId));
+
+    // Sem isto, um convite antigo pendente para este e-mail continuaria
+    // reivindicável (reescrevendo o cargo pelo link antigo) e ocupando
+    // assento — ver Finding 1 da revisão.
+    await settlePendingInvitesForEmail(arenaId, email, existing.uid);
+
     await createStaffDoc(
       arenaId,
       existing.uid,
@@ -182,6 +229,9 @@ export const inviteArenaStaff = onCall(async (request) => {
   if (!duplicate.empty) {
     throw new HttpsError("already-exists", "Já existe um convite pendente para este e-mail.");
   }
+
+  const seats = maxArenaStaffSeats(arenaData, Date.now());
+  assertSeatAvailable(seats, await countUsedSeats(arenaId));
 
   const ref = db.collection(INVITES).doc();
   await ref.set({
@@ -231,6 +281,20 @@ export const acceptArenaStaffInvite = onCall(async (request) => {
 
   const arenaSnap = await db.doc(`arenas/${arenaId}`).get();
   if (!arenaSnap.exists) throw new HttpsError("not-found", "Arena não encontrada.");
+
+  // Defesa em profundidade: se por algum motivo um convite pendente
+  // sobreviveu à pessoa já ter sido adicionada (ver Finding 1 da revisão),
+  // barra aqui em vez de recriar/reescrever o vínculo, e aproveita para
+  // encerrar o convite que ficou para trás.
+  const alreadyStaffSnap = await db.doc(`arenas/${arenaId}/staff/${uid}`).get();
+  if (alreadyStaffSnap.exists) {
+    await ref.set(
+      {status: "accepted", acceptedBy: uid, acceptedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+    throw new HttpsError("already-exists", "Você já faz parte da equipe desta arena.");
+  }
+
   const seats = maxArenaStaffSeats(arenaSnap.data() ?? {}, Date.now());
   const used = (await db.collection(`arenas/${arenaId}/staff`).count().get()).data().count;
   assertSeatAvailable(seats, used);

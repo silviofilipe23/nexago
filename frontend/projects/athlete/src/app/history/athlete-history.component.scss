@@ -255,6 +255,40 @@
   flex-direction: column;
 }
 
+.hs-row-wrap {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.hs-row-review {
+  flex: none;
+  align-self: center;
+  margin-right: 20px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0a0a0a;
+  background: var(--nx-orange-500);
+  border: none;
+  border-radius: var(--nx-r-2);
+  cursor: pointer;
+  transition: background var(--nx-d-fast);
+
+  &:hover {
+    background: var(--nx-orange-400);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
 .hs-row {
   position: relative;
   display: grid;
@@ -263,15 +297,11 @@
   column-gap: 14px;
   row-gap: 6px;
   padding: 16px 20px 16px 24px;
-  border-top: 1px solid var(--nx-line);
   text-decoration: none;
   color: inherit;
   transition: background var(--nx-d-fast);
   min-width: 0;
-
-  &:first-child {
-    border-top: none;
-  }
+  flex: 1 1 auto;
 
   &:hover {
     background: var(--nx-surface-1);

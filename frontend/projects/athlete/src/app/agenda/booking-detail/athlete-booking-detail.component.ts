@@ -6,10 +6,14 @@ import { fetchArenaById, arenaListItemImageUrl, type ArenaListItem } from '@nexa
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { cancelBooking, fetchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
 import { fetchAcceptedBookingInviteGuestUids } from '../../data/booking-invites-repository';
+import { bookingIsReviewCandidate } from '../../data/pending-arena-review';
+import { PendingArenaReviewService } from '../../data/pending-arena-review.service';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../../data/public-profiles-repository';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { LocationMapComponent } from '../../shared/location-map/location-map.component';
+import { ArenaReviewDialogComponent } from '../review/arena-review-dialog.component';
 
 /** Vagas fixas por reserva (organizador + convidados) — espelha `kBookingTeamSlots` (Flutter). */
 const TEAM_SLOTS = 4;
@@ -109,7 +113,7 @@ function bookingLifecycle(now: Date, start: Date, end: Date, rawStatus: string):
 @Component({
   selector: 'app-athlete-booking-detail',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent],
+  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent, ArenaReviewDialogComponent],
   templateUrl: './athlete-booking-detail.component.html',
   styleUrl: './athlete-booking-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -120,7 +124,26 @@ export class AthleteBookingDetailComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
+  private readonly reviewStore = inject(PendingArenaReviewService);
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  protected readonly reviewDialogOpen = signal(false);
+  /** Marcado no envio desta sessão — evita depender de um `refresh()` do store pra trocar o
+   *  botão por "Avaliação enviada". */
+  protected readonly reviewSentHere = signal(false);
+
+  protected readonly canReview = computed(() => {
+    const b = this.booking();
+    if (!b || this.reviewSentHere()) return false;
+    if (this.reviewStore.isReviewed(b.id)) return false;
+    return bookingIsReviewCandidate(b, this.now());
+  });
+
+  protected readonly reviewAlreadySent = computed(() => {
+    const b = this.booking();
+    if (!b) return false;
+    return this.reviewSentHere() || this.reviewStore.isReviewed(b.id);
+  });
 
   protected readonly googleMapsApiKey = environment.googleMapsApiKey;
 
@@ -347,6 +370,7 @@ export class AthleteBookingDetailComponent {
       const teamPromise = this.loadTeam(db, booking);
       const [arena] = await Promise.all([arenaPromise, teamPromise]);
       this.arena.set(arena);
+      void this.reviewStore.refresh();
     } catch (err) {
       if (!environment.production) {
         console.error('[booking-detail] load error', err);
@@ -507,6 +531,29 @@ export class AthleteBookingDetailComponent {
     } finally {
       this.canceling.set(false);
     }
+  }
+
+  protected openReviewDialog(): void {
+    this.reviewDialogOpen.set(true);
+  }
+
+  protected onReviewSubmitted(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewSentHere.set(true);
+    this.reviewDialogOpen.set(false);
+    this.showNotice('Obrigado! +10 XP no seu progresso.');
+  }
+
+  /** Backend recusou por "já avaliada" — sem XP, então sem a notícia de +10 XP; só
+   *  sincroniza o store (`canReview`/`reviewAlreadySent` reagem sozinhos) e fecha o modal. */
+  protected onReviewAlreadyReviewed(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewDialogOpen.set(false);
+    this.showNotice(REVIEW_ALREADY_SENT_MESSAGE);
+  }
+
+  protected onReviewDismissed(): void {
+    this.reviewDialogOpen.set(false);
   }
 
   private showNotice(message: string): void {

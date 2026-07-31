@@ -868,6 +868,11 @@ $ag-kind-colors: (
   margin: 0;
 }
 
+.ag-pending-item--review .ag-pending-avatar--review {
+  color: var(--nx-orange-500);
+  font-size: 16px;
+}
+
 // ── Buttons ──────────────────────────────────────────────────
 .ag-btn-primary {
   height: 38px;

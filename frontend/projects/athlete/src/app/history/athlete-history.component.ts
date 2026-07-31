@@ -7,8 +7,11 @@ import { AuthService } from '../auth/auth.service';
 import { fetchArenaBooking, type ArenaBookingDoc } from '../data/arena-bookings-repository';
 import { fetchLeague } from '../data/leagues-repository';
 import { fetchMyBookings, bookingIsActive, type MyBooking } from '../data/my-bookings-repository';
+import { bookingIsReviewCandidate, type ReviewableBooking } from '../data/pending-arena-review';
+import { PendingArenaReviewService } from '../data/pending-arena-review.service';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from '../data/teams-repository';
 import { fetchTournamentSummariesByIds, type TournamentSummary } from '../data/tournaments-repository';
+import { ArenaReviewDialogComponent } from '../agenda/review/arena-review-dialog.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 
@@ -28,6 +31,9 @@ export interface HistoryRow {
   amountReais: number | null;
   amountLabel: string | null;
   link: readonly string[] | null;
+  /** Reserva por trás da linha — só em `kind: 'aluguel'`, pra oferecer avaliar sem refazer
+   *  a busca. Null nas outras linhas. */
+  booking: MyBooking | null;
 }
 
 export interface HistoryMonthGroup {
@@ -130,7 +136,7 @@ function monthKey(d: Date): string {
 @Component({
   selector: 'app-athlete-history',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, ArenaReviewDialogComponent],
   templateUrl: './athlete-history.component.html',
   styleUrl: './athlete-history.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -138,6 +144,38 @@ function monthKey(d: Date): string {
 export class AthleteHistoryComponent {
   private readonly auth = inject(AuthService);
   private readonly firestore = createFirestore();
+  private readonly reviewStore = inject(PendingArenaReviewService);
+
+  protected readonly reviewingBooking = signal<ReviewableBooking | null>(null);
+
+  /** Linha avaliável: é aluguel, já terminou e ainda não foi avaliada. Sem janela de 30
+   *  dias — o histórico é consulta deliberada, não cobrança. */
+  protected reviewableBookingOf(row: HistoryRow): MyBooking | null {
+    const b = row.booking;
+    if (!b || this.reviewStore.isReviewed(b.id)) return null;
+    return bookingIsReviewCandidate(b, new Date()) ? b : null;
+  }
+
+  protected openReviewDialog(booking: MyBooking): void {
+    this.reviewingBooking.set(booking);
+  }
+
+  protected onReviewSubmitted(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewingBooking.set(null);
+  }
+
+  /** Backend recusou por "já avaliada" — sincroniza o store (o CTA "Avaliar" desta linha
+   *  some sozinho, via `reviewableBookingOf`) e fecha o modal em vez de travar num erro que
+   *  se repetiria pra sempre. */
+  protected onReviewAlreadyReviewed(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewingBooking.set(null);
+  }
+
+  protected onReviewDismissed(): void {
+    this.reviewingBooking.set(null);
+  }
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -258,6 +296,7 @@ export class AthleteHistoryComponent {
 
       this.rows.set([...rentalRows, ...matchRows]);
       this.allPaymentRows.set(paymentRows);
+      void this.reviewStore.refresh();
     } catch (err) {
       if (!environment.production) {
         console.error('[history] load error', err);
@@ -292,6 +331,7 @@ export class AthleteHistoryComponent {
           amountReais: amount,
           amountLabel: amount != null ? formatBRL(amount) : null,
           link: ['/agenda/reserva', b.id],
+          booking: b,
         };
       });
   }
@@ -314,6 +354,7 @@ export class AthleteHistoryComponent {
         amountReais: amount,
         amountLabel: amount != null ? formatBRL(amount) : null,
         link: ['/agenda/reserva', b.id],
+        booking: null,
       };
     });
   }
@@ -351,6 +392,7 @@ export class AthleteHistoryComponent {
         amountReais: null,
         amountLabel: null,
         link: tournament ? ['/torneios', tournament.id] : null,
+        booking: null,
       });
     }
     return rows;

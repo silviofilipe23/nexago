@@ -70,4 +70,69 @@ describe('arena-roles.model', () => {
       expect(ARENA_ROLE_LABEL[role].length).toBeGreaterThan(0);
     }
   });
+
+  it('matriz completa: cada cargo em cada area', () => {
+    const EXPECTED: Record<string, Record<string, 'RW' | 'R' | '-'>> = {
+      gestor: {
+        agenda: 'RW',
+        comandas: 'RW',
+        estoque: 'RW',
+        financeiro: 'R',
+        promocoes: 'RW',
+        site: 'RW',
+        quadras: 'RW',
+        perfil: 'RW',
+        torneios: 'R',
+        comunidade: 'RW',
+      },
+      recepcao: {
+        agenda: 'RW',
+        comandas: 'RW',
+        estoque: 'R',
+        financeiro: '-',
+        promocoes: '-',
+        site: '-',
+        quadras: '-',
+        perfil: '-',
+        torneios: '-',
+        comunidade: 'R',
+      },
+      financeiro: {
+        agenda: '-',
+        comandas: 'R',
+        estoque: '-',
+        financeiro: 'RW',
+        promocoes: 'RW',
+        site: '-',
+        quadras: '-',
+        perfil: '-',
+        torneios: '-',
+        comunidade: 'R',
+      },
+      manutencao: {
+        agenda: 'R',
+        comandas: '-',
+        estoque: 'RW',
+        financeiro: '-',
+        promocoes: '-',
+        site: '-',
+        quadras: 'RW',
+        perfil: '-',
+        torneios: '-',
+        comunidade: '-',
+      },
+    };
+
+    for (const role of ARENA_STAFF_ROLES) {
+      for (const area of ARENA_AREAS) {
+        const expected = EXPECTED[role][area];
+        expect(arenaRoleCanWrite(role, area))
+          .withContext(`${role} escreve ${area}`)
+          .toBe(expected === 'RW');
+        expect(arenaRoleCanRead(role, area))
+          .withContext(`${role} le ${area}`)
+          .toBe(expected !== '-');
+      }
+    }
+  });
 });

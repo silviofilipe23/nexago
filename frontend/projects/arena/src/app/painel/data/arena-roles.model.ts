@@ -26,7 +26,7 @@ export type ArenaArea = (typeof ARENA_AREAS)[number];
 /** Áreas em que o cargo pode escrever. Escrita implica leitura (ver ARENA_READ_AREAS). */
 const ARENA_WRITE_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
   gestor: ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade'],
-  recepcao: ['agenda', 'comandas', 'comunidade'],
+  recepcao: ['agenda', 'comandas'],
   financeiro: ['financeiro', 'promocoes'],
   manutencao: ['quadras', 'estoque'],
 };
@@ -34,7 +34,7 @@ const ARENA_WRITE_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
 /** Áreas só de leitura, somadas às de escrita. */
 const ARENA_READ_ONLY_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
   gestor: ['financeiro', 'torneios'],
-  recepcao: ['estoque'],
+  recepcao: ['estoque', 'comunidade'],
   financeiro: ['comandas', 'comunidade'],
   manutencao: ['agenda'],
 };

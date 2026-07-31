@@ -295,6 +295,12 @@ function normalizeText(raw) {
     .replace(/\s+/g, " ");
 }
 
+/**
+ * ATENÇÃO: casa por substring nos DOIS sentidos — "Copa" casa com
+ * "Copa Goiás" e vice-versa. É deliberadamente frouxo para o operador não
+ * precisar digitar o nome exato, mas é o motivo de existir
+ * `requireSeedFlagOnReuse` em `runTournamentEnrollmentSeed`.
+ */
 function namesMatch(a, b) {
   const na = normalizeText(a);
   const nb = normalizeText(b);
@@ -518,13 +524,74 @@ async function refreshTournamentStats(db, projectId, tournamentId, tournament) {
   return {enrolledCount, collectedCents};
 }
 
+/** Erro de aborto deliberado — o chamador imprime só a mensagem. */
+function seedAbort(message) {
+  return Object.assign(new Error(message), {seedAbort: true});
+}
+
+function reuseAbortError(searchedName, existing) {
+  return seedAbort(
+    `ABORTADO: o nome "${searchedName}" casou com um torneio que NÃO é seed.\n` +
+    `  id ...: ${existing.id}\n` +
+    `  nome .: "${String(existing.data.name ?? "").trim()}"\n` +
+    "\n" +
+    "A busca casa por substring nos dois sentidos, então nomes curtos pegam\n" +
+    "torneios reais. Prosseguir gravaria inscrições e duplas de teste dentro\n" +
+    "dele e sobrescreveria enrolledCount/collectedCents — e a limpeza não\n" +
+    "desfaria nada, porque o doc não tem seedTestTournament: true.\n" +
+    "\n" +
+    "Rode de novo com --tournament-name <nome que não case com nenhum torneio real>.",
+  );
+}
+
+/**
+ * Aborta se `tournamentName` casar com um torneio sem `seedTestTournament`.
+ *
+ * Existe separada de `runTournamentEnrollmentSeed` para poder ser chamada
+ * ANTES de qualquer escrita: no `seed-test-data.js`, quando o fluxo chega ao
+ * torneio, o organizador e os 320 atletas já foram gravados — e "abortou"
+ * precisa significar "não escreveu nada". A checagem lá dentro continua
+ * existindo como rede de segurança para quem chamar a lib direto.
+ */
+async function assertReusableSeedTournament(db, tournamentName) {
+  const existing = await findTournamentByName(db, tournamentName);
+  if (existing && existing.data.seedTestTournament !== true) {
+    throw reuseAbortError(tournamentName, existing);
+  }
+  return existing;
+}
+
+/**
+ * @param {object} options
+ * @param {object} [options.args] Args já resolvidos pelo chamador
+ *   (`{APPLY, projectId, MANAGER_UID, TOURNAMENT_NAME}`). Quando ausente,
+ *   lê de `process.argv` via `parseSeedArgs` — comportamento dos wrappers
+ *   de linha de comando. Injetar permite ao `seed-test-data.js` reusar o
+ *   admin já inicializado e o uid do organizador que ele mesmo criou.
+ * @param {boolean} [options.requireSeedFlagOnReuse=false] Quando `true`,
+ *   reutilizar um torneio existente exige `seedTestTournament === true` nele;
+ *   se o nome casar com um torneio sem a flag, aborta sem gravar nada.
+ *
+ *   O default é `false` — o comportamento antigo — de propósito: os wrappers
+ *   `seed-tournament-with-enrollments.js` e
+ *   `seed-tournament-today-with-enrollments.js` são pré-existentes e a
+ *   restrição desta branch é que nenhum comando existente mude de
+ *   comportamento. Um operador pode legitimamente estar usando um deles para
+ *   despejar inscrições de teste num torneio que ele mesmo criou pelo painel
+ *   (sem a flag) — quebrar isso seria regressão. Quem opta pela guarda é o
+ *   `seed-test-data.js`, que nasceu nesta branch com a limpeza simétrica como
+ *   contrato: lá, reutilizar torneio sem a flag produz sujeira que
+ *   `delete-test-data.js` nunca reencontra.
+ */
 async function runTournamentEnrollmentSeed({
   defaultTournamentName,
   buildTournamentDoc,
   extraLogLines = () => [],
+  args,
+  requireSeedFlagOnReuse = false,
 }) {
   const {APPLY, projectId, MANAGER_UID, TOURNAMENT_NAME} =
-    parseSeedArgs(defaultTournamentName);
+    args || parseSeedArgs(defaultTournamentName);
   const db = admin.firestore();
 
   console.log(`Projeto: ${projectId}`);
@@ -541,6 +608,10 @@ async function runTournamentEnrollmentSeed({
 
   if (tournament) {
     tournamentId = tournament.id;
+    if (requireSeedFlagOnReuse && tournament.data.seedTestTournament !== true) {
+      // Rede de segurança: nada foi gravado por ESTA função neste ponto.
+      throw reuseAbortError(TOURNAMENT_NAME, tournament);
+    }
     console.log(`\nTorneio existente reutilizado: ${tournamentId}`);
   } else {
     tournamentId = db.collection("tournaments").doc().id;
@@ -614,5 +685,6 @@ module.exports = {
   buildCategories,
   buildTournamentDocFuture,
   buildTournamentDocToday,
+  assertReusableSeedTournament,
   runTournamentEnrollmentSeed,
 };

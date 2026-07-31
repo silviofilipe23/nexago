@@ -187,3 +187,150 @@ test('cliente nao escreve no espelho', async () => {
     setDoc(doc(ctx(GESTOR), `users/${GESTOR}/arenaStaff/arena-pro`), { role: 'gestor' }),
   );
 });
+
+// ---- matriz cargo x area -------------------------------------------------
+
+// `isValidArenaComandaCreate` (firestore.rules:468) exige 15 campos e
+// `type == 'individual'`; este helper monta um payload que passa em tudo,
+// para que o único fator sob teste seja a identidade de quem escreve.
+function comandaPayload(uid, arenaId, displayNumber) {
+  const agora = new Date();
+  return {
+    arenaId,
+    displayNumber,
+    type: 'individual',
+    status: 'open',
+    customerName: 'Cliente Teste',
+    allowAppOrders: false,
+    rentalCents: 0,
+    itemsTotalCents: 0,
+    totalCents: 0,
+    itemsCount: 0,
+    openedByUid: uid,
+    openedAt: agora,
+    createdAt: agora,
+    updatedAt: agora,
+  };
+}
+
+test('recepcao cria comanda; manutencao nao', async () => {
+  await assertSucceeds(
+    setDoc(
+      doc(ctx(RECEPCAO), 'arenaComandas/comanda-recepcao'),
+      comandaPayload(RECEPCAO, 'arena-pro', 101),
+    ),
+  );
+  await assertFails(
+    setDoc(
+      doc(ctx(MANUTENCAO), 'arenaComandas/comanda-manutencao'),
+      comandaPayload(MANUTENCAO, 'arena-pro', 102),
+    ),
+  );
+});
+
+test('manutencao edita quadra; recepcao nao', async () => {
+  await assertSucceeds(
+    setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-pro/courts/quadra-1'), { name: 'Quadra 1' }),
+  );
+  await assertFails(
+    setDoc(doc(ctx(RECEPCAO), 'arenas/arena-pro/courts/quadra-2'), { name: 'Quadra 2' }),
+  );
+});
+
+test('financeiro le a carteira; recepcao nao', async () => {
+  await assertSucceeds(getDoc(doc(ctx(FINANCEIRO), 'arenaWallets/arena-pro')));
+  await assertFails(getDoc(doc(ctx(RECEPCAO), 'arenaWallets/arena-pro')));
+});
+
+test('gestor le a carteira mas nao saca', async () => {
+  await assertSucceeds(getDoc(doc(ctx(GESTOR), 'arenaWallets/arena-pro')));
+  await assertFails(
+    setDoc(doc(ctx(GESTOR), 'arenaWithdrawals/saque-1'), {
+      arenaId: 'arena-pro',
+      amountCents: 1000,
+      status: 'pending',
+    }),
+  );
+});
+
+test('nenhum cargo cria saque; so o dono', async () => {
+  for (const uid of [GESTOR, RECEPCAO, FINANCEIRO, MANUTENCAO]) {
+    await assertFails(
+      setDoc(doc(ctx(uid), 'arenaWithdrawals/saque-' + uid), {
+        arenaId: 'arena-pro',
+        amountCents: 1000,
+        status: 'pending',
+      }),
+    );
+  }
+});
+
+test('gestor edita o perfil da arena; financeiro nao', async () => {
+  await assertSucceeds(
+    setDoc(
+      doc(ctx(GESTOR), 'arenas/arena-pro'),
+      { managerUserId: OWNER, name: 'Arena Pro Editada', courtsCount: 3 },
+      { merge: true },
+    ),
+  );
+  await assertFails(
+    setDoc(
+      doc(ctx(FINANCEIRO), 'arenas/arena-pro'),
+      { managerUserId: OWNER, name: 'Nao Deveria', courtsCount: 3 },
+      { merge: true },
+    ),
+  );
+});
+
+test('nenhum cargo se auto-promove mexendo em planTier', async () => {
+  await assertFails(
+    setDoc(
+      doc(ctx(GESTOR), 'arenas/arena-pro'),
+      { managerUserId: OWNER, planTier: 'elite', courtsCount: 3 },
+      { merge: true },
+    ),
+  );
+});
+
+test('membro de arena sem plano perde tudo', async () => {
+  await assertFails(
+    setDoc(
+      doc(ctx(RECEPCAO), 'arenaComandas/comanda-sem-plano'),
+      comandaPayload(RECEPCAO, 'arena-sem-plano', 103),
+    ),
+  );
+  await assertFails(
+    setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-sem-plano/courts/q1'), { name: 'Q1' }),
+  );
+});
+
+test('dono de arena sem plano continua podendo tudo que ja podia', async () => {
+  await assertSucceeds(
+    setDoc(doc(ctx(OWNER), 'arenas/arena-sem-plano/courts/q1'), { name: 'Q1' }),
+  );
+});
+
+test('membro de uma arena nao alcanca outra arena', async () => {
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'arenas', 'arena-alheia'), {
+      managerUserId: 'outro-dono',
+      name: 'Alheia',
+      planTier: 'pro',
+      planStatus: 'active',
+      courtsCount: 1,
+    });
+  });
+  await assertFails(
+    setDoc(doc(ctx(GESTOR), 'arenas/arena-alheia/courts/q1'), { name: 'Q1' }),
+  );
+});
+
+test('membro removido perde o acesso na hora', async () => {
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    const { deleteDoc } = await import('firebase/firestore');
+    await deleteDoc(doc(c.firestore(), 'arenas/arena-pro/staff/' + MANUTENCAO));
+  });
+  await assertFails(
+    setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-pro/courts/quadra-3'), { name: 'Quadra 3' }),
+  );
+});

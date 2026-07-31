@@ -1,0 +1,57 @@
+<section class="rt-card" aria-labelledby="rt-card-title">
+  <h2 class="rt-card-title" id="rt-card-title">
+    {{ items().length === 1 ? 'Continue sua inscrição' : 'Continue suas inscrições' }}
+  </h2>
+
+  @for (item of items(); track item.registrationId) {
+    <article class="rt-block">
+      <div class="rt-head">
+        <div class="rt-head-titles">
+          <p class="rt-kicker">
+            {{ item.tournamentName }} · {{ item.categoryName }}
+            @if (item.waitlist) {
+              <span class="rt-waitlist">Lista de espera</span>
+            }
+          </p>
+          <p class="rt-step-caption">{{ item.pendingLabel }}</p>
+        </div>
+        <div class="rt-head-actions">
+          <span class="rt-chip">Passo {{ item.currentStep }}/{{ item.totalSteps }}</span>
+          <a
+            class="rt-cta"
+            [routerLink]="item.ctaLink"
+            [queryParams]="item.ctaQueryParams"
+            [attr.aria-label]="'Continuar inscrição em ' + item.tournamentName + ', ' + item.categoryName"
+          >
+            Continuar inscrição
+          </a>
+        </div>
+      </div>
+
+      <ol class="rt-rail">
+        @for (step of item.steps; track step.label; let last = $last) {
+          <li class="rt-step" [class]="'rt-step--' + step.state">
+            <div class="rt-step-marker">
+              <span class="rt-step-bullet">
+                @if (step.state === 'done') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                } @else {
+                  {{ $index + 1 }}
+                }
+              </span>
+              @if (!last) {
+                <span class="rt-step-line" aria-hidden="true"></span>
+              }
+            </div>
+            <div class="rt-step-text">
+              <span class="rt-step-label">{{ step.label }}</span>
+              <span class="rt-step-sub">{{ step.caption }}</span>
+            </div>
+          </li>
+        }
+      </ol>
+    </article>
+  }
+</section>

@@ -83,6 +83,10 @@
       }
     </div>
 
+    @if (inProgressRegistrations().length > 0) {
+      <at-registration-tracker [items]="inProgressRegistrations()" />
+    }
+
     <div class="at-main-grid">
       <div class="at-col">
         @if (pendingInvites().length > 0) {

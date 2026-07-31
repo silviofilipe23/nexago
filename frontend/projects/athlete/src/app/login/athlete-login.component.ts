@@ -70,7 +70,12 @@ export class AthleteLoginComponent {
 
   private applyContextMessage(): void {
     const u = this.returnUrl.toLowerCase();
-    if (u.includes('inscricao') || u.includes('inscri')) {
+    // Prefixo antes dos `includes()` abaixo: um uid no path poderia casar por acidente
+    // com uma das substrings ('/pag', 'reserva'...) e trocar a mensagem.
+    if (u.startsWith('/atletas/')) {
+      // Link de perfil compartilhado: sem isso a tela pede login sem dizer por quê.
+      this.contextMessage.set('Entre para ver o perfil do atleta.');
+    } else if (u.includes('inscricao') || u.includes('inscri')) {
       this.contextMessage.set('Faça login para confirmar sua inscrição.');
     } else if (u.includes('checkout') || u.includes('reserva')) {
       this.contextMessage.set('Entre para continuar sua reserva.');

@@ -18,6 +18,7 @@
   <div class="arv-stars" role="radiogroup" aria-label="Nota da experiência">
     @for (star of stars; track star) {
       <button
+        #starBtn
         type="button"
         class="arv-star"
         [class.arv-star--filled]="rating() >= star"

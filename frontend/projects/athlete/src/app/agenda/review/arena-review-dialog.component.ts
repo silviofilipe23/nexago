@@ -1,4 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+  viewChildren,
+} from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
@@ -23,10 +35,12 @@ function createFirestore(): Firestore | null {
   return getFirestore(app);
 }
 
-/** "Como foi o jogo na {arena}?" — espelha `rating_dialog.dart`. Duas diferenças de
- *  plataforma: Esc e clique no backdrop valem "Agora não" (o app usa `barrierDismissible:
- *  false`, hostil no desktop), e o erro fica inline em vez de fechar com snackbar, pra não
- *  jogar fora o comentário digitado. */
+/** "Como foi o jogo na {arena}?" — espelha `rating_dialog.dart`. Diferenças de plataforma:
+ *  Esc e clique no backdrop valem "Agora não" (o app usa `barrierDismissible: false`, hostil
+ *  no desktop); o erro fica inline em vez de fechar com snackbar, pra não jogar fora o
+ *  comentário digitado; e o foco é gerenciado manualmente (inicial na estrela atual, preso
+ *  enquanto aberto, devolvido ao gatilho ao fechar) porque não há infraestrutura de dialog
+ *  nativo (`<dialog>`) fazendo isso por nós. */
 @Component({
   selector: 'app-arena-review-dialog',
   imports: [NxSpinnerComponent],
@@ -35,11 +49,15 @@ function createFirestore(): Firestore | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(keydown.escape)': 'dismiss()',
+    '(keydown.tab)': 'onTabKey($event, false)',
+    '(keydown.shift.tab)': 'onTabKey($event, true)',
   },
 })
 export class ArenaReviewDialogComponent {
   private readonly auth = inject(AuthService);
   private readonly firestore = createFirestore();
+  // Anotação explícita: `inject(ElementRef)` sem argumento de tipo infere `ElementRef<any>`.
+  private readonly hostElement: ElementRef<HTMLElement> = inject(ElementRef);
 
   readonly booking = input.required<ReviewableBooking>();
   readonly submitted = output<string>();
@@ -55,6 +73,20 @@ export class ArenaReviewDialogComponent {
   protected readonly comment = signal('');
   protected readonly sending = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** Roving tabindex das estrelas: dá foco por índice sem depender de nome de classe CSS,
+   *  tanto pro foco inicial quanto pra navegação por seta. */
+  private readonly starButtons = viewChildren<ElementRef<HTMLButtonElement>>('starBtn');
+
+  /** Elemento que tinha o foco antes do diálogo abrir — normalmente o botão que o disparou.
+   *  Recebe o foco de volta quando o componente é destruído (`@if` em Tasks 6-8 cobre tanto
+   *  "Agora não" quanto envio bem-sucedido, sem duplicar a lógica nos dois caminhos). */
+  private readonly triggerElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  constructor() {
+    afterNextRender(() => this.starButtons()[this.rating() - 1]?.nativeElement.focus());
+    inject(DestroyRef).onDestroy(() => this.triggerElement?.focus());
+  }
 
   // `ratingText`, não `ratingLabel`: um campo com o mesmo nome da função importada compila,
   // mas confunde quem lê.
@@ -86,8 +118,37 @@ export class ArenaReviewDialogComponent {
     event.preventDefault();
     const next = Math.min(5, Math.max(1, star + delta));
     this.setRating(next);
-    const group = (event.target as HTMLElement).closest('.arv-stars');
-    group?.querySelectorAll<HTMLButtonElement>('.arv-star')[next - 1]?.focus();
+    this.starButtons()[next - 1]?.nativeElement.focus();
+  }
+
+  /** Tab preso no diálogo: no primeiro/último controle alcançável, volta pro outro extremo
+   *  em vez de deixar o foco escapar pro conteúdo de fundo. `Event`, não `KeyboardEvent`:
+   *  bindings de host não estreitam o tipo pelo nome do evento, mesmo padrão de
+   *  `focusSearch(event: Event)` nos outros componentes com atalho de teclado. */
+  protected onTabKey(event: Event, backward: boolean): void {
+    const focusable = this.focusableElements();
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (backward && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!backward && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  /** Controles realmente alcançáveis por Tab, na ordem do documento. As estrelas usam
+   *  roving tabindex, então só a selecionada (`tabindex="0"`) entra aqui. */
+  private focusableElements(): HTMLElement[] {
+    const root = this.hostElement.nativeElement;
+    const candidates = root.querySelectorAll<HTMLElement>('button, textarea, [tabindex]');
+    return Array.from(candidates).filter((el) => {
+      if (el.hasAttribute('disabled')) return false;
+      const tabindex = el.getAttribute('tabindex');
+      return tabindex === null || Number(tabindex) >= 0;
+    });
   }
 
   protected toggleTag(tag: string): void {

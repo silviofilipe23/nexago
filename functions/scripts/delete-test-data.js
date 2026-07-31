@@ -176,7 +176,7 @@ function printReport(d) {
   console.log(`  teams ................... ${d.teamIds.length}`);
   console.log(`  tournaments ............. ${d.seedTournamentIds.length}`);
   console.log(`  atletas seed (apagáveis)  ${d.deletableAthleteUids.length}`);
-  console.log(`  organizadores seed ...... ${d.organizerUids.length}`);
+  console.log(`  organizadores seed (apagáveis) ${d.deletableOrganizerUids.length}`);
 
   if (d.preservedAthleteUids.length) {
     console.log(
@@ -215,7 +215,7 @@ function nothingToDo(d) {
     d.teamIds.length === 0 &&
     d.seedTournamentIds.length === 0 &&
     d.deletableAthleteUids.length === 0 &&
-    d.organizerUids.length === 0
+    d.deletableOrganizerUids.length === 0
   );
 }
 

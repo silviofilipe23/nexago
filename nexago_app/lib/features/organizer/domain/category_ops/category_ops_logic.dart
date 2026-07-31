@@ -392,10 +392,13 @@ int totalKnockoutQualifiers({
 }) =>
     groupCount * qualifiersPerGroup;
 
-/// Mata-mata equilibrado exige potência de 2 cruzamentos na 1ª rodada.
+/// Mata-mata equilibrado exige TOTAL de classificados potência de 2 (2, 4,
+/// 8…). O teste antigo de `total >> 1` aceitava totais ímpares (3, 5…) por
+/// causa do arredondamento — mesma regra do servidor
+/// (`isBalancedQualifierTotal`) e do portal web.
 bool isBalancedKnockoutQualifierCount(int totalQualifiers) {
-  final pairings = totalQualifiers >> 1;
-  return pairings >= 1 && (pairings & (pairings - 1)) == 0;
+  return totalQualifiers >= 2 &&
+      (totalQualifiers & (totalQualifiers - 1)) == 0;
 }
 
 /// Cabeça de chave na prévia: top [primaryHeadCount] da ordem de seeds (1 por grupo).

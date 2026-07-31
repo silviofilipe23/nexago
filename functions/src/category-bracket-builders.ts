@@ -69,7 +69,29 @@ export function crossoverFirstRoundPairings(
       });
     }
   }
+  // Banda do MEIO quando q é ímpar (o floor acima a descarta): posições k×k
+  // entre grupos espelhados, cada par uma vez só (i < n/2). É o que faz q=1
+  // funcionar (ex.: 4 grupos × 1 classificado → 1ºA×1ºD, 1ºB×1ºC); sem isso o
+  // mata-mata saía VAZIO pra q=1 com mais de 2 grupos.
+  if (safeQ % 2 === 1) {
+    const mid = (safeQ + 1) / 2;
+    for (let i = 0; i < Math.floor(n / 2); i++) {
+      pairs.push({
+        a: {poolId: groupIds[i]!, place: mid},
+        b: {poolId: groupIds[n - 1 - i]!, place: mid},
+      });
+    }
+  }
   return pairs;
+}
+
+/** Total de classificados que forma um mata-mata equilibrado: potência de 2
+ *  (2, 4, 8, 16…). Substitui o antigo teste de `total >> 1` ser potência de 2,
+ *  que aceitava totais ÍMPARES (3, 5, 9…) por causa do arredondamento e deixava
+ *  publicar chaves com classificado sem confronto. Mesma regra no portal web
+ *  (`seeds.component.ts`) e no app (`isBalancedKnockoutQualifierCount`). */
+export function isBalancedQualifierTotal(totalQualifiers: number): boolean {
+  return totalQualifiers >= 2 && (totalQualifiers & (totalQualifiers - 1)) === 0;
 }
 
 /**

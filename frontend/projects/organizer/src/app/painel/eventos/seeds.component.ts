@@ -31,6 +31,18 @@ interface GroupPreview {
   teamIds: string[];
 }
 
+/** Fisher–Yates — sorteio uniforme (o antigo `sort(() => Math.random() - 0.5)`
+ *  é enviesado: depende da implementação do sort e não dá chance igual a todas
+ *  as permutações). */
+function shuffled<T>(items: readonly T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
 /** Geração de chave real — espelha `organizer_category_generate_*` (Flutter): duplas elegíveis
  *  (pagas, fora da fila, dupla completa — o servidor re-filtra), ordem de seeds ajustável,
  *  formato (dos 3 suportados; default = `bracketFormat` salvo na categoria), prévia de grupos
@@ -320,9 +332,12 @@ export class SeedsComponent {
 
   protected readonly headCount = computed(() => this.groupCount());
 
+  /** Total de classificados precisa ser potência de 2 — mesma regra do servidor
+   *  (`isBalancedQualifierTotal`). O teste antigo de `total >> 1` aceitava
+   *  totais ímpares (3, 5…) por causa do arredondamento. */
   protected readonly knockoutBalanced = computed(() => {
-    const pairings = (this.groupCount() * this.qualifiersPerGroup()) >> 1;
-    return pairings >= 1 && (pairings & (pairings - 1)) === 0;
+    const total = this.groupCount() * this.qualifiersPerGroup();
+    return total >= 2 && (total & (total - 1)) === 0;
   });
 
   protected readonly deCountOk = computed(() => this.eligible().length >= DE_MIN && this.eligible().length <= DE_MAX);
@@ -361,8 +376,9 @@ export class SeedsComponent {
         this.format.set(savedFormat);
       }
       if (cat) {
-        this.teamsPerGroup.set(Math.max(2, cat.teamsPerGroup));
-        this.qualifiersPerGroup.set(Math.max(1, cat.qualifiersPerGroup));
+        const per = Math.max(2, cat.teamsPerGroup);
+        this.teamsPerGroup.set(per);
+        this.qualifiersPerGroup.set(Math.min(Math.max(1, cat.qualifiersPerGroup), per - 1));
       }
       this.redraw();
     } finally {
@@ -378,6 +394,9 @@ export class SeedsComponent {
 
   protected bumpTeamsPerGroup(delta: number): void {
     this.teamsPerGroup.update((v) => Math.min(Math.max(v + delta, 2), 8));
+    // Reduzir o grupo pode deixar os classificados acima do teto (grupo de 2 não
+    // classifica 3) — re-clampa, senão o servidor rejeita com "group_too_small".
+    this.qualifiersPerGroup.update((q) => Math.min(q, Math.max(this.teamsPerGroup() - 1, 1)));
     this.redraw();
   }
 
@@ -407,9 +426,9 @@ export class SeedsComponent {
     }
     const ordered = this.useSeeds()
       ? teams.map((t) => t.teamId!)
-      : [...teams.map((t) => t.teamId!)].sort(() => Math.random() - 0.5);
+      : shuffled(teams.map((t) => t.teamId!));
     const withShuffledTail = this.useSeeds()
-      ? [...ordered.slice(0, groupCount), ...ordered.slice(groupCount).sort(() => Math.random() - 0.5)]
+      ? [...ordered.slice(0, groupCount), ...shuffled(ordered.slice(groupCount))]
       : ordered;
 
     const buckets: string[][] = Array.from({ length: groupCount }, () => []);
@@ -433,7 +452,11 @@ export class SeedsComponent {
     this.publishing.set(true);
     this.feedback.set(null);
     try {
-      const seeds = this.useSeeds() ? this.eligible().map((t) => t.teamId!) : undefined;
+      // Sempre envia a ordem: com seeds respeitados, a ordem da tela; sem, um
+      // embaralhamento novo — senão SE/DE caíam na ordem de inscrição do
+      // servidor e o "sorteio 100% aleatório" prometido no toggle não existia.
+      const ordered = this.eligible().map((t) => t.teamId!);
+      const seeds = this.useSeeds() ? ordered : shuffled(ordered);
       const result = await generateCategoryBracket({
         tournamentId: tid,
         categoryId: cat.id,

@@ -11,6 +11,7 @@ import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
   buildSingleEliminationMatches,
+  isBalancedQualifierTotal,
 } from "./category-bracket-builders";
 import {BRACKET_DEFINITIONS} from "./bracket-definitions/bracket-definitions";
 import {assertCanManageTournament} from "./tournament-acl";
@@ -115,6 +116,13 @@ export const generateCategoryBracket = onCall(async (request) => {
       const id = seed.trim();
       if (id && paidTeamIds.has(id)) teamIds.push(id);
     }
+    // Duplas pagas fora da lista de seeds (ex.: pagamento confirmado depois do
+    // carregamento da tela, ou ordem de cabeças salva antes de novas inscrições)
+    // entram no FIM da ordem — antes eram simplesmente descartadas da chave.
+    const seeded = new Set(teamIds);
+    for (const id of paidTeamIds) {
+      if (!seeded.has(id)) teamIds.push(id);
+    }
   } else {
     teamIds.push(...paidTeamIds);
   }
@@ -183,8 +191,39 @@ export const generateCategoryBracket = onCall(async (request) => {
         ];
 
   // Grupos + mata-mata: o nº total de classificados precisa formar um chaveamento
-  // limpo (2, 4, 8, 16… cruzamentos). Senão o mata-mata fica com partidas vazias.
+  // limpo (2, 4, 8, 16… classificados). Senão o mata-mata fica com partidas vazias
+  // ou classificado sem confronto (totais ímpares como 3 e 5 passavam no teste
+  // antigo de `total >> 1` e publicavam chave quebrada).
   if (format === "groups_knockout") {
+    // Os grupos do preview são a fonte dos jogos de grupo e da classificação —
+    // precisam bater EXATAMENTE com as duplas elegíveis: dupla não paga/na fila
+    // não pode entrar na chave via preview, e dupla paga não pode sumir por o
+    // preview ter sido montado antes de uma confirmação de pagamento.
+    if (groupsPreview.length > 0) {
+      const previewIds = resolvedGroups.flatMap((g) =>
+        g.teamIds.map((id) => id.trim()).filter((id) => id.length > 0),
+      );
+      const previewSet = new Set(previewIds);
+      if (previewSet.size !== previewIds.length) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Há dupla repetida na prévia de grupos. Sorteie os grupos novamente.",
+          {reason: "groups_preview_duplicate"},
+        );
+      }
+      const teamIdSet = new Set(teamIds);
+      const stale =
+        previewSet.size !== teamIdSet.size ||
+        [...previewSet].some((id) => !teamIdSet.has(id));
+      if (stale) {
+        throw new HttpsError(
+          "failed-precondition",
+          "As inscrições confirmadas mudaram desde o sorteio dos grupos. " +
+            "Recarregue a página e sorteie novamente.",
+          {reason: "groups_preview_stale"},
+        );
+      }
+    }
     const tooFewTeams = resolvedGroups.find(
       (g) => g.teamIds.filter((id) => id.trim()).length < qualifiersPerGroup,
     );
@@ -197,14 +236,12 @@ export const generateCategoryBracket = onCall(async (request) => {
       );
     }
     const totalQualifiers = resolvedGroups.length * qualifiersPerGroup;
-    const pairings = totalQualifiers >> 1; // cruzamentos da 1ª rodada
-    const isPowerOfTwo = pairings >= 1 && (pairings & (pairings - 1)) === 0;
-    if (!isPowerOfTwo) {
+    if (!isBalancedQualifierTotal(totalQualifiers)) {
       throw new HttpsError(
         "failed-precondition",
         `${totalQualifiers} classificados (${resolvedGroups.length} grupos × ` +
           `${qualifiersPerGroup}) não formam um mata-mata equilibrado. Ajuste o ` +
-          "número de grupos ou de classificados (totais como 4, 8 ou 16).",
+          "número de grupos ou de classificados (totais como 2, 4, 8 ou 16).",
         {reason: "knockout_not_balanced", totalQualifiers},
       );
     }

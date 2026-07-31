@@ -151,6 +151,10 @@ async function discover(db, projectId) {
     inscriptions,
     seedAthleteUids,
     seedTournamentIds,
+    // Ids de TODOS os torneios que existem — é o que separa "inscrição em
+    // torneio real" de "inscrição com tournamentId pendurado". A leitura já
+    // acontece de qualquer forma para a checagem de organizador.
+    existingTournamentIds: tournaments.map((t) => t.id),
   });
 
   const organizerPlan = partitionOrganizerCleanup({organizerUids, tournaments});
@@ -159,10 +163,12 @@ async function discover(db, projectId) {
     await findSeedMatches(db, projectId, seedTournamentIds) :
     [];
 
+  // `organizerUids` não sai daqui: só `partitionOrganizerCleanup` precisa da
+  // lista crua, e o que os chamadores consomem é o veredito dela
+  // (`deletableOrganizerUids` / `preservedOrganizerUids`).
   return {
     projectId,
     seedTournamentIds,
-    organizerUids,
     matchIds: matchDocs.map((d) => d.id),
     ...plan,
     ...organizerPlan,
@@ -173,10 +179,36 @@ function printReport(d) {
   console.log("\nEncontrado:");
   console.log(`  matches ................. ${d.matchIds.length}`);
   console.log(`  inscriptions ............ ${d.seedInscriptionIds.length}`);
+  console.log(`  inscriptions órfãs ...... ${d.orphanSeedInscriptionIds.length}`);
   console.log(`  teams ................... ${d.teamIds.length}`);
   console.log(`  tournaments ............. ${d.seedTournamentIds.length}`);
   console.log(`  atletas seed (apagáveis)  ${d.deletableAthleteUids.length}`);
   console.log(`  organizadores seed (apagáveis) ${d.deletableOrganizerUids.length}`);
+
+  if (d.orphanSeedInscriptionIds.length) {
+    console.log(
+      `\nÓRFÃS: ${d.orphanSeedInscriptionIds.length} inscrição(ões) apontam para um torneio que`,
+    );
+    console.log("não existe mais e só têm atletas seed — serão apagadas:");
+    for (const id of d.orphanSeedInscriptionIds.slice(0, 20)) console.log(`  - ${id}`);
+    if (d.orphanSeedInscriptionIds.length > 20) {
+      console.log(`  ... e mais ${d.orphanSeedInscriptionIds.length - 20}`);
+    }
+  }
+
+  if (d.orphanUnknownInscriptionIds.length) {
+    console.log(
+      `\nÓRFÃS NÃO TOCADAS: ${d.orphanUnknownInscriptionIds.length} inscrição(ões) apontam para um`,
+    );
+    console.log(
+      "torneio inexistente mas envolvem alguém que não é atleta seed (ou não têm",
+    );
+    console.log("participante). Ficam como estão — revise à mão:");
+    for (const id of d.orphanUnknownInscriptionIds.slice(0, 20)) console.log(`  - ${id}`);
+    if (d.orphanUnknownInscriptionIds.length > 20) {
+      console.log(`  ... e mais ${d.orphanUnknownInscriptionIds.length - 20}`);
+    }
+  }
 
   if (d.preservedAthleteUids.length) {
     console.log(
@@ -208,10 +240,16 @@ function printReport(d) {
   }
 }
 
+/**
+ * `orphanUnknownInscriptionIds` de propósito NÃO entra aqui: essas inscrições
+ * são reportadas, nunca apagadas — contá-las faria o script prometer trabalho
+ * e depois não apagar nada.
+ */
 function nothingToDo(d) {
   return (
     d.matchIds.length === 0 &&
     d.seedInscriptionIds.length === 0 &&
+    d.orphanSeedInscriptionIds.length === 0 &&
     d.teamIds.length === 0 &&
     d.seedTournamentIds.length === 0 &&
     d.deletableAthleteUids.length === 0 &&
@@ -230,18 +268,31 @@ async function deleteRefs(db, refs) {
 }
 
 /**
- * Apaga os docs de usuário com `recursiveDelete`, que também remove as
- * subcoleções (`notifications`, `tokens`, `favorites`). Um `batch.delete`
- * do doc-pai deixaria essas subcoleções órfãs e invisíveis — mesmo motivo
- * pelo qual `deleteOwnAccount` usa recursiveDelete
- * (`functions/src/account-deletion.ts:23`).
+ * Apaga docs com `recursiveDelete`, que também remove as subcoleções. Um
+ * `batch.delete` do doc-pai deixaria essas subcoleções órfãs e invisíveis:
+ * sem pai, elas não aparecem em nenhuma listagem e nenhuma execução futura
+ * as reencontra.
+ *
+ * Vale para os dois donos de subcoleção desta limpeza:
+ *   - `users/{uid}`: `notifications`, `tokens`, `favorites` — mesmo motivo
+ *     pelo qual `deleteOwnAccount` usa recursiveDelete
+ *     (`functions/src/account-deletion.ts:23`).
+ *   - `tournaments/{id}`: `staff` (`tournament-acl.ts:30`,
+ *     `tournament-staff-sync.ts:160`) e `categoryCommunications`
+ *     (`organizer-category-ops.ts:668`). Adicionar mesário e disparar
+ *     comunicação de categoria são exatamente os fluxos que este seed existe
+ *     para exercitar, então é esperado que essas subcoleções existam na hora
+ *     de limpar. Há um trigger (`onTournamentDeletedCleanupStaff`) que limpa
+ *     `staff`, mas só se estiver deployado naquele projeto — e nada limpa
+ *     `categoryCommunications`. Mesmo raciocínio de `deletePublicProfiles`:
+ *     a limpeza não pode depender do estado de deploy.
  */
-async function deleteUsersRecursively(db, uids, log) {
+async function deleteDocsRecursively(db, refs, label, log) {
   let done = 0;
-  for (const uid of uids) {
-    await db.recursiveDelete(db.doc(`users/${uid}`));
+  for (const ref of refs) {
+    await db.recursiveDelete(ref);
     done += 1;
-    if (done % 50 === 0) log(`  ... ${done}/${uids.length} usuários`);
+    if (done % 50 === 0) log(`  ... ${done}/${refs.length} ${label}`);
   }
   return done;
 }
@@ -301,6 +352,12 @@ async function deleteAuthAccounts(auth, uids, log) {
  *   - depois de Auth: idem — `users` ainda existe, rerun tenta apagar Auth
  *     de novo (no-op, já não existe) e finalmente apaga `users`.
  *   - depois de users: não sobra nada para descobrir — a limpeza terminou.
+ *
+ * As inscrições órfãs (`tournamentId` apontando para torneio inexistente) são
+ * apagadas no mesmo passo das inscrições seed e não mudam nada disso: elas são
+ * descobertas varrendo a própria coleção de inscrições e classificadas pelos
+ * flags em `users` — o índice que morre por último —, então o rerun continua
+ * reencontrando as que sobraram.
  */
 async function applyCleanup(db, auth, d) {
   const log = console.log;
@@ -311,13 +368,16 @@ async function applyCleanup(db, auth, d) {
   const teamRefs = d.teamIds.map((id) => db.doc(`${teamsPath(d.projectId)}/${id}`));
   log(`teams: ${await deleteRefs(db, teamRefs)} apagadas`);
 
-  const inscriptionRefs = d.seedInscriptionIds.map((id) =>
-    db.doc(`${inscriptionsPath(d.projectId)}/${id}`),
-  );
+  const inscriptionRefs = [
+    ...d.seedInscriptionIds,
+    ...d.orphanSeedInscriptionIds,
+  ].map((id) => db.doc(`${inscriptionsPath(d.projectId)}/${id}`));
   log(`inscriptions: ${await deleteRefs(db, inscriptionRefs)} apagadas`);
 
   const tournamentRefs = d.seedTournamentIds.map((id) => db.doc(`tournaments/${id}`));
-  log(`tournaments: ${await deleteRefs(db, tournamentRefs)} apagados`);
+  log(
+    `tournaments: ${await deleteDocsRecursively(db, tournamentRefs, "torneios", log)} apagados (recursivo)`,
+  );
 
   const userUids = [...d.deletableAthleteUids, ...d.deletableOrganizerUids];
 
@@ -326,8 +386,9 @@ async function applyCleanup(db, auth, d) {
   const {deleted, failed} = await deleteAuthAccounts(auth, userUids, log);
   log(`Auth: ${deleted} contas removidas, ${failed} falha(s).`);
 
+  const userRefs = userUids.map((uid) => db.doc(`users/${uid}`));
   log(`users: apagando ${userUids.length} (recursivo)...`);
-  log(`users: ${await deleteUsersRecursively(db, userUids, log)} apagados`);
+  log(`users: ${await deleteDocsRecursively(db, userRefs, "usuários", log)} apagados`);
 
   if (d.preservedAthleteUids.length) {
     log(`\nPreservados — atletas (inscritos em torneio real): ${d.preservedAthleteUids.length}`);

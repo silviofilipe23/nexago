@@ -63,34 +63,59 @@ export function inscriptionParticipantUids(
 export interface CleanupPlan {
   /** Inscrições dos torneios seed — apagar. */
   seedInscriptionIds: string[];
-  /** Duplas referenciadas por essas inscrições — apagar. */
+  /**
+   * Inscrições órfãs (o `tournamentId` não existe em `tournaments`) cujos
+   * participantes são TODOS atletas seed — apagar junto, é lixo do seed.
+   */
+  orphanSeedInscriptionIds: string[];
+  /**
+   * Inscrições órfãs que envolvem alguém que não é atleta seed (ou que não
+   * têm participante nenhum) — apenas reportar, nunca apagar.
+   */
+  orphanUnknownInscriptionIds: string[];
+  /** Duplas referenciadas pelas inscrições apagáveis — apagar. */
   teamIds: string[];
   /** Atletas NÃO-seed inscritos em torneio seed — motivo de abortar. */
   realAthleteUids: string[];
-  /** Atletas seed inscritos em torneio real — preservar (doc, espelho e Auth). */
+  /** Atletas seed inscritos em torneio real EXISTENTE — preservar. */
   preservedAthleteUids: string[];
   /** Atletas seed seguros para apagar. */
   deletableAthleteUids: string[];
 }
 
 /**
- * Cruza inscrições, atletas seed e torneios seed para decidir a limpeza.
+ * Cruza inscrições, atletas seed e torneios para decidir a limpeza.
  *
  * `inscriptions` deve conter TODAS as inscrições do projeto, não só as dos
  * torneios seed: é justamente a presença de um atleta seed numa inscrição de
  * torneio real que o torna impossível de apagar.
+ *
+ * `existingTournamentIds` deve conter os ids de TODOS os torneios que existem
+ * hoje (seed e reais). Sem ele não dá para distinguir "inscrição em torneio
+ * real" de "inscrição com `tournamentId` pendurado", e as duas caem no mesmo
+ * ramo: um torneio seed apagado à mão pelo console deixa as inscrições para
+ * trás, todo atleta seed delas vira "preservado", a limpeza vira no-op
+ * permanente e o relatório afirma que existem torneios REAIS envolvidos —
+ * mentira, o torneio não existe mais. É um parâmetro obrigatório de
+ * propósito: omitir por engano recriaria exatamente esse bug.
  */
 export function partitionCleanupTargets(input: {
   inscriptions: CleanupInscription[];
   seedAthleteUids: string[];
   seedTournamentIds: string[];
+  existingTournamentIds: string[];
 }): CleanupPlan {
   const seedAthletes = new Set(input.seedAthleteUids.map(cleanUid).filter(Boolean));
   const seedTournaments = new Set(
     input.seedTournamentIds.map(cleanUid).filter(Boolean),
   );
+  const existingTournaments = new Set(
+    input.existingTournamentIds.map(cleanUid).filter(Boolean),
+  );
 
   const seedInscriptionIds: string[] = [];
+  const orphanSeedInscriptionIds: string[] = [];
+  const orphanUnknownInscriptionIds: string[] = [];
   const teamIds: string[] = [];
   const seenTeamIds = new Set<string>();
   const realAthleteUids: string[] = [];
@@ -98,19 +123,21 @@ export function partitionCleanupTargets(input: {
   const preservedAthleteUids: string[] = [];
   const seenPreservedUids = new Set<string>();
 
+  const takeTeamId = (inscription: CleanupInscription): void => {
+    const teamId = cleanUid(inscription.teamId);
+    if (teamId && !seenTeamIds.has(teamId)) {
+      seenTeamIds.add(teamId);
+      teamIds.push(teamId);
+    }
+  };
+
   for (const inscription of input.inscriptions) {
     const tournamentId = cleanUid(inscription.tournamentId);
-    const isSeedTournament = seedTournaments.has(tournamentId);
     const participants = inscriptionParticipantUids(inscription);
 
-    if (isSeedTournament) {
+    if (seedTournaments.has(tournamentId)) {
       seedInscriptionIds.push(inscription.id);
-
-      const teamId = cleanUid(inscription.teamId);
-      if (teamId && !seenTeamIds.has(teamId)) {
-        seenTeamIds.add(teamId);
-        teamIds.push(teamId);
-      }
+      takeTeamId(inscription);
 
       for (const uid of participants) {
         if (!seedAthletes.has(uid) && !seenRealUids.has(uid)) {
@@ -121,7 +148,25 @@ export function partitionCleanupTargets(input: {
       continue;
     }
 
-    // Torneio real: qualquer atleta seed aqui precisa sobreviver à limpeza.
+    if (!existingTournaments.has(tournamentId)) {
+      // Órfã: o torneio apontado não existe (id vazio, torneio apagado pelo
+      // console, etc.). Não pode preservar atleta nenhum — não há torneio
+      // real para proteger. Só é apagável quando é provadamente lixo do
+      // seed: todos os participantes são atletas seed. Qualquer participante
+      // fora disso (ou nenhum participante) é reportado e não tocado — a
+      // limpeza nunca apaga o que não conseguiu provar que é seed.
+      const isSeedOnly =
+        participants.length > 0 && participants.every((uid) => seedAthletes.has(uid));
+      if (isSeedOnly) {
+        orphanSeedInscriptionIds.push(inscription.id);
+        takeTeamId(inscription);
+      } else {
+        orphanUnknownInscriptionIds.push(inscription.id);
+      }
+      continue;
+    }
+
+    // Torneio real EXISTENTE: qualquer atleta seed aqui precisa sobreviver.
     for (const uid of participants) {
       if (seedAthletes.has(uid) && !seenPreservedUids.has(uid)) {
         seenPreservedUids.add(uid);
@@ -136,6 +181,8 @@ export function partitionCleanupTargets(input: {
 
   return {
     seedInscriptionIds,
+    orphanSeedInscriptionIds,
+    orphanUnknownInscriptionIds,
     teamIds,
     realAthleteUids,
     preservedAthleteUids,

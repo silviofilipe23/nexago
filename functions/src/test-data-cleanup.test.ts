@@ -63,6 +63,7 @@ describe("test-data-cleanup", () => {
       ],
       seedAthleteUids: ["s1", "s2", "s3", "s4"],
       seedTournamentIds: ["seed1"],
+      existingTournamentIds: ["seed1", "real1"],
     });
 
     assert.deepEqual(plan.seedInscriptionIds, ["i1", "i2"]);
@@ -70,6 +71,8 @@ describe("test-data-cleanup", () => {
     assert.deepEqual(plan.realAthleteUids, []);
     assert.deepEqual(plan.preservedAthleteUids, []);
     assert.deepEqual(plan.deletableAthleteUids, ["s1", "s2", "s3", "s4"]);
+    assert.deepEqual(plan.orphanSeedInscriptionIds, []);
+    assert.deepEqual(plan.orphanUnknownInscriptionIds, []);
   });
 
   it("partitionCleanupTargets acusa atleta real inscrito em torneio seed", () => {
@@ -79,6 +82,7 @@ describe("test-data-cleanup", () => {
       ],
       seedAthleteUids: ["s1"],
       seedTournamentIds: ["seed1"],
+      existingTournamentIds: ["seed1"],
     });
 
     assert.deepEqual(plan.realAthleteUids, ["REAL"]);
@@ -94,6 +98,7 @@ describe("test-data-cleanup", () => {
       ],
       seedAthleteUids: ["s1", "s2"],
       seedTournamentIds: ["seed1"],
+      existingTournamentIds: ["seed1", "real1"],
     });
 
     // s2 joga um torneio de verdade → não pode ser apagado.
@@ -101,6 +106,8 @@ describe("test-data-cleanup", () => {
     assert.deepEqual(plan.deletableAthleteUids, ["s1"]);
     // A inscrição do torneio seed continua sendo apagada.
     assert.deepEqual(plan.seedInscriptionIds, ["i1"]);
+    // O team do torneio real NÃO entra na lista de apagáveis.
+    assert.deepEqual(plan.teamIds, ["tm1"]);
     // r1 é real mas está só em torneio real → não é contaminação.
     assert.deepEqual(plan.realAthleteUids, []);
   });
@@ -114,6 +121,7 @@ describe("test-data-cleanup", () => {
       ],
       seedAthleteUids: ["s1"],
       seedTournamentIds: ["seed1"],
+      existingTournamentIds: ["seed1"],
     });
 
     assert.deepEqual(plan.teamIds, ["tm1"]);
@@ -127,6 +135,7 @@ describe("test-data-cleanup", () => {
       ],
       seedAthleteUids: [],
       seedTournamentIds: [],
+      existingTournamentIds: ["real1"],
     });
 
     assert.deepEqual(plan.seedInscriptionIds, []);
@@ -134,6 +143,120 @@ describe("test-data-cleanup", () => {
     assert.deepEqual(plan.realAthleteUids, []);
     assert.deepEqual(plan.preservedAthleteUids, []);
     assert.deepEqual(plan.deletableAthleteUids, []);
+    assert.deepEqual(plan.orphanSeedInscriptionIds, []);
+    assert.deepEqual(plan.orphanUnknownInscriptionIds, []);
+  });
+});
+
+describe("partitionCleanupTargets — tournamentId pendurado", () => {
+  it("não preserva atleta por inscrição em torneio inexistente", () => {
+    // Cenário real: o torneio seed foi apagado à mão pelo console e as
+    // inscrições ficaram para trás. Antes, isso movia todo atleta seed para
+    // `preservedAthleteUids` e a limpeza virava no-op permanente, com a
+    // mensagem falsa de que existiam torneios REAIS envolvidos.
+    const plan = partitionCleanupTargets({
+      inscriptions: [
+        {id: "i1", tournamentId: "APAGADO", teamId: "tm1", participantUids: ["s1", "s2"]},
+      ],
+      seedAthleteUids: ["s1", "s2"],
+      seedTournamentIds: [],
+      existingTournamentIds: ["real1"],
+    });
+
+    assert.deepEqual(plan.preservedAthleteUids, []);
+    assert.deepEqual(plan.deletableAthleteUids, ["s1", "s2"]);
+    // Só de atletas seed → é lixo do seed, sai junto (com o team dela).
+    assert.deepEqual(plan.orphanSeedInscriptionIds, ["i1"]);
+    assert.deepEqual(plan.teamIds, ["tm1"]);
+    assert.deepEqual(plan.orphanUnknownInscriptionIds, []);
+    // Não é "atleta real em torneio seed": não há torneio seed nenhum.
+    assert.deepEqual(plan.realAthleteUids, []);
+    assert.deepEqual(plan.seedInscriptionIds, []);
+  });
+
+  it("tournamentId vazio conta como pendurado", () => {
+    const plan = partitionCleanupTargets({
+      inscriptions: [
+        {id: "i1", tournamentId: "", teamId: "tm1", participantUids: ["s1"]},
+        {id: "i2", tournamentId: "   ", participantUids: ["s1"]},
+      ],
+      seedAthleteUids: ["s1"],
+      seedTournamentIds: ["seed1"],
+      existingTournamentIds: ["seed1"],
+    });
+
+    assert.deepEqual(plan.orphanSeedInscriptionIds, ["i1", "i2"]);
+    assert.deepEqual(plan.deletableAthleteUids, ["s1"]);
+    assert.deepEqual(plan.preservedAthleteUids, []);
+  });
+
+  it("órfã com participante não-seed é reportada, não apagada", () => {
+    const plan = partitionCleanupTargets({
+      inscriptions: [
+        {id: "i1", tournamentId: "APAGADO", teamId: "tm1", participantUids: ["s1", "REAL"]},
+      ],
+      seedAthleteUids: ["s1"],
+      seedTournamentIds: [],
+      existingTournamentIds: [],
+    });
+
+    assert.deepEqual(plan.orphanUnknownInscriptionIds, ["i1"]);
+    assert.deepEqual(plan.orphanSeedInscriptionIds, []);
+    // Nem a inscrição nem o team dela são tocados...
+    assert.deepEqual(plan.teamIds, []);
+    // ...e o atleta seed continua apagável: não há torneio real protegendo-o.
+    assert.deepEqual(plan.deletableAthleteUids, ["s1"]);
+    assert.deepEqual(plan.preservedAthleteUids, []);
+  });
+
+  it("órfã sem nenhum participante é reportada, não apagada", () => {
+    // Sem participante não dá para provar que é lixo do seed.
+    const plan = partitionCleanupTargets({
+      inscriptions: [{id: "i1", tournamentId: "APAGADO", teamId: "tm1"}],
+      seedAthleteUids: ["s1"],
+      seedTournamentIds: [],
+      existingTournamentIds: [],
+    });
+
+    assert.deepEqual(plan.orphanUnknownInscriptionIds, ["i1"]);
+    assert.deepEqual(plan.orphanSeedInscriptionIds, []);
+    assert.deepEqual(plan.teamIds, []);
+  });
+
+  it("torneio real existente continua preservando o atleta seed", () => {
+    // Guarda de regressão: a distinção nova não pode afrouxar a proteção.
+    const plan = partitionCleanupTargets({
+      inscriptions: [
+        {id: "i1", tournamentId: "real1", teamId: "tm9", participantUids: ["s1"]},
+        {id: "i2", tournamentId: "APAGADO", teamId: "tm8", participantUids: ["s2"]},
+      ],
+      seedAthleteUids: ["s1", "s2"],
+      seedTournamentIds: [],
+      existingTournamentIds: ["real1"],
+    });
+
+    assert.deepEqual(plan.preservedAthleteUids, ["s1"]);
+    assert.deepEqual(plan.deletableAthleteUids, ["s2"]);
+    assert.deepEqual(plan.orphanSeedInscriptionIds, ["i2"]);
+    assert.deepEqual(plan.teamIds, ["tm8"]);
+  });
+
+  it("atleta seed em torneio real e em órfã ao mesmo tempo é preservado", () => {
+    // A órfã não pode "cancelar" a preservação vinda do torneio real, nem
+    // vice-versa: a inscrição órfã dele sai, o atleta fica.
+    const plan = partitionCleanupTargets({
+      inscriptions: [
+        {id: "i1", tournamentId: "APAGADO", teamId: "tm1", participantUids: ["s1"]},
+        {id: "i2", tournamentId: "real1", teamId: "tm9", participantUids: ["s1"]},
+      ],
+      seedAthleteUids: ["s1"],
+      seedTournamentIds: [],
+      existingTournamentIds: ["real1"],
+    });
+
+    assert.deepEqual(plan.preservedAthleteUids, ["s1"]);
+    assert.deepEqual(plan.deletableAthleteUids, []);
+    assert.deepEqual(plan.orphanSeedInscriptionIds, ["i1"]);
   });
 });
 

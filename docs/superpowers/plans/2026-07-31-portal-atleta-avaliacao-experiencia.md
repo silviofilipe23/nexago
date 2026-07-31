@@ -1000,6 +1000,22 @@ export class ArenaReviewDialogComponent {
     this.rating.set(value);
   }
 
+  /** Setas navegam o radiogroup e levam o foco junto, como manda o padrão ARIA. */
+  protected onStarKeydown(event: KeyboardEvent, star: number): void {
+    const delta =
+      event.key === 'ArrowRight' || event.key === 'ArrowUp'
+        ? 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+          ? -1
+          : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const next = Math.min(5, Math.max(1, star + delta));
+    this.setRating(next);
+    const group = (event.target as HTMLElement).closest('.arv-stars');
+    group?.querySelectorAll<HTMLButtonElement>('.arv-star')[next - 1]?.focus();
+  }
+
   protected toggleTag(tag: string): void {
     if (this.sending()) return;
     this.selectedTags.update((current) => {
@@ -1090,6 +1106,7 @@ Crie `frontend/projects/athlete/src/app/agenda/review/arena-review-dialog.compon
         [attr.tabindex]="rating() === star ? 0 : -1"
         [disabled]="sending()"
         (click)="setRating(star)"
+        (keydown)="onStarKeydown($event, star)"
       >
         <svg width="26" height="26" viewBox="0 0 24 24" [attr.fill]="rating() >= star ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" />
@@ -1686,12 +1703,14 @@ Em `athlete-booking-detail.component.html`, dentro do card "Gerenciar", logo dep
 No fim do arquivo, antes de `</app-at-panel-shell>`, monte o modal:
 
 ```html
-  @if (reviewDialogOpen() && booking(); as reviewBooking) {
-    <app-arena-review-dialog
-      [booking]="reviewBooking"
-      (submitted)="onReviewSubmitted($event)"
-      (dismissed)="onReviewDismissed()"
-    />
+  @if (reviewDialogOpen()) {
+    @if (booking(); as reviewBooking) {
+      <app-arena-review-dialog
+        [booking]="reviewBooking"
+        (submitted)="onReviewSubmitted($event)"
+        (dismissed)="onReviewDismissed()"
+      />
+    }
   }
 ```
 

@@ -823,6 +823,7 @@ git commit -m "feat(rules): colecoes de equipe da arena e helpers de acesso por 
 | 892 | `stockMovements` | `estoque` |
 | 901 | `metadata` | `perfil` |
 | 928 | `arenaComandas` + itens/pagamentos | `comandas` |
+| 487 | **dentro** de `isValidArenaComandaCreate` | `comandas` — a checagem de identidade mora dentro do validador (`isArenaManagerByArenaId(data.arenaId)`, linha 487), não no bloco `match`. Trocar por `arenaCanWrite(data.arenaId, 'comandas')` **ali**, senão a comanda continua exigindo o dono por mais que o `match` mude |
 | 986 | `arenaSlots` | `agenda` |
 | 1006 | `bookings` | `agenda` |
 | 1016 | `arenaSlotLocks` | `agenda` |
@@ -848,22 +849,41 @@ Acrescentar ao fim de `functions/test/arena-staff-rbac.rules.test.mjs`:
 ```js
 // ---- matriz cargo x area -------------------------------------------------
 
+// `isValidArenaComandaCreate` (firestore.rules:468) exige 15 campos e
+// `type == 'individual'`; este helper monta um payload que passa em tudo,
+// para que o único fator sob teste seja a identidade de quem escreve.
+function comandaPayload(uid, arenaId, displayNumber) {
+  const agora = new Date();
+  return {
+    arenaId,
+    displayNumber,
+    type: 'individual',
+    status: 'open',
+    customerName: 'Cliente Teste',
+    allowAppOrders: false,
+    rentalCents: 0,
+    itemsTotalCents: 0,
+    totalCents: 0,
+    itemsCount: 0,
+    openedByUid: uid,
+    openedAt: agora,
+    createdAt: agora,
+    updatedAt: agora,
+  };
+}
+
 test('recepcao cria comanda; manutencao nao', async () => {
   await assertSucceeds(
-    setDoc(doc(ctx(RECEPCAO), 'arenaComandas/comanda-recepcao'), {
-      arenaId: 'arena-pro',
-      status: 'open',
-      type: 'avulsa',
-      createdBy: RECEPCAO,
-    }),
+    setDoc(
+      doc(ctx(RECEPCAO), 'arenaComandas/comanda-recepcao'),
+      comandaPayload(RECEPCAO, 'arena-pro', 101),
+    ),
   );
   await assertFails(
-    setDoc(doc(ctx(MANUTENCAO), 'arenaComandas/comanda-manutencao'), {
-      arenaId: 'arena-pro',
-      status: 'open',
-      type: 'avulsa',
-      createdBy: MANUTENCAO,
-    }),
+    setDoc(
+      doc(ctx(MANUTENCAO), 'arenaComandas/comanda-manutencao'),
+      comandaPayload(MANUTENCAO, 'arena-pro', 102),
+    ),
   );
 });
 
@@ -933,12 +953,10 @@ test('nenhum cargo se auto-promove mexendo em planTier', async () => {
 
 test('membro de arena sem plano perde tudo', async () => {
   await assertFails(
-    setDoc(doc(ctx(RECEPCAO), 'arenaComandas/comanda-sem-plano'), {
-      arenaId: 'arena-sem-plano',
-      status: 'open',
-      type: 'avulsa',
-      createdBy: RECEPCAO,
-    }),
+    setDoc(
+      doc(ctx(RECEPCAO), 'arenaComandas/comanda-sem-plano'),
+      comandaPayload(RECEPCAO, 'arena-sem-plano', 103),
+    ),
   );
   await assertFails(
     setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-sem-plano/courts/q1'), { name: 'Q1' }),

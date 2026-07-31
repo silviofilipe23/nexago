@@ -129,7 +129,12 @@ function localPartOf(email: string): string {
             </ar-panel-card>
             <ar-panel-card pad="sm" class="kpi-card">
               <div class="kpi-label">Assentos</div>
-              <div class="kpi-value">{{ seatsUsed() }} <span class="kpi-of">de {{ maxSeatsLabel() }}</span></div>
+              <div class="kpi-value">
+                {{ seatsUsed() }}
+                @if (maxSeatsLabel(); as max) {
+                  <span class="kpi-of">de {{ max }}</span>
+                }
+              </div>
             </ar-panel-card>
           </div>
 
@@ -179,7 +184,7 @@ function localPartOf(email: string): string {
       </div>
 
       @if (showInvite()) {
-        <ar-modal (close)="closeInviteModal()">
+        <ar-modal (close)="dismissInviteModal()">
           @if (inviteResults(); as results) {
             <h2 class="modal-title">Resultado do convite</h2>
             <p class="modal-subtitle">Confira o que aconteceu com cada e-mail convidado.</p>
@@ -261,7 +266,7 @@ function localPartOf(email: string): string {
             </div>
 
             <div class="actions">
-              <button type="button" class="ar-ghost-btn" (click)="closeInviteModal()">Cancelar</button>
+              <button type="button" class="ar-ghost-btn" [disabled]="sendingInvites()" (click)="dismissInviteModal()">Cancelar</button>
               <button
                 type="button"
                 class="ar-mini-btn ar-mini-btn-primary confirm-btn"
@@ -869,11 +874,15 @@ export class PanelTeamComponent {
   protected readonly activeCount = computed(() => this.members().length);
   protected readonly pendingCount = computed(() => this.invites().length);
   protected readonly seatsUsed = computed(() => this.activeCount() + this.pendingCount());
-  protected readonly maxSeatsLabel = computed(() => {
+  /** `null` quando o plano não concede assento nenhum (starter/sem plano) — nesse
+   *  caso o card de upsell já está visível (`readOnly()`), então o KPI só mostra
+   *  a contagem atual em vez de um "de 0" confuso pra uma arena que tinha
+   *  equipe antes de rebaixar de plano (achado de review). */
+  protected readonly maxSeatsLabel = computed<string | null>(() => {
     const tier = this.arenaContext.planStatus().tier;
     if (tier === 'elite') return 'ilimitado';
     if (tier === 'pro') return '5';
-    return '0';
+    return null;
   });
 
   protected readonly openMenuKey = signal<string | null>(null);
@@ -996,7 +1005,20 @@ export class PanelTeamComponent {
 
   protected openInviteModal(): void {
     if (this.readOnly()) return;
+    // Sempre parte de um estado limpo, mesmo que a sessão anterior do modal
+    // tenha terminado de um jeito que não passou por closeInviteModal() (ex.:
+    // resultado de um envio anterior ainda em `inviteResults`) — ver Finding 1.
+    this.resetInviteForm();
     this.showInvite.set(true);
+  }
+
+  /** Fecha o modal a pedido do usuário (X, backdrop, Escape, Cancelar) — mas
+   *  nunca no meio de um envio: os convites já foram disparados pro servidor
+   *  e abandonar a tela nesse ponto só deixaria os resultados sem serem
+   *  mostrados, sem cancelar nada de fato (achado de review, round 1). */
+  protected dismissInviteModal(): void {
+    if (this.sendingInvites()) return;
+    this.closeInviteModal();
   }
 
   protected closeInviteModal(): void {
@@ -1049,11 +1071,21 @@ export class PanelTeamComponent {
     for (const email of list) {
       try {
         const result = await this.staffService.invite(arenaId, email, role);
-        if (result.status === 'pending' && result.inviteId) {
+        if (result.status === 'active') {
+          outcomes.push({ email, ok: true, status: 'active' });
+        } else if (result.status === 'pending' && result.inviteId) {
           const link = arenaInviteLink(location.origin, result.inviteId);
           outcomes.push({ email, ok: true, status: 'pending', link, whatsappUrl: arenaInviteWhatsAppUrl(link, arenaName) });
         } else {
-          outcomes.push({ email, ok: true, status: 'active' });
+          // Contrato quebrado (status 'pending' sem inviteId, ou valor
+          // inesperado): não presumir sucesso — errar pro lado de avisar que
+          // algo pode ter sido criado sem link, nunca dizer "adicionado à
+          // equipe" quando não foi isso que aconteceu (achado de review).
+          outcomes.push({
+            email,
+            ok: false,
+            errorMessage: 'O convite pode ter sido criado, mas não foi possível gerar o link. Confira a lista de Equipe.',
+          });
         }
       } catch (err) {
         outcomes.push({ email, ok: false, errorMessage: err instanceof Error ? err.message : 'Não foi possível enviar o convite.' });

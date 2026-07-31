@@ -309,6 +309,13 @@ export {saveLinkPageProfile, trackLinkPageEvent} from "./link-pages";
 
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
+export {
+  inviteArenaStaff,
+  acceptArenaStaffInvite,
+  revokeArenaStaffInvite,
+  updateArenaStaffRole,
+  removeArenaStaff,
+} from "./arena-staff-ops";
 export {completeOrganizerSignup} from "./organizer-signup";
 export {grantAthleteRole} from "./athlete-signup";
 export {confirmPhoneVerification} from "./athlete-phone-verification";

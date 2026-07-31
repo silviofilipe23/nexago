@@ -1,6 +1,6 @@
 import { bookingToEvent, registrationToEvent } from './athlete-agenda.component';
 import type { MyBooking } from '../data/my-bookings-repository';
-import type { AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
+import { EMPTY_UNIFORM_SLOT, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../data/tournaments-repository';
 
 const NOW = new Date(2026, 6, 20, 12, 0, 0); // 2026-07-20 12:00
@@ -32,6 +32,10 @@ function makeRegistration(overrides: Partial<AthleteTournamentRegistration> = {}
     isPaid: true,
     waitlist: false,
     sharePaidUids: [],
+    player1Id: null,
+    participantUids: [],
+    uniformPlayer1: EMPTY_UNIFORM_SLOT,
+    uniformPlayer2: EMPTY_UNIFORM_SLOT,
     ...overrides,
   };
 }

@@ -12,6 +12,7 @@ import {
   acceptPartnerInvite,
   cancelSentPartnerInvite,
   declinePartnerInvite,
+  EMPTY_UNIFORM_SLOT,
   fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
   fetchMySentPendingInvites,
@@ -444,7 +445,20 @@ export class TournamentRegistrationShellComponent {
       const result = await registerSolo(athleteFunctions(), tournamentId, category.id);
       this.myRegistrations.update((list) => [
         ...list,
-        { id: result.registrationId, tournamentId, categoryId: category.id, teamId: null, partnerPending: true, isPaid: false, waitlist: false, sharePaidUids: [] },
+        {
+          id: result.registrationId,
+          tournamentId,
+          categoryId: category.id,
+          teamId: null,
+          partnerPending: true,
+          isPaid: false,
+          waitlist: false,
+          sharePaidUids: [],
+          player1Id: this.auth.user()?.uid ?? null,
+          participantUids: [this.auth.user()?.uid ?? ''].filter(Boolean),
+          uniformPlayer1: EMPTY_UNIFORM_SLOT,
+          uniformPlayer2: EMPTY_UNIFORM_SLOT,
+        },
       ]);
       this.showNotice('Inscrição criada! Agora convide seu parceiro.');
       await this.persistUniformAfterRegistration(category, result.registrationId);

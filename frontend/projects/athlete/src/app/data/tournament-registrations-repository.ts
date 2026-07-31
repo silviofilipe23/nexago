@@ -16,6 +16,14 @@ function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+/** Uniforme de um dos dois atletas, cru do doc (`sizeTopPlayer1`, `sizeTopPlayer2`, …). */
+export interface RegistrationUniformSlot {
+  sizeTop: string | null;
+  sizeShorts: string | null;
+  jerseyNumber: number | null;
+  jerseyName: string | null;
+}
+
 export interface AthleteTournamentRegistration {
   id: string;
   tournamentId: string;
@@ -26,6 +34,37 @@ export interface AthleteTournamentRegistration {
   waitlist: boolean;
   /** Uids que já pagaram a própria parcela (pagamento em dupla dividido). */
   sharePaidUids: string[];
+  /** Só existe em inscrição criada por `registerSoloTournament`; o caminho "aceitar convite sem
+   *  solo prévio" cria o doc sem ele — daí `participantUids` ser o fallback pra saber o slot. */
+  player1Id: string | null;
+  /** Ordem é significativa: índice 0 = player1, índice 1 = player2. */
+  participantUids: string[];
+  uniformPlayer1: RegistrationUniformSlot;
+  uniformPlayer2: RegistrationUniformSlot;
+}
+
+export const EMPTY_UNIFORM_SLOT: RegistrationUniformSlot = {
+  sizeTop: null,
+  sizeShorts: null,
+  jerseyNumber: null,
+  jerseyName: null,
+};
+
+function stringList(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((u): u is string => typeof u === 'string') : [];
+}
+
+function optionalNum(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function uniformSlotFromDoc(data: Record<string, unknown>, slot: 'Player1' | 'Player2'): RegistrationUniformSlot {
+  return {
+    sizeTop: optionalStr(data[`sizeTop${slot}`]),
+    sizeShorts: optionalStr(data[`sizeShorts${slot}`]),
+    jerseyNumber: optionalNum(data[`jerseyNumber${slot}`]),
+    jerseyName: optionalStr(data[`jerseyName${slot}`]),
+  };
 }
 
 function registrationFromDoc(id: string, data: Record<string, unknown>): AthleteTournamentRegistration {
@@ -37,7 +76,11 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     partnerPending: data['partnerPending'] === true,
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
-    sharePaidUids: Array.isArray(data['sharePaidUids']) ? data['sharePaidUids'].filter((u): u is string => typeof u === 'string') : [],
+    sharePaidUids: stringList(data['sharePaidUids']),
+    player1Id: optionalStr(data['player1Id']),
+    participantUids: stringList(data['participantUids']),
+    uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
+    uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
   };
 }
 

@@ -628,6 +628,9 @@ export class PanelHomeComponent {
     });
 
     effect(() => {
+      if (!this.access.ready()) {
+        return;
+      }
       if (!this.chartTabs().includes(this.chartTab())) {
         this.chartTab.set(this.chartTabs()[0]!);
       }

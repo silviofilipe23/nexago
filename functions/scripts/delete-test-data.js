@@ -185,6 +185,92 @@ function nothingToDo(d) {
   );
 }
 
+/** Apaga refs em lotes, respeitando o teto de operações por batch. */
+async function deleteRefs(db, refs) {
+  for (const part of chunkList(refs, BATCH_LIMIT)) {
+    const batch = db.batch();
+    for (const ref of part) batch.delete(ref);
+    await batch.commit();
+  }
+  return refs.length;
+}
+
+/**
+ * Apaga os docs de usuário com `recursiveDelete`, que também remove as
+ * subcoleções (`notifications`, `tokens`, `favorites`). Um `batch.delete`
+ * do doc-pai deixaria essas subcoleções órfãs e invisíveis — mesmo motivo
+ * pelo qual `deleteOwnAccount` usa recursiveDelete
+ * (`functions/src/account-deletion.ts:23`).
+ */
+async function deleteUsersRecursively(db, uids, log) {
+  let done = 0;
+  for (const uid of uids) {
+    await db.recursiveDelete(db.doc(`users/${uid}`));
+    done += 1;
+    if (done % 50 === 0) log(`  ... ${done}/${uids.length} usuários`);
+  }
+  return done;
+}
+
+/**
+ * Varre o espelho público explicitamente. O trigger
+ * `onUserWrittenSyncPublicProfile` já apaga `public_profiles/{uid}` quando
+ * `users/{uid}` some, mas só se estiver deployado naquele projeto — e o
+ * script não tem como verificar isso. A varredura é barata e torna a
+ * limpeza independente do estado de deploy.
+ */
+async function deletePublicProfiles(db, uids) {
+  const refs = uids.map((uid) => db.doc(`public_profiles/${uid}`));
+  return deleteRefs(db, refs);
+}
+
+async function deleteAuthAccounts(auth, uids, log) {
+  let deleted = 0;
+  let failed = 0;
+  for (const part of chunkList(uids, 1000)) {
+    const res = await auth.deleteUsers(part);
+    deleted += res.successCount;
+    failed += res.failureCount;
+    for (const err of res.errors) {
+      log(`  Falha Auth: ${part[err.index]} — ${err.error.message}`);
+    }
+  }
+  return {deleted, failed};
+}
+
+/** Cascata: filho antes do pai, para nunca deixar órfão. */
+async function applyCleanup(db, auth, d) {
+  const log = console.log;
+
+  const matchRefs = d.matchIds.map((id) => db.doc(`${matchesPath(d.projectId)}/${id}`));
+  log(`\nmatches: ${await deleteRefs(db, matchRefs)} apagados`);
+
+  const inscriptionRefs = d.seedInscriptionIds.map((id) =>
+    db.doc(`${inscriptionsPath(d.projectId)}/${id}`),
+  );
+  log(`inscriptions: ${await deleteRefs(db, inscriptionRefs)} apagadas`);
+
+  const teamRefs = d.teamIds.map((id) => db.doc(`${teamsPath(d.projectId)}/${id}`));
+  log(`teams: ${await deleteRefs(db, teamRefs)} apagadas`);
+
+  const tournamentRefs = d.seedTournamentIds.map((id) => db.doc(`tournaments/${id}`));
+  log(`tournaments: ${await deleteRefs(db, tournamentRefs)} apagados`);
+
+  const userUids = [...d.deletableAthleteUids, ...d.organizerUids];
+  log(`users: apagando ${userUids.length} (recursivo)...`);
+  log(`users: ${await deleteUsersRecursively(db, userUids, log)} apagados`);
+
+  log(`public_profiles: ${await deletePublicProfiles(db, userUids)} apagados`);
+
+  const {deleted, failed} = await deleteAuthAccounts(auth, userUids, log);
+  log(`Auth: ${deleted} contas removidas, ${failed} falha(s).`);
+
+  if (d.preservedAthleteUids.length) {
+    log(`\nPreservados (inscritos em torneio real): ${d.preservedAthleteUids.length}`);
+    for (const uid of d.preservedAthleteUids) log(`  - ${uid}`);
+  }
+}
+
 async function run() {
   const {APPLY, FORCE, projectId} = parseArgs();
   const db = admin.firestore();
@@ -218,7 +304,8 @@ async function run() {
     return;
   }
 
-  console.log("\n(apply ainda não implementado — Task 6)");
+  await applyCleanup(db, admin.auth(), discovery);
+  console.log("\nLimpeza concluída.");
 }
 
 run()

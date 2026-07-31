@@ -7,7 +7,7 @@ import { AuthService } from '../auth/auth.service';
 import { fetchArenaBooking, type ArenaBookingDoc } from '../data/arena-bookings-repository';
 import { fetchLeague } from '../data/leagues-repository';
 import { fetchMyBookings, bookingIsActive, type MyBooking } from '../data/my-bookings-repository';
-import { bookingIsReviewable, type ReviewableBooking } from '../data/pending-arena-review';
+import { bookingIsReviewCandidate, type ReviewableBooking } from '../data/pending-arena-review';
 import { PendingArenaReviewService } from '../data/pending-arena-review.service';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from '../data/teams-repository';
 import { fetchTournamentSummariesByIds, type TournamentSummary } from '../data/tournaments-repository';
@@ -153,7 +153,7 @@ export class AthleteHistoryComponent {
   protected reviewableBookingOf(row: HistoryRow): MyBooking | null {
     const b = row.booking;
     if (!b || this.reviewStore.isReviewed(b.id)) return null;
-    return bookingIsReviewable(b, new Date()) ? b : null;
+    return bookingIsReviewCandidate(b, new Date()) ? b : null;
   }
 
   protected openReviewDialog(booking: MyBooking): void {
@@ -161,6 +161,14 @@ export class AthleteHistoryComponent {
   }
 
   protected onReviewSubmitted(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewingBooking.set(null);
+  }
+
+  /** Backend recusou por "já avaliada" — sincroniza o store (o CTA "Avaliar" desta linha
+   *  some sozinho, via `reviewableBookingOf`) e fecha o modal em vez de travar num erro que
+   *  se repetiria pra sempre. */
+  protected onReviewAlreadyReviewed(bookingId: string): void {
     this.reviewStore.markReviewed(bookingId);
     this.reviewingBooking.set(null);
   }

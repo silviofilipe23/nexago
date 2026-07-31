@@ -58,6 +58,19 @@ export function bookingIsReviewable(booking: ReviewEligibilityFields, now: Date)
   return now.getTime() > endsAt.getTime() + REVIEW_PROMPT_DELAY_MS;
 }
 
+/** Gate de oferta de avaliação (CTA nas três telas + convite automático): além de
+ *  `bookingIsReviewable`, exige `arenaId` não vazio, porque `submitArenaReview` sempre falha
+ *  sem ele ("Dados inválidos para avaliação."). Não é o mesmo gate de `validateBookingForReview`
+ *  (que confia no doc bruto quando ele não contradiz nada) — ali é sobre o que o backend
+ *  aceita, aqui é sobre o que a UI deveria nem oferecer. Espelha o guard duplicado em
+ *  `arena_review_providers.dart:104,148` (`if (arenaId.isEmpty) continue;`). */
+export function bookingIsReviewCandidate(
+  booking: ReviewEligibilityFields & Pick<MyBooking, 'arenaId'>,
+  now: Date,
+): boolean {
+  return booking.arenaId.trim().length > 0 && bookingIsReviewable(booking, now);
+}
+
 /** Candidata ao convite automático: concluída, não avaliada e dentro da janela de 30 dias.
  *  Entre as elegíveis vence a de fim mais recente — o app pega a primeira da ordem do stream,
  *  que é arbitrária (duas queries mescladas por id); perguntar sobre o jogo mais fresco é o
@@ -73,7 +86,7 @@ export function pickPendingReview(
 
   for (const booking of bookings) {
     if (reviewedBookingIds.has(booking.id)) continue;
-    if (!bookingIsReviewable(booking, now)) continue;
+    if (!bookingIsReviewCandidate(booking, now)) continue;
     const endsAt = reviewEndsAt(booking);
     if (endsAt == null) continue;
     const end = endsAt.getTime();

@@ -79,7 +79,12 @@
                     }
                   </a>
                   @if (reviewableBookingOf(row); as reviewable) {
-                    <button type="button" class="hs-row-review" (click)="openReviewDialog(reviewable)">Avaliar</button>
+                    <button
+                      type="button"
+                      class="hs-row-review"
+                      [attr.aria-label]="'Avaliar ' + row.title"
+                      (click)="openReviewDialog(reviewable)"
+                    >Avaliar</button>
                   }
                 </div>
               }
@@ -94,6 +99,7 @@
     <app-arena-review-dialog
       [booking]="reviewBooking"
       (submitted)="onReviewSubmitted($event)"
+      (alreadyReviewed)="onReviewAlreadyReviewed($event)"
       (dismissed)="onReviewDismissed()"
     />
   }

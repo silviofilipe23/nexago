@@ -6,8 +6,9 @@ import { fetchArenaById, arenaListItemImageUrl, type ArenaListItem } from '@nexa
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { cancelBooking, fetchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
 import { fetchAcceptedBookingInviteGuestUids } from '../../data/booking-invites-repository';
-import { bookingIsReviewable } from '../../data/pending-arena-review';
+import { bookingIsReviewCandidate } from '../../data/pending-arena-review';
 import { PendingArenaReviewService } from '../../data/pending-arena-review.service';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../../data/public-profiles-repository';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
@@ -135,7 +136,7 @@ export class AthleteBookingDetailComponent {
     const b = this.booking();
     if (!b || this.reviewSentHere()) return false;
     if (this.reviewStore.isReviewed(b.id)) return false;
-    return bookingIsReviewable(b, this.now());
+    return bookingIsReviewCandidate(b, this.now());
   });
 
   protected readonly reviewAlreadySent = computed(() => {
@@ -541,6 +542,14 @@ export class AthleteBookingDetailComponent {
     this.reviewSentHere.set(true);
     this.reviewDialogOpen.set(false);
     this.showNotice('Obrigado! +10 XP no seu progresso.');
+  }
+
+  /** Backend recusou por "já avaliada" — sem XP, então sem a notícia de +10 XP; só
+   *  sincroniza o store (`canReview`/`reviewAlreadySent` reagem sozinhos) e fecha o modal. */
+  protected onReviewAlreadyReviewed(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewDialogOpen.set(false);
+    this.showNotice(REVIEW_ALREADY_SENT_MESSAGE);
   }
 
   protected onReviewDismissed(): void {

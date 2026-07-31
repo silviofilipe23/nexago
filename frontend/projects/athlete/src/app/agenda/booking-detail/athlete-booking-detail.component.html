@@ -215,6 +215,7 @@
       <app-arena-review-dialog
         [booking]="reviewBooking"
         (submitted)="onReviewSubmitted($event)"
+        (alreadyReviewed)="onReviewAlreadyReviewed($event)"
         (dismissed)="onReviewDismissed()"
       />
     }

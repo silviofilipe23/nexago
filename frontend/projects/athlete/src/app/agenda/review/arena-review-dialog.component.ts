@@ -16,7 +16,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { ArenaReviewError, submitArenaReview } from '../../data/arena-reviews-repository';
+import { ArenaReviewError, REVIEW_ALREADY_SENT_MESSAGE, submitArenaReview } from '../../data/arena-reviews-repository';
 import type { ReviewableBooking } from '../../data/pending-arena-review';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {
@@ -61,6 +61,10 @@ export class ArenaReviewDialogComponent {
 
   readonly booking = input.required<ReviewableBooking>();
   readonly submitted = output<string>();
+  /** Emitido quando o backend recusa por "já avaliada" — outra aba/o app já mandou a mesma
+   *  reserva antes deste store saber. Distinto de `submitted`: o host não deve comemorar
+   *  +10 XP aqui, porque este envio não creditou XP nenhum. */
+  readonly alreadyReviewed = output<string>();
   readonly dismissed = output<void>();
 
   protected readonly xpReward = REVIEW_XP_REWARD;
@@ -196,6 +200,14 @@ export class ArenaReviewDialogComponent {
       });
       this.submitted.emit(booking.id);
     } catch (err) {
+      // "Já avaliada" não é um erro pro atleta — outra aba (ou o app) já mandou essa mesma
+      // reserva antes deste store saber. Trava o modal aqui vira um beco sem saída (o mesmo
+      // erro se repete pra sempre); em vez disso avisa o host pra marcar como avaliada e
+      // fechar, como as outras duas telas fariam se soubessem.
+      if (err instanceof ArenaReviewError && err.message === REVIEW_ALREADY_SENT_MESSAGE) {
+        this.alreadyReviewed.emit(booking.id);
+        return;
+      }
       // Só mensagem de `ArenaReviewError` é apresentável; rules e rede falam inglês técnico.
       this.error.set(
         err instanceof ArenaReviewError ? err.message : 'Não foi possível enviar sua avaliação. Tente de novo.',

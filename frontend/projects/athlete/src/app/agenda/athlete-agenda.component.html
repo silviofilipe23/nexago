@@ -169,8 +169,8 @@
         <div class="ag-card" id="ag-pending-card">
           <div class="ag-card-head">
             <span class="ag-card-title">Precisa de você</span>
-            @if (pendingRequests().length > 0) {
-              <span class="ag-card-badge">{{ pendingRequests().length }}</span>
+            @if (pendingCardCount() > 0) {
+              <span class="ag-card-badge">{{ pendingCardCount() }}</span>
             }
           </div>
           @if (pendingReview(); as review) {
@@ -257,6 +257,7 @@
     <app-arena-review-dialog
       [booking]="reviewBooking"
       (submitted)="onReviewSubmitted($event)"
+      (alreadyReviewed)="onReviewAlreadyReviewed($event)"
       (dismissed)="onReviewDismissed()"
     />
   }

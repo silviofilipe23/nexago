@@ -30,6 +30,7 @@ import {
   validateUniformSelection,
   type UniformSelection,
 } from '../tournaments/tournament-uniform';
+import { REVIEW_ALREADY_SENT_MESSAGE } from '../data/arena-reviews-repository';
 import { PendingArenaReviewService } from '../data/pending-arena-review.service';
 import { ArenaReviewDialogComponent } from './review/arena-review-dialog.component';
 import { reviewSessionSubtitle } from './review/arena-review-copy';
@@ -497,6 +498,11 @@ export class AthleteAgendaComponent {
       (this.pendingReview() ? 1 : 0),
   );
 
+  /** Contagem do badge do card "Precisa de você" — precisa bater com o que o card lista
+   *  (convites + avaliação pendente), não com `pendingActionCount()`: esse último também soma
+   *  eventos com pagamento pendente, que aparecem na lista principal, não neste card. */
+  protected readonly pendingCardCount = computed(() => this.pendingRequests().length + (this.pendingReview() ? 1 : 0));
+
   constructor() {
     interval(30_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -740,6 +746,14 @@ export class AthleteAgendaComponent {
     this.reviewStore.markReviewed(bookingId);
     this.reviewingBooking.set(null);
     this.showNotice('Obrigado! +10 XP no seu progresso.');
+  }
+
+  /** Backend recusou por "já avaliada" — sem XP, então sem a notícia de +10 XP; só
+   *  sincroniza o store (some da lista) e fecha o modal. */
+  protected onReviewAlreadyReviewed(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewingBooking.set(null);
+    this.showNotice(REVIEW_ALREADY_SENT_MESSAGE);
   }
 
   protected onReviewDismissed(): void {

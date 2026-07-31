@@ -277,6 +277,16 @@
   border: none;
   border-radius: var(--nx-r-2);
   cursor: pointer;
+  transition: background var(--nx-d-fast);
+
+  &:hover {
+    background: var(--nx-orange-400);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
 }
 
 .hs-row {

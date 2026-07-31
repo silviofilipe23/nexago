@@ -1,5 +1,11 @@
 import type { MyBooking } from './my-bookings-repository';
-import { AUTO_PROMPT_WINDOW_DAYS, bookingEndIsUnknown, bookingIsReviewable, pickPendingReview } from './pending-arena-review';
+import {
+  AUTO_PROMPT_WINDOW_DAYS,
+  bookingEndIsUnknown,
+  bookingIsReviewCandidate,
+  bookingIsReviewable,
+  pickPendingReview,
+} from './pending-arena-review';
 
 function booking(overrides: Partial<MyBooking> = {}): MyBooking {
   return {
@@ -57,6 +63,15 @@ describe('bookingIsReviewable', () => {
   });
 });
 
+describe('bookingIsReviewCandidate', () => {
+  it('nunca oferece avaliação pra reserva sem arenaId, mesmo com o resto completo', () => {
+    const now = new Date(2026, 3, 15, 20, 36);
+    expect(bookingIsReviewCandidate(booking({ arenaId: '' }), now)).toBe(false);
+    expect(bookingIsReviewCandidate(booking({ arenaId: '   ' }), now)).toBe(false);
+    expect(bookingIsReviewCandidate(booking(), now)).toBe(true);
+  });
+});
+
 describe('pickPendingReview', () => {
   const now = new Date(2026, 3, 20, 12, 0);
   const noneReviewed: ReadonlySet<string> = new Set<string>();
@@ -90,5 +105,9 @@ describe('pickPendingReview', () => {
 
   it('ignora reserva sem fim utilizável (nunca cobra pelo que não dá pra datar)', () => {
     expect(pickPendingReview([booking({ endTime: '--:--' })], noneReviewed, now)).toBeNull();
+  });
+
+  it('ignora reserva sem arenaId — o write sempre falharia com "Dados inválidos"', () => {
+    expect(pickPendingReview([booking({ arenaId: '' })], noneReviewed, now)).toBeNull();
   });
 });

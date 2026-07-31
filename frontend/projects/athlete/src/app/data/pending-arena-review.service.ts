@@ -25,15 +25,31 @@ export class PendingArenaReviewService {
 
   private readonly bookings = signal<readonly MyBooking[]>([]);
   private readonly reviewed = signal<ReadonlySet<string>>(new Set<string>());
+  /** Marcadas nesta sessão via `markReviewed` (submit bem-sucedido ou "já avaliada" vinda do
+   *  backend) — separado de `reviewed` de propósito: um `refresh()` que começou antes de um
+   *  submit pode resolver depois com um snapshot do servidor que ainda não viu aquele write,
+   *  e `reviewed.set(...)` substituiria o Set inteiro, apagando a marca local e trazendo de
+   *  volta o CTA "Avaliar" pra reserva que acabou de ser avaliada. Nunca é tocado por
+   *  `refresh()` — só cresce, some junto com a sessão (reload = igual a reabrir o app). */
+  private readonly locallyReviewed = signal<ReadonlySet<string>>(new Set<string>());
   /** Dispensadas nesta sessão — equivale a `_promptedReviewBookingIds` (Dart). Não persiste:
    *  recarregar a página reabre o convite, igual a reabrir o app. */
   private readonly dismissed = signal<ReadonlySet<string>>(new Set<string>());
 
-  /** Candidata ao convite automático, já descontando o que foi dispensado nesta sessão. */
+  /** União do que o servidor confirmou com o que foi marcado nesta sessão — é o que "já
+   *  avaliada" deve significar pras três telas. */
+  private readonly effectiveReviewed = computed<ReadonlySet<string>>(() => {
+    const local = this.locallyReviewed();
+    if (local.size === 0) return this.reviewed();
+    return new Set([...this.reviewed(), ...local]);
+  });
+
+  /** Candidata ao convite automático. Avaliadas E dispensadas entram na mesma exclusão de
+   *  `pickPendingReview` — dispensar uma reserva não pode empurrar as outras candidatas pra
+   *  fora da fila também, só a que foi dispensada. */
   readonly pending = computed<MyBooking | null>(() => {
-    const candidate = pickPendingReview(this.bookings(), this.reviewed(), new Date());
-    if (candidate == null) return null;
-    return this.dismissed().has(candidate.id) ? null : candidate;
+    const excluded = new Set([...this.effectiveReviewed(), ...this.dismissed()]);
+    return pickPendingReview(this.bookings(), excluded, new Date());
   });
 
   async refresh(): Promise<void> {
@@ -64,11 +80,11 @@ export class PendingArenaReviewService {
   }
 
   isReviewed(bookingId: string): boolean {
-    return this.reviewed().has(bookingId);
+    return this.effectiveReviewed().has(bookingId);
   }
 
   markReviewed(bookingId: string): void {
-    this.reviewed.update((current) => new Set(current).add(bookingId));
+    this.locallyReviewed.update((current) => new Set(current).add(bookingId));
   }
 
   dismiss(bookingId: string): void {

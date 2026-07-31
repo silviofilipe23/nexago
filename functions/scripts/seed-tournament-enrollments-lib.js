@@ -518,13 +518,22 @@ async function refreshTournamentStats(db, projectId, tournamentId, tournament) {
   return {enrolledCount, collectedCents};
 }
 
+/**
+ * @param {object} options
+ * @param {object} [options.args] Args já resolvidos pelo chamador
+ *   (`{APPLY, projectId, MANAGER_UID, TOURNAMENT_NAME}`). Quando ausente,
+ *   lê de `process.argv` via `parseSeedArgs` — comportamento dos wrappers
+ *   de linha de comando. Injetar permite ao `seed-test-data.js` reusar o
+ *   admin já inicializado e o uid do organizador que ele mesmo criou.
+ */
 async function runTournamentEnrollmentSeed({
   defaultTournamentName,
   buildTournamentDoc,
   extraLogLines = () => [],
+  args,
 }) {
   const {APPLY, projectId, MANAGER_UID, TOURNAMENT_NAME} =
-    parseSeedArgs(defaultTournamentName);
+    args || parseSeedArgs(defaultTournamentName);
   const db = admin.firestore();
 
   console.log(`Projeto: ${projectId}`);

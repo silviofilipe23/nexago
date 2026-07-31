@@ -828,7 +828,7 @@ git commit -m "feat(rules): colecoes de equipe da arena e helpers de acesso por 
 | 864 | `products` | `estoque` |
 | 888 | `sales` | `comandas` |
 | 892 | `stockMovements` | `estoque` |
-| 901 | `metadata` | `perfil` |
+| 901 | `metadata` | `comandas` — **não** `perfil`. A subcoleção só guarda `comandaCounter` (a própria rule exige `docId == 'comandaCounter'`), e o repositório grava nela ao abrir comanda (`comandas-repository.ts:40`). Gatear em `perfil` faria a Recepção passar no bloco `arenaComandas` e falhar no contador, quebrando a abertura de comanda |
 | 928 | `arenaComandas` + itens/pagamentos | `comandas` |
 | 487 | **dentro** de `isValidArenaComandaCreate` | `comandas` — a checagem de identidade mora dentro do validador (`isArenaManagerByArenaId(data.arenaId)`, linha 487), não no bloco `match`. Trocar por `arenaCanWrite(data.arenaId, 'comandas')` **ali**, senão a comanda continua exigindo o dono por mais que o `match` mude |
 | 986 | `arenaSlots` | `agenda` |

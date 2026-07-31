@@ -3,11 +3,17 @@ import {test} from "node:test";
 
 import {canFillBracketSlot} from "./category-bracket-advance";
 import {
+  callToCourtFields,
   compareByMatchNumber,
   isMatchAutoSchedulable,
   scheduleCourtFields,
   shouldPropagateMatchAdvance,
 } from "./organizer-match-ops";
+
+const COURTS = [
+  {id: "Q1", name: "Quadra 1"},
+  {id: "Q2", name: "Quadra Central"},
+];
 
 test("canFillBracketSlot preenche slot vazio de partida não iniciada", () => {
   assert.equal(
@@ -158,6 +164,54 @@ test("compareByMatchNumber trata matchNumber ausente como 0", () => {
   assert.deepEqual(sorted.map((m) => m.id), ["b", "a"]);
 });
 
+test("callToCourtFields regrava o nome ao chamar para outra quadra", () => {
+  // Regressão: gravava só o `courtId` novo e o push repetia o `courtName`
+  // antigo do doc, mandando o atleta para a quadra errada.
+  assert.deepEqual(
+    callToCourtFields(COURTS, "Q2", {courtId: "Q1", courtName: "Quadra 1"}),
+    {
+      patch: {courtId: "Q2", courtName: "Quadra Central"},
+      label: "Quadra Central",
+    },
+  );
+});
+
+test("callToCourtFields mantém a quadra agendada sem courtId no request", () => {
+  assert.deepEqual(
+    callToCourtFields(undefined, undefined, {
+      courtId: "Q1",
+      courtName: "Quadra 1",
+    }),
+    {patch: null, label: "Quadra 1"},
+  );
+  assert.deepEqual(
+    callToCourtFields(COURTS, "   ", {courtId: "Q1", courtName: "Quadra 1"}),
+    {patch: null, label: "Quadra 1"},
+  );
+});
+
+test("callToCourtFields resolve o nome pelo id quando o doc não tem courtName", () => {
+  assert.deepEqual(
+    callToCourtFields(COURTS, "", {courtId: "Q1"}),
+    {patch: null, label: "Quadra 1"},
+  );
+});
+
+test("callToCourtFields cai pro id quando a quadra chamada não está no torneio", () => {
+  assert.deepEqual(
+    callToCourtFields(COURTS, "Q9", {courtId: "Q1", courtName: "Quadra 1"}),
+    {patch: {courtId: "Q9", courtName: "Q9"}, label: "Q9"},
+  );
+  assert.deepEqual(
+    callToCourtFields(undefined, "Q2", {}),
+    {patch: {courtId: "Q2", courtName: "Q2"}, label: "Q2"},
+  );
+});
+
+test("callToCourtFields cai pro rótulo genérico sem quadra nenhuma", () => {
+  assert.deepEqual(
+    callToCourtFields(COURTS, "", {}),
+    {patch: null, label: "quadra"},
 test("scheduleCourtFields grava o nome da quadra junto do id", () => {
   assert.deepEqual(
     scheduleCourtFields(

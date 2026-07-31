@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { initialsOf, truncateName } from '../data/mock-data';
+import { courtChangeBlockReason, courtChangePayload } from '../data/match-court-change';
 import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '../data/match-scoring';
-import { declareMatchWalkover, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
+import { declareMatchWalkover, scheduleMatch, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
@@ -174,6 +175,37 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
               <og-form-field label="Quadra"><div class="og-placar-detail">{{ match()!.court ?? 'A definir' }}</div></og-form-field>
               <og-form-field label="Horário"><div class="og-placar-detail">{{ scheduledLabel() }}</div></og-form-field>
             </div>
+
+            @if (courtBlock() === null && courts().length > 0) {
+              <div class="og-placar-court-edit">
+                <span class="og-placar-court-title">Alterar quadra</span>
+                <div class="og-filter-bar">
+                  @for (c of courts(); track c.id) {
+                    <button
+                      type="button"
+                      class="og-chip og-placar-court-chip"
+                      [class.active]="match()!.courtId === c.id"
+                      [disabled]="saving()"
+                      (click)="changeCourt(c.id)"
+                    >
+                      @if (busyKey() === 'court:' + c.id) {
+                        <app-nx-spinner [size]="12" [tone]="match()!.courtId === c.id ? 'dark' : 'orange'" />
+                      }
+                      {{ c.name }}
+                    </button>
+                  }
+                </div>
+                <p class="og-placar-hint">O horário é mantido — só a quadra muda. Conflito com outra partida é recusado.</p>
+              </div>
+            } @else if (courtBlock() === 'unscheduled') {
+              <p class="og-placar-hint">Defina o horário em <strong>Agendamento</strong> pra escolher a quadra desta partida.</p>
+            } @else if (courtBlock() === null) {
+              <p class="og-placar-hint">Nenhuma quadra configurada no torneio.</p>
+            }
+
+            @if (courtFeedback(); as fb) {
+              <div class="og-banner" [class.win]="fb.ok" style="margin-top:12px">{{ fb.message }}</div>
+            }
           </og-card>
         }
       </div>
@@ -301,6 +333,31 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       color: var(--nx-text);
       padding: 10px 0;
     }
+    .og-placar-court-edit {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--nx-line);
+    }
+    .og-placar-court-title {
+      display: block;
+      margin-bottom: 10px;
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-placar-court-chip {
+      gap: 6px;
+    }
+    .og-placar-court-chip:disabled {
+      cursor: default;
+      opacity: 0.7;
+    }
+    .og-placar-court-edit .og-placar-hint {
+      margin-top: 10px;
+    }
     .og-empty {
       font-family: var(--nx-font-ui);
       font-size: 13px;
@@ -331,6 +388,9 @@ export class PlacarComponent {
   /** Qual ação está em andamento (`'save' | 'validate' | 'wo:<teamId>'`) — o botão certo mostra o spinner. */
   protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  /** Feedback da troca de quadra — sinal próprio pra aparecer no card "Registro da partida",
+   *  junto dos chips, e não lá no card de sets onde `feedback` é renderizado. */
+  protected readonly courtFeedback = signal<{ ok: boolean; message: string } | null>(null);
   private hydratedMatchId: string | null = null;
 
   constructor() {
@@ -343,8 +403,20 @@ export class PlacarComponent {
       this.sets.set(m.sets.map((s) => ({ a: s.a, b: s.b })));
       this.bestOf.set(m.bestOf);
       this.feedback.set(null);
+      this.courtFeedback.set(null);
     });
   }
+
+  /** Quadras reais do torneio (`courts` do doc) — mesma fonte das colunas do Agendamento. */
+  protected readonly courts = computed(() => this.ctx.tournament()?.courts ?? []);
+
+  protected readonly durationMin = computed(() => this.ctx.tournament()?.matchOps.defaultMatchDurationMin ?? 30);
+
+  /** `null` = quadra editável; senão o motivo (`'finished'`/`'unscheduled'`). */
+  protected readonly courtBlock = computed(() => {
+    const m = this.match();
+    return m ? courtChangeBlockReason(m) : 'unscheduled';
+  });
 
   protected readonly wins = computed(() => setsWon(this.sets(), this.bestOf()));
 
@@ -428,6 +500,37 @@ export class PlacarComponent {
       await this.ctx.reloadMatches();
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao salvar o placar.' });
+    } finally {
+      this.saving.set(false);
+      this.busyKey.set(null);
+    }
+  }
+
+  /** Troca só a quadra: reusa `scheduleMatch` com o mesmo horário já agendado. O servidor
+   *  recusa sobreposição de quadra e devolve avisos de descanso insuficiente. Não mexe nos
+   *  sets em edição — a hidratação só roda quando o `matchId` muda. */
+  protected async changeCourt(courtId: string): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || m.courtId === courtId) return;
+    const payload = courtChangePayload(m, courtId, this.durationMin());
+    if (!payload) return;
+    const courtName = this.courts().find((c) => c.id === courtId)?.name ?? courtId;
+    this.saving.set(true);
+    this.busyKey.set(`court:${courtId}`);
+    this.courtFeedback.set(null);
+    try {
+      const result = await scheduleMatch(payload);
+      const warnings = result.warnings ?? [];
+      this.courtFeedback.set({
+        ok: true,
+        message:
+          warnings.length > 0
+            ? `Quadra alterada para ${courtName} — aviso: ${warnings.map((w) => w.message).join(' ')}`
+            : `Quadra alterada para ${courtName}.`,
+      });
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.courtFeedback.set({ ok: false, message: (e as Error).message || 'Falha ao alterar a quadra.' });
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);

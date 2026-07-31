@@ -57,9 +57,9 @@ export class PendingArenaReviewService {
       this.bookings.set(bookings);
       this.reviewed.set(reviewed);
     } catch {
-      // Avaliação é enriquecimento: falhar aqui não pode derrubar a tela que chamou.
-      this.bookings.set([]);
-      this.reviewed.set(new Set<string>());
+      // Avaliação é enriquecimento: falhar aqui não pode derrubar a tela que chamou. Preservar
+      // o último estado bom evita descartar o convite válido se uma retry posterior falhar
+      // por instabilidade de rede; na primeira chamada os signals já nascem vazios.
     }
   }
 

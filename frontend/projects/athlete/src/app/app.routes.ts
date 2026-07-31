@@ -15,7 +15,12 @@ export const routes: Routes = [
       import('./atletas/athlete-directory.component').then((m) => m.AthleteDirectoryComponent),
   },
   {
+    // Link de perfil compartilhado. Exige login porque as rules de `public_profiles` só
+    // liberam leitura autenticada (anti-scraping) — sem o guard, o visitante deslogado
+    // tomava permission-denied e via o card "LINK INVÁLIDO / PERFIL_404" em vez do login.
+    // Sem `onboardingGuard` de propósito: quem se cadastra pelo link volta direto ao perfil.
     path: 'atletas/:handle',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./profile/athlete-public-profile.component').then(
         (m) => m.AthletePublicProfileComponent,

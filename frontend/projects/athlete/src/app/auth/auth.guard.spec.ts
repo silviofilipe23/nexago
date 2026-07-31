@@ -60,6 +60,22 @@ describe('authGuard', () => {
     await run('/torneios/abc123/inscricao');
     expect(localStorage.getItem(ATHLETE_REDIRECT_INTENT_KEY)).toBe('/torneios/abc123/inscricao');
   });
+
+  // Link de perfil compartilhado: deslogado precisa cair no login com o perfil em ?redirect=,
+  // e não na tela de "LINK INVÁLIDO" (que era o sintoma do permission-denied das rules).
+  it('deslogado num perfil compartilhado: manda pro login com o perfil em ?redirect=', async () => {
+    setup(false);
+    const result = await run('/atletas/uid123');
+    expect(result).toBeInstanceOf(UrlTree);
+    const tree = result as UrlTree;
+    expect(tree.root.children['primary'].segments.map((s) => s.path)).toEqual(['entrar']);
+    expect(tree.queryParams['redirect']).toBe('/atletas/uid123');
+  });
+
+  it('logado: perfil compartilhado abre direto', async () => {
+    setup(true);
+    expect(await run('/atletas/uid123')).toBeTrue();
+  });
 });
 
 // Ciclo completo do deep-link vindo do site: carga inicial deslogado → login →
@@ -79,6 +95,7 @@ describe('authGuard (integração com router)', () => {
           { path: '', pathMatch: 'full', redirectTo: 'entrar' },
           { path: 'entrar', component: StubComponent },
           { path: 'torneios/:id/inscricao', canActivate: [authGuard], component: StubComponent },
+          { path: 'atletas/:handle', canActivate: [authGuard], component: StubComponent },
         ]),
         { provide: AuthService, useValue: { authReady: signal(true), isAuthenticated } },
       ],
@@ -96,5 +113,17 @@ describe('authGuard (integração com router)', () => {
     isAuthenticated.set(true);
     await harness.navigateByUrl('/torneios/abc123/inscricao');
     expect(router.url).toBe('/torneios/abc123/inscricao');
+  });
+
+  // Perfil compartilhado por link: mesma volta completa, entrando pela URL crua.
+  it('perfil compartilhado: deslogado vai pro login e volta ao perfil após autenticar', async () => {
+    const harness = await RouterTestingHarness.create('/atletas/uid123');
+    const router = TestBed.inject(Router);
+    expect(router.url).toBe('/entrar?redirect=%2Fatletas%2Fuid123');
+    expect(localStorage.getItem(ATHLETE_REDIRECT_INTENT_KEY)).toBe('/atletas/uid123');
+
+    isAuthenticated.set(true);
+    await harness.navigateByUrl('/atletas/uid123');
+    expect(router.url).toBe('/atletas/uid123');
   });
 });

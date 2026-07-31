@@ -46,18 +46,45 @@ que se quer testar manualmente depois.
 Login dos seeds: `seed-<nivel>-<m|f>-NN@nexago.test` (ex.:
 `seed-iniciante_1-m-01@nexago.test`, níveis `iniciante_1`, `iniciante_2`,
 `intermediario_1`, `intermediario_2`, `open`) e `seed-organizer@nexago.test`,
-senha `Senha123!`.
+senha `Senha123!` (ou `SEED_PASSWORD`).
 
 | Flag | Default | Efeito |
 |---|---|---|
-| `--project <id>` | aceita fallback `GCLOUD_PROJECT`/`GOOGLE_CLOUD_PROJECT` | projeto Firebase |
+| `--project <id>` | — (obrigatório, sem fallback de env) | projeto Firebase |
 | `--yes` | dry-run | aplica de verdade |
 | `--manager-uid <uid>` | cria organizador seed próprio | organizador do torneio |
-| `--count <n>` | `32` | atletas por nível×gênero (total = `n × 10`) |
+| `--count <n>` | `32` (ou `COUNT`) | atletas por nível×gênero (total = `n × 10`) |
 | `--today` | em 14 dias | torneio no dia de hoje |
 | `--tournament-name <s>` | `Torneio seed nexaGO` | nome do torneio |
 
-Idempotente: rodar de novo reaproveita contas e torneio existentes.
+| Env var | Default | Efeito |
+|---|---|---|
+| `COUNT` | `32` | mesmo que `--count` (a flag tem prioridade) |
+| `SEED_PASSWORD` | `Senha123!` | senha dos 321 logins seed (organizador e atletas) |
+
+Idempotente: rodar de novo reaproveita contas e torneio existentes. Uma
+ressalva sobre `SEED_PASSWORD`: a idempotência é por e-mail e **não regrava a
+senha** de conta já existente no Auth — mudar `SEED_PASSWORD` e rodar de novo
+não altera a senha de quem já foi criado.
+
+### Guardas
+
+As mesmas duas guardas de projeto do comando de limpeza, pelo motivo simétrico:
+
+- **`--project` não tem fallback de env.** O alias `default` do `.firebaserc`
+  aponta para produção; um `GCLOUD_PROJECT` exportado (comum ao mexer nas
+  functions) faria o comando escolher o projeto sozinho.
+- **Produção é bloqueada** (`volley-track-2dd3b`), mesmo com `--yes`. O seed
+  cria 321 contas no Auth e um torneio `visibility: publicListing` /
+  `listingStatus: open` — visível para usuários reais na listagem. E
+  `delete-test-data.js` **se recusa a rodar em produção**, então desfazer seria
+  100% manual.
+- **Reutilizar torneio existente exige `seedTestTournament: true`.** A busca
+  por nome casa por substring nos dois sentidos, então
+  `--tournament-name "Copa"` casaria com uma "Copa Goiás" real. Se o nome casar
+  com um torneio sem a flag, o comando **aborta sem gravar nada**, citando id e
+  nome do torneio encontrado. (Os scripts antigos de torneio não têm essa
+  exigência — ver "Scripts antigos".)
 
 ## Apagar
 
@@ -104,6 +131,21 @@ de deixar órfãos que nenhuma execução futura reencontra.
   preservado e reportado no fim. Sem essa exceção, o torneio real ficaria com
   `managerId` apontando para uma conta inexistente e o dono de verdade
   perderia acesso a ele (`managerId === uid` é o que o ACL de torneio checa).
+- **Inscrição com `tournamentId` pendurado** (torneio apagado à mão pelo
+  console, por exemplo) → **não** preserva ninguém. "Torneio real" e "torneio
+  que não existe mais" são casos diferentes: tratá-los igual travaria a limpeza
+  para sempre, com a mensagem falsa de que há torneios REAIS envolvidos. A
+  inscrição órfã é apagada quando **todos** os participantes são atletas seed
+  (é lixo do próprio seed) e apenas **reportada** quando envolve alguém que não
+  é seed ou não tem participante — a limpeza não apaga o que não conseguiu
+  provar que é de teste.
+
+`tournaments` e `users` são apagados com `recursiveDelete`, não com
+`batch.delete`: os dois têm subcoleções (`staff` e `categoryCommunications` no
+torneio; `notifications`, `tokens` e `favorites` no usuário) que sobreviveriam
+ao pai, sem caminho de descoberta. Adicionar mesário e disparar comunicação de
+categoria são exatamente os fluxos que este seed existe para exercitar, então é
+esperado que essas subcoleções existam na hora de limpar.
 
 ### Exit code
 
@@ -120,3 +162,11 @@ silencioso não é garantido só porque o comando "rodou até o fim".
 continuam funcionando como antes. Os novos comandos os orquestram; prefira os
 novos, principalmente na limpeza — `delete-seed-athletes.js` apaga só os
 atletas e deixa o torneio órfão.
+
+Isso vale também para as guardas: os dois `seed-tournament-*` continuam
+aceitando fallback de env em `--project` e continuam reutilizando qualquer
+torneio cujo nome case, com ou sem `seedTestTournament`. É deliberado — alguém
+pode estar usando um deles para despejar inscrições de teste num torneio criado
+à mão pelo painel. A exigência da flag na reutilização é **opcional na lib
+compartilhada** (`requireSeedFlagOnReuse`) e só o `seed-test-data.js` a liga,
+porque só ele promete uma limpeza simétrica.

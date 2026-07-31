@@ -213,6 +213,21 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
   };
 }
 
+/** Preenche o nome da quadra (`court`) pelo `courtId` quando o jogo não tem `courtName`
+ *  gravado. O auto-agendamento (`autoScheduleTournamentDay`) só gravava o `courtId` até o fix
+ *  do servidor, então os jogos agendados antes dele apareceriam sem quadra ("—") em jogos,
+ *  grupos e placar. Devolve a MESMA lista quando não há nada a resolver, pra não invalidar
+ *  computeds à toa. */
+export function resolveCourtNames(
+  matches: TournamentMatch[],
+  courts: readonly { id: string; name: string }[],
+): TournamentMatch[] {
+  const needsFix = matches.some((m) => !m.court && m.courtId);
+  if (!needsFix) return matches;
+  const nameById = new Map(courts.map((c) => [c.id, c.name]));
+  return matches.map((m) => (m.court || !m.courtId ? m : { ...m, court: nameById.get(m.courtId) || m.courtId }));
+}
+
 // ── Colunas de mata-mata (porta fiel de `buildBracketColumns` do athlete) ─────
 
 function isBracketMatch(m: TournamentMatch): boolean {

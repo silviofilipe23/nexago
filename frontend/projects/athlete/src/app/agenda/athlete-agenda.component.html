@@ -173,7 +173,22 @@
               <span class="ag-card-badge">{{ pendingRequests().length }}</span>
             }
           </div>
-          @if (pendingRequests().length === 0) {
+          @if (pendingReview(); as review) {
+            <div class="ag-pending-item ag-pending-item--review">
+              <div class="ag-pending-row">
+                <span class="ag-pending-avatar ag-pending-avatar--review" aria-hidden="true">★</span>
+                <div class="ag-pending-copy">
+                  <p class="ag-pending-title">Avaliar experiência</p>
+                  <p class="ag-pending-subtitle">{{ review.arenaName }}</p>
+                </div>
+              </div>
+              <p class="ag-pending-schedule">{{ pendingReviewLine() }}</p>
+              <div class="ag-pending-actions">
+                <button type="button" class="ag-btn-primary ag-btn-sm" (click)="openReviewDialog()">Avaliar</button>
+              </div>
+            </div>
+          }
+          @if (pendingRequests().length === 0 && !pendingReview()) {
             <p class="ag-empty-inline">Tudo em dia por aqui.</p>
           } @else {
             @for (r of pendingRequests(); track r.id) {
@@ -237,4 +252,12 @@
       </div>
     </div>
   </div>
+
+  @if (reviewingBooking(); as reviewBooking) {
+    <app-arena-review-dialog
+      [booking]="reviewBooking"
+      (submitted)="onReviewSubmitted($event)"
+      (dismissed)="onReviewDismissed()"
+    />
+  }
 </app-at-panel-shell>

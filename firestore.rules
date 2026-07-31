@@ -362,6 +362,52 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid;
     }
+    // ---- Equipe da arena (RBAC) ----------------------------------------
+    // A matriz abaixo é ESPELHO MANUAL de
+    // `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts`.
+    // `functions/test/arena-staff-rbac.rules.test.mjs` falha se divergirem.
+    function isArenaOwner(arenaId) {
+      return isArenaManagerByArenaId(arenaId);
+    }
+    function arenaStaffDoc(arenaId) {
+      return get(/databases/$(database)/documents/arenas/$(arenaId)/staff/$(request.auth.uid)).data;
+    }
+    // Membro ativo E arena com titularidade de plano pago: plano vencido fora
+    // da carência corta o acesso do membro no mesmo instante, sem sweeper.
+    function isActiveArenaStaff(arenaId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/arenas/$(arenaId)/staff/$(request.auth.uid)) &&
+        arenaStaffDoc(arenaId).get('status', '') == 'active' &&
+        arenaEntitled(arenaId, ['pro', 'elite', 'parceiro']);
+    }
+    function arenaWriteAreas(role) {
+      return {
+        'gestor': ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade'],
+        'recepcao': ['agenda', 'comandas'],
+        'financeiro': ['financeiro', 'promocoes'],
+        'manutencao': ['quadras', 'estoque']
+      }.get(role, []);
+    }
+    function arenaReadAreas(role) {
+      return {
+        'gestor': ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade', 'financeiro'],
+        'recepcao': ['agenda', 'comandas', 'comunidade', 'estoque'],
+        'financeiro': ['financeiro', 'promocoes', 'comandas', 'comunidade'],
+        'manutencao': ['quadras', 'estoque', 'agenda']
+      }.get(role, []);
+    }
+    function arenaCanWrite(arenaId, area) {
+      return isArenaOwner(arenaId) || (
+        isActiveArenaStaff(arenaId) &&
+        arenaWriteAreas(arenaStaffDoc(arenaId).get('role', '')).hasAny([area])
+      );
+    }
+    function arenaCanRead(arenaId, area) {
+      return isArenaOwner(arenaId) || (
+        isActiveArenaStaff(arenaId) &&
+        arenaReadAreas(arenaStaffDoc(arenaId).get('role', '')).hasAny([area])
+      );
+    }
     function canManageArenaProducts(arenaId) {
       return request.auth != null && (
         isArenaManagerByArenaId(arenaId) ||
@@ -719,6 +765,17 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    // Equipe da arena. Escrita SEMPRE via Cloud Function: criar vínculo exige
+    // contar assentos e conferir plano, coisas que rules não fazem.
+    match /arenas/{arenaId}/staff/{staffUserId} {
+      allow read: if request.auth != null && (
+        isArenaOwner(arenaId) ||
+        request.auth.uid == staffUserId ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
     // Cobrança/assinatura da arena — leitura restrita ao gestor/admin; escrita só via functions.
     match /arenas/{arenaId}/billing/{docId} {
       allow read: if request.auth != null && (
@@ -849,6 +906,17 @@ service cloud.firestore {
       allow create: if false;
       allow update: if request.auth != null && (isSuperAdmin() || isAdmin());
       allow delete: if false;
+    }
+    // Convites de equipe. Lidos pelo dono e por quem tem o e-mail convidado
+    // (a rota /convite precisa ler antes de aceitar). Escrita só via function.
+    match /arenaStaffInvites/{inviteId} {
+      allow read: if request.auth != null && (
+        isArenaOwner(resource.data.arenaId) ||
+        request.auth.token.get('email', '').lower() == resource.data.get('emailLower', '') ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
     }
     match /organizerWithdrawals/{withdrawalId} {
       // Criação/pagamento só pelas Cloud Functions; organizador só lê os seus.
@@ -1412,6 +1480,14 @@ service cloud.firestore {
     match /users/{userId}/tournamentStaff/{tournamentId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow create, update, delete: if request.auth != null && isTournamentOwner(tournamentId);
+    }
+
+    // Espelho de `arenas/{arenaId}/staff/{uid}` — é por ele que o portal
+    // descobre de quais arenas o usuário é equipe (a query por managerUserId
+    // nunca o traria). Mantido pela Cloud Function de sync.
+    match /users/{userId}/arenaStaff/{arenaId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
 
     match /users/{userId}/slotVacancyAlerts/{alertId} {

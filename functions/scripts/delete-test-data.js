@@ -1,11 +1,20 @@
 /* eslint-disable */
 /**
  * Apaga TODOS os dados de teste criados por `seed-test-data.js`, em cascata:
- * matches → inscriptions → teams → tournaments → users → public_profiles → Auth.
+ * matches → teams → inscriptions → tournaments → public_profiles → Auth → users.
  *
- * Filho antes do pai, para nunca deixar documento órfão. Preserva atletas seed
- * que estejam inscritos em torneios reais, e aborta se achar atleta real
- * inscrito num torneio seed.
+ * A ordem NÃO é "filho antes do pai" — é "o índice morre por último". `users`
+ * é o documento que guarda os flags (`seedTestAthlete`/`seedTestOrganizer`)
+ * usados por `discover()` para reencontrar tudo o resto; enquanto ele existir,
+ * um rerun depois de uma interrupção (Ctrl+C, queda de rede) redescobre
+ * exatamente o que falta apagar (apagar doc inexistente é no-op). Se `users`
+ * saísse antes — ou se `inscriptions` saísse antes de `teams` — um processo
+ * morto no meio deixaria órfão que nenhuma execução futura reencontra: ver
+ * a Task 6, fix round 1, finding 1 para o raciocínio fronteira a fronteira.
+ *
+ * Preserva atletas seed que estejam inscritos em torneios reais, preserva
+ * organizadores seed que sejam `managerId` de torneio real, e aborta se achar
+ * atleta real inscrito num torneio seed.
  *
  * Pré-requisitos:
  *   npm run build                              # lê ../lib/test-data-cleanup
@@ -22,7 +31,11 @@
 
 const fs = require("fs");
 const admin = require("firebase-admin");
-const {chunkList, partitionCleanupTargets} = require("../lib/test-data-cleanup");
+const {
+  chunkList,
+  partitionCleanupTargets,
+  partitionOrganizerCleanup,
+} = require("../lib/test-data-cleanup");
 
 const PROD_PROJECT_ID = "volley-track-2dd3b";
 /** Limite do operador `in` do Firestore. */
@@ -101,18 +114,28 @@ async function findSeedMatches(db, projectId, tournamentIds) {
 /**
  * Lê tudo que a decisão de limpeza precisa. As inscrições são lidas por
  * completo (não só as dos torneios seed) porque é a presença de um atleta
- * seed numa inscrição de torneio REAL que o torna impossível de apagar.
+ * seed numa inscrição de torneio REAL que o torna impossível de apagar —
+ * pelo mesmo motivo, `tournaments` também é lido por completo (não só
+ * `seedTestTournament == true`): é preciso o `managerId` dos torneios REAIS
+ * para detectar organizador seed contaminando torneio de verdade.
  */
 async function discover(db, projectId) {
   const [tournamentsSnap, athletesSnap, organizersSnap, inscriptionsSnap] =
     await Promise.all([
-      db.collection("tournaments").where("seedTestTournament", "==", true).get(),
+      db.collection("tournaments").get(),
       db.collection("users").where("seedTestAthlete", "==", true).get(),
       db.collection("users").where("seedTestOrganizer", "==", true).get(),
       db.collection(inscriptionsPath(projectId)).get(),
     ]);
 
-  const seedTournamentIds = tournamentsSnap.docs.map((d) => d.id);
+  const tournaments = tournamentsSnap.docs.map((d) => ({
+    id: d.id,
+    managerId: d.data().managerId,
+    seedTestTournament: d.data().seedTestTournament === true,
+  }));
+  const seedTournamentIds = tournaments
+    .filter((t) => t.seedTestTournament)
+    .map((t) => t.id);
   const seedAthleteUids = athletesSnap.docs.map((d) => d.id);
   const organizerUids = organizersSnap.docs.map((d) => d.id);
 
@@ -130,6 +153,8 @@ async function discover(db, projectId) {
     seedTournamentIds,
   });
 
+  const organizerPlan = partitionOrganizerCleanup({organizerUids, tournaments});
+
   const matchDocs = seedTournamentIds.length ?
     await findSeedMatches(db, projectId, seedTournamentIds) :
     [];
@@ -140,6 +165,7 @@ async function discover(db, projectId) {
     organizerUids,
     matchIds: matchDocs.map((d) => d.id),
     ...plan,
+    ...organizerPlan,
   };
 }
 
@@ -161,6 +187,14 @@ function printReport(d) {
     if (d.preservedAthleteUids.length > 20) {
       console.log(`  ... e mais ${d.preservedAthleteUids.length - 20}`);
     }
+  }
+
+  if (d.preservedOrganizerUids.length) {
+    console.log(
+      `\nPRESERVADOS: ${d.preservedOrganizerUids.length} organizador(es) seed são managerId de`,
+    );
+    console.log("torneio(s) REAL(is). Doc, espelho e conta Auth serão mantidos:");
+    for (const uid of d.preservedOrganizerUids) console.log(`  - ${uid}`);
   }
 
   if (d.realAthleteUids.length) {
@@ -238,37 +272,75 @@ async function deleteAuthAccounts(auth, uids, log) {
   return {deleted, failed};
 }
 
-/** Cascata: filho antes do pai, para nunca deixar órfão. */
+/**
+ * Cascata: o índice (`users`) morre por último.
+ *
+ * `discover()` reencontra tudo a partir dos flags em `users/{uid}`
+ * (`seedTestAthlete`/`seedTestOrganizer`) e do `tournamentId` em cada
+ * `matches`/inscription. Enquanto `users` existir, um rerun depois de uma
+ * interrupção redescobre exatamente o que falta (apagar doc inexistente é
+ * no-op). Por isso a ordem é matches → teams → inscriptions → tournaments →
+ * public_profiles → Auth → users — e não "filho antes do pai" ingênuo, que
+ * apagaria `users` (o índice) antes de `public_profiles`/Auth, ou
+ * `inscriptions` (de onde `teamIds` é lido) antes de `teams`.
+ *
+ * Cada fronteira é recuperável — se o processo morrer logo depois de um
+ * passo, o rerun ainda descobre o resto:
+ *   - depois de matches: teams/inscriptions/tournaments/users continuam
+ *     achável por seedTournamentIds/flags: nada mudou na descoberta.
+ *   - depois de teams: os teams já apagados não existem mais para
+ *     `deleteRefs` reencontrar, mas `seedInscriptionIds` ainda vêm das
+ *     inscriptions, que ainda existem — nenhum team novo pode aparecer.
+ *   - depois de inscriptions: `seedTournamentIds` continua vindo do doc do
+ *     torneio (ainda vivo) — nada ficou órfão e sem dono.
+ *   - depois de tournaments: `users` (o índice) ainda existe com os flags
+ *     seed intactos — um rerun reencontra os mesmos uids exatamente iguais.
+ *   - depois de public_profiles: `users` ainda existe → rerun reencontra os
+ *     uids e tenta apagar Auth/public_profiles de novo (no-op pro que já
+ *     sumiu).
+ *   - depois de Auth: idem — `users` ainda existe, rerun tenta apagar Auth
+ *     de novo (no-op, já não existe) e finalmente apaga `users`.
+ *   - depois de users: não sobra nada para descobrir — a limpeza terminou.
+ */
 async function applyCleanup(db, auth, d) {
   const log = console.log;
 
   const matchRefs = d.matchIds.map((id) => db.doc(`${matchesPath(d.projectId)}/${id}`));
   log(`\nmatches: ${await deleteRefs(db, matchRefs)} apagados`);
 
+  const teamRefs = d.teamIds.map((id) => db.doc(`${teamsPath(d.projectId)}/${id}`));
+  log(`teams: ${await deleteRefs(db, teamRefs)} apagadas`);
+
   const inscriptionRefs = d.seedInscriptionIds.map((id) =>
     db.doc(`${inscriptionsPath(d.projectId)}/${id}`),
   );
   log(`inscriptions: ${await deleteRefs(db, inscriptionRefs)} apagadas`);
 
-  const teamRefs = d.teamIds.map((id) => db.doc(`${teamsPath(d.projectId)}/${id}`));
-  log(`teams: ${await deleteRefs(db, teamRefs)} apagadas`);
-
   const tournamentRefs = d.seedTournamentIds.map((id) => db.doc(`tournaments/${id}`));
   log(`tournaments: ${await deleteRefs(db, tournamentRefs)} apagados`);
 
-  const userUids = [...d.deletableAthleteUids, ...d.organizerUids];
-  log(`users: apagando ${userUids.length} (recursivo)...`);
-  log(`users: ${await deleteUsersRecursively(db, userUids, log)} apagados`);
+  const userUids = [...d.deletableAthleteUids, ...d.deletableOrganizerUids];
 
   log(`public_profiles: ${await deletePublicProfiles(db, userUids)} apagados`);
 
   const {deleted, failed} = await deleteAuthAccounts(auth, userUids, log);
   log(`Auth: ${deleted} contas removidas, ${failed} falha(s).`);
 
+  log(`users: apagando ${userUids.length} (recursivo)...`);
+  log(`users: ${await deleteUsersRecursively(db, userUids, log)} apagados`);
+
   if (d.preservedAthleteUids.length) {
-    log(`\nPreservados (inscritos em torneio real): ${d.preservedAthleteUids.length}`);
+    log(`\nPreservados — atletas (inscritos em torneio real): ${d.preservedAthleteUids.length}`);
     for (const uid of d.preservedAthleteUids) log(`  - ${uid}`);
   }
+  if (d.preservedOrganizerUids.length) {
+    log(
+      `\nPreservados — organizadores (managerId de torneio real): ${d.preservedOrganizerUids.length}`,
+    );
+    for (const uid of d.preservedOrganizerUids) log(`  - ${uid}`);
+  }
+
+  return {authFailed: failed};
 }
 
 async function run() {
@@ -304,12 +376,28 @@ async function run() {
     return;
   }
 
-  await applyCleanup(db, admin.auth(), discovery);
-  console.log("\nLimpeza concluída.");
+  const {authFailed} = await applyCleanup(db, admin.auth(), discovery);
+  if (authFailed > 0) {
+    console.error(
+      `\nLimpeza concluída COM FALHAS: ${authFailed} conta(s) Auth não foram removidas.`,
+    );
+    console.error("Firestore foi limpo, mas reveja o Auth do projeto manualmente (log acima).");
+    // `process.exitCode` (e não `process.exit` aqui) porque ainda falta o
+    // `console.error` acima rodar e o `run()` tem outros retornos que devem
+    // continuar saindo com 0; quem decide o código final é o `.then()` logo
+    // abaixo, lendo este valor.
+    process.exitCode = 1;
+  } else {
+    console.log("\nLimpeza concluída.");
+  }
 }
 
 run()
-  .then(() => process.exit(0))
+  // Não usar `process.exit(0)` fixo aqui: isso sobrescreveria qualquer
+  // `process.exitCode` setado dentro de `run()` (ex.: falha parcial de Auth
+  // na finding 2) e o processo sempre sairia 0, escondendo o problema de
+  // quem só confere `$?`.
+  .then(() => process.exit(process.exitCode ?? 0))
   .catch((err) => {
     console.error("Falha na limpeza:", err);
     process.exit(1);

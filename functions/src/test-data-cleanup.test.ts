@@ -5,6 +5,7 @@ import {
   chunkList,
   inscriptionParticipantUids,
   partitionCleanupTargets,
+  partitionOrganizerCleanup,
 } from "./test-data-cleanup";
 
 describe("test-data-cleanup", () => {
@@ -133,5 +134,70 @@ describe("test-data-cleanup", () => {
     assert.deepEqual(plan.realAthleteUids, []);
     assert.deepEqual(plan.preservedAthleteUids, []);
     assert.deepEqual(plan.deletableAthleteUids, []);
+  });
+});
+
+describe("partitionOrganizerCleanup", () => {
+  it("preserva organizador seed que é managerId de torneio real", () => {
+    const plan = partitionOrganizerCleanup({
+      organizerUids: ["o1", "o2"],
+      tournaments: [
+        {id: "seed1", managerId: "o1", seedTestTournament: true},
+        {id: "real1", managerId: "o1", seedTestTournament: false},
+      ],
+    });
+
+    assert.deepEqual(plan.preservedOrganizerUids, ["o1"]);
+    assert.deepEqual(plan.deletableOrganizerUids, ["o2"]);
+  });
+
+  it("apaga organizador seed que só gerencia o próprio torneio seed", () => {
+    const plan = partitionOrganizerCleanup({
+      organizerUids: ["o1"],
+      tournaments: [{id: "seed1", managerId: "o1", seedTestTournament: true}],
+    });
+
+    assert.deepEqual(plan.preservedOrganizerUids, []);
+    assert.deepEqual(plan.deletableOrganizerUids, ["o1"]);
+  });
+
+  it("apaga organizador seed sem nenhum torneio associado", () => {
+    const plan = partitionOrganizerCleanup({organizerUids: ["o1"], tournaments: []});
+
+    assert.deepEqual(plan.preservedOrganizerUids, []);
+    assert.deepEqual(plan.deletableOrganizerUids, ["o1"]);
+  });
+
+  it("ignora torneio real sem managerId, sem quebrar", () => {
+    const plan = partitionOrganizerCleanup({
+      organizerUids: ["o1"],
+      tournaments: [{id: "real1", seedTestTournament: false}],
+    });
+
+    assert.deepEqual(plan.preservedOrganizerUids, []);
+    assert.deepEqual(plan.deletableOrganizerUids, ["o1"]);
+  });
+
+  it("managerId de torneio real que não é organizador seed não vira preservado", () => {
+    const plan = partitionOrganizerCleanup({
+      organizerUids: ["o1"],
+      tournaments: [{id: "real1", managerId: "REAL_MANAGER", seedTestTournament: false}],
+    });
+
+    assert.deepEqual(plan.preservedOrganizerUids, []);
+    assert.deepEqual(plan.deletableOrganizerUids, ["o1"]);
+  });
+
+  it("um organizador seed gerenciando 2 torneios reais só aparece uma vez em preservados", () => {
+    const plan = partitionOrganizerCleanup({
+      organizerUids: ["o1"],
+      tournaments: [
+        {id: "real1", managerId: "o1", seedTestTournament: false},
+        {id: "real2", managerId: "o1", seedTestTournament: false},
+      ],
+    });
+
+    assert.deepEqual(plan.preservedOrganizerUids, ["o1"]);
+    assert.deepEqual(plan.deletableOrganizerUids, []);
   });
 });

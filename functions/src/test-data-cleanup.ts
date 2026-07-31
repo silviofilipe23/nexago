@@ -142,3 +142,53 @@ export function partitionCleanupTargets(input: {
     deletableAthleteUids,
   };
 }
+
+/** Campos de `tournaments` usados pela checagem de organizador. */
+export interface CleanupTournament {
+  id: string;
+  managerId?: unknown;
+  seedTestTournament?: unknown;
+}
+
+/** O que a checagem de organizador decide preservar/apagar. */
+export interface OrganizerCleanupPlan {
+  /** Organizadores seed que são `managerId` de torneio NÃO-seed — preservar. */
+  preservedOrganizerUids: string[];
+  /** Organizadores seed seguros para apagar. */
+  deletableOrganizerUids: string[];
+}
+
+/**
+ * Cruza organizadores seed contra o `managerId` de TODOS os torneios do
+ * projeto (não só os seed) — espelha `partitionCleanupTargets`.
+ *
+ * Um organizador seed que gerencia um torneio real não pode ser apagado:
+ * o torneio ficaria com `managerId` apontando para uma conta inexistente,
+ * e ninguém mais consegue passar em `managerId === uid`
+ * (`tournament-acl.ts`) para gerenciá-lo — o dono de verdade fica trancado
+ * fora do próprio torneio, de forma permanente.
+ */
+export function partitionOrganizerCleanup(input: {
+  organizerUids: string[];
+  tournaments: CleanupTournament[];
+}): OrganizerCleanupPlan {
+  const organizerSet = new Set(input.organizerUids.map(cleanUid).filter(Boolean));
+  const preserved = new Set<string>();
+
+  for (const tournament of input.tournaments) {
+    if (tournament.seedTestTournament === true) continue;
+    const managerId = cleanUid(tournament.managerId);
+    if (managerId && organizerSet.has(managerId)) {
+      preserved.add(managerId);
+    }
+  }
+
+  const deletableOrganizerUids = input.organizerUids
+    .map(cleanUid)
+    .filter((uid) => uid && !preserved.has(uid));
+
+  return {
+    preservedOrganizerUids: [...preserved],
+    deletableOrganizerUids,
+  };
+}

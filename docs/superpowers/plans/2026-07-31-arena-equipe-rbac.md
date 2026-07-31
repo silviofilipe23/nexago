@@ -823,7 +823,8 @@ git commit -m "feat(rules): colecoes de equipe da arena e helpers de acesso por 
 | 739 | `courts` | `quadras` |
 | 761 | `promotions` | `promocoes` |
 | 775 | `coupons` | `promocoes` |
-| 795 | `arenaWallets` (read) | `financeiro` (via `arenaCanRead`) |
+| 795 | `arenaWallets` + `ledger` (read) | `financeiro` (via `arenaCanRead`) |
+| 839 | `arenaWithdrawals` (**read**) | `financeiro` (via `arenaCanRead`) — o histórico de saques é renderizado na tela Financeiro (`arena-wallet-repository.ts:40`), e uma query de coleção negada falha inteira, não parcialmente. **Criar** saque continua fora de todo cargo |
 | 839 | `arenaWithdrawals` **create** | **manter só dono** |
 | 864 | `products` | `estoque` |
 | 888 | `sales` | `comandas` |

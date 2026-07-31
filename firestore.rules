@@ -967,9 +967,9 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /arenas/{arenaId}/metadata/{docId} {
-      allow read: if request.auth != null && (arenaCanRead(arenaId, 'perfil') || isSuperAdmin());
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'comandas') || isSuperAdmin());
       allow create, update: if docId == 'comandaCounter' &&
-        request.auth != null && (arenaCanWrite(arenaId, 'perfil') || isSuperAdmin()) &&
+        request.auth != null && (arenaCanWrite(arenaId, 'comandas') || isSuperAdmin()) &&
         request.resource.data.keys().hasAll(['lastNumber', 'updatedAt']) &&
         request.resource.data.lastNumber is int &&
         request.resource.data.lastNumber > 0 &&

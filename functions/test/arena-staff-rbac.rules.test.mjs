@@ -325,6 +325,31 @@ test('membro de uma arena nao alcanca outra arena', async () => {
   );
 });
 
+test('recepcao bumpa o contador de comandas; manutencao nao', async () => {
+  await assertSucceeds(
+    setDoc(doc(ctx(RECEPCAO), 'arenas/arena-pro/metadata/comandaCounter'), {
+      lastNumber: 1,
+      updatedAt: new Date(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-pro/metadata/comandaCounter'), {
+      lastNumber: 2,
+      updatedAt: new Date(),
+    }),
+  );
+});
+
+test('financeiro le o contador mas nao escreve', async () => {
+  await assertSucceeds(getDoc(doc(ctx(FINANCEIRO), 'arenas/arena-pro/metadata/comandaCounter')));
+  await assertFails(
+    setDoc(doc(ctx(FINANCEIRO), 'arenas/arena-pro/metadata/comandaCounter'), {
+      lastNumber: 99,
+      updatedAt: new Date(),
+    }),
+  );
+});
+
 test('membro removido perde o acesso na hora', async () => {
   await testEnv.withSecurityRulesDisabled(async (c) => {
     const { deleteDoc } = await import('firebase/firestore');

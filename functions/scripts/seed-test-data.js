@@ -21,13 +21,21 @@
  *   node scripts/seed-test-data.js --project volley-track-dev-4596c        # DRY-RUN
  *   node scripts/seed-test-data.js --project volley-track-dev-4596c --yes  # aplica
  *
+ * `--project` é OBRIGATÓRIO e não tem fallback de env, e produção é bloqueada
+ * — as mesmas guardas de `delete-test-data.js`, pelo motivo simétrico: o alias
+ * `default` do .firebaserc aponta para produção, e este script cria 321 contas
+ * no Auth mais um torneio `publicListing`/`open`, que apareceria na listagem
+ * de usuários reais. Pior: a limpeza se RECUSA a rodar em produção, então o
+ * estrago só se desfaz à mão.
+ *
  * Limpeza: node scripts/delete-test-data.js --project <id> --yes
  */
 
 const fs = require("fs");
 const admin = require("firebase-admin");
-const {seedAthletes} = require("./seed-athletes-lib");
+const {generateKeywords, seedAthletes} = require("./seed-athletes-lib");
 const {
+  assertReusableSeedTournament,
   buildTournamentDocFuture,
   buildTournamentDocToday,
   runTournamentEnrollmentSeed,
@@ -38,6 +46,8 @@ const ORGANIZER_EMAIL = "seed-organizer@nexago.test";
 const ORGANIZER_NAME = "Organizador seed nexaGO";
 const CITY = "Goiânia";
 const STATE = "GO";
+const DEFAULT_SEED_PASSWORD = "Senha123!";
+const PROD_PROJECT_ID = "volley-track-2dd3b";
 
 function argValue(flag) {
   const i = process.argv.indexOf(flag);
@@ -47,12 +57,18 @@ function argValue(flag) {
 function parseArgs() {
   const APPLY = process.argv.includes("--yes");
   const TODAY = process.argv.includes("--today");
-  const projectId =
-    argValue("--project") ||
-    process.env.GCLOUD_PROJECT ||
-    process.env.GOOGLE_CLOUD_PROJECT;
+
+  // Sem fallback de env e produção bloqueada: ver o comentário do topo.
+  const projectId = (argValue("--project") || "").trim();
   if (!projectId) {
-    console.error("Informe o projeto: --project <projectId> (ou GCLOUD_PROJECT).");
+    console.error("Informe o projeto explicitamente: --project <projectId>.");
+    console.error("Este script não lê GCLOUD_PROJECT — o default do .firebaserc é produção.");
+    process.exit(1);
+  }
+  if (projectId === PROD_PROJECT_ID) {
+    console.error(`BLOQUEADO: ${projectId} é o projeto de PRODUÇÃO.`);
+    console.error("Este script cria dados de teste; não rode em produção.");
+    console.error("delete-test-data.js se recusa a rodar em produção — a limpeza seria manual.");
     process.exit(1);
   }
 
@@ -63,6 +79,7 @@ function parseArgs() {
     console.error("--count precisa ser um inteiro >= 1.");
     process.exit(1);
   }
+  const password = process.env.SEED_PASSWORD || DEFAULT_SEED_PASSWORD;
 
   const credentialsPath = (
     argValue("--credentials") ||
@@ -84,12 +101,11 @@ function parseArgs() {
     admin.initializeApp({projectId});
   }
 
-  return {APPLY, TODAY, projectId, managerUid, tournamentName, count};
+  return {APPLY, TODAY, projectId, managerUid, tournamentName, count, password};
 }
 
 /** Prefixos de busca — mesmo formato de `seed-athletes-lib.generateKeywords`. */
 function organizerKeywords() {
-  const {generateKeywords} = require("./seed-athletes-lib");
   return generateKeywords([ORGANIZER_NAME, CITY]);
 }
 
@@ -99,15 +115,19 @@ function organizerKeywords() {
  * (`functions/src/tournament-acl.ts:20`), mas o doc é criado completo para o
  * painel do organizador conseguir renderizar o perfil.
  */
-async function ensureSeedOrganizer(db, auth) {
+async function ensureSeedOrganizer(db, auth, password) {
   let uid;
   try {
     const existing = await auth.getUserByEmail(ORGANIZER_EMAIL);
     uid = existing.uid;
   } catch (e) {
+    // Só "não existe" justifica criar. Engolir qualquer erro aqui transforma
+    // uma falha transitória de rede/permissão num `auth/email-already-exists`
+    // vindo do `createUser` logo abaixo — sintoma que não aponta para a causa.
+    if (!e || e.code !== "auth/user-not-found") throw e;
     const created = await auth.createUser({
       email: ORGANIZER_EMAIL,
-      password: process.env.SEED_PASSWORD || "Senha123!",
+      password,
       displayName: ORGANIZER_NAME,
       emailVerified: true,
     });
@@ -137,7 +157,8 @@ async function ensureSeedOrganizer(db, auth) {
 }
 
 async function run() {
-  const {APPLY, TODAY, projectId, managerUid, tournamentName, count} = parseArgs();
+  const {APPLY, TODAY, projectId, managerUid, tournamentName, count, password} =
+    parseArgs();
   const db = admin.firestore();
   const auth = admin.auth();
 
@@ -145,6 +166,11 @@ async function run() {
   console.log(`Modo: ${APPLY ? "APLICAR (--yes)" : "DRY-RUN"}`);
   console.log(`Atletas por nível×gênero: ${count} (total ${count * 10})`);
   console.log(`Torneio: "${tournamentName}" (${TODAY ? "hoje" : "em 14 dias"})`);
+
+  // ── 0. Pré-voo: o nome do torneio não pode casar com torneio real ─────────
+  // Antes de criar organizador e atletas: se o nome casar com um torneio sem
+  // `seedTestTournament`, aborta aqui, com o projeto ainda intocado.
+  await assertReusableSeedTournament(db, tournamentName);
 
   // ── 1. Organizador ────────────────────────────────────────────────────────
   let organizerUid = managerUid;
@@ -154,7 +180,7 @@ async function run() {
     console.log(`\nOrganizador: seria criado como ${ORGANIZER_EMAIL}`);
     organizerUid = "<uid-do-organizador-seed>";
   } else {
-    organizerUid = await ensureSeedOrganizer(db, auth);
+    organizerUid = await ensureSeedOrganizer(db, auth, password);
     console.log(`\nOrganizador seed: ${organizerUid} (${ORGANIZER_EMAIL})`);
   }
 
@@ -163,7 +189,17 @@ async function run() {
     console.log(`\nAtletas: seriam criados/atualizados ${count * 10}.`);
   } else {
     console.log("\nCriando atletas...");
-    const {total} = await seedAthletes({db, auth, count, city: CITY, state: STATE});
+    // `password` precisa ser repassado: sem ele os atletas nasceriam com o
+    // default da lib e o SEED_PASSWORD valeria só para o organizador — o
+    // script imprimiria uma senha que não abre 320 dos 321 logins.
+    const {total} = await seedAthletes({
+      db,
+      auth,
+      count,
+      password,
+      city: CITY,
+      state: STATE,
+    });
     console.log(`Atletas criados/atualizados: ${total}`);
   }
 
@@ -175,6 +211,14 @@ async function run() {
       TODAY ?
         buildTournamentDocToday(categories, name) :
         buildTournamentDocFuture(categories, name, 14),
+    // A busca por nome casa por substring nos dois sentidos, então
+    // `--tournament-name "Copa"` acharia a "Copa Goiás" REAL. Reutilizar um
+    // torneio real seria irreversível: o seed grava inscrições e teams
+    // dentro dele, `refreshTournamentStats` sobrescreve enrolledCount/
+    // collectedCents, e como o doc nunca ganha `seedTestTournament: true` a
+    // limpeza não desfaz nada — e ainda passa a preservar os 320 atletas para
+    // sempre, por estarem "inscritos em torneio real".
+    requireSeedFlagOnReuse: true,
     args: {
       APPLY,
       projectId,
@@ -186,14 +230,33 @@ async function run() {
   if (!APPLY) {
     console.log("\nDRY-RUN: nada foi gravado. Rode com --yes para aplicar.");
   } else {
-    console.log(`\nPronto. Senha dos logins seed: ${process.env.SEED_PASSWORD || "Senha123!"}`);
+    console.log(`\nPronto. Senha dos logins seed: ${password}`);
+    if (password !== DEFAULT_SEED_PASSWORD) {
+      console.log(
+        "(contas que já existiam mantêm a senha original: o seed é idempotente por",
+      );
+      console.log(" e-mail e não regrava a senha de conta existente no Auth.)",
+      );
+    }
     console.log("Para limpar: node scripts/delete-test-data.js --project " + projectId + " --yes");
   }
 }
 
-run()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error("Falha no seed de dados de teste:", err);
-    process.exit(1);
-  });
+// Só executa quando chamado direto pela CLI; requerido por teste, apenas exporta.
+if (require.main === module) {
+  run()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      // Abortos deliberados (ex.: torneio reutilizado sem flag de seed) já
+      // carregam a explicação completa na mensagem; imprimir o objeto de erro
+      // inteiro só enterraria o texto sob um stack trace irrelevante.
+      if (err && err.seedAbort === true) {
+        console.error(`\n${err.message}`);
+      } else {
+        console.error("Falha no seed de dados de teste:", err);
+      }
+      process.exit(1);
+    });
+}
+
+module.exports = {run, DEFAULT_SEED_PASSWORD};

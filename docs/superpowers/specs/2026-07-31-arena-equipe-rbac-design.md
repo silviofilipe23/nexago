@@ -219,25 +219,43 @@ sempre os mesmos dois caminhos (`arenas/{id}` e `arenas/{id}/staff/{uid}`) é o 
 | função | tipo | responsabilidade |
 |---|---|---|
 | `inviteArenaStaff` | callable | valida dono + capability `equipe` + assentos livres; se o e-mail já tem conta Firebase Auth, cria o vínculo **ativo** direto e marca o convite `accepted`; senão deixa `pending`. Retorna `{inviteId, link, status}` |
-| `acceptArenaStaffInvite` | callable | confere `emailLower == auth.token.email` (verificado), confere validade e assentos, cria `arenas/{id}/staff/{uid}`, marca `accepted` |
+| `acceptArenaStaffInvite` | callable | confere `emailLower == auth.token.email`, confere validade e assentos, cria `arenas/{id}/staff/{uid}`, marca `accepted` |
 | `revokeArenaStaffInvite` | callable | dono cancela convite pendente (`status: 'revoked'`) |
-| `onArenaStaffWrittenSyncMirror` | trigger `onDocumentWritten` | espelha em `users/{uid}/arenaStaff/{arenaId}`, concede a role `arena`, notifica na criação |
+| `updateArenaStaffRole` | callable | dono troca o cargo de um membro |
+| `removeArenaStaff` | callable | dono remove um membro (a escrita direta está fechada, então remover também passa por function) |
+| `onArenaStaffWrittenSyncMirror` | trigger `onDocumentWritten` | espelha em `users/{uid}/arenaStaff/{arenaId}`, notifica na criação, reforça a role `arena` |
 | `onArenaDeletedCleanupStaff` | trigger `onDocumentDeleted` | apaga docs de staff e convites da arena |
 | `sweepExpiredArenaStaffInvites` | `onSchedule` diária | marca `pending` vencidos como `expired` |
 
-**Concessão da role `arena`**: o trigger só **acrescenta** a role, nunca remove — igual a
-`ensureOrganizerRole` em `tournament-staff-sync.ts`. Sair da equipe não revoga o papel porque a pessoa
-pode ser dona de outra arena. Quem perde é o acesso *àquela* arena, via rules.
+**Concessão da role `arena`**: os dois callables que criam vínculo (`inviteArenaStaff` no caminho
+direto e `acceptArenaStaffInvite`) concedem a role **de forma síncrona**, antes de responder. Deixar
+isso só para o trigger criaria uma corrida real: quem acabou de aceitar o convite seria mandado ao
+portal e `AuthService.assertArenaRole` leria `users/{uid}` antes de o trigger gravar, derrubando o
+login. O trigger mantém a concessão como reforço idempotente, para o caso de um doc de staff criado
+por fora (script/console).
 
-Alterar o cargo de um membro (`role`) também passa por callable (`updateArenaStaffRole`), pela mesma
-razão de a escrita direta estar fechada.
+A role só é **acrescentada**, nunca removida — igual a `ensureOrganizerRole` em
+`tournament-staff-sync.ts`. Sair da equipe não revoga o papel porque a pessoa pode ser dona de outra
+arena. Quem perde é o acesso *àquela* arena, via rules.
+
+**E-mail não é verificado.** O casamento do convite usa `request.auth.token.email` sem exigir
+`email_verified`, porque não existe infra de envio de e-mail para disparar a verificação (mesma razão
+que levou o convite a ser por link). O risco é limitado: o Firebase Auth já impede duas contas com o
+mesmo e-mail, e o único ganho de criar conta com o e-mail alheio seria entrar numa arena que alguém
+deliberadamente convidou aquele e-mail a entrar. Fica registrado como risco aceito — quando houver
+envio de e-mail, passar a exigir `email_verified` é uma linha.
 
 **Contagem de assentos**: count query em `arenas/{id}/staff` + convites `pending` no momento do
 convite/aceite. Volume máximo é 5 — não justifica contador desnormalizado.
 
-**Nova capability**: `'equipe'` entra em `arenaCapabilitiesFor` para `pro` e `elite`, nos três
-espelhos da matriz de planos (`arena-plan.model.ts` no portal, `arena-plans.ts` nas functions,
-`arena_plan.dart` no Flutter).
+**Nova capability**: `'equipe'` entra em `arenaCapabilitiesFor` (`arena-plan.model.ts`) para `pro` e
+`elite` — é o que a UI usa para decidir entre a tela de equipe e o card de upsell. O espelho Dart
+(`arena_plan.dart`) **não** é alterado: o app Flutter está fora de escopo e a capability lá seria
+código morto.
+
+O limite numérico de assentos vive só no servidor, em `functions/src/arena-staff-roles.ts`, e usa
+`arenaEntitledTier(arena, nowMs)` de `arena-entitlement.ts` — que já resolve titularidade e aliases de
+tier legado. A UI mostra o contador, mas quem barra é o callable.
 
 ## Portal Angular
 

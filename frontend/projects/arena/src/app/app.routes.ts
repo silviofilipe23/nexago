@@ -321,5 +321,11 @@ export const routes: Routes = [
         (m) => m.PanelProfileContactsComponent,
       ),
   },
+  {
+    path: 'convite/:inviteId',
+    title: 'Convite de equipe — NexaGO Arena',
+    loadComponent: () =>
+      import('./auth/accept-invite.component').then((m) => m.AcceptInviteComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

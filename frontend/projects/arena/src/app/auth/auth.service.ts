@@ -69,6 +69,15 @@ export class AuthService {
     await this.assertArenaRole(credential.user.uid);
   }
 
+  /** Login do fluxo de convite: NÃO exige a role `arena`, porque quem está
+   *  aceitando ainda não a tem. Quem valida o acesso é o próprio convite
+   *  (`acceptStaffInvite`), não este login. Nunca usar `signInWithEmail` na
+   *  tela de aceite — ele derruba a sessão de quem ainda não tem a role. */
+  async signInForInvite(email: string, password: string): Promise<void> {
+    await setPersistence(this.auth, browserLocalPersistence);
+    await signInWithEmailAndPassword(this.auth, email.trim(), password);
+  }
+
   /** Só deixa entrar quem tem a role `arena` em `users/{uid}` (allowlist — ao
    *  contrário do portal atleta, ausência de role NÃO passa). Falha de leitura
    *  também bloqueia (fail-closed): este portal expõe dados sensíveis de
@@ -134,6 +143,35 @@ export class AuthService {
     await credential.user.getIdToken(true);
 
     await this.assertArenaRole(credential.user.uid);
+  }
+
+  /** Cria conta para quem foi CONVIDADO para a equipe de uma arena.
+   *
+   *  Diferente de `createArenaAccount`, NÃO chama `completeArenaSignup` — essa
+   *  função existe para o autocadastro de dono e faria o convidado nascer dono
+   *  de uma arena própria. Aqui a role `arena` vem de `acceptArenaStaffInvite`,
+   *  que a concede de forma síncrona ao criar o vínculo. */
+  async createStaffAccount(email: string, password: string, displayName: string): Promise<void> {
+    const credential = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
+    const name = displayName.trim();
+    if (name) {
+      await updateProfile(credential.user, { displayName: name });
+      this.displayNameOverride.set(name);
+    }
+  }
+
+  /** Aceita o convite de equipe e recarrega o token para trazer a claim
+   *  `arena` nova (concedida de forma síncrona pelo callable). Sem esse
+   *  refresh, guards/rules que dependem da claim continuariam vendo o token
+   *  antigo até a próxima renovação natural. */
+  async acceptStaffInvite(inviteId: string): Promise<{ arenaId: string }> {
+    const call = httpsCallable<{ inviteId: string }, { arenaId: string; role: string }>(
+      this.functions,
+      'acceptArenaStaffInvite',
+    );
+    const result = await call({ inviteId });
+    await this.auth.currentUser?.getIdToken(true);
+    return { arenaId: result.data.arenaId };
   }
 
   async signOutUser(): Promise<void> {

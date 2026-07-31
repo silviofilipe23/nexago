@@ -21,6 +21,7 @@ import {
 } from './arena-plan.model';
 import { arenaFirestore } from './firestore';
 import { isArenaStaffRole, type ArenaStaffRole } from './arena-roles.model';
+import { resolveStaffArenaDocs } from './arena-staff-docs';
 
 export interface ArenaBrief {
   id: string;
@@ -97,6 +98,12 @@ export class ArenaContextService {
   private readonly staffArenaDocs = signal<Map<string, Record<string, unknown>>>(new Map());
   private readonly staffLoadingSignal = signal(true);
   private staffUnsubscribe: Unsubscribe | null = null;
+  /** Token de geração da resolução assíncrona de docs de equipe (`watchStaffMirror`). Bumped a
+   *  cada nova invocação do callback do listener e a cada teardown (troca de usuário/logout).
+   *  Uma escrita só é aplicada se o token capturado no início da invocação ainda for o mais
+   *  recente no momento de escrever — descarta silenciosamente respostas atrasadas de uma
+   *  invocação (ou usuário) que já foi superada. */
+  private staffGeneration = 0;
 
   private readonly selectedArenaIdSignal = signal<string | null>(null);
   private currentUid: string | null = null;
@@ -189,6 +196,10 @@ export class ArenaContextService {
       this.unsubscribe = null;
       this.staffUnsubscribe?.();
       this.staffUnsubscribe = null;
+      // Invalida qualquer resolução assíncrona de docs de equipe ainda em voo desta troca de
+      // usuário/logout em diante — sem isso, um `getDoc` que termina depois do reset abaixo
+      // reintroduziria dados do usuário anterior (achado de review, task 8 round 1).
+      this.staffGeneration++;
 
       if (!ready) return;
       if (!user) {
@@ -262,6 +273,13 @@ export class ArenaContextService {
     this.staffUnsubscribe = onSnapshot(
       collection(db, 'users', uid, 'arenaStaff'),
       async (snap) => {
+        // Ver comentário no campo `staffGeneration`: identifica esta invocação específica do
+        // callback. A parte síncrona abaixo (até `staffMirror.set`) sempre roda até o fim antes
+        // de qualquer outra invocação começar (JS de thread única), então não corre risco de
+        // sobreposição — só a escrita pós-`await` (`staffArenaDocs`/`staffLoadingSignal`)
+        // precisa checar se ainda é a invocação mais recente.
+        const generation = ++this.staffGeneration;
+
         const roles = new Map<string, ArenaStaffRole>();
         for (const d of snap.docs) {
           const role = (d.data() as Record<string, unknown>)['role'];
@@ -270,15 +288,20 @@ export class ArenaContextService {
         }
         this.staffMirror.set(roles);
 
-        const docs = new Map<string, Record<string, unknown>>();
-        await Promise.all(
-          [...roles.keys()].map(async (arenaId) => {
-            const arenaSnap = await getDoc(doc(db, 'arenas', arenaId));
-            if (arenaSnap.exists()) docs.set(arenaId, arenaSnap.data() as Record<string, unknown>);
-          }),
-        );
-        this.staffArenaDocs.set(docs);
-        this.staffLoadingSignal.set(false);
+        try {
+          const docs = await resolveStaffArenaDocs([...roles.keys()], (arenaId) =>
+            this.loadArenaDoc(db, arenaId),
+          );
+          if (generation !== this.staffGeneration) return;
+          this.staffArenaDocs.set(docs);
+        } catch {
+          // `resolveStaffArenaDocs` isola falha por leitura e nunca deveria rejeitar aqui,
+          // mas por segurança: uma falha inesperada não pode travar `loading` nem vazar como
+          // unhandled rejection (era exatamente o bug do achado 1 do review).
+          if (generation === this.staffGeneration) this.staffArenaDocs.set(new Map());
+        } finally {
+          if (generation === this.staffGeneration) this.staffLoadingSignal.set(false);
+        }
       },
       () => {
         this.staffMirror.set(new Map());
@@ -286,6 +309,16 @@ export class ArenaContextService {
         this.staffLoadingSignal.set(false);
       },
     );
+  }
+
+  /** Leitura direta de um doc `arenas/{id}` — `arenas` é de leitura pública, então não depende
+   *  do vínculo de equipe em si. Retorna `null` em vez de lançar quando o doc não existe. */
+  private async loadArenaDoc(
+    db: ReturnType<typeof arenaFirestore>,
+    arenaId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const snap = await getDoc(doc(db, 'arenas', arenaId));
+    return snap.exists() ? (snap.data() as Record<string, unknown>) : null;
   }
 
   private readStoredSelection(uid: string): string | null {

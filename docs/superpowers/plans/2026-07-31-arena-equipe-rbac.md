@@ -755,7 +755,14 @@ E, junto dos demais blocos de coleção raiz (por exemplo depois de `match /aren
     match /arenaStaffInvites/{inviteId} {
       allow read: if request.auth != null && (
         isArenaOwner(resource.data.arenaId) ||
-        request.auth.token.get('email', '').lower() == resource.data.get('emailLower', '') ||
+        (
+          // Os dois lados TÊM de ser não-vazios: com os defaults de `get`,
+          // '' == '' daria leitura a qualquer sessão sem e-mail (phone/anônima)
+          // sobre qualquer convite malformado sem `emailLower`.
+          resource.data.get('emailLower', '') != '' &&
+          request.auth.token.get('email', '') != '' &&
+          request.auth.token.email.lower() == resource.data.emailLower
+        ) ||
         isAdmin() ||
         isSuperAdmin()
       );

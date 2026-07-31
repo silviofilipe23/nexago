@@ -85,19 +85,62 @@ async function loadOwnedArena(arenaId: string, uid: string) {
   return snap;
 }
 
-/** Membros ativos + convites pendentes ocupam assento. */
-async function countUsedSeats(arenaId: string): Promise<number> {
+/** Conta, dentre os `emailLower` de convites pendentes já lidos, quantos NÃO
+ *  são o e-mail excluído. Extraída como função pura (sem Firebase Admin) só
+ *  para ser testável — quem lê os documentos é `countUsedSeats`. */
+export function countPendingInvitesExcluding(
+  pendingEmailsLower: ReadonlyArray<unknown>,
+  excludeEmailLower?: string,
+): number {
+  if (excludeEmailLower === undefined) return pendingEmailsLower.length;
+  return pendingEmailsLower.filter((email) => email !== excludeEmailLower).length;
+}
+
+/** Membros ativos + convites pendentes ocupam assento. Quando
+ *  `excludeEmailLower` é informado, o(s) convite(s) pendente(s) desse e-mail
+ *  não contam — usado no caminho direto de `inviteArenaStaff`, onde o
+ *  próprio convite antigo da pessoa sendo adicionada está prestes a ser
+ *  encerrado (`settlePendingInvitesForEmail`) e não pode travar a vaga dela
+ *  mesma (settlar antes de checar o assento criaria um efeito colateral que
+ *  sobrevive mesmo se a checagem de assento em seguida barrar). Sem
+ *  exclusão, `.count()` agregado basta e é usado. Com exclusão, Firestore
+ *  não tem agregação `!=` confiável aqui, então lemos os convites pendentes
+ *  da arena e filtramos em memória — o volume é limitado pelo próprio teto
+ *  de assentos (no máximo 5 hoje), então o `get()` é barato; não trocar de
+ *  volta para `count()` agregado. */
+async function countUsedSeats(
+  arenaId: string,
+  excludeEmailLower?: string,
+): Promise<number> {
   const db = getFirestore();
+  const staffCountPromise = db.collection(`arenas/${arenaId}/staff`).count().get();
+
+  if (excludeEmailLower === undefined) {
+    const [staff, invites] = await Promise.all([
+      staffCountPromise,
+      db
+        .collection(INVITES)
+        .where("arenaId", "==", arenaId)
+        .where("status", "==", "pending")
+        .count()
+        .get(),
+    ]);
+    return staff.data().count + invites.data().count;
+  }
+
   const [staff, invites] = await Promise.all([
-    db.collection(`arenas/${arenaId}/staff`).count().get(),
+    staffCountPromise,
     db
       .collection(INVITES)
       .where("arenaId", "==", arenaId)
       .where("status", "==", "pending")
-      .count()
       .get(),
   ]);
-  return staff.data().count + invites.data().count;
+  const pendingCount = countPendingInvitesExcluding(
+    invites.docs.map((doc) => doc.data().emailLower),
+    excludeEmailLower,
+  );
+  return staff.data().count + pendingCount;
 }
 
 /** Marca como aceitos todos os convites pendentes deste e-mail nesta arena.
@@ -198,8 +241,11 @@ export const inviteArenaStaff = onCall(async (request) => {
       throw new HttpsError("already-exists", "Esta pessoa já está na equipe.");
     }
 
+    // Exclui o e-mail sendo convidado da contagem: o convite antigo dele
+    // mesmo (se houver) está prestes a ser encerrado abaixo e não pode
+    // travar a própria vaga (ver Fix round 2 da revisão).
     const seats = maxArenaStaffSeats(arenaData, Date.now());
-    assertSeatAvailable(seats, await countUsedSeats(arenaId));
+    assertSeatAvailable(seats, await countUsedSeats(arenaId, email));
 
     // Sem isto, um convite antigo pendente para este e-mail continuaria
     // reivindicável (reescrevendo o cargo pelo link antigo) e ocupando

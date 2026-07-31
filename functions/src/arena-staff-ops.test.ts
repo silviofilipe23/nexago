@@ -1,6 +1,10 @@
 import {strict as assert} from "node:assert";
 import {test} from "node:test";
-import {assertSeatAvailable, inviteIsClaimable} from "./arena-staff-ops";
+import {
+  assertSeatAvailable,
+  countPendingInvitesExcluding,
+  inviteIsClaimable,
+} from "./arena-staff-ops";
 
 const NOW = Date.UTC(2026, 6, 31);
 const AMANHA = {toMillis: () => NOW + 24 * 60 * 60 * 1000};
@@ -49,4 +53,21 @@ test("convite sem expiresAt e tratado como valido", () => {
 test("convite nao e reivindicavel por sessao sem e-mail", () => {
   const invite = {status: "pending", emailLower: "", expiresAt: AMANHA};
   assert.equal(inviteIsClaimable(invite, "", NOW), false);
+});
+
+test("countPendingInvitesExcluding conta tudo quando nao ha exclusao", () => {
+  assert.equal(countPendingInvitesExcluding(["a@b.com", "c@d.com"]), 2);
+  assert.equal(countPendingInvitesExcluding([]), 0);
+});
+
+test("countPendingInvitesExcluding ignora o proprio email do convidado", () => {
+  assert.equal(countPendingInvitesExcluding(["a@b.com", "c@d.com"], "a@b.com"), 1);
+});
+
+test("countPendingInvitesExcluding nao ignora quem nao bate com a exclusao", () => {
+  assert.equal(countPendingInvitesExcluding(["a@b.com", "c@d.com"], "z@z.com"), 2);
+});
+
+test("countPendingInvitesExcluding conta duplicatas do mesmo email nao excluido", () => {
+  assert.equal(countPendingInvitesExcluding(["a@b.com", "a@b.com", "c@d.com"], "z@z.com"), 3);
 });

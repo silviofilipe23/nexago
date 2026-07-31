@@ -365,7 +365,11 @@ service cloud.firestore {
     // ---- Equipe da arena (RBAC) ----------------------------------------
     // A matriz abaixo é ESPELHO MANUAL de
     // `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts`.
-    // `functions/test/arena-staff-rbac.rules.test.mjs` falha se divergirem.
+    // Nada aqui verifica automaticamente que os dois ficam em sincronia — é
+    // no olho, na revisão de código. As duas TAMBÉM divergem por design: o
+    // frontend tem uma área `torneios` (gestor, somente leitura) que não
+    // existe aqui, porque nenhum bloco de regra hoje é controlado por área
+    // `torneios`.
     function isArenaOwner(arenaId) {
       return isArenaManagerByArenaId(arenaId);
     }
@@ -889,11 +893,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
         isAdmin() ||
-        (
-          resource != null &&
-          exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-          get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid
-        )
+        (resource != null && arenaCanRead(resource.data.arenaId, 'financeiro'))
       );
       allow create: if false;
       allow update: if request.auth != null && (isSuperAdmin() || isAdmin());
@@ -958,7 +958,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /arenas/{arenaId}/stockMovements/{movementId} {
-      allow read: if canManageArenaProducts(arenaId);
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'estoque') || isSuperAdmin());
       allow create: if (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro', 'elite'])) &&
         isValidArenaStockMovementCreate(
           arenaId,

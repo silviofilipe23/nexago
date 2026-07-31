@@ -292,6 +292,24 @@ test('nenhum cargo se auto-promove mexendo em planTier', async () => {
   );
 });
 
+test('nenhum cargo se torna dono trocando managerUserId', async () => {
+  for (const uid of [GESTOR, RECEPCAO, FINANCEIRO, MANUTENCAO]) {
+    await assertFails(
+      setDoc(
+        doc(ctx(uid), 'arenas/arena-pro'),
+        { managerUserId: uid, name: 'Arena Pro', courtsCount: 3 },
+        { merge: true },
+      ),
+    );
+  }
+});
+
+test('gestor nao apaga managerUserId da arena', async () => {
+  await assertFails(
+    setDoc(doc(ctx(GESTOR), 'arenas/arena-pro'), { name: 'Sem dono', courtsCount: 3 }),
+  );
+});
+
 test('membro de arena sem plano perde tudo', async () => {
   await assertFails(
     setDoc(
@@ -348,6 +366,139 @@ test('financeiro le o contador mas nao escreve', async () => {
       updatedAt: new Date(),
     }),
   );
+});
+
+// ---- cobertura das areas ainda sem nenhum teste (agenda, estoque,
+// promocoes, site, comunidade) — um allow + um deny representativos por
+// area, escolhendo o bloco cuja quebra mais doeria.
+
+test('recepcao escreve na agenda; financeiro nao; manutencao le mas nao escreve', async () => {
+  await assertSucceeds(
+    setDoc(doc(ctx(RECEPCAO), 'arenaSlots/slot-recepcao'), {
+      arenaId: 'arena-pro',
+      courtId: 'quadra-1',
+      date: '2026-08-01',
+      startTime: '08:00',
+      endTime: '09:00',
+    }),
+  );
+  await assertFails(
+    setDoc(doc(ctx(FINANCEIRO), 'arenaSlots/slot-financeiro'), {
+      arenaId: 'arena-pro',
+      courtId: 'quadra-1',
+      date: '2026-08-01',
+      startTime: '09:00',
+      endTime: '10:00',
+    }),
+  );
+  await assertSucceeds(getDoc(doc(ctx(MANUTENCAO), 'arenaSlots/slot-recepcao')));
+  await assertFails(
+    setDoc(doc(ctx(MANUTENCAO), 'arenaSlots/slot-manutencao'), {
+      arenaId: 'arena-pro',
+      courtId: 'quadra-1',
+      date: '2026-08-01',
+      startTime: '10:00',
+      endTime: '11:00',
+    }),
+  );
+});
+
+test('manutencao cria produto; recepcao nao escreve mas le', async () => {
+  const produto = {
+    name: 'Agua',
+    nameLower: 'agua',
+    category: 'bebidas',
+    active: true,
+    priceCents: 500,
+    stockQuantity: 10,
+    minStockQuantity: 2,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  await assertSucceeds(
+    setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-pro/products/produto-manutencao'), produto),
+  );
+  await assertFails(
+    setDoc(doc(ctx(RECEPCAO), 'arenas/arena-pro/products/produto-recepcao'), produto),
+  );
+  await assertSucceeds(
+    getDoc(doc(ctx(RECEPCAO), 'arenas/arena-pro/products/produto-manutencao')),
+  );
+});
+
+test('financeiro cria promocao; recepcao nao', async () => {
+  await assertSucceeds(
+    setDoc(doc(ctx(FINANCEIRO), 'arenas/arena-pro/promotions/promo-financeiro'), {
+      createdAt: new Date(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(ctx(RECEPCAO), 'arenas/arena-pro/promotions/promo-recepcao'), {
+      createdAt: new Date(),
+    }),
+  );
+});
+
+test('gestor cria link da pagina; recepcao nao', async () => {
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'linkPages', 'page-arena-pro'), {
+      ownerType: 'arena',
+      ownerId: 'arena-pro',
+    });
+  });
+  await assertSucceeds(
+    setDoc(doc(ctx(GESTOR), 'linkPages/page-arena-pro/links/link-gestor'), {
+      clicks: 0,
+      dailyClicks: {},
+    }),
+  );
+  await assertFails(
+    setDoc(doc(ctx(RECEPCAO), 'linkPages/page-arena-pro/links/link-recepcao'), {
+      clicks: 0,
+      dailyClicks: {},
+    }),
+  );
+});
+
+test('gestor responde avaliacao; recepcao nao escreve mas le', async () => {
+  const ATLETA_REVIEW = 'atleta-review-uid';
+  await testEnv.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'arena_reviews', 'review-arena-pro'), {
+      userId: ATLETA_REVIEW,
+      arenaId: 'arena-pro',
+      bookingId: 'booking-1',
+      rating: 5,
+      comment: 'Otima experiencia',
+      reply: null,
+      likesCount: 0,
+      reported: false,
+    });
+  });
+  await assertSucceeds(
+    setDoc(doc(ctx(GESTOR), 'arena_reviews/review-arena-pro'), {
+      userId: ATLETA_REVIEW,
+      arenaId: 'arena-pro',
+      bookingId: 'booking-1',
+      rating: 5,
+      comment: 'Otima experiencia',
+      reply: { message: 'Obrigado pela visita, volte sempre!' },
+      likesCount: 0,
+      reported: false,
+    }),
+  );
+  await assertFails(
+    setDoc(doc(ctx(RECEPCAO), 'arena_reviews/review-arena-pro'), {
+      userId: ATLETA_REVIEW,
+      arenaId: 'arena-pro',
+      bookingId: 'booking-1',
+      rating: 5,
+      comment: 'Otima experiencia',
+      reply: { message: 'Nao deveria conseguir responder isso' },
+      likesCount: 0,
+      reported: false,
+    }),
+  );
+  await assertSucceeds(getDoc(doc(ctx(RECEPCAO), 'arena_reviews/review-arena-pro')));
 });
 
 test('membro removido perde o acesso na hora', async () => {

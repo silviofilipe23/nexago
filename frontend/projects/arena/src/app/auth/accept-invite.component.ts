@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from './auth.service';
-import { mapFirebaseAuthError } from './firebase-auth-errors';
+import { getErrorCode, mapFirebaseAuthError } from './firebase-auth-errors';
 import { AuthShellComponent } from './ui/auth-shell.component';
 import { FieldComponent } from './ui/field.component';
 import { StrengthMeterComponent } from './ui/strength-meter.component';
@@ -13,10 +13,23 @@ type Mode = 'entrar' | 'criar';
 /**
  * Fase da tela. `form` cobre tanto a escolha inicial (não autenticado) quanto
  * o retorno a ela depois de "usar outra conta". `blocked` é autenticado +
- * aceite que falhou (ex.: convite de outro e-mail) — sem forms pra mostrar,
- * só a mensagem do servidor e a saída pra trocar de conta.
- */
-type Phase = 'loading' | 'invalid' | 'form' | 'accepting' | 'blocked' | 'success';
+ * aceite que falhou por um motivo genérico (ex.: convite expirado/revogado) —
+ * sem forms pra mostrar, só a mensagem do servidor e a saída pra trocar de
+ * conta. `already-member` é o caso especial em que o aceite falha porque a
+ * pessoa JÁ faz parte da equipe: nem repetir nem trocar de conta resolvem —
+ * a saída certa é simplesmente entrar no painel. */
+type Phase =
+  'loading' | 'invalid' | 'form' | 'accepting' | 'blocked' | 'already-member' | 'success';
+
+/** Mensagem mostrada quando o aceite falha logo após criar a conta NESTA
+ *  mesma tentativa (`createStaffAccount` → `acceptStaffInvite`). Nesse caso a
+ *  conta ficou órfã (existe, mas sem vínculo com a arena) — sem isso, o rótulo
+ *  bruto do servidor ("convite não é mais válido...") não deixa claro que a
+ *  conta em si foi criada com sucesso, só o convite é que não bateu com ela. */
+const ACCOUNT_CREATED_MISMATCH_MESSAGE =
+  'Sua conta foi criada com sucesso, mas este convite não é para este e-mail. ' +
+  'Convites de equipe valem só para o endereço que recebeu o convite — confira o ' +
+  'e-mail da mensagem de convite e entre com a conta correspondente.';
 
 /**
  * Rota pública de aceite de convite de equipe (`/convite/:inviteId`). Quem
@@ -100,6 +113,14 @@ type Phase = 'loading' | 'invalid' | 'form' | 'accepting' | 'blocked' | 'success
             <button class="ar-btn-primary" type="button" (click)="retry()">Tentar novamente</button>
             <button class="ar-text-link" type="button" (click)="useAnotherAccount()">
               Usar outra conta
+            </button>
+          </div>
+        }
+        @case ('already-member') {
+          <div class="center-state">
+            <p>Você já faz parte da equipe desta arena.</p>
+            <button class="ar-btn-primary" type="button" (click)="goToPanel()">
+              Ir para o painel
             </button>
           </div>
         }
@@ -279,6 +300,11 @@ export class AcceptInviteComponent {
   protected readonly error = signal<string | null>(null);
   private readonly submitted = signal(false);
 
+  /** Marca quando a conta foi criada NESTA tentativa (via `signUp`), pra
+   *  diferenciar a mensagem de falha do aceite (ver `ACCOUNT_CREATED_MISMATCH_MESSAGE`).
+   *  Reseta ao trocar de conta, já que aí o contexto muda. */
+  private readonly justCreatedAccount = signal(false);
+
   protected readonly signInForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
@@ -379,6 +405,7 @@ export class AcceptInviteComponent {
   protected async signIn(): Promise<void> {
     this.submitted.set(true);
     this.error.set(null);
+    this.justCreatedAccount.set(false);
     if (this.signInForm.invalid) {
       return;
     }
@@ -404,6 +431,10 @@ export class AcceptInviteComponent {
     try {
       const { nome, email, password } = this.signUpForm.getRawValue();
       await this.auth.createStaffAccount(email, password, nome);
+      // A conta acabou de ser criada NESTA tentativa — se o aceite falhar a
+      // seguir, a mensagem precisa deixar claro que a conta existe (não foi
+      // o cadastro que deu errado), só o convite que não bateu com ela.
+      this.justCreatedAccount.set(true);
       await this.accept();
     } catch (err) {
       this.error.set(mapFirebaseAuthError(err));
@@ -419,7 +450,12 @@ export class AcceptInviteComponent {
   protected async useAnotherAccount(): Promise<void> {
     await this.auth.signOutUser();
     this.error.set(null);
+    this.justCreatedAccount.set(false);
     this.phase.set('form');
+  }
+
+  protected goToPanel(): void {
+    void this.router.navigateByUrl('/painel');
   }
 
   /** Aceita o convite; exige sessão ativa (autenticado via login ou conta
@@ -436,7 +472,16 @@ export class AcceptInviteComponent {
       this.phase.set('success');
       void this.router.navigateByUrl('/painel');
     } catch (err) {
-      this.error.set(mapFirebaseAuthError(err));
+      // "already-exists" = a pessoa já está na equipe: nem "tentar de novo"
+      // nem "trocar de conta" resolvem, então ganha uma saída própria (ver
+      // Finding 1 da revisão) em vez de cair no `blocked` genérico.
+      if (getErrorCode(err) === 'functions/already-exists') {
+        this.phase.set('already-member');
+        return;
+      }
+      this.error.set(
+        this.justCreatedAccount() ? ACCOUNT_CREATED_MISMATCH_MESSAGE : mapFirebaseAuthError(err),
+      );
       this.phase.set(this.auth.isAuthenticated() ? 'blocked' : 'form');
     }
   }

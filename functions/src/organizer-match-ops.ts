@@ -370,6 +370,23 @@ async function tryCompleteTournamentAfterFinal(
   );
 }
 
+/**
+ * Campos de quadra que TODO agendamento (manual ou automático) precisa gravar
+ * no doc da partida. `courtName` é o rótulo que as telas exibem — app
+ * (`TournamentMatch.courtName`), portal do atleta e portal do organizador leem
+ * o nome, não o `courtId` —, então gravar só o id deixa a quadra em branco na
+ * lista de jogos, no placar e nos grupos. Quando a quadra não está no doc do
+ * torneio (ou está sem nome), o próprio id vira o rótulo.
+ */
+export function scheduleCourtFields(
+  courts: ReadonlyArray<{id?: unknown; name?: unknown}> | undefined,
+  courtId: string,
+): {courtId: string; courtName: string} {
+  const court = courts?.find((c) => c?.id === courtId);
+  const name = typeof court?.name === "string" ? court.name.trim() : "";
+  return {courtId, courtName: name || courtId};
+}
+
 export const scheduleMatch = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -417,12 +434,9 @@ export const scheduleMatch = onCall(async (request) => {
   );
 
   const courts = tournamentSnap.data()?.courts as Array<{id: string; name: string}> | undefined;
-  const court = courts?.find((c) => c.id === courtId);
-  const courtName = court?.name ?? courtId;
 
   await ref.update({
-    courtId,
-    courtName,
+    ...scheduleCourtFields(courts, courtId),
     scheduleTime: Timestamp.fromDate(scheduleTime),
     scheduleEndTime: Timestamp.fromDate(scheduleEndTime),
     dayKey,
@@ -898,7 +912,8 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const [h, m] = dayStartStr.split(":").map(Number);
   const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
 
-  const courts = (tournament.courts as Array<{id: string; order: number}>) ?? [];
+  const courts =
+    (tournament.courts as Array<{id: string; name?: string; order: number}>) ?? [];
   if (courts.length === 0) {
     throw new HttpsError("failed-precondition", "Configure quadras no torneio");
   }
@@ -1043,7 +1058,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
         `${artifactsMatchesPath(projectId)}/${slot.matchId}`,
       );
       batch.update(ref, {
-        courtId: slot.courtId,
+        ...scheduleCourtFields(courts, slot.courtId),
         scheduleTime: Timestamp.fromDate(start),
         scheduleEndTime: Timestamp.fromDate(end),
         dayKey,

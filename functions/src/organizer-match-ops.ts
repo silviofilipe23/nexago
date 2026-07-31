@@ -434,12 +434,9 @@ export const scheduleMatch = onCall(async (request) => {
   );
 
   const courts = tournamentSnap.data()?.courts as Array<{id: string; name: string}> | undefined;
-  const court = courts?.find((c) => c.id === courtId);
-  const courtName = court?.name ?? courtId;
 
   await ref.update({
-    courtId,
-    courtName,
+    ...scheduleCourtFields(courts, courtId),
     scheduleTime: Timestamp.fromDate(scheduleTime),
     scheduleEndTime: Timestamp.fromDate(scheduleEndTime),
     dayKey,
@@ -959,7 +956,8 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const [h, m] = dayStartStr.split(":").map(Number);
   const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
 
-  const courts = (tournament.courts as Array<{id: string; order: number}>) ?? [];
+  const courts =
+    (tournament.courts as Array<{id: string; name?: string; order: number}>) ?? [];
   if (courts.length === 0) {
     throw new HttpsError("failed-precondition", "Configure quadras no torneio");
   }
@@ -1104,7 +1102,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
         `${artifactsMatchesPath(projectId)}/${slot.matchId}`,
       );
       batch.update(ref, {
-        courtId: slot.courtId,
+        ...scheduleCourtFields(courts, slot.courtId),
         scheduleTime: Timestamp.fromDate(start),
         scheduleEndTime: Timestamp.fromDate(end),
         dayKey,

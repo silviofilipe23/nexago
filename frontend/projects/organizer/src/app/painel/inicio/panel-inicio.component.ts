@@ -4,7 +4,7 @@ import { AuthService } from '../../auth/auth.service';
 import type { OrganizerLeague } from '../data/league.model';
 import { listMyLeagues } from '../data/leagues-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
-import { listMatches, type TournamentMatch } from '../data/matches-repository';
+import { listMatches, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
 import { listMyTournaments } from '../data/tournaments-repository';
 import { watchWallet } from '../data/wallet-repository';
@@ -440,7 +440,9 @@ export class PanelInicioComponent {
 
   private applyMatches(active: readonly OrganizerTournament[], matchLists: readonly TournamentMatch[][], now: Date): void {
     const tournamentNameOf = new Map(active.map((t) => [t.id, t.name]));
-    const allMatches = matchLists.flat();
+    // `matchLists[i]` é do torneio `active[i]` — resolve a quadra com as quadras daquele
+    // torneio antes de achatar (ver `resolveCourtNames`).
+    const allMatches = matchLists.flatMap((list, i) => resolveCourtNames(list, active[i]?.courts ?? []));
 
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);

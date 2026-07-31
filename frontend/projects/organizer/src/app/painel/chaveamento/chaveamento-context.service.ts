@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
-import { listMatches, type TournamentMatch } from '../data/matches-repository';
+import { listMatches, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { listMyTournaments } from '../data/tournaments-repository';
 
@@ -23,11 +23,15 @@ export class ChaveamentoContextService {
   readonly selectedCategoryId = signal<string | null>(null);
 
   readonly loadingMatches = signal(false);
-  readonly matches = signal<TournamentMatch[]>([]);
+  private readonly matchesLoaded = signal<TournamentMatch[]>([]);
 
   readonly tournament = computed<OrganizerTournament | null>(
     () => this.tournaments().find((t) => t.id === this.selectedTournamentId()) ?? null,
   );
+
+  /** Jogos do torneio selecionado com o nome da quadra resolvido pelas quadras do torneio —
+   *  ver `resolveCourtNames` (jogos auto-agendados antes do fix só têm `courtId`). */
+  readonly matches = computed<TournamentMatch[]>(() => resolveCourtNames(this.matchesLoaded(), this.tournament()?.courts ?? []));
 
   readonly categories = computed<OrganizerTournamentCategory[]>(() => this.tournament()?.categories ?? []);
 
@@ -61,7 +65,7 @@ export class ChaveamentoContextService {
     this.tournaments.set([]);
     this.selectedTournamentId.set(null);
     this.selectedCategoryId.set(null);
-    this.matches.set([]);
+    this.matchesLoaded.set([]);
     this.loadingMatches.set(false);
     this.loadingTournaments.set(true);
     if (!uid) {
@@ -117,7 +121,7 @@ export class ChaveamentoContextService {
       if (selected && !tournaments.some((t) => t.id === selected)) {
         this.selectedTournamentId.set(null);
         this.selectedCategoryId.set(null);
-        this.matches.set([]);
+        this.matchesLoaded.set([]);
         if (tournaments.length > 0) this.selectTournament(tournaments[0]!.id);
       }
     } finally {
@@ -131,7 +135,7 @@ export class ChaveamentoContextService {
     try {
       const matches = await listMatches(tournamentId);
       if (uid !== this.loadedUid) return;
-      this.matches.set(matches);
+      this.matchesLoaded.set(matches);
     } finally {
       this.loadingMatches.set(false);
     }

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -79,7 +80,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                     <button
                       type="button"
                       class="remove-btn"
-                      [disabled]="reversingId() === it.id || !!reverseBlockReason(c, it)"
+                      [disabled]="reversingId() === it.id || !!reverseBlockReason(c, it) || cargoReadOnly()"
                       [title]="reverseBlockReason(c, it) ?? 'Estornar item'"
                       (click)="reverseItem(c, it)"
                       aria-label="Estornar item"
@@ -104,6 +105,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                       type="text"
                       placeholder="Buscar produto do estoque para adicionar…"
                       [value]="addQuery()"
+                      [disabled]="cargoReadOnly()"
                       (input)="onAddQueryInput($any($event.target).value)"
                     />
                   </div>
@@ -127,7 +129,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                         [value]="addQuantity()"
                         (input)="addQuantity.set(Math.max(1, $any($event.target).valueAsNumber || 1))"
                       />
-                      <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="adding()" (click)="confirmAddItem(c)">
+                      <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="adding() || cargoReadOnly()" (click)="confirmAddItem(c)">
                         {{ adding() ? 'Adicionando…' : 'Adicionar' }}
                       </button>
                       <button type="button" class="ar-ghost-btn" (click)="selectedProduct.set(null)">Cancelar</button>
@@ -198,7 +200,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                 }
                 <div class="payment-list">
                   @for (m of paymentMethods; track m) {
-                    <button type="button" class="payment-btn" [class.active]="paymentMethod() === m" (click)="paymentMethod.set(m)">
+                    <button type="button" class="payment-btn" [class.active]="paymentMethod() === m" [disabled]="cargoReadOnly()" (click)="paymentMethod.set(m)">
                       {{ paymentMethodLabel[m] }}
                       @if (paymentMethod() === m) {
                         <ar-icon name="check" [size]="15" />
@@ -210,10 +212,10 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                 <div class="field-label row-gap">Valor</div>
                 <div class="price-box">
                   <span>R$</span>
-                  <input type="text" inputmode="decimal" [value]="paymentAmountValue()" (input)="paymentAmountValue.set($any($event.target).value)" />
+                  <input type="text" inputmode="decimal" [value]="paymentAmountValue()" [disabled]="cargoReadOnly()" (input)="paymentAmountValue.set($any($event.target).value)" />
                 </div>
 
-                <button type="button" class="close-btn" [disabled]="paying()" (click)="submitPayment(c)">
+                <button type="button" class="close-btn" [disabled]="paying() || cargoReadOnly()" (click)="submitPayment(c)">
                   <ar-icon name="cash" [size]="15" />
                   {{ paying() ? 'Registrando…' : 'Registrar pagamento' }}
                 </button>
@@ -221,7 +223,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
             } @else if (canCloseEmpty()) {
               <ar-panel-card title="Fechar comanda">
                 <p class="state-text">Nenhum item foi lançado nesta comanda.</p>
-                <button type="button" class="ar-mini-btn close-empty-btn" [disabled]="closingEmpty()" (click)="showCloseConfirm.set(true)">
+                <button type="button" class="ar-mini-btn close-empty-btn" [disabled]="closingEmpty() || cargoReadOnly()" (click)="showCloseConfirm.set(true)">
                   Fechar comanda
                 </button>
               </ar-panel-card>
@@ -241,7 +243,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
               }
               <div class="confirm-actions">
                 <button type="button" class="ar-ghost-btn" [disabled]="closingEmpty()" (click)="showCloseConfirm.set(false)">Cancelar</button>
-                <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="closingEmpty()" (click)="confirmCloseEmpty(c)">
+                <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="closingEmpty() || cargoReadOnly()" (click)="confirmCloseEmpty(c)">
                   {{ closingEmpty() ? 'Fechando…' : 'Fechar comanda' }}
                 </button>
               </div>
@@ -583,7 +585,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       transition: all 140ms var(--nx-ease-out);
     }
 
-    .payment-btn:hover {
+    .payment-btn:hover:not(:disabled) {
       background: var(--nx-surface-2);
     }
 
@@ -591,6 +593,11 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       background: var(--nx-orange-tint);
       border-color: var(--nx-orange-500);
       color: var(--nx-orange-500);
+    }
+
+    .payment-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
 
     .field-label {
@@ -709,6 +716,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
 export class PanelOrderDetailComponent {
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
   private readonly router = inject(Router);
 
   readonly id = input.required<string>();
@@ -730,7 +738,12 @@ export class PanelOrderDetailComponent {
   protected readonly payments = signal<ArenaComandaPayment[]>([]);
   protected readonly products = signal<ArenaProduct[]>([]);
 
+  /** Plano sem PDV/comandas — só afeta "adicionar item" (regra deliberada: estorno e
+   *  pagamento seguem liberados mesmo com plano rebaixado). */
   protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('pdvComandas'));
+  /** Cargo com leitura mas sem escrita em `comandas` (financeiro): TODA mutação fica
+   *  indisponível — diferente do gate de plano acima, aqui não há exceção pra estorno/pagamento. */
+  protected readonly cargoReadOnly = computed(() => !this.access.canWrite('comandas'));
 
   protected readonly addQuery = signal('');
   protected readonly selectedProduct = signal<ArenaProduct | null>(null);
@@ -831,7 +844,7 @@ export class PanelOrderDetailComponent {
     const arenaId = this.arenaContext.arenaId();
     const uid = this.auth.user()?.uid;
     const addedByName = this.auth.displayName() ?? 'Gestor';
-    if (!product || !arenaId || !uid) return;
+    if (!product || !arenaId || !uid || this.cargoReadOnly()) return;
 
     this.adding.set(true);
     this.itemError.set(null);
@@ -858,7 +871,7 @@ export class PanelOrderDetailComponent {
   protected async reverseItem(comanda: ArenaComanda, item: ArenaComandaItem): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     const uid = this.auth.user()?.uid;
-    if (!arenaId || !uid) return;
+    if (!arenaId || !uid || this.cargoReadOnly()) return;
     const block = comandaItemReverseBlockReason(comanda, item);
     if (block) {
       this.itemError.set(block);
@@ -880,7 +893,7 @@ export class PanelOrderDetailComponent {
   protected async submitPayment(comanda: ArenaComanda): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     const uid = this.auth.user()?.uid;
-    if (!arenaId || !uid) return;
+    if (!arenaId || !uid || this.cargoReadOnly()) return;
 
     const amountCents = parseBRLInputToCents(this.paymentAmountValue());
     if (amountCents <= 0) {
@@ -902,7 +915,7 @@ export class PanelOrderDetailComponent {
 
   protected async confirmCloseEmpty(comanda: ArenaComanda): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
-    if (!arenaId) return;
+    if (!arenaId || this.cargoReadOnly()) return;
 
     this.closingEmpty.set(true);
     this.closeEmptyError.set(null);

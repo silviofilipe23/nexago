@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Unsubscribe } from 'firebase/firestore';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
@@ -154,8 +155,15 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
 
                 <div class="field-label">Valor</div>
                 <div class="amount-field" [class.error]="amountError() != null">
-                  <input type="text" inputmode="decimal" placeholder="R$ 0,00" [value]="amountInput()" (input)="onAmountInput($any($event.target).value)" />
-                  <ar-pill tone="orange" class="withdraw-all-btn" (click)="withdrawAll()">Sacar tudo</ar-pill>
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    placeholder="R$ 0,00"
+                    [value]="amountInput()"
+                    [disabled]="!isOwner()"
+                    (input)="onAmountInput($any($event.target).value)"
+                  />
+                  <ar-pill tone="orange" class="withdraw-all-btn" [class.disabled]="!isOwner()" (click)="withdrawAll()">Sacar tudo</ar-pill>
                 </div>
                 @if (amountError(); as err) {
                   <p class="field-error">{{ err }}</p>
@@ -164,7 +172,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
                 <div class="field-label">Chave PIX de destino</div>
                 <div class="pix-field">
                   <span>{{ pixKey().trim() ? maskPixKey(pixKey()) : 'Cadastre uma chave PIX' }}</span>
-                  <button type="button" class="ar-ghost-btn edit-pix-btn" (click)="openPixEdit()">Editar</button>
+                  <button type="button" class="ar-ghost-btn edit-pix-btn" [disabled]="!isOwner()" (click)="openPixEdit()">Editar</button>
                 </div>
 
                 <button type="button" class="ar-mini-btn ar-mini-btn-primary submit-btn" [disabled]="!canSubmit()" (click)="submitWithdrawal()">
@@ -197,7 +205,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
 
           <div class="actions">
             <button type="button" class="ar-ghost-btn" (click)="showPixEdit.set(false)">Cancelar</button>
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="savePixEdit()">Salvar</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!isOwner()" (click)="savePixEdit()">Salvar</button>
           </div>
         </ar-modal>
       }
@@ -478,6 +486,12 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       cursor: pointer;
     }
 
+    .withdraw-all-btn.disabled {
+      opacity: 0.5;
+      cursor: default;
+      pointer-events: none;
+    }
+
     .field-error {
       font-size: 11.5px;
       color: var(--nx-live);
@@ -577,7 +591,13 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
 })
 export class PanelFinanceComponent {
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
   private readonly destroyRef = inject(DestroyRef);
+
+  /** Saque e chave PIX de saque são exclusivos do dono — `requestArenaWithdrawal` exige
+   *  `managerUserId` e as rules congelam `payoutPixKey`/`payoutPixKeyType` pra qualquer
+   *  cargo, inclusive gestor (que só tem LEITURA em financeiro). Não é `canWrite('financeiro')`. */
+  protected readonly isOwner = computed(() => this.access.isOwner());
   private unsubWallet: Unsubscribe | null = null;
   private unsubLedger: Unsubscribe | null = null;
   private unsubWithdrawals: Unsubscribe | null = null;
@@ -646,7 +666,7 @@ export class PanelFinanceComponent {
   });
 
   protected readonly canSubmit = computed(() => {
-    if (this.submitting() || this.hasPendingWithdrawal()) return false;
+    if (!this.isOwner() || this.submitting() || this.hasPendingWithdrawal()) return false;
     if (this.pixKey().trim().length < 5 || this.pixKeyError() != null) return false;
     const amount = this.parsedAmount();
     if (amount == null || amount < MIN_WITHDRAWAL_REAIS) return false;
@@ -702,12 +722,14 @@ export class PanelFinanceComponent {
   }
 
   protected withdrawAll(): void {
+    if (!this.isOwner()) return;
     const available = this.wallet().availableReais;
     if (available <= 0) return;
     this.amountInput.set(available.toFixed(2).replace('.', ','));
   }
 
   protected openPixEdit(): void {
+    if (!this.isOwner()) return;
     this.pixEditType.set(this.pixKeyType());
     this.pixEditKey.set(this.pixKey());
     this.pixEditError.set(null);
@@ -715,6 +737,7 @@ export class PanelFinanceComponent {
   }
 
   protected savePixEdit(): void {
+    if (!this.isOwner()) return;
     const key = this.pixEditKey().trim();
     const type = this.pixEditType();
     if (key.length > 0) {
@@ -737,7 +760,7 @@ export class PanelFinanceComponent {
   protected async submitWithdrawal(): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     const amount = this.parsedAmount();
-    if (!arenaId || amount == null || !this.canSubmit()) return;
+    if (!arenaId || amount == null || !this.canSubmit() || !this.isOwner()) return;
     this.submitting.set(true);
     try {
       const result = await requestArenaWithdrawal(arenaFunctions(), {

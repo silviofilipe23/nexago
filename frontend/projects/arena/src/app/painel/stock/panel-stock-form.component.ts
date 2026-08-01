@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -19,7 +20,7 @@ import { createProduct } from './products-repository';
   template: `
     <ar-panel-shell>
       <ar-page-header title="Novo produto" subtitle="Cadastrar item no estoque da arena">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave()" (click)="save()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave() || readOnly()" (click)="save()">
           <ar-icon name="check" [size]="14" />
           {{ saving() ? 'Salvando…' : 'Salvar produto' }}
         </button>
@@ -210,6 +211,12 @@ import { createProduct } from './products-repository';
 export class PanelStockFormComponent {
   private readonly router = inject(Router);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
+
+  /** Cargo com leitura mas sem escrita em `estoque` (recepção) acessando a rota direto —
+   *  o botão "Novo produto" da listagem já fica desabilitado, mas a rota em si só exige
+   *  leitura, então a tela precisa se proteger de novo. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('estoque'));
 
   protected readonly categoryOptions = ARENA_PRODUCT_CATEGORIES;
   protected readonly categoryLabel = ARENA_PRODUCT_CATEGORY_LABEL;
@@ -227,7 +234,7 @@ export class PanelStockFormComponent {
   protected readonly canSave = computed(() => this.name().trim().length > 0 && !this.saving());
 
   protected async save(): Promise<void> {
-    if (!this.canSave()) {
+    if (!this.canSave() || this.readOnly()) {
       return;
     }
     const arenaId = this.arenaContext.arenaId();

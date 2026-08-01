@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { maxRecurringActiveFor } from '../data/arena-plan.model';
 import { arenaFirestore } from '../data/firestore';
@@ -50,7 +51,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
   template: `
     <ar-panel-shell>
       <ar-page-header title="Horários fixos" [subtitle]="headerSubtitle()">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="atCap()" (click)="openCreate()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="atCap() || readOnly()" (click)="openCreate()">
           <ar-icon name="plus" [size]="14" />
           Novo horário fixo
         </button>
@@ -115,19 +116,19 @@ import type { AthleteCandidate } from './athlete-search-filter';
                       }
                     </div>
                     <div class="cell-actions">
-                      <button type="button" class="icon-action" [attr.aria-label]="'Editar'" (click)="openEdit(s)">
+                      <button type="button" class="icon-action" [attr.aria-label]="'Editar'" [disabled]="readOnly()" (click)="openEdit(s)">
                         <ar-icon name="edit" [size]="15" />
                       </button>
                       @if (s.status === 'active') {
-                        <button type="button" class="icon-action" [attr.aria-label]="'Pausar'" (click)="openPause(s)">
+                        <button type="button" class="icon-action" [attr.aria-label]="'Pausar'" [disabled]="readOnly()" (click)="openPause(s)">
                           <ar-icon name="pause" [size]="15" />
                         </button>
                       } @else {
-                        <button type="button" class="icon-action" [attr.aria-label]="'Retomar'" [disabled]="resuming() === s.id" (click)="resume(s)">
+                        <button type="button" class="icon-action" [attr.aria-label]="'Retomar'" [disabled]="resuming() === s.id || readOnly()" (click)="resume(s)">
                           <ar-icon name="play" [size]="15" />
                         </button>
                       }
-                      <button type="button" class="ar-ghost-btn danger-link" (click)="openCancel(s)">Encerrar</button>
+                      <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="openCancel(s)">Encerrar</button>
                     </div>
                   </div>
                 }
@@ -515,6 +516,11 @@ import type { AthleteCandidate } from './athlete-search-filter';
 })
 export class PanelRecurringComponent {
   protected readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
+
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção): criar/editar/pausar/
+   *  retomar/encerrar horário fixo ficam indisponíveis. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
 
   protected readonly weekdayOptions = RECURRING_WEEKDAYS;
   protected readonly weekdayLabel = RECURRING_WEEKDAY_LABEL;
@@ -597,7 +603,7 @@ export class PanelRecurringComponent {
   }
 
   protected openCreate(): void {
-    if (this.atCap()) return;
+    if (this.atCap() || this.readOnly()) return;
     this.editTarget.set(null);
     this.courtId.set(this.courts()[0]?.id ?? '');
     this.weekday.set(1);
@@ -616,6 +622,7 @@ export class PanelRecurringComponent {
   }
 
   protected openEdit(series: ArenaRecurringBooking): void {
+    if (this.readOnly()) return;
     this.editTarget.set(series);
     this.courtId.set(series.courtId);
     this.weekday.set(series.weekday);
@@ -656,7 +663,7 @@ export class PanelRecurringComponent {
   }
 
   protected async submitForm(): Promise<void> {
-    if (!this.canSubmit()) return;
+    if (!this.canSubmit() || this.readOnly()) return;
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId) return;
 
@@ -696,12 +703,14 @@ export class PanelRecurringComponent {
   protected readonly estimateMonthlyReais = estimateMonthlyReais;
 
   protected openPause(series: ArenaRecurringBooking): void {
+    if (this.readOnly()) return;
     this.confirmMode.set('pause');
     this.confirmError.set(null);
     this.confirmTarget.set(series);
   }
 
   protected openCancel(series: ArenaRecurringBooking): void {
+    if (this.readOnly()) return;
     this.confirmMode.set('cancel');
     this.confirmError.set(null);
     this.confirmTarget.set(series);
@@ -713,7 +722,7 @@ export class PanelRecurringComponent {
 
   protected async confirmAction(): Promise<void> {
     const target = this.confirmTarget();
-    if (!target) return;
+    if (!target || this.readOnly()) return;
     this.confirming.set(true);
     this.confirmError.set(null);
     try {
@@ -732,6 +741,7 @@ export class PanelRecurringComponent {
   }
 
   protected async resume(series: ArenaRecurringBooking): Promise<void> {
+    if (this.readOnly()) return;
     this.resuming.set(series.id);
     try {
       await resumeRecurringSeries(arenaFunctions(), series.id);

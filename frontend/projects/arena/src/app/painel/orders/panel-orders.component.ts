@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -71,7 +72,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
             <p class="state-text">Fale com o suporte para fazer upgrade e liberar o PDV da sua arena.</p>
           </ar-panel-card>
         } @else {
-          @if (readOnly()) {
+          @if (planReadOnly()) {
             <div class="readonly-banner">Seu plano atual não inclui abrir novas comandas — fale com o suporte para fazer upgrade.</div>
           }
 
@@ -399,6 +400,7 @@ export class PanelOrdersComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
 
   protected readonly formatBRL = formatCentsBRL;
   protected readonly formatComandaNumber = formatComandaNumber;
@@ -408,7 +410,11 @@ export class PanelOrdersComponent {
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
-  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('pdvComandas'));
+  /** Plano sem PDV/comandas — mensagem de upsell própria (ver `planReadOnly` abaixo). */
+  protected readonly planReadOnly = computed(() => !this.arenaContext.hasCapability('pdvComandas'));
+  /** Cargo com leitura mas sem escrita em `comandas` (financeiro). */
+  protected readonly cargoReadOnly = computed(() => !this.access.canWrite('comandas'));
+  protected readonly readOnly = computed(() => this.planReadOnly() || this.cargoReadOnly());
 
   protected readonly comandas = signal<ArenaComanda[]>([]);
   protected readonly loading = signal(true);
@@ -430,7 +436,7 @@ export class PanelOrdersComponent {
   });
 
   protected readonly listKicker = computed(() => `${this.filteredComandas().length} registros`);
-  protected readonly showPaywall = computed(() => this.readOnly() && this.comandas().length === 0);
+  protected readonly showPaywall = computed(() => this.planReadOnly() && this.comandas().length === 0);
   protected readonly canCreate = computed(() => this.newCustomerName().trim().length > 0 && !this.creating());
 
   protected readonly headerSubtitle = computed(

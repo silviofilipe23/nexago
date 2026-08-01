@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -53,7 +54,7 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
             </p>
           </ar-panel-card>
         } @else {
-          @if (readOnly()) {
+          @if (planReadOnly()) {
             <div class="readonly-banner">Seu plano atual não inclui o Clubinho — fale com o suporte para fazer upgrade.</div>
           }
 
@@ -251,6 +252,7 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
 })
 export class PanelClubsComponent {
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
   private readonly router = inject(Router);
 
   protected readonly formatReais = formatReais;
@@ -260,14 +262,18 @@ export class PanelClubsComponent {
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
-  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('clubinho'));
+  /** Plano sem o recurso Clubinho — mensagem de upsell própria (ver `planReadOnly` abaixo). */
+  protected readonly planReadOnly = computed(() => !this.arenaContext.hasCapability('clubinho'));
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção) — clubinho é uma tela da área agenda. */
+  protected readonly cargoReadOnly = computed(() => !this.access.canWrite('agenda'));
+  protected readonly readOnly = computed(() => this.planReadOnly() || this.cargoReadOnly());
 
   protected readonly clubs = signal<ArenaClub[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
 
   protected readonly activeCount = computed(() => this.clubs().filter((c) => c.status === 'active').length);
-  protected readonly showPaywall = computed(() => this.readOnly() && this.clubs().length === 0);
+  protected readonly showPaywall = computed(() => this.planReadOnly() && this.clubs().length === 0);
 
   protected readonly headerSubtitle = computed(
     () => `${this.arenaContext.arenaName() ?? 'Arena'} · jogo aberto com lista e PIX antecipado`,

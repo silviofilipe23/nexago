@@ -1,6 +1,7 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { resolveAthleteLabel } from '../bookings/bookings-repository';
@@ -91,7 +92,7 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
                       <div class="reply-box">
                         <div class="reply-kicker">Sua resposta</div>
                         <p class="reply-message">{{ reply.message }}</p>
-                        <button type="button" class="ar-ghost-btn edit-reply-btn" (click)="startReply(r, true)">Editar resposta</button>
+                        <button type="button" class="ar-ghost-btn edit-reply-btn" [disabled]="readOnly()" (click)="startReply(r, true)">Editar resposta</button>
                       </div>
                     } @else if (replyingId() === r.id) {
                       <div class="reply-form">
@@ -114,7 +115,7 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
                         </div>
                       </div>
                     } @else {
-                      <button type="button" class="ar-mini-btn reply-btn" (click)="startReply(r, false)">
+                      <button type="button" class="ar-mini-btn reply-btn" [disabled]="readOnly()" (click)="startReply(r, false)">
                         <ar-icon name="edit" [size]="13" />
                         Responder
                       </button>
@@ -343,6 +344,11 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
 export class PanelReviewsComponent {
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
+
+  /** Cargo com leitura mas sem escrita em `comunidade` (recepção e financeiro): responder
+   *  ou editar resposta fica indisponível — a lista de avaliações segue visível. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('comunidade'));
 
   protected readonly filters = FILTERS;
   protected readonly formatRating = formatRating;
@@ -429,6 +435,7 @@ export class PanelReviewsComponent {
   }
 
   protected startReply(review: ArenaReview, isEdit: boolean): void {
+    if (this.readOnly()) return;
     this.replyingId.set(review.id);
     this.replyDraft.set(isEdit ? (review.reply?.message ?? '') : '');
     this.replyError.set(null);
@@ -443,7 +450,7 @@ export class PanelReviewsComponent {
   protected async sendReply(review: ArenaReview): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     const uid = this.auth.user()?.uid;
-    if (!arenaId || !uid) return;
+    if (!arenaId || !uid || this.readOnly()) return;
 
     this.sendingReply.set(true);
     this.replyError.set(null);

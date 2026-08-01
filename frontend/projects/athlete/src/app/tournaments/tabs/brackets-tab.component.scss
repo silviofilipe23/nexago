@@ -1,3 +1,5 @@
+@use '../tournament-live' as tl;
+
 :host {
   display: block;
 }
@@ -499,20 +501,17 @@
   }
 }
 
-// 26px para as iniciais de 11px caberem sem encostar na borda (antes eram 22px com 8px).
-.bx-match-avatar {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-dim);
-  display: grid;
-  place-items: center;
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  font-weight: 700;
+// Dupla de avatares (foto ou iniciais) no card da chave — 26px pra manter o card compacto.
+.bx-duo {
+  @include tl.duo-avatars(26px);
+
+  // Slot ainda sem dupla: círculo neutro, sem o gradiente de atleta. O seletor duplo empata
+  // a especificidade com o `:nth-child(2)` do mixin — e vence por vir depois.
+  .duo-avatar.duo-avatar--empty {
+    background: var(--nx-surface-1);
+    border-color: var(--nx-line-strong);
+    color: var(--nx-text-dim);
+  }
 }
 
 .bx-match-name {

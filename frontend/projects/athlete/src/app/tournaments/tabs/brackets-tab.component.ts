@@ -17,18 +17,6 @@ function titleCase(input: string): string {
     .join(' ');
 }
 
-function initialsOf(name: string): string {
-  const parts = name
-    .replace(/\s*[&/]\s*/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length === 0) return '—';
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '—';
-}
-
 // Dia/hora na parede America/Sao_Paulo — fuso canônico dos eventos, mesmo formato dos cards
 // da chave do organizador (web e app).
 const SCHED_TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
@@ -96,8 +84,6 @@ export class BracketsTabComponent {
   private readonly router = inject(Router);
   protected readonly store = inject(TournamentLiveStore);
 
-  protected readonly initialsOf = initialsOf;
-
   private readonly categoryParam = toSignal(this.route.queryParamMap.pipe(map((p) => p.get('categoria'))), {
     initialValue: this.route.snapshot.queryParamMap.get('categoria'),
   });
@@ -120,8 +106,13 @@ export class BracketsTabComponent {
     const matches = this.store.matches().filter((m) => m.categoryId === category.id);
 
     const duoOf = (teamId: string, fallbackDescription: string | null): BracketDuo | null => {
-      if (!teamId) return fallbackDescription ? { id: 'tbd', name: fallbackDescription, isViewer: false } : null;
-      return { id: teamId, name: this.store.duoNameOf(teamId, fallbackDescription), isViewer: this.store.isMyTeam(teamId) };
+      if (!teamId) return fallbackDescription ? { id: 'tbd', name: fallbackDescription, isViewer: false, players: this.store.duoPlayersOf('') } : null;
+      return {
+        id: teamId,
+        name: this.store.duoNameOf(teamId, fallbackDescription),
+        isViewer: this.store.isMyTeam(teamId),
+        players: this.store.duoPlayersOf(teamId),
+      };
     };
 
     const toBracketMatch = (m: TournamentMatch): BracketMatch => {
@@ -146,7 +137,7 @@ export class BracketsTabComponent {
       const standings = buildGroupStandings(matches, poolId);
       const rows: GroupStanding[] = standings.map((s, idx) => ({
         rank: idx + 1,
-        duo: duoOf(s.teamId, null) ?? { id: s.teamId, name: 'Dupla', isViewer: false },
+        duo: duoOf(s.teamId, null) ?? { id: s.teamId, name: 'Dupla', isViewer: false, players: this.store.duoPlayersOf(s.teamId) },
         wins: s.wins,
         losses: matches.filter((m) => m.poolId === poolId && matchIsCompleted(m) && (m.teamAId === s.teamId || m.teamBId === s.teamId) && m.winnerId !== s.teamId).length,
         setsFor: s.setsWon,

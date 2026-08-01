@@ -35,6 +35,12 @@ function firstNameOf(full: string | undefined): string | null {
   return name ? name : null;
 }
 
+/** O que um círculo de avatar renderiza: a foto quando existe, senão as iniciais. */
+export interface DuoPlayer {
+  initial: string;
+  photo: string | null;
+}
+
 /** Intervalos do relógio: 1s enquanto alguma tela mostra placar ao vivo (o cronômetro "0:52 em
  *  quadra" precisa disso), 60s no resto do tempo — a contagem regressiva do card de próxima
  *  partida é exibida em minutos e não justifica um tick por segundo. */
@@ -295,6 +301,17 @@ export class TournamentLiveStore {
     if (!team) return [null, null];
     const profiles = this.profiles();
     return [profiles.get(team.player1Id)?.avatarUrl ?? null, profiles.get(team.player2Id)?.avatarUrl ?? null];
+  }
+
+  /** Foto + inicial de cada atleta da dupla, na ordem player1/player2 — o par que os cards
+   *  de partida renderizam. */
+  duoPlayersOf(teamId: string): [DuoPlayer, DuoPlayer] {
+    const initials = this.duoInitialsOf(teamId);
+    const avatars = this.duoAvatarsOf(teamId);
+    return [
+      { initial: initials[0], photo: avatars[0] },
+      { initial: initials[1], photo: avatars[1] },
+    ];
   }
 
   isMyTeam(teamId: string): boolean {

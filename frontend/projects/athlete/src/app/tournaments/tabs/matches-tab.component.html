@@ -53,23 +53,34 @@
       </p>
     } @else {
       @for (section of sections(); track section.id) {
-        <section class="mt-section">
-          <h2 class="mt-section-title">{{ section.title }}</h2>
-          <ul class="mt-rows">
+        <section class="mt-round">
+          <h2 class="mt-round-label">{{ section.title }}</h2>
+          <div class="mt-grid">
             @for (row of section.rows; track row.matchId) {
-              <li>
-                @if (row.clickable) {
-                  <a [routerLink]="['/torneios', store.tournamentId(), 'partida', row.matchId]" class="mt-row" [class.mt-row--mine]="row.isMine">
-                    <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ row: row }" />
-                  </a>
-                } @else {
-                  <div class="mt-row" [class.mt-row--mine]="row.isMine">
-                    <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ row: row }" />
-                  </div>
-                }
-              </li>
+              @if (row.clickable) {
+                <a
+                  [routerLink]="['/torneios', store.tournamentId(), 'partida', row.matchId]"
+                  class="mt-match"
+                  [class.mt-match--live]="row.state === 'live'"
+                  [class.mt-match--mine]="row.isMine"
+                  [class.mt-match--final]="row.stage === 'final'"
+                  [class.mt-match--third]="row.stage === 'third'"
+                >
+                  <ng-container [ngTemplateOutlet]="cardTpl" [ngTemplateOutletContext]="{ row: row }" />
+                </a>
+              } @else {
+                <div
+                  class="mt-match"
+                  [class.mt-match--live]="row.state === 'live'"
+                  [class.mt-match--mine]="row.isMine"
+                  [class.mt-match--final]="row.stage === 'final'"
+                  [class.mt-match--third]="row.stage === 'third'"
+                >
+                  <ng-container [ngTemplateOutlet]="cardTpl" [ngTemplateOutletContext]="{ row: row }" />
+                </div>
+              }
             }
-          </ul>
+          </div>
         </section>
       }
     }
@@ -127,37 +138,56 @@
   </aside>
 </div>
 
-<ng-template #rowTpl let-row="row">
-  <span class="mt-row-time">{{ row.time }}</span>
-  @if (row.court) {
-    <span class="mt-row-court">{{ row.court }}</span>
+<!-- Card de partida no desenho da Copa VH: linha mono no topo (hora · quadra + selo de
+     estado), uma linha por dupla com os avatares dos atletas e o placar à direita, e as
+     parciais em pílulas no rodapé. -->
+<ng-template #cardTpl let-row="row">
+  <div class="mt-match-head">
+    <span class="mt-match-context" [class.mt-match-context--live]="row.state === 'live'">{{ row.head }}</span>
+    <span class="mt-match-chip" [attr.data-state]="row.state">
+      @if (row.state === 'live') {
+        <span class="mt-live-dot" aria-hidden="true"></span>
+      }
+      {{ row.stateLabel }}
+    </span>
+  </div>
+
+  @for (side of [row.sideA, row.sideB]; track $index) {
+    <div class="mt-match-row">
+      <span class="mt-match-team">
+        <span class="mt-duo" aria-hidden="true">
+          @for (p of side.players; track $index) {
+            <span class="duo-avatar">
+              @if (p.photo) {
+                <img [src]="p.photo" alt="" loading="lazy" />
+              } @else {
+                {{ p.initial }}
+              }
+            </span>
+          }
+        </span>
+        <span
+          class="mt-match-name"
+          [class.mt-match-name--tbd]="side.tbd"
+          [class.mt-match-name--dim]="side.lost"
+          [class.mt-match-name--mine]="side.mine"
+        >{{ side.name }}@if (side.mine) {<span class="mt-you"> · você</span>}</span>
+      </span>
+      <span
+        class="mt-match-score"
+        [class.mt-match-score--win]="side.won"
+        [class.mt-match-score--lose]="side.lost"
+        [class.mt-match-score--led]="side.leading"
+        [class.mt-match-score--idle]="side.score === '—'"
+      >{{ side.score }}</span>
+    </div>
   }
 
-  <span class="mt-row-team" [class.mt-row-team--mine]="row.mineA">
-    <span class="mt-duo" aria-hidden="true">
-      @for (i of row.initialsA; track $index) {
-        <span class="duo-avatar">{{ i }}</span>
+  @if (row.pills.length > 0) {
+    <div class="mt-match-foot">
+      @for (pill of row.pills; track $index) {
+        <span class="mt-set-pill" [attr.data-tone]="pill.tone">{{ pill.label }}</span>
       }
-    </span>
-    <span class="mt-row-name">{{ row.nameA }}@if (row.mineA) {<span class="mt-you"> · você</span>}</span>
-  </span>
-
-  <span class="mt-row-score" [class.mt-row-score--pending]="!row.score">{{ row.score ?? 'vs' }}</span>
-
-  <span class="mt-row-team" [class.mt-row-team--mine]="row.mineB">
-    <span class="mt-duo" aria-hidden="true">
-      @for (i of row.initialsB; track $index) {
-        <span class="duo-avatar">{{ i }}</span>
-      }
-    </span>
-    <span class="mt-row-name">{{ row.nameB }}@if (row.mineB) {<span class="mt-you"> · você</span>}</span>
-  </span>
-
-  <span class="mt-row-partials">{{ row.partials }}</span>
-  <span class="mt-row-state" [attr.data-state]="row.state">
-    @if (row.state === 'live') {
-      <span class="mt-live-dot" aria-hidden="true"></span>
-    }
-    {{ row.stateLabel }}
-  </span>
+    </div>
+  }
 </ng-template>

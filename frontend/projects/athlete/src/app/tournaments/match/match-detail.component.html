@@ -50,8 +50,14 @@
           @if (sideA(); as a) {
             <div class="md-team" [class.md-team--winner]="a.winner">
               <span class="md-duo" aria-hidden="true">
-                @for (i of a.initials; track $index) {
-                  <span class="duo-avatar">{{ i }}</span>
+                @for (p of a.players; track $index) {
+                  <span class="duo-avatar">
+                    @if (p.photo) {
+                      <img [src]="p.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ p.initial }}
+                    }
+                  </span>
                 }
               </span>
               <strong class="md-team-name">{{ a.name }}</strong>
@@ -86,8 +92,14 @@
           @if (sideB(); as b) {
             <div class="md-team md-team--right" [class.md-team--winner]="b.winner">
               <span class="md-duo" aria-hidden="true">
-                @for (i of b.initials; track $index) {
-                  <span class="duo-avatar">{{ i }}</span>
+                @for (p of b.players; track $index) {
+                  <span class="duo-avatar">
+                    @if (p.photo) {
+                      <img [src]="p.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ p.initial }}
+                    }
+                  </span>
                 }
               </span>
               <strong class="md-team-name">{{ b.name }}</strong>

@@ -135,7 +135,22 @@
                     <span class="bx-time-badge">{{ m.scheduledLabel }}</span>
                   }
                   <div class="bx-match-side" [class.bx-match-side--winner]="m.sideA.winner">
-                    <span class="bx-match-avatar" aria-hidden="true">{{ m.sideA.duo ? initialsOf(m.sideA.duo.name) : '—' }}</span>
+                    <span class="bx-duo" aria-hidden="true">
+                      @if (m.sideA.duo; as duo) {
+                        @for (p of duo.players; track $index) {
+                          <span class="duo-avatar">
+                            @if (p.photo) {
+                              <img [src]="p.photo" alt="" loading="lazy" />
+                            } @else {
+                              {{ p.initial }}
+                            }
+                          </span>
+                        }
+                      } @else {
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                      }
+                    </span>
                     <span class="bx-match-name">
                       @if (m.sideA.duo) {
                         {{ m.sideA.duo.name }}
@@ -151,7 +166,22 @@
                     }
                   </div>
                   <div class="bx-match-side" [class.bx-match-side--winner]="m.sideB.winner">
-                    <span class="bx-match-avatar" aria-hidden="true">{{ m.sideB.duo ? initialsOf(m.sideB.duo.name) : '—' }}</span>
+                    <span class="bx-duo" aria-hidden="true">
+                      @if (m.sideB.duo; as duo) {
+                        @for (p of duo.players; track $index) {
+                          <span class="duo-avatar">
+                            @if (p.photo) {
+                              <img [src]="p.photo" alt="" loading="lazy" />
+                            } @else {
+                              {{ p.initial }}
+                            }
+                          </span>
+                        }
+                      } @else {
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                      }
+                    </span>
                     <span class="bx-match-name">
                       @if (m.sideB.duo) {
                         {{ m.sideB.duo.name }}

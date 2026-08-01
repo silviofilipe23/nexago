@@ -8,6 +8,13 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+}
+
+// A chave e as tabelas rolam DENTRO do próprio card (`.bx-bracket`, `.bx-table-scroll`);
+// sem `min-width: 0` aqui esse scroll vaza para a página inteira.
+.bx-card {
+  min-width: 0;
 }
 
 .bx-dim {
@@ -84,7 +91,7 @@
   background: var(--nx-surface-1);
   color: var(--nx-text-dim);
   font-family: var(--nx-font-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -106,7 +113,7 @@
 
 .bx-card-kicker {
   font-family: var(--nx-font-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -177,9 +184,17 @@
 
 .bx-group-count {
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
+  color: var(--nx-text-dim);
+}
+
+// Grupo ainda sem duplas sorteadas: cabeçalho de tabela sozinho não informa nada.
+.bx-group-empty {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 13px;
   color: var(--nx-text-dim);
 }
 
@@ -201,7 +216,7 @@
   th {
     text-align: right;
     font-family: var(--nx-font-mono);
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -323,7 +338,7 @@
 
 .bx-round-label {
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -432,7 +447,7 @@
   background: var(--nx-live);
   color: #fff;
   font-family: var(--nx-font-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
@@ -455,7 +470,7 @@
   border: 1px solid var(--nx-line-strong);
   color: var(--nx-text-mute);
   font-family: var(--nx-font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   display: inline-block;
   line-height: 18px;
@@ -484,10 +499,11 @@
   }
 }
 
+// 26px para as iniciais de 11px caberem sem encostar na borda (antes eram 22px com 8px).
 .bx-match-avatar {
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: var(--nx-surface-1);
   border: 1px solid var(--nx-line-strong);
@@ -495,7 +511,7 @@
   display: grid;
   place-items: center;
   font-family: var(--nx-font-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
 }
 

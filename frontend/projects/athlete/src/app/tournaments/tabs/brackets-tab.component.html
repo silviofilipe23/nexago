@@ -36,6 +36,9 @@
                   <h3 class="bx-group-name">Grupo {{ g.letter }}</h3>
                   <span class="bx-group-count">{{ g.standings.length }} duplas</span>
                 </div>
+                @if (g.standings.length === 0) {
+                  <p class="bx-group-empty">Duplas definidas na hora do sorteio.</p>
+                } @else {
                 <div class="bx-table-scroll">
                   <table class="bx-standings-table">
                     <thead>
@@ -67,6 +70,7 @@
                     </tbody>
                   </table>
                 </div>
+                }
               </div>
             }
           </div>

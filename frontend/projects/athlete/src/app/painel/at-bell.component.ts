@@ -34,8 +34,10 @@ function createFirestore(): Firestore | null {
   styles: `
     .at-bell-link {
       position: relative;
-      width: 36px;
-      height: 36px;
+      /* 44px é o alvo mínimo de toque; a 36px o sino era um dos pontos mais difíceis de
+         acertar no cabeçalho. */
+      width: 44px;
+      height: 44px;
       border-radius: 10px;
       display: grid;
       place-items: center;

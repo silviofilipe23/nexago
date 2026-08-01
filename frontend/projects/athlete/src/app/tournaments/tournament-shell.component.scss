@@ -2,6 +2,15 @@
 
 :host {
   display: block;
+  min-width: 0;
+}
+
+// O outlet e o componente de aba também precisam poder encolher, senão o conteúdo largo
+// (chave, tabelas) reabre o mesmo transbordamento um nível abaixo.
+router-outlet + * {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tsh {
@@ -11,6 +20,12 @@
   padding: var(--nx-s-6) var(--nx-s-6) var(--nx-s-9);
   max-width: 1400px;
   margin: 0 auto;
+  // Esta casca é flex item de `.at-main`, e todo flex item nasce com `min-width: auto`: a
+  // chave (colunas de 220px) empurrava a casca inteira até 1400px no celular, levando junto
+  // cabeçalho e abas para fora da tela. O `overflow-x` interno da chave só contém o scroll
+  // depois que a cadeia toda pode encolher.
+  width: 100%;
+  min-width: 0;
 
   @media (max-width: 720px) {
     padding: var(--nx-s-4) var(--nx-s-4) var(--nx-s-8);
@@ -18,13 +33,16 @@
   }
 }
 
+// Altura real de 44px em vez do pseudo-elemento: o alvo ampliado por `::after` funciona no
+// toque mas não aparece em auditoria nem para quem usa navegação por foco.
 .tsh-back {
-  @include tl.tap-target;
   display: inline-flex;
   align-items: center;
   gap: var(--nx-s-2);
   align-self: flex-start;
-  font-size: 13px;
+  min-height: 44px;
+  padding-right: var(--nx-s-2);
+  font-size: 14px;
   color: var(--nx-text-mute);
   text-decoration: none;
   transition: color var(--nx-d-fast) var(--nx-ease-out);
@@ -33,6 +51,13 @@
   &:focus-visible {
     color: var(--nx-text);
   }
+}
+
+.tsh-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nx-s-3);
 }
 
 .tsh-head {
@@ -68,6 +93,7 @@
 .tsh-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--nx-s-2);
   min-height: 44px;
   padding: 0 var(--nx-s-4);
@@ -86,6 +112,25 @@
   &:focus-visible {
     border-color: rgba(255, 106, 26, 0.5);
     background: var(--nx-orange-tint);
+  }
+
+  // No celular fica só o ícone (o `aria-label` no botão preserva o nome para leitor de tela);
+  // o alvo continua com 44px.
+  @media (max-width: 560px) {
+    min-width: 44px;
+    padding: 0;
+  }
+}
+
+.tsh-action-label {
+  @media (max-width: 560px) {
+    // `clip` em vez de `display: none` mantém o texto acessível caso o aria-label falhe.
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

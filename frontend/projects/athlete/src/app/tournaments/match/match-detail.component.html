@@ -3,6 +3,19 @@
     <app-nx-page-loading title="Carregando partida…" />
   } @else if (match(); as m) {
     <div class="md">
+      <!-- Voltar à esquerda e compartilhar à direita, na mesma linha: o padrão de barra de
+           navegação que o celular espera, e que não gasta altura antes do placar. -->
+      <div class="md-topbar">
+        <a [routerLink]="backLink()" class="md-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+          <span>{{ backLabel() }}</span>
+        </a>
+        <button type="button" class="md-action" (click)="shareOpen.set(true)" aria-label="Compartilhar partida">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+          <span class="md-action-label">Compartilhar</span>
+        </button>
+      </div>
+
       <header class="md-head">
         <div class="md-head-main">
           <h1 class="md-title">{{ pageTitle() }}</h1>
@@ -12,16 +25,6 @@
               · {{ categoryName() }}
             }
           </p>
-        </div>
-        <div class="md-head-actions">
-          <button type="button" class="md-action" (click)="shareOpen.set(true)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
-            <span>Compartilhar</span>
-          </button>
-          <a [routerLink]="backLink()" class="md-back">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
-            <span>{{ backLabel() }}</span>
-          </a>
         </div>
       </header>
 

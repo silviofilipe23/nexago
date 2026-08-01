@@ -80,6 +80,9 @@
       <section class="mt-card">
         <span class="mt-kicker">{{ standingsKicker() }}</span>
         <h2 class="mt-card-title">{{ title }}</h2>
+        @if (standings().length === 0) {
+          <p class="mt-empty-inline">A classificação aparece assim que as duplas forem definidas e a primeira rodada começar.</p>
+        } @else {
         <table class="mt-standings">
           <thead>
             <tr>
@@ -109,6 +112,7 @@
             }
           </tbody>
         </table>
+        }
 
         @if (qualificationText(); as text) {
           <p class="mt-note">{{ text }}</p>
@@ -138,7 +142,7 @@
     <span class="mt-row-name">{{ row.nameA }}@if (row.mineA) {<span class="mt-you"> · você</span>}</span>
   </span>
 
-  <span class="mt-row-score">{{ row.score ?? 'vs' }}</span>
+  <span class="mt-row-score" [class.mt-row-score--pending]="!row.score">{{ row.score ?? 'vs' }}</span>
 
   <span class="mt-row-team" [class.mt-row-team--mine]="row.mineB">
     <span class="mt-duo" aria-hidden="true">

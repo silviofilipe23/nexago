@@ -123,10 +123,12 @@ export class MatchDetailComponent {
       : knockoutLabelOf(m);
   });
 
+  /** Só a fase: os nomes das duplas já dominam o placar logo abaixo, e repeti-los no título
+   *  gastava três linhas no celular com nomes reais. */
   protected readonly pageTitle = computed(() => {
     const m = this.match();
     if (!m) return 'Partida';
-    return `${this.phaseLabel()} · ${this.store.duoNameOf(m.teamAId, m.teamADescription)} vs ${this.store.duoNameOf(m.teamBId, m.teamBDescription)}`;
+    return this.phaseLabel();
   });
 
   protected readonly categoryName = computed(() => {
@@ -135,11 +137,11 @@ export class MatchDetailComponent {
     return this.store.tournament()?.categories.find((c) => c.id === m.categoryId)?.categoryName ?? null;
   });
 
-  /** "Semifinal · MD3 · Quadra 2" */
+  /** "MD3 · Quadra 2" — sem a fase, que já é o título da página logo acima. */
   protected readonly contextLine = computed(() => {
     const m = this.match();
     if (!m) return '';
-    return [this.phaseLabel(), bestOfLabelOf(m), courtLabelOf(m.courtName)].filter((p): p is string => p != null && p.length > 0).join(' · ');
+    return [bestOfLabelOf(m), courtLabelOf(m.courtName)].filter((p): p is string => p != null && p.length > 0).join(' · ');
   });
 
   /** "início 15:04 · 0:52 em quadra" — o relógio corre com o tick do store. */

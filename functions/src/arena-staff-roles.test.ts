@@ -140,7 +140,7 @@ test("matriz completa: cada cargo em cada area (RW/R/-)", () => {
       agenda: "-",
       comandas: "R",
       estoque: "-",
-      financeiro: "RW",
+      financeiro: "R",
       promocoes: "RW",
       site: "-",
       quadras: "-",

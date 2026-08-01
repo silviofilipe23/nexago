@@ -29,7 +29,8 @@ describe('arena-roles.model', () => {
   });
 
   it('financeiro nao alcanca agenda nem perfil', () => {
-    expect(arenaRoleCanWrite('financeiro', 'financeiro')).toBe(true);
+    expect(arenaRoleCanRead('financeiro', 'financeiro')).toBe(true);
+    expect(arenaRoleCanWrite('financeiro', 'financeiro')).toBe(false);
     expect(arenaRoleCanWrite('financeiro', 'promocoes')).toBe(true);
     expect(arenaRoleCanRead('financeiro', 'comandas')).toBe(true);
     expect(arenaRoleCanWrite('financeiro', 'comandas')).toBe(false);
@@ -101,7 +102,7 @@ describe('arena-roles.model', () => {
         agenda: '-',
         comandas: 'R',
         estoque: '-',
-        financeiro: 'RW',
+        financeiro: 'R',
         promocoes: 'RW',
         site: '-',
         quadras: '-',

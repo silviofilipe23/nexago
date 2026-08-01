@@ -27,7 +27,7 @@ export type ArenaArea = (typeof ARENA_AREAS)[number];
 const ARENA_WRITE_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
   gestor: ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade'],
   recepcao: ['agenda', 'comandas'],
-  financeiro: ['financeiro', 'promocoes'],
+  financeiro: ['promocoes'],
   manutencao: ['quadras', 'estoque'],
 };
 
@@ -35,7 +35,7 @@ const ARENA_WRITE_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
 const ARENA_READ_ONLY_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
   gestor: ['financeiro', 'torneios'],
   recepcao: ['estoque', 'comunidade'],
-  financeiro: ['comandas', 'comunidade'],
+  financeiro: ['financeiro', 'comandas', 'comunidade'],
   manutencao: ['agenda'],
 };
 
@@ -57,7 +57,7 @@ export const ARENA_ROLE_LABEL: Record<ArenaStaffRole, string> = {
 export const ARENA_ROLE_DESCRIPTION: Record<ArenaStaffRole, string> = {
   gestor: 'Opera a arena inteira; vê o financeiro sem poder alterá-lo',
   recepcao: 'Agenda, reservas e comandas do balcão',
-  financeiro: 'Financeiro, relatórios, cupons e promoções',
+  financeiro: 'Consulta financeiro e relatórios; escreve cupons e promoções',
   manutencao: 'Quadras e estoque, sem acesso a dinheiro',
 };
 
@@ -70,7 +70,7 @@ export const ARENA_ROLE_AREA_LABELS: Record<ArenaStaffRole, readonly string[]> =
     'Financeiro (somente leitura)',
   ],
   recepcao: ['Agenda, reservas e horários fixos', 'Comandas e clubinho', 'Estoque (consulta)'],
-  financeiro: ['Financeiro e relatórios', 'Ocupação', 'Cupons e promoções'],
+  financeiro: ['Financeiro e relatórios (somente leitura)', 'Ocupação', 'Cupons e promoções'],
   manutencao: ['Quadras', 'Estoque', 'Agenda (consulta)'],
 };
 

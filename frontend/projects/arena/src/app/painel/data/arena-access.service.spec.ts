@@ -47,7 +47,8 @@ describe('ArenaAccessService', () => {
   it('financeiro nao alcanca agenda', () => {
     const svc = makeService(contextStub(false, 'financeiro'));
     expect(svc.canRead('agenda')).toBe(false);
-    expect(svc.canWrite('financeiro')).toBe(true);
+    expect(svc.canRead('financeiro')).toBe(true);
+    expect(svc.canWrite('financeiro')).toBe(false);
   });
 
   it('sem vinculo nenhum nao alcanca nada', () => {

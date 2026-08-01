@@ -86,7 +86,7 @@ export type ArenaArea = (typeof ARENA_AREAS)[number];
 const ARENA_WRITE_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
   gestor: ["agenda", "comandas", "estoque", "promocoes", "site", "quadras", "perfil", "comunidade"],
   recepcao: ["agenda", "comandas"],
-  financeiro: ["financeiro", "promocoes"],
+  financeiro: ["promocoes"],
   manutencao: ["quadras", "estoque"],
 };
 
@@ -94,7 +94,7 @@ const ARENA_WRITE_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
 const ARENA_READ_ONLY_AREAS: Record<ArenaStaffRole, readonly ArenaArea[]> = {
   gestor: ["financeiro"],
   recepcao: ["estoque", "comunidade"],
-  financeiro: ["comandas", "comunidade"],
+  financeiro: ["financeiro", "comandas", "comunidade"],
   manutencao: ["agenda"],
 };
 

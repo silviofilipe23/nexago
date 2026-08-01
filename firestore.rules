@@ -388,7 +388,7 @@ service cloud.firestore {
       return {
         'gestor': ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade'],
         'recepcao': ['agenda', 'comandas'],
-        'financeiro': ['financeiro', 'promocoes'],
+        'financeiro': ['promocoes'],
         'manutencao': ['quadras', 'estoque']
       }.get(role, []);
     }

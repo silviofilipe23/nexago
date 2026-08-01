@@ -1,0 +1,58 @@
+# NexaGO — Área do atleta (SPA Angular) em Apache/LiteSpeed (Hostinger).
+# Reproduz o comportamento do target "athlete" no firebase.json:
+# fallback para index.html, hashed assets imutáveis, resto sem cache.
+
+Options -Indexes
+
+# --- Tipos MIME ------------------------------------------------------------
+<IfModule mod_mime.c>
+  AddType application/javascript          .mjs
+  AddType application/manifest+json       .webmanifest
+  AddType application/json                .json
+  AddType image/svg+xml                   .svg
+  AddType video/mp4                       .mp4
+</IfModule>
+
+# apple-app-site-association não tem extensão; iOS exige JSON.
+<Files "apple-app-site-association">
+  ForceType application/json
+</Files>
+
+# --- Compressão ------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain \
+    application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
+
+# --- Cache -----------------------------------------------------------------
+<IfModule mod_headers.c>
+  # Bundles com hash no nome (outputHashing: all) podem ser cacheados pra sempre.
+  <FilesMatch "\.(js|mjs|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # index.html e assets de public/ (sem hash) precisam revalidar sempre.
+  <FilesMatch "\.(html|webmanifest|json|ico|png|jpg|jpeg|webp|svg|mp4)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# --- Roteamento da SPA -----------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Descomente as 2 linhas abaixo se a Hostinger não estiver forçando HTTPS.
+  # RewriteCond %{HTTPS} !=on
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Arquivo ou diretório real (assets, .well-known/...) é servido direto.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Qualquer outra rota é do Angular Router.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# --- Fallback de 404 (caso mod_rewrite esteja desligado) --------------------
+ErrorDocument 404 /index.html

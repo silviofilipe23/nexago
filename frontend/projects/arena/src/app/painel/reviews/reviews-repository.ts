@@ -12,8 +12,12 @@ import {
 } from 'firebase/firestore';
 import { arenaReviewFromDoc, type ArenaReview } from './arena-review.model';
 
-/** Espelha `ReviewReplyService` (Flutter) — resposta do gestor a uma avaliação, escrita direta
- *  no client (transação) protegida pelas rules (`managerUserId` da arena da avaliação). */
+/** Espelha `ReviewReplyService` (Flutter) — resposta a uma avaliação, escrita direta no client
+ *  (transação). A autorização de verdade é das rules (`arenaCanWrite(arenaId, 'comunidade')` —
+ *  dono OU membro de equipe ativo cujo cargo escreve em `comunidade`, hoje só `gestor`); quem
+ *  decide se oferece a ação é o chamador (`PanelReviewsComponent`, via
+ *  `ArenaAccessService.canWrite('comunidade')`). Aqui só rodamos a transação e registramos
+ *  quem respondeu (`reply.repliedBy`). */
 
 const REVIEWS_LIMIT = 100;
 
@@ -40,7 +44,7 @@ function validateMessage(message: string): void {
   if (message.length > 300) throw new ReviewRepositoryError('A resposta deve ter no máximo 300 caracteres.');
 }
 
-export async function replyToReview(db: Firestore, reviewId: string, arenaId: string, managerUserId: string, message: string): Promise<void> {
+export async function replyToReview(db: Firestore, reviewId: string, arenaId: string, uid: string, message: string): Promise<void> {
   const msg = message.trim();
   validateMessage(msg);
 
@@ -55,23 +59,18 @@ export async function replyToReview(db: Firestore, reviewId: string, arenaId: st
       throw new ReviewRepositoryError('Esta avaliação já possui resposta.');
     }
 
-    const arenaRef = doc(db, 'arenas', arenaId);
-    const arenaSnap = await tx.get(arenaRef);
-    const manager = typeof arenaSnap.data()?.['managerUserId'] === 'string' ? (arenaSnap.data()!['managerUserId'] as string).trim() : '';
-    if (manager !== managerUserId) throw new ReviewRepositoryError('Apenas o gestor da arena pode responder.');
-
     tx.update(reviewRef, {
       reply: {
         message: msg,
         createdAt: serverTimestamp(),
         updatedAt: null,
-        repliedBy: managerUserId,
+        repliedBy: uid,
       },
     });
   });
 }
 
-export async function updateReviewReply(db: Firestore, reviewId: string, arenaId: string, managerUserId: string, message: string): Promise<void> {
+export async function updateReviewReply(db: Firestore, reviewId: string, arenaId: string, uid: string, message: string): Promise<void> {
   const msg = message.trim();
   validateMessage(msg);
 
@@ -86,15 +85,10 @@ export async function updateReviewReply(db: Firestore, reviewId: string, arenaId
       throw new ReviewRepositoryError('Esta avaliação ainda não possui resposta.');
     }
 
-    const arenaRef = doc(db, 'arenas', arenaId);
-    const arenaSnap = await tx.get(arenaRef);
-    const manager = typeof arenaSnap.data()?.['managerUserId'] === 'string' ? (arenaSnap.data()!['managerUserId'] as string).trim() : '';
-    if (manager !== managerUserId) throw new ReviewRepositoryError('Apenas o gestor da arena pode editar resposta.');
-
     tx.update(reviewRef, {
       'reply.message': msg,
       'reply.updatedAt': serverTimestamp(),
-      'reply.repliedBy': managerUserId,
+      'reply.repliedBy': uid,
     });
   });
 }

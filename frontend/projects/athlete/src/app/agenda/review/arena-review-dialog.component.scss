@@ -180,13 +180,6 @@
   }
 }
 
-.arv-error {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--nx-live);
-}
-
 .arv-actions {
   display: flex;
   align-items: center;
@@ -230,4 +223,10 @@
     cursor: default;
     opacity: 0.75;
   }
+}
+
+// Alerta de envio: separa do formulário acima e dos botões abaixo.
+.arv-error {
+  display: flex;
+  margin: 4px 0 2px;
 }

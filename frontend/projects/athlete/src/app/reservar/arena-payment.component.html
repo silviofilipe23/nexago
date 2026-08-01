@@ -23,10 +23,6 @@
         </a>
       </div>
 
-      @if (notice(); as n) {
-        <div class="pm-notice" role="status">{{ n }}</div>
-      }
-
       <div class="pm-main-grid">
         <div class="pm-col">
           <section class="pm-card">
@@ -170,8 +166,13 @@
                         autocomplete="off"
                         placeholder="000.000.000-00"
                         [value]="cpf()"
+                        [class.nx-input--invalid]="cpfError() !== null"
+                        [attr.aria-invalid]="cpfError() !== null"
                         (input)="onCpfInput($any($event.target).value)"
                       />
+                      @if (cpfError(); as err) {
+                        <app-nx-field-error>{{ err }}</app-nx-field-error>
+                      }
                     </div>
 
                     <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
@@ -354,7 +355,7 @@
                   </button>
                 </div>
                 @if (couponError(); as err) {
-                  <p class="pm-coupon-error">{{ err }}</p>
+                  <app-nx-field-error>{{ err }}</app-nx-field-error>
                 }
               }
             </div>
@@ -398,5 +399,16 @@
         </div>
       </div>
     </div>
+  }
+
+  @if (paymentExpired()) {
+    <app-nx-blocking-dialog
+      heading="Não foi possível concluir o pagamento"
+      body="O prazo do Pix acabou e a reserva foi desfeita. Nenhum valor foi cobrado — o horário voltou a ficar disponível e pode ser pego por outra pessoa."
+      primaryLabel="Gerar novo código Pix"
+      secondaryLabel="Escolher outro horário"
+      (primary)="retryAfterExpiry()"
+      (secondary)="backToSlots()"
+    />
   }
 </app-at-panel-shell>

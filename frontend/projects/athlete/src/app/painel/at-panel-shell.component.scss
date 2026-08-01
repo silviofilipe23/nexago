@@ -258,6 +258,16 @@
   overflow-y: auto;
 }
 
+// Banner de estado gruda no topo do conteúdo rolável: a condição que ele
+// descreve continua valendo mesmo depois do atleta rolar a página.
+.at-shell-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: none;
+  --nx-banner-base: var(--nx-bg); // opaco: o conteúdo rola POR BAIXO da faixa
+}
+
 // ── Bottom nav (mobile) ─────────────────────────────────────
 .at-bottom-nav {
   display: none;

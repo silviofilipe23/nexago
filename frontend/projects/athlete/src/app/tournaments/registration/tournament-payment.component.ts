@@ -25,6 +25,7 @@ import {
 import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import { NxBannerComponent, NxFieldErrorComponent, NxToastService } from '../../shared/feedback';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -64,7 +65,14 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
 @Component({
   selector: 'app-tournament-payment',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    NxPageLoadingComponent,
+    NxSpinnerComponent,
+    NxFieldErrorComponent,
+    NxBannerComponent,
+  ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -74,7 +82,7 @@ export class TournamentPaymentComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+  private readonly toasts = inject(NxToastService);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -101,7 +109,10 @@ export class TournamentPaymentComponent {
 
   protected readonly amountType = signal<PaymentAmountType>('share');
   protected readonly cpfCnpj = signal('');
-  protected readonly notice = signal<string | null>(null);
+
+  /** CPF/CNPJ é exigência do emissor do Pix — erro de campo, então a mensagem
+   *  fica colada no input em vez de virar um toast que some. */
+  protected readonly documentError = signal<string | null>(null);
   protected readonly processing = signal(false);
   protected readonly pixResult = signal<PixPaymentResult | null>(null);
   /** Data-URL do QR (Asaas ou gerado no cliente a partir do código copia-e-cola). */
@@ -163,7 +174,6 @@ export class TournamentPaymentComponent {
       .subscribe(() => this.nowMs.set(Date.now()));
 
     this.destroyRef.onDestroy(() => {
-      clearTimeout(this.noticeTimeout);
       clearTimeout(this.expiryTimeout);
       this.unsubscribeRegistrationWatch?.();
     });
@@ -232,13 +242,15 @@ export class TournamentPaymentComponent {
     this.registration.set(snap);
     if (snap.isPaid) {
       this.clearPixState();
-      if (!wasPaid) this.showNotice('Inscrição confirmada!');
+      if (!wasPaid) {
+        this.toasts.success('Inscrição confirmada', 'Sua vaga está garantida. As chaves saem quando o organizador publicar.');
+      }
       return;
     }
     const uid = this.auth.user()?.uid;
     if (uid && snap.sharePaidUids.includes(uid) && this.pixResult()) {
       this.clearPixState();
-      this.showNotice('Parcela paga! Aguarde seu parceiro pagar a dele.');
+      this.toasts.success('Sua parte foi paga', 'A inscrição fecha assim que seu parceiro pagar a parte dele.');
     }
   }
 
@@ -263,7 +275,9 @@ export class TournamentPaymentComponent {
     const reg = this.registration();
     if (!reg || this.processing()) return;
     if (!isValidCpfCnpj(this.cpfCnpj())) {
-      this.showNotice(cpfCnpjValidationMessage(this.cpfCnpj()) ?? 'Informe um CPF ou CNPJ válido para gerar o Pix.');
+      this.documentError.set(
+        cpfCnpjValidationMessage(this.cpfCnpj()) ?? 'Informe um CPF ou CNPJ válido para gerar o Pix.',
+      );
       return;
     }
     this.processing.set(true);
@@ -272,9 +286,14 @@ export class TournamentPaymentComponent {
       this.pixResult.set(result);
       this.pixQrSrc.set(await resolvePixQrSrc(result));
       this.pixExpired.set(false);
+      this.documentError.set(null);
       this.schedulePixExpiry(result.expiresAt);
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível gerar o Pix.');
+      this.toasts.error(
+        'Não foi possível gerar o Pix',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
+        { label: 'Tentar novamente', run: () => void this.generatePix() },
+      );
     } finally {
       this.processing.set(false);
     }
@@ -297,7 +316,11 @@ export class TournamentPaymentComponent {
     this.pixQrSrc.set(null);
     this.pixExpiresAtMs.set(null);
     this.pixExpired.set(true);
-    this.showNotice('O Pix expirou — gere um novo código.');
+    this.toasts.warning(
+      'O código Pix expirou',
+      'Nenhum valor foi cobrado e sua vaga segue reservada. Gere um novo código para pagar.',
+      { label: 'Gerar novo código', run: () => void this.generatePix() },
+    );
     if (reg) {
       try {
         await cancelPendingRegistrationPix(athleteFunctions(), reg.id);
@@ -313,9 +336,12 @@ export class TournamentPaymentComponent {
     try {
       await cancelPendingRegistrationPix(athleteFunctions(), reg.id);
       this.clearPixState();
-      this.showNotice('Pix cancelado.');
+      this.toasts.success('Pix cancelado', 'A cobrança foi desfeita — você pode gerar outra quando quiser.');
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível cancelar.');
+      this.toasts.error(
+        'Não foi possível cancelar',
+        err instanceof TournamentRegistrationError ? err.message : 'A cobrança continua ativa — tente de novo.',
+      );
     }
   }
 
@@ -324,9 +350,9 @@ export class TournamentPaymentComponent {
     if (!code) return;
     try {
       await navigator.clipboard.writeText(code);
-      this.showNotice('Código Pix copiado.');
+      this.toasts.success('Código Pix copiado', 'Cole no app do seu banco para concluir o pagamento.');
     } catch {
-      this.showNotice('Não foi possível copiar — copie manualmente.');
+      this.toasts.error('Não foi possível copiar', 'Selecione o código na tela e copie manualmente.');
     }
   }
 
@@ -335,9 +361,9 @@ export class TournamentPaymentComponent {
     if (!code) return;
     try {
       await navigator.clipboard.writeText(code);
-      this.showNotice('Código Pix copiado.');
+      this.toasts.success('Código Pix copiado', 'Cole no app do seu banco para concluir o pagamento.');
     } catch {
-      this.showNotice('Não foi possível copiar — copie manualmente.');
+      this.toasts.error('Não foi possível copiar', 'Selecione o código na tela e copie manualmente.');
     }
   }
 
@@ -348,9 +374,17 @@ export class TournamentPaymentComponent {
     try {
       const result = await confirmFreeRegistration(athleteFunctions(), reg.id);
       this.registration.update((r) => (r ? { ...r, isPaid: result.isPaid } : r));
-      this.showNotice(result.isPaid ? 'Inscrição confirmada!' : 'Sua parte foi confirmada — aguardando seu parceiro.');
+      if (result.isPaid) {
+        this.toasts.success('Inscrição confirmada', 'Sua vaga está garantida neste torneio.');
+      } else {
+        this.toasts.success('Sua parte foi confirmada', 'A inscrição fecha quando seu parceiro confirmar a dele.');
+      }
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível confirmar.');
+      this.toasts.error(
+        'Não foi possível confirmar',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        { label: 'Tentar novamente', run: () => void this.confirmFree() },
+      );
     } finally {
       this.processing.set(false);
     }
@@ -362,13 +396,23 @@ export class TournamentPaymentComponent {
     this.processing.set(true);
     try {
       const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id);
-      this.showNotice(
-        result.bothAthletesReserved
-          ? 'Reserva confirmada dos dois lados! Confirme com o organizador do torneio que o pagamento foi recebido.'
-          : 'Sua reserva foi registrada — confirme com o organizador do torneio que o pagamento foi recebido.',
-      );
+      if (result.bothAthletesReserved) {
+        this.toasts.success(
+          'Reserva confirmada dos dois lados',
+          'Avise o organizador do torneio que o pagamento foi feito para ele liberar a vaga.',
+        );
+      } else {
+        this.toasts.success(
+          'Sua reserva foi registrada',
+          'Avise o organizador do torneio que o pagamento foi feito para ele liberar a vaga.',
+        );
+      }
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível reservar.');
+      this.toasts.error(
+        'Não foi possível reservar',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        { label: 'Tentar novamente', run: () => void this.reserveDirect() },
+      );
     } finally {
       this.processing.set(false);
     }
@@ -376,9 +420,4 @@ export class TournamentPaymentComponent {
 
   protected readonly formatBRL = formatBRL;
 
-  private showNotice(message: string): void {
-    this.notice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.notice.set(null), 4500);
-  }
 }

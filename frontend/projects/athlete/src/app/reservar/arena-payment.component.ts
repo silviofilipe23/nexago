@@ -39,6 +39,11 @@ import {
   type SplitShareInput,
 } from '../data/arena-booking-split-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
+import {
+  NxBlockingDialogComponent,
+  NxFieldErrorComponent,
+  NxToastService,
+} from '../shared/feedback';
 
 /** Métodos reais do backend: PIX (Asaas, 100% ou 50% agora) e pagamento no local.
  *  **Não existe pagamento por cartão em lugar nenhum do fluxo real** — a aba "cartão"
@@ -134,7 +139,7 @@ function initialsOf(name: string): string {
 @Component({
   selector: 'app-arena-payment',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxBlockingDialogComponent, NxFieldErrorComponent],
   templateUrl: './arena-payment.component.html',
   styleUrl: './arena-payment.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -145,7 +150,7 @@ export class ArenaPaymentComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+  private readonly toasts = inject(NxToastService);
   private countdownInterval: ReturnType<typeof setInterval> | undefined;
   private unwatchBooking: (() => void) | undefined;
 
@@ -179,7 +184,15 @@ export class ArenaPaymentComponent {
   protected readonly pixFraction = signal<1 | 0.5>(1);
   protected readonly cpf = signal('');
   protected readonly processing = signal(false);
-  protected readonly notice = signal<string | null>(null);
+
+  /** Erro crítico: o Pix venceu, a reserva caiu e o horário voltou pro pool.
+   *  Interrompe o fluxo porque não há o que consertar nesta tela — ou o atleta
+   *  gera outro código, ou volta e escolhe outro horário. */
+  protected readonly paymentExpired = signal(false);
+
+  /** CPF é opcional, mas se preenchido tem de estar completo — validação de
+   *  campo, então a mensagem mora colada no input, não num toast. */
+  protected readonly cpfError = signal<string | null>(null);
 
   /** Preço autoritativo do servidor (mesma cota do app Flutter); enquanto não chega,
    *  a soma dos slots serve de estimativa — o servidor recalcula ao criar de qualquer forma. */
@@ -286,7 +299,6 @@ export class ArenaPaymentComponent {
   constructor() {
     void this.load();
     this.destroyRef.onDestroy(() => {
-      clearTimeout(this.noticeTimeout);
       clearTimeout(this.splitFriendDebounce);
       this.stopPixWatchers();
       this.stopSplitWatchers();
@@ -435,14 +447,15 @@ export class ArenaPaymentComponent {
     if (this.processing() || this.pixPayment()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
-      this.showNotice('Faça login para confirmar a reserva.');
+      this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
       return;
     }
     const cpf = this.cpf();
     if (cpf.length > 0 && cpf.length !== 11) {
-      this.showNotice('CPF incompleto — preencha os 11 dígitos ou deixe em branco.');
+      this.cpfError.set('CPF incompleto — informe os 11 dígitos ou deixe o campo em branco.');
       return;
     }
+    this.cpfError.set(null);
     if (!this.firestore) return;
 
     this.processing.set(true);
@@ -473,7 +486,11 @@ export class ArenaPaymentComponent {
       this.startCountdown(pix.expiresAt);
       this.startBookingWatch(bookingId);
     } catch (err) {
-      this.showNotice(err instanceof ArenaBookingError ? err.message : 'Não foi possível gerar o Pix agora.');
+      this.toasts.error(
+        'Não foi possível gerar o Pix',
+        err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
+        { label: 'Tentar novamente', run: () => void this.generatePix() },
+      );
     } finally {
       this.processing.set(false);
     }
@@ -483,7 +500,7 @@ export class ArenaPaymentComponent {
     if (this.processing()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
-      this.showNotice('Faça login para confirmar a reserva.');
+      this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
       return;
     }
 
@@ -498,7 +515,11 @@ export class ArenaPaymentComponent {
         queryParams: { bookingId: result.bookingId },
       });
     } catch (err) {
-      this.showNotice(err instanceof ArenaBookingError ? err.message : 'Não foi possível concluir a reserva.');
+      this.toasts.error(
+        'Não foi possível concluir a reserva',
+        err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu e o horário segue livre.',
+        { label: 'Tentar novamente', run: () => void this.confirmOnsite() },
+      );
       this.processing.set(false);
     }
   }
@@ -509,9 +530,12 @@ export class ArenaPaymentComponent {
     try {
       await cancelPendingBookingPayment(athleteFunctions(), bookingId);
       this.resetPixState();
-      this.showNotice('Pix cancelado — o horário foi liberado.');
+      this.toasts.success('Pix cancelado', 'O horário voltou a ficar disponível para outras pessoas.');
     } catch (err) {
-      this.showNotice(err instanceof ArenaBookingError ? err.message : 'Não foi possível cancelar.');
+      this.toasts.error(
+        'Não foi possível cancelar',
+        err instanceof ArenaBookingError ? err.message : 'A cobrança continua ativa — tente de novo.',
+      );
     }
   }
 
@@ -534,9 +558,9 @@ export class ArenaPaymentComponent {
     if (!code) return;
     try {
       await navigator.clipboard.writeText(code);
-      this.showNotice('Código Pix copiado.');
+      this.toasts.success('Código Pix copiado', 'Cole no app do seu banco para concluir o pagamento.');
     } catch {
-      this.showNotice('Não foi possível copiar — selecione o código manualmente.');
+      this.toasts.error('Não foi possível copiar', 'Selecione o código na tela e copie manualmente.');
     }
   }
 
@@ -600,7 +624,10 @@ export class ArenaPaymentComponent {
   protected addParticipant(profile: AthletePublicProfile): void {
     if (this.splitParticipants().some((p) => p.athleteId === profile.id)) return;
     if (this.splitParticipants().length >= SPLIT_MAX_SHARES) {
-      this.showNotice(`Máximo de ${SPLIT_MAX_SHARES} pessoas por divisão.`);
+      this.toasts.warning(
+        'Limite de pessoas atingido',
+        `A divisão aceita no máximo ${SPLIT_MAX_SHARES} pessoas. Remova alguém para incluir outra.`,
+      );
       return;
     }
     this.splitParticipants.update((list) => [
@@ -628,7 +655,7 @@ export class ArenaPaymentComponent {
     if (this.splitSubmitting() || !this.splitCanSubmit()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
-      this.showNotice('Faça login para dividir o pagamento.');
+      this.toasts.error('Você não está conectado', 'Entre na sua conta para dividir o pagamento.');
       return;
     }
     if (!this.firestore) return;
@@ -656,7 +683,11 @@ export class ArenaPaymentComponent {
       this.splitBookingId.set(bookingId);
       this.startSplitWatch(bookingId);
     } catch (err) {
-      this.showNotice(err instanceof ArenaBookingSplitError ? err.message : 'Não foi possível dividir o pagamento agora.');
+      this.toasts.error(
+        'Não foi possível dividir o pagamento',
+        err instanceof ArenaBookingSplitError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
+        { label: 'Tentar novamente', run: () => void this.submitSplit() },
+      );
     } finally {
       this.splitSubmitting.set(false);
     }
@@ -718,7 +749,7 @@ export class ArenaPaymentComponent {
       }
       if (booking.status === 'canceled' || booking.status === 'cancelled') {
         this.resetPixState();
-        this.showNotice('O Pix não foi pago a tempo e a reserva expirou. Gere um novo código.');
+        this.paymentExpired.set(true);
       }
     });
   }
@@ -757,9 +788,16 @@ export class ArenaPaymentComponent {
     this.pixQrSrc.set(null);
   }
 
-  private showNotice(message: string): void {
-    this.notice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.notice.set(null), 4500);
+  /** Saídas do diálogo de pagamento expirado. */
+  protected retryAfterExpiry(): void {
+    this.paymentExpired.set(false);
+    void this.generatePix();
+  }
+
+  protected backToSlots(): void {
+    this.paymentExpired.set(false);
+    void this.router.navigate(['/reservar', this.arenaId(), 'agendar'], {
+      queryParams: this.backQueryParams(),
+    });
   }
 }

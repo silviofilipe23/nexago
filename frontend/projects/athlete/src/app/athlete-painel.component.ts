@@ -14,6 +14,7 @@ import {
 } from './painel/registration-progress';
 import { fetchPublicProfilesByIds } from './data/public-profiles-repository';
 import { NxSkeletonComponent } from './shared/loading/nx-skeleton.component';
+import { NxInlineMessageComponent, NxToastService } from './shared/feedback';
 import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
 import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
 import {
@@ -391,7 +392,14 @@ function communityMessage(item: CommunityFeedItem): string {
 @Component({
   selector: 'app-athlete-painel',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxSkeletonComponent, AtRegistrationTrackerComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    AtBellComponent,
+    NxSkeletonComponent,
+    AtRegistrationTrackerComponent,
+    NxInlineMessageComponent,
+  ],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -424,6 +432,10 @@ export class AthletePainelComponent {
   private readonly inProgressRegistrationsState = signal<readonly RegistrationProgress[]>([]);
 
   protected readonly loadingRanking = signal(false);
+  private readonly toasts = inject(NxToastService);
+
+  /** Só falha de SINCRONIZAÇÃO de dados. Erro de ação (aceitar/recusar convite)
+   *  vai pra toast — ele pertence ao gesto, não ao estado da tela. */
   protected readonly syncError = signal<string | null>(null);
   /** Primeira carga do painel — desliga na primeira emissão do snapshot de reservas
    *  (dispara rápido mesmo vazio). Enquanto o Firebase não resolveu a sessão, segue ligada
@@ -845,7 +857,11 @@ export class AthletePainelComponent {
         queryParams: { categoria: invite.categoryId },
       });
     } catch (err) {
-      this.syncError.set(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível aceitar o convite agora.');
+      this.toasts.error(
+        'Não foi possível aceitar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        { label: 'Tentar novamente', run: () => void this.acceptInviteQuick(invite) },
+      );
     } finally {
       this.respondingInviteId.set(null);
     }
@@ -858,7 +874,10 @@ export class AthletePainelComponent {
       await declinePartnerInvite(athleteFunctions(), invite.id);
       this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
     } catch (err) {
-      this.syncError.set(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível recusar o convite agora.');
+      this.toasts.error(
+        'Não foi possível recusar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O convite continua na sua lista — tente de novo.',
+      );
     } finally {
       this.respondingInviteId.set(null);
     }
@@ -866,5 +885,12 @@ export class AthletePainelComponent {
 
   protected setChartTab(tab: ChartTab): void {
     this.activeChartTab.set(tab);
+  }
+
+  /** O painel se alimenta de watchers montados num effect sobre o usuário; não
+   *  há um "carregar de novo" isolado pra chamar. Recarregar a página é o
+   *  caminho honesto — e é o que o banner promete ao atleta. */
+  protected reloadPanel(): void {
+    location.reload();
   }
 }

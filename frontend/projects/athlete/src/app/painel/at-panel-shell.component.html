@@ -93,6 +93,12 @@
   </aside>
 
   <div class="at-main">
+    @if (offline()) {
+      <app-nx-banner class="at-shell-banner" tone="warning" actionLabel="Recarregar" (action)="reload()">
+        Você está offline. Mostrando os dados salvos — reservas e pagamentos ficam
+        indisponíveis até a conexão voltar.
+      </app-nx-banner>
+    }
     <ng-content></ng-content>
   </div>
 

@@ -310,6 +310,48 @@ test('gestor nao apaga managerUserId da arena', async () => {
   );
 });
 
+test('gestor nao troca a chave Pix de saque da arena', async () => {
+  await assertFails(
+    setDoc(
+      doc(ctx(GESTOR), 'arenas/arena-pro'),
+      { managerUserId: OWNER, name: 'Arena Pro', courtsCount: 3, payoutPixKey: 'ladrao@pix.com' },
+      { merge: true },
+    ),
+  );
+});
+
+test('nenhum cargo troca payoutPixKeyType', async () => {
+  for (const uid of [GESTOR, RECEPCAO, FINANCEIRO, MANUTENCAO]) {
+    await assertFails(
+      setDoc(
+        doc(ctx(uid), 'arenas/arena-pro'),
+        { managerUserId: OWNER, name: 'Arena Pro', courtsCount: 3, payoutPixKeyType: 'EMAIL' },
+        { merge: true },
+      ),
+    );
+  }
+});
+
+test('dono ainda troca a propria chave Pix de saque', async () => {
+  await assertSucceeds(
+    setDoc(
+      doc(ctx(OWNER), 'arenas/arena-pro'),
+      { payoutPixKey: 'dono@pix.com', payoutPixKeyType: 'EMAIL' },
+      { merge: true },
+    ),
+  );
+});
+
+test('gestor ainda edita campos comuns do perfil', async () => {
+  await assertSucceeds(
+    setDoc(
+      doc(ctx(GESTOR), 'arenas/arena-pro'),
+      { managerUserId: OWNER, name: 'Arena Pro Renomeada', courtsCount: 3 },
+      { merge: true },
+    ),
+  );
+});
+
 test('membro de arena sem plano perde tudo', async () => {
   await assertFails(
     setDoc(

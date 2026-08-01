@@ -755,13 +755,26 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['planTier', 'planStatus', 'planActiveUntil']);
       // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
       // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
+      // payoutPixKey/payoutPixKeyType/paymentReceiver definem para onde vai o
+      // dinheiro do saque da arena: cargo nenhum (nem o gestor, que só tem
+      // acesso de LEITURA ao financeiro) pode trocá-los — só o dono. O dono
+      // segue liberado (inclusive o app Flutter, que reenvia paymentReceiver
+      // a cada edição de perfil), então o freeze desses três só vale para
+      // quem não é dono.
       allow update: if request.auth != null && (
         isAdmin() || isSuperAdmin() || (
           arenaCanWrite(arenaId, 'perfil') &&
           request.resource.data.get('planTier', null) == resource.data.get('planTier', null) &&
           request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null) &&
           request.resource.data.get('planActiveUntil', null) == resource.data.get('planActiveUntil', null) &&
-          request.resource.data.get('managerUserId', '') == resource.data.get('managerUserId', '')
+          request.resource.data.get('managerUserId', '') == resource.data.get('managerUserId', '') &&
+          (
+            isArenaOwner(arenaId) || (
+              request.resource.data.get('payoutPixKey', null) == resource.data.get('payoutPixKey', null) &&
+              request.resource.data.get('payoutPixKeyType', null) == resource.data.get('payoutPixKeyType', null) &&
+              request.resource.data.get('paymentReceiver', null) == resource.data.get('paymentReceiver', null)
+            )
+          )
         )
       );
       allow delete: if request.auth != null && (

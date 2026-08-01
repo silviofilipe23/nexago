@@ -9,6 +9,7 @@ import {
   courtLabelOf,
   liveScoreLineOf,
   ordinalOf,
+  roundsProgressLabel,
   setWinsLabelOf,
   timeLabelOf,
 } from '../tournament-format';
@@ -192,12 +193,10 @@ export class TodayTabComponent {
     const poolId = this.store.focusPoolId();
     if (!poolId) return null;
     const pool = this.store.matches().filter((m) => m.poolId === poolId);
-    const played = pool.filter((m) => matchIsCompleted(m)).length;
     const qualifiers = this.store.focusCategory()?.qualifiersPerGroup ?? 2;
     const rounds = new Set(pool.map((m) => m.round)).size;
     const playedRounds = new Set(pool.filter((m) => matchIsCompleted(m)).map((m) => m.round)).size;
-    const progress = rounds > 0 ? `Após ${playedRounds} de ${rounds} rodadas` : `${played} partidas disputadas`;
-    return `${progress} · ${qualifiers} primeiros avançam`;
+    return `${roundsProgressLabel(playedRounds, rounds)} · ${qualifiers} primeiros avançam`;
   });
 
   /** Nunca afirma classificação antes do grupo terminar — ver `qualificationOf`. */

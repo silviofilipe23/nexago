@@ -135,6 +135,9 @@
       <section class="tdy-card">
         <span class="tdy-kicker">{{ standingsKicker() }}</span>
         <h2 class="tdy-card-title">{{ title }}</h2>
+        @if (standings().length === 0) {
+          <p class="tdy-empty-inline">A classificação aparece assim que a primeira rodada do grupo começar.</p>
+        } @else {
         <table class="tdy-standings">
           <thead>
             <tr>
@@ -164,6 +167,7 @@
             }
           </tbody>
         </table>
+        }
 
         @if (qualificationNote(); as note) {
           <p class="tdy-note" [attr.data-tone]="note.tone">{{ note.text }}</p>

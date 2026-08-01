@@ -91,6 +91,15 @@ export function bestOfLabelOf(m: TournamentMatch): string {
   return `MD${matchBestOf(m)}`;
 }
 
+/** "Antes da 1ª rodada" / "Após 1 de 3 rodadas" / "Todas as 3 rodadas disputadas".
+ *  Existe porque "Após 0 de 1 rodadas" — a forma ingênua — soa errado nos dois extremos. */
+export function roundsProgressLabel(played: number, total: number): string {
+  if (total <= 0) return 'Classificação do grupo';
+  if (played === 0) return 'Antes da 1ª rodada';
+  if (played >= total) return total === 1 ? 'Rodada única disputada' : `Todas as ${total} rodadas disputadas`;
+  return `Após ${played} de ${total} rodadas`;
+}
+
 /** Número do set em andamento, pro badge "AO VIVO · 3º SET". */
 export function currentSetNumberOf(m: TournamentMatch): number | null {
   if (!matchIsLive(m)) return null;

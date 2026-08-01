@@ -32,6 +32,14 @@
   padding: var(--nx-s-6) 0 var(--nx-s-4);
 }
 
+// Ver `matches-tab`: cabeçalho de tabela sem linhas vira ruído.
+.tdy-empty-inline {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+}
+
 // ── Card da próxima partida ──────────────────────────────────
 // Único bloco com peso de "herói" na aba: é a informação que o atleta abre o app para ver.
 .tdy-next {
@@ -74,7 +82,7 @@
   background: rgba(43, 209, 126, 0.1);
   color: var(--nx-win);
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -116,7 +124,7 @@
 
 .tdy-side-meta {
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--nx-text-dim);
@@ -156,7 +164,7 @@
   gap: var(--nx-s-2);
   color: var(--nx-live);
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -179,7 +187,7 @@
   border: 1px solid var(--nx-line);
   background: var(--nx-surface-1);
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--nx-text-mute);
@@ -436,7 +444,7 @@
 
 .tdy-live-context {
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--nx-text-dim);

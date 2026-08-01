@@ -31,6 +31,15 @@
   @include tl.empty-state;
 }
 
+// Cabeçalho de tabela sem linhas é ruído: quando o grupo ainda não tem duplas, explica-se
+// o porquê em vez de mostrar colunas vazias.
+.mt-empty-inline {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+}
+
 // ── Barra de filtros ─────────────────────────────────────────
 .mt-toolbar {
   display: flex;
@@ -227,7 +236,7 @@
   border-radius: var(--nx-r-1);
   border: 1px solid var(--nx-line);
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--nx-text-dim);
 
   @media (max-width: 900px) {
@@ -257,7 +266,7 @@
 }
 
 .mt-duo {
-  @include tl.duo-avatars(26px);
+  @include tl.duo-avatars(28px);
 }
 
 .mt-row-name {
@@ -280,6 +289,17 @@
   color: var(--nx-text);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+
+  // Partida sem placar mostra "vs": em corpo de placar ele competia com os resultados reais
+  // na varredura da lista.
+  &--pending {
+    font-family: var(--nx-font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--nx-text-dim);
+  }
 
   @media (max-width: 900px) {
     grid-area: score;

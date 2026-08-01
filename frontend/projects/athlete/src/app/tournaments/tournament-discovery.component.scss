@@ -39,7 +39,7 @@
 
 .cp-page-header-sub {
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -63,7 +63,8 @@
 
 .cp-search-box {
   width: 240px;
-  height: 38px;
+  // 44px para o campo ser um alvo de toque válido — a 38px o input interno media 20px.
+  height: 44px;
   padding: 0 8px 0 12px;
   background: var(--nx-surface-0);
   border: 1px solid var(--nx-line);
@@ -76,6 +77,9 @@
   input {
     flex: 1;
     min-width: 0;
+    // Ocupa a altura toda da caixa: sozinho o input media 20px, então quem tocava fora da
+    // faixa central acertava a borda em vez do campo.
+    align-self: stretch;
     background: none;
     border: none;
     outline: none;
@@ -105,7 +109,7 @@
 .cp-search-kbd {
   flex: none;
   font-family: var(--nx-font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--nx-text-dim);
   background: var(--nx-surface-1);
@@ -239,7 +243,7 @@
   display: inline-flex;
   align-items: center;
   font-family: var(--nx-font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -300,7 +304,7 @@
   background: var(--nx-orange-500);
   color: var(--nx-text-on-orange);
   font-family: var(--nx-font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   display: grid;
   place-items: center;
@@ -358,7 +362,7 @@
 
 .cp-filter-label {
   font-family: var(--nx-font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -517,7 +521,7 @@
 
 .cp-section-count {
   font-family: var(--nx-font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -624,7 +628,7 @@
   display: inline-flex;
   align-items: center;
   font-family: var(--nx-font-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -674,7 +678,7 @@
   backdrop-filter: blur(4px);
   color: #fff;
   font-family: var(--nx-font-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   display: inline-flex;

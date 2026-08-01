@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink } from '@angular/router';
 import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
-import { closedPartialsLabelOf, liveScoreLineOf, ordinalOf, shortCourtLabelOf, timeLabelOf } from '../tournament-format';
+import { closedPartialsLabelOf, liveScoreLineOf, ordinalOf, roundsProgressLabel, shortCourtLabelOf, timeLabelOf } from '../tournament-format';
 import { byScheduleTime, groupLabelOf, isMyMatch, qualificationOf, roundGroupsOf } from '../tournament-live.selectors';
 import { TournamentLiveStore } from '../tournament-live.store';
 
@@ -179,7 +179,7 @@ export class MatchesTabComponent {
     const rounds = new Set(pool.map((m) => m.round)).size;
     const playedRounds = new Set(pool.filter((m) => matchIsCompleted(m)).map((m) => m.round)).size;
     const qualifiers = this.selectedCategory()?.qualifiersPerGroup ?? 2;
-    return `Após ${playedRounds} de ${rounds} rodadas · ${qualifiers} primeiros avançam`;
+    return `${roundsProgressLabel(playedRounds, rounds)} · ${qualifiers} primeiros avançam`;
   });
 
   protected readonly qualificationText = computed<string | null>(() => {

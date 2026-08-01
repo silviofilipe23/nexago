@@ -86,9 +86,9 @@
         <section class="bx-card">
           <span class="bx-card-kicker">Preenchida conforme os grupos terminam</span>
           <h2 class="bx-card-title">Eliminatória (prévia)</h2>
-          <ng-container [ngTemplateOutlet]="roundsTpl" [ngTemplateOutletContext]="{ rounds: data.eliminationPreviewRounds }"></ng-container>
+          <ng-container [ngTemplateOutlet]="treeTpl"></ng-container>
         </section>
-      } @else if (data.bracketRounds.length > 0) {
+      } @else if (bracketLayout()) {
         <section class="bx-card">
           <div class="bx-bracket-header">
             <div>
@@ -97,7 +97,7 @@
             </div>
             <button type="button" class="bx-export-link" (click)="exportBracket()">Exportar chave</button>
           </div>
-          <ng-container [ngTemplateOutlet]="roundsTpl" [ngTemplateOutletContext]="{ rounds: data.bracketRounds }"></ng-container>
+          <ng-container [ngTemplateOutlet]="treeTpl"></ng-container>
         </section>
       } @else {
         <section class="bx-card">
@@ -109,69 +109,99 @@
   </div>
 }
 
-<ng-template #roundsTpl let-rounds="rounds">
-  <div class="bx-bracket">
-    @for (round of rounds; track round.id; let isLast = $last) {
-      <div class="bx-round">
-        <span class="bx-round-label">{{ round.label }}</span>
-        <div class="bx-round-body">
-          @for (pair of matchPairs(round.matches); track $index) {
-            <div class="bx-pair" [class.bx-pair--connector]="!isLast && pair.length === 2">
-              @for (m of pair; track m.id) {
-                <div
-                  class="bx-match"
-                  [class.bx-match--viewer]="matchHasViewer(m)"
-                  [class.bx-match--live]="m.status === 'live'"
-                  [class.bx-match--clickable]="canOpenMatch(m)"
-                  [attr.role]="canOpenMatch(m) ? 'link' : null"
-                  [attr.tabindex]="canOpenMatch(m) ? 0 : null"
-                  (click)="openMatch(m)"
-                  (keydown.enter)="openMatch(m)"
-                  (keydown.space)="openMatch(m)"
+<!-- Um lado do card: avatares da dupla, nome e sets ganhos. -->
+<ng-template #sideTpl let-side>
+  <div class="bx-side" [class.bx-side--winner]="side.winner">
+    <span class="bx-side-team">
+      <span class="bx-side-avatars" aria-hidden="true">
+        @for (name of side.names; track $index; let i = $index) {
+          <span class="bx-side-avatar" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i">{{ initialsOf(name) }}</span>
+        } @empty {
+          <span class="bx-side-avatar bx-side-avatar--empty">–</span>
+        }
+      </span>
+      <span class="bx-side-name" [title]="side.duo?.name ?? 'A definir'">
+        @if (side.duo) {
+          {{ side.duo.name }}@if (side.duo.isViewer) {<span class="bx-dim"> · você</span>}
+        } @else {
+          <span class="bx-dim">A definir</span>
+        }
+      </span>
+    </span>
+    <span class="bx-side-score">{{ side.score ?? '–' }}</span>
+  </div>
+</ng-template>
+
+<!--
+  Árvore da chave: mesma geometria do painel do organizador — canvas em posicionamento absoluto
+  com conectores SVG seguindo a fiação real da planta. O scroll (horizontal e vertical) fica
+  contido neste wrapper, nunca na página; o wrapper é focável para quem navega só pelo teclado.
+-->
+<ng-template #treeTpl>
+  @if (bracketLayout(); as tree) {
+    <div class="bx-canvas-scroll" tabindex="0" role="group" aria-label="Chave da categoria — role para ver as demais rodadas">
+      <div class="bx-canvas" [style.width.px]="tree.width" [style.height.px]="tree.height">
+        <svg class="bx-lines" [attr.width]="tree.width" [attr.height]="tree.height" aria-hidden="true" focusable="false">
+          @for (e of tree.edges; track $index) {
+            <path [attr.d]="e.d" />
+          }
+        </svg>
+
+        @for (lbl of tree.labels; track lbl.key) {
+          <span class="bx-round-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</span>
+        }
+
+        @for (n of tree.nodes; track n.match.id) {
+          @if (cardOf(n.match.id); as m) {
+            <div
+              class="bx-match"
+              [class.bx-match--viewer]="matchHasViewer(m)"
+              [class.bx-match--live]="m.status === 'live'"
+              [class.bx-match--clickable]="canOpenMatch(m)"
+              [style.left.px]="n.left"
+              [style.top.px]="n.top"
+              [style.width.px]="matchWidth"
+              [style.height.px]="matchHeight"
+              [attr.role]="canOpenMatch(m) ? 'link' : null"
+              [attr.tabindex]="canOpenMatch(m) ? 0 : null"
+              [attr.aria-label]="canOpenMatch(m) ? 'Jogo ' + m.metaLabel + ': ' + (m.sideA.duo?.name ?? 'a definir') + ' contra ' + (m.sideB.duo?.name ?? 'a definir') : null"
+              (click)="openMatch(m)"
+              (keydown.enter)="openMatch(m)"
+              (keydown.space)="openMatch(m)"
+            >
+              <div class="bx-match-head">
+                <span class="bx-match-num">{{ m.metaLabel }}</span>
+                <span
+                  class="bx-pill"
+                  [class.bx-pill--live]="m.status === 'live'"
+                  [class.bx-pill--done]="m.status === 'done'"
+                  [class.bx-pill--dim]="m.status === 'canceled'"
                 >
                   @if (m.status === 'live') {
-                    <span class="bx-live-badge"><span class="bx-live-dot" aria-hidden="true"></span>AO VIVO</span>
-                  } @else if (m.scheduledLabel) {
-                    <span class="bx-time-badge">{{ m.scheduledLabel }}</span>
+                    <span class="bx-pill-dot" aria-hidden="true"></span>
                   }
-                  <div class="bx-match-side" [class.bx-match-side--winner]="m.sideA.winner">
-                    <span class="bx-match-avatar" aria-hidden="true">{{ m.sideA.duo ? initialsOf(m.sideA.duo.name) : '—' }}</span>
-                    <span class="bx-match-name">
-                      @if (m.sideA.duo) {
-                        {{ m.sideA.duo.name }}
-                        @if (m.sideA.duo.isViewer) {
-                          <span class="bx-dim">· você</span>
-                        }
-                      } @else {
-                        <span class="bx-dim">A definir</span>
-                      }
-                    </span>
-                    @if (m.sideA.score != null) {
-                      <span class="bx-match-score">{{ m.sideA.score }}</span>
-                    }
-                  </div>
-                  <div class="bx-match-side" [class.bx-match-side--winner]="m.sideB.winner">
-                    <span class="bx-match-avatar" aria-hidden="true">{{ m.sideB.duo ? initialsOf(m.sideB.duo.name) : '—' }}</span>
-                    <span class="bx-match-name">
-                      @if (m.sideB.duo) {
-                        {{ m.sideB.duo.name }}
-                        @if (m.sideB.duo.isViewer) {
-                          <span class="bx-dim">· você</span>
-                        }
-                      } @else {
-                        <span class="bx-dim">A definir</span>
-                      }
-                    </span>
-                    @if (m.sideB.score != null) {
-                      <span class="bx-match-score">{{ m.sideB.score }}</span>
-                    }
-                  </div>
-                </div>
-              }
+                  {{ m.statusLabel }}
+                </span>
+              </div>
+
+              <ng-container [ngTemplateOutlet]="sideTpl" [ngTemplateOutletContext]="{ $implicit: m.sideA }"></ng-container>
+              <ng-container [ngTemplateOutlet]="sideTpl" [ngTemplateOutletContext]="{ $implicit: m.sideB }"></ng-container>
+
+              <div class="bx-match-foot" [class.bx-match-foot--set]="m.scheduled">
+                @if (m.scheduled) {
+                  <svg class="bx-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3.5 2" />
+                  </svg>
+                }
+                <span>{{ m.scheduleLabel }}</span>
+              </div>
             </div>
           }
-        </div>
+        }
       </div>
-    }
-  </div>
+    </div>
+  } @else {
+    <p class="bx-body-text">A chave ainda não foi sorteada.</p>
+  }
 </ng-template>

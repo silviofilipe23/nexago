@@ -312,91 +312,77 @@
   }
 }
 
-.bx-bracket {
-  display: flex;
-  gap: 48px;
-  overflow-x: auto;
-  padding: 8px 4px 12px;
+// A árvore é desenhada em posicionamento absoluto pelo `bracket-tree.ts` (mesma geometria do
+// painel do organizador). Este wrapper contém o scroll nos DOIS eixos: a chave é sempre mais
+// larga que a tela — e no mata-mata duplo também mais alta —, mas isso jamais pode virar scroll
+// da página. O fade só na borda direita (não na esquerda, pra não escurecer a 1ª rodada logo na
+// chegada) sinaliza que há mais rodadas fora da viewport.
+.bx-canvas-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px 8px;
+  // Sem teto a chave de dupla eliminação empurraria a página inteira pra baixo.
+  max-height: min(70vh, 640px);
 
-  // No mobile a chave é mais larga que a tela — isso é esperado (padrão de UX
-  // pra brackets), mas o scroll fica contido aqui dentro (nunca na página).
-  // Fade só na borda direita (não na esquerda, pra não escurecer a 1ª rodada
-  // logo na chegada) deixa claro que há mais colunas fora da viewport, em vez
-  // de cortar abruptamente.
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+    border-radius: var(--nx-r-3);
+  }
+
   @media (max-width: 640px) {
     mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   }
 }
 
-.bx-round {
+.bx-canvas {
+  position: relative;
   flex: none;
-  width: 220px;
-  display: flex;
-  flex-direction: column;
+}
+
+.bx-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+
+  path {
+    fill: none;
+    stroke: var(--nx-line-strong);
+    stroke-width: 1.5px;
+  }
 }
 
 .bx-round-label {
+  position: absolute;
+  text-align: center;
   font-family: var(--nx-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--nx-text-dim);
-  margin-bottom: 14px;
 }
 
-.bx-round-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  gap: 24px;
-}
-
-.bx-pair {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  gap: 24px;
-  position: relative;
-}
-
-.bx-pair--connector {
-  padding-right: 24px;
-
-  &::before {
-    content: '';
-    position: absolute;
-    right: 24px;
-    top: 25%;
-    bottom: 25%;
-    border-right: 1.5px solid var(--nx-line-strong);
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 50%;
-    width: 24px;
-    border-top: 1.5px solid var(--nx-line-strong);
-  }
-}
-
+// ── Card da partida ──────────────────────────────────────────
+// Altura fixa = head 28 + 2 lados de 40 + rodapé 28 = BRACKET_MATCH_HEIGHT (136). Mexer em
+// qualquer uma dessas faixas exige atualizar `bracket-tree.ts` junto, senão os conectores
+// desalinham dos cards.
 .bx-match {
-  position: relative;
-  border: 1px solid var(--nx-line);
-  border-radius: var(--nx-r-3);
+  position: absolute;
+  z-index: 1;
   background: var(--nx-surface-0);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  overflow: hidden;
 
+  // Partida do próprio atleta — o motivo de ele abrir esta aba; some no meio da árvore sem isso.
   &--viewer {
-    border-color: rgba(255, 106, 26, 0.4);
-    box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.15);
+    border-color: rgba(255, 106, 26, 0.45);
+    box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.18);
   }
 
   &--live {
@@ -422,6 +408,7 @@
     &:focus-visible {
       outline: 2px solid var(--nx-orange-500);
       outline-offset: 2px;
+      z-index: 2;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -432,107 +419,213 @@
       }
     }
   }
+
+  // Slot ainda sem as duas duplas: presente na árvore, mas visivelmente inativo.
+  &:not(&--clickable) {
+    opacity: 0.78;
+  }
 }
 
-.bx-live-badge {
-  position: absolute;
-  top: -11px;
-  right: 10px;
-  display: inline-flex;
+.bx-match-head {
+  display: flex;
   align-items: center;
-  gap: 5px;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-live);
-  color: #fff;
+  justify-content: space-between;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.bx-match-num {
   font-family: var(--nx-font-mono);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.bx-live-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #fff;
-}
-
-.bx-time-badge {
-  position: absolute;
-  top: -11px;
-  right: 10px;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-surface-2);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  display: inline-block;
-  line-height: 18px;
-  /* Rótulo agora traz dia · hora · quadra — não pode estourar o card. */
-  max-width: calc(100% - 20px);
+  color: var(--nx-text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.bx-match-side {
+// Selo de status — mesmas cores semânticas do painel do organizador
+// (laranja = agendado, verde = finalizado, vermelho = ao vivo, cinza = a definir/cancelado).
+.bx-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--nx-r-pill);
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  color: var(--nx-orange-500);
+
+  &--done {
+    background: rgba(43, 209, 126, 0.1);
+    border-color: rgba(43, 209, 126, 0.28);
+    color: var(--nx-win);
+  }
+
+  &--live {
+    background: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.28);
+    color: var(--nx-live);
+  }
+
+  &--dim {
+    background: var(--nx-surface-1);
+    border-color: var(--nx-line-strong);
+    color: var(--nx-text-mute);
+  }
+}
+
+.bx-pill-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nx-live);
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.5);
+  animation: bx-pulse 1.4s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes bx-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
+
+.bx-side {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--nx-line);
 
   &--winner {
-    .bx-match-name {
-      color: var(--nx-text);
+    background: var(--nx-orange-tint);
+
+    .bx-side-name {
       font-weight: 700;
+      color: var(--nx-orange-500);
     }
 
-    .bx-match-score {
+    .bx-side-score {
       color: var(--nx-orange-500);
     }
   }
 }
 
-// 26px para as iniciais de 11px caberem sem encostar na borda (antes eram 22px com 8px).
-.bx-match-avatar {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-dim);
-  display: grid;
-  place-items: center;
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.bx-match-name {
+.bx-side-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
   min-width: 0;
-  font-family: var(--nx-font-ui);
-  font-size: 12.5px;
+}
+
+// Avatares da dupla sobrepostos; o anel na cor do card separa um do outro.
+.bx-side-avatars {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.bx-side-avatar {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.35);
+  box-shadow: 0 0 0 2px var(--nx-surface-0);
+  color: var(--nx-orange-500);
+  display: grid;
+  place-items: center;
+  font-family: var(--nx-font-display);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1;
+
+  &--empty {
+    background: var(--nx-surface-1);
+    border-color: var(--nx-line-strong);
+    color: var(--nx-text-dim);
+  }
+}
+
+.bx-side-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--nx-font-display);
+  font-size: 13px;
   font-weight: 500;
-  color: var(--nx-text-mute);
+  color: var(--nx-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.bx-match-score {
+.bx-side-score {
   flex: none;
-  font-family: var(--nx-font-display);
-  font-weight: 700;
+  font-family: var(--nx-font-mono);
   font-size: 13px;
-  color: var(--nx-text-mute);
+  font-weight: 700;
+  color: var(--nx-text-dim);
+}
+
+// Rodapé de agendamento — 28px fixos; soma com head/lados = altura do card.
+.bx-match-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  background: var(--nx-surface-1);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &--set {
+    color: var(--nx-text-mute);
+
+    .bx-clock {
+      color: var(--nx-orange-500);
+    }
+  }
+}
+
+.bx-clock {
+  flex: none;
+  width: 11px;
+  height: 11px;
 }
 
 // ── Not found ────────────────────────────────────────────────

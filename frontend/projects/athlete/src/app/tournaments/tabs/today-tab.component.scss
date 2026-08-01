@@ -1,0 +1,484 @@
+@use '../tournament-live' as tl;
+
+@include tl.live-pulse-keyframes;
+
+:host {
+  display: block;
+}
+
+.tdy {
+  @include tl.two-col;
+}
+
+.tdy-main,
+.tdy-side-col {
+  @include tl.col-stack;
+}
+
+.tdy-card {
+  @include tl.card;
+}
+
+.tdy-kicker {
+  @include tl.kicker;
+}
+
+.tdy-card-title {
+  @include tl.card-title;
+}
+
+.tdy-empty {
+  @include tl.empty-state;
+  padding: var(--nx-s-6) 0 var(--nx-s-4);
+}
+
+// ── Card da próxima partida ──────────────────────────────────
+// Único bloco com peso de "herói" na aba: é a informação que o atleta abre o app para ver.
+.tdy-next {
+  position: relative;
+  border: 1px solid rgba(255, 106, 26, 0.45);
+  border-radius: var(--nx-r-4);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(255, 106, 26, 0.16), transparent 62%),
+    var(--nx-surface-0);
+  padding: var(--nx-s-5);
+
+  &--live {
+    border-color: rgba(255, 59, 48, 0.5);
+    background:
+      radial-gradient(120% 140% at 50% 0%, rgba(255, 59, 48, 0.16), transparent 62%),
+      var(--nx-surface-0);
+  }
+}
+
+.tdy-next-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nx-s-3);
+  flex-wrap: wrap;
+}
+
+.tdy-next-kicker {
+  @include tl.kicker;
+  color: var(--nx-orange-400);
+}
+
+.tdy-checkin {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+  padding: 4px 10px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid rgba(43, 209, 126, 0.4);
+  background: rgba(43, 209, 126, 0.1);
+  color: var(--nx-win);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tdy-next-body {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--nx-s-4);
+  margin: var(--nx-s-6) 0;
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+    gap: var(--nx-s-5);
+    text-align: center;
+  }
+}
+
+.tdy-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nx-s-2);
+  min-width: 0;
+  text-align: center;
+}
+
+.tdy-duo-avatars {
+  @include tl.duo-avatars(44px);
+}
+
+.tdy-side-name {
+  font-family: var(--nx-font-display);
+  font-size: clamp(16px, 2.2vw, 21px);
+  font-weight: 700;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.tdy-side-meta {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.tdy-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nx-s-2);
+}
+
+.tdy-clock,
+.tdy-live-score {
+  font-family: var(--nx-font-display);
+  font-size: clamp(30px, 5vw, 44px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--nx-orange-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.tdy-live-score {
+  font-size: clamp(20px, 3.4vw, 28px);
+  color: var(--nx-text);
+}
+
+.tdy-countdown {
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.tdy-live-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+  color: var(--nx-live);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tdy-live-dot {
+  color: var(--nx-live);
+  @include tl.live-dot(7px);
+}
+
+.tdy-chips {
+  display: flex;
+  gap: var(--nx-s-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tdy-chip {
+  padding: 3px 9px;
+  border-radius: var(--nx-r-1);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nx-text-mute);
+}
+
+.tdy-next-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  flex-wrap: wrap;
+}
+
+.tdy-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--nx-s-6);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--nx-orange-400);
+  }
+}
+
+.tdy-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+  min-height: 44px;
+  padding: 0 var(--nx-s-3);
+  color: var(--nx-text-mute);
+  font-size: 14px;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+}
+
+.tdy-next-hint {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+  text-align: right;
+
+  @media (max-width: 720px) {
+    text-align: left;
+  }
+}
+
+// ── Timeline do dia ──────────────────────────────────────────
+.tdy-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tdy-row {
+  display: grid;
+  grid-template-columns: 54px 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-4) var(--nx-s-2);
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    border-top: none;
+  }
+
+  &[data-state='next'],
+  &[data-state='live'] {
+    margin: 0 calc(var(--nx-s-2) * -1);
+    padding-inline: var(--nx-s-3);
+    border-radius: var(--nx-r-2);
+    background: rgba(255, 106, 26, 0.08);
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: 48px 20px minmax(0, 1fr);
+    row-gap: var(--nx-s-2);
+  }
+}
+
+.tdy-row-time {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+
+  .tdy-row[data-state='next'] &,
+  .tdy-row[data-state='live'] & {
+    color: var(--nx-orange-400);
+  }
+}
+
+.tdy-row-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nx-win);
+}
+
+.tdy-row-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+
+  &--live {
+    color: var(--nx-live);
+    @include tl.live-dot(9px);
+  }
+}
+
+.tdy-row-ring {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--nx-line-strong);
+}
+
+.tdy-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tdy-row-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-orange-400);
+  }
+}
+
+.tdy-row-detail {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.tdy-row-end {
+  justify-self: end;
+
+  @media (max-width: 640px) {
+    grid-column: 3;
+    justify-self: start;
+  }
+}
+
+.tdy-outcome {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+
+  &[data-outcome='win'] {
+    color: var(--nx-win);
+  }
+
+  &[data-outcome='loss'] {
+    color: var(--nx-live);
+  }
+}
+
+.tdy-row-note {
+  font-size: 12px;
+  color: var(--nx-orange-400);
+}
+
+// ── Classificação ────────────────────────────────────────────
+.tdy-standings {
+  @include tl.standings-table;
+}
+
+.tdy-you {
+  color: var(--nx-orange-400);
+  font-weight: 400;
+}
+
+.tdy-note {
+  @include tl.note;
+  margin: var(--nx-s-4) 0 0;
+
+  &[data-tone='win'] {
+    border-color: rgba(43, 209, 126, 0.28);
+    background: rgba(43, 209, 126, 0.08);
+  }
+}
+
+// ── Ao vivo agora ────────────────────────────────────────────
+.tdy-live-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tdy-live-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  min-height: 44px;
+  padding: var(--nx-s-3) 0;
+  border-top: 1px solid var(--nx-line);
+  text-decoration: none;
+
+  li:first-child & {
+    border-top: none;
+  }
+
+  &:hover .tdy-live-names,
+  &:focus-visible .tdy-live-names {
+    color: var(--nx-orange-400);
+  }
+}
+
+.tdy-live-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tdy-live-names {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.tdy-vs {
+  color: var(--nx-text-dim);
+  font-weight: 400;
+}
+
+.tdy-live-context {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.tdy-live-score-line {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Avisos ───────────────────────────────────────────────────
+.tdy-announce-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tdy-announce {
+  display: flex;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3) 0;
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.tdy-announce-time {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-pending);
+  font-variant-numeric: tabular-nums;
+}
+
+.tdy-announce-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+}

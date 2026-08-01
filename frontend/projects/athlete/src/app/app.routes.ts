@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { onboardingGuard } from './auth/onboarding.guard';
+import { TournamentLiveStore } from './tournaments/tournament-live.store';
 
 export const routes: Routes = [
   {
@@ -200,14 +201,6 @@ export const routes: Routes = [
       import('./tournaments/league-detail-shell.component').then((m) => m.LeagueDetailShellComponent),
   },
   {
-    path: 'torneios/:id/chaves',
-    canActivate: [authGuard, onboardingGuard],
-    loadComponent: () =>
-      import('./tournaments/tournament-brackets.component').then(
-        (m) => m.TournamentBracketsComponent,
-      ),
-  },
-  {
     path: 'torneios/:id/inscricao/pagamento',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
@@ -224,12 +217,52 @@ export const routes: Routes = [
       ),
   },
   {
+    // Um único `TournamentLiveStore` para a casca de abas E para a tela de partida (que é irmã,
+    // não filha): carregado uma vez ao entrar no torneio e descartado ao sair. Sem isso, cada
+    // aba refaria a mesma cadeia de leituras de partidas, equipes e perfis.
     path: 'torneios/:id',
     canActivate: [authGuard, onboardingGuard],
-    loadComponent: () =>
-      import('./tournaments/tournament-detail-shell.component').then(
-        (m) => m.TournamentDetailShellComponent,
-      ),
+    providers: [TournamentLiveStore],
+    children: [
+      {
+        path: 'partida/:matchId',
+        loadComponent: () => import('./tournaments/match/match-detail.component').then((m) => m.MatchDetailComponent),
+      },
+      {
+        path: '',
+        loadComponent: () => import('./tournaments/tournament-shell.component').then((m) => m.TournamentShellComponent),
+        children: [
+          {
+            path: 'hoje',
+            loadComponent: () => import('./tournaments/tabs/today-tab.component').then((m) => m.TodayTabComponent),
+          },
+          {
+            path: 'partidas',
+            loadComponent: () => import('./tournaments/tabs/matches-tab.component').then((m) => m.MatchesTabComponent),
+          },
+          {
+            // Mesma URL de antes (`/torneios/:id/chaves`), agora como aba — links já
+            // compartilhados continuam funcionando.
+            path: 'chaves',
+            loadComponent: () => import('./tournaments/tabs/brackets-tab.component').then((m) => m.BracketsTabComponent),
+          },
+          {
+            path: 'minha-inscricao',
+            loadComponent: () => import('./tournaments/tabs/registration-tab.component').then((m) => m.RegistrationTabComponent),
+          },
+          {
+            // A casca redireciona para a aba mais relevante assim que os dados chegam; até lá,
+            // a visão geral é o que aparece.
+            path: '',
+            loadComponent: () => import('./tournaments/tabs/overview-tab.component').then((m) => m.OverviewTabComponent),
+          },
+          {
+            path: 'visao-geral',
+            loadComponent: () => import('./tournaments/tabs/overview-tab.component').then((m) => m.OverviewTabComponent),
+          },
+        ],
+      },
+    ],
   },
   {
     path: 'perfil',

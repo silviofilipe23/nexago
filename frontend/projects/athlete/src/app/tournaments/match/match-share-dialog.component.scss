@@ -1,0 +1,178 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--nx-s-5);
+}
+
+// Scrim forte o bastante para isolar o card do conteúdo atrás (40–60% é a faixa recomendada).
+.msd-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.msd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: min(880px, 92dvh);
+  border-radius: var(--nx-r-5);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-1);
+  box-shadow: var(--nx-elev-3);
+  overflow: hidden;
+  animation: msd-in var(--nx-d-base) var(--nx-ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes msd-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.msd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--nx-s-4);
+  padding: var(--nx-s-5) var(--nx-s-5) var(--nx-s-4);
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.msd-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.msd-sub {
+  margin: var(--nx-s-2) 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.msd-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--nx-r-2);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--nx-text-mute);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+    border-color: var(--nx-line);
+  }
+}
+
+.msd-body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--nx-s-5);
+  padding: var(--nx-s-5);
+  overflow-y: auto;
+
+  @media (max-width: 640px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// O canvas é 1080×1920 de verdade; aqui ele só é reduzido por CSS, preservando a resolução
+// da imagem exportada.
+.msd-preview {
+  border-radius: var(--nx-r-3);
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  @media (max-width: 640px) {
+    max-width: 240px;
+    margin: 0 auto;
+  }
+}
+
+.msd-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-3);
+  align-content: start;
+}
+
+.msd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nx-s-2);
+  min-height: 48px;
+  padding: 0 var(--nx-s-5);
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-0);
+  color: var(--nx-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--nx-d-fast) var(--nx-ease-out),
+    border-color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover:not(:disabled),
+  &:focus-visible:not(:disabled) {
+    border-color: rgba(255, 106, 26, 0.5);
+    background: var(--nx-orange-tint);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: var(--nx-orange-500);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+
+    &:hover:not(:disabled),
+    &:focus-visible:not(:disabled) {
+      background: var(--nx-orange-400);
+      border-color: var(--nx-orange-400);
+      color: var(--nx-text-on-orange);
+    }
+  }
+}
+
+.msd-hint {
+  margin: var(--nx-s-2) 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+}

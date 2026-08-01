@@ -2,65 +2,12 @@
   display: block;
 }
 
+// A casca (cabeçalho, abas do torneio, padding da página) vive em `tournament-shell`; aqui
+// sobra só o conteúdo da aba.
 .bx-body {
-  flex: 1;
-  padding: 22px 24px 40px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow: auto;
-
-  @media (max-width: 640px) {
-    padding: 16px 16px 32px;
-  }
-}
-
-.bx-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.bx-title {
-  font-family: var(--nx-font-display);
-  font-weight: 800;
-  font-size: 26px;
-  letter-spacing: -0.01em;
-  color: var(--nx-text);
-  margin: 0;
-}
-
-.bx-subtitle {
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--nx-text-dim);
-  margin: 4px 0 0;
-}
-
-.bx-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--nx-text-mute);
-  font-family: var(--nx-font-display);
-  font-weight: 600;
-  font-size: 13px;
-  text-decoration: none;
-  white-space: nowrap;
-  padding-top: 6px;
-
-  &:hover {
-    color: var(--nx-text);
-  }
-
-  @media (max-width: 640px) {
-    min-height: 44px;
-  }
 }
 
 .bx-dim {
@@ -76,16 +23,32 @@
 }
 
 // ── Category tabs ────────────────────────────────────────────
+// Ver `matches-tab`: com muitas categorias, empilhar os chips no mobile empurra a chave para
+// fora da tela. A faixa rola na horizontal em vez de quebrar.
 .bx-tabs {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+
+  @media (max-width: 720px) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 .bx-tab {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
   height: 44px;
   padding: 0 16px;
   border-radius: var(--nx-r-pill);
@@ -425,6 +388,35 @@
     border-color: var(--nx-live);
     box-shadow: 0 0 0 1px rgba(255, 59, 48, 0.2);
   }
+
+  // Card com as duas duplas definidas abre o detalhe da partida.
+  &--clickable {
+    cursor: pointer;
+    transition:
+      border-color var(--nx-d-fast) var(--nx-ease-out),
+      transform var(--nx-d-fast) var(--nx-ease-out);
+
+    &:hover {
+      border-color: var(--nx-line-strong);
+    }
+
+    &:active {
+      transform: scale(0.985);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+
+      &:active {
+        transform: none;
+      }
+    }
+  }
 }
 
 .bx-live-badge {
@@ -537,25 +529,4 @@
   gap: 12px;
   padding: 40px 24px;
   text-align: center;
-}
-
-.bx-btn-ghost {
-  height: 38px;
-  padding: 0 18px;
-  border-radius: var(--nx-r-2);
-  background: transparent;
-  border: 1px solid var(--nx-line);
-  color: var(--nx-text);
-  font-family: var(--nx-font-display);
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-
-  &:hover {
-    border-color: var(--nx-line-strong);
-  }
 }

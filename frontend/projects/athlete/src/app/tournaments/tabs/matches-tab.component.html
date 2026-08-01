@@ -1,0 +1,159 @@
+<div class="mt">
+  <div class="mt-main">
+    <div class="mt-toolbar">
+      @if (categories().length > 1) {
+        <div class="mt-chips" role="tablist" aria-label="Categorias">
+          @for (c of categories(); track c.id) {
+            <button
+              type="button"
+              role="tab"
+              class="mt-chip"
+              [class.mt-chip--active]="selectedCategory()?.id === c.id"
+              [attr.aria-selected]="selectedCategory()?.id === c.id"
+              (click)="selectCategory(c.id)"
+            >
+              {{ c.categoryName }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (pools().length > 1) {
+        <div class="mt-chips" role="tablist" aria-label="Grupos">
+          @for (p of pools(); track p.id) {
+            <button
+              type="button"
+              role="tab"
+              class="mt-chip"
+              [class.mt-chip--active]="selectedPoolId() === p.id"
+              [attr.aria-selected]="selectedPoolId() === p.id"
+              (click)="selectPool(p.id)"
+            >
+              {{ p.label }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (store.isRegistered()) {
+        <button type="button" class="mt-toggle" role="switch" [attr.aria-checked]="onlyMine()" (click)="toggleOnlyMine()">
+          <span class="mt-toggle-label">Só minhas partidas</span>
+          <span class="mt-toggle-track" [class.mt-toggle-track--on]="onlyMine()" aria-hidden="true"><span class="mt-toggle-knob"></span></span>
+        </button>
+      }
+    </div>
+
+    @if (sections().length === 0) {
+      <p class="mt-empty">
+        @if (onlyMine()) {
+          Você não tem partidas nesta seleção.
+        } @else {
+          As partidas ainda não foram publicadas pelo organizador.
+        }
+      </p>
+    } @else {
+      @for (section of sections(); track section.id) {
+        <section class="mt-section">
+          <h2 class="mt-section-title">{{ section.title }}</h2>
+          <ul class="mt-rows">
+            @for (row of section.rows; track row.matchId) {
+              <li>
+                @if (row.clickable) {
+                  <a [routerLink]="['/torneios', store.tournamentId(), 'partida', row.matchId]" class="mt-row" [class.mt-row--mine]="row.isMine">
+                    <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ row: row }" />
+                  </a>
+                } @else {
+                  <div class="mt-row" [class.mt-row--mine]="row.isMine">
+                    <ng-container [ngTemplateOutlet]="rowTpl" [ngTemplateOutletContext]="{ row: row }" />
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+  </div>
+
+  <aside class="mt-side">
+    @if (standingsTitle(); as title) {
+      <section class="mt-card">
+        <span class="mt-kicker">{{ standingsKicker() }}</span>
+        <h2 class="mt-card-title">{{ title }}</h2>
+        <table class="mt-standings">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Dupla</th>
+              <th scope="col">V</th>
+              <th scope="col">D</th>
+              <th scope="col">Sets</th>
+              <th scope="col">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of standings(); track r.rank) {
+              <tr [attr.data-qualifies]="r.qualifies" [attr.data-mine]="r.isMe">
+                <td class="st-num">{{ r.rank }}</td>
+                <td class="st-team">
+                  {{ r.name }}
+                  @if (r.isMe) {
+                    <span class="mt-you">· você</span>
+                  }
+                </td>
+                <td>{{ r.wins }}</td>
+                <td>{{ r.losses }}</td>
+                <td>{{ r.sets }}</td>
+                <td>{{ r.points }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (qualificationText(); as text) {
+          <p class="mt-note">{{ text }}</p>
+        }
+      </section>
+
+      <p class="mt-tiebreak">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 12V7.5M12 12l3.2 3.2" /></svg>
+        Empate em vitórias: desempata por saldo de sets, depois saldo de games.
+      </p>
+    }
+  </aside>
+</div>
+
+<ng-template #rowTpl let-row="row">
+  <span class="mt-row-time">{{ row.time }}</span>
+  @if (row.court) {
+    <span class="mt-row-court">{{ row.court }}</span>
+  }
+
+  <span class="mt-row-team" [class.mt-row-team--mine]="row.mineA">
+    <span class="mt-duo" aria-hidden="true">
+      @for (i of row.initialsA; track $index) {
+        <span class="duo-avatar">{{ i }}</span>
+      }
+    </span>
+    <span class="mt-row-name">{{ row.nameA }}@if (row.mineA) {<span class="mt-you"> · você</span>}</span>
+  </span>
+
+  <span class="mt-row-score">{{ row.score ?? 'vs' }}</span>
+
+  <span class="mt-row-team" [class.mt-row-team--mine]="row.mineB">
+    <span class="mt-duo" aria-hidden="true">
+      @for (i of row.initialsB; track $index) {
+        <span class="duo-avatar">{{ i }}</span>
+      }
+    </span>
+    <span class="mt-row-name">{{ row.nameB }}@if (row.mineB) {<span class="mt-you"> · você</span>}</span>
+  </span>
+
+  <span class="mt-row-partials">{{ row.partials }}</span>
+  <span class="mt-row-state" [attr.data-state]="row.state">
+    @if (row.state === 'live') {
+      <span class="mt-live-dot" aria-hidden="true"></span>
+    }
+    {{ row.stateLabel }}
+  </span>
+</ng-template>

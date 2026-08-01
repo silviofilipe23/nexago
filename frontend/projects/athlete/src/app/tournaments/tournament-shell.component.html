@@ -1,0 +1,46 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (store.loading()) {
+    <app-nx-page-loading title="Carregando torneio…" />
+  } @else if (store.tournament(); as t) {
+    <div class="tsh">
+      <a routerLink="/torneios" class="tsh-back">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        <span>Voltar a Competir</span>
+      </a>
+
+      <header class="tsh-head">
+        <div class="tsh-head-main">
+          <h1 class="tsh-title">{{ heroTitle() }}</h1>
+          <p class="tsh-meta">{{ heroMeta() }}</p>
+        </div>
+        <button type="button" class="tsh-action" (click)="shareTournament()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+          <span>Compartilhar</span>
+        </button>
+      </header>
+
+      <nav class="tsh-tabs" aria-label="Seções do torneio">
+        @for (tab of tabs(); track tab.id) {
+          <a
+            [routerLink]="['/torneios', t.id, tab.id]"
+            class="tsh-tab"
+            [class.tsh-tab--active]="isActive(tab.id)"
+            [attr.aria-current]="isActive(tab.id) ? 'page' : null"
+          >
+            <span>{{ tab.label }}</span>
+            @if (tab.dot) {
+              <span class="tsh-tab-dot" aria-label="acontecendo agora"></span>
+            }
+          </a>
+        }
+      </nav>
+
+      <router-outlet />
+    </div>
+  } @else {
+    <div class="tsh-empty">
+      <p class="tsh-empty-title">Torneio não encontrado</p>
+      <a routerLink="/torneios" class="tsh-empty-link">Voltar à listagem</a>
+    </div>
+  }
+</app-at-panel-shell>

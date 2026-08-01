@@ -1,0 +1,250 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { map } from 'rxjs';
+import { AuthService } from '../../auth/auth.service';
+import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { bestOfLabelOf, courtLabelOf, currentSetNumberOf, elapsedLabelOf, ordinalOf, timeLabelOf } from '../tournament-format';
+import {
+  campaignOf,
+  displaySetsOf,
+  groupLabelOf,
+  knockoutLabelOf,
+  roundDisplayNumberOf,
+  sideOf,
+  type CampaignEntry,
+  type DisplaySet,
+} from '../tournament-live.selectors';
+import { TournamentLiveStore } from '../tournament-live.store';
+import { MatchShareDialogComponent } from './match-share-dialog.component';
+import { nextRoundPreviewOf } from './next-round-preview';
+
+function titleCase(input: string): string {
+  return input
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function nameFromEmail(email: string | null | undefined): string {
+  const local = email?.split('@')[0]?.trim();
+  return local ? titleCase(local) : 'Atleta';
+}
+
+export interface MatchSideView {
+  teamId: string;
+  name: string;
+  isMe: boolean;
+  initials: [string, string];
+  /** "1º do Grupo B" — só existe se a dupla passou por fase de grupos. */
+  seedLine: string | null;
+  campaign: CampaignEntry[];
+  winner: boolean;
+}
+
+export interface SetRowView {
+  index: number;
+  a: number;
+  b: number;
+  inProgress: boolean;
+  /** "Você venceu" / "Adversário venceu" / "Marcelo & Enzo venceu". */
+  label: string;
+  /** Proporção do set para a barra, 0–100 do ponto de vista do lado A. */
+  sharePercent: number;
+  tone: 'a' | 'b' | 'live';
+}
+
+/**
+ * Tela cheia da partida (04h). É irmã das abas, não filha — mas compartilha o mesmo
+ * `TournamentLiveStore`, providenciado na rota pai, e assina o tempo real enquanto está aberta.
+ *
+ * Fora do escopo por decisão de produto: histórico de confronto direto entre as duplas e duração
+ * por set. O primeiro exigiria casar duplas por par de uids (o `teamId` nasce a cada inscrição);
+ * o segundo, gravar timestamp ao fechar cada set no fluxo do mesário.
+ */
+@Component({
+  selector: 'app-match-detail',
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, MatchShareDialogComponent],
+  templateUrl: './match-detail.component.html',
+  styleUrl: './match-detail.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MatchDetailComponent {
+  private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly store = inject(TournamentLiveStore);
+
+  private readonly tournamentIdParam = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
+  private readonly matchId = toSignal(this.route.paramMap.pipe(map((p) => p.get('matchId') ?? '')), { initialValue: '' });
+
+  protected readonly shareOpen = signal(false);
+
+  protected readonly accountLabel = computed(() => {
+    const liveUser = this.auth.user();
+    if (liveUser?.displayName?.trim()) return liveUser.displayName.trim();
+    if (liveUser?.email?.trim()) return nameFromEmail(liveUser.email);
+    const devEmail = this.auth.devEmail();
+    return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
+  });
+
+  protected readonly match = computed<TournamentMatch | null>(() => this.store.matchById(this.matchId()));
+
+  constructor() {
+    // A tela pode ser aberta direto pela URL, sem passar pelo shell — então carrega por conta.
+    effect(() => {
+      const id = this.tournamentIdParam();
+      if (id) void this.store.load(id);
+    });
+
+    const release = this.store.acquireLive();
+    this.destroyRef.onDestroy(release);
+  }
+
+  protected readonly live = computed(() => {
+    const m = this.match();
+    return m ? matchIsLive(m) : false;
+  });
+
+  protected readonly completed = computed(() => {
+    const m = this.match();
+    return m ? matchIsCompleted(m) : false;
+  });
+
+  protected readonly phaseLabel = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    return m.poolId
+      ? `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`
+      : knockoutLabelOf(m);
+  });
+
+  protected readonly pageTitle = computed(() => {
+    const m = this.match();
+    if (!m) return 'Partida';
+    return `${this.phaseLabel()} · ${this.store.duoNameOf(m.teamAId, m.teamADescription)} vs ${this.store.duoNameOf(m.teamBId, m.teamBDescription)}`;
+  });
+
+  protected readonly categoryName = computed(() => {
+    const m = this.match();
+    if (!m) return null;
+    return this.store.tournament()?.categories.find((c) => c.id === m.categoryId)?.categoryName ?? null;
+  });
+
+  /** "Semifinal · MD3 · Quadra 2" */
+  protected readonly contextLine = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    return [this.phaseLabel(), bestOfLabelOf(m), courtLabelOf(m.courtName)].filter((p): p is string => p != null && p.length > 0).join(' · ');
+  });
+
+  /** "início 15:04 · 0:52 em quadra" — o relógio corre com o tick do store. */
+  protected readonly timingLine = computed(() => {
+    const m = this.match();
+    if (!m) return null;
+    if (m.matchStartedAt) {
+      const parts = [`início ${timeLabelOf(m.matchStartedAt)}`];
+      if (this.live()) {
+        const elapsed = elapsedLabelOf(m.matchStartedAt, this.store.now());
+        if (elapsed) parts.push(`${elapsed} em quadra`);
+      }
+      return parts.join(' · ');
+    }
+    return m.scheduleTime ? `agendada para ${timeLabelOf(m.scheduleTime)}` : null;
+  });
+
+  protected readonly liveBadge = computed(() => {
+    const m = this.match();
+    if (!m || !this.live()) return null;
+    const setNumber = currentSetNumberOf(m);
+    return setNumber ? `Ao vivo · ${ordinalOf(setNumber)} set` : 'Ao vivo';
+  });
+
+  protected readonly setWins = computed<[number, number]>(() => {
+    const m = this.match();
+    return m ? matchSetWins(m) : [0, 0];
+  });
+
+  protected readonly sideA = computed<MatchSideView | null>(() => this.sideViewOf('A'));
+  protected readonly sideB = computed<MatchSideView | null>(() => this.sideViewOf('B'));
+
+  private sideViewOf(side: 'A' | 'B'): MatchSideView | null {
+    const m = this.match();
+    if (!m) return null;
+    const teamId = side === 'A' ? m.teamAId : m.teamBId;
+    const description = side === 'A' ? m.teamADescription : m.teamBDescription;
+    const categoryMatches = this.store.matches().filter((k) => k.categoryId === m.categoryId);
+    return {
+      teamId,
+      name: this.store.duoNameOf(teamId, description),
+      isMe: this.store.isMyTeam(teamId),
+      initials: this.store.duoInitialsOf(teamId),
+      seedLine: this.seedLineOf(teamId, categoryMatches),
+      campaign: campaignOf(categoryMatches, teamId, (opponentId) => this.store.duoNameOf(opponentId)),
+      winner: matchIsCompleted(m) && m.winnerId === teamId,
+    };
+  }
+
+  /** "1º do Grupo B" — posição final/parcial da dupla no grupo por onde ela passou. */
+  private seedLineOf(teamId: string, categoryMatches: readonly TournamentMatch[]): string | null {
+    if (!teamId) return null;
+    const poolId = categoryMatches.find((m) => m.poolId && (m.teamAId === teamId || m.teamBId === teamId))?.poolId;
+    if (!poolId) return null;
+    const rows = this.store.standingsOf(poolId);
+    const index = rows.findIndex((s) => s.teamId === teamId);
+    if (index < 0) return null;
+    return `${ordinalOf(index + 1)} do ${groupLabelOf(poolId, categoryMatches)}`;
+  }
+
+  protected readonly sets = computed<SetRowView[]>(() => {
+    const m = this.match();
+    if (!m) return [];
+    return displaySetsOf(m).map((s) => this.setRowOf(s, m));
+  });
+
+  private setRowOf(s: DisplaySet, m: TournamentMatch): SetRowView {
+    const total = s.a + s.b;
+    const aWon = s.a > s.b;
+    const myTeamIds = this.store.myTeamIds();
+    const mySide = sideOf(m, myTeamIds);
+    const winnerName = aWon ? this.store.duoNameOf(m.teamAId, m.teamADescription) : this.store.duoNameOf(m.teamBId, m.teamBDescription);
+    const iWon = mySide != null && ((aWon && mySide === 'A') || (!aWon && mySide === 'B'));
+    return {
+      index: s.index,
+      a: s.a,
+      b: s.b,
+      inProgress: s.inProgress,
+      label: s.inProgress ? 'Em andamento' : mySide != null ? (iWon ? 'Você venceu' : 'Adversário venceu') : `${winnerName} venceu`,
+      sharePercent: total > 0 ? Math.round((s.a / total) * 100) : 50,
+      tone: s.inProgress ? 'live' : aWon ? 'a' : 'b',
+    };
+  }
+
+  protected readonly nextRound = computed(() => {
+    const m = this.match();
+    if (!m) return null;
+    const categoryMatches = this.store.matches().filter((k) => k.categoryId === m.categoryId);
+    const preview = nextRoundPreviewOf(categoryMatches, m, (teamId, fallback) => this.store.duoNameOf(teamId, fallback));
+    if (!preview) return null;
+    const when = preview.match.scheduleTime;
+    return {
+      text: preview.opponentNames.join(' ou '),
+      roundLabel: preview.roundLabel.toLowerCase(),
+      when: when ? `${timeLabelOf(when)}` : null,
+      court: courtLabelOf(preview.match.courtName),
+    };
+  });
+
+  /** De onde o atleta veio: chave se a partida é de mata-mata, senão a lista de partidas. */
+  protected readonly backLink = computed(() => {
+    const m = this.match();
+    const tournamentId = this.store.tournamentId() || this.tournamentIdParam();
+    return m?.poolId ? ['/torneios', tournamentId, 'partidas'] : ['/torneios', tournamentId, 'chaves'];
+  });
+
+  protected readonly backLabel = computed(() => (this.match()?.poolId ? 'Voltar às partidas' : 'Voltar às chaves'));
+}

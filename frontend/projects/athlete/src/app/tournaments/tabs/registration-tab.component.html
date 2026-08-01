@@ -1,0 +1,43 @@
+<div class="reg">
+  @for (card of cards(); track card.id) {
+    <section class="reg-card">
+      <header class="reg-head">
+        <div>
+          <span class="reg-kicker">Categoria</span>
+          <h2 class="reg-title">{{ card.categoryName }}</h2>
+        </div>
+        <span class="reg-status" [attr.data-state]="card.paymentState">{{ card.paymentLabel }}</span>
+      </header>
+
+      <p class="reg-hint">{{ card.paymentHint }}</p>
+
+      <dl class="reg-facts">
+        <div class="reg-fact">
+          <dt>Dupla</dt>
+          <dd>
+            {{ card.teamName }}
+            @if (card.partnerPending) {
+              <span class="reg-flag">convite pendente</span>
+            }
+          </dd>
+        </div>
+        <div class="reg-fact">
+          <dt>Inscrição</dt>
+          <dd>{{ card.entryFee }}</dd>
+        </div>
+        @if (card.uniformRequired) {
+          <div class="reg-fact">
+            <dt>Uniforme</dt>
+            <dd>{{ uniformSummary(card.uniform) ?? 'Ainda não informado' }}</dd>
+          </div>
+        }
+      </dl>
+
+      @if (card.paymentState === 'pending' || card.paymentState === 'share-paid') {
+        <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao', 'pagamento']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta">
+          Ir para o pagamento
+        </a>
+      }
+    </section>
+  }
+</div>

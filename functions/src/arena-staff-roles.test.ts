@@ -2,6 +2,12 @@ import {strict as assert} from "node:assert";
 import {test} from "node:test";
 import {Timestamp} from "firebase-admin/firestore";
 import {
+  ARENA_AREAS,
+  ARENA_STAFF_ROLES,
+  type ArenaArea,
+  type ArenaStaffRole,
+  arenaRoleCanRead,
+  arenaRoleCanWrite,
   isArenaStaffRole,
   maxArenaStaffSeats,
   normalizeInviteEmail,
@@ -70,4 +76,103 @@ test("normalizeInviteEmail apara e minusculiza", () => {
   assert.equal(normalizeInviteEmail("  Rafael@Arena.COM "), "rafael@arena.com");
   assert.equal(normalizeInviteEmail(""), "");
   assert.equal(normalizeInviteEmail(undefined), "");
+});
+
+// ---------------------------------------------------------------------------
+// Matriz de acesso por área — ESPELHO MANUAL de
+// `frontend/projects/arena/src/app/painel/data/arena-roles.model.spec.ts`.
+// Uma única célula errada aqui já quebrou a produção uma vez (ver
+// `role-to-roles-migration.md`/histórico do projeto) — por isso a matriz
+// completa (todo cargo × toda área × os dois modos), não um spot-check.
+// `torneios` fica de fora de propósito: não existe no servidor.
+// ---------------------------------------------------------------------------
+
+test("torneios nao existe na matriz do servidor (de proposito)", () => {
+  assert.equal((ARENA_AREAS as readonly string[]).includes("torneios"), false);
+});
+
+test("cargo desconhecido nao alcanca nada", () => {
+  for (const area of ARENA_AREAS) {
+    assert.equal(arenaRoleCanRead("sindico" as unknown as ArenaStaffRole, area), false);
+    assert.equal(arenaRoleCanWrite("sindico" as unknown as ArenaStaffRole, area), false);
+  }
+});
+
+test("escrita sempre implica leitura", () => {
+  for (const role of ARENA_STAFF_ROLES) {
+    for (const area of ARENA_AREAS) {
+      if (arenaRoleCanWrite(role, area)) {
+        assert.equal(
+          arenaRoleCanRead(role, area),
+          true,
+          `${role} escreve ${area} mas nao le`,
+        );
+      }
+    }
+  }
+});
+
+test("matriz completa: cada cargo em cada area (RW/R/-)", () => {
+  const EXPECTED: Record<ArenaStaffRole, Record<ArenaArea, "RW" | "R" | "-">> = {
+    gestor: {
+      agenda: "RW",
+      comandas: "RW",
+      estoque: "RW",
+      financeiro: "R",
+      promocoes: "RW",
+      site: "RW",
+      quadras: "RW",
+      perfil: "RW",
+      comunidade: "RW",
+    },
+    recepcao: {
+      agenda: "RW",
+      comandas: "RW",
+      estoque: "R",
+      financeiro: "-",
+      promocoes: "-",
+      site: "-",
+      quadras: "-",
+      perfil: "-",
+      comunidade: "R",
+    },
+    financeiro: {
+      agenda: "-",
+      comandas: "R",
+      estoque: "-",
+      financeiro: "RW",
+      promocoes: "RW",
+      site: "-",
+      quadras: "-",
+      perfil: "-",
+      comunidade: "R",
+    },
+    manutencao: {
+      agenda: "R",
+      comandas: "-",
+      estoque: "RW",
+      financeiro: "-",
+      promocoes: "-",
+      site: "-",
+      quadras: "RW",
+      perfil: "-",
+      comunidade: "-",
+    },
+  };
+
+  for (const role of ARENA_STAFF_ROLES) {
+    for (const area of ARENA_AREAS) {
+      const expected = EXPECTED[role][area];
+      assert.equal(
+        arenaRoleCanWrite(role, area),
+        expected === "RW",
+        `${role} escreve ${area}`,
+      );
+      assert.equal(
+        arenaRoleCanRead(role, area),
+        expected !== "-",
+        `${role} le ${area}`,
+      );
+    }
+  }
 });

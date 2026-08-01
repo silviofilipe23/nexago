@@ -9,6 +9,7 @@ import {
 import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {callerIsSuperAdmin} from "./auth-roles";
+import {assertArenaAreaAccess, type ArenaAreaAccessMode} from "./arena-area-access";
 import type {BookingTotalResult} from "./arena-pricing";
 
 const ARENAS_COLLECTION = "arenas";
@@ -346,23 +347,23 @@ export async function reserveCouponRedemptionInTransaction(params: {
 // ---------------------------------------------------------------------------
 
 /**
- * Mesmo guard usado por outras callables de gestão de arena (ex.
- * `assertCallerManagesArena` em `arena-subscription.ts`, `requireArenaManager`
- * em `arena-recurring-booking.ts`): dono da arena (`managerUserId`) ou super
- * admin. `promotions`/`products` hoje são geridos via escrita direta do
- * cliente (Firestore rules), sem callable equivalente pra reaproveitar — o
- * padrão que se repete nas callables de arena É este guard.
+ * Cupons são área "promocoes" (mesma área da UI/rules): dono da arena, super
+ * admin (bypass que já existia aqui antes desta migração — preservado), ou
+ * membro de equipe ativo cujo cargo cobre "promocoes" no modo pedido
+ * (gestor/financeiro, arena com plano pago) — via `assertArenaAreaAccess`.
  */
-async function assertCallerManagesArena(arenaId: string, callerUid: string): Promise<void> {
+async function assertCallerManagesArena(
+  arenaId: string,
+  callerUid: string,
+  mode: ArenaAreaAccessMode,
+): Promise<void> {
   const arenaSnap = await getFirestore().collection(ARENAS_COLLECTION).doc(arenaId).get();
   if (!arenaSnap.exists) {
     throw new HttpsError("not-found", "Arena não encontrada.");
   }
-  const managerUid = (arenaSnap.data()?.["managerUserId"] as string | undefined)?.trim() ?? "";
   const caller = await getAuth().getUser(callerUid);
-  if (!callerIsSuperAdmin(caller) && managerUid !== callerUid) {
-    throw new HttpsError("permission-denied", "Você não gerencia esta arena.");
-  }
+  if (callerIsSuperAdmin(caller)) return;
+  await assertArenaAreaAccess(getFirestore(), arenaId, callerUid, "promocoes", mode);
 }
 
 function parseOptionalDate(raw: unknown): Date | null {
@@ -404,7 +405,7 @@ export const createArenaCoupon = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "arenaId é obrigatório.");
   }
 
-  await assertCallerManagesArena(arenaId, callerUid);
+  await assertCallerManagesArena(arenaId, callerUid, "write");
 
   const code = normalizeCouponCode(data.code);
   if (!code || code.length < 3) {
@@ -488,7 +489,7 @@ export const listArenaCoupons = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "arenaId é obrigatório.");
   }
 
-  await assertCallerManagesArena(arenaId, callerUid);
+  await assertCallerManagesArena(arenaId, callerUid, "read");
 
   const db = getFirestore();
   const snap = await couponsCollection(db, arenaId).orderBy("createdAt", "desc").get();
@@ -511,7 +512,7 @@ export const deactivateArenaCoupon = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "arenaId e couponId são obrigatórios.");
   }
 
-  await assertCallerManagesArena(arenaId, callerUid);
+  await assertCallerManagesArena(arenaId, callerUid, "write");
 
   const db = getFirestore();
   const ref = couponDocRef(db, arenaId, couponId);

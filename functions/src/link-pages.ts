@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
+import {assertArenaAreaAccess} from "./arena-area-access";
 
 /**
  * Página pública de links (link-in-bio) de arenas e organizadores.
@@ -82,7 +83,13 @@ function assertValidSlug(slug: string): void {
   }
 }
 
-/** Só o gestor da arena (ou o próprio organizador) mexe na página daquele dono. */
+/**
+ * Só o gestor da arena (ou o próprio organizador) mexe na página daquele
+ * dono. Página de arena é área "site" (escrita) — dono da arena ou membro de
+ * equipe ativo com cargo que escreve "site" (só gestor), arena com plano
+ * pago. Sem bypass de admin/superAdmin: nunca existiu aqui. Página de
+ * organizador não tem noção de equipe — segue exigindo o próprio uid.
+ */
 async function assertOwnership(uid: string, ownerType: OwnerType, ownerId: string): Promise<void> {
   if (ownerType === "organizer") {
     if (uid !== ownerId) {
@@ -95,9 +102,7 @@ async function assertOwnership(uid: string, ownerType: OwnerType, ownerId: strin
   if (!arenaSnap.exists) {
     throw new HttpsError("not-found", "Arena não encontrada.");
   }
-  if (arenaSnap.get("managerUserId") !== uid) {
-    throw new HttpsError("permission-denied", "Você não gerencia essa arena.");
-  }
+  await assertArenaAreaAccess(getFirestore(), ownerId, uid, "site", "write");
 }
 
 /**

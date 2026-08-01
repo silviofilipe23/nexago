@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { fetchCourtsList } from '../courts/courts-repository';
@@ -133,13 +134,14 @@ function timeToMinutes(time: string): number {
             @if (courts().length === 0) {
               <p class="state-text">Nenhuma quadra cadastrada ainda.</p>
             } @else if (view() === 'Dia') {
-              <ar-agenda-grid [courts]="agendaCourts()" [blocks]="agendaBlocks()" (blockClick)="onBlockClick($event)" />
+              <ar-agenda-grid [courts]="agendaCourts()" [blocks]="agendaBlocks()" [readOnly]="readOnly()" (blockClick)="onBlockClick($event)" />
             } @else {
               <ar-agenda-week-grid
                 [weekDays]="weekDays()"
                 [courts]="agendaCourts()"
                 [blocks]="agendaWeekBlocks()"
                 [selectedDateKey]="selectedDateKey()"
+                [readOnly]="readOnly()"
                 (blockClick)="onBlockClick($event)"
                 (dayHeaderClick)="onDateKeySelected($event)"
               />
@@ -149,7 +151,7 @@ function timeToMinutes(time: string): number {
           <ar-panel-card title="Horários do dia" [kicker]="listKicker()" class="list-card">
             <div class="list">
               @for (r of listRows(); track r.id) {
-                <div class="agenda-row" [class.clickable]="r.status !== 'manutencao'" (click)="r.status !== 'manutencao' && onBlockClick(r.id)">
+                <div class="agenda-row" [class.clickable]="rowClickable(r.status)" (click)="rowClickable(r.status) && onBlockClick(r.id)">
                   <div class="agenda-time">{{ r.time }}</div>
                   <div class="agenda-body">
                     <div class="agenda-title">{{ r.court }}{{ r.client ? ' · ' + r.client : '' }}</div>
@@ -422,6 +424,11 @@ function timeToMinutes(time: string): number {
 export class PanelAgendaComponent {
   private readonly router = inject(Router);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
+
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção): bloquear/desbloquear
+   *  horário fica indisponível — só visualizar segue liberado. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
 
   protected readonly views: AgendaView[] = ['Dia', 'Semana'];
   protected readonly view = signal<AgendaView>('Dia');
@@ -669,6 +676,13 @@ export class PanelAgendaComponent {
     return this.courts().find((c) => c.id === courtId)?.name ?? 'Quadra';
   }
 
+  /** Reservado só abre o detalhe (leitura); disponível/bloqueado exigem escrita em agenda. */
+  protected rowClickable(status: AgendaBlockStatus): boolean {
+    if (status === 'manutencao') return false;
+    if (status === 'confirmada' || status === 'pendente') return true;
+    return !this.readOnly();
+  }
+
   protected goToday(): void {
     this.selectedDate.set(new Date());
   }
@@ -694,6 +708,9 @@ export class PanelAgendaComponent {
       if (slot.bookingId) void this.router.navigate(['/painel/reservas', slot.bookingId]);
       return;
     }
+    // Defesa em profundidade: a grade e a lista já não emitem clique pra disponível/bloqueado
+    // quando readOnly, mas o handler segue sendo a fonte de verdade do que de fato muta.
+    if (this.readOnly()) return;
     if (slot.status === 'available') {
       this.blockError.set(null);
       this.blockReason.set('manutencao');

@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {isArenaEntitledPro} from "./arena-entitlement";
+import {assertArenaAreaAccess} from "./arena-area-access";
 import {isValidDateKey, toMinutes} from "./arena-recurring-booking";
 
 const ARENA_BOOKINGS = "arenaBookings";
@@ -184,6 +185,9 @@ export function aggregateArenaOccupancyReport(
   };
 }
 
+// Relatório de ocupação é área "financeiro" (leitura) — dono da arena ou
+// membro de equipe ativo com cargo que lê "financeiro" (gestor/financeiro),
+// arena com plano pago. Sem bypass de admin/superAdmin: nunca existiu aqui.
 async function requireArenaManagerForReport(
   db: Firestore,
   arenaId: string,
@@ -193,17 +197,8 @@ async function requireArenaManagerForReport(
   if (!arenaSnap.exists) {
     throw new HttpsError("not-found", "Arena não encontrada.");
   }
-  const arenaData = arenaSnap.data() as Record<string, unknown>;
-  const managerUserId = typeof arenaData["managerUserId"] === "string" ?
-    (arenaData["managerUserId"] as string).trim() :
-    "";
-  if (!managerUserId || managerUserId !== uid) {
-    throw new HttpsError(
-      "permission-denied",
-      "Apenas o gestor da arena pode ver os relatórios de ocupação.",
-    );
-  }
-  return arenaData;
+  await assertArenaAreaAccess(db, arenaId, uid, "financeiro", "read");
+  return arenaSnap.data() as Record<string, unknown>;
 }
 
 function parseInput(raw: unknown): OccupancyReportInput {

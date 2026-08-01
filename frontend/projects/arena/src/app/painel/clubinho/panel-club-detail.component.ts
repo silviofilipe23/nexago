@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
@@ -39,18 +40,18 @@ const SESSION_TONE: Record<ClubSessionStatus, PillTone> = {
       <ar-page-header [title]="club()?.name ?? 'Clubinho'" [subtitle]="subtitle()">
         @if (club(); as c) {
           @if (c.status === 'active') {
-            <button type="button" class="ar-mini-btn" (click)="openSessionModal()">
+            <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="openSessionModal()">
               <ar-icon name="plus" [size]="14" />
               Sessão avulsa
             </button>
-            <button type="button" class="ar-mini-btn" [disabled]="mutating()" (click)="changeStatus('paused')">Pausar</button>
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="editClub()">
+            <button type="button" class="ar-mini-btn" [disabled]="mutating() || readOnly()" (click)="changeStatus('paused')">Pausar</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="editClub()">
               <ar-icon name="edit" [size]="14" />
               Editar
             </button>
           } @else if (c.status === 'paused') {
-            <button type="button" class="ar-mini-btn" [disabled]="mutating()" (click)="changeStatus('archived')">Arquivar</button>
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="mutating()" (click)="changeStatus('active')">Reativar</button>
+            <button type="button" class="ar-mini-btn" [disabled]="mutating() || readOnly()" (click)="changeStatus('archived')">Arquivar</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="mutating() || readOnly()" (click)="changeStatus('active')">Reativar</button>
           }
         }
       </ar-page-header>
@@ -135,7 +136,7 @@ const SESSION_TONE: Record<ClubSessionStatus, PillTone> = {
             <button
               type="button"
               class="ar-mini-btn ar-mini-btn-primary"
-              [disabled]="!newSessionDate() || mutating()"
+              [disabled]="!newSessionDate() || mutating() || readOnly()"
               (click)="confirmCreateSession()"
             >
               {{ mutating() ? 'Criando…' : 'Criar sessão' }}
@@ -324,6 +325,11 @@ const SESSION_TONE: Record<ClubSessionStatus, PillTone> = {
 export class PanelClubDetailComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly access = inject(ArenaAccessService);
+
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção): pausar/arquivar/reativar/
+   *  editar clubinho e abrir sessão avulsa ficam indisponíveis. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
 
   protected readonly formatReais = formatReais;
   protected readonly formatFullDate = formatFullDate;
@@ -378,6 +384,7 @@ export class PanelClubDetailComponent {
   }
 
   protected editClub(): void {
+    if (this.readOnly()) return;
     void this.router.navigate(['/painel/clubinho', this.clubId, 'editar']);
   }
 
@@ -386,7 +393,7 @@ export class PanelClubDetailComponent {
   }
 
   protected async changeStatus(status: 'active' | 'paused' | 'archived'): Promise<void> {
-    if (this.mutating()) return;
+    if (this.mutating() || this.readOnly()) return;
     this.mutating.set(true);
     this.actionError.set(null);
     try {
@@ -400,6 +407,7 @@ export class PanelClubDetailComponent {
   }
 
   protected openSessionModal(): void {
+    if (this.readOnly()) return;
     this.modalError.set(null);
     this.newSessionDate.set('');
     this.sessionModalOpen.set(true);
@@ -407,7 +415,7 @@ export class PanelClubDetailComponent {
 
   protected async confirmCreateSession(): Promise<void> {
     const date = this.newSessionDate();
-    if (!date || this.mutating()) return;
+    if (!date || this.mutating() || this.readOnly()) return;
     this.mutating.set(true);
     this.modalError.set(null);
     try {

@@ -3,7 +3,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
+import type { ArenaArea } from '../data/arena-roles.model';
 import { IconComponent, type PanelIconName } from './icon.component';
 import { initialsOf } from './initials';
 
@@ -13,29 +15,31 @@ interface PanelNavItem {
   icon: PanelIconName;
   route: string;
   badge: number | null;
+  /** Área exigida; `null` = visível a todos; `'owner'` = só o dono. */
+  area: ArenaArea | 'owner' | null;
 }
 
 const NAV_ITEMS: PanelNavItem[] = [
-  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel', badge: null },
-  { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null },
-  { id: 'reservas', label: 'Reservas', icon: 'clock', route: '/painel/reservas', badge: null },
-  { id: 'horarios-fixos', label: 'Horários fixos', icon: 'repeat', route: '/painel/horarios-fixos', badge: null },
-  { id: 'clubinho', label: 'Clubinho', icon: 'users', route: '/painel/clubinho', badge: null },
-  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro', badge: null },
-  { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null },
-  { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null },
-  { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null },
-  { id: 'cupons', label: 'Cupons', icon: 'tag', route: '/painel/cupons', badge: null },
-  { id: 'links', label: 'Links', icon: 'share', route: '/painel/links', badge: null },
-  { id: 'meu-site', label: 'Meu site', icon: 'image', route: '/painel/meu-site', badge: null },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2 },
-  { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null },
-  { id: 'ocupacao', label: 'Ocupação', icon: 'chart-bar', route: '/painel/relatorios/ocupacao', badge: null },
-  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes', badge: null },
-  { id: 'seguidores', label: 'Seguidores', icon: 'users', route: '/painel/seguidores', badge: null },
-  { id: 'ranking', label: 'Ranking', icon: 'ranking', route: '/painel/ranking', badge: null },
-  { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null },
-  { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null },
+  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel', badge: null, area: null },
+  { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null, area: 'agenda' },
+  { id: 'reservas', label: 'Reservas', icon: 'clock', route: '/painel/reservas', badge: null, area: 'agenda' },
+  { id: 'horarios-fixos', label: 'Horários fixos', icon: 'repeat', route: '/painel/horarios-fixos', badge: null, area: 'agenda' },
+  { id: 'clubinho', label: 'Clubinho', icon: 'users', route: '/painel/clubinho', badge: null, area: 'agenda' },
+  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro', badge: null, area: 'financeiro' },
+  { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null, area: 'comandas' },
+  { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null, area: 'estoque' },
+  { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null, area: 'promocoes' },
+  { id: 'cupons', label: 'Cupons', icon: 'tag', route: '/painel/cupons', badge: null, area: 'promocoes' },
+  { id: 'links', label: 'Links', icon: 'share', route: '/painel/links', badge: null, area: 'site' },
+  { id: 'meu-site', label: 'Meu site', icon: 'image', route: '/painel/meu-site', badge: null, area: 'site' },
+  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios' },
+  { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null, area: 'quadras' },
+  { id: 'ocupacao', label: 'Ocupação', icon: 'chart-bar', route: '/painel/relatorios/ocupacao', badge: null, area: 'financeiro' },
+  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes', badge: null, area: 'comunidade' },
+  { id: 'seguidores', label: 'Seguidores', icon: 'users', route: '/painel/seguidores', badge: null, area: 'comunidade' },
+  { id: 'ranking', label: 'Ranking', icon: 'ranking', route: '/painel/ranking', badge: null, area: 'comunidade' },
+  { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null, area: 'owner' },
+  { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null, area: 'owner' },
 ];
 
 function pathOnly(url: string): string {
@@ -80,7 +84,7 @@ function pathOnly(url: string): string {
 
         <nav class="nav">
           <div class="nav-kicker">Operação</div>
-          @for (item of navItems; track item.id) {
+          @for (item of navItems(); track item.id) {
             <a class="nav-item" [class.active]="activeId() === item.id" [routerLink]="item.route">
               <ar-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
               <span>{{ item.label }}</span>
@@ -429,8 +433,18 @@ export class PanelShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
 
-  protected readonly navItems = NAV_ITEMS;
+  /** Menu filtrado pelo que o cargo alcança. A detecção de rota ativa (abaixo) continua
+   *  percorrendo `NAV_ITEMS` completo — não esta lista — senão o realce some quando o
+   *  item correspondente à rota atual está fora do que o cargo pode ver. */
+  protected readonly navItems = computed(() =>
+    NAV_ITEMS.filter((item) => {
+      if (item.area == null) return true;
+      if (item.area === 'owner') return this.access.isOwner();
+      return this.access.canRead(item.area);
+    }),
+  );
 
   private readonly currentPath = toSignal(
     this.router.events.pipe(

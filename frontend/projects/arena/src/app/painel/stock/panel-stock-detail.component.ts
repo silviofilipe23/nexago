@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -56,7 +57,7 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
         } @else if (loadError(); as err) {
           <p class="state-text">{{ err }}</p>
         } @else if (product(); as p) {
-          @if (readOnly()) {
+          @if (planReadOnly()) {
             <div class="readonly-banner">Seu plano atual não inclui edição de estoque — fale com o suporte para fazer upgrade.</div>
           }
           @if (saveError(); as serr) {
@@ -151,7 +152,7 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
               Ajustar estoque
             </button>
 
-            <button type="button" class="remove-link" (click)="showRemoveConfirm.set(true)">
+            <button type="button" class="remove-link" [disabled]="cargoReadOnly()" (click)="showRemoveConfirm.set(true)">
               <ar-icon name="alert-triangle" [size]="14" />
               Remover produto
             </button>
@@ -184,8 +185,8 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
           </p>
           <div class="confirm-actions">
             <button type="button" class="ar-ghost-btn" [disabled]="removing()" (click)="showRemoveConfirm.set(false)">Cancelar</button>
-            <button type="button" class="ar-mini-btn" [disabled]="removing()" (click)="deactivate()">Desativar</button>
-            <button type="button" class="ar-mini-btn danger-btn" [disabled]="removing()" (click)="hardDelete()">Excluir definitivamente</button>
+            <button type="button" class="ar-mini-btn" [disabled]="removing() || cargoReadOnly()" (click)="deactivate()">Desativar</button>
+            <button type="button" class="ar-mini-btn danger-btn" [disabled]="removing() || cargoReadOnly()" (click)="hardDelete()">Excluir definitivamente</button>
           </div>
         </ar-modal>
       }
@@ -462,8 +463,13 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
       font-size: 13px;
     }
 
-    .remove-link:hover {
+    .remove-link:hover:not(:disabled) {
       text-decoration: underline;
+    }
+
+    .remove-link:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
 
     .confirm-title {
@@ -518,6 +524,7 @@ export class PanelStockDetailComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
 
   readonly id = input.required<string>();
 
@@ -542,7 +549,11 @@ export class PanelStockDetailComponent {
   protected readonly product = signal<ArenaProduct | null>(null);
   protected readonly movements = signal<ArenaStockMovement[]>([]);
 
-  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('estoque'));
+  /** Plano sem estoque — mensagem de upsell própria (ver `planReadOnly` abaixo). */
+  protected readonly planReadOnly = computed(() => !this.arenaContext.hasCapability('estoque'));
+  /** Cargo com leitura mas sem escrita em `estoque` (recepção). */
+  protected readonly cargoReadOnly = computed(() => !this.access.canWrite('estoque'));
+  protected readonly readOnly = computed(() => this.planReadOnly() || this.cargoReadOnly());
 
   protected readonly name = linkedSignal(() => this.product()?.name ?? '');
   protected readonly category = linkedSignal<ArenaProductCategory>(() => this.product()?.category ?? 'bebidas');
@@ -635,7 +646,7 @@ export class PanelStockDetailComponent {
   protected async deactivate(): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     const p = this.product();
-    if (!arenaId || !p) return;
+    if (!arenaId || !p || this.cargoReadOnly()) return;
     this.removing.set(true);
     try {
       await deactivateProduct(arenaFirestore(), arenaId, p.id);
@@ -651,7 +662,7 @@ export class PanelStockDetailComponent {
   protected async hardDelete(): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     const p = this.product();
-    if (!arenaId || !p) return;
+    if (!arenaId || !p || this.cargoReadOnly()) return;
     this.removing.set(true);
     try {
       await deleteProduct(arenaFirestore(), arenaId, p.id);

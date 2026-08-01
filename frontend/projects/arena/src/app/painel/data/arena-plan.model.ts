@@ -14,7 +14,8 @@ export type ArenaCapability =
   | 'clubinho'
   | 'metricasCompletas'
   | 'receberTorneios'
-  | 'multiUnidade';
+  | 'multiUnidade'
+  | 'equipe';
 
 /** Carência após o vencimento em que a arena `overdue` ainda mantém o plano (dias). Espelha `firestore.rules`. */
 const ARENA_OVERDUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -82,6 +83,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'metricasCompletas',
         'receberTorneios',
         'multiUnidade',
+        'equipe',
       ]);
     case 'pro':
       return new Set<ArenaCapability>([
@@ -91,6 +93,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'clubinho',
         'metricasCompletas',
         'receberTorneios',
+        'equipe',
       ]);
     default:
       return new Set<ArenaCapability>();

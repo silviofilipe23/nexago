@@ -294,6 +294,9 @@ const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
 export class AgendaGridComponent {
   readonly courts = input.required<AgendaCourt[]>();
   readonly blocks = input.required<AgendaBlock[]>();
+  /** Cargo sem escrita em `agenda` (ex.: manutenção): horários disponíveis/bloqueados deixam
+   *  de ser clicáveis — só reservados seguem abrindo o detalhe (ação de leitura). */
+  readonly readOnly = input(false);
   readonly blockClick = output<string>();
 
   private readonly nowMinutes = signal(nowInMinutes());
@@ -327,7 +330,11 @@ export class AgendaGridComponent {
   });
 
   protected isClickable(status: AgendaBlockStatus): boolean {
-    return !NON_CLICKABLE.has(status);
+    if (NON_CLICKABLE.has(status)) return false;
+    // available/bloqueado exigem escrita (bloquear/desbloquear); reservado só abre o
+    // detalhe da reserva (leitura), então continua clicável mesmo sem escrita em agenda.
+    if (this.readOnly() && (status === 'available' || status === 'bloqueado')) return false;
+    return true;
   }
 
   /** -1 quando a hora atual está fora da janela 07:00–22:00 (linha "agora" não aparece). */

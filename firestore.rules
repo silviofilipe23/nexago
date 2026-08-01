@@ -362,9 +362,59 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid;
     }
+    // ---- Equipe da arena (RBAC) ----------------------------------------
+    // A matriz abaixo é ESPELHO MANUAL de
+    // `frontend/projects/arena/src/app/painel/data/arena-roles.model.ts`.
+    // Nada aqui verifica automaticamente que os dois ficam em sincronia — é
+    // no olho, na revisão de código. As duas TAMBÉM divergem por design: o
+    // frontend tem uma área `torneios` (gestor, somente leitura) que não
+    // existe aqui, porque nenhum bloco de regra hoje é controlado por área
+    // `torneios`.
+    function isArenaOwner(arenaId) {
+      return isArenaManagerByArenaId(arenaId);
+    }
+    function arenaStaffDoc(arenaId) {
+      return get(/databases/$(database)/documents/arenas/$(arenaId)/staff/$(request.auth.uid)).data;
+    }
+    // Membro ativo E arena com titularidade de plano pago: plano vencido fora
+    // da carência corta o acesso do membro no mesmo instante, sem sweeper.
+    function isActiveArenaStaff(arenaId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/arenas/$(arenaId)/staff/$(request.auth.uid)) &&
+        arenaStaffDoc(arenaId).get('status', '') == 'active' &&
+        arenaEntitled(arenaId, ['pro', 'elite', 'parceiro']);
+    }
+    function arenaWriteAreas(role) {
+      return {
+        'gestor': ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade'],
+        'recepcao': ['agenda', 'comandas'],
+        'financeiro': ['promocoes'],
+        'manutencao': ['quadras', 'estoque']
+      }.get(role, []);
+    }
+    function arenaReadAreas(role) {
+      return {
+        'gestor': ['agenda', 'comandas', 'estoque', 'promocoes', 'site', 'quadras', 'perfil', 'comunidade', 'financeiro'],
+        'recepcao': ['agenda', 'comandas', 'comunidade', 'estoque'],
+        'financeiro': ['financeiro', 'promocoes', 'comandas', 'comunidade'],
+        'manutencao': ['quadras', 'estoque', 'agenda']
+      }.get(role, []);
+    }
+    function arenaCanWrite(arenaId, area) {
+      return isArenaOwner(arenaId) || (
+        isActiveArenaStaff(arenaId) &&
+        arenaWriteAreas(arenaStaffDoc(arenaId).get('role', '')).hasAny([area])
+      );
+    }
+    function arenaCanRead(arenaId, area) {
+      return isArenaOwner(arenaId) || (
+        isActiveArenaStaff(arenaId) &&
+        arenaReadAreas(arenaStaffDoc(arenaId).get('role', '')).hasAny([area])
+      );
+    }
     function canManageArenaProducts(arenaId) {
       return request.auth != null && (
-        isArenaManagerByArenaId(arenaId) ||
+        arenaCanWrite(arenaId, 'estoque') ||
         isSuperAdmin()
       );
     }
@@ -484,7 +534,7 @@ service cloud.firestore {
         ]) &&
         data.arenaId is string &&
         data.arenaId.size() > 0 &&
-        isArenaManagerByArenaId(data.arenaId) &&
+        arenaCanWrite(data.arenaId, 'comandas') &&
         data.displayNumber is int &&
         data.displayNumber > 0 &&
         data.displayNumber <= 999999 &&
@@ -582,7 +632,7 @@ service cloud.firestore {
     function isValidArenaComandaItemCreate(comandaId, data) {
       let comandaDoc = get(/databases/$(database)/documents/arenaComandas/$(comandaId));
       return comandaDoc.data != null &&
-        canManageArenaProducts(comandaDoc.data.arenaId) &&
+        (arenaCanWrite(comandaDoc.data.arenaId, 'comandas') || isSuperAdmin()) &&
         data.keys().hasAll([
           'productId',
           'productName',
@@ -620,13 +670,13 @@ service cloud.firestore {
       let comandaDoc = get(/databases/$(database)/documents/arenaComandas/$(comandaId));
       let status = arenaComandaStatusValue(comandaDoc.data);
       return comandaDoc.data != null &&
-        canManageArenaProducts(comandaDoc.data.arenaId) &&
+        (arenaCanWrite(comandaDoc.data.arenaId, 'comandas') || isSuperAdmin()) &&
         status in ['open', 'closing', 'partiallyPaid'];
     }
     function isValidArenaComandaPaymentCreate(comandaId, data) {
       let comandaDoc = get(/databases/$(database)/documents/arenaComandas/$(comandaId));
       return comandaDoc.data != null &&
-        canManageArenaProducts(comandaDoc.data.arenaId) &&
+        (arenaCanWrite(comandaDoc.data.arenaId, 'comandas') || isSuperAdmin()) &&
         data.keys().hasAll([
           'method',
           'amountCents',
@@ -705,12 +755,26 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['planTier', 'planStatus', 'planActiveUntil']);
       // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
       // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
+      // payoutPixKey/payoutPixKeyType/paymentReceiver definem para onde vai o
+      // dinheiro do saque da arena: cargo nenhum (nem o gestor, que só tem
+      // acesso de LEITURA ao financeiro) pode trocá-los — só o dono. O dono
+      // segue liberado (inclusive o app Flutter, que reenvia paymentReceiver
+      // a cada edição de perfil), então o freeze desses três só vale para
+      // quem não é dono.
       allow update: if request.auth != null && (
         isAdmin() || isSuperAdmin() || (
-          resource.data.managerUserId == request.auth.uid &&
+          arenaCanWrite(arenaId, 'perfil') &&
           request.resource.data.get('planTier', null) == resource.data.get('planTier', null) &&
           request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null) &&
-          request.resource.data.get('planActiveUntil', null) == resource.data.get('planActiveUntil', null)
+          request.resource.data.get('planActiveUntil', null) == resource.data.get('planActiveUntil', null) &&
+          request.resource.data.get('managerUserId', '') == resource.data.get('managerUserId', '') &&
+          (
+            isArenaOwner(arenaId) || (
+              request.resource.data.get('payoutPixKey', null) == resource.data.get('payoutPixKey', null) &&
+              request.resource.data.get('payoutPixKeyType', null) == resource.data.get('payoutPixKeyType', null) &&
+              request.resource.data.get('paymentReceiver', null) == resource.data.get('paymentReceiver', null)
+            )
+          )
         )
       );
       allow delete: if request.auth != null && (
@@ -718,6 +782,17 @@ service cloud.firestore {
         isAdmin() ||
         isSuperAdmin()
       );
+    }
+    // Equipe da arena. Escrita SEMPRE via Cloud Function: criar vínculo exige
+    // contar assentos e conferir plano, coisas que rules não fazem.
+    match /arenas/{arenaId}/staff/{staffUserId} {
+      allow read: if request.auth != null && (
+        isArenaOwner(arenaId) ||
+        request.auth.uid == staffUserId ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
     }
     // Cobrança/assinatura da arena — leitura restrita ao gestor/admin; escrita só via functions.
     match /arenas/{arenaId}/billing/{docId} {
@@ -739,14 +814,11 @@ service cloud.firestore {
     match /arenas/{arenaId}/courts/{courtId} {
       allow read: if true;
       allow create: if request.auth != null && (
-        (
-          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid &&
-          arenaCanAddCourt(arenaId)
-        ) ||
+        (arenaCanWrite(arenaId, 'quadras') && arenaCanAddCourt(arenaId)) ||
         isSuperAdmin()
       );
       allow update, delete: if request.auth != null && (
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        arenaCanWrite(arenaId, 'quadras') ||
         isSuperAdmin()
       );
     }
@@ -764,11 +836,11 @@ service cloud.firestore {
       // reativa nem cria; o sweeper (Cloud Function) pausa as ativas. Excluir
       // segue liberado para limpeza.
       allow create, update: if request.auth != null && (
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        arenaCanWrite(arenaId, 'promocoes') ||
         isSuperAdmin()
       ) && (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro', 'elite']));
       allow delete: if request.auth != null && (
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        arenaCanWrite(arenaId, 'promocoes') ||
         isSuperAdmin()
       );
     }
@@ -780,13 +852,13 @@ service cloud.firestore {
       // atômica, o que uma regra de segurança não garante sozinha.
       allow read: if request.auth != null && (
         isSuperAdmin() ||
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+        arenaCanRead(arenaId, 'promocoes')
       );
       allow write: if false;
       match /redemptions/{athleteId} {
         allow read: if request.auth != null && (
           isSuperAdmin() ||
-          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+          arenaCanRead(arenaId, 'promocoes') ||
           request.auth.uid == athleteId
         );
         allow write: if false;
@@ -796,20 +868,14 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
         isAdmin() ||
-        (
-          exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
-          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
-        )
+        arenaCanRead(arenaId, 'financeiro')
       );
       allow create, update, delete: if false;
       match /ledger/{entryId} {
         allow read: if request.auth != null && (
           isSuperAdmin() ||
           isAdmin() ||
-          (
-            exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
-            get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
-          )
+          arenaCanRead(arenaId, 'financeiro')
         );
         allow create, update, delete: if false;
       }
@@ -840,15 +906,29 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
         isAdmin() ||
-        (
-          resource != null &&
-          exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-          get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid
-        )
+        (resource != null && arenaCanRead(resource.data.arenaId, 'financeiro'))
       );
       allow create: if false;
       allow update: if request.auth != null && (isSuperAdmin() || isAdmin());
       allow delete: if false;
+    }
+    // Convites de equipe. Lidos pelo dono e por quem tem o e-mail convidado
+    // (a rota /convite precisa ler antes de aceitar). Escrita só via function.
+    match /arenaStaffInvites/{inviteId} {
+      allow read: if request.auth != null && (
+        isArenaOwner(resource.data.arenaId) ||
+        (
+          // Os dois lados TÊM de ser não-vazios: com os defaults de `get`,
+          // '' == '' daria leitura a qualquer sessão sem e-mail (phone/anônima)
+          // sobre qualquer convite malformado sem `emailLower`.
+          resource.data.get('emailLower', '') != '' &&
+          request.auth.token.get('email', '') != '' &&
+          request.auth.token.email.lower() == resource.data.emailLower
+        ) ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
     }
     match /organizerWithdrawals/{withdrawalId} {
       // Criação/pagamento só pelas Cloud Functions; organizador só lê os seus.
@@ -886,11 +966,12 @@ service cloud.firestore {
       allow delete: if canManageArenaProducts(arenaId);
     }
     match /arenas/{arenaId}/sales/{saleId} {
-      allow read, create: if canManageArenaProducts(arenaId);
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'comandas') || isSuperAdmin());
+      allow create: if request.auth != null && (arenaCanWrite(arenaId, 'comandas') || isSuperAdmin());
       allow update, delete: if false;
     }
     match /arenas/{arenaId}/stockMovements/{movementId} {
-      allow read: if canManageArenaProducts(arenaId);
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'estoque') || isSuperAdmin());
       allow create: if (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro', 'elite'])) &&
         isValidArenaStockMovementCreate(
           arenaId,
@@ -899,9 +980,9 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /arenas/{arenaId}/metadata/{docId} {
-      allow read: if canManageArenaProducts(arenaId);
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'comandas') || isSuperAdmin());
       allow create, update: if docId == 'comandaCounter' &&
-        canManageArenaProducts(arenaId) &&
+        request.auth != null && (arenaCanWrite(arenaId, 'comandas') || isSuperAdmin()) &&
         request.resource.data.keys().hasAll(['lastNumber', 'updatedAt']) &&
         request.resource.data.lastNumber is int &&
         request.resource.data.lastNumber > 0 &&
@@ -928,7 +1009,7 @@ service cloud.firestore {
     match /arenaComandas/{comandaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
-        (resource != null && isArenaManagerByArenaId(resource.data.arenaId)) ||
+        (resource != null && arenaCanRead(resource.data.arenaId, 'comandas')) ||
         (resource != null && isArenaComandaOwnerAthlete(resource.data))
       );
       allow create: if request.auth != null &&
@@ -939,14 +1020,15 @@ service cloud.firestore {
         );
       allow update: if request.auth != null && (
         isSuperAdmin() ||
-        canManageArenaProducts(resource.data.arenaId)
+        arenaCanWrite(resource.data.arenaId, 'comandas')
       ) && isValidArenaComandaUpdate();
       allow delete: if false;
       match /items/{itemId} {
         allow read: if request.auth != null && (
           isSuperAdmin() ||
-          canManageArenaProducts(
-            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          arenaCanRead(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId,
+            'comandas'
           ) ||
           isArenaComandaOwnerAthlete(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
@@ -971,8 +1053,9 @@ service cloud.firestore {
       match /payments/{paymentId} {
         allow read: if request.auth != null && (
           isSuperAdmin() ||
-          canManageArenaProducts(
-            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          arenaCanRead(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId,
+            'comandas'
           ) ||
           isArenaComandaOwnerAthlete(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
@@ -987,18 +1070,15 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null && (
         isSuperAdmin() ||
-        (exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)).data.managerUserId == request.auth.uid)
+        arenaCanWrite(request.resource.data.arenaId, 'agenda')
       );
       allow update: if request.auth != null && (
         isSuperAdmin() ||
-        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid)
+        arenaCanWrite(resource.data.arenaId, 'agenda')
       );
       allow delete: if request.auth != null && (
         isSuperAdmin() ||
-        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid)
+        arenaCanWrite(resource.data.arenaId, 'agenda')
       );
     }
 
@@ -1017,13 +1097,11 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null && (
         isSuperAdmin() ||
-        (exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)).data.managerUserId == request.auth.uid)
+        arenaCanWrite(request.resource.data.arenaId, 'agenda')
       );
       allow update, delete: if request.auth != null && (
         isSuperAdmin() ||
-        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid)
+        arenaCanWrite(resource.data.arenaId, 'agenda')
       );
     }
     // Links curtos de convite (crescimento viral): leitura pública com dados mínimos da reserva
@@ -1061,15 +1139,11 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null && (
         isSuperAdmin() ||
-        (
-          exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)) &&
-          get(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)).data.managerUserId == request.auth.uid
-        )
+        arenaCanWrite(request.resource.data.arenaId, 'agenda')
       );
       allow update: if request.auth != null && (
         resource.data.athleteId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        arenaCanWrite(resource.data.arenaId, 'agenda') ||
         isSuperAdmin() ||
         // Convidado aceitando convite de reserva (bookingInvites): só pode
         // tocar os campos de participação — nunca status/pagamento.
@@ -1101,7 +1175,7 @@ service cloud.firestore {
     match /arenaBookingWaitlist/{waitlistId} {
       allow read: if request.auth != null && (
         resource.data.athleteId == request.auth.uid ||
-        isArenaManagerByArenaId(resource.data.arenaId) ||
+        arenaCanRead(resource.data.arenaId, 'agenda') ||
         isSuperAdmin()
       );
       allow write: if false;
@@ -1135,8 +1209,7 @@ service cloud.firestore {
     match /arenaRecurringBookings/{seriesId} {
       allow read: if request.auth != null && (
         resource.data.athleteId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        arenaCanRead(resource.data.arenaId, 'agenda') ||
         isSuperAdmin()
       );
       allow create, update, delete: if false;
@@ -1174,7 +1247,7 @@ service cloud.firestore {
         (
           resource != null &&
           resource.data.arenaId is string &&
-          isArenaManagerByArenaId(resource.data.arenaId)
+          arenaCanRead(resource.data.arenaId, 'agenda')
         )
       );
 
@@ -1186,7 +1259,7 @@ service cloud.firestore {
           request.resource.data.reason is string &&
           request.resource.data.reason.size() > 0 &&
           request.resource.data.reason.size() <= 500 &&
-          isArenaManagerByArenaId(request.resource.data.arenaId)
+          arenaCanWrite(request.resource.data.arenaId, 'agenda')
         )
       );
 
@@ -1195,7 +1268,7 @@ service cloud.firestore {
         (
           resource != null &&
           resource.data.arenaId is string &&
-          isArenaManagerByArenaId(resource.data.arenaId)
+          arenaCanWrite(resource.data.arenaId, 'agenda')
         )
       );
     }
@@ -1414,6 +1487,14 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && isTournamentOwner(tournamentId);
     }
 
+    // Espelho de `arenas/{arenaId}/staff/{uid}` — é por ele que o portal
+    // descobre de quais arenas o usuário é equipe (a query por managerUserId
+    // nunca o traria). Mantido pela Cloud Function de sync.
+    match /users/{userId}/arenaStaff/{arenaId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     match /users/{userId}/slotVacancyAlerts/{alertId} {
       allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
@@ -1494,7 +1575,7 @@ service cloud.firestore {
         ) ||
         // gestor da arena pode criar/editar apenas a resposta oficial
         (
-          isArenaManagerByArenaId(resource.data.arenaId) &&
+          arenaCanWrite(resource.data.arenaId, 'comunidade') &&
           request.resource.data.userId == resource.data.userId &&
           request.resource.data.arenaId == resource.data.arenaId &&
           request.resource.data.bookingId == resource.data.bookingId &&
@@ -2110,14 +2191,13 @@ service cloud.firestore {
     // dois donos reivindicam o mesmo slug. Contadores (views/clicks e os mapas
     // diários) também são exclusivos da function `trackLinkPageEvent` — o
     // visitante é anônimo e não pode receber escrita direta no documento.
-    function linkPageOwnerUid(pageData) {
-      return pageData.ownerType == 'organizer'
-        ? pageData.ownerId
-        : get(/databases/$(database)/documents/arenas/$(pageData.ownerId)).data.managerUserId;
-    }
     function isLinkPageOwner(pageData) {
       return request.auth != null && (
-        isSuperAdmin() || linkPageOwnerUid(pageData) == request.auth.uid
+        isSuperAdmin() || (
+          pageData.ownerType == 'organizer'
+            ? pageData.ownerId == request.auth.uid
+            : arenaCanWrite(pageData.ownerId, 'site')
+        )
       );
     }
     match /linkPages/{pageId} {
@@ -2153,7 +2233,7 @@ service cloud.firestore {
     function isArenaSiteManager(arenaId) {
       return request.auth != null && (
         isSuperAdmin() ||
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+        arenaCanWrite(arenaId, 'site')
       );
     }
     match /arenaSites/{arenaId} {

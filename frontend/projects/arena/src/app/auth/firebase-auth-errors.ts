@@ -1,9 +1,14 @@
+/** Extrai o `code` de um erro do Firebase (Auth ou Functions/HttpsError), sem
+ *  assumir a forma exata do objeto lançado. Vazio quando não há `code`. */
+export function getErrorCode(error: unknown): string {
+  return error && typeof error === 'object' && 'code' in error
+    ? String((error as { code: string }).code)
+    : '';
+}
+
 /** Mensagens amigáveis para códigos comuns do Firebase Auth. */
 export function mapFirebaseAuthError(error: unknown): string {
-  const code =
-    error && typeof error === 'object' && 'code' in error
-      ? String((error as { code: string }).code)
-      : '';
+  const code = getErrorCode(error);
 
   switch (code) {
     case 'auth/invalid-email':

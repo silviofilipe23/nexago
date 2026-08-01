@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
@@ -30,7 +31,7 @@ function parseNumber(raw: string): number {
     <ar-panel-shell>
       <ar-page-header [title]="isEdit() ? 'Editar clubinho' : 'Novo clubinho'" subtitle="Jogo aberto com lista pública e PIX antecipado">
         <button type="button" class="ar-mini-btn" (click)="goBack()">Cancelar</button>
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave() || saving()" (click)="save()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave() || saving() || readOnly()" (click)="save()">
           <ar-icon name="check" [size]="14" />
           {{ saving() ? 'Salvando…' : isEdit() ? 'Salvar alterações' : 'Criar clubinho' }}
         </button>
@@ -404,8 +405,14 @@ function parseNumber(raw: string): number {
 })
 export class PanelClubFormComponent {
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção) acessando a rota direto —
+   *  o botão "Novo clubinho"/"Editar" da listagem já fica desabilitado, mas a rota em si só
+   *  exige leitura, então a tela precisa se proteger de novo. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
 
   protected readonly weekdayOptions = Object.entries(WEEKDAY_LABELS).map(([value, label]) => ({
     value: Number(value),
@@ -504,7 +511,7 @@ export class PanelClubFormComponent {
   }
 
   protected async save(): Promise<void> {
-    if (!this.canSave()) return;
+    if (!this.canSave() || this.readOnly()) return;
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId) return;
 

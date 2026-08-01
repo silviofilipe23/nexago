@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, type OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type { Unsubscribe } from 'firebase/firestore';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
@@ -50,11 +51,11 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()">
         <button type="button" class="ar-mini-btn" (click)="goBack()">Voltar</button>
         @if (session()?.status === 'scheduled') {
-          <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="openAddModal()">
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="openAddModal()">
             <ar-icon name="plus" [size]="14" />
             Adicionar atleta
           </button>
-          <button type="button" class="ar-mini-btn danger" (click)="cancelModalOpen.set(true)">Cancelar sessão</button>
+          <button type="button" class="ar-mini-btn danger" [disabled]="readOnly()" (click)="cancelModalOpen.set(true)">Cancelar sessão</button>
         }
       </ar-page-header>
 
@@ -122,6 +123,7 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
                         type="button"
                         class="remove-btn"
                         title="Remover da lista"
+                        [disabled]="readOnly()"
                         (click)="askRemove(p)"
                       >×</button>
                     }
@@ -155,7 +157,7 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
           } @else if (searchResults().length > 0) {
             <div class="search-results">
               @for (r of searchResults(); track r.id) {
-                <button type="button" class="search-result" [disabled]="adding()" (click)="addAthlete(r)">
+                <button type="button" class="search-result" [disabled]="adding() || readOnly()" (click)="addAthlete(r)">
                   <span class="participant-avatar small">
                     @if (r.photoUrl) {
                       <img [src]="r.photoUrl" alt="" />
@@ -186,7 +188,7 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
             <button
               type="button"
               class="ar-mini-btn ar-mini-btn-primary"
-              [disabled]="guestName().trim().length < 2 || adding()"
+              [disabled]="guestName().trim().length < 2 || adding() || readOnly()"
               (click)="addGuest()"
             >
               {{ adding() ? 'Adicionando…' : 'Adicionar' }}
@@ -215,7 +217,7 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
           }
           <div class="modal-actions">
             <button type="button" class="ar-mini-btn" (click)="removeTarget.set(null)">Voltar</button>
-            <button type="button" class="ar-mini-btn danger" [disabled]="removing()" (click)="confirmRemove()">
+            <button type="button" class="ar-mini-btn danger" [disabled]="removing() || readOnly()" (click)="confirmRemove()">
               {{ removing() ? 'Removendo…' : 'Remover da lista' }}
             </button>
           </div>
@@ -234,7 +236,7 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
           <input type="text" class="input-box" placeholder="Ex.: chuva" [value]="cancelReason()" (input)="cancelReason.set($any($event.target).value)" />
           <div class="modal-actions">
             <button type="button" class="ar-mini-btn" (click)="cancelModalOpen.set(false)">Voltar</button>
-            <button type="button" class="ar-mini-btn danger" [disabled]="canceling()" (click)="confirmCancel()">
+            <button type="button" class="ar-mini-btn danger" [disabled]="canceling() || readOnly()" (click)="confirmCancel()">
               {{ canceling() ? 'Cancelando e estornando…' : 'Cancelar sessão e estornar' }}
             </button>
           </div>
@@ -362,9 +364,14 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
       cursor: pointer;
     }
 
-    .remove-btn:hover {
+    .remove-btn:hover:not(:disabled) {
       border-color: rgba(255, 59, 48, 0.5);
       color: var(--nx-live);
+    }
+
+    .remove-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     .participant-row:last-child {
@@ -551,6 +558,11 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
 export class PanelClubSessionComponent implements OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly access = inject(ArenaAccessService);
+
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção): adicionar/remover atleta
+   *  e cancelar sessão ficam indisponíveis — a lista segue visível. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
 
   protected readonly formatReais = formatReais;
   protected readonly spotsLeft = spotsLeft;
@@ -622,6 +634,7 @@ export class PanelClubSessionComponent implements OnDestroy {
   }
 
   protected openAddModal(): void {
+    if (this.readOnly()) return;
     this.searchTerm.set('');
     this.searchResults.set([]);
     this.guestName.set('');
@@ -669,7 +682,7 @@ export class PanelClubSessionComponent implements OnDestroy {
   }
 
   private async runAdd(input: { athleteId?: string; customerName?: string }): Promise<void> {
-    if (this.adding()) return;
+    if (this.adding() || this.readOnly()) return;
     this.adding.set(true);
     this.addError.set(null);
     try {
@@ -683,13 +696,14 @@ export class PanelClubSessionComponent implements OnDestroy {
   }
 
   protected askRemove(participant: ClubParticipant): void {
+    if (this.readOnly()) return;
     this.addError.set(null);
     this.removeTarget.set(participant);
   }
 
   protected async confirmRemove(): Promise<void> {
     const target = this.removeTarget();
-    if (!target || this.removing()) return;
+    if (!target || this.removing() || this.readOnly()) return;
     this.removing.set(true);
     this.addError.set(null);
     try {
@@ -707,7 +721,7 @@ export class PanelClubSessionComponent implements OnDestroy {
   }
 
   protected async confirmCancel(): Promise<void> {
-    if (this.canceling()) return;
+    if (this.canceling() || this.readOnly()) return;
     this.canceling.set(true);
     this.actionError.set(null);
     try {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { fetchCourtsList } from '../courts/courts-repository';
@@ -58,7 +59,7 @@ const UNDO_WINDOW_SECONDS = 60;
           }
           @if (undoSecondsLeft(); as secs) {
             <div class="undo-banner">
-              Reserva cancelada. <button type="button" class="undo-link" (click)="restore()">Desfazer</button> ({{ secs }}s)
+              Reserva cancelada. <button type="button" class="undo-link" [disabled]="readOnly()" (click)="restore()">Desfazer</button> ({{ secs }}s)
             </div>
           }
 
@@ -95,13 +96,13 @@ const UNDO_WINDOW_SECONDS = 60;
 
               <div class="actions">
                 @if (showCheckIn()) {
-                  <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="checkingIn()" (click)="checkIn()">
+                  <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="checkingIn() || readOnly()" (click)="checkIn()">
                     <ar-icon name="check" [size]="14" />
                     {{ checkingIn() ? 'Registrando…' : 'Fazer check-in' }}
                   </button>
                 }
                 @if (canCancel()) {
-                  <button type="button" class="ar-ghost-btn danger-link" (click)="showCancelConfirm.set(true)">
+                  <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="showCancelConfirm.set(true)">
                     <ar-icon name="alert-triangle" [size]="14" />
                     Cancelar reserva
                   </button>
@@ -180,6 +181,11 @@ const UNDO_WINDOW_SECONDS = 60;
       padding: 0;
       font-size: inherit;
       font-family: inherit;
+    }
+
+    .undo-link:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
 
     .grid {
@@ -307,9 +313,14 @@ const UNDO_WINDOW_SECONDS = 60;
 export class PanelBookingDetailComponent {
   private readonly router = inject(Router);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();
+
+  /** Cargo com leitura mas sem escrita em `agenda` (manutenção): check-in/cancelamento
+   *  ficam indisponíveis — só visualizar a reserva segue liberado. */
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
 
   protected readonly attendanceTone = ATTENDANCE_TONE;
   protected readonly formatBRL = formatBRL;
@@ -417,7 +428,7 @@ export class PanelBookingDetailComponent {
 
   protected async checkIn(): Promise<void> {
     const b = this.booking();
-    if (!b) return;
+    if (!b || this.readOnly()) return;
     this.checkingIn.set(true);
     this.errorMessage.set(null);
     try {
@@ -432,7 +443,7 @@ export class PanelBookingDetailComponent {
   protected async cancel(): Promise<void> {
     const b = this.booking();
     const arenaId = this.arenaContext.arenaId();
-    if (!b || !arenaId) return;
+    if (!b || !arenaId || this.readOnly()) return;
     this.canceling.set(true);
     this.errorMessage.set(null);
     try {
@@ -449,7 +460,7 @@ export class PanelBookingDetailComponent {
   protected async restore(): Promise<void> {
     const b = this.booking();
     const arenaId = this.arenaContext.arenaId();
-    if (!b || !arenaId) return;
+    if (!b || !arenaId || this.readOnly()) return;
     this.errorMessage.set(null);
     try {
       await restoreBookingByManager(arenaFirestore(), b.id, arenaId);

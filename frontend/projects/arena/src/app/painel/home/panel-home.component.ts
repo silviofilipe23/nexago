@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import type { Unsubscribe } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
@@ -147,7 +148,9 @@ function formatBRL(n: number): string {
           <p class="state-text">Carregando…</p>
         } @else {
           <div class="kpi-row">
-            <ar-kpi-card label="Faturamento hoje" [value]="formatBRL(faturamentoHoje())" [delta]="faturamentoDeltaLabel()" [deltaTone]="faturamentoDeltaTone()" />
+            @if (showsRevenue()) {
+              <ar-kpi-card label="Faturamento hoje" [value]="formatBRL(faturamentoHoje())" [delta]="faturamentoDeltaLabel()" [deltaTone]="faturamentoDeltaTone()" />
+            }
             <ar-kpi-card label="Reservas hoje" [value]="'' + todaysBookings().length" [delta]="pendingTodayCount() + ' pendentes'" deltaTone="orange" />
             <ar-kpi-card label="Torneios ativos" [value]="'' + activeTournaments().length" [delta]="activeTournamentsEnrolled() + ' inscritos'" deltaTone="flat" icon="trophy" />
             <ar-kpi-card label="Avaliação média" [value]="reviewMetrics().totalReviews > 0 ? formatRating(reviewMetrics().averageRating) : '—'" [delta]="reviewMetrics().totalReviews > 0 ? reviewMetrics().totalReviews + ' avaliações' : ''" deltaTone="flat" icon="star" />
@@ -156,7 +159,7 @@ function formatBRL(n: number): string {
           <div class="main-grid">
             <div class="col-left">
               <ar-panel-card kicker="Últimos 7 dias" title="Desempenho da operação" class="chart-card">
-                <ar-chart-tabs [tabs]="chartTabs" [active]="chartTab()" (change)="chartTab.set($any($event))" card-actions />
+                <ar-chart-tabs [tabs]="chartTabs()" [active]="chartTab()" (change)="chartTab.set($any($event))" card-actions />
                 <ar-line-chart [height]="118" [data]="activeChartData()" [labels]="chartDays()" />
               </ar-panel-card>
 
@@ -512,12 +515,16 @@ function formatBRL(n: number): string {
 export class PanelHomeComponent {
   private readonly auth = inject(AuthService);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
   private readonly destroyRef = inject(DestroyRef);
 
   private unsubscribeBookings: Unsubscribe | null = null;
   private unsubscribeReviews: Unsubscribe | null = null;
 
-  protected readonly chartTabs: ChartTab[] = ['Faturamento', 'Reservas'];
+  protected readonly showsRevenue = computed(() => this.access.canRead('financeiro'));
+  protected readonly chartTabs = computed<ChartTab[]>(() =>
+    this.showsRevenue() ? ['Faturamento', 'Reservas'] : ['Reservas'],
+  );
   protected readonly chartTab = signal<ChartTab>('Faturamento');
 
   protected readonly statusLabel = RESERVATION_STATUS_LABEL;
@@ -618,6 +625,15 @@ export class PanelHomeComponent {
     this.destroyRef.onDestroy(() => {
       this.unsubscribeBookings?.();
       this.unsubscribeReviews?.();
+    });
+
+    effect(() => {
+      if (!this.access.ready()) {
+        return;
+      }
+      if (!this.chartTabs().includes(this.chartTab())) {
+        this.chartTab.set(this.chartTabs()[0]!);
+      }
     });
 
     effect(() => {

@@ -21,6 +21,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {isArenaEntitledPro} from "./arena-entitlement";
+import {assertArenaAreaAccess} from "./arena-area-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {
@@ -901,6 +902,9 @@ export async function removeClubParticipantCore(
 // Validação de acesso
 // ---------------------------------------------------------------------------
 
+// Clubinho é área "agenda" (mesma área da UI/rules) — dono da arena ou
+// membro de equipe ativo com cargo que escreve "agenda" (gestor/recepção),
+// arena com plano pago. Sem bypass de admin/superAdmin: nunca existiu aqui.
 async function requireArenaManager(
   db: Firestore,
   arenaId: string,
@@ -910,17 +914,8 @@ async function requireArenaManager(
   if (!arenaSnap.exists) {
     throw new HttpsError("not-found", "Arena não encontrada.");
   }
-  const arenaData = arenaSnap.data() as Record<string, unknown>;
-  const managerUserId = typeof arenaData["managerUserId"] === "string" ?
-    (arenaData["managerUserId"] as string).trim() :
-    "";
-  if (!managerUserId || managerUserId !== uid) {
-    throw new HttpsError(
-      "permission-denied",
-      "Apenas o gestor da arena pode gerenciar o clubinho.",
-    );
-  }
-  return arenaData;
+  await assertArenaAreaAccess(db, arenaId, uid, "agenda", "write");
+  return arenaSnap.data() as Record<string, unknown>;
 }
 
 function requireClubEntitlement(arenaData: Record<string, unknown>): void {

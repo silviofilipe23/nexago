@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
@@ -70,7 +71,7 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
             <p class="state-text">Fale com o suporte para fazer upgrade e liberar o controle de estoque e produtos da sua arena.</p>
           </ar-panel-card>
         } @else {
-          @if (readOnly()) {
+          @if (planReadOnly()) {
             <div class="readonly-banner">
               Seu plano atual não inclui controle de estoque — o catálogo ficou somente leitura. Fale com o suporte para fazer upgrade.
             </div>
@@ -348,6 +349,7 @@ export class PanelStockComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
 
   protected readonly formatBRL = formatCentsBRL;
   protected readonly statusOf = productStockStatus;
@@ -358,7 +360,11 @@ export class PanelStockComponent {
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
-  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('estoque'));
+  /** Plano sem estoque — mensagem de upsell própria (ver `planReadOnly` abaixo). */
+  protected readonly planReadOnly = computed(() => !this.arenaContext.hasCapability('estoque'));
+  /** Cargo com leitura mas sem escrita em `estoque` (recepção). */
+  protected readonly cargoReadOnly = computed(() => !this.access.canWrite('estoque'));
+  protected readonly readOnly = computed(() => this.planReadOnly() || this.cargoReadOnly());
 
   protected readonly products = signal<ArenaProduct[]>([]);
   protected readonly loading = signal(true);
@@ -374,7 +380,7 @@ export class PanelStockComponent {
 
   protected readonly listKicker = computed(() => `${this.filteredProducts().length} de ${this.products().length}`);
   protected readonly summary = computed(() => buildProductSummary(this.products()));
-  protected readonly showPaywall = computed(() => this.readOnly() && this.products().length === 0);
+  protected readonly showPaywall = computed(() => this.planReadOnly() && this.products().length === 0);
 
   protected readonly headerSubtitle = computed(
     () => `${this.arenaContext.arenaName() ?? this.auth.displayName() ?? 'Arena'} · ${this.products().length} produtos cadastrados`,

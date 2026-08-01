@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {assertArenaAreaAccess} from "./arena-area-access";
 
 /**
  * Mini-site público da arena (landing "nexago.com.br/s/{slug}").
@@ -94,14 +95,15 @@ function readExternalUrl(value: unknown, field: string): string {
   return url;
 }
 
+// Site da arena é área "site" (escrita) — dono da arena ou membro de equipe
+// ativo com cargo que escreve "site" (só gestor), arena com plano pago. Sem
+// bypass de admin/superAdmin: nunca existiu aqui.
 async function assertArenaManager(uid: string, arenaId: string): Promise<FirebaseFirestore.DocumentSnapshot> {
   const arenaSnap = await getFirestore().doc(`arenas/${arenaId}`).get();
   if (!arenaSnap.exists) {
     throw new HttpsError("not-found", "Arena não encontrada.");
   }
-  if (arenaSnap.get("managerUserId") !== uid) {
-    throw new HttpsError("permission-denied", "Você não gerencia essa arena.");
-  }
+  await assertArenaAreaAccess(getFirestore(), arenaId, uid, "site", "write");
   return arenaSnap;
 }
 

@@ -16,9 +16,6 @@
         </a>
       </div>
 
-      @if (notice(); as n) {
-        <div class="rg-notice" role="status">{{ n }}</div>
-      }
 
       <div class="rg-main-grid">
         <div class="rg-col">
@@ -92,6 +89,14 @@
                   <span class="rg-uniform-status">Pendente</span>
                 }
               </div>
+
+              @if (uniformError(); as err) {
+                <app-nx-inline-message
+                  class="rg-uniform-error"
+                  heading="Falta escolher o uniforme"
+                  [body]="err"
+                />
+              }
 
               <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="savingUniform()" (valueChange)="onUniformChange($event)" />
 

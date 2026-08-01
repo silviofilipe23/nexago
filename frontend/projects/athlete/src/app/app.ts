@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
+import { NxToastHostComponent } from './shared/feedback';
 
 function pathOnly(url: string): string {
   const i = url.indexOf('?');
@@ -43,7 +44,7 @@ function chromeHiddenForUrl(url: string): boolean {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, NxToastHostComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

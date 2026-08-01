@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxToastService } from '../shared/feedback';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchLeague, fetchLeagueTeamRanking, type League, type LeagueRankingRow as RepoRankingRow } from '../data/leagues-repository';
 import { fetchTeamsByIds, fetchTeamsForAthlete, type ArenaTeam } from '../data/teams-repository';
@@ -71,9 +72,8 @@ function stageStatusOf(tournament: TournamentSummary | undefined, now: Date): Le
 export class LeagueDetailShellComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+  private readonly toasts = inject(NxToastService);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -87,10 +87,8 @@ export class LeagueDetailShellComponent {
 
   protected readonly loading = signal(true);
   protected readonly league = signal<LeagueDetailData | null>(null);
-  protected readonly notice = signal<string | null>(null);
 
   constructor() {
-    this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
     effect(() => {
       const id = this.leagueId();
       void this.loadLeague(id);
@@ -248,18 +246,12 @@ export class LeagueDetailShellComponent {
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(url);
-        this.showNotice('Link copiado.');
+        this.toasts.success('Link copiado', 'Cole onde quiser para convidar alguém para a liga.');
         return;
       }
-      this.showNotice('Copie o link manualmente.');
+      this.toasts.info('Copie o link manualmente', url);
     } catch {
-      this.showNotice('Não foi possível copiar agora.');
+      this.toasts.error('Não foi possível copiar', 'Selecione o endereço na barra do navegador e copie.');
     }
-  }
-
-  private showNotice(message: string): void {
-    this.notice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.notice.set(null), 3500);
   }
 }

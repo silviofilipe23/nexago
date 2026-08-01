@@ -19,6 +19,7 @@ import { AuthService } from '../../auth/auth.service';
 import { ArenaReviewError, REVIEW_ALREADY_SENT_MESSAGE, submitArenaReview } from '../../data/arena-reviews-repository';
 import type { ReviewableBooking } from '../../data/pending-arena-review';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import { NxInlineMessageComponent } from '../../shared/feedback';
 import {
   REVIEW_DEFAULT_TAGS,
   REVIEW_HIGHLIGHT_TAGS,
@@ -43,7 +44,7 @@ function createFirestore(): Firestore | null {
  *  nativo (`<dialog>`) fazendo isso por nós. */
 @Component({
   selector: 'app-arena-review-dialog',
-  imports: [NxSpinnerComponent],
+  imports: [NxSpinnerComponent, NxInlineMessageComponent],
   templateUrl: './arena-review-dialog.component.html',
   styleUrl: './arena-review-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -184,7 +185,7 @@ export class ArenaReviewDialogComponent {
     const booking = this.booking();
     if (this.sending() || this.rating() < 1) return;
     if (!uid || !db) {
-      this.error.set('Não foi possível enviar sua avaliação. Tente de novo.');
+      this.error.set('Sua sessão não está ativa. Entre na conta e tente de novo.');
       return;
     }
 
@@ -210,7 +211,7 @@ export class ArenaReviewDialogComponent {
       }
       // Só mensagem de `ArenaReviewError` é apresentável; rules e rede falam inglês técnico.
       this.error.set(
-        err instanceof ArenaReviewError ? err.message : 'Não foi possível enviar sua avaliação. Tente de novo.',
+        err instanceof ArenaReviewError ? err.message : 'O serviço não respondeu. Sua avaliação continua aqui.',
       );
     } finally {
       this.sending.set(false);

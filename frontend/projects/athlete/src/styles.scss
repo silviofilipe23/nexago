@@ -330,3 +330,60 @@
   background: rgba(255, 59, 48, 0.14);
   color: var(--nx-live);
 }
+
+/* ── Feedback do sistema (app/shared/feedback) ───────────────────
+
+   Paleta por tom das quatro superfícies de feedback (toast, banner, inline,
+   dialog). Mora aqui, e não dentro dos componentes, por dois motivos: são só
+   variáveis CSS — que herdam através do encapsulamento — e o AOT do Angular
+   exige `styles` estáticos, o que impediria compartilhar o bloco por função.
+
+   Cada superfície usa o MESMO matiz em opacidades diferentes, então o token é o
+   RGB cru. Alfas transcritos do design (tela 12): borda .32 — .35 no erro, que
+   precisa gritar um pouco mais —, chip do ícone .15, lavagem de fundo .09–.12. */
+
+.nx-tone-success,
+.nx-tone-error,
+.nx-tone-warning,
+.nx-tone-info {
+  --tone-rgb: 255 106 26;
+  --tone-line-a: 0.32;
+  --tone-wash-a: 0.12;
+
+  --tone: rgb(var(--tone-rgb));
+  --tone-line: rgb(var(--tone-rgb) / var(--tone-line-a));
+  --tone-fill: rgb(var(--tone-rgb) / 0.15);
+  --tone-wash: rgb(var(--tone-rgb) / var(--tone-wash-a));
+}
+
+.nx-tone-success {
+  --tone-rgb: 43 209 126;
+  --tone-wash-a: 0.1;
+}
+
+.nx-tone-error {
+  --tone-rgb: 255 59 48;
+  --tone-line-a: 0.35;
+  --tone-wash-a: 0.09;
+}
+
+.nx-tone-warning {
+  --tone-rgb: 244 197 67;
+  --tone-wash-a: 0.1;
+}
+
+/* Duas utilidades globais porque vivem em conteúdo do CHAMADOR, fora do
+   encapsulamento dos componentes de feedback: o valor numérico projetado
+   dentro de um banner e a marcação do input que o `app-nx-field-error`
+   descreve. */
+
+.nx-feedback-num {
+  font-family: var(--nx-font-mono);
+  font-weight: 700;
+  color: var(--tone, var(--nx-orange-500));
+}
+
+.nx-input--invalid,
+.nx-input--invalid:focus {
+  border-color: var(--nx-live) !important;
+}

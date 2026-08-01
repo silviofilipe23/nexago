@@ -77,7 +77,13 @@
   }
 
   @if (error(); as message) {
-    <p class="arv-error" role="alert">{{ message }}</p>
+    <app-nx-inline-message
+      class="arv-error"
+      heading="Não foi possível enviar sua avaliação"
+      [body]="message"
+      actionLabel="Tentar novamente"
+      (action)="submit()"
+    />
   }
 
   <div class="arv-actions">

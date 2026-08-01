@@ -8,6 +8,7 @@ import { AtBellComponent } from '../painel/at-bell.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
+import { NxBlockingDialogComponent, NxToastService } from '../shared/feedback';
 import {
   acceptFriendlyMatchSlot,
   cancelFriendlyMatch,
@@ -76,7 +77,13 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
 @Component({
   selector: 'app-bora-jogar',
   standalone: true,
-  imports: [AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [
+    AtPanelShellComponent,
+    AtBellComponent,
+    NxPageLoadingComponent,
+    NxSpinnerComponent,
+    NxBlockingDialogComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
@@ -98,10 +105,6 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
             Assim que a feature for ativada, seus convites e jogos avulsos aparecem nesta tela.
           </div>
         } @else {
-          @if (feedback(); as fb) {
-            <div class="bj-banner" [class.bj-banner--ok]="fb.ok" role="status">{{ fb.message }}</div>
-          }
-
           @if (pendingInvites().length > 0) {
             <h2 class="bj-section-title">Convites pra você</h2>
             <div class="bj-list">
@@ -159,6 +162,19 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
           </div>
         }
       </div>
+      @if (matchToCancel()) {
+        <app-nx-blocking-dialog
+          tone="warning"
+          heading="Cancelar este jogo?"
+          body="Todo mundo que já aceitou o convite vai ser avisado e o jogo sai da agenda de todos. Não dá pra desfazer."
+          primaryLabel="Cancelar o jogo"
+          secondaryLabel="Voltar"
+          [dismissible]="true"
+          (primary)="confirmCancel()"
+          (secondary)="matchToCancel.set(null)"
+          (dismissed)="matchToCancel.set(null)"
+        />
+      }
     </app-at-panel-shell>
   `,
   styles: `
@@ -335,19 +351,6 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
       background: var(--nx-surface-1);
       color: var(--nx-text-dim);
     }
-    .bj-banner {
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: rgba(255, 69, 58, 0.1);
-      border: 1px solid rgba(255, 69, 58, 0.3);
-      font-family: var(--nx-font-ui);
-      font-size: 13px;
-      color: var(--nx-text);
-    }
-    .bj-banner--ok {
-      background: rgba(43, 209, 126, 0.1);
-      border-color: rgba(43, 209, 126, 0.3);
-    }
     .bj-empty {
       padding: 28px 18px;
       border-radius: var(--nx-r-4);
@@ -369,7 +372,11 @@ export class BoraJogarComponent {
   protected readonly enabled = signal(false);
   protected readonly matches = signal<FriendlyMatch[]>([]);
   protected readonly busyId = signal<string | null>(null);
-  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  private readonly toasts = inject(NxToastService);
+
+  /** Cancelar um jogo avisa todo mundo que já aceitou — destrutivo, então passa
+   *  por confirmação explícita em vez do `confirm()` nativo do navegador. */
+  protected readonly matchToCancel = signal<FriendlyMatch | null>(null);
 
   private readonly uid = computed(() => this.auth.user()?.uid ?? null);
 
@@ -415,18 +422,26 @@ export class BoraJogarComponent {
     }
   }
 
-  private async run(matchId: string, action: () => Promise<void>, okMessage: string): Promise<void> {
+  private async run(
+    matchId: string,
+    action: () => Promise<void>,
+    okTitle: string,
+    okBody: string,
+    failTitle: string,
+  ): Promise<void> {
     if (this.busyId()) return;
     this.busyId.set(matchId);
-    this.feedback.set(null);
     try {
       await action();
-      this.feedback.set({ ok: true, message: okMessage });
+      this.toasts.success(okTitle, okBody);
       const db = this.firestore;
       const uid = this.uid();
       if (db && uid) this.matches.set(await fetchMyFriendlyMatches(db, uid));
     } catch (e) {
-      this.feedback.set({ ok: false, message: (e as Error).message || 'A operação falhou. Tente de novo.' });
+      this.toasts.error(failTitle, (e as Error).message || 'O serviço não respondeu — tente de novo.', {
+        label: 'Tentar novamente',
+        run: () => void this.run(matchId, action, okTitle, okBody, failTitle),
+      });
     } finally {
       this.busyId.set(null);
     }
@@ -434,23 +449,53 @@ export class BoraJogarComponent {
 
   protected accept(m: FriendlyMatch): void {
     if (!this.functions) return;
-    void this.run(m.id, () => acceptFriendlyMatchSlot(this.functions!, m.id), 'Convite aceito — bora jogar!');
+    void this.run(
+      m.id,
+      () => acceptFriendlyMatchSlot(this.functions!, m.id),
+      'Convite aceito',
+      'Você está na lista deste jogo. Ele já aparece na sua agenda.',
+      'Não foi possível aceitar o convite',
+    );
   }
 
   protected decline(m: FriendlyMatch): void {
     if (!this.functions) return;
-    void this.run(m.id, () => declineFriendlyMatchSlot(this.functions!, m.id), 'Convite recusado.');
+    void this.run(
+      m.id,
+      () => declineFriendlyMatchSlot(this.functions!, m.id),
+      'Convite recusado',
+      'Sua vaga voltou a ficar aberta para outra pessoa.',
+      'Não foi possível recusar o convite',
+    );
   }
 
   protected cancel(m: FriendlyMatch): void {
     if (!this.functions) return;
-    if (!confirm('Cancelar este jogo? Todos os convidados serão avisados.')) return;
-    void this.run(m.id, () => cancelFriendlyMatch(this.functions!, m.id), 'Jogo cancelado.');
+    this.matchToCancel.set(m);
+  }
+
+  protected confirmCancel(): void {
+    const m = this.matchToCancel();
+    this.matchToCancel.set(null);
+    if (!m || !this.functions) return;
+    void this.run(
+      m.id,
+      () => cancelFriendlyMatch(this.functions!, m.id),
+      'Jogo cancelado',
+      'Todo mundo que estava na lista foi avisado.',
+      'Não foi possível cancelar o jogo',
+    );
   }
 
   protected checkIn(m: FriendlyMatch): void {
     if (!this.functions) return;
-    void this.run(m.id, () => checkInFriendlyMatch(this.functions!, m.id), 'Check-in feito!');
+    void this.run(
+      m.id,
+      () => checkInFriendlyMatch(this.functions!, m.id),
+      'Check-in feito',
+      'Sua presença está confirmada na quadra.',
+      'Não foi possível fazer o check-in',
+    );
   }
 
   protected isOrganizer(m: FriendlyMatch): boolean {

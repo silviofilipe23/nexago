@@ -4,6 +4,13 @@
       <app-nx-page-loading title="Carregando pagamento…" subtitle="Buscando sua inscrição" />
     </div>
   } @else if (listing(); as t) {
+    @if (pixCountdownLabel(); as countdown) {
+      <app-nx-banner class="tp-hold-banner" tone="warning">
+        Sua vaga em {{ t.name }} está reservada por
+        <span class="nx-feedback-num">{{ countdown }}</span>
+      </app-nx-banner>
+    }
+
     <div class="tp-body">
       <div class="tp-header">
         <div>
@@ -16,9 +23,6 @@
         </a>
       </div>
 
-      @if (notice(); as n) {
-        <div class="tp-notice" role="status">{{ n }}</div>
-      }
 
       <div class="tp-main-grid">
         <div class="tp-col">
@@ -164,8 +168,20 @@
                   @if (pixExpired()) {
                     <p class="tp-pix-expired">O Pix anterior expirou — gere um novo código.</p>
                   }
-                  <label class="tp-cpf-label">CPF ou CNPJ (necessário pra gerar o Pix)</label>
-                  <input type="text" class="tp-cpf-input" placeholder="Documento do pagador" [value]="cpfCnpjDisplay()" (input)="onDocumentInput($any($event.target).value)" />
+                  <label class="tp-cpf-label" for="tp-cpf">CPF ou CNPJ (necessário pra gerar o Pix)</label>
+                  <input
+                    id="tp-cpf"
+                    type="text"
+                    class="tp-cpf-input"
+                    placeholder="Documento do pagador"
+                    [value]="cpfCnpjDisplay()"
+                    [class.nx-input--invalid]="documentError() !== null"
+                    [attr.aria-invalid]="documentError() !== null"
+                    (input)="onDocumentInput($any($event.target).value)"
+                  />
+                  @if (documentError(); as err) {
+                    <app-nx-field-error>{{ err }}</app-nx-field-error>
+                  }
                   <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
                     @if (processing()) {
                       <app-nx-spinner [size]="14" tone="dark" />

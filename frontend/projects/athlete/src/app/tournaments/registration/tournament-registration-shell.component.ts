@@ -38,6 +38,7 @@ import {
 } from '../tournament-uniform';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import { NxInlineMessageComponent, NxToastService } from '../../shared/feedback';
 import {
   readPartnerLinkInviteMarker,
   savePartnerLinkInviteMarker,
@@ -102,7 +103,15 @@ interface CategoryStatus {
  *  UI — o backend continua autoritativo. */
 @Component({
   selector: 'app-tournament-registration-shell',
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, InvitePartnerDialogComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    UniformFormComponent,
+    NxPageLoadingComponent,
+    NxSpinnerComponent,
+    InvitePartnerDialogComponent,
+    NxInlineMessageComponent,
+  ],
   templateUrl: './tournament-registration-shell.component.html',
   styleUrl: './tournament-registration-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -113,7 +122,7 @@ export class TournamentRegistrationShellComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+  private readonly toasts = inject(NxToastService);
   private searchDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly accountLabel = computed(() => {
@@ -209,14 +218,17 @@ export class TournamentRegistrationShellComponent {
   protected readonly acceptingInvite = signal(false);
   protected readonly decliningInvite = signal(false);
 
-  protected readonly notice = signal<string | null>(null);
+  /** Uniforme incompleto trava convite, aceite e salvamento. É erro de
+   *  formulário, então mora dentro do card do uniforme — junto do que precisa
+   *  ser corrigido — em vez de virar um toast que some antes do conserto. */
+  protected readonly uniformError = signal<string | null>(null);
+
   protected readonly genderLabel = genderLabelOf;
   protected readonly priceLabel = (c: TournamentCategoryOffer) => formatBRL(c.entryFee);
   protected readonly initialsOf = initialsOf;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
-      clearTimeout(this.noticeTimeout);
       clearTimeout(this.searchDebounceHandle);
     });
 
@@ -416,16 +428,21 @@ export class TournamentRegistrationShellComponent {
     if (!category || !reg || !selection || this.savingUniform()) return;
     const error = validateUniformSelection(category, selection);
     if (error) {
-      this.showNotice(error);
+      this.uniformError.set(error);
       return;
     }
+    this.uniformError.set(null);
     this.savingUniform.set(true);
     try {
       await setRegistrationUniform(athleteFunctions(), reg.id, toUniformInput(selection));
       this.uniformSaved.set(true);
-      this.showNotice('Uniforme salvo!');
+      this.toasts.success('Uniforme salvo', 'Sua escolha já está registrada na inscrição.');
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível salvar o uniforme.');
+      this.toasts.error(
+        'Não foi possível salvar o uniforme',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Sua escolha continua aqui.',
+        { label: 'Tentar novamente', run: () => void this.saveUniform() },
+      );
     } finally {
       this.savingUniform.set(false);
     }
@@ -437,7 +454,10 @@ export class TournamentRegistrationShellComponent {
     if (!category || !tournamentId || this.registering()) return;
     const status = this.categoryStatusOf(category);
     if (status.blocked) {
-      this.showNotice(status.message ?? 'Esta categoria não está disponível para você.');
+      this.toasts.warning(
+        'Categoria indisponível',
+        status.message ?? 'Você não pode se inscrever nesta categoria. Escolha outra na lista.',
+      );
       return;
     }
     this.registering.set(true);
@@ -460,10 +480,14 @@ export class TournamentRegistrationShellComponent {
           uniformPlayer2: EMPTY_UNIFORM_SLOT,
         },
       ]);
-      this.showNotice('Inscrição criada! Agora convide seu parceiro.');
+      this.toasts.success('Inscrição criada', 'Falta só formar a dupla — convide seu parceiro para garantir a vaga.');
       await this.persistUniformAfterRegistration(category, result.registrationId);
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível concluir a inscrição.');
+      this.toasts.error(
+        'Não foi possível concluir a inscrição',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu e nenhuma vaga foi criada.',
+        { label: 'Tentar novamente', run: () => void this.registerSoloForCategory() },
+      );
     } finally {
       this.registering.set(false);
     }
@@ -546,10 +570,11 @@ export class TournamentRegistrationShellComponent {
       const selection = this.uniform();
       const error = selection ? validateUniformSelection(category, selection) : 'Complete a escolha do uniforme antes de convidar.';
       if (error) {
-        this.showNotice(error);
+        this.uniformError.set(error);
         this.scrollToUniformCard();
         return;
       }
+      this.uniformError.set(null);
       inviterUniform = toUniformInput(selection!);
     }
 
@@ -563,19 +588,22 @@ export class TournamentRegistrationShellComponent {
         inviterName: this.accountLabel(),
         ...(inviterUniform ? { inviterUniform } : {}),
       });
-      this.showNotice(`Convite enviado para ${candidate.displayName} — aguardando resposta.`);
+      this.toasts.success('Convite enviado', `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`);
       this.partnerResults.set([]);
       this.partnerQuery.set('');
       await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
     } catch (err) {
       // 409 / already-exists = convite ainda válido — trata como ok (já foi enviado).
       if (err instanceof TournamentRegistrationError && err.isPendingInviteConflict) {
-        this.showNotice(`Convite já enviado para ${candidate.displayName} — aguardando resposta.`);
+        this.toasts.info('Convite já enviado', `${candidate.displayName} ainda não respondeu. Aguarde ou convide outra pessoa.`);
         this.partnerResults.set([]);
         this.partnerQuery.set('');
         await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
       } else {
-        this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível enviar o convite.');
+        this.toasts.error(
+          'Não foi possível enviar o convite',
+          err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        );
       }
     } finally {
       this.invitingId.set(null);
@@ -588,9 +616,12 @@ export class TournamentRegistrationShellComponent {
     try {
       await cancelSentPartnerInvite(athleteFunctions(), invite.id);
       this.sentPendingInvites.update((list) => list.filter((i) => i.id !== invite.id));
-      this.showNotice(`Convite para ${invite.inviteeName} cancelado.`);
+      this.toasts.success('Convite cancelado', `${invite.inviteeName} não vai mais receber o pedido de dupla.`);
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível cancelar o convite.');
+      this.toasts.error(
+        'Não foi possível cancelar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O convite continua valendo — tente de novo.',
+      );
     } finally {
       this.cancelingInviteId.set(null);
     }
@@ -606,23 +637,28 @@ export class TournamentRegistrationShellComponent {
       const selection = this.uniform();
       const error = selection ? validateUniformSelection(category, selection) : 'Complete a escolha do uniforme antes de aceitar.';
       if (error) {
-        this.showNotice(error);
+        this.uniformError.set(error);
         this.scrollToUniformCard();
         return;
       }
+      this.uniformError.set(null);
       inviteeUniform = toUniformInput(selection!);
     }
 
     this.acceptingInvite.set(true);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform);
-      this.showNotice(`Convite de ${invite.inviterName} aceito! Dupla formada.`);
+      this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
       this.receivedInvite.set(null);
       const uid = this.auth.user()?.uid;
       const tournamentId = this.tournamentId();
       if (uid && tournamentId) await this.loadMyRegistrations(tournamentId, uid);
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível aceitar o convite.');
+      this.toasts.error(
+        'Não foi possível aceitar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        { label: 'Tentar novamente', run: () => void this.acceptReceivedInvite() },
+      );
     } finally {
       this.acceptingInvite.set(false);
     }
@@ -634,10 +670,13 @@ export class TournamentRegistrationShellComponent {
     this.decliningInvite.set(true);
     try {
       await declinePartnerInvite(athleteFunctions(), invite.id);
-      this.showNotice(`Convite de ${invite.inviterName} recusado.`);
+      this.toasts.success('Convite recusado', `${invite.inviterName} foi avisado e pode convidar outra pessoa.`);
       this.receivedInvite.set(null);
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível recusar o convite.');
+      this.toasts.error(
+        'Não foi possível recusar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O convite continua na sua lista — tente de novo.',
+      );
     } finally {
       this.decliningInvite.set(false);
     }
@@ -656,9 +695,4 @@ export class TournamentRegistrationShellComponent {
     document.getElementById('rg-uniform-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  private showNotice(message: string): void {
-    this.notice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.notice.set(null), 4500);
-  }
 }

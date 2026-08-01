@@ -30,6 +30,11 @@ import {
   validateUniformSelection,
   type UniformSelection,
 } from '../tournaments/tournament-uniform';
+import { REVIEW_ALREADY_SENT_MESSAGE } from '../data/arena-reviews-repository';
+import { PendingArenaReviewService } from '../data/pending-arena-review.service';
+import { ArenaReviewDialogComponent } from './review/arena-review-dialog.component';
+import { reviewSessionSubtitle } from './review/arena-review-copy';
+import type { ReviewableBooking } from '../data/pending-arena-review';
 
 export type AgendaEventKind = 'tournament' | 'rental' | 'club';
 export type AgendaStatusTone = 'live' | 'confirmed' | 'warning' | 'neutral';
@@ -333,7 +338,7 @@ export function clubParticipationToEvent(p: MyClubParticipation, now: Date = new
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, ArenaReviewDialogComponent],
   templateUrl: './athlete-agenda.component.html',
   styleUrl: './athlete-agenda.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -343,6 +348,20 @@ export class AthleteAgendaComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
+
+  private readonly reviewStore = inject(PendingArenaReviewService);
+
+  /** Reserva sendo avaliada no modal. `null` = modal fechado. */
+  protected readonly reviewingBooking = signal<ReviewableBooking | null>(null);
+
+  /** Convite pendente exibido no card "Precisa de você" — a mesma candidata que abre o
+   *  modal, uma de cada vez (o app também pergunta uma por vez). */
+  protected readonly pendingReview = this.reviewStore.pending;
+
+  protected readonly pendingReviewLine = computed(() => {
+    const booking = this.pendingReview();
+    return booking ? reviewSessionSubtitle(booking, new Date()) : '';
+  });
 
   protected readonly dotSlots: readonly [1, 2, 3] = [1, 2, 3];
 
@@ -473,8 +492,16 @@ export class AthleteAgendaComponent {
   });
 
   protected readonly pendingActionCount = computed(
-    () => this.pendingRequests().length + this.events().filter((e) => e.statusTone === 'warning').length,
+    () =>
+      this.pendingRequests().length +
+      this.events().filter((e) => e.statusTone === 'warning').length +
+      (this.pendingReview() ? 1 : 0),
   );
+
+  /** Contagem do badge do card "Precisa de você" — precisa bater com o que o card lista
+   *  (convites + avaliação pendente), não com `pendingActionCount()`: esse último também soma
+   *  eventos com pagamento pendente, que aparecem na lista principal, não neste card. */
+  protected readonly pendingCardCount = computed(() => this.pendingRequests().length + (this.pendingReview() ? 1 : 0));
 
   constructor() {
     interval(30_000)
@@ -486,6 +513,11 @@ export class AthleteAgendaComponent {
     effect(() => {
       const uid = this.auth.user()?.uid ?? null;
       void this.loadAgenda(uid);
+      void this.reviewStore.refresh().then(() => {
+        const booking = this.reviewStore.pending();
+        // Uma vez por sessão por reserva: `dismiss()` tira a candidata de `pending`.
+        if (booking && this.reviewingBooking() == null) this.reviewingBooking.set(booking);
+      });
     });
   }
 
@@ -703,6 +735,31 @@ export class AthleteAgendaComponent {
     a.download = 'agenda-nexago.ics';
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  protected openReviewDialog(): void {
+    const booking = this.pendingReview();
+    if (booking) this.reviewingBooking.set(booking);
+  }
+
+  protected onReviewSubmitted(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewingBooking.set(null);
+    this.showNotice('Obrigado! +10 XP no seu progresso.');
+  }
+
+  /** Backend recusou por "já avaliada" — sem XP, então sem a notícia de +10 XP; só
+   *  sincroniza o store (some da lista) e fecha o modal. */
+  protected onReviewAlreadyReviewed(bookingId: string): void {
+    this.reviewStore.markReviewed(bookingId);
+    this.reviewingBooking.set(null);
+    this.showNotice(REVIEW_ALREADY_SENT_MESSAGE);
+  }
+
+  protected onReviewDismissed(): void {
+    const booking = this.reviewingBooking();
+    if (booking) this.reviewStore.dismiss(booking.id);
+    this.reviewingBooking.set(null);
   }
 
   private showNotice(message: string): void {

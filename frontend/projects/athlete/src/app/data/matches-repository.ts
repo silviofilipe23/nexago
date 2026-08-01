@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 
 /** `artifacts/{projectId}/public/data/matches` — espelha `TournamentMatchMapper` +
  *  `TournamentMatchesLogic` (Flutter). A árvore da chave NUNCA vem de ponteiros salvos
@@ -18,6 +18,23 @@ function optionalStr(v: unknown): string | null {
 export interface MatchSet {
   a: number;
   b: number;
+}
+
+/** Placar parcial gravado por `updateLiveMatchScore` (mesário/staff) — o set em andamento
+ *  vive aqui, não em `sets`, que só recebe os sets já fechados. */
+export interface MatchLiveScore {
+  setsA: number;
+  setsB: number;
+  currentGamesA: number;
+  currentGamesB: number;
+}
+
+/** `'present' | 'wo' | ...` — gravado por `callMatchToCourt`/`declareMatchWalkover`. */
+export type MatchCheckInStatus = string;
+
+export interface MatchCheckIn {
+  teamA: MatchCheckInStatus | null;
+  teamB: MatchCheckInStatus | null;
 }
 
 export interface TournamentMatch {
@@ -40,7 +57,16 @@ export interface TournamentMatch {
   matchNumber: number;
   scheduleTime: Date | null;
   courtName: string | null;
+  /** Campos da operação ao vivo (`organizer-match-ops.ts`). */
+  liveScore: MatchLiveScore | null;
+  matchStartedAt: Date | null;
+  checkIn: MatchCheckIn;
+  queueStatus: string | null;
+  /** Melhor de N sets; ausente em partidas antigas — a UI cai em `DEFAULT_BEST_OF`. */
+  bestOf: number | null;
 }
+
+export const DEFAULT_BEST_OF = 3;
 
 function setsFromRaw(raw: unknown): MatchSet[] {
   if (!Array.isArray(raw)) return [];
@@ -53,6 +79,31 @@ function setsFromRaw(raw: unknown): MatchSet[] {
       return a == null || b == null ? null : { a, b };
     })
     .filter((s): s is MatchSet => s != null);
+}
+
+function intOf(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : null;
+}
+
+function liveScoreFromRaw(raw: unknown): MatchLiveScore | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const setsA = intOf(o['setsA']);
+  const setsB = intOf(o['setsB']);
+  const currentGamesA = intOf(o['currentGamesA']);
+  const currentGamesB = intOf(o['currentGamesB']);
+  if (setsA == null || setsB == null || currentGamesA == null || currentGamesB == null) return null;
+  return { setsA, setsB, currentGamesA, currentGamesB };
+}
+
+/** `checkIn: { teamA: { status }, teamB: { status } }` — só o `status` interessa ao atleta. */
+function checkInFromRaw(raw: unknown): MatchCheckIn {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const sideStatus = (side: unknown): string | null => {
+    if (!side || typeof side !== 'object') return null;
+    return optionalStr((side as Record<string, unknown>)['status']);
+  };
+  return { teamA: sideStatus(o['teamA']), teamB: sideStatus(o['teamB']) };
 }
 
 function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatch {
@@ -76,23 +127,92 @@ function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatc
     matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
     scheduleTime: toDate(data['scheduleTime']),
     courtName: optionalStr(data['courtName']),
+    liveScore: liveScoreFromRaw(data['liveScore']),
+    matchStartedAt: toDate(data['matchStartedAt']),
+    checkIn: checkInFromRaw(data['checkIn']),
+    queueStatus: optionalStr(data['queueStatus']),
+    bestOf: intOf(data['bestOf']),
   };
 }
 
+function matchesCol(db: Firestore, projectId: string) {
+  return collection(db, 'artifacts', projectId, 'public', 'data', 'matches');
+}
+
 export async function fetchMatchesForCategory(db: Firestore, projectId: string, tournamentId: string, categoryId: string): Promise<TournamentMatch[]> {
-  const snap = await getDocs(
-    query(collection(db, 'artifacts', projectId, 'public', 'data', 'matches'), where('tournamentId', '==', tournamentId), where('categoryId', '==', categoryId)),
-  );
+  const snap = await getDocs(query(matchesCol(db, projectId), where('tournamentId', '==', tournamentId), where('categoryId', '==', categoryId)));
   return snap.docs.map((d) => matchFromDoc(d.id, d.data() as Record<string, unknown>));
 }
 
 export async function fetchMatchesForTournament(db: Firestore, projectId: string, tournamentId: string): Promise<TournamentMatch[]> {
-  const snap = await getDocs(query(collection(db, 'artifacts', projectId, 'public', 'data', 'matches'), where('tournamentId', '==', tournamentId)));
+  const snap = await getDocs(query(matchesCol(db, projectId), where('tournamentId', '==', tournamentId)));
   return snap.docs.map((d) => matchFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
+/** Versão ao vivo de `fetchMatchesForTournament`. Só as telas que mostram placar em tempo real
+ *  (aba Hoje e detalhe da partida) abrem esse listener — as demais seguem com o one-shot, pra
+ *  não pagar a leitura da chave inteira em toda navegação. */
+export function watchMatchesForTournament(
+  db: Firestore,
+  projectId: string,
+  tournamentId: string,
+  onChange: (matches: TournamentMatch[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(matchesCol(db, projectId), where('tournamentId', '==', tournamentId)),
+    (snap) => onChange(snap.docs.map((d) => matchFromDoc(d.id, d.data() as Record<string, unknown>))),
+    (err) => onError?.(err),
+  );
+}
+
+export async function fetchMatch(db: Firestore, projectId: string, matchId: string): Promise<TournamentMatch | null> {
+  const snap = await getDoc(doc(matchesCol(db, projectId), matchId));
+  if (!snap.exists()) return null;
+  return matchFromDoc(snap.id, snap.data() as Record<string, unknown>);
 }
 
 export function matchIsCompleted(m: Pick<TournamentMatch, 'status'>): boolean {
   return m.status.trim().toLowerCase() === 'completed';
+}
+
+export function matchIsLive(m: Pick<TournamentMatch, 'status'>): boolean {
+  return m.status.trim().toLowerCase() === 'in progress';
+}
+
+export function matchIsCanceled(m: Pick<TournamentMatch, 'status'>): boolean {
+  return m.status.trim().toLowerCase() === 'canceled';
+}
+
+export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
+  return m.bestOf && m.bestOf > 0 ? m.bestOf : DEFAULT_BEST_OF;
+}
+
+/** Sets ganhos por lado, unificando as três formas em que o placar aparece no doc:
+ *  `sets[]` (canônico), `resultA/resultB` (legado, "21,19,10") e `liveScore` (set em andamento). */
+export function matchSetWins(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore'>): [number, number] {
+  if (m.sets.length > 0) {
+    return [m.sets.filter((s) => s.a > s.b).length, m.sets.filter((s) => s.b > s.a).length];
+  }
+  const legacy = legacySets(m.resultA, m.resultB);
+  if (legacy.length > 0) {
+    return [legacy.filter((s) => s.a > s.b).length, legacy.filter((s) => s.b > s.a).length];
+  }
+  return m.liveScore ? [m.liveScore.setsA, m.liveScore.setsB] : [0, 0];
+}
+
+/** Sets fechados, já normalizados: usa `sets[]` e cai no formato legado quando ele não existe. */
+export function matchClosedSets(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB'>): MatchSet[] {
+  return m.sets.length > 0 ? m.sets : legacySets(m.resultA, m.resultB);
+}
+
+function legacySets(resultA: string | null, resultB: string | null): MatchSet[] {
+  const a = parseLegacyResult(resultA);
+  const b = parseLegacyResult(resultB);
+  const len = Math.max(a.length, b.length);
+  const out: MatchSet[] = [];
+  for (let i = 0; i < len; i++) out.push({ a: a[i] ?? 0, b: b[i] ?? 0 });
+  return out;
 }
 
 function isBracketMatch(m: TournamentMatch): boolean {

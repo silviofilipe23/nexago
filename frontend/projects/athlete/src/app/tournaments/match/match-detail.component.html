@@ -1,0 +1,188 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (store.loading()) {
+    <app-nx-page-loading title="Carregando partida…" />
+  } @else if (match(); as m) {
+    <div class="md">
+      <header class="md-head">
+        <div class="md-head-main">
+          <h1 class="md-title">{{ pageTitle() }}</h1>
+          <p class="md-subtitle">
+            {{ store.tournament()?.name }}
+            @if (categoryName()) {
+              · {{ categoryName() }}
+            }
+          </p>
+        </div>
+        <div class="md-head-actions">
+          <button type="button" class="md-action" (click)="shareOpen.set(true)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+            <span>Compartilhar</span>
+          </button>
+          <a [routerLink]="backLink()" class="md-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+            <span>{{ backLabel() }}</span>
+          </a>
+        </div>
+      </header>
+
+      <section class="md-board" [class.md-board--live]="live()">
+        <div class="md-board-top">
+          <div class="md-board-flags">
+            @if (liveBadge(); as badge) {
+              <span class="md-live-badge"><span class="md-live-dot" aria-hidden="true"></span>{{ badge }}</span>
+            } @else if (completed()) {
+              <span class="md-flag" data-tone="done">Encerrada</span>
+            }
+            <span class="md-context">{{ contextLine() }}</span>
+          </div>
+          @if (timingLine(); as timing) {
+            <span class="md-timing">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.2 2" /></svg>
+              {{ timing }}
+            </span>
+          }
+        </div>
+
+        <div class="md-board-body">
+          @if (sideA(); as a) {
+            <div class="md-team" [class.md-team--winner]="a.winner">
+              <span class="md-duo" aria-hidden="true">
+                @for (i of a.initials; track $index) {
+                  <span class="duo-avatar">{{ i }}</span>
+                }
+              </span>
+              <strong class="md-team-name">{{ a.name }}</strong>
+              <span class="md-team-meta">
+                {{ a.seedLine }}
+                @if (a.isMe) {
+                  <span class="md-you">· você</span>
+                }
+              </span>
+            </div>
+          }
+
+          <div class="md-score">
+            <div class="md-score-line">
+              <span class="md-score-num">{{ setWins()[0] }}</span>
+              <span class="md-score-sep" aria-hidden="true">–</span>
+              <span class="md-score-num">{{ setWins()[1] }}</span>
+            </div>
+            <span class="md-score-label">sets</span>
+            @if (sets().length > 0) {
+              <div class="md-set-chips">
+                @for (s of sets(); track s.index) {
+                  <span class="md-set-chip" [class.md-set-chip--live]="s.inProgress">
+                    <span class="md-set-chip-score">{{ s.a }}–{{ s.b }}</span>
+                    <span class="md-set-chip-label">{{ s.inProgress ? 'agora' : 'set ' + s.index }}</span>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+
+          @if (sideB(); as b) {
+            <div class="md-team md-team--right" [class.md-team--winner]="b.winner">
+              <span class="md-duo" aria-hidden="true">
+                @for (i of b.initials; track $index) {
+                  <span class="duo-avatar">{{ i }}</span>
+                }
+              </span>
+              <strong class="md-team-name">{{ b.name }}</strong>
+              <span class="md-team-meta">
+                {{ b.seedLine }}
+                @if (b.isMe) {
+                  <span class="md-you">· você</span>
+                }
+              </span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <div class="md-grid">
+        <div class="md-col">
+          @if (sets().length > 0) {
+            <section class="md-card">
+              <span class="md-kicker">Parciais</span>
+              <h2 class="md-card-title">Sets</h2>
+              <ul class="md-sets">
+                @for (s of sets(); track s.index) {
+                  <li class="md-set" [class.md-set--live]="s.inProgress">
+                    <span class="md-set-index">Set {{ s.index }}</span>
+                    <span class="md-set-score">
+                      <strong>{{ s.a }}</strong>
+                      <span aria-hidden="true">–</span>
+                      <strong>{{ s.b }}</strong>
+                    </span>
+                    <span class="md-set-label" [attr.data-tone]="s.tone">{{ s.label }}</span>
+                    <span class="md-set-bar" aria-hidden="true">
+                      <span class="md-set-bar-fill" [attr.data-tone]="s.tone" [style.width.%]="s.sharePercent"></span>
+                    </span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+
+          <section class="md-card">
+            <span class="md-kicker">Como cada dupla chegou até aqui</span>
+            <h2 class="md-card-title">Campanha no torneio</h2>
+            <div class="md-campaigns">
+              @for (team of [sideA(), sideB()]; track $index) {
+                @if (team) {
+                  <div class="md-campaign">
+                    <h3 class="md-campaign-name">
+                      {{ team.name }}
+                      @if (team.isMe) {
+                        <span class="md-you">· você</span>
+                      }
+                    </h3>
+                    @if (team.campaign.length === 0) {
+                      <p class="md-campaign-empty">Primeira partida no torneio.</p>
+                    } @else {
+                      <dl class="md-campaign-list">
+                        @for (entry of team.campaign; track entry.label) {
+                          <div class="md-campaign-row">
+                            <dt>{{ entry.label }}</dt>
+                            <dd>{{ entry.detail }}</dd>
+                          </div>
+                        }
+                      </dl>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          </section>
+        </div>
+
+        <div class="md-col md-col--side">
+          @if (nextRound(); as next) {
+            <div class="md-next">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10v3a5 5 0 0 1-10 0z" /><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" /><path d="M12 12v4M9 20h6M10 16h4" /></svg>
+              <p>
+                Quem vencer pega <strong>{{ next.text }}</strong> {{ next.roundLabel === 'final' ? 'na final' : 'na ' + next.roundLabel }}@if (next.when || next.court) {
+                  — {{ next.when }}@if (next.when && next.court) { · }{{ next.court }}
+                }.
+              </p>
+            </div>
+          }
+
+          <button type="button" class="md-share-cta" (click)="shareOpen.set(true)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+            Compartilhar partida
+          </button>
+        </div>
+      </div>
+    </div>
+
+    @if (shareOpen()) {
+      <app-match-share-dialog [match]="m" (closed)="shareOpen.set(false)" />
+    }
+  } @else {
+    <div class="md-empty">
+      <p class="md-empty-title">Partida não encontrada</p>
+      <a [routerLink]="backLink()" class="md-empty-link">Voltar</a>
+    </div>
+  }
+</app-at-panel-shell>

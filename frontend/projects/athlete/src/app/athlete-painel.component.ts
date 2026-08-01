@@ -6,7 +6,15 @@ import { environment } from '../environments/environment';
 import { AuthService } from './auth/auth.service';
 import { AtBellComponent } from './painel/at-bell.component';
 import { AtPanelShellComponent } from './painel/at-panel-shell.component';
+import { AtRegistrationTrackerComponent } from './painel/at-registration-tracker.component';
+import {
+  buildInProgressRegistrations,
+  partnerUidsOf,
+  type RegistrationProgress,
+} from './painel/registration-progress';
+import { fetchPublicProfilesByIds } from './data/public-profiles-repository';
 import { NxSkeletonComponent } from './shared/loading/nx-skeleton.component';
+import { NxInlineMessageComponent, NxToastService } from './shared/feedback';
 import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
 import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
 import {
@@ -25,9 +33,10 @@ import {
   fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
   TournamentRegistrationError,
+  type AthleteTournamentRegistration,
 } from './data/tournament-registrations-repository';
 import { athleteFunctions } from './data/functions';
-import { fetchTournamentSummariesByIds } from './data/tournaments-repository';
+import { fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
 
 type DashboardTone = 'accent' | 'success' | 'warning' | 'neutral';
@@ -383,7 +392,14 @@ function communityMessage(item: CommunityFeedItem): string {
 @Component({
   selector: 'app-athlete-painel',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxSkeletonComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    AtBellComponent,
+    NxSkeletonComponent,
+    AtRegistrationTrackerComponent,
+    NxInlineMessageComponent,
+  ],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -411,8 +427,15 @@ export class AthletePainelComponent {
   private readonly communityState = signal<CommunityFeedItem[]>([]);
   private readonly missionsDoneState = signal<ReadonlySet<string>>(new Set());
   private readonly myTournamentsState = signal<MyTournamentItem[]>([]);
+  /** Inscrições que ainda têm próximo passo (falta dupla/pagamento/uniforme) — o card de
+   *  acompanhamento no topo. Sai da lista assim que a inscrição fecha. */
+  private readonly inProgressRegistrationsState = signal<readonly RegistrationProgress[]>([]);
 
   protected readonly loadingRanking = signal(false);
+  private readonly toasts = inject(NxToastService);
+
+  /** Só falha de SINCRONIZAÇÃO de dados. Erro de ação (aceitar/recusar convite)
+   *  vai pra toast — ele pertence ao gesto, não ao estado da tela. */
   protected readonly syncError = signal<string | null>(null);
   /** Primeira carga do painel — desliga na primeira emissão do snapshot de reservas
    *  (dispara rápido mesmo vazio). Enquanto o Firebase não resolveu a sessão, segue ligada
@@ -531,6 +554,7 @@ export class AthletePainelComponent {
   protected readonly missionsDone = computed(() => this.missions().filter((mission) => mission.done).length);
 
   protected readonly myTournaments = computed(() => this.myTournamentsState());
+  protected readonly inProgressRegistrations = computed(() => this.inProgressRegistrationsState());
   protected readonly pendingInvites = computed(() => this.pendingInvitesState());
 
   /** Atividade da comunidade — itens reais do `communityFeed` (sem UGC). */
@@ -606,6 +630,7 @@ export class AthletePainelComponent {
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
+        this.inProgressRegistrationsState.set([]);
         this.pendingInvitesState.set([]);
         this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
@@ -652,7 +677,7 @@ export class AthletePainelComponent {
       );
 
       void this.loadMatchHistory(user.uid);
-      void this.loadMyTournaments(user.uid);
+      void this.loadRegistrationsAndTournaments(user.uid);
       void this.loadPendingInvites(user.uid);
       void this.loadProfilePhoto(user.uid);
 
@@ -712,7 +737,10 @@ export class AthletePainelComponent {
     }
   }
 
-  private async loadMyTournaments(uid: string): Promise<void> {
+  /** Uma leitura só de `inscriptions` + torneios alimenta as duas visões: "Meus torneios"
+   *  (lista completa, inclui as confirmadas) e o card de acompanhamento (só as que ainda têm
+   *  próximo passo). */
+  private async loadRegistrationsAndTournaments(uid: string): Promise<void> {
     const db = this.firestore;
     const projectId = environment.firebase.projectId;
     if (!db || !projectId) return;
@@ -720,6 +748,9 @@ export class AthletePainelComponent {
       const registrations = await fetchMyRegistrations(db, projectId, uid);
       const ids = [...new Set(registrations.map((r) => r.tournamentId).filter(Boolean))];
       const summaries = await fetchTournamentSummariesByIds(db, ids);
+      if (this.auth.user()?.uid !== uid) return;
+
+      await this.setInProgressRegistrations(registrations, summaries, uid);
       if (this.auth.user()?.uid !== uid) return;
 
       const items = registrations
@@ -748,9 +779,32 @@ export class AthletePainelComponent {
 
       this.myTournamentsState.set(items);
     } catch {
-      // "Meus torneios" vazio é estado válido; sem banner por falha pontual.
+      // Lista vazia é estado válido; sem banner por falha pontual.
       this.myTournamentsState.set([]);
+      this.inProgressRegistrationsState.set([]);
     }
+  }
+
+  /** Nomes dos parceiros vêm de `public_profiles` (o doc de `teams` só guarda uids). Falha aqui
+   *  não derruba o card: sem nome, o passo Dupla cai em "Dupla formada". */
+  private async setInProgressRegistrations(
+    registrations: readonly AthleteTournamentRegistration[],
+    summaries: ReadonlyMap<string, TournamentSummary>,
+    uid: string,
+  ): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    const partnerNames = new Map<string, string>();
+    try {
+      const profiles = await fetchPublicProfilesByIds(db, partnerUidsOf(registrations, uid));
+      for (const [id, profile] of profiles) partnerNames.set(id, profile.displayName);
+    } catch {
+      // Segue sem nomes.
+    }
+    if (this.auth.user()?.uid !== uid) return;
+    this.inProgressRegistrationsState.set(
+      buildInProgressRegistrations(registrations, summaries, uid, this.accountLabel(), partnerNames),
+    );
   }
 
   private async loadPendingInvites(uid: string): Promise<void> {
@@ -803,7 +857,11 @@ export class AthletePainelComponent {
         queryParams: { categoria: invite.categoryId },
       });
     } catch (err) {
-      this.syncError.set(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível aceitar o convite agora.');
+      this.toasts.error(
+        'Não foi possível aceitar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        { label: 'Tentar novamente', run: () => void this.acceptInviteQuick(invite) },
+      );
     } finally {
       this.respondingInviteId.set(null);
     }
@@ -816,7 +874,10 @@ export class AthletePainelComponent {
       await declinePartnerInvite(athleteFunctions(), invite.id);
       this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
     } catch (err) {
-      this.syncError.set(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível recusar o convite agora.');
+      this.toasts.error(
+        'Não foi possível recusar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O convite continua na sua lista — tente de novo.',
+      );
     } finally {
       this.respondingInviteId.set(null);
     }
@@ -824,5 +885,12 @@ export class AthletePainelComponent {
 
   protected setChartTab(tab: ChartTab): void {
     this.activeChartTab.set(tab);
+  }
+
+  /** O painel se alimenta de watchers montados num effect sobre o usuário; não
+   *  há um "carregar de novo" isolado pra chamar. Recarregar a página é o
+   *  caminho honesto — e é o que o banner promete ao atleta. */
+  protected reloadPanel(): void {
+    location.reload();
   }
 }

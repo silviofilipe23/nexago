@@ -7,6 +7,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxToastService } from '../shared/feedback';
 import { levelLabelOf } from '../data/athlete-level';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamRankingGeneral } from '../data/rankings-repository';
@@ -67,6 +68,7 @@ function memberRef(profile: AthletePublicProfile | undefined, uid: string): Team
 })
 export class TeamPublicProfileComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly toasts = inject(NxToastService);
   private readonly auth = inject(AuthService);
   private readonly firestore = createFirestore();
 
@@ -87,8 +89,6 @@ export class TeamPublicProfileComponent {
     return from === 'atletas' ? '/atletas' : '/equipes';
   });
 
-  protected readonly actionNotice = signal<string | null>(null);
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     effect(() => {
@@ -187,17 +187,11 @@ export class TeamPublicProfileComponent {
   }
 
   protected sendMessage(): void {
-    this.showNotice('Mensagens diretas chegam em breve por aqui.');
+    this.toasts.info('Mensagens diretas ainda não estão no ar', 'Avisamos por aqui assim que a conversa entre equipes for liberada.');
   }
 
   protected challengeTeam(): void {
     const name = this.team()?.teamName ?? 'esta equipe';
-    this.showNotice(`Desafio para ${name} chega em breve por aqui.`);
-  }
-
-  private showNotice(message: string): void {
-    this.actionNotice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.actionNotice.set(null), 4000);
+    this.toasts.info('Desafios ainda não estão no ar', `Assim que liberarmos, você vai poder desafiar ${name} por aqui.`);
   }
 }

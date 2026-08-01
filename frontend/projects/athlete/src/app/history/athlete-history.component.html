@@ -56,27 +56,37 @@
             </div>
             <div class="hs-row-list">
               @for (row of group.rows; track row.id) {
-                <a
-                  class="hs-row"
-                  [class.hs-row--plain]="!row.kindLabel"
-                  [attr.data-kind]="row.kind"
-                  [routerLink]="row.link"
-                >
-                  <span class="hs-row-date">{{ row.date.getDate().toString().padStart(2, '0') }}/{{ (row.date.getMonth() + 1).toString().padStart(2, '0') }}</span>
-                  @if (row.kindLabel) {
-                    <span class="hs-row-kind">{{ row.kindLabel }}</span>
+                <div class="hs-row-wrap">
+                  <a
+                    class="hs-row"
+                    [class.hs-row--plain]="!row.kindLabel"
+                    [attr.data-kind]="row.kind"
+                    [routerLink]="row.link"
+                  >
+                    <span class="hs-row-date">{{ row.date.getDate().toString().padStart(2, '0') }}/{{ (row.date.getMonth() + 1).toString().padStart(2, '0') }}</span>
+                    @if (row.kindLabel) {
+                      <span class="hs-row-kind">{{ row.kindLabel }}</span>
+                    }
+                    <div class="hs-row-copy">
+                      <p class="hs-row-title">{{ row.title }}</p>
+                      <p class="hs-row-subtitle">{{ row.subtitle }}</p>
+                    </div>
+                    <span class="hs-row-badge" [attr.data-tone]="row.badgeTone">{{ row.badgeLabel }}</span>
+                    @if (row.amountLabel; as amount) {
+                      <span class="hs-row-amount">{{ amount }}</span>
+                    } @else {
+                      <span class="hs-row-amount hs-row-amount--empty">—</span>
+                    }
+                  </a>
+                  @if (reviewableBookingOf(row); as reviewable) {
+                    <button
+                      type="button"
+                      class="hs-row-review"
+                      [attr.aria-label]="'Avaliar ' + row.title"
+                      (click)="openReviewDialog(reviewable)"
+                    >Avaliar</button>
                   }
-                  <div class="hs-row-copy">
-                    <p class="hs-row-title">{{ row.title }}</p>
-                    <p class="hs-row-subtitle">{{ row.subtitle }}</p>
-                  </div>
-                  <span class="hs-row-badge" [attr.data-tone]="row.badgeTone">{{ row.badgeLabel }}</span>
-                  @if (row.amountLabel; as amount) {
-                    <span class="hs-row-amount">{{ amount }}</span>
-                  } @else {
-                    <span class="hs-row-amount hs-row-amount--empty">—</span>
-                  }
-                </a>
+                </div>
               }
             </div>
           </section>
@@ -84,4 +94,13 @@
       }
     }
   </div>
+
+  @if (reviewingBooking(); as reviewBooking) {
+    <app-arena-review-dialog
+      [booking]="reviewBooking"
+      (submitted)="onReviewSubmitted($event)"
+      (alreadyReviewed)="onReviewAlreadyReviewed($event)"
+      (dismissed)="onReviewDismissed()"
+    />
+  }
 </app-at-panel-shell>

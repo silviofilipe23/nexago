@@ -1,0 +1,347 @@
+@use '../tournament-live' as tl;
+
+@include tl.live-pulse-keyframes;
+
+:host {
+  display: block;
+}
+
+.mt {
+  @include tl.two-col;
+}
+
+.mt-main,
+.mt-side {
+  @include tl.col-stack;
+}
+
+.mt-card {
+  @include tl.card;
+}
+
+.mt-kicker {
+  @include tl.kicker;
+}
+
+.mt-card-title {
+  @include tl.card-title;
+}
+
+.mt-empty {
+  @include tl.empty-state;
+}
+
+// ── Barra de filtros ─────────────────────────────────────────
+.mt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  flex-wrap: wrap;
+}
+
+// Torneio com 10 categorias empilha 10 linhas de chip no mobile e empurra as partidas para
+// muito abaixo da dobra — daí a faixa rolável, que mantém a lista logo no topo.
+.mt-chips {
+  display: flex;
+  gap: var(--nx-s-2);
+  flex-wrap: wrap;
+
+  @media (max-width: 720px) {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.mt-chip {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  min-height: 44px;
+  padding: 0 var(--nx-s-4);
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+  color: var(--nx-text-mute);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-500);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+
+    &:hover,
+    &:focus-visible {
+      color: var(--nx-text-on-orange);
+    }
+  }
+}
+
+.mt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--nx-text-mute);
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+}
+
+.mt-toggle-track {
+  width: 44px;
+  height: 24px;
+  padding: 2px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-2);
+  border: 1px solid var(--nx-line-strong);
+  transition: background var(--nx-d-fast) var(--nx-ease-out);
+
+  &--on {
+    background: var(--nx-orange-500);
+    border-color: var(--nx-orange-500);
+
+    .mt-toggle-knob {
+      transform: translateX(20px);
+    }
+  }
+}
+
+.mt-toggle-knob {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--nx-text);
+  transition: transform var(--nx-d-fast) var(--nx-ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+// ── Seções por rodada ────────────────────────────────────────
+.mt-section {
+  @include tl.card;
+  padding: 0;
+  overflow: hidden;
+}
+
+.mt-section-title {
+  margin: 0;
+  padding: var(--nx-s-4) var(--nx-s-5);
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+  font-family: var(--nx-font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.mt-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+// Grid nomeado: no desktop tudo em uma linha; a partir de 900px o placar e as parciais
+// quebram para uma segunda linha em vez de espremer os nomes.
+.mt-row {
+  display: grid;
+  grid-template-columns: 52px 34px minmax(0, 1fr) 64px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3) var(--nx-s-5);
+  border-top: 1px solid var(--nx-line);
+  text-decoration: none;
+  color: inherit;
+
+  li:first-child & {
+    border-top: none;
+  }
+
+  &--mine {
+    background: rgba(255, 106, 26, 0.07);
+  }
+
+  // Só a variante link (`<a class="mt-row">`) reage ao ponteiro; a `<div>` é linha estática.
+  &:is(a):hover,
+  &:is(a):focus-visible {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  // No mobile a linha vira um bloco de placar legível: as duas duplas empilhadas com o
+  // resultado à direita, e a faixa inferior com parciais e estado. Sem áreas nomeadas o
+  // auto-placement espalhava o "vs" e o horário em três linhas desencontradas.
+  @media (max-width: 900px) {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'time teamA score'
+      'time teamB score'
+      'court partials state';
+    row-gap: var(--nx-s-2);
+    padding-inline: var(--nx-s-4);
+  }
+}
+
+.mt-row-time {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 900px) {
+    grid-area: time;
+    align-self: center;
+  }
+}
+
+.mt-row-court {
+  justify-self: start;
+  padding: 2px 7px;
+  border-radius: var(--nx-r-1);
+  border: 1px solid var(--nx-line);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+
+  @media (max-width: 900px) {
+    grid-area: court;
+    justify-self: start;
+  }
+}
+
+.mt-row-team {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+  min-width: 0;
+
+  &--mine .mt-row-name {
+    font-weight: 700;
+  }
+
+  // Primeiro `.mt-row-team` do markup é o A, o segundo é o B.
+  @media (max-width: 900px) {
+    grid-area: teamA;
+
+    & ~ & {
+      grid-area: teamB;
+    }
+  }
+}
+
+.mt-duo {
+  @include tl.duo-avatars(26px);
+}
+
+.mt-row-name {
+  font-size: 14px;
+  color: var(--nx-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mt-you {
+  color: var(--nx-orange-400);
+}
+
+.mt-row-score {
+  justify-self: center;
+  font-family: var(--nx-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--nx-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+
+  @media (max-width: 900px) {
+    grid-area: score;
+    align-self: center;
+    justify-self: end;
+  }
+}
+
+.mt-row-partials {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+
+  @media (max-width: 900px) {
+    grid-area: partials;
+  }
+}
+
+.mt-row-state {
+  @include tl.status-badge;
+  justify-self: end;
+
+  &[data-state='done'] {
+    border-color: rgba(43, 209, 126, 0.35);
+    background: rgba(43, 209, 126, 0.1);
+    color: var(--nx-win);
+  }
+
+  &[data-state='live'] {
+    border-color: rgba(255, 59, 48, 0.45);
+    background: rgba(255, 59, 48, 0.14);
+    color: #ff6b62;
+  }
+
+  &[data-state='scheduled'] {
+    border-color: rgba(255, 106, 26, 0.35);
+    color: var(--nx-orange-400);
+  }
+
+  @media (max-width: 900px) {
+    grid-area: state;
+  }
+}
+
+.mt-live-dot {
+  @include tl.live-dot(5px);
+}
+
+// ── Lateral ──────────────────────────────────────────────────
+.mt-standings {
+  @include tl.standings-table;
+}
+
+.mt-note {
+  @include tl.note('win');
+  margin: var(--nx-s-4) 0 0;
+}
+
+.mt-tiebreak {
+  @include tl.note;
+  margin: 0;
+  font-size: 12px;
+}

@@ -1,0 +1,260 @@
+:host {
+  display: block;
+}
+
+.rt-card {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 24px 24px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-5);
+  background: var(--nx-surface-0);
+}
+
+/* Mesma faixa de destaque dos cards `at-card--accent` do painel. */
+.rt-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--nx-orange-500), transparent);
+}
+
+.rt-card-title {
+  margin: 0 0 18px;
+  font-family: var(--nx-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--nx-text);
+}
+
+.rt-block + .rt-block {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--nx-line);
+}
+
+.rt-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.rt-head-titles {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.rt-kicker {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.rt-waitlist {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--nx-orange-tint);
+  color: var(--nx-orange-500);
+  letter-spacing: 0.1em;
+}
+
+.rt-step-caption {
+  margin: 6px 0 0;
+  font-family: var(--nx-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--nx-text);
+}
+
+.rt-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.rt-chip {
+  padding: 8px 14px;
+  border: 1px solid var(--nx-orange-500);
+  border-radius: 999px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+  white-space: nowrap;
+}
+
+.rt-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px: alvo de toque mínimo — o painel já tem histórico de botões de 30-42px. */
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--nx-orange-500);
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: #0b0b0c;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: filter 0.15s ease;
+}
+
+.rt-cta:hover {
+  filter: brightness(1.08);
+}
+
+.rt-rail {
+  display: flex;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rt-step {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.rt-step-marker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rt-step-bullet {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid var(--nx-line-strong);
+  border-radius: 50%;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nx-text-dim);
+}
+
+.rt-step-bullet svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rt-step-line {
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--nx-line);
+}
+
+.rt-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 0 0;
+}
+
+.rt-step-label {
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+}
+
+.rt-step-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+  overflow-wrap: anywhere;
+}
+
+.rt-step--done .rt-step-bullet {
+  border-color: var(--nx-win);
+  background: var(--nx-win);
+  color: #0b0b0c;
+}
+
+.rt-step--done .rt-step-line {
+  background: var(--nx-win);
+}
+
+.rt-step--current .rt-step-bullet {
+  border-color: var(--nx-orange-500);
+  background: var(--nx-orange-500);
+  color: #0b0b0c;
+}
+
+.rt-step--current .rt-step-sub {
+  color: var(--nx-orange-500);
+}
+
+.rt-step--todo .rt-step-label {
+  color: var(--nx-text-dim);
+}
+
+/* Empilha a trilha na vertical: 5 passos lado a lado não cabem, e o card não pode
+   provocar scroll horizontal na página. */
+@media (max-width: 860px) {
+  .rt-card {
+    padding: 18px 16px 20px;
+  }
+
+  .rt-head-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rt-cta {
+    flex: 1;
+    text-align: center;
+  }
+
+  .rt-step-caption {
+    font-size: 17px;
+  }
+
+  .rt-rail {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .rt-step {
+    display: flex;
+    gap: 12px;
+  }
+
+  .rt-step-marker {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    align-self: stretch;
+  }
+
+  .rt-step-line {
+    width: 2px;
+    height: auto;
+    min-height: 12px;
+    flex: 1;
+  }
+
+  .rt-step-text {
+    padding: 2px 0 12px;
+  }
+}

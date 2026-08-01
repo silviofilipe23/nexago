@@ -1,0 +1,236 @@
+// Padrões visuais compartilhados pelas abas do torneio (Hoje, Partidas, Chaves) e pela tela de
+// partida. Ficam em mixins porque `@extend` não atravessa a fronteira de `@use` — cada
+// componente importa este arquivo e aplica só o que usa.
+
+@mixin card {
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  background: var(--nx-surface-0);
+  padding: var(--nx-s-5);
+}
+
+@mixin kicker {
+  display: block;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+@mixin card-title {
+  margin: var(--nx-s-1) 0 var(--nx-s-4);
+  font-family: var(--nx-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+// Grid principal + lateral. No mobile a lateral vira seção empilhada abaixo do conteúdo.
+@mixin two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--nx-s-5);
+  align-items: start;
+
+  @media (max-width: 1080px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@mixin col-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-5);
+  min-width: 0;
+}
+
+// Par de avatares sobrepostos que identifica a dupla.
+@mixin duo-avatars($size: 34px) {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  .duo-avatar {
+    width: $size;
+    height: $size;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 106, 26, 0.45);
+    background: var(--nx-orange-tint);
+    color: var(--nx-orange-400);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--nx-font-mono);
+    font-size: calc(#{$size} * 0.34);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    & + .duo-avatar {
+      margin-left: calc(#{$size} * -0.3);
+    }
+  }
+}
+
+// Selo de estado da partida. O tom vem de `data-tone`, nunca só da cor: cada estado
+// carrega texto próprio, então daltônico não perde informação.
+@mixin status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-1);
+  padding: 3px 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line-strong);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--nx-text-mute);
+
+  &[data-tone='live'] {
+    border-color: rgba(255, 59, 48, 0.45);
+    background: rgba(255, 59, 48, 0.14);
+    color: #ff6b62;
+  }
+
+  &[data-tone='done'] {
+    border-color: rgba(43, 209, 126, 0.35);
+    background: rgba(43, 209, 126, 0.1);
+    color: var(--nx-win);
+  }
+
+  &[data-tone='next'] {
+    border-color: rgba(255, 106, 26, 0.45);
+    background: var(--nx-orange-tint);
+    color: var(--nx-orange-400);
+  }
+}
+
+// Ponto pulsante do "ao vivo". Respeita reduced-motion.
+@mixin live-dot($size: 6px) {
+  width: $size;
+  height: $size;
+  border-radius: 50%;
+  background: currentColor;
+  animation: nx-live-pulse 1.6s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@mixin live-pulse-keyframes {
+  @keyframes nx-live-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+// Tabela de classificação do grupo — números em tabular pra coluna não dançar a cada update.
+@mixin standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th {
+    padding: 0 var(--nx-s-2) var(--nx-s-2);
+    text-align: left;
+    font-family: var(--nx-font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--nx-text-dim);
+    border-bottom: 1px solid var(--nx-line);
+  }
+
+  td {
+    padding: var(--nx-s-3) var(--nx-s-2);
+    border-bottom: 1px solid var(--nx-line);
+    color: var(--nx-text-mute);
+    font-variant-numeric: tabular-nums;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .st-num,
+  .st-team {
+    color: var(--nx-text);
+  }
+
+  .st-team {
+    font-weight: 600;
+  }
+
+  // Faixa lateral marca quem passa de fase; o texto "classificado" no rodapé é o par textual.
+  tr[data-qualifies='true'] .st-num {
+    box-shadow: inset 2px 0 0 var(--nx-win);
+  }
+
+  tr[data-mine='true'] {
+    background: rgba(255, 106, 26, 0.07);
+  }
+}
+
+@mixin note($tone: 'neutral') {
+  display: flex;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-4);
+  border-radius: var(--nx-r-3);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+
+  @if $tone == 'win' {
+    border-color: rgba(43, 209, 126, 0.28);
+    background: rgba(43, 209, 126, 0.08);
+  }
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  strong {
+    color: var(--nx-text);
+  }
+}
+
+@mixin empty-state {
+  padding: var(--nx-s-8) var(--nx-s-5);
+  text-align: center;
+  color: var(--nx-text-mute);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+// Alvo de toque mínimo (44px) sem inflar o desenho: o elemento continua pequeno, a área cresce.
+@mixin tap-target($min: 44px) {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 50% 50%;
+    width: max(100%, #{$min});
+    height: max(100%, #{$min});
+    transform: translate(-50%, -50%);
+  }
+}

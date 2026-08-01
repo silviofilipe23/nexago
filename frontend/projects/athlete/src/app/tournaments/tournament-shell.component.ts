@@ -1,0 +1,190 @@
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
+import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxToastService } from '../shared/feedback';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { tournamentListingStatus } from '../data/tournaments-repository';
+import { type TournamentTabId } from './tournament-live.selectors';
+import { TournamentLiveStore } from './tournament-live.store';
+
+function titleCase(input: string): string {
+  return input
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function nameFromEmail(email: string | null | undefined): string {
+  const local = email?.split('@')[0]?.trim();
+  return local ? titleCase(local) : 'Atleta';
+}
+
+const TAB_LABELS: Record<TournamentTabId, string> = {
+  'visao-geral': 'Visão geral',
+  hoje: 'Hoje',
+  partidas: 'Partidas & tabela',
+  chaves: 'Chaves',
+  'minha-inscricao': 'Minha inscrição',
+};
+
+const HEADER_DATE = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Sao_Paulo' });
+
+const DAY_MS = 86_400_000;
+
+/** Casca do torneio: cabeçalho + abas + `<router-outlet>`. Todas as abas leem o mesmo
+ *  `TournamentLiveStore`, providenciado na ROTA pai (`app.routes.ts`) e não aqui — assim a tela
+ *  de partida, que é irmã e não filha desta casca, compartilha a mesma instância. */
+@Component({
+  selector: 'app-tournament-shell',
+  imports: [RouterLink, RouterOutlet, AtPanelShellComponent, NxPageLoadingComponent],
+  templateUrl: './tournament-shell.component.html',
+  styleUrl: './tournament-shell.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class TournamentShellComponent {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly toast = inject(NxToastService);
+  protected readonly store = inject(TournamentLiveStore);
+
+  private readonly id = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
+
+  /** Último segmento da URL — dirige o estado ativo das abas sem depender do outlet. */
+  private readonly activeSegment = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(() => this.currentSegment()),
+      startWith(this.currentSegment()),
+    ),
+    { initialValue: this.currentSegment() },
+  );
+
+  protected readonly accountLabel = computed(() => {
+    const liveUser = this.auth.user();
+    if (liveUser?.displayName?.trim()) return liveUser.displayName.trim();
+    if (liveUser?.email?.trim()) return nameFromEmail(liveUser.email);
+    const devEmail = this.auth.devEmail();
+    return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
+  });
+
+  protected readonly tabs = computed(() =>
+    this.store.visibleTabs().map((id) => ({
+      id,
+      label: TAB_LABELS[id],
+      /** O ponto laranja do protótipo: a aba Hoje sinaliza que existe algo acontecendo agora. */
+      dot: id === 'hoje' && this.store.liveInTournament().length > 0,
+    })),
+  );
+
+  protected readonly heroTitle = computed(() => {
+    const t = this.store.tournament();
+    if (!t) return '';
+    return this.isToday() ? `${t.name} — hoje` : t.name;
+  });
+
+  /** "Sáb 29 ago · dia 2 de 3 · Arena ErreJota, Goiânia" */
+  protected readonly heroMeta = computed(() => {
+    const t = this.store.tournament();
+    if (!t) return '';
+    const parts: string[] = [];
+    const start = t.startAt;
+    if (start) parts.push(capitalize(HEADER_DATE.format(this.isToday() ? this.store.now() : start).replace(/\./g, '')));
+    else if (t.dateLabel) parts.push(t.dateLabel);
+    const day = this.dayOfEvent();
+    if (day) parts.push(`dia ${day.current} de ${day.total}`);
+    const place = [t.location, t.city].filter((s) => s.length > 0).join(', ');
+    if (place) parts.push(place);
+    return parts.join(' · ');
+  });
+
+  protected readonly isEnded = computed(() => {
+    const t = this.store.tournament();
+    return t ? tournamentListingStatus(t, this.store.now()) === 'ended' : false;
+  });
+
+  constructor() {
+    effect(() => {
+      const id = this.id();
+      if (id) void this.store.load(id);
+    });
+
+    // Rota canônica: `/torneios/:id` sem aba resolve para a aba mais relevante assim que os
+    // dados chegam (quem tem jogo hoje cai no "Hoje"). `replaceUrl` mantém o back funcionando.
+    effect(() => {
+      if (this.store.loading()) return;
+      if (this.currentSegment() !== null) return;
+      const target = this.store.defaultTab();
+      void this.router.navigate([target], { relativeTo: this.route, replaceUrl: true });
+    });
+  }
+
+  private currentSegment(): TournamentTabId | null {
+    const child = this.route.snapshot.firstChild?.routeConfig?.path ?? '';
+    return child.length > 0 ? (child as TournamentTabId) : null;
+  }
+
+  protected isActive(id: TournamentTabId): boolean {
+    return this.activeSegment() === id;
+  }
+
+  private isToday(): boolean {
+    const start = this.store.tournament()?.startAt;
+    const end = this.store.tournament()?.endAt ?? start;
+    if (!start || !end) return false;
+    const now = this.store.now();
+    return now >= startOfDay(start) && now <= endOfDay(end);
+  }
+
+  /** "dia 2 de 3" — só quando o torneio ocupa mais de um dia. */
+  private dayOfEvent(): { current: number; total: number } | null {
+    const t = this.store.tournament();
+    const start = t?.startAt;
+    const end = t?.endAt;
+    if (!start || !end) return null;
+    const total = Math.round((startOfDay(end).getTime() - startOfDay(start).getTime()) / DAY_MS) + 1;
+    if (total <= 1) return null;
+    const now = this.store.now();
+    if (now < startOfDay(start) || now > endOfDay(end)) return null;
+    const current = Math.round((startOfDay(now).getTime() - startOfDay(start).getTime()) / DAY_MS) + 1;
+    return { current, total };
+  }
+
+  protected async shareTournament(): Promise<void> {
+    const t = this.store.tournament();
+    if (!t) return;
+    const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
+    const url = `${origin}/torneios/${t.id}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        this.toast.success('Link copiado', 'Cole onde quiser para convidar quem ainda não se inscreveu.');
+        return;
+      }
+      this.toast.info('Copie o link da barra de endereço.');
+    } catch {
+      this.toast.error('Não foi possível copiar agora.');
+    }
+  }
+}
+
+function capitalize(value: string): string {
+  return value.length > 0 ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : value;
+}
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}

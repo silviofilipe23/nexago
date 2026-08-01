@@ -370,6 +370,23 @@ async function tryCompleteTournamentAfterFinal(
   );
 }
 
+/**
+ * Campos de quadra que TODO agendamento (manual ou automático) precisa gravar
+ * no doc da partida. `courtName` é o rótulo que as telas exibem — app
+ * (`TournamentMatch.courtName`), portal do atleta e portal do organizador leem
+ * o nome, não o `courtId` —, então gravar só o id deixa a quadra em branco na
+ * lista de jogos, no placar e nos grupos. Quando a quadra não está no doc do
+ * torneio (ou está sem nome), o próprio id vira o rótulo.
+ */
+export function scheduleCourtFields(
+  courts: ReadonlyArray<{id?: unknown; name?: unknown}> | undefined,
+  courtId: string,
+): {courtId: string; courtName: string} {
+  const court = courts?.find((c) => c?.id === courtId);
+  const name = typeof court?.name === "string" ? court.name.trim() : "";
+  return {courtId, courtName: name || courtId};
+}
+
 export const scheduleMatch = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -417,12 +434,9 @@ export const scheduleMatch = onCall(async (request) => {
   );
 
   const courts = tournamentSnap.data()?.courts as Array<{id: string; name: string}> | undefined;
-  const court = courts?.find((c) => c.id === courtId);
-  const courtName = court?.name ?? courtId;
 
   await ref.update({
-    courtId,
-    courtName,
+    ...scheduleCourtFields(courts, courtId),
     scheduleTime: Timestamp.fromDate(scheduleTime),
     scheduleEndTime: Timestamp.fromDate(scheduleEndTime),
     dayKey,
@@ -477,6 +491,45 @@ export const unscheduleMatch = onCall(async (request) => {
   return {ok: true};
 });
 
+/**
+ * Campos de quadra a gravar e rótulo do push de `callMatchToCourt`.
+ *
+ * O organizador pode chamar a partida para uma quadra DIFERENTE da agendada.
+ * Nesse caso o `courtName` já gravado na partida está obsoleto: não pode
+ * continuar no doc (todas as telas exibem o nome, não o id) nem virar o
+ * "Dirija-se à X" da notificação. Sem `courtId` no request, a quadra agendada
+ * é mantida (`patch: null`) e o nome só é resolvido pelo id quando o doc não
+ * tem `courtName` — por isso, nesse caso, `courts` pode vir `undefined` sem
+ * mudar o resultado: a lista não chega a ser consultada.
+ */
+export function callToCourtFields(
+  courts: ReadonlyArray<{id?: unknown; name?: unknown}> | undefined,
+  requestedCourtId: unknown,
+  match: {courtId?: unknown; courtName?: unknown},
+): {patch: {courtId: string; courtName: string} | null; label: string} {
+  const requested =
+    typeof requestedCourtId === "string" ? requestedCourtId.trim() : "";
+  if (requested) {
+    const patch = scheduleCourtFields(courts, requested);
+    return {patch, label: patch.courtName};
+  }
+
+  const scheduledName =
+    typeof match.courtName === "string" ? match.courtName.trim() : "";
+  if (scheduledName) return {patch: null, label: scheduledName};
+
+  const scheduledId =
+    typeof match.courtId === "string" ? match.courtId.trim() : "";
+  if (scheduledId) {
+    return {
+      patch: null,
+      label: scheduleCourtFields(courts, scheduledId).courtName,
+    };
+  }
+
+  return {patch: null, label: "quadra"};
+}
+
 export const callMatchToCourt = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -507,28 +560,33 @@ export const callMatchToCourt = onCall(async (request) => {
     matchStartedAt: data.matchStartedAt || FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
-  if (courtId) {
-    update.courtId = courtId;
-  }
+
+  const scheduledCourtId =
+    typeof data.courtId === "string" ? data.courtId.trim() : "";
+  const scheduledCourtName =
+    typeof data.courtName === "string" ? data.courtName.trim() : "";
+  const effectiveCourtId = courtId || scheduledCourtId;
+
+  // As quadras do torneio só são lidas quando o nome precisa ser resolvido pelo
+  // id: com `courtName` no doc e sem troca de quadra, `callToCourtFields` nem
+  // consulta a lista.
+  const needsCourtName =
+    Boolean(courtId) || Boolean(scheduledCourtId && !scheduledCourtName);
+  const courts = needsCourtName ?
+    ((await db.doc(`tournaments/${tournamentId}`).get()).data()?.courts as
+      | Array<{id: string; name: string}>
+      | undefined) :
+    undefined;
+  const {patch: courtPatch, label: courtLabel} = callToCourtFields(
+    courts,
+    courtId,
+    data,
+  );
+  if (courtPatch) Object.assign(update, courtPatch);
 
   await ref.update(update);
 
   await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
-
-  const effectiveCourtId =
-    courtId ||
-    (typeof data.courtId === "string" ? data.courtId.trim() : "");
-  let courtLabel =
-    typeof data.courtName === "string" ? data.courtName.trim() : "";
-  if (!courtLabel && effectiveCourtId) {
-    const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
-    const courts = tournamentSnap.data()?.courts as
-      | Array<{id: string; name: string}>
-      | undefined;
-    const court = courts?.find((c) => c.id === effectiveCourtId);
-    courtLabel = court?.name?.trim() || effectiveCourtId;
-  }
-  if (!courtLabel) courtLabel = "quadra";
 
   // Notificar atletas (best-effort)
   try {
@@ -898,7 +956,8 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const [h, m] = dayStartStr.split(":").map(Number);
   const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
 
-  const courts = (tournament.courts as Array<{id: string; order: number}>) ?? [];
+  const courts =
+    (tournament.courts as Array<{id: string; name?: string; order: number}>) ?? [];
   if (courts.length === 0) {
     throw new HttpsError("failed-precondition", "Configure quadras no torneio");
   }
@@ -1043,7 +1102,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
         `${artifactsMatchesPath(projectId)}/${slot.matchId}`,
       );
       batch.update(ref, {
-        courtId: slot.courtId,
+        ...scheduleCourtFields(courts, slot.courtId),
         scheduleTime: Timestamp.fromDate(start),
         scheduleEndTime: Timestamp.fromDate(end),
         dayKey,

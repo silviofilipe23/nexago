@@ -18,7 +18,13 @@
 
   <div class="at-body">
     @if (syncError(); as err) {
-      <div class="nx-alert" role="alert">{{ err }}</div>
+      <app-nx-inline-message
+        class="at-sync-error"
+        heading="Alguns dados podem estar desatualizados"
+        [body]="err"
+        actionLabel="Recarregar"
+        (action)="reloadPanel()"
+      />
     }
     @if (bootLoading()) {
       <p class="at-visually-hidden" role="status">Carregando seu painel…</p>
@@ -82,6 +88,10 @@
         </div>
       }
     </div>
+
+    @if (inProgressRegistrations().length > 0) {
+      <at-registration-tracker [items]="inProgressRegistrations()" />
+    }
 
     <div class="at-main-grid">
       <div class="at-col">

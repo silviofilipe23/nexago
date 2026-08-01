@@ -1,0 +1,211 @@
+<div class="tdy">
+  <div class="tdy-main">
+    @if (nextMatch(); as nm) {
+      <section class="tdy-next" [class.tdy-next--live]="nm.live">
+        <header class="tdy-next-top">
+          <span class="tdy-next-kicker">{{ nm.kicker }}</span>
+          @if (nm.checkedIn) {
+            <span class="tdy-checkin">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7" /></svg>
+              Check-in feito
+            </span>
+          }
+        </header>
+
+        <div class="tdy-next-body">
+          <div class="tdy-side">
+            <span class="tdy-duo-avatars" aria-hidden="true">
+              @for (initial of nm.sideA.initials; track $index) {
+                <span class="duo-avatar">{{ initial }}</span>
+              }
+            </span>
+            <strong class="tdy-side-name">{{ nm.sideA.name }}</strong>
+            @if (nm.sideA.standingLine) {
+              <span class="tdy-side-meta">{{ nm.sideA.standingLine }}</span>
+            }
+          </div>
+
+          <div class="tdy-center">
+            @if (nm.live) {
+              <span class="tdy-live-flag"><span class="tdy-live-dot" aria-hidden="true"></span>Ao vivo</span>
+              <strong class="tdy-live-score">{{ nm.liveScoreLine ?? 'em quadra' }}</strong>
+            } @else {
+              <strong class="tdy-clock">{{ nm.timeLabel }}</strong>
+              @if (nm.countdown) {
+                <span class="tdy-countdown">{{ nm.countdown }}</span>
+              }
+            }
+            <div class="tdy-chips">
+              @if (nm.courtLabel) {
+                <span class="tdy-chip">{{ nm.courtLabel }}</span>
+              }
+              <span class="tdy-chip">{{ nm.bestOfLabel }}</span>
+            </div>
+          </div>
+
+          <div class="tdy-side tdy-side--right">
+            <span class="tdy-duo-avatars" aria-hidden="true">
+              @for (initial of nm.sideB.initials; track $index) {
+                <span class="duo-avatar">{{ initial }}</span>
+              }
+            </span>
+            <strong class="tdy-side-name">{{ nm.sideB.name }}</strong>
+            @if (nm.sideB.standingLine) {
+              <span class="tdy-side-meta">{{ nm.sideB.standingLine }}</span>
+            }
+          </div>
+        </div>
+
+        <footer class="tdy-next-foot">
+          <a [routerLink]="['/torneios', store.tournamentId(), 'partida', nm.matchId]" class="tdy-btn-primary">Ver partida</a>
+          <a [href]="mapsUrl()" target="_blank" rel="noreferrer" class="tdy-btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+            Como chegar
+          </a>
+          <span class="tdy-next-hint">Esteja na quadra alguns minutos antes — o organizador pode declarar W.O. por atraso.</span>
+        </footer>
+      </section>
+    }
+
+    <section class="tdy-card">
+      @if (categoryLine(); as line) {
+        <span class="tdy-kicker">{{ line }}</span>
+      }
+      <h2 class="tdy-card-title">Seu dia no torneio</h2>
+
+      @if (timeline().length === 0) {
+        <p class="tdy-empty">Nenhuma partida sua agendada para hoje.</p>
+      } @else {
+        <ol class="tdy-timeline">
+          @for (entry of timeline(); track entry.matchId) {
+            <li class="tdy-row" [attr.data-state]="entry.state">
+              <span class="tdy-row-time">{{ entry.time }}</span>
+              <span class="tdy-row-mark" aria-hidden="true">
+                @switch (entry.state) {
+                  @case ('done') {
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7" /></svg>
+                  }
+                  @case ('live') {
+                    <span class="tdy-row-dot tdy-row-dot--live"></span>
+                  }
+                  @case ('next') {
+                    <span class="tdy-row-dot"></span>
+                  }
+                  @default {
+                    <span class="tdy-row-ring"></span>
+                  }
+                }
+              </span>
+              <span class="tdy-row-body">
+                @if (entry.clickable) {
+                  <a [routerLink]="['/torneios', store.tournamentId(), 'partida', entry.matchId]" class="tdy-row-title">{{ entry.title }}</a>
+                } @else {
+                  <span class="tdy-row-title">{{ entry.title }}</span>
+                }
+                @if (entry.detail) {
+                  <span class="tdy-row-detail">{{ entry.detail }}</span>
+                }
+              </span>
+              <span class="tdy-row-end">
+                @if (entry.outcomeLabel) {
+                  <span class="tdy-outcome" [attr.data-outcome]="entry.outcome">{{ entry.outcomeLabel }}</span>
+                } @else if (entry.note) {
+                  <span class="tdy-row-note">{{ entry.note }}</span>
+                }
+              </span>
+            </li>
+          }
+          @if (pendingKnockout()) {
+            <li class="tdy-row" data-state="upcoming">
+              <span class="tdy-row-time">—</span>
+              <span class="tdy-row-mark" aria-hidden="true"><span class="tdy-row-ring"></span></span>
+              <span class="tdy-row-body">
+                <span class="tdy-row-title">Mata-mata · adversário e quadra saem ao fim dos grupos</span>
+              </span>
+              <span class="tdy-row-end"></span>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+  </div>
+
+  <aside class="tdy-side-col">
+    @if (standingsTitle(); as title) {
+      <section class="tdy-card">
+        <span class="tdy-kicker">{{ standingsKicker() }}</span>
+        <h2 class="tdy-card-title">{{ title }}</h2>
+        <table class="tdy-standings">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Dupla</th>
+              <th scope="col">V</th>
+              <th scope="col">D</th>
+              <th scope="col">Sets</th>
+              <th scope="col">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of standings(); track row.rank) {
+              <tr [attr.data-qualifies]="row.qualifies" [attr.data-mine]="row.isMe">
+                <td class="st-num">{{ row.rank }}</td>
+                <td class="st-team">
+                  {{ row.name }}
+                  @if (row.isMe) {
+                    <span class="tdy-you">· você</span>
+                  }
+                </td>
+                <td>{{ row.wins }}</td>
+                <td>{{ row.losses }}</td>
+                <td>{{ row.sets }}</td>
+                <td>{{ row.points }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (qualificationNote(); as note) {
+          <p class="tdy-note" [attr.data-tone]="note.tone">{{ note.text }}</p>
+        }
+      </section>
+    }
+
+    @if (liveNow().length > 0) {
+      <section class="tdy-card">
+        <span class="tdy-kicker">Na sua categoria</span>
+        <h2 class="tdy-card-title">Ao vivo agora</h2>
+        <ul class="tdy-live-list">
+          @for (row of liveNow(); track row.matchId) {
+            <li>
+              <a [routerLink]="['/torneios', store.tournamentId(), 'partida', row.matchId]" class="tdy-live-row">
+                <span class="tdy-live-dot" aria-hidden="true"></span>
+                <span class="tdy-live-main">
+                  <span class="tdy-live-names">{{ row.nameA }} <span class="tdy-vs">vs</span> {{ row.nameB }}</span>
+                  <span class="tdy-live-context">{{ row.context }}</span>
+                </span>
+                @if (row.scoreLine) {
+                  <span class="tdy-live-score-line">{{ row.scoreLine }}</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (announcements().length > 0) {
+      <section class="tdy-card">
+        <h2 class="tdy-card-title">Avisos do organizador</h2>
+        <ul class="tdy-announce-list">
+          @for (a of announcements(); track a.id) {
+            <li class="tdy-announce">
+              <span class="tdy-announce-time">{{ a.time }}</span>
+              <p class="tdy-announce-text">{{ a.message }}</p>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </aside>
+</div>

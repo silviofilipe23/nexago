@@ -193,7 +193,7 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
   ],
   template: `
     <og-page-header title="Financeiro" subtitle="Saldo consolidado da carteira">
-      <a class="og-mini-btn og-mini-btn-primary" href="#og-saque-card"><og-icon name="download" [size]="14" />Sacar saldo</a>
+      <!-- <a class="og-mini-btn og-mini-btn-primary" href="#og-saque-card"><og-icon name="download" [size]="14" />Sacar saldo</a> -->
     </og-page-header>
 
     <div class="og-content">

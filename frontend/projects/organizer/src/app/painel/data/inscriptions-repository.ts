@@ -15,6 +15,11 @@ export interface InscriptionParticipant {
   uid: string;
   name: string;
   photoUrl: string | null;
+  /** `sportOnboarding.levelsBySport` do perfil — nível declarado por esporte. Quem consome
+   *  resolve o esporte do torneio (`team-level-score.ts`); a repository não interpreta. */
+  levelsBySport: Record<string, string>;
+  /** `level`/`nivel` — nível global de docs antigos, fallback quando falta o do esporte. */
+  legacyLevel: string | null;
 }
 
 export interface TournamentInscription {
@@ -59,6 +64,21 @@ interface RawInscription {
 interface ProfileDisplay {
   name: string;
   photoUrl: string | null;
+  levelsBySport: Record<string, string>;
+  legacyLevel: string | null;
+}
+
+/** `sportOnboarding.levelsBySport` — só as entradas string, ignorando lixo de docs antigos. */
+function levelsBySportOf(data: Record<string, unknown>): Record<string, string> {
+  const onboarding = data['sportOnboarding'] as Record<string, unknown> | undefined;
+  const raw = onboarding?.['levelsBySport'];
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [sportCode, value] of Object.entries(raw as Record<string, unknown>)) {
+    const level = optionalStr(value);
+    if (level) out[sportCode] = level;
+  }
+  return out;
 }
 
 function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
@@ -95,7 +115,12 @@ async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Pro
         optionalStr(data['avatarUrl']) ??
         optionalStr(data['photoURL']) ??
         optionalStr(data['photoUrl']);
-      result.set(d.id, { name: name ?? 'Atleta', photoUrl });
+      result.set(d.id, {
+        name: name ?? 'Atleta',
+        photoUrl,
+        levelsBySport: levelsBySportOf(data),
+        legacyLevel: optionalStr(data['level']) ?? optionalStr(data['nivel']),
+      });
     }
   }
   return result;
@@ -157,6 +182,8 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
         uid,
         name: profile?.name ?? 'Atleta',
         photoUrl: profile?.photoUrl ?? null,
+        levelsBySport: profile?.levelsBySport ?? {},
+        legacyLevel: profile?.legacyLevel ?? null,
       };
     });
     const participantNames = participants.map((p) => p.name);

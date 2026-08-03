@@ -1,8 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
+import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
+import { teamLevelScore, teamLevelsSummary, teamScoreLabel, type AthleteRatingLite, type TeamLevelScore } from '../data/team-level-score';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -76,8 +79,9 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 </span>
                 <span style="flex:1;min-width:0">
                   <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 100) }}</div>
-                  <div class="og-categoria-meta">{{ i.createdAt ? 'Inscrito em ' + shortDate(i.createdAt) : 'Sem data de inscrição' }}</div>
+                  <div class="og-categoria-meta">{{ levelsLine(i) }}</div>
                 </span>
+                <og-pill tone="dim" [title]="scoreHint(i)">{{ scoreLabel(i) }}</og-pill>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
               </div>
             } @empty {
@@ -144,10 +148,29 @@ export class CategoriaDetalheComponent {
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly inscriptions = signal<TournamentInscription[]>([]);
   protected readonly matches = signal<TournamentMatch[]>([]);
+  /** Rating técnico por uid — vazio nos esportes sem engine de rating. */
+  private readonly ratings = signal<Map<string, AthleteRatingLite>>(new Map());
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
     () => this.tournament()?.categories.find((c) => c.id === this.catId()) ?? null,
   );
+
+  /** Esporte do torneio no vocabulário do perfil (`VOLEI_PRAIA`…) — `null` quando não há
+   *  equivalente, aí a pontuação cai no nível global legado. */
+  private readonly sportCode = computed(() => tournamentSportToLevelSportCode(this.tournament()?.sportId));
+
+  /** Pontuação de nível por inscrição — a dupla mais forte no topo da leitura do organizador
+   *  na hora de escolher os cabeças de chave. */
+  private readonly scores = computed(() => {
+    const sportCode = this.sportCode();
+    const ratings = this.ratings();
+    return new Map<string, TeamLevelScore>(
+      this.inscriptions().map((i) => [
+        i.id,
+        teamLevelScore(i.participants, sportCode, i.participants.map((p) => ratings.get(p.uid))),
+      ]),
+    );
+  });
 
   protected readonly pagasCount = computed(() => this.inscriptions().filter((i) => i.paid).length);
   protected readonly pendentesCount = computed(() => this.inscriptions().filter((i) => !i.paid).length);
@@ -195,8 +218,15 @@ export class CategoriaDetalheComponent {
     try {
       const [tournament, allInscriptions, allMatches] = await Promise.all([getTournament(tid), listInscriptions(tid), listMatches(tid)]);
       this.tournament.set(tournament);
-      this.inscriptions.set(allInscriptions.filter((i) => i.categoryId === cid));
+      const categoryInscriptions = allInscriptions.filter((i) => i.categoryId === cid);
+      this.inscriptions.set(categoryInscriptions);
       this.matches.set(allMatches.filter((m) => m.categoryId === cid));
+      this.ratings.set(
+        await fetchAthleteRatings(
+          categoryInscriptions.flatMap((i) => i.participants.map((p) => p.uid)),
+          tournamentSportToLevelSportCode(tournament?.sportId),
+        ),
+      );
     } finally {
       this.loading.set(false);
     }
@@ -212,6 +242,27 @@ export class CategoriaDetalheComponent {
       return i.participants.slice(0, 2).map((p) => ({ name: p.name, photoUrl: p.photoUrl }));
     }
     return [{ name: i.teamName, photoUrl: null }];
+  }
+
+  /** Selo de força da dupla: soma dos níveis (2–10) e, quando o esporte tem engine de rating
+   *  e os dois atletas já saíram do provisional, o rating composto. */
+  protected scoreLabel(i: TournamentInscription): string {
+    const score = this.scores().get(i.id);
+    return score ? teamScoreLabel(score) : '—';
+  }
+
+  protected scoreHint(i: TournamentInscription): string {
+    const score = this.scores().get(i.id);
+    if (!score || score.points == null) return 'Pontuação indisponível — atleta sem nível informado';
+    const base = `Pontuação de nível: ${score.points} de 10`;
+    return score.rating == null ? base : `${base} · rating técnico ${Math.round(score.rating)}`;
+  }
+
+  /** Composição de níveis + data de inscrição na mesma linha de apoio. */
+  protected levelsLine(i: TournamentInscription): string {
+    const score = this.scores().get(i.id);
+    const levels = score ? teamLevelsSummary(score) : 'Nível não informado';
+    return i.createdAt ? `${levels} · Inscrito em ${this.shortDate(i.createdAt)}` : levels;
   }
 
   protected payTone(i: TournamentInscription): Tone {

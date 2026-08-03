@@ -10,6 +10,7 @@ describe('liga-stages', () => {
       name: 'Etapa',
       managerId: 'uid',
       sportLabel: 'Vôlei de praia',
+      sportId: 'beachVolleyball',
       coverUrl: null,
       status: 'inscricoes',
       startAt: null,

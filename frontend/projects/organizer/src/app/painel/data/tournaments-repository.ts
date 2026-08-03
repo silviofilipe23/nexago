@@ -111,6 +111,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     name: optionalStr(data['name']) ?? 'Torneio',
     managerId: optionalStr(data['managerId']) ?? '',
     sportLabel: sportLabelOf(data['sport']),
+    sportId: optionalStr(data['sport']),
     coverUrl: coverUrlOf(data),
     status: statusFromRaw(statusRaw),
     startAt: toDate(data['startAt']),

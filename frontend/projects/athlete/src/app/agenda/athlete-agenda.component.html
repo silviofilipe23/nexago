@@ -261,4 +261,8 @@
       (dismissed)="onReviewDismissed()"
     />
   }
+
+  @if (lgpdConsentRequest()) {
+    <app-lgpd-consent-dialog (confirmed)="confirmLgpdConsent()" (cancelled)="lgpdConsentRequest.set(null)" />
+  }
 </app-at-panel-shell>

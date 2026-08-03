@@ -44,6 +44,7 @@ import {
   savePartnerLinkInviteMarker,
   type PartnerLinkInviteMarker,
 } from '../../shared/partner-invite/partner-invite';
+import { LgpdConsentBoxComponent } from '../../shared/lgpd/lgpd-consent-box.component';
 import { InvitePartnerDialogComponent } from './invite-partner-dialog.component';
 import { UniformFormComponent } from './uniform-form.component';
 
@@ -111,6 +112,7 @@ interface CategoryStatus {
     NxSpinnerComponent,
     InvitePartnerDialogComponent,
     NxInlineMessageComponent,
+    LgpdConsentBoxComponent,
   ],
   templateUrl: './tournament-registration-shell.component.html',
   styleUrl: './tournament-registration-shell.component.scss',
@@ -217,6 +219,19 @@ export class TournamentRegistrationShellComponent {
   protected readonly receivedInvite = signal<TournamentPartnerInvite | null>(null);
   protected readonly acceptingInvite = signal(false);
   protected readonly decliningInvite = signal(false);
+
+  /** Termo de uso de imagem/LGPD — o checkbox habilita os CTAs que criam a
+   *  inscrição (reservar vaga / aceitar convite). O aceite viaja como
+   *  `lgpdAccepted: true` nas callables e fica gravado na inscrição. */
+  protected readonly lgpdAccepted = signal(false);
+  /** Inscrição existente (ex.: criada pelo app antigo) sem o meu aceite LGPD —
+   *  reabre o checkbox no passo do parceiro pra registrar no envio do convite. */
+  protected readonly myLgpdConsentMissing = computed(() => {
+    const reg = this.registration();
+    const uid = this.auth.user()?.uid;
+    if (!reg || !uid) return false;
+    return !reg.lgpdAcceptedUids.includes(uid);
+  });
 
   /** Uniforme incompleto trava convite, aceite e salvamento. É erro de
    *  formulário, então mora dentro do card do uniforme — junto do que precisa
@@ -460,9 +475,16 @@ export class TournamentRegistrationShellComponent {
       );
       return;
     }
+    if (!this.lgpdAccepted()) {
+      this.toasts.warning(
+        'Falta aceitar o termo',
+        'Marque o aceite do termo de uso de imagem e LGPD para reservar sua vaga.',
+      );
+      return;
+    }
     this.registering.set(true);
     try {
-      const result = await registerSolo(athleteFunctions(), tournamentId, category.id);
+      const result = await registerSolo(athleteFunctions(), tournamentId, category.id, undefined, { lgpdAccepted: true });
       this.myRegistrations.update((list) => [
         ...list,
         {
@@ -476,6 +498,7 @@ export class TournamentRegistrationShellComponent {
           sharePaidUids: [],
           player1Id: this.auth.user()?.uid ?? null,
           participantUids: [this.auth.user()?.uid ?? ''].filter(Boolean),
+          lgpdAcceptedUids: [this.auth.user()?.uid ?? ''].filter(Boolean),
           uniformPlayer1: EMPTY_UNIFORM_SLOT,
           uniformPlayer2: EMPTY_UNIFORM_SLOT,
         },
@@ -563,6 +586,16 @@ export class TournamentRegistrationShellComponent {
     const tournamentId = this.tournamentId();
     if (!category || !tournamentId || this.invitingId()) return;
 
+    // Inscrição legada sem o meu aceite LGPD: o checkbox reaparece e o aceite
+    // sai junto com o convite (o backend copia pra inscrição no aceite do parceiro).
+    if (this.myLgpdConsentMissing() && !this.lgpdAccepted()) {
+      this.toasts.warning(
+        'Falta aceitar o termo',
+        'Marque o aceite do termo de uso de imagem e LGPD para convidar seu parceiro.',
+      );
+      return;
+    }
+
     // Paridade com o app: o convite só sai com o uniforme do titular completo — ele viaja
     // junto (`inviterUniform`) pro convidado ver a dupla montada.
     let inviterUniform: UniformInput | undefined;
@@ -587,6 +620,7 @@ export class TournamentRegistrationShellComponent {
         inviteeName: candidate.displayName,
         inviterName: this.accountLabel(),
         ...(inviterUniform ? { inviterUniform } : {}),
+        ...(this.myLgpdConsentMissing() && this.lgpdAccepted() ? { lgpdAccepted: true } : {}),
       });
       this.toasts.success('Convite enviado', `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`);
       this.partnerResults.set([]);
@@ -632,6 +666,14 @@ export class TournamentRegistrationShellComponent {
     const category = this.selectedCategory();
     if (!invite || this.acceptingInvite()) return;
 
+    if (!this.lgpdAccepted()) {
+      this.toasts.warning(
+        'Falta aceitar o termo',
+        'Marque o aceite do termo de uso de imagem e LGPD para formar a dupla.',
+      );
+      return;
+    }
+
     let inviteeUniform: UniformInput | undefined;
     if (category && categoryRequiresUniform(category)) {
       const selection = this.uniform();
@@ -647,7 +689,7 @@ export class TournamentRegistrationShellComponent {
 
     this.acceptingInvite.set(true);
     try {
-      await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform);
+      await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform, { lgpdAccepted: true });
       this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
       this.receivedInvite.set(null);
       const uid = this.auth.user()?.uid;

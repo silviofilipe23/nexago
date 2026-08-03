@@ -15,6 +15,7 @@ import {
 import { fetchPublicProfilesByIds } from './data/public-profiles-repository';
 import { NxSkeletonComponent } from './shared/loading/nx-skeleton.component';
 import { NxInlineMessageComponent, NxToastService } from './shared/feedback';
+import { LgpdConsentDialogComponent } from './shared/lgpd/lgpd-consent-dialog.component';
 import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
 import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
 import {
@@ -399,6 +400,7 @@ function communityMessage(item: CommunityFeedItem): string {
     NxSkeletonComponent,
     AtRegistrationTrackerComponent,
     NxInlineMessageComponent,
+    LgpdConsentDialogComponent,
   ],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
@@ -843,13 +845,28 @@ export class AthletePainelComponent {
     }
   }
 
+  /** Convite escolhido pro aceite rápido — abre o dialog do termo LGPD antes de
+   *  confirmar (o aceite do termo é obrigatório pra formar a dupla). */
+  protected readonly lgpdInviteToAccept = signal<PendingInviteItem | null>(null);
+
+  protected acceptInviteQuick(invite: PendingInviteItem): void {
+    if (this.respondingInviteId()) return;
+    this.lgpdInviteToAccept.set(invite);
+  }
+
+  protected confirmLgpdAndAccept(): void {
+    const invite = this.lgpdInviteToAccept();
+    this.lgpdInviteToAccept.set(null);
+    if (invite) void this.submitAcceptInvite(invite);
+  }
+
   /** Aceite rápido — sem uniforme aqui (o backend aceita sem, coleta depois na inscrição;
    *  é o mesmo comportamento de "Salvar uniforme" na tela de inscrição). */
-  protected async acceptInviteQuick(invite: PendingInviteItem): Promise<void> {
+  private async submitAcceptInvite(invite: PendingInviteItem): Promise<void> {
     if (this.respondingInviteId()) return;
     this.respondingInviteId.set(invite.id);
     try {
-      await acceptPartnerInvite(athleteFunctions(), invite.id);
+      await acceptPartnerInvite(athleteFunctions(), invite.id, undefined, { lgpdAccepted: true });
       this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
       // Depois de aceitar, o próximo passo real é completar a inscrição (uniforme/pagamento)
       // — leva direto pra lá em vez de deixar o atleta no painel.
@@ -860,7 +877,8 @@ export class AthletePainelComponent {
       this.toasts.error(
         'Não foi possível aceitar o convite',
         err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
-        { label: 'Tentar novamente', run: () => void this.acceptInviteQuick(invite) },
+        // Termo já aceito no dialog — a retentativa vai direto pro envio.
+        { label: 'Tentar novamente', run: () => void this.submitAcceptInvite(invite) },
       );
     } finally {
       this.respondingInviteId.set(null);

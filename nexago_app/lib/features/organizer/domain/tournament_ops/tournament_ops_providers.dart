@@ -295,6 +295,10 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
         registeredAt: registeredAt,
         paymentMethod: (row.inscription['paymentMethod'] as String?) ?? '',
         partnerPending: row.inscription['partnerPending'] == true,
+        lgpdAcceptedUids: (row.inscription['lgpdAcceptedUids'] as List?)
+                ?.whereType<String>()
+                .toList() ??
+            const [],
       ),
     );
   }

@@ -20,6 +20,14 @@ type Tab = 'todos' | PayStatus;
 const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', pendente: 'yellow', espera: 'dim' };
 const PAY_LABEL: Record<PayStatus, string> = { pago: 'Pago', pendente: 'Pendente', espera: 'Espera' };
 
+/** Aceite do termo de uso de imagem/LGPD registrado na inscrição: `aceito` = todos os atletas,
+ *  `parcial` = só parte da dupla, `pendente` = ninguém (inclui inscrições antigas, feitas antes
+ *  do termo existir no fluxo). */
+type LgpdStatus = 'aceito' | 'parcial' | 'pendente';
+
+const LGPD_TONE: Record<LgpdStatus, PillTone> = { aceito: 'green', parcial: 'yellow', pendente: 'dim' };
+const LGPD_LABEL: Record<LgpdStatus, string> = { aceito: 'Aceito', parcial: 'Parcial', pendente: 'Pendente' };
+
 interface InscricaoAthlete {
   name: string;
   photoUrl: string | null;
@@ -32,6 +40,9 @@ interface InscricaoRow {
   categoriaId: string | null;
   categoria: string;
   pay: PayStatus;
+  lgpd: LgpdStatus;
+  /** Tooltip da pílula LGPD — em `parcial`, diz quem ainda não aceitou. */
+  lgpdTitle: string;
   date: string;
   createdAt: Date | null;
 }
@@ -96,6 +107,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           <span style="flex:1">Categoria</span>
           <span style="width:70px">Data</span>
           <span style="width:110px">Pagamento</span>
+          <span style="width:90px">LGPD</span>
           <span style="width:80px"></span>
         </div>
         <div class="og-table-body">
@@ -125,6 +137,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span style="flex:1" class="og-inscricoes-cat">{{ r.categoria }}</span>
                 <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
                 <span style="width:110px"><og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill></span>
+                <span style="width:90px" [title]="r.lgpdTitle"><og-pill [tone]="lgpdTone[r.lgpd]">{{ lgpdLabel[r.lgpd] }}</og-pill></span>
                 <button type="button" class="og-ghost-btn" (click)="toggleActions(r.id)">{{ actionsFor() === r.id ? 'Fechar' : 'Ações' }}</button>
                 @if (actionsFor() === r.id) {
                   <div class="og-inscricoes-actions">
@@ -242,6 +255,8 @@ export class InscricoesComponent {
   protected readonly categoryFilter = signal<string | null>(null);
   protected readonly payTone = PAY_TONE;
   protected readonly payLabel = PAY_LABEL;
+  protected readonly lgpdTone = LGPD_TONE;
+  protected readonly lgpdLabel = LGPD_LABEL;
   protected readonly initialsOf = initialsOf;
   protected readonly truncate = truncateName;
 
@@ -295,6 +310,20 @@ export class InscricoesComponent {
           insc.participants.length > 0
             ? insc.participants.map((p) => ({ name: p.name, photoUrl: p.photoUrl }))
             : [{ name: insc.teamName, photoUrl: null }];
+        const accepted = new Set(insc.lgpdAcceptedUids);
+        const missing = insc.participants.filter((p) => !accepted.has(p.uid));
+        const lgpd: LgpdStatus =
+          insc.participants.length > 0 && missing.length === 0
+            ? 'aceito'
+            : missing.length < insc.participants.length
+              ? 'parcial'
+              : 'pendente';
+        const lgpdTitle =
+          lgpd === 'aceito'
+            ? 'Termo de uso de imagem/LGPD aceito por todos os atletas'
+            : lgpd === 'parcial'
+              ? `Sem aceite do termo LGPD: ${missing.map((p) => p.name).join(', ')}`
+              : 'Nenhum aceite do termo de uso de imagem/LGPD registrado nesta inscrição';
         return {
           id: insc.id,
           name: insc.teamName,
@@ -302,6 +331,8 @@ export class InscricoesComponent {
           categoriaId: insc.categoryId,
           categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
           pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
+          lgpd,
+          lgpdTitle,
           date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
           createdAt: insc.createdAt,
         };

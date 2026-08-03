@@ -39,6 +39,8 @@ export interface AthleteTournamentRegistration {
   player1Id: string | null;
   /** Ordem é significativa: índice 0 = player1, índice 1 = player2. */
   participantUids: string[];
+  /** Uids que aceitaram o termo de uso de imagem/LGPD (docs antigos: vazio). */
+  lgpdAcceptedUids: string[];
   uniformPlayer1: RegistrationUniformSlot;
   uniformPlayer2: RegistrationUniformSlot;
 }
@@ -79,6 +81,7 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     sharePaidUids: stringList(data['sharePaidUids']),
     player1Id: optionalStr(data['player1Id']),
     participantUids: stringList(data['participantUids']),
+    lgpdAcceptedUids: stringList(data['lgpdAcceptedUids']),
     uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
     uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
   };
@@ -252,13 +255,22 @@ function mapCallableError(err: unknown): TournamentRegistrationError {
 }
 
 /** Cria a inscrição sozinho (`partnerPending: true`, sem doc em `teams` ainda) — precisa
- *  convidar um parceiro depois (`sendPartnerInvite`) pra virar dupla de verdade. */
-export async function registerSolo(functions: Functions, tournamentId: string, categoryId: string, uniform?: UniformInput): Promise<{ registrationId: string }> {
+ *  convidar um parceiro depois (`sendPartnerInvite`) pra virar dupla de verdade.
+ *  `lgpdAccepted` registra o aceite do termo de uso de imagem/LGPD na inscrição
+ *  (a UI só habilita o CTA com o checkbox marcado). */
+export async function registerSolo(
+  functions: Functions,
+  tournamentId: string,
+  categoryId: string,
+  uniform?: UniformInput,
+  opts?: { lgpdAccepted?: boolean },
+): Promise<{ registrationId: string }> {
   try {
     const result = await httpsCallable<Record<string, unknown>, { registrationId: string }>(functions, 'registerSoloTournament')({
       tournamentId,
       categoryId,
       ...(uniform ? { uniform } : {}),
+      ...(opts?.lgpdAccepted ? { lgpdAccepted: true } : {}),
     });
     return result.data;
   } catch (err) {
@@ -268,7 +280,7 @@ export async function registerSolo(functions: Functions, tournamentId: string, c
 
 export async function sendPartnerInvite(
   functions: Functions,
-  params: { tournamentId: string; categoryId: string; inviteeUid: string; inviteeName: string; inviterName: string; inviterUniform?: UniformInput },
+  params: { tournamentId: string; categoryId: string; inviteeUid: string; inviteeName: string; inviterName: string; inviterUniform?: UniformInput; lgpdAccepted?: boolean },
 ): Promise<{ inviteId: string }> {
   try {
     const result = await httpsCallable<typeof params, { inviteId: string }>(functions, 'sendTournamentPartnerInvite')(params);
@@ -337,9 +349,18 @@ export async function reserveDirectOrganizerRegistration(functions: Functions, r
   }
 }
 
-export async function acceptPartnerInvite(functions: Functions, inviteId: string, inviteeUniform?: UniformInput): Promise<void> {
+export async function acceptPartnerInvite(
+  functions: Functions,
+  inviteId: string,
+  inviteeUniform?: UniformInput,
+  opts?: { lgpdAccepted?: boolean },
+): Promise<void> {
   try {
-    await httpsCallable(functions, 'acceptTournamentPartnerInvite')({ inviteId, ...(inviteeUniform ? { inviteeUniform } : {}) });
+    await httpsCallable(functions, 'acceptTournamentPartnerInvite')({
+      inviteId,
+      ...(inviteeUniform ? { inviteeUniform } : {}),
+      ...(opts?.lgpdAccepted ? { lgpdAccepted: true } : {}),
+    });
   } catch (err) {
     throw mapCallableError(err);
   }

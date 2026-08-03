@@ -100,10 +100,71 @@ class OrganizerTeamListTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _StatusPill(status: team.status),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _StatusPill(status: team.status),
+                  const SizedBox(height: 4),
+                  _LgpdPill(team: team),
+                ],
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Aceite do termo de uso de imagem/LGPD registrado na inscrição:
+/// verde = todos os atletas, âmbar = parcial, apagado = nenhum (inclui
+/// inscrições antigas, feitas antes de o termo existir no fluxo).
+class _LgpdPill extends StatelessWidget {
+  const _LgpdPill({required this.team});
+
+  final OrganizerCategoryTeamRow team;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = context.themeColors.onSurfaceMuted;
+    final (bg, fg, icon) = team.lgpdAcceptedByAll
+        ? (
+            AppColors.win.withValues(alpha: 0.18),
+            AppColors.win,
+            Icons.verified_user_rounded,
+          )
+        : team.lgpdPartiallyAccepted
+            ? (
+                AppColors.pending.withValues(alpha: 0.15),
+                AppColors.pending,
+                Icons.shield_outlined,
+              )
+            : (
+                muted.withValues(alpha: 0.12),
+                muted,
+                Icons.shield_outlined,
+              );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: fg),
+          const SizedBox(width: 3),
+          Text(
+            'LGPD',
+            style: AppTypography.mono(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        ],
       ),
     );
   }

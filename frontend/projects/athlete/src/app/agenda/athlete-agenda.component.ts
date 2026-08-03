@@ -22,6 +22,7 @@ import {
 import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
+import { LgpdConsentDialogComponent } from '../shared/lgpd/lgpd-consent-dialog.component';
 import { UniformFormComponent } from '../tournaments/registration/uniform-form.component';
 import {
   categoryRequiresUniform,
@@ -338,7 +339,7 @@ export function clubParticipationToEvent(p: MyClubParticipation, now: Date = new
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, ArenaReviewDialogComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, ArenaReviewDialogComponent, LgpdConsentDialogComponent],
   templateUrl: './athlete-agenda.component.html',
   styleUrl: './athlete-agenda.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -391,6 +392,10 @@ export class AthleteAgendaComponent {
   protected readonly expandedInviteId = signal<string | null>(null);
   protected readonly inviteUniform = signal<UniformSelection | null>(null);
   protected readonly acceptingId = signal<string | null>(null);
+  /** Convite aguardando o aceite do termo LGPD no dialog. */
+  protected readonly lgpdConsentRequest = signal<AgendaPendingRequest | null>(null);
+  /** Convite cujo termo LGPD já foi aceito nesta sessão (dialog confirmado). */
+  private readonly lgpdConsentedInviteId = signal<string | null>(null);
   protected readonly decliningId = signal<string | null>(null);
 
   /** Alguma operação em andamento neste convite (trava aceitar E recusar juntos). */
@@ -652,6 +657,12 @@ export class AthleteAgendaComponent {
    *  Sem exigência (ou torneio não carregado): aceita direto, como antes. */
   protected acceptRequest(request: AgendaPendingRequest): void {
     if (this.acceptingId()) return;
+    // Termo de uso de imagem/LGPD vem antes de tudo: sem o aceite no dialog o
+    // convite não anda (nem pro formulário de uniforme).
+    if (this.lgpdConsentedInviteId() !== request.id) {
+      this.lgpdConsentRequest.set(request);
+      return;
+    }
     const category = request.category;
     if (category && categoryRequiresUniform(category)) {
       this.expandedInviteId.set(request.id);
@@ -660,6 +671,14 @@ export class AthleteAgendaComponent {
       return;
     }
     void this.submitAccept(request, undefined);
+  }
+
+  protected confirmLgpdConsent(): void {
+    const request = this.lgpdConsentRequest();
+    this.lgpdConsentRequest.set(null);
+    if (!request) return;
+    this.lgpdConsentedInviteId.set(request.id);
+    this.acceptRequest(request);
   }
 
   protected async confirmAccept(request: AgendaPendingRequest): Promise<void> {
@@ -688,7 +707,9 @@ export class AthleteAgendaComponent {
     const id = request.id;
     this.acceptingId.set(id);
     try {
-      await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform);
+      await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform, {
+        lgpdAccepted: this.lgpdConsentedInviteId() === id,
+      });
       this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
       this.expandedInviteId.set(null);
       this.inviteUniform.set(null);

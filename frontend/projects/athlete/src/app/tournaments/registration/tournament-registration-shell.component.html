@@ -126,8 +126,10 @@
                 <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="acceptingInvite()" (valueChange)="onUniformChange($event)" />
               }
 
+              <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="acceptingInvite()" />
+
               <div class="rg-btn-row">
-                <button type="button" class="rg-btn-primary" [disabled]="acceptingInvite() || decliningInvite()" (click)="acceptReceivedInvite()">
+                <button type="button" class="rg-btn-primary" [disabled]="acceptingInvite() || decliningInvite() || !lgpdAccepted()" (click)="acceptReceivedInvite()">
                   @if (acceptingInvite()) {
                     <app-nx-spinner [size]="14" tone="dark" />
                   }
@@ -142,7 +144,8 @@
               </div>
             } @else if (!registration()) {
               <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
-              <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked" (click)="registerSoloForCategory()">
+              <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="registering()" />
+              <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked || !lgpdAccepted()" (click)="registerSoloForCategory()">
                 @if (registering()) {
                   <app-nx-spinner [size]="14" tone="dark" />
                 }
@@ -150,6 +153,10 @@
               </button>
             } @else if (registration()!.partnerPending) {
               <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+
+              @if (myLgpdConsentMissing()) {
+                <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="invitingId() !== null" />
+              }
 
               @if (linkInviteMarker(); as marker) {
                 <div class="rg-option-row rg-option-row--link-invite">
@@ -285,6 +292,12 @@
               <div class="rg-summary-row">
                 <span class="rg-summary-label">Uniforme</span>
                 <span class="rg-summary-value">{{ uniformSaved() ? 'Salvo' : uniformComplete() ? 'Completo' : 'Pendente' }}</span>
+              </div>
+            }
+            @if (registration()) {
+              <div class="rg-summary-row">
+                <span class="rg-summary-label">Termo LGPD</span>
+                <span class="rg-summary-value">{{ myLgpdConsentMissing() ? 'Pendente' : 'Aceito' }}</span>
               </div>
             }
             @if (selectedCategory(); as cat) {

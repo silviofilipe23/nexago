@@ -29,6 +29,7 @@ import 'widgets/tournament_partner_invite/partner_invite_bottom_actions.dart';
 import 'widgets/tournament_partner_invite_error_feedback.dart';
 import 'widgets/tournament_partner_invite/partner_invite_hero_card.dart';
 import 'widgets/tournament_partner_invite/partner_invite_metrics_row.dart';
+import 'widgets/lgpd_consent_sheet.dart';
 import 'widgets/tournament_partner_invite/partner_invite_tournament_card.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 
@@ -49,6 +50,8 @@ class _TournamentPartnerInvitePageState
   _PartnerInviteWizardStep _wizardStep = _PartnerInviteWizardStep.confirm;
   bool _accepting = false;
   bool _declining = false;
+  /// Aceite do termo de uso de imagem/LGPD já confirmado nesta tela.
+  bool _lgpdAccepted = false;
   TournamentUniformSelection _inviteeUniform = const TournamentUniformSelection(
     sizeTop: 'M',
     jerseyNumber: 10,
@@ -97,6 +100,13 @@ class _TournamentPartnerInvitePageState
       return;
     }
 
+    // Termo de uso de imagem/LGPD obrigatório antes de formar a dupla.
+    if (!_lgpdAccepted) {
+      final accepted = await showLgpdConsentSheet(context);
+      if (!accepted || !mounted) return;
+      setState(() => _lgpdAccepted = true);
+    }
+
     setState(() => _accepting = true);
 
     try {
@@ -119,6 +129,7 @@ class _TournamentPartnerInvitePageState
                 category != null && categoryRequiresUniform(category)
                 ? _inviteeUniform
                 : null,
+            lgpdAccepted: true,
           );
 
       if (!mounted) return;

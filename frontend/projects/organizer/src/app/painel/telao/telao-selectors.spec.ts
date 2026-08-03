@@ -1,5 +1,5 @@
 import type { TournamentMatch } from '../data/matches-repository';
-import { callOf, courtNowOf, courtPageCount, courtPageOf, teamShortLabel, upcomingQueue } from './telao-selectors';
+import { callOf, courtNowOf, courtPageCount, courtPageOf, leadingSideOf, teamShortLabel, upcomingQueue } from './telao-selectors';
 
 const NOW = Date.UTC(2026, 7, 3, 18, 0, 0); // 03/08/2026 18:00 UTC
 
@@ -127,6 +127,33 @@ describe('telao-selectors', () => {
       expect(courtPageOf(courts, 0)).toEqual(['Q1', 'Q2', 'Q3', 'Q4']);
       expect(courtPageOf(courts, 2)).toEqual(['Q9']);
       expect(courtPageOf(courts, 3)).toEqual(['Q1', 'Q2', 'Q3', 'Q4']);
+    });
+  });
+
+  describe('leadingSideOf', () => {
+    it('sets fechados mandam, mesmo perdendo o set atual', () => {
+      const m = match({ status: 'in_progress', sets: [{ a: 21, b: 15 }, { a: 3, b: 9 }], currentSetIndex: 1 });
+      expect(leadingSideOf(m)).toBe('A');
+    });
+
+    it('empate em sets → pontos do set corrente decidem', () => {
+      const m = match({ status: 'in_progress', sets: [{ a: 7, b: 9 }], currentSetIndex: 0 });
+      expect(leadingSideOf(m)).toBe('B');
+    });
+
+    it('tudo empatado → ninguém na frente', () => {
+      const m = match({ status: 'in_progress', sets: [{ a: 9, b: 9 }], currentSetIndex: 0 });
+      expect(leadingSideOf(m)).toBeNull();
+    });
+
+    it('lançamento rápido: agregado liveScore decide', () => {
+      const m = match({ status: 'in_progress', liveScore: { setsA: 0, setsB: 1, currentGamesA: 2, currentGamesB: 2 } });
+      expect(leadingSideOf(m)).toBe('B');
+    });
+
+    it('fora do ao vivo → null', () => {
+      expect(leadingSideOf(match({ status: 'scheduled' }))).toBeNull();
+      expect(leadingSideOf(match({ status: 'completed', sets: [{ a: 21, b: 10 }] }))).toBeNull();
     });
   });
 

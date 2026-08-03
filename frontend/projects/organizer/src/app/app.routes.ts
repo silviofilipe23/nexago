@@ -32,6 +32,14 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/signup.component').then((m) => m.SignupComponent),
   },
   {
+    // Fora do shell do painel: fica aberta na TV da arena em tela cheia. Sem organizerGuard
+    // de propósito — staff logado sem a role organizer também pode exibir o telão.
+    path: 'telao/:tournamentId',
+    canActivate: [authGuard],
+    title: 'Telão ao vivo — NexaGO Organizador',
+    loadComponent: () => import('./painel/telao/telao-page.component').then((m) => m.TelaoPageComponent),
+  },
+  {
     path: 'painel',
     canActivate: [authGuard, organizerGuard],
     loadComponent: () => import('./painel/shell/panel-shell.component').then((m) => m.PanelShellComponent),
@@ -73,6 +81,11 @@ export const routes: Routes = [
         path: 'links',
         title: 'Links — NexaGO Organizador',
         loadComponent: () => import('./painel/links/links.component').then((m) => m.LinksComponent),
+      },
+      {
+        path: 'telao',
+        title: 'Telão ao vivo — NexaGO Organizador',
+        loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
       },
       {
         path: 'config',

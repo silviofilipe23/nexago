@@ -40,6 +40,21 @@ export async function fetchProfileNames(db: Firestore, uids: readonly string[]):
   return names;
 }
 
+export interface ProfileDisplay {
+  name: string;
+  photoUrl: string | null;
+}
+
+/** Nome + foto de exibição (`public_profiles`) — mesmos fallbacks de foto do join das
+ *  inscrições (`inscriptions-repository.ts`). Uids sem doc ficam fora do mapa. */
+export async function fetchProfileDisplays(db: Firestore, uids: readonly string[]): Promise<Map<string, ProfileDisplay>> {
+  return chunkedByIds<ProfileDisplay>(db, ['public_profiles'], uids, (data) => ({
+    name: optionalStr(data['nickname']) ?? optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? 'Atleta',
+    photoUrl:
+      optionalStr(data['profilePhotoUrl']) ?? optionalStr(data['avatarUrl']) ?? optionalStr(data['photoURL']) ?? optionalStr(data['photoUrl']),
+  }));
+}
+
 export async function fetchTeamsByIds(
   db: Firestore,
   projectId: string,

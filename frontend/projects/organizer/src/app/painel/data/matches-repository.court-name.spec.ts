@@ -25,6 +25,10 @@ function match(overrides: Partial<TournamentMatch>): TournamentMatch {
     winnerAdvanceMatchNumber: null,
     winnerAdvanceSlot: null,
     loserAdvanceMatchNumber: null,
+    liveScore: null,
+    currentSetIndex: null,
+    servingTeamId: '',
+    matchStartedAt: null,
     ...overrides,
   };
 }

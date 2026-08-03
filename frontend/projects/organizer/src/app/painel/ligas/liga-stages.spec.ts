@@ -23,6 +23,7 @@ describe('liga-stages', () => {
       courts: [],
       courtsCount: 4,
       matchOps: { dayStart: '07:00', dayEnd: '24:00', defaultMatchDurationMin: 40, minRestBetweenMatchesMin: 20 },
+      bigScreen: null,
       ...over,
     };
   }

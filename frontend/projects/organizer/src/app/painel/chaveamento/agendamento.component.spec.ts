@@ -29,6 +29,7 @@ function tournamentFixture(): OrganizerTournament {
     ],
     courtsCount: 2,
     matchOps: { dayStart: '08:00', dayEnd: '10:00', defaultMatchDurationMin: 30, minRestBetweenMatchesMin: 30 },
+    bigScreen: null,
   };
 }
 

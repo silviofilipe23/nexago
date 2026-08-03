@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
-import type { OrganizerLeague } from '../data/league.model';
+import { LEAGUE_STATUS_LABEL, type League, type LeagueListingStatus } from '@nexago/leagues';
 import { listMyLeagues } from '../data/leagues-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
@@ -36,6 +36,13 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, Tone> = {
   cancelado: 'red',
 };
 
+const LEAGUE_STATUS_TONE: Record<LeagueListingStatus, Tone> = {
+  draft: 'yellow',
+  open: 'green',
+  closed: 'dim',
+  cancelled: 'red',
+};
+
 interface EventoCard {
   key: string;
   kind: 'Liga' | 'Torneio';
@@ -58,7 +65,8 @@ interface EventoCard {
   imports: [RouterLink, OgPageHeaderComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent],
   template: `
     <og-page-header title="Meus eventos" subtitle="Ligas e torneios que você organiza">
-      <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/novo-torneio"><og-icon name="plus" [size]="14" />Criar evento</a>
+      <a class="og-mini-btn" routerLink="/painel/nova-liga"><og-icon name="flag" [size]="14" />Criar liga</a>
+      <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/novo-torneio"><og-icon name="plus" [size]="14" />Criar torneio</a>
     </og-page-header>
 
     <div class="og-content">
@@ -118,7 +126,7 @@ interface EventoCard {
                     <!-- mock (fase 2): arrecadação por evento fica no Financeiro (Task O7); sem dado real por evento ainda -->
                     <div class="og-evento-card-footer-value">—</div>
                   </div>
-                  <span class="og-ghost-btn">{{ e.link ? 'Gerenciar' : 'Sem etapa iniciada' }}</span>
+                  <span class="og-ghost-btn">{{ e.link ? 'Gerenciar' : 'Indisponível' }}</span>
                 </div>
               </div>
             </a>
@@ -291,7 +299,7 @@ export class EventosListComponent {
   protected readonly loading = signal(true);
 
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
-  protected readonly leagues = signal<OrganizerLeague[]>([]);
+  protected readonly leagues = signal<League[]>([]);
   protected readonly inscritosPorTorneio = signal<Map<string, number>>(new Map());
   /** Capas que falharam ao carregar — o card volta pro fallback de gradiente + ícone. */
   protected readonly failedCovers = signal<ReadonlySet<string>>(new Set());
@@ -314,24 +322,20 @@ export class EventosListComponent {
       bucket: t.status === 'concluido' || t.status === 'cancelado' ? 'encerrados' : 'ativos',
     }));
 
-    // Ligas não têm status de encerramento no modelo atual — contam sempre como ativas nas abas.
-    const ligas: EventoCard[] = this.leagues().map((l) => {
-      const stageComTorneio = l.stages.find((s) => s.tournamentId);
-      return {
-        key: `l:${l.id}`,
-        kind: 'Liga',
-        name: l.name,
-        metaLabel: `Liga · ${l.sportLabel}${l.seasonLabel ? ' · ' + l.seasonLabel : ''}`,
-        statusLabel: `${l.stages.length} etapa${l.stages.length === 1 ? '' : 's'}`,
-        statusTone: 'dim',
-        coverUrl: l.coverUrl,
-        inscritos: null,
-        vagas: null,
-        etapas: l.stages.length,
-        link: stageComTorneio?.tournamentId ? ['/painel/eventos', stageComTorneio.tournamentId] : null,
-        bucket: 'ativos',
-      };
-    });
+    const ligas: EventoCard[] = this.leagues().map((l) => ({
+      key: `l:${l.id}`,
+      kind: 'Liga',
+      name: l.name,
+      metaLabel: `Liga · ${l.sportLabel}${l.seasonLabel ? ' · ' + l.seasonLabel : ''}`,
+      statusLabel: LEAGUE_STATUS_LABEL[l.listingStatus],
+      statusTone: LEAGUE_STATUS_TONE[l.listingStatus],
+      coverUrl: l.coverUrl,
+      inscritos: null,
+      vagas: null,
+      etapas: l.stages.length,
+      link: ['/painel/ligas', l.id],
+      bucket: l.listingStatus === 'closed' || l.listingStatus === 'cancelled' ? 'encerrados' : 'ativos',
+    }));
 
     return [...torneios, ...ligas];
   });

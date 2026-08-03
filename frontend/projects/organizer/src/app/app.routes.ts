@@ -80,6 +80,34 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/config/config.component').then((m) => m.ConfigComponent),
       },
 
+      // ── Nível 2 · Liga selecionada ───────────────────────────
+      {
+        path: 'ligas/:leagueId',
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Liga — NexaGO Organizador',
+            loadComponent: () => import('./painel/ligas/liga-visao-geral.component').then((m) => m.LigaVisaoGeralComponent),
+          },
+          {
+            path: 'etapas',
+            title: 'Etapas da liga — NexaGO Organizador',
+            loadComponent: () => import('./painel/ligas/liga-etapas.component').then((m) => m.LigaEtapasComponent),
+          },
+          {
+            path: 'ranking',
+            title: 'Ranking da liga — NexaGO Organizador',
+            loadComponent: () => import('./painel/ligas/liga-ranking.component').then((m) => m.LigaRankingComponent),
+          },
+          {
+            path: 'nova-etapa',
+            title: 'Nova etapa — NexaGO Organizador',
+            loadComponent: () => import('./painel/eventos/wizard/criar-etapa.component').then((m) => m.CriarEtapaComponent),
+          },
+        ],
+      },
+
       // Rotas antigas (pré-cascata) — telas globais que agora vivem no contexto do torneio.
       { path: 'inscricoes', redirectTo: 'eventos' },
       { path: 'comunicacao', redirectTo: 'eventos' },

@@ -15,7 +15,11 @@ interface OgNavEntry {
   matchPrefixes?: string[];
 }
 
-const SECTION_LABEL = { global: 'Geral', torneio: 'Torneio', categoria: 'Categoria' } as const;
+const SECTION_LABEL = { global: 'Geral', liga: 'Liga', torneio: 'Torneio', categoria: 'Categoria' } as const;
+
+const CONTEXT_ICON = { liga: 'flag', torneio: 'trophy', categoria: 'bracket' } as const;
+
+const CONTEXT_KICKER = { liga: 'Liga', torneio: 'Torneio', categoria: 'Categoria' } as const;
 
 /** "silvio.dionizio" → "Silvio Dionizio" — fallback de nome quando o Auth não tem displayName. */
 function nameFromEmail(email: string): string {
@@ -64,10 +68,10 @@ function initialsOfName(name: string): string {
         </a>
         <div class="og-side-context">
           <span class="og-side-context-icon">
-            <og-icon [name]="ctx.level() === 'torneio' ? 'trophy' : 'bracket'" [size]="14" />
+            <og-icon [name]="contextIcon()" [size]="14" />
           </span>
           <span class="og-side-context-body">
-            <span class="og-side-context-kicker">{{ ctx.level() === 'torneio' ? 'Torneio' : 'Categoria' }}</span>
+            <span class="og-side-context-kicker">{{ contextKicker() }}</span>
             <span class="og-side-context-name">{{ contextName() }}</span>
             <span class="og-side-context-meta">{{ contextMeta() }}</span>
           </span>
@@ -174,30 +178,64 @@ export class PanelShellComponent {
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
       ];
     }
+    if (level === 'liga') {
+      const base = this.ctx.leagueBase()!;
+      return [
+        { label: 'Visão geral', icon: 'grid', link: base },
+        { label: 'Etapas', icon: 'calendar', link: `${base}/etapas`, matchPrefixes: [`${base}/etapas`, `${base}/nova-etapa`] },
+        { label: 'Ranking', icon: 'trophy', link: `${base}/ranking` },
+      ];
+    }
     return [
       { label: 'Início', icon: 'home', link: '/painel/inicio' },
-      { label: 'Meus eventos', icon: 'trophy', link: '/painel/eventos', matchPrefixes: ['/painel/eventos', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'] },
+      { label: 'Meus eventos', icon: 'trophy', link: '/painel/eventos', matchPrefixes: ['/painel/eventos', '/painel/ligas', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'] },
       { label: 'Financeiro', icon: 'cash', link: '/painel/financeiro' },
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });
 
-  protected readonly backLink = computed(() =>
-    this.ctx.level() === 'categoria' ? (this.ctx.tournamentBase() ?? '/painel/eventos') : '/painel/eventos',
-  );
+  /** Um nível acima: categoria → torneio, torneio de etapa → liga, resto → Meus eventos. */
+  protected readonly backLink = computed(() => {
+    const level = this.ctx.level();
+    if (level === 'categoria') return this.ctx.tournamentBase() ?? '/painel/eventos';
+    if (level === 'torneio') return this.ctx.leagueBase() ?? '/painel/eventos';
+    return '/painel/eventos';
+  });
 
-  protected readonly backLabel = computed(() =>
-    this.ctx.level() === 'categoria' ? (this.ctx.tournament()?.name ?? 'Torneio') : 'Meus eventos',
-  );
+  protected readonly backLabel = computed(() => {
+    const level = this.ctx.level();
+    if (level === 'categoria') return this.ctx.tournament()?.name ?? 'Torneio';
+    if (level === 'torneio' && this.ctx.leagueBase()) return this.ctx.league()?.name ?? 'Liga';
+    return 'Meus eventos';
+  });
+
+  protected readonly contextIcon = computed<OgIconName>(() => {
+    const level = this.ctx.level();
+    return level === 'global' ? 'trophy' : CONTEXT_ICON[level];
+  });
+
+  protected readonly contextKicker = computed(() => {
+    const level = this.ctx.level();
+    return level === 'global' ? '' : CONTEXT_KICKER[level];
+  });
 
   protected readonly contextName = computed(() => {
-    if (this.ctx.level() === 'categoria') return this.ctx.category()?.name ?? 'Categoria';
+    const level = this.ctx.level();
+    if (level === 'liga') return this.ctx.league()?.name ?? 'Carregando…';
+    if (level === 'categoria') return this.ctx.category()?.name ?? 'Categoria';
     return this.ctx.tournament()?.name ?? 'Carregando…';
   });
 
   protected readonly contextMeta = computed(() => {
+    const level = this.ctx.level();
+    if (level === 'liga') {
+      const l = this.ctx.league();
+      if (!l) return '';
+      const n = l.stages.length;
+      return `${l.sportLabel} · ${n} etapa${n === 1 ? '' : 's'}`;
+    }
     const t = this.ctx.tournament();
-    if (this.ctx.level() === 'categoria') return t?.name ?? '';
+    if (level === 'categoria') return t?.name ?? '';
     if (!t) return '';
     const n = t.categories.length;
     return `${t.sportLabel} · ${n} categoria${n === 1 ? '' : 's'}`;

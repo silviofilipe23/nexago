@@ -112,8 +112,8 @@ function inputToDate(v: string): Date | null {
           <p>A liga está visível no Competir. As etapas definidas já nasceram como torneios abertos.</p>
         </div>
         <div class="og-wizard-done-actions">
-          <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/eventos">Ver meus eventos</a>
-          <a class="og-ghost-btn" routerLink="/painel/inicio">Voltar ao painel</a>
+          <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/ligas', pubId]">Gerenciar o circuito</a>
+          <a class="og-ghost-btn" routerLink="/painel/eventos">Meus eventos</a>
         </div>
       </div>
     } @else {

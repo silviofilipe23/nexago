@@ -241,12 +241,14 @@ export class MatchDetailComponent {
     };
   });
 
-  /** De onde o atleta veio: chave se a partida é de mata-mata, senão a lista de partidas. */
+  /** De onde o atleta veio: a categoria DESTA partida — chave no mata-mata, lista de jogos na
+   *  fase de grupos. Sem a categoria na URL o voltar caía numa categoria qualquer. */
   protected readonly backLink = computed(() => {
     const m = this.match();
     const tournamentId = this.store.tournamentId() || this.tournamentIdParam();
-    return m?.poolId ? ['/torneios', tournamentId, 'partidas'] : ['/torneios', tournamentId, 'chaves'];
+    if (!m?.categoryId) return ['/torneios', tournamentId, 'categorias'];
+    return ['/torneios', tournamentId, 'categorias', m.categoryId, m.poolId ? 'partidas' : 'chave'];
   });
 
-  protected readonly backLabel = computed(() => (this.match()?.poolId ? 'Voltar às partidas' : 'Voltar às chaves'));
+  protected readonly backLabel = computed(() => (this.match()?.poolId ? 'Voltar às partidas' : 'Voltar à chave'));
 }

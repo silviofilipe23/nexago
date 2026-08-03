@@ -1,11 +1,8 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
+import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import {
   buildBracketColumns,
-  buildGroupStandings,
   distinctPoolIds,
   matchIsCanceled,
   matchIsCompleted,
@@ -14,19 +11,12 @@ import {
   type TournamentMatch,
 } from '../../data/matches-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
-import type { BracketDuo, BracketMatch, BracketMatchSide, BracketRound, CategoryBracketData, CategoryGroup, GroupStanding } from '../bracket-results.models';
+import type { BracketDuo, BracketMatch, BracketMatchSide, BracketRound, CategoryBracketData } from '../bracket-results.models';
 import { BRACKET_MATCH_HEIGHT, BRACKET_MATCH_WIDTH, buildCategoryBracketLayout, type BracketLayout } from '../bracket-tree';
 import { BRACKET_ZOOM_MAX, BRACKET_ZOOM_MIN, BRACKET_ZOOM_STEP, zoomAt } from '../bracket-zoom';
+import { bracketFormatLabelOf } from '../tournament-format';
 import { TournamentLiveStore } from '../tournament-live.store';
-
-function titleCase(input: string): string {
-  return input
-    .toLowerCase()
-    .split(/[\s_-]+/)
-    .filter((part) => part.length > 0)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
+import { parentCategoryId } from './category-route';
 
 function initialsOf(name: string): string {
   const parts = name
@@ -87,28 +77,6 @@ function scheduleLabelOf(m: TournamentMatch): string {
   return parts.join(' · ');
 }
 
-const FORMAT_LABEL: Record<string, string> = {
-  'single elimination': 'Eliminação simples',
-  'double elimination': 'Eliminação dupla',
-  'pool play + se': 'Fase de grupos + eliminação simples',
-  'group cross + play-in': 'Grupos cruzados + play-in',
-  'groups knockout': 'Fase de grupos + mata-mata',
-  'groups repechage': 'Fase de grupos + repescagem',
-  'round robin': 'Todos contra todos',
-};
-
-/** O `bracketFormat` chega tanto como `"Groups Knockout"` quanto como `"groupsKnockout"`,
- *  dependendo de onde a categoria foi criada — sem normalizar o camelCase, a segunda forma
- *  escapava do mapa e vazava em inglês para a tela. */
-function formatLabelOf(bracketFormat: string): string {
-  const normalized = bracketFormat
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .toLowerCase();
-  return FORMAT_LABEL[normalized] ?? titleCase(bracketFormat);
-}
-
 const STATUS_LABEL: Record<BracketMatch['status'], string> = {
   done: 'Finalizado',
   live: 'Ao vivo',
@@ -122,7 +90,7 @@ function pinchDistanceOf(ev: TouchEvent): number {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 }
 
-/** Aba "Chaves": grupos + mata-mata da categoria selecionada.
+/** Sub-visão "Chave": a eliminatória da categoria da rota.
  *
  *  A árvore usa a MESMA geometria do painel do organizador (`bracket-tree.ts`): canvas único com
  *  os tracks WB/LB, cards posicionados em absoluto e conectores SVG seguindo a fiação real da
@@ -131,19 +99,23 @@ function pinchDistanceOf(ev: TouchEvent): number {
  *  os acréscimos que só fazem sentido aqui: destaque da partida do próprio atleta e do jogo ao
  *  vivo.
  *
- *  Não busca nada: consome as partidas já carregadas pelo `TournamentLiveStore`, então trocar de
- *  categoria é instantâneo. */
+ *  Não busca nada: consome as partidas já carregadas pelo `TournamentLiveStore`. */
 @Component({
-  selector: 'app-brackets-tab',
+  selector: 'app-category-bracket',
   imports: [NgTemplateOutlet],
-  templateUrl: './brackets-tab.component.html',
-  styleUrl: './brackets-tab.component.scss',
+  templateUrl: './category-bracket.component.html',
+  styleUrl: './category-bracket.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BracketsTabComponent {
-  private readonly route = inject(ActivatedRoute);
+export class CategoryBracketComponent {
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly store = inject(TournamentLiveStore);
+
+  constructor() {
+    // Avanço de chave e placar da mesa entram na árvore sem recarregar.
+    this.destroyRef.onDestroy(this.store.acquireLive());
+  }
 
   protected readonly initialsOf = initialsOf;
   protected readonly matchWidth = BRACKET_MATCH_WIDTH;
@@ -162,28 +134,16 @@ export class BracketsTabComponent {
   private pendingScroll: { left: number; top: number } | null = null;
   private readonly injector = inject(Injector);
 
-  private readonly categoryParam = toSignal(this.route.queryParamMap.pipe(map((p) => p.get('categoria'))), {
-    initialValue: this.route.snapshot.queryParamMap.get('categoria'),
-  });
+  private readonly categoryId = parentCategoryId();
 
-  private readonly manualCategoryId = signal<string | null>(null);
+  private readonly category = computed<TournamentCategoryOffer | null>(() => this.store.categoryById(this.categoryId()));
 
-  protected readonly categories = computed<TournamentCategoryOffer[]>(() => this.store.tournament()?.categories ?? []);
+  /** Partidas da categoria — base tanto do VM dos cards quanto da geometria. */
+  private readonly categoryMatches = computed<TournamentMatch[]>(() => this.store.matchesOfCategory(this.categoryId()));
 
-  protected readonly selectedCategory = computed<TournamentCategoryOffer | null>(() => {
-    const cats = this.categories();
-    if (cats.length === 0) return null;
-    // Ordem de preferência: escolha manual → `?categoria=` → a que o atleta joga → a primeira.
-    const id = this.manualCategoryId() ?? this.categoryParam() ?? this.store.focusCategoryId();
-    return cats.find((c) => c.id === id) ?? cats[0] ?? null;
-  });
-
-  /** Partidas da categoria selecionada — base tanto do VM dos cards quanto da geometria. */
-  private readonly categoryMatches = computed<TournamentMatch[]>(() => {
-    const category = this.selectedCategory();
-    if (!category) return [];
-    return this.store.matches().filter((m) => m.categoryId === category.id);
-  });
+  /** Numa categoria com grupos a árvore é uma prévia: os slots se preenchem conforme os grupos
+   *  terminam, e o cabeçalho precisa dizer isso em vez de fingir chave fechada. */
+  protected readonly isPreview = computed(() => distinctPoolIds(this.categoryMatches()).length > 0);
 
   /** Geometria da árvore (posições + conectores). Os cards vêm do `bracketData` por id. */
   protected readonly bracketLayout = computed<BracketLayout | null>(() => buildCategoryBracketLayout(this.categoryMatches()));
@@ -203,7 +163,7 @@ export class BracketsTabComponent {
   }
 
   protected readonly bracketData = computed<CategoryBracketData | null>(() => {
-    const category = this.selectedCategory();
+    const category = this.category();
     if (!category) return null;
     const matches = this.categoryMatches();
 
@@ -244,39 +204,13 @@ export class BracketsTabComponent {
     const columns = buildBracketColumns(matches);
     const bracketRounds: BracketRound[] = columns.map((c) => ({ id: c.key, label: c.label, matches: c.matches.map(toBracketMatch) }));
 
-    const poolIds = distinctPoolIds(matches);
-    const groups: CategoryGroup[] = poolIds.map((poolId, i) => {
-      const standings = buildGroupStandings(matches, poolId);
-      const rows: GroupStanding[] = standings.map((s, idx) => ({
-        rank: idx + 1,
-        duo: duoOf(s.teamId, null) ?? { id: s.teamId, name: 'Dupla', isViewer: false, players: this.store.duoPlayersOf(s.teamId) },
-        wins: s.wins,
-        losses: matches.filter((m) => m.poolId === poolId && matchIsCompleted(m) && (m.teamAId === s.teamId || m.teamBId === s.teamId) && m.winnerId !== s.teamId).length,
-        setsFor: s.setsWon,
-        setsAgainst: s.setsLost,
-        points: s.points,
-        qualifies: idx < category.qualifiersPerGroup,
-      }));
-      return { id: poolId, letter: String.fromCharCode(65 + i), standings: rows };
-    });
-
-    const formatLabel = formatLabelOf(category.bracketFormat);
-
     return {
       categoryId: category.id,
       categoryName: category.categoryName,
-      format: groups.length > 0 ? 'grupos' : 'chave',
-      formatSummaryLabel: formatLabel,
-      groups,
-      groupsQualifyNote: groups.length > 0 ? `Os ${category.qualifiersPerGroup} primeiros de cada grupo avançam para a eliminatória.` : null,
-      eliminationPreviewRounds: bracketRounds,
+      formatSummaryLabel: bracketFormatLabelOf(category.bracketFormat),
       bracketRounds,
     };
   });
-
-  protected selectCategory(id: string): void {
-    this.manualCategoryId.set(id);
-  }
 
   // ── Zoom da árvore ─────────────────────────────────────────
   // Pinça (touch) e ctrl+scroll (pinça de trackpad) ancorados no ponto sob os dedos/cursor;

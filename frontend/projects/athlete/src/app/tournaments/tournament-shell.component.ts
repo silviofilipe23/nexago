@@ -27,8 +27,7 @@ function nameFromEmail(email: string | null | undefined): string {
 const TAB_LABELS: Record<TournamentTabId, string> = {
   'visao-geral': 'Visão geral',
   hoje: 'Hoje',
-  partidas: 'Partidas & tabela',
-  chaves: 'Chaves',
+  categorias: 'Categorias',
   'minha-inscricao': 'Minha inscrição',
 };
 
@@ -124,9 +123,11 @@ export class TournamentShellComponent {
     });
   }
 
+  /** Só o primeiro segmento da rota filha: `categorias/:categoriaId` também é a aba "Categorias". */
   private currentSegment(): TournamentTabId | null {
     const child = this.route.snapshot.firstChild?.routeConfig?.path ?? '';
-    return child.length > 0 ? (child as TournamentTabId) : null;
+    const first = child.split('/')[0] ?? '';
+    return first.length > 0 ? (first as TournamentTabId) : null;
   }
 
   protected isActive(id: TournamentTabId): boolean {

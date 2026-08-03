@@ -1,0 +1,119 @@
+@use '../tournament-live' as tl;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.cl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+}
+
+.cl-kicker {
+  margin: 0;
+  @include tl.kicker;
+}
+
+.cl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--nx-s-4);
+
+  @media (max-width: 560px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cl-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+  min-height: 132px;
+  padding: var(--nx-s-5);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  background: var(--nx-surface-0);
+  text-decoration: none;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    background var(--nx-d-fast) var(--nx-ease-out),
+    transform var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(255, 106, 26, 0.45);
+    background: var(--nx-surface-1);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
+}
+
+// A categoria do próprio atleta vem marcada também pelo texto ("Você joga aqui"): a borda
+// laranja sozinha não diria nada a quem não distingue a cor.
+.cl-card--mine {
+  border-color: rgba(255, 106, 26, 0.32);
+}
+
+.cl-card-format {
+  @include tl.kicker;
+}
+
+.cl-card-name {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--nx-text);
+}
+
+.cl-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nx-s-2);
+  margin-top: auto;
+  padding-top: var(--nx-s-3);
+}
+
+.cl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-1);
+  padding: 3px 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line-strong);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--nx-text-mute);
+}
+
+.cl-pill--live {
+  border-color: rgba(255, 59, 48, 0.45);
+  background: rgba(255, 59, 48, 0.14);
+  color: #ff6b62;
+}
+
+.cl-pill--mine {
+  border-color: rgba(255, 106, 26, 0.45);
+  background: var(--nx-orange-tint);
+  color: var(--nx-orange-400);
+}
+
+.cl-live-dot {
+  @include tl.live-dot(6px);
+}
+
+@include tl.live-pulse-keyframes;
+
+.cl-empty {
+  @include tl.empty-state;
+}

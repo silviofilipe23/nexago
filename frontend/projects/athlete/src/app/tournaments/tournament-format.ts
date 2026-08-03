@@ -100,6 +100,37 @@ export function roundsProgressLabel(played: number, total: number): string {
   return `Após ${played} de ${total} rodadas`;
 }
 
+const BRACKET_FORMAT_LABEL: Record<string, string> = {
+  'single elimination': 'Eliminação simples',
+  'double elimination': 'Eliminação dupla',
+  'pool play + se': 'Fase de grupos + eliminação simples',
+  'group cross + play-in': 'Grupos cruzados + play-in',
+  'groups knockout': 'Fase de grupos + mata-mata',
+  'groups repechage': 'Fase de grupos + repescagem',
+  'round robin': 'Todos contra todos',
+};
+
+function titleCase(input: string): string {
+  return input
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+/** O `bracketFormat` chega tanto como `"Groups Knockout"` quanto como `"groupsKnockout"`,
+ *  dependendo de onde a categoria foi criada — sem normalizar o camelCase, a segunda forma
+ *  escapava do mapa e vazava em inglês para a tela. */
+export function bracketFormatLabelOf(bracketFormat: string): string {
+  const normalized = bracketFormat
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return BRACKET_FORMAT_LABEL[normalized] ?? titleCase(bracketFormat);
+}
+
 /** Número do set em andamento, pro badge "AO VIVO · 3º SET". */
 export function currentSetNumberOf(m: TournamentMatch): number | null {
   if (!matchIsLive(m)) return null;

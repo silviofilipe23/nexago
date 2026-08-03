@@ -6,38 +6,14 @@
   display: block;
 }
 
+// Coluna única: a classificação, que ocupava a lateral, mudou para a sub-visão "Grupos" — os
+// cards de partida ganharam a largura toda, o que no celular era o gargalo.
 .mt {
-  @include tl.two-col;
-}
-
-.mt-main,
-.mt-side {
   @include tl.col-stack;
-}
-
-.mt-card {
-  @include tl.card;
-}
-
-.mt-kicker {
-  @include tl.kicker;
-}
-
-.mt-card-title {
-  @include tl.card-title;
 }
 
 .mt-empty {
   @include tl.empty-state;
-}
-
-// Cabeçalho de tabela sem linhas é ruído: quando o grupo ainda não tem duplas, explica-se
-// o porquê em vez de mostrar colunas vazias.
-.mt-empty-inline {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--nx-text-dim);
 }
 
 // ── Barra de filtros ─────────────────────────────────────────
@@ -48,8 +24,8 @@
   flex-wrap: wrap;
 }
 
-// Torneio com 10 categorias empilha 10 linhas de chip no mobile e empurra as partidas para
-// muito abaixo da dobra — daí a faixa rolável, que mantém a lista logo no topo.
+// Categoria com muitos grupos empilharia várias linhas de chip no mobile e empurraria as
+// partidas para muito abaixo da dobra — daí a faixa rolável, que mantém a lista logo no topo.
 .mt-chips {
   display: flex;
   gap: var(--nx-s-2);
@@ -498,18 +474,3 @@ $bronze-hi: #f3c9a8;
   }
 }
 
-// ── Lateral ──────────────────────────────────────────────────
-.mt-standings {
-  @include tl.standings-table;
-}
-
-.mt-note {
-  @include tl.note('win');
-  margin: var(--nx-s-4) 0 0;
-}
-
-.mt-tiebreak {
-  @include tl.note;
-  margin: 0;
-  font-size: 12px;
-}

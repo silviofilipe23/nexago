@@ -1,0 +1,74 @@
+@if (groups().length === 0) {
+  <p class="gr-empty">Os grupos aparecem assim que o organizador faz o sorteio.</p>
+} @else {
+  <div class="gr">
+    <div class="gr-grid">
+      @for (group of groups(); track group.id) {
+        <section class="gr-card">
+          <header class="gr-card-head">
+            <h3 class="gr-card-title">{{ group.title }}</h3>
+            <span class="gr-card-progress">{{ group.progressLabel }}</span>
+          </header>
+
+          @if (group.rows.length === 0) {
+            <p class="gr-card-empty">Duplas definidas na hora do sorteio.</p>
+          } @else {
+            <div class="gr-table-scroll">
+              <table class="gr-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="gr-th-rank"><span class="gr-sr">Posição</span></th>
+                    <th scope="col">Dupla</th>
+                    <th scope="col">V</th>
+                    <th scope="col">D</th>
+                    <th scope="col">Sets</th>
+                    <th scope="col">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of group.rows; track row.teamId) {
+                    <tr [attr.data-qualifies]="row.qualifies" [attr.data-mine]="row.isMine">
+                      <td class="gr-rank">{{ row.rank }}</td>
+                      <td class="gr-duo">
+                        <span class="gr-avatars" aria-hidden="true">
+                          @for (p of row.players; track $index) {
+                            <span class="duo-avatar">
+                              @if (p.photo) {
+                                <img [src]="p.photo" alt="" loading="lazy" />
+                              } @else {
+                                {{ p.initial }}
+                              }
+                            </span>
+                          }
+                        </span>
+                        <span class="gr-duo-name">{{ row.name }}@if (row.isMine) {<span class="gr-you"> · você</span>}</span>
+                      </td>
+                      <td>{{ row.wins }}</td>
+                      <td>{{ row.losses }}</td>
+                      <td>{{ row.sets }}</td>
+                      <td class="gr-pts">{{ row.points }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+      }
+    </div>
+
+    @if (myStatusNote(); as note) {
+      <p class="gr-note gr-note--mine">
+        <span class="gr-note-dot gr-note-dot--mine" aria-hidden="true"></span>
+        {{ note }}
+      </p>
+    }
+
+    @if (qualifyNote(); as note) {
+      <p class="gr-note">
+        <span class="gr-note-dot" aria-hidden="true"></span>
+        {{ note }}
+      </p>
+    }
+  </div>
+}

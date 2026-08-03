@@ -146,13 +146,17 @@ export class TournamentLiveStore {
 
   readonly visibleTabs = computed<TournamentTabId[]>(() =>
     visibleTabsOf({
-      hasMatches: this.matches().length > 0,
       hasMyMatchToday: this.hasMyMatchToday(),
       isRegistered: this.isRegistered(),
     }),
   );
 
   readonly defaultTab = computed(() => defaultTabOf(this.visibleTabs()));
+
+  /** Ligado quando o atleta pede a lista de categorias ("Todas as categorias"). Enquanto for
+   *  falso, quem está inscrito é levado direto para a própria categoria — sem o sinal, o atalho
+   *  reagiria ao clique de voltar e prenderia o atleta na categoria dele. */
+  readonly categoryListRequested = signal(false);
 
   constructor() {
     this.startTicking(TICK_IDLE_MS);
@@ -316,6 +320,14 @@ export class TournamentLiveStore {
 
   isMyTeam(teamId: string): boolean {
     return teamId.length > 0 && this.myTeamIds().has(teamId);
+  }
+
+  categoryById(categoryId: string): TournamentCategoryOffer | null {
+    return this.tournament()?.categories.find((c) => c.id === categoryId) ?? null;
+  }
+
+  matchesOfCategory(categoryId: string): TournamentMatch[] {
+    return this.matches().filter((m) => m.categoryId === categoryId);
   }
 
   /** Grupos da categoria, em ordem alfabética de poolId (A, B, C…). */

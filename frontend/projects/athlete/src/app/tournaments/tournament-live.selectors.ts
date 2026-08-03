@@ -118,9 +118,10 @@ export interface RoundGroup {
   hasLive: boolean;
 }
 
-/** Partidas de um grupo agrupadas por rodada — a lista da aba "Partidas & tabela". */
-export function roundGroupsOf(matches: readonly TournamentMatch[], poolId: string): RoundGroup[] {
-  const pool = matches.filter((m) => m.poolId === poolId).sort(byScheduleTime);
+/** Partidas de fase de grupos agrupadas por rodada — a lista da sub-visão "Partidas".
+ *  `poolId` nulo junta todos os grupos da categoria (o filtro "Todos"). */
+export function roundGroupsOf(matches: readonly TournamentMatch[], poolId: string | null): RoundGroup[] {
+  const pool = matches.filter((m) => (poolId == null ? m.poolId.length > 0 : m.poolId === poolId)).sort(byScheduleTime);
   const byRound = new Map<number, TournamentMatch[]>();
   for (const m of pool) {
     const list = byRound.get(m.round);
@@ -270,23 +271,46 @@ export function qualificationOf(
   };
 }
 
-export type TournamentTabId = 'visao-geral' | 'hoje' | 'partidas' | 'chaves' | 'minha-inscricao';
+export type TournamentTabId = 'visao-geral' | 'hoje' | 'categorias' | 'minha-inscricao';
 
 export interface TabVisibilityInput {
-  hasMatches: boolean;
   hasMyMatchToday: boolean;
   isRegistered: boolean;
 }
 
-/** Abas adaptativas: "Visão geral" e "Chaves" são o esqueleto fixo; as outras três só aparecem
- *  quando têm conteúdo real, pra quem só está olhando o torneio não encarar abas vazias. */
+/** Abas adaptativas: "Visão geral" e "Categorias" são o esqueleto fixo; as outras duas só
+ *  aparecem quando têm conteúdo real, pra quem só está olhando o torneio não encarar abas
+ *  vazias. Partidas, grupos e chave não são abas do torneio: vivem DENTRO da categoria, senão
+ *  trocar de aba trocava a categoria que o atleta estava acompanhando. */
 export function visibleTabsOf(input: TabVisibilityInput): TournamentTabId[] {
   const tabs: TournamentTabId[] = ['visao-geral'];
   if (input.hasMyMatchToday) tabs.push('hoje');
-  if (input.hasMatches) tabs.push('partidas');
-  tabs.push('chaves');
+  tabs.push('categorias');
   if (input.isRegistered) tabs.push('minha-inscricao');
   return tabs;
+}
+
+/** Sub-visões da categoria — o segmentado que substituiu as abas Partidas/Chaves. */
+export type CategoryViewId = 'partidas' | 'grupos' | 'chave';
+
+export interface CategoryViewInput {
+  hasMatches: boolean;
+  hasGroups: boolean;
+}
+
+/** "Grupos" só existe em categoria com fase de grupos; "Partidas" só depois que o organizador
+ *  publica os jogos. "Chave" fica sempre — é onde a mensagem de "ainda não sorteada" aparece. */
+export function categoryViewsOf(input: CategoryViewInput): CategoryViewId[] {
+  const views: CategoryViewId[] = [];
+  if (input.hasMatches) views.push('partidas');
+  if (input.hasGroups) views.push('grupos');
+  views.push('chave');
+  return views;
+}
+
+/** Sub-visão de entrada da categoria: os jogos quando existem, senão a chave. */
+export function defaultCategoryViewOf(views: readonly CategoryViewId[]): CategoryViewId {
+  return views[0] ?? 'chave';
 }
 
 /** Aba de entrada: quem tem jogo hoje cai direto no "Hoje". */

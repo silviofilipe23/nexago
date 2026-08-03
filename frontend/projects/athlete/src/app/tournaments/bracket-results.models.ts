@@ -1,30 +1,11 @@
 import type { DuoPlayer } from './tournament-live.store';
 
-export type CategoryBracketFormat = 'chave' | 'grupos';
-
 export interface BracketDuo {
   id: string;
   name: string;
   isViewer: boolean;
   /** Foto + inicial de cada atleta — o card da chave mostra a dupla, não um círculo genérico. */
   players: [DuoPlayer, DuoPlayer];
-}
-
-export interface GroupStanding {
-  rank: number;
-  duo: BracketDuo;
-  wins: number;
-  losses: number;
-  setsFor: number;
-  setsAgainst: number;
-  points: number;
-  qualifies: boolean;
-}
-
-export interface CategoryGroup {
-  id: string;
-  letter: string;
-  standings: GroupStanding[];
 }
 
 /** Estado do jogo, derivado do `status` do doc — igual ao selo do painel do organizador. Uma
@@ -62,18 +43,11 @@ export interface BracketRound {
   matches: BracketMatch[];
 }
 
+/** Os grupos NÃO vivem aqui: a classificação virou a sub-visão "Grupos" da categoria, um card
+ *  por grupo. Esta estrutura é só a eliminatória. */
 export interface CategoryBracketData {
   categoryId: string;
   categoryName: string;
-  format: CategoryBracketFormat;
   formatSummaryLabel: string;
-
-  /** Formato `grupos`. */
-  groups: CategoryGroup[];
-  groupsQualifyNote: string | null;
-  /** Chave eliminatória prévia, preenchida conforme os grupos terminam (formato `grupos`). */
-  eliminationPreviewRounds: BracketRound[];
-
-  /** Formato `chave`. */
   bracketRounds: BracketRound[];
 }

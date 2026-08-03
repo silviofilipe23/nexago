@@ -1,6 +1,8 @@
 import type { TournamentMatch } from '../data/matches-repository';
 import {
   campaignOf,
+  categoryViewsOf,
+  defaultCategoryViewOf,
   defaultTabOf,
   displaySetsOf,
   hasPendingKnockout,
@@ -288,23 +290,37 @@ describe('campaignOf', () => {
 });
 
 describe('visibleTabsOf / defaultTabOf', () => {
-  it('mostra só visão geral e chaves para quem não está inscrito e não tem partidas', () => {
-    const tabs = visibleTabsOf({ hasMatches: false, hasMyMatchToday: false, isRegistered: false });
-    expect(tabs).toEqual(['visao-geral', 'chaves']);
+  it('mostra só visão geral e categorias para quem não está inscrito', () => {
+    const tabs = visibleTabsOf({ hasMyMatchToday: false, isRegistered: false });
+    expect(tabs).toEqual(['visao-geral', 'categorias']);
     expect(defaultTabOf(tabs)).toBe('visao-geral');
   });
 
   it('abre em "hoje" para quem tem jogo no dia', () => {
-    const tabs = visibleTabsOf({ hasMatches: true, hasMyMatchToday: true, isRegistered: true });
-    expect(tabs).toEqual(['visao-geral', 'hoje', 'partidas', 'chaves', 'minha-inscricao']);
+    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true });
+    expect(tabs).toEqual(['visao-geral', 'hoje', 'categorias', 'minha-inscricao']);
     expect(defaultTabOf(tabs)).toBe('hoje');
   });
 
-  it('esconde "partidas" enquanto a chave não foi publicada', () => {
-    expect(visibleTabsOf({ hasMatches: false, hasMyMatchToday: false, isRegistered: true })).toEqual([
-      'visao-geral',
-      'chaves',
-      'minha-inscricao',
-    ]);
+  it('mantém "minha inscrição" para o inscrito sem jogo hoje', () => {
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: true })).toEqual(['visao-geral', 'categorias', 'minha-inscricao']);
+  });
+});
+
+describe('categoryViewsOf / defaultCategoryViewOf', () => {
+  it('oferece as três sub-visões numa categoria de grupos com jogos publicados', () => {
+    const views = categoryViewsOf({ hasMatches: true, hasGroups: true });
+    expect(views).toEqual(['partidas', 'grupos', 'chave']);
+    expect(defaultCategoryViewOf(views)).toBe('partidas');
+  });
+
+  it('esconde "grupos" no mata-mata puro', () => {
+    expect(categoryViewsOf({ hasMatches: true, hasGroups: false })).toEqual(['partidas', 'chave']);
+  });
+
+  it('cai na chave enquanto nada foi publicado', () => {
+    const views = categoryViewsOf({ hasMatches: false, hasGroups: false });
+    expect(views).toEqual(['chave']);
+    expect(defaultCategoryViewOf(views)).toBe('chave');
   });
 });

@@ -1,0 +1,118 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+// A sub-visão também precisa poder encolher: a chave (canvas largo) reabriria o transbordamento
+// um nível abaixo se o outlet nascesse com `min-width: auto`.
+router-outlet + * {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-5);
+  min-width: 0;
+
+  @media (max-width: 720px) {
+    gap: var(--nx-s-4);
+  }
+}
+
+.cat-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--nx-s-4);
+  flex-wrap: wrap;
+}
+
+.cat-head-main {
+  min-width: 0;
+}
+
+.cat-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-s-2);
+  min-height: 36px;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  text-decoration: none;
+  transition: color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+}
+
+.cat-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--nx-text);
+}
+
+.cat-meta {
+  margin: var(--nx-s-2) 0 0;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+// Pílula segmentada. No celular ocupa a largura toda e divide o espaço por igual — três alvos
+// de 44px lado a lado cabem em 320px.
+.cat-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+
+  @media (max-width: 560px) {
+    width: 100%;
+  }
+}
+
+.cat-seg-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 var(--nx-s-4);
+  border-radius: var(--nx-r-pill);
+  color: var(--nx-text-mute);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--nx-d-fast) var(--nx-ease-out),
+    color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+
+  @media (max-width: 560px) {
+    flex: 1;
+    padding: 0 var(--nx-s-2);
+  }
+}
+
+.cat-seg-item--active {
+  background: var(--nx-surface-2);
+  color: var(--nx-text);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}

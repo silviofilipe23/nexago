@@ -2,10 +2,10 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchLiveCurrentSet, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
-import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
-import { ordinalOf, roundsProgressLabel, timeLabelOf } from '../tournament-format';
-import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, qualificationOf, roundGroupsOf } from '../tournament-live.selectors';
+import { timeLabelOf } from '../tournament-format';
+import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, roundGroupsOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
+import { parentCategoryId } from './category-route';
 
 export type MatchRowState = 'done' | 'live' | 'scheduled' | 'canceled' | 'tbd';
 
@@ -30,7 +30,7 @@ export interface SetPillView {
 
 export interface MatchRowView {
   matchId: string;
-  /** "17:30 · Quadra 1" — a linha mono do topo do card. */
+  /** "Grupo A · 17:30 · Quadra 1" — a linha mono do topo do card. */
   head: string;
   state: MatchRowState;
   stateLabel: string;
@@ -58,44 +58,38 @@ const STATE_LABEL: Record<MatchRowState, string> = {
 };
 
 /**
- * Aba "Partidas & tabela": todos os jogos da categoria em ordem de rodada, com a classificação
- * do grupo ao lado. Assina o tempo real (`acquireLive`) como a aba Hoje e o detalhe: quando o
- * organizador dá o start na mesa, o selo vira "Ao vivo" e os pontos do set correm aqui sem
- * recarregar — é a lista por onde o atleta acompanha as partidas em andamento do torneio.
+ * Sub-visão "Partidas": todos os jogos da categoria em ordem de rodada, com filtro por grupo.
+ *
+ * A categoria vem da ROTA (`categorias/:categoriaId`), não de um chip local — ir para Grupos ou
+ * Chave mantém exatamente a mesma categoria. A classificação saiu da lateral daqui: vive na
+ * sub-visão "Grupos", com todos os grupos de uma vez.
+ *
+ * Assina o tempo real (`acquireLive`) como a aba Hoje e o detalhe: quando o organizador dá o
+ * start na mesa, o selo vira "Ao vivo" e os pontos do set correm aqui sem recarregar.
  */
 @Component({
-  selector: 'app-matches-tab',
+  selector: 'app-category-matches',
   imports: [NgTemplateOutlet, RouterLink],
-  templateUrl: './matches-tab.component.html',
-  styleUrl: './matches-tab.component.scss',
+  templateUrl: './category-matches.component.html',
+  styleUrl: './category-matches.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MatchesTabComponent {
+export class CategoryMatchesComponent {
   protected readonly store = inject(TournamentLiveStore);
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
-    const release = this.store.acquireLive();
-    this.destroyRef.onDestroy(release);
+    this.destroyRef.onDestroy(this.store.acquireLive());
   }
 
   protected readonly onlyMine = signal(false);
-  private readonly manualCategoryId = signal<string | null>(null);
+  /** `null` = "Todos"; qualquer outro valor é o grupo escolhido no chip. */
   private readonly manualPoolId = signal<string | null>(null);
+  private readonly poolTouched = signal(false);
 
-  protected readonly categories = computed<TournamentCategoryOffer[]>(() => this.store.tournament()?.categories ?? []);
+  private readonly categoryId = parentCategoryId();
 
-  protected readonly selectedCategory = computed<TournamentCategoryOffer | null>(() => {
-    const cats = this.categories();
-    if (cats.length === 0) return null;
-    const id = this.manualCategoryId() ?? this.store.focusCategoryId();
-    return cats.find((c) => c.id === id) ?? cats[0] ?? null;
-  });
-
-  private readonly categoryMatches = computed<TournamentMatch[]>(() => {
-    const id = this.selectedCategory()?.id;
-    return id ? this.store.matches().filter((m) => m.categoryId === id) : [];
-  });
+  private readonly categoryMatches = computed<TournamentMatch[]>(() => this.store.matchesOfCategory(this.categoryId()));
 
   protected readonly pools = computed(() => {
     const matches = this.categoryMatches();
@@ -106,29 +100,44 @@ export class MatchesTabComponent {
   protected readonly selectedPoolId = computed<string | null>(() => {
     const pools = this.pools();
     if (pools.length === 0) return null;
-    const manual = this.manualPoolId();
-    if (manual && pools.some((p) => p.id === manual)) return manual;
-    // Sem escolha explícita, abre no grupo em que o atleta joga.
+    if (this.poolTouched()) {
+      const manual = this.manualPoolId();
+      return manual && pools.some((p) => p.id === manual) ? manual : null;
+    }
+    // Sem escolha explícita, quem joga a categoria abre no próprio grupo; quem assiste vê todos.
     const focus = this.store.focusPoolId();
-    if (focus && pools.some((p) => p.id === focus)) return focus;
-    return pools[0]!.id;
+    const mine = this.store.myCategoryIds().has(this.categoryId());
+    return mine && focus && pools.some((p) => p.id === focus) ? focus : null;
   });
 
-  /** Fase de grupos: seções por rodada. Mata-mata puro: seções por fase da chave. */
+  /** Fase de grupos: seções por rodada. Mata-mata: seções por fase da chave. Em "Todos" de uma
+   *  categoria com grupos + eliminatória, as duas listas aparecem em sequência. */
   protected readonly sections = computed<MatchSectionView[]>(() => {
-    const poolId = this.selectedPoolId();
     const matches = this.categoryMatches();
-    const sections = poolId ? this.groupSections(matches, poolId) : this.knockoutSections(matches);
+    const poolId = this.selectedPoolId();
+    const hasGroups = this.pools().length > 0;
+
+    const sections: MatchSectionView[] = [];
+    if (hasGroups) sections.push(...this.groupSections(matches, poolId));
+    if (!poolId) sections.push(...this.knockoutSections(matches.filter((m) => !m.poolId)));
+
     return sections.map((s) => ({ ...s, rows: this.onlyMine() ? s.rows.filter((r) => r.isMine) : s.rows })).filter((s) => s.rows.length > 0);
   });
 
-  private groupSections(matches: readonly TournamentMatch[], poolId: string): MatchSectionView[] {
+  private groupSections(matches: readonly TournamentMatch[], poolId: string | null): MatchSectionView[] {
     const groups = roundGroupsOf(matches, poolId);
     const lastOpen = groups.filter((g) => !g.allCompleted)[0];
     return groups.map((g) => {
-      const status = g.allCompleted ? 'encerrada' : g.hasLive ? 'em andamento' : g.round === lastOpen?.round && g.round === groups[groups.length - 1]?.round ? 'define a classificação' : 'a seguir';
+      const status = g.allCompleted
+        ? 'encerrada'
+        : g.hasLive
+          ? 'em andamento'
+          : g.round === lastOpen?.round && g.round === groups[groups.length - 1]?.round
+            ? 'define a classificação'
+            : 'a seguir';
       const title = [`Rodada ${g.displayNumber}`, g.startAt ? timeLabelOf(g.startAt) : null, status].filter((p): p is string => p != null).join(' · ');
-      return { id: `round-${g.round}`, title, rows: g.matches.map((m) => this.rowOf(m)) };
+      // Sem filtro de grupo a rodada mistura os grupos, então cada card diz de qual grupo é.
+      return { id: `round-${g.round}`, title, rows: g.matches.map((m) => this.rowOf(m, poolId == null)) };
     });
   }
 
@@ -136,16 +145,17 @@ export class MatchesTabComponent {
     return buildBracketColumns(matches).map((column) => ({
       id: column.key,
       title: column.label,
-      rows: [...column.matches].sort(byScheduleTime).map((m) => this.rowOf(m)),
+      rows: [...column.matches].sort(byScheduleTime).map((m) => this.rowOf(m, false)),
     }));
   }
 
-  private rowOf(m: TournamentMatch): MatchRowView {
+  private rowOf(m: TournamentMatch, showGroup: boolean): MatchRowView {
     const state = this.stateOf(m);
     const showPills = state === 'done' || state === 'live';
+    const group = showGroup && m.poolId ? groupLabelOf(m.poolId, this.categoryMatches()) : null;
     return {
       matchId: m.id,
-      head: [timeLabelOf(m.scheduleTime), this.courtOf(m)].filter((p): p is string => p != null).join(' · '),
+      head: [group, timeLabelOf(m.scheduleTime), this.courtOf(m)].filter((p): p is string => p != null).join(' · '),
       state,
       stateLabel: state === 'scheduled' ? timeLabelOf(m.scheduleTime) : STATE_LABEL[state],
       stage: this.stageOf(m),
@@ -217,63 +227,8 @@ export class MatchesTabComponent {
     return m.scheduleTime ? 'scheduled' : 'tbd';
   }
 
-  // ── Lateral ────────────────────────────────────────────────
-  protected readonly standingsTitle = computed(() => {
-    const poolId = this.selectedPoolId();
-    return poolId ? `${groupLabelOf(poolId, this.categoryMatches())} · classificação parcial` : null;
-  });
-
-  protected readonly standings = computed(() => {
-    const poolId = this.selectedPoolId();
-    if (!poolId) return [];
-    const qualifiers = this.selectedCategory()?.qualifiersPerGroup ?? 2;
-    const myTeamIds = this.store.myTeamIds();
-    return this.store.standingsOf(poolId).map((s, index) => ({
-      rank: index + 1,
-      name: this.store.duoNameOf(s.teamId),
-      isMe: myTeamIds.has(s.teamId),
-      wins: s.wins,
-      losses: this.categoryMatches().filter(
-        (m) => m.poolId === poolId && matchIsCompleted(m) && (m.teamAId === s.teamId || m.teamBId === s.teamId) && m.winnerId !== s.teamId,
-      ).length,
-      sets: `${s.setsWon}–${s.setsLost}`,
-      points: s.points,
-      qualifies: index < qualifiers,
-    }));
-  });
-
-  protected readonly standingsKicker = computed(() => {
-    const poolId = this.selectedPoolId();
-    if (!poolId) return null;
-    const pool = this.categoryMatches().filter((m) => m.poolId === poolId);
-    const rounds = new Set(pool.map((m) => m.round)).size;
-    const playedRounds = new Set(pool.filter((m) => matchIsCompleted(m)).map((m) => m.round)).size;
-    const qualifiers = this.selectedCategory()?.qualifiersPerGroup ?? 2;
-    return `${roundsProgressLabel(playedRounds, rounds)} · ${qualifiers} primeiros avançam`;
-  });
-
-  protected readonly qualificationText = computed<string | null>(() => {
-    const poolId = this.selectedPoolId();
-    const category = this.selectedCategory();
-    if (!poolId || !category) return null;
-    const myTeamId = [...this.store.myTeamIds()].find((id) => this.store.standingsOf(poolId).some((s) => s.teamId === id)) ?? null;
-    const info = qualificationOf(this.categoryMatches(), poolId, myTeamId, this.store.standingsOf(poolId), category.qualifiersPerGroup);
-    if (!info) return null;
-    if (info.decided) {
-      return info.qualifies
-        ? `Grupo encerrado em ${ordinalOf(info.rank)}. Você avançou.`
-        : `Grupo encerrado em ${ordinalOf(info.rank)}. Passavam os ${info.qualifiersPerGroup} primeiros.`;
-    }
-    const remaining = info.remainingMatches === 1 ? 'Falta 1 partida' : `Faltam ${info.remainingMatches} partidas`;
-    return `Você está em ${ordinalOf(info.rank)}. ${remaining} no grupo.`;
-  });
-
-  protected selectCategory(id: string): void {
-    this.manualCategoryId.set(id);
-    this.manualPoolId.set(null);
-  }
-
-  protected selectPool(id: string): void {
+  protected selectPool(id: string | null): void {
+    this.poolTouched.set(true);
     this.manualPoolId.set(id);
   }
 

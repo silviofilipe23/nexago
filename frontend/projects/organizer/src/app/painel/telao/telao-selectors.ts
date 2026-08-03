@@ -1,3 +1,4 @@
+import { matchLiveCurrentSet, matchSetWins, type LiveScoreFields } from '../data/live-set-display';
 import { truncateName } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
 
@@ -71,6 +72,17 @@ export function courtPageOf(courtIds: readonly string[], pageIndex: number, page
   const pages = courtPageCount(courtIds.length, pageSize);
   const page = ((pageIndex % pages) + pages) % pages;
   return courtIds.slice(page * pageSize, page * pageSize + pageSize);
+}
+
+/** Quem está na frente numa partida ao vivo (realce do card): sets fechados mandam; empate em
+ *  sets cai nos pontos do set corrente; tudo igual (ou fora do ao vivo) → ninguém. */
+export function leadingSideOf(m: LiveScoreFields): 'A' | 'B' | null {
+  if (m.status !== 'in_progress') return null;
+  const [a, b] = matchSetWins(m);
+  if (a !== b) return a > b ? 'A' : 'B';
+  const current = matchLiveCurrentSet(m);
+  if (!current || current.a === current.b) return null;
+  return current.a > current.b ? 'A' : 'B';
 }
 
 /** "Lucas Martins / Paula da Silva" → "Lucas / Paula" — primeiro nome de cada jogador; nome

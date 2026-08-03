@@ -4,14 +4,16 @@ import type { TournamentMatch } from '../data/matches-repository';
 import { initialsOf } from '../data/mock-data';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
+import { OgPulseDirective } from './og-pulse.directive';
 import type { TelaoTeamDisplay } from './telao-data.service';
+import { leadingSideOf } from './telao-selectors';
 
 /** Card de uma quadra no telão: partida ao vivo (avatares, sets fechados, pontos do set
  *  corrente e indicador de saque), próxima partida ("em seguida") ou quadra livre. */
 @Component({
   selector: 'og-telao-court-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent],
+  imports: [OgAvatarComponent, OgPulseDirective],
   host: { class: 'og-tlc', '[class.og-tlc-live]': 'kind() === "live"' },
   template: `
     <header class="og-tlc-head">
@@ -35,7 +37,7 @@ import type { TelaoTeamDisplay } from './telao-data.service';
     } @else {
       <div class="og-tlc-teams">
         @for (row of rows(); track row.side) {
-          <div class="og-tlc-team">
+          <div class="og-tlc-team" [class.leading]="leadingSide() === row.side">
             @if (showAvatars()) {
               <span class="og-tlc-avatars">
                 @if (row.team.players.length > 0) {
@@ -64,7 +66,7 @@ import type { TelaoTeamDisplay } from './telao-data.service';
                   <span class="og-tlc-set" [class.win]="row.side === 'A' ? s.a > s.b : s.b > s.a">{{ row.side === 'A' ? s.a : s.b }}</span>
                 }
                 @if (current(); as c) {
-                  <span class="og-tlc-points">{{ row.side === 'A' ? c.a : c.b }}</span>
+                  <span class="og-tlc-points" [ogPulse]="row.side === 'A' ? c.a : c.b">{{ row.side === 'A' ? c.a : c.b }}</span>
                 }
               </span>
             }
@@ -164,6 +166,15 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       border-radius: var(--nx-r-3);
       padding: 16px 20px;
       min-height: 88px;
+      transition:
+        border-color var(--nx-d-base) var(--nx-ease-out),
+        background-color var(--nx-d-base) var(--nx-ease-out);
+    }
+    /* Equipe na frente (sets fechados → pontos do set corrente): realce laranja que faz
+       crossfade quando a liderança vira. Só cor — sem mexer em layout. */
+    .og-tlc-team.leading {
+      border-color: rgba(255, 106, 26, 0.5);
+      background-color: rgba(255, 106, 26, 0.07);
     }
     .og-tlc-avatars {
       display: inline-flex;
@@ -199,6 +210,7 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       background: var(--nx-orange-500);
       margin-left: 6px;
       vertical-align: middle;
+      animation: og-tlc-in 220ms var(--nx-ease-out);
     }
     .og-tlc-sub {
       font-size: 15px;
@@ -226,6 +238,8 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-2);
       padding: 0 8px;
+      /* Set recém-fechado entra com pop (o chip é criado na hora do fechamento). */
+      animation: og-tlc-in 220ms var(--nx-ease-out);
     }
     .og-tlc-set.win {
       color: var(--nx-orange-400);
@@ -245,6 +259,43 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       border: 1px solid var(--nx-line-strong);
       border-radius: var(--nx-r-2);
       padding: 0 12px;
+    }
+    /* Ponto marcado: pop com flash laranja (ogPulse reinicia a cada mudança de valor). */
+    .og-tlc-points.og-pulse-run {
+      animation: og-tlc-score-pop 280ms var(--nx-ease-out);
+    }
+    @keyframes og-tlc-score-pop {
+      0% {
+        transform: scale(1);
+      }
+      35% {
+        transform: scale(1.16);
+        color: var(--nx-orange-400);
+        border-color: rgba(255, 106, 26, 0.6);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes og-tlc-in {
+      from {
+        transform: scale(0.7);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .og-tlc-team {
+        transition: none;
+      }
+      .og-tlc-set,
+      .og-tlc-serve,
+      .og-tlc-points.og-pulse-run {
+        animation: none;
+      }
     }
   `,
 })
@@ -275,6 +326,11 @@ export class TelaoCourtCardComponent {
   protected readonly current = computed(() => {
     const m = this.match();
     return m && this.kind() === 'live' ? matchLiveCurrentSet(m) : null;
+  });
+
+  protected readonly leadingSide = computed<'A' | 'B' | null>(() => {
+    const m = this.match();
+    return m && this.kind() === 'live' ? leadingSideOf(m) : null;
   });
 
   protected readonly servingSide = computed<'A' | 'B' | null>(() => {

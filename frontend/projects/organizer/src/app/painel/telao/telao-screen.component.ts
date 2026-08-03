@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, injec
 import { resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
 import { formatCourtLabel, spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { effectiveTelaoConfig } from '../data/tournaments-repository';
+import { OgPulseDirective } from './og-pulse.directive';
 import { fallbackTeamDisplay, TelaoDataService } from './telao-data.service';
 import { TelaoCourtCardComponent } from './telao-court-card.component';
 import { callOf, courtNowOf, courtPageCount, courtPageOf, ROTATE_INTERVAL_MS, teamShortLabel, upcomingQueue } from './telao-selectors';
@@ -25,7 +26,7 @@ interface TelaoQueueRow {
 @Component({
   selector: 'og-telao-screen',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TelaoCourtCardComponent],
+  imports: [TelaoCourtCardComponent, OgPulseDirective],
   host: { class: 'og-telao' },
   template: `
     <header class="og-telao-head">
@@ -41,7 +42,7 @@ interface TelaoQueueRow {
     </header>
 
     <div class="og-telao-body" [class.no-queue]="!showQueue()">
-      <div class="og-telao-grid" [class.single-row]="courtCards().length <= 2">
+      <div class="og-telao-grid" [class.single-row]="courtCards().length <= 2" [ogPulse]="pageIndex()">
         @for (card of courtCards(); track card.court.id) {
           <og-telao-court-card
             [courtName]="card.courtName"
@@ -87,7 +88,7 @@ interface TelaoQueueRow {
       <footer class="og-telao-bar">
         @if (call(); as c) {
           <span class="og-telao-bar-pill">Chamada</span>
-          <span class="og-telao-bar-text">
+          <span class="og-telao-bar-text" [ogPulse]="c.id">
             <strong>{{ c.a }}</strong>&ngsp;<em>vs</em>&ngsp;<strong>{{ c.b }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
             <span class="og-telao-bar-deadline">{{ c.deadline }}</span>
           </span>
@@ -192,6 +193,10 @@ interface TelaoQueueRow {
     .og-telao-grid.single-row {
       grid-template-rows: 1fr;
     }
+    /* Rotação automática: crossfade da grade ao trocar a página de quadras. */
+    .og-telao-grid.og-pulse-run {
+      animation: og-telao-fade 300ms var(--nx-ease-out);
+    }
     .og-telao-empty {
       grid-column: 1 / -1;
       display: flex;
@@ -238,6 +243,11 @@ interface TelaoQueueRow {
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-3);
       padding: 14px 16px;
+      /* Jogo novo na fila entra deslizando (itens existentes são reusados pelo track). */
+      animation: og-telao-rise 240ms var(--nx-ease-out);
+      transition:
+        border-color var(--nx-d-base) var(--nx-ease-out),
+        background-color var(--nx-d-base) var(--nx-ease-out);
     }
     .og-telao-queue-item.first {
       border-color: rgba(255, 106, 26, 0.55);
@@ -363,13 +373,45 @@ interface TelaoQueueRow {
     .og-telao-bar-status.error .og-dot {
       background: var(--nx-live);
     }
+    /* Nova chamada: o texto da barra entra deslizando de baixo. */
+    .og-telao-bar-text.og-pulse-run {
+      animation: og-telao-rise 260ms var(--nx-ease-out);
+    }
+    @keyframes og-telao-fade {
+      from {
+        opacity: 0.2;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes og-telao-rise {
+      from {
+        transform: translateY(10px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .og-telao-grid.og-pulse-run,
+      .og-telao-queue-item,
+      .og-telao-bar-text.og-pulse-run {
+        animation: none;
+      }
+      .og-telao-queue-item {
+        transition: none;
+      }
+    }
   `,
 })
 export class TelaoScreenComponent {
   private readonly svc = inject(TelaoDataService);
 
   protected readonly now = signal(Date.now());
-  private readonly pageIndex = signal(0);
+  protected readonly pageIndex = signal(0);
 
   protected readonly tournament = this.svc.tournament;
   protected readonly error = this.svc.error;
@@ -444,6 +486,7 @@ export class TelaoScreenComponent {
     if (!c) return null;
     const teams = this.svc.teams();
     return {
+      id: c.match.id,
       a: teams.get(c.match.teamAId)?.short ?? teamShortLabel(c.match.team1Label),
       b: teams.get(c.match.teamBId)?.short ?? teamShortLabel(c.match.team2Label),
       court: formatCourtLabel(c.match.court) || 'quadra',

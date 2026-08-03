@@ -1,7 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
+import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
+import {
+  compareTeamLevelDesc,
+  teamLevelScore,
+  teamLevelsSummary,
+  teamScoreLabel,
+  type AthleteRatingLite,
+  type TeamLevelScore,
+} from '../data/team-level-score';
 import { generateCategoryBracket } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
@@ -120,6 +130,16 @@ function shuffled<T>(items: readonly T[]): T[] {
           </og-card>
 
           <og-card [kicker]="'Duplas elegíveis (' + eligible().length + ')'" title="Ordem de semeadura">
+            <button
+              card-action
+              type="button"
+              class="og-mini-btn"
+              [disabled]="!canSortByLevel()"
+              [title]="sortByLevelHint()"
+              (click)="sortByLevel()"
+            >
+              <og-icon name="trophy" [size]="14" />Ordenar por nível
+            </button>
             @if (eligible().length < 2) {
               <p class="og-seeds-empty">É necessário ao menos 2 duplas pagas (e completas) pra gerar a chave.</p>
             }
@@ -130,7 +150,9 @@ function shuffled<T>(items: readonly T[]): T[] {
                   <og-avatar [initials]="initialsOf(t.teamName, ' / ')" [size]="32" />
                   <span style="flex:1;min-width:0">
                     <div class="og-seed-name" [title]="t.teamName">{{ truncate(t.teamName, 32) }}</div>
+                    <div class="og-seed-levels">{{ levelsOf(t) }}</div>
                   </span>
+                  <span class="og-seed-score" [title]="scoreHint(t)">{{ scoreLabel(t) }}</span>
                   @if (useSeeds()) {
                     <button type="button" class="og-ghost-btn" [disabled]="i === 0" (click)="move(i, -1)">↑</button>
                     <button type="button" class="og-ghost-btn" [disabled]="last" (click)="move(i, 1)">↓</button>
@@ -208,6 +230,24 @@ function shuffled<T>(items: readonly T[]): T[] {
       font-weight: 600;
       font-size: 13.5px;
       color: var(--nx-text);
+    }
+    .og-seed-levels {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
+    }
+    .og-seed-score {
+      flex: none;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+      white-space: nowrap;
     }
     .og-seeds-empty {
       font-family: var(--nx-font-ui);
@@ -311,6 +351,34 @@ export class SeedsComponent {
   protected readonly qualifiersPerGroup = signal(2);
   protected readonly groups = signal<GroupPreview[]>([]);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  /** Rating técnico por uid — vazio nos esportes sem engine de rating. */
+  private readonly ratings = signal<Map<string, AthleteRatingLite>>(new Map());
+
+  private readonly sportCode = computed(() => tournamentSportToLevelSportCode(this.tournament()?.sportId));
+
+  /** Pontuação de nível por inscrição — base da ordenação sugerida de cabeças de chave. */
+  private readonly scores = computed(() => {
+    const sportCode = this.sportCode();
+    const ratings = this.ratings();
+    return new Map<string, TeamLevelScore>(
+      this.eligible().map((t) => [
+        t.id,
+        teamLevelScore(t.participants, sportCode, t.participants.map((p) => ratings.get(p.uid))),
+      ]),
+    );
+  });
+
+  /** Só faz sentido reordenar quando a ordem importa (seeds ligados), há o que ordenar e
+   *  ao menos uma dupla tem nível — senão o clique não mudaria nada. */
+  protected readonly canSortByLevel = computed(
+    () => this.useSeeds() && this.eligible().length > 1 && [...this.scores().values()].some((s) => s.points != null),
+  );
+
+  protected readonly sortByLevelHint = computed(() => {
+    if (!this.useSeeds()) return 'Ligue "Respeitar ordem de seeds" para ordenar pela pontuação de nível.';
+    if (!this.canSortByLevel()) return 'Nenhuma dupla tem nível informado.';
+    return 'Ordena da maior para a menor pontuação de nível — você ainda pode ajustar com as setas.';
+  });
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
     () => this.tournament()?.categories.find((c) => c.id === this.catId()) ?? null,
@@ -370,6 +438,12 @@ export class SeedsComponent {
       // paga, fora da fila de espera, dupla completa e com teamId.
       const eligible = allInscriptions.filter((i) => i.categoryId === cid && i.paid && i.paymentStatus !== 'waitlist' && !i.partnerPending && i.teamId);
       this.eligible.set(eligible);
+      this.ratings.set(
+        await fetchAthleteRatings(
+          eligible.flatMap((i) => i.participants.map((p) => p.uid)),
+          tournamentSportToLevelSportCode(tournament?.sportId),
+        ),
+      );
       const cat = tournament?.categories.find((c) => c.id === cid) ?? null;
       const savedFormat = cat?.bracketFormat;
       if (savedFormat === 'single_elimination' || savedFormat === 'double_elimination' || savedFormat === 'groups_knockout') {
@@ -402,6 +476,37 @@ export class SeedsComponent {
 
   protected bumpQualifiers(delta: number): void {
     this.qualifiersPerGroup.update((v) => Math.min(Math.max(v + delta, 1), Math.max(this.teamsPerGroup() - 1, 1)));
+  }
+
+  protected scoreLabel(t: TournamentInscription): string {
+    const score = this.scores().get(t.id);
+    return score ? teamScoreLabel(score) : '—';
+  }
+
+  protected scoreHint(t: TournamentInscription): string {
+    const score = this.scores().get(t.id);
+    if (!score || score.points == null) return 'Pontuação indisponível — atleta sem nível informado';
+    const base = `Pontuação de nível: ${score.points} de 10`;
+    return score.rating == null ? base : `${base} · rating técnico ${Math.round(score.rating)}`;
+  }
+
+  protected levelsOf(t: TournamentInscription): string {
+    const score = this.scores().get(t.id);
+    return score ? teamLevelsSummary(score) : 'Nível não informado';
+  }
+
+  /** Sugestão de semeadura pela força declarada: maior pontuação primeiro, rating como
+   *  desempate, duplas sem nível no fim. Só reordena a lista — o organizador ainda ajusta
+   *  com as setas antes de publicar. */
+  protected sortByLevel(): void {
+    if (!this.canSortByLevel()) return;
+    const scores = this.scores();
+    const fallback: TeamLevelScore = { points: null, members: [], rating: null };
+    this.eligible.update((list) =>
+      // `sort` do JS é estável (ES2019+): duplas empatadas mantêm a ordem atual da tela.
+      [...list].sort((a, b) => compareTeamLevelDesc(scores.get(a.id) ?? fallback, scores.get(b.id) ?? fallback)),
+    );
+    this.redraw();
   }
 
   protected move(index: number, delta: number): void {

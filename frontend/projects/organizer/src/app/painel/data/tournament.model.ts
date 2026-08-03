@@ -36,6 +36,9 @@ export interface OrganizerTournament {
   /** uid do dono do torneio — só quem organiza gerencia a equipe (rules: `isTournamentOwner`). */
   managerId: string;
   sportLabel: string;
+  /** `sport` cru do documento (`beachVolleyball`/`beachTennis`/…) — usado pra resolver o
+   *  código de esporte do perfil (`tournamentSportToLevelSportCode`) na pontuação de nível. */
+  sportId: string | null;
   /** Capa do torneio (`coverUrl`/`imageUrl`/… no Firestore) — nula quando não enviada. */
   coverUrl: string | null;
   status: OrganizerTournamentStatus;

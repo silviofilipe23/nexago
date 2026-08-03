@@ -13,6 +13,7 @@ function tournamentFixture(): OrganizerTournament {
     name: 'Copa Teste',
     managerId: 'u1',
     sportLabel: 'Beach Tennis',
+    sportId: 'beachTennis',
     coverUrl: null,
     status: 'andamento',
     startAt: new Date(`${DAY}T09:00:00-03:00`),

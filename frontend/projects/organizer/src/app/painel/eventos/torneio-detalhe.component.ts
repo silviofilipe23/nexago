@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
+import { listMatches } from '../data/matches-repository';
 import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
@@ -26,6 +27,8 @@ interface CategoriaRow {
   pagas: number;
   pend: number;
   full: boolean;
+  /** Chave já sorteada (categoria com jogos) — regerar apagaria resultados. */
+  hasMatches: boolean;
 }
 
 /** Visão geral do torneio — hub do nível 2 da cascata: KPIs + grade de categorias,
@@ -138,7 +141,8 @@ interface CategoriaRow {
                   <og-icon name="chevron" [size]="13" />
                 </a>
                 <div class="og-page-header-spacer"></div>
-                @if (c.full) {
+                <!-- Some quando a chave já foi gerada (categoria com jogos) — regerar apagaria resultados. -->
+                @if (c.full && !c.hasMatches) {
                   <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', c.id, 'seeds']">
                     <og-icon name="bracket" [size]="13" />Gerar chave
                   </a>
@@ -379,6 +383,8 @@ export class TorneioDetalheComponent {
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly inscriptions = signal<TournamentInscription[]>([]);
+  /** Ids das categorias que já têm jogos gerados — controlam a oferta de "Gerar chave". */
+  protected readonly categoriesWithMatches = signal<ReadonlySet<string>>(new Set<string>());
   /** Capa falhou ao carregar — o banner some (a página funciona igual sem ele). */
   protected readonly coverFailed = signal(false);
 
@@ -397,6 +403,7 @@ export class TorneioDetalheComponent {
     const t = this.tournament();
     if (!t) return [];
     const insc = this.inscriptions();
+    const withMatches = this.categoriesWithMatches();
     return t.categories.map((c) => {
       const rows = insc.filter((i) => i.categoryId === c.id);
       const pagas = rows.filter((r) => r.paid).length;
@@ -408,6 +415,7 @@ export class TorneioDetalheComponent {
         pagas,
         pend: rows.length - pagas,
         full: c.maxTeams != null && rows.length >= c.maxTeams,
+        hasMatches: withMatches.has(c.id),
       };
     });
   });
@@ -417,6 +425,7 @@ export class TorneioDetalheComponent {
       const tid = this.id();
       this.tournament.set(null);
       this.inscriptions.set([]);
+      this.categoriesWithMatches.set(new Set<string>());
       this.coverFailed.set(false);
       if (!tid) {
         this.loading.set(false);
@@ -429,9 +438,10 @@ export class TorneioDetalheComponent {
 
   private async load(tid: string): Promise<void> {
     try {
-      const [tournament, inscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
+      const [tournament, inscriptions, matches] = await Promise.all([getTournament(tid), listInscriptions(tid), listMatches(tid)]);
       this.tournament.set(tournament);
       this.inscriptions.set(inscriptions);
+      this.categoriesWithMatches.set(new Set(matches.map((m) => m.categoryId).filter((cid): cid is string => cid != null)));
     } finally {
       this.loading.set(false);
     }

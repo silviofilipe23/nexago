@@ -853,6 +853,20 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    match /arenas/{arenaId}/peakRules/{ruleId} {
+      // Regra comercial de horário de pico (reserva mínima). Leitura pública:
+      // a grade do atleta precisa renderizar a restrição. Mesmo gate de
+      // plano/área das promoções; excluir segue liberado para limpeza.
+      allow read: if true;
+      allow create, update: if request.auth != null && (
+        arenaCanWrite(arenaId, 'promocoes') ||
+        isSuperAdmin()
+      ) && (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro', 'elite']));
+      allow delete: if request.auth != null && (
+        arenaCanWrite(arenaId, 'promocoes') ||
+        isSuperAdmin()
+      );
+    }
     match /arenas/{arenaId}/coupons/{couponId} {
       // Cupom de marketing (código + validade + limite de uso) — complementar
       // às `promotions` acima. Escrita só via Cloud Functions

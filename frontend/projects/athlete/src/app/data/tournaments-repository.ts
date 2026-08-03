@@ -296,6 +296,32 @@ function resolveTournamentRawStatus(
   return 'open';
 }
 
+/** Campos do torneio que decidem se uma categoria ainda aceita dupla. */
+export type RegistrationTournamentFields = Pick<
+  TournamentSummary,
+  'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity' | 'waitlistEnabled'
+>;
+
+/**
+ * A categoria ainda aceita uma dupla nova — por inscrição direta ou lista de espera?
+ *
+ * Independe de quem está olhando: é a oferta em si. Quem já está inscrito continua vendo a
+ * própria inscrição, mas isso não muda o fato de a categoria estar aberta ou fechada.
+ *
+ * `spotsLeft` vem de fora porque a contagem fresca mora em `inscriptions`
+ * (`fetchCategoryEnrolledCounts`), não no `spotsLeft` do doc do torneio.
+ */
+export function categoryAcceptsRegistration(
+  t: RegistrationTournamentFields,
+  cat: Pick<TournamentCategoryOffer, 'isCompleted' | 'registrationClosed'>,
+  spotsLeft: number,
+  now = new Date(),
+): boolean {
+  if (cat.isCompleted || cat.registrationClosed) return false;
+  if (tournamentListingStatus(t, now) === 'ended') return false;
+  return spotsLeft > 0 || t.waitlistEnabled;
+}
+
 /** `registrationOpensAt`: quando o torneio ainda está `scheduled`, a UI mostra "Em breve" até
  *  a data de início (não existe um campo dedicado de abertura de inscrição no schema). */
 export function registrationOpensAt(t: Pick<TournamentSummary, 'rawStatus' | 'startAt'>): Date | null {

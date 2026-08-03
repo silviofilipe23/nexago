@@ -2,7 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchLiveCurrentSet, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
-import { timeLabelOf } from '../tournament-format';
+import { matchNumberLabelOf, timeLabelOf } from '../tournament-format';
 import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, roundGroupsOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
 import { parentCategoryId } from './category-route';
@@ -30,6 +30,8 @@ export interface SetPillView {
 
 export interface MatchRowView {
   matchId: string;
+  /** `#12` — o número do jogo, como o organizador chama na quadra. `null` em chaves antigas. */
+  number: string | null;
   /** "Grupo A · 17:30 · Quadra 1" — a linha mono do topo do card. */
   head: string;
   state: MatchRowState;
@@ -155,6 +157,7 @@ export class CategoryMatchesComponent {
     const group = showGroup && m.poolId ? groupLabelOf(m.poolId, this.categoryMatches()) : null;
     return {
       matchId: m.id,
+      number: matchNumberLabelOf(m),
       head: [group, timeLabelOf(m.scheduleTime), this.courtOf(m)].filter((p): p is string => p != null).join(' · '),
       state,
       stateLabel: state === 'scheduled' ? timeLabelOf(m.scheduleTime) : STATE_LABEL[state],

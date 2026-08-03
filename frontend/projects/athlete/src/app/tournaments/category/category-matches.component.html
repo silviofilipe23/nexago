@@ -80,12 +80,18 @@
   }
 </div>
 
-<!-- Card de partida no desenho da Copa VH: linha mono no topo (grupo · hora · quadra + selo de
-     estado), uma linha por dupla com os avatares dos atletas e o placar à direita, e as
-     parciais em pílulas no rodapé. -->
+<!-- Card de partida no desenho da Copa VH: linha mono no topo (nº do jogo · grupo · hora · quadra
+     + selo de estado), uma linha por dupla com os avatares dos atletas e o placar à direita, e as
+     parciais em pílulas no rodapé. O nº abre a linha e não encolhe: é por ele que o organizador
+     chama o jogo na quadra, então o resto do contexto trunca antes dele. -->
 <ng-template #cardTpl let-row="row">
   <div class="mt-match-head">
-    <span class="mt-match-context" [class.mt-match-context--live]="row.state === 'live'">{{ row.head }}</span>
+    <span class="mt-match-meta">
+      @if (row.number) {
+        <span class="mt-match-num" [class.mt-match-num--live]="row.state === 'live'" [title]="'Jogo ' + row.number">{{ row.number }}</span>
+      }
+      <span class="mt-match-context" [class.mt-match-context--live]="row.state === 'live'">{{ row.head }}</span>
+    </span>
     <span class="mt-match-chip" [attr.data-state]="row.state">
       @if (row.state === 'live') {
         <span class="mt-live-dot" aria-hidden="true"></span>

@@ -42,6 +42,9 @@
               }
             }
             <div class="tdy-chips">
+              @if (nm.numberLabel) {
+                <span class="tdy-chip">{{ nm.numberLabel }}</span>
+              }
               @if (nm.courtLabel) {
                 <span class="tdy-chip">{{ nm.courtLabel }}</span>
               }

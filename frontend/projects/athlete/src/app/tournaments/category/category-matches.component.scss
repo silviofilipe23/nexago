@@ -188,6 +188,31 @@
   margin-bottom: var(--nx-s-3);
 }
 
+// Nº do jogo + contexto ocupam a esquerda do cabeçalho; o `min-width: 0` é o que permite ao
+// contexto truncar em vez de empurrar o selo de estado pra fora no celular.
+.mt-match-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+// Um tom acima do contexto: é a informação que o atleta procura quando chamam "jogo 12".
+.mt-match-num {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+
+  // Ao vivo a linha inteira acende junto — número e contexto são uma informação só.
+  &--live {
+    color: var(--nx-orange-500);
+  }
+}
+
 .mt-match-context {
   font-family: var(--nx-font-mono);
   font-size: 11px;
@@ -396,6 +421,7 @@ $bronze-hi: #f3c9a8;
     background-image: linear-gradient(115deg, transparent 40%, rgba(255, 233, 168, 0.16) 50%, transparent 60%);
   }
 
+  .mt-match-num,
   .mt-match-context {
     color: $gold;
   }
@@ -418,6 +444,7 @@ $bronze-hi: #f3c9a8;
     background-image: linear-gradient(115deg, transparent 40%, rgba(243, 201, 168, 0.12) 50%, transparent 60%);
   }
 
+  .mt-match-num,
   .mt-match-context {
     color: $bronze;
   }

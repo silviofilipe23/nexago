@@ -46,6 +46,10 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
             <div class="readonly-banner">Seu plano atual não inclui criar/editar horários de pico — fale com o suporte para fazer upgrade.</div>
           }
 
+          @if (actionError(); as aerr) {
+            <div class="action-error">{{ aerr }}</div>
+          }
+
           <div class="summary-row">
             <ar-panel-card pad="sm" class="summary-card">
               <div class="summary-label tone-orange">Regras ativas</div>
@@ -80,7 +84,7 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
                       <ar-icon name="edit" [size]="13" />
                       Editar
                     </button>
-                    <button type="button" class="ar-mini-btn" [disabled]="readOnly() && !rule.active" (click)="toggleActive(rule)">
+                    <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="toggleActive(rule)">
                       {{ rule.active ? 'Pausar' : 'Ativar' }}
                     </button>
                   </div>
@@ -131,6 +135,15 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
       color: var(--nx-text-mute);
     }
 
+    .action-error {
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-live);
+      background: rgba(255, 59, 48, 0.08);
+      color: var(--nx-live);
+      padding: 10px 14px;
+      font-size: 12.5px;
+    }
+
     .summary-row {
       display: flex;
       gap: 16px;
@@ -168,7 +181,7 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 1.6fr 100px 170px 90px 110px 100px 140px;
+      grid-template-columns: 1.6fr 100px 150px 90px 110px 100px 170px;
       gap: 12px;
       align-items: center;
     }
@@ -259,6 +272,7 @@ export class PanelPeakRulesComponent {
   protected readonly rules = signal<ArenaPeakRule[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly activeCount = computed(() => this.rules().filter((r) => r.active).length);
   protected readonly showPaywall = computed(() => this.readOnly() && this.rules().length === 0);
@@ -287,11 +301,16 @@ export class PanelPeakRulesComponent {
   }
 
   protected async toggleActive(rule: ArenaPeakRule): Promise<void> {
-    if (this.readOnly() && !rule.active) return; // reativar exige plano
+    if (this.readOnly()) return; // qualquer alteração (pausar ou reativar) exige plano — mesma regra que o servidor
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId) return;
-    await setPeakRuleActive(arenaFirestore(), arenaId, rule.id, !rule.active);
-    await this.load(arenaId);
+    this.actionError.set(null);
+    try {
+      await setPeakRuleActive(arenaFirestore(), arenaId, rule.id, !rule.active);
+      await this.load(arenaId);
+    } catch {
+      this.actionError.set('Não foi possível atualizar a regra. Verifique seu plano e tente novamente.');
+    }
   }
 
   protected createRule(): void {

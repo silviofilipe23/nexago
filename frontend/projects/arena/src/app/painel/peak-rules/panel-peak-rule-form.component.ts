@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { fetchCourts, type ArenaCourtDoc } from '@nexago/arena-discovery';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
+import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
@@ -35,7 +36,7 @@ const MIN_DURATION_OPTIONS = [
 @Component({
   selector: 'ar-panel-peak-rule-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, ModalComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header
@@ -145,12 +146,25 @@ const MIN_DURATION_OPTIONS = [
               </button>
               <button type="button" class="ar-ghost-btn" [disabled]="saving()" (click)="cancel()">Cancelar</button>
               @if (isEdit()) {
-                <button type="button" class="ar-ghost-btn danger-link" [disabled]="saving()" (click)="remove()">Excluir</button>
+                <button type="button" class="ar-ghost-btn danger-link" [disabled]="saving()" (click)="showRemoveConfirm.set(true)">Excluir</button>
               }
             </div>
           </ar-panel-card>
         }
       </div>
+
+      @if (showRemoveConfirm()) {
+        <ar-modal (close)="showRemoveConfirm.set(false)">
+          <h2 class="confirm-title">Excluir regra?</h2>
+          <p class="confirm-body">"{{ label() }}" será excluída e deixa de valer imediatamente.</p>
+          <div class="confirm-actions">
+            <button type="button" class="ar-ghost-btn" [disabled]="saving()" (click)="showRemoveConfirm.set(false)">Cancelar</button>
+            <button type="button" class="ar-mini-btn danger-btn" [disabled]="saving()" (click)="remove()">
+              {{ saving() ? 'Excluindo…' : 'Excluir' }}
+            </button>
+          </div>
+        </ar-modal>
+      }
     </ar-panel-shell>
   `,
   styles: `
@@ -265,6 +279,40 @@ const MIN_DURATION_OPTIONS = [
       margin-left: auto;
     }
 
+    .confirm-title {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 19px;
+      color: var(--nx-text);
+      margin: 0 0 10px;
+    }
+
+    .confirm-body {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--nx-text-mute);
+      margin: 0 0 22px;
+    }
+
+    .confirm-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 16px;
+    }
+
+    .danger-btn {
+      height: 44px;
+      padding: 0 20px;
+      background: var(--nx-live);
+      color: #fff;
+      border: none;
+    }
+
+    .danger-btn:hover:not(:disabled) {
+      background: #ff564c;
+    }
+
     @media (max-width: 720px) {
       .field-row {
         grid-template-columns: 1fr;
@@ -297,6 +345,7 @@ export class PanelPeakRuleFormComponent {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly loading = signal(true);
+  protected readonly showRemoveConfirm = signal(false);
 
   constructor() {
     effect(() => {
@@ -384,7 +433,10 @@ export class PanelPeakRuleFormComponent {
     this.saving.set(true);
     try {
       await deletePeakRule(arenaFirestore(), arenaId, id);
+      this.showRemoveConfirm.set(false);
       this.router.navigate(['/painel/horarios-pico']);
+    } catch {
+      this.error.set('Não foi possível excluir a regra. Tente novamente.');
     } finally {
       this.saving.set(false);
     }

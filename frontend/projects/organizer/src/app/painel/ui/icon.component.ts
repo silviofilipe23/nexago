@@ -24,7 +24,8 @@ export type OgIconName =
   | 'back'
   | 'logout'
   | 'share'
-  | 'team';
+  | 'team'
+  | 'tv';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -111,6 +112,9 @@ export type OgIconName =
         }
         @case ('team') {
           <circle cx="12" cy="7.5" r="3.5" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" />
+        }
+        @case ('tv') {
+          <rect x="2.5" y="4.5" width="19" height="13" rx="2" /><path d="M8.5 21h7" />
         }
         @case ('share') {
           <circle cx="18" cy="5" r="2.7" /><circle cx="6" cy="12" r="2.7" /><circle cx="18" cy="19" r="2.7" />

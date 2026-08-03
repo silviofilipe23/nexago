@@ -1,6 +1,6 @@
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, updateDoc, where, type Unsubscribe } from 'firebase/firestore';
 import { organizerFirestore } from './firestore';
-import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus } from './tournament.model';
+import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig } from './tournament.model';
 
 /** `tournaments/{id}` (top-level, leitura pública, espelha `TournamentDocumentMapper`/
  *  `tournament_create_mapper.dart` + `league_stage_tournament_factory.dart`) filtrado por
@@ -90,6 +90,18 @@ function courtsFromRaw(raw: unknown, courtsCount: number): { id: string; name: s
   return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
 
+function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  return {
+    courtIds: Array.isArray(o['courtIds']) ? o['courtIds'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0) : [],
+    showUpcoming: o['showUpcoming'] !== false,
+    showCall: o['showCall'] !== false,
+    showAvatars: o['showAvatars'] !== false,
+    autoRotate: o['autoRotate'] !== false,
+  };
+}
+
 /** Capa do torneio — mesmos fallbacks de chave do app (`TournamentDocumentMapper._imageUrl`). */
 function coverUrlOf(data: Record<string, unknown>): string | null {
   for (const key of ['coverUrl', 'imageUrl', 'coverImageUrl', 'posterUrl', 'thumbnailUrl']) {
@@ -123,7 +135,19 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     courts: courtsFromRaw(data['courts'], courtsCount),
     courtsCount,
     matchOps: matchOpsFromRaw(data['matchOps']),
+    bigScreen: telaoConfigFromRaw(data['bigScreen']),
   };
+}
+
+/** Config efetiva do telão: defaults com tudo ligado e todas as quadras; `courtIds` filtrado
+ *  pelas quadras que existem HOJE no torneio (quadra removida some da seleção; seleção que
+ *  ficou vazia volta a todas — a TV nunca fica preta por config órfã). */
+export function effectiveTelaoConfig(t: OrganizerTournament): TelaoConfig {
+  const allCourtIds = t.courts.map((c) => c.id);
+  const cfg = t.bigScreen;
+  if (!cfg) return { courtIds: allCourtIds, showUpcoming: true, showCall: true, showAvatars: true, autoRotate: true };
+  const courtIds = cfg.courtIds.filter((id) => allCourtIds.includes(id));
+  return { ...cfg, courtIds: courtIds.length > 0 ? courtIds : allCourtIds };
 }
 
 /** Ids de torneios em que o uid é gestor ativo — espelho `users/{uid}/tournamentStaff`
@@ -174,4 +198,21 @@ export async function getTournament(id: string): Promise<OrganizerTournament | n
   const snap = await getDoc(doc(db, 'tournaments', id));
   if (!snap.exists()) return null;
   return tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>);
+}
+
+/** Versão ao vivo de `getTournament` — o telão escuta o doc pra reagir a mudança de config
+ *  (`bigScreen`) e de quadras sem recarregar a página da TV. */
+export function watchTournament(id: string, onChange: (t: OrganizerTournament | null) => void, onError?: (error: unknown) => void): Unsubscribe {
+  return onSnapshot(
+    doc(organizerFirestore(), 'tournaments', id),
+    (snap) => onChange(snap.exists() ? tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>) : null),
+    (err) => onError?.(err),
+  );
+}
+
+/** Grava a config do telão direto no doc (rules: update permitido ao `managerId`/staff
+ *  manager). Exceção consciente à convenção "toda escrita via callable": é preferência de
+ *  exibição, não regra de negócio. */
+export function saveTelaoConfig(tournamentId: string, config: TelaoConfig): Promise<void> {
+  return updateDoc(doc(organizerFirestore(), 'tournaments', tournamentId), { bigScreen: { ...config, courtIds: [...config.courtIds] } });
 }

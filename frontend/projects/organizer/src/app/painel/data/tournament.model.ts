@@ -22,6 +22,17 @@ export interface OrganizerTournamentCourt {
   order: number;
 }
 
+/** Config do telão ao vivo (`tournaments/{id}.bigScreen`) — escrita só pelo painel do
+ *  organizador; a TV escuta o doc e reage ao vivo. Ausente = defaults de
+ *  `effectiveTelaoConfig` (todas as quadras, tudo ligado). */
+export interface TelaoConfig {
+  courtIds: string[];
+  showUpcoming: boolean;
+  showCall: boolean;
+  showAvatars: boolean;
+  autoRotate: boolean;
+}
+
 /** Espelha `TournamentMatchOpsConfig` (Flutter): jornada e durações do dia de jogo. */
 export interface OrganizerMatchOpsConfig {
   dayStart: string; // "07:00"
@@ -49,4 +60,5 @@ export interface OrganizerTournament {
   courts: OrganizerTournamentCourt[];
   courtsCount: number;
   matchOps: OrganizerMatchOpsConfig;
+  bigScreen: TelaoConfig | null;
 }

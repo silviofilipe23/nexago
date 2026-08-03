@@ -3,6 +3,7 @@ import {
   matchIsCanceled,
   matchIsCompleted,
   matchIsLive,
+  matchLiveCurrentSet,
   matchSetWins,
   type MatchSet,
   type TournamentMatch,
@@ -214,7 +215,8 @@ export function knockoutLabelOf(m: Pick<TournamentMatch, 'matchType' | 'round'>)
   return KNOCKOUT_LABELS[key] ?? (key ? `${m.matchType[0]!.toUpperCase()}${m.matchType.slice(1)}` : `Rodada ${m.round}`);
 }
 
-/** Sets já fechados + o set em andamento vindo de `liveScore`, prontos pra renderizar em coluna. */
+/** Sets já fechados + o set em andamento (mesa ponto a ponto ou `liveScore` agregado — ver
+ *  `matchLiveCurrentSet`), prontos pra renderizar em coluna. */
 export interface DisplaySet {
   index: number;
   a: number;
@@ -225,10 +227,11 @@ export interface DisplaySet {
 export function displaySetsOf(m: TournamentMatch): DisplaySet[] {
   const closed: MatchSet[] = matchClosedSets(m);
   const sets: DisplaySet[] = closed.map((s, i) => ({ index: i + 1, a: s.a, b: s.b, inProgress: false }));
-  const live = m.liveScore;
-  // O set em andamento só existe enquanto a partida roda: depois de encerrada, `sets` já o contém.
-  if (live && matchIsLive(m) && (live.currentGamesA > 0 || live.currentGamesB > 0)) {
-    sets.push({ index: sets.length + 1, a: live.currentGamesA, b: live.currentGamesB, inProgress: true });
+  // O set em andamento só existe enquanto a partida roda (e só aparece com ponto marcado):
+  // depois de encerrada, `sets` já o contém.
+  const live = matchLiveCurrentSet(m);
+  if (live && (live.a > 0 || live.b > 0)) {
+    sets.push({ index: sets.length + 1, a: live.a, b: live.b, inProgress: true });
   }
   return sets;
 }

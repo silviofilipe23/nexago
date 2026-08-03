@@ -159,7 +159,7 @@ export class PanelShellComponent {
         { label: 'Cabeças de chave', icon: 'flag', link: `${base}/seeds` },
         { label: 'Grupos', icon: 'grid', link: `${base}/grupos` },
         { label: 'Chaveamento', icon: 'bracket', link: `${base}/chave` },
-        { label: 'Jogos & placares', icon: 'whistle', link: `${base}/jogos`, matchPrefixes: [`${base}/jogos`, `${base}/placar`] },
+        { label: 'Jogos & placares', icon: 'whistle', link: `${base}/jogos`, matchPrefixes: [`${base}/jogos`, `${base}/placar`, `${base}/ao-vivo`] },
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
       ];

@@ -27,6 +27,7 @@ function bracketMatch(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 
     checkIn: { teamA: null, teamB: null },
     queueStatus: null,
     bestOf: 3,
+    currentSetIndex: null,
     ...partial,
   };
 }

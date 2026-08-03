@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { fetchAllLeagues } from '../../data/leagues-repository';
-import { tournamentListingStatus, type TournamentCategoryOffer } from '../../data/tournaments-repository';
+import { categoryAcceptsRegistration, tournamentListingStatus, type TournamentCategoryOffer } from '../../data/tournaments-repository';
 import { leagueContextLabel, resolveLeagueContext } from '../tournament-league.helpers';
 import type { DiscoveryLeague } from '../tournament-discovery.models';
 import { TournamentLiveStore } from '../tournament-live.store';
@@ -75,6 +75,19 @@ export class OverviewTabComponent {
     }
   });
 
+  /** A vitrine de inscrição — lista de categorias, "inscrição a partir de" e o botão de
+   *  inscrever — só faz sentido enquanto alguma categoria aceita dupla nova. Encerradas todas,
+   *  a Visão geral vira a face do evento (capa, prêmio, regulamento) e as categorias seguem na
+   *  aba "Categorias", com jogos e chave.
+   *
+   *  Deliberadamente ignora se o atleta já está inscrito: enquanto houver categoria aberta a
+   *  vitrine fica de pé, e o botão da categoria dele é que vira "Ver inscrição". */
+  protected readonly registrationOpen = computed(() => (this.tournament()?.categories ?? []).some((c) => this.categoryIsOpen(c)));
+
+  /** Sem vitrine e sem regulamento a coluna principal fica vazia — aí o grid vira uma coluna só,
+   *  senão o card de prêmio ficaria espremido em 340px com metade da tela em branco. */
+  protected readonly hasMainColumn = computed(() => this.registrationOpen() || (this.tournament()?.regulationsText ?? '').length > 0);
+
   protected readonly totalPrizeLabel = computed(() => {
     const t = this.tournament();
     if (!t) return null;
@@ -139,14 +152,17 @@ export class OverviewTabComponent {
     return Math.round(((cat.maxTeams - this.categorySpotsLeft(cat)) / cat.maxTeams) * 100);
   }
 
+  protected categoryIsOpen(cat: TournamentCategoryOffer): boolean {
+    const t = this.tournament();
+    return t != null && categoryAcceptsRegistration(t, cat, this.categorySpotsLeft(cat), this.store.now());
+  }
+
   protected categoryCta(cat: TournamentCategoryOffer): CategoryCtaKind {
     if (this.store.myCategoryIds().has(cat.id)) return 'view-registration';
-    const t = this.tournament();
-    const status = t ? tournamentListingStatus(t, this.store.now()) : 'ended';
-    if (cat.isCompleted || cat.registrationClosed || status === 'ended') return 'disabled';
-    const spotsLeft = this.categorySpotsLeft(cat);
-    if (spotsLeft <= 0) return t?.waitlistEnabled ? 'waitlist' : 'disabled';
-    return 'register';
+    if (!this.categoryIsOpen(cat)) return 'disabled';
+    // Aberta e sem vaga só acontece com lista de espera ativa — `categoryAcceptsRegistration`
+    // já barrou o caso contrário.
+    return this.categorySpotsLeft(cat) <= 0 ? 'waitlist' : 'register';
   }
 
   protected categoryCtaLabel(cat: TournamentCategoryOffer): string {

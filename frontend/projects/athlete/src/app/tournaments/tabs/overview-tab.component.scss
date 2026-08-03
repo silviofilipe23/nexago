@@ -261,6 +261,12 @@
   }
 }
 
+// Inscrições encerradas e torneio sem regulamento: sobra só a coluna lateral, que ocupa a
+// largura toda em vez de ficar espremida em 340px com metade da tela vazia.
+.tdv-main-grid--single {
+  grid-template-columns: 1fr;
+}
+
 .tdv-col {
   display: flex;
   flex-direction: column;

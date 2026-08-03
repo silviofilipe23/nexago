@@ -293,9 +293,9 @@ export function registrationToEvent(reg: AthleteTournamentRegistration, tourname
     location: tournament.location ?? tournament.city ?? '',
     statusLabel: completed ? 'Concluído' : live ? 'Ao vivo' : reg.partnerPending ? 'Falta parceiro' : reg.isPaid ? 'Inscrito' : 'Aguardando pagamento',
     statusTone: completed ? 'neutral' : live ? 'live' : reg.partnerPending || !reg.isPaid ? 'warning' : 'confirmed',
-    ctaLabel: live ? 'Ver chave' : 'Ver torneio',
+    ctaLabel: live ? 'Ver categorias' : 'Ver torneio',
     ctaPrimary: live,
-    link: live ? ['/torneios', tournament.id, 'chaves'] : ['/torneios', tournament.id],
+    link: live ? ['/torneios', tournament.id, 'categorias'] : ['/torneios', tournament.id],
     isPast: completed,
   };
 }

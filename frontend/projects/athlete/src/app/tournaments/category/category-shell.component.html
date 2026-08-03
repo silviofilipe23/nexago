@@ -1,0 +1,37 @@
+@if (category(); as c) {
+  <div class="cat">
+    <header class="cat-head">
+      <div class="cat-head-main">
+        @if (hasOtherCategories()) {
+          <a
+            [routerLink]="['/torneios', store.tournamentId(), 'categorias']"
+            class="cat-back"
+            (click)="openCategoryList()"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+            <span>Todas as categorias</span>
+          </a>
+        }
+        <h2 class="cat-title">{{ c.categoryName }}</h2>
+        <p class="cat-meta">{{ metaLine() }}</p>
+      </div>
+
+      <!-- Segmentado: a mesma categoria vista de três ângulos. Não é navegação de torneio, por
+           isso o desenho de pílula em vez das abas sublinhadas do topo. -->
+      <nav class="cat-seg" aria-label="O que ver desta categoria">
+        @for (view of views(); track view.id) {
+          <a
+            [routerLink]="['/torneios', store.tournamentId(), 'categorias', c.id, view.id]"
+            class="cat-seg-item"
+            [class.cat-seg-item--active]="isActive(view.id)"
+            [attr.aria-current]="isActive(view.id) ? 'page' : null"
+          >
+            {{ view.label }}
+          </a>
+        }
+      </nav>
+    </header>
+
+    <router-outlet />
+  </div>
+}

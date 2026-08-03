@@ -1,7 +1,17 @@
-import { Routes } from '@angular/router';
+import { type RedirectFunction, type Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { onboardingGuard } from './auth/onboarding.guard';
 import { TournamentLiveStore } from './tournaments/tournament-live.store';
+
+/** As abas "Partidas & tabela" e "Chaves" viraram sub-visões da categoria. O link antigo já
+ *  carregava a categoria em `?categoria=`, então o redirect entrega a MESMA vista; sem o
+ *  parâmetro não há como adivinhar a categoria e a lista assume. */
+function legacyCategoryRedirect(view: 'partidas' | 'chave'): RedirectFunction {
+  return ({ queryParams }) => {
+    const categoria = queryParams['categoria'];
+    return typeof categoria === 'string' && categoria.length > 0 ? `categorias/${categoria}/${view}` : 'categorias';
+  };
+}
 
 export const routes: Routes = [
   {
@@ -237,15 +247,35 @@ export const routes: Routes = [
             loadComponent: () => import('./tournaments/tabs/today-tab.component').then((m) => m.TodayTabComponent),
           },
           {
-            path: 'partidas',
-            loadComponent: () => import('./tournaments/tabs/matches-tab.component').then((m) => m.MatchesTabComponent),
+            path: 'categorias',
+            loadComponent: () => import('./tournaments/category/category-list.component').then((m) => m.CategoryListComponent),
           },
           {
-            // Mesma URL de antes (`/torneios/:id/chaves`), agora como aba — links já
-            // compartilhados continuam funcionando.
-            path: 'chaves',
-            loadComponent: () => import('./tournaments/tabs/brackets-tab.component').then((m) => m.BracketsTabComponent),
+            // A categoria vive na URL: trocar de sub-visão (partidas/grupos/chave) não troca mais
+            // a categoria que o atleta está acompanhando, e o link compartilhado abre na mesma
+            // vista. A casca resolve `/categorias/:id` sem sub-visão para a primeira disponível.
+            path: 'categorias/:categoriaId',
+            loadComponent: () => import('./tournaments/category/category-shell.component').then((m) => m.CategoryShellComponent),
+            children: [
+              {
+                path: 'partidas',
+                loadComponent: () => import('./tournaments/category/category-matches.component').then((m) => m.CategoryMatchesComponent),
+              },
+              {
+                path: 'grupos',
+                loadComponent: () => import('./tournaments/category/category-groups.component').then((m) => m.CategoryGroupsComponent),
+              },
+              {
+                path: 'chave',
+                loadComponent: () => import('./tournaments/category/category-bracket.component').then((m) => m.CategoryBracketComponent),
+              },
+            ],
           },
+          // Rotas antigas (`/partidas`, `/chaves`) continuam válidas: eram abas do torneio e hoje
+          // são sub-visões de categoria. Links com `?categoria=` abrem exatamente a mesma vista
+          // de antes; sem ele, cai na lista de categorias.
+          { path: 'partidas', pathMatch: 'full', redirectTo: legacyCategoryRedirect('partidas') },
+          { path: 'chaves', pathMatch: 'full', redirectTo: legacyCategoryRedirect('chave') },
           {
             path: 'minha-inscricao',
             loadComponent: () => import('./tournaments/tabs/registration-tab.component').then((m) => m.RegistrationTabComponent),

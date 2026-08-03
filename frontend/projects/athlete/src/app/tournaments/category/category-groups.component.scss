@@ -1,0 +1,160 @@
+@use '../tournament-live' as tl;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.gr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+}
+
+.gr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--nx-s-4);
+  align-items: start;
+
+  @media (max-width: 560px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.gr-card {
+  @include tl.card;
+  min-width: 0;
+}
+
+.gr-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nx-s-3);
+  margin-bottom: var(--nx-s-4);
+}
+
+.gr-card-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.gr-card-progress {
+  padding: 3px 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line-strong);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--nx-text-mute);
+}
+
+.gr-card-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+// A tabela tem 6 colunas e nomes de dupla longos: no celular ela rola dentro do card, nunca
+// arrastando a página junto.
+.gr-table-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.gr-table {
+  @include tl.standings-table;
+  min-width: 300px;
+
+  .gr-rank,
+  .gr-duo {
+    color: var(--nx-text);
+  }
+
+  tr[data-qualifies='true'] .gr-rank {
+    box-shadow: inset 2px 0 0 var(--nx-orange-500);
+    color: var(--nx-orange-400);
+    font-weight: 700;
+  }
+
+  tr[data-mine='true'] {
+    background: rgba(255, 106, 26, 0.07);
+  }
+}
+
+.gr-th-rank {
+  width: 28px;
+}
+
+.gr-rank {
+  font-family: var(--nx-font-mono);
+  text-align: center;
+}
+
+.gr-duo {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  min-width: 0;
+}
+
+.gr-avatars {
+  @include tl.duo-avatars(26px);
+}
+
+.gr-duo-name {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.gr-you {
+  color: var(--nx-orange-400);
+  font-weight: 500;
+}
+
+.gr-pts {
+  color: var(--nx-text);
+  font-weight: 700;
+}
+
+.gr-note {
+  @include tl.note;
+  margin: 0;
+  align-items: center;
+}
+
+.gr-note--mine {
+  @include tl.note('win');
+}
+
+.gr-note-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+}
+
+.gr-note-dot--mine {
+  background: var(--nx-win);
+}
+
+.gr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.gr-empty {
+  @include tl.empty-state;
+}

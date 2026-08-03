@@ -1,0 +1,27 @@
+@if (cards().length === 0) {
+  <p class="cl-empty">Nenhuma categoria cadastrada ainda.</p>
+} @else {
+  <section class="cl">
+    <h2 class="cl-kicker">Categorias</h2>
+    <div class="cl-grid">
+      @for (card of cards(); track card.id) {
+        <a [routerLink]="['/torneios', store.tournamentId(), 'categorias', card.id]" class="cl-card" [class.cl-card--mine]="card.mine">
+          <span class="cl-card-format">{{ card.formatLabel }}</span>
+          <h3 class="cl-card-name">{{ card.name }}</h3>
+          <div class="cl-card-foot">
+            <span class="cl-pill">{{ card.progressLabel }}</span>
+            @if (card.liveCount > 0) {
+              <span class="cl-pill cl-pill--live">
+                <span class="cl-live-dot" aria-hidden="true"></span>
+                {{ card.liveCount }} ao vivo
+              </span>
+            }
+            @if (card.mine) {
+              <span class="cl-pill cl-pill--mine">Você joga aqui</span>
+            }
+          </div>
+        </a>
+      }
+    </div>
+  </section>
+}

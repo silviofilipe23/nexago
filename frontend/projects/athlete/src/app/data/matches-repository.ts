@@ -377,6 +377,7 @@ export function buildBracketColumns(matches: readonly TournamentMatch[]): Bracke
 export interface GroupStanding {
   teamId: string;
   wins: number;
+  losses: number;
   setsWon: number;
   setsLost: number;
   gamesWon: number;
@@ -396,15 +397,28 @@ function parseLegacyResult(raw: string | null): number[] {
  *  simplificado: desempate por vitórias → saldo de sets → saldo de games (sem head-to-head
  *  detalhado, que exigiria reconstruir todos os confrontos par a par). */
 export function buildGroupStandings(matches: readonly TournamentMatch[], poolId: string): GroupStanding[] {
-  const poolMatches = matches.filter((m) => m.poolId === poolId && matchIsCompleted(m) && m.winnerId);
+  const poolMatches = matches.filter((m) => m.poolId === poolId);
   const byTeam = new Map<string, GroupStanding>();
-  const ensure = (id: string) => byTeam.get(id) ?? byTeam.set(id, { teamId: id, wins: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 }).get(id)!;
+  const ensure = (id: string) =>
+    byTeam.get(id) ?? byTeam.set(id, { teamId: id, wins: 0, losses: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 }).get(id)!;
 
+  // Toda dupla sorteada no grupo tem linha, mesmo zerada: sem isso o grupo aparecia vazio até a
+  // primeira partida encerrar e o atleta não conseguia ver com quem ia jogar.
   for (const m of poolMatches) {
+    if (m.teamAId) ensure(m.teamAId);
+    if (m.teamBId) ensure(m.teamBId);
+  }
+
+  for (const m of poolMatches.filter((m) => matchIsCompleted(m) && m.winnerId && m.teamAId && m.teamBId)) {
     const a = ensure(m.teamAId);
     const b = ensure(m.teamBId);
-    if (m.winnerId === m.teamAId) a.wins++;
-    else if (m.winnerId === m.teamBId) b.wins++;
+    if (m.winnerId === m.teamAId) {
+      a.wins++;
+      b.losses++;
+    } else if (m.winnerId === m.teamBId) {
+      b.wins++;
+      a.losses++;
+    }
 
     const sets = m.sets.length > 0 ? m.sets : parseLegacyResult(m.resultA).map((ga, i) => ({ a: ga, b: parseLegacyResult(m.resultB)[i] ?? 0 }));
     for (const s of sets) {

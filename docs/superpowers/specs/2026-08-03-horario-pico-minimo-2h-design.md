@@ -68,7 +68,7 @@ A "regra inteligente" (item 1 das decisões) emerge do passo 4 — não há cód
 ### App Flutter (`nexago_app`)
 
 - Predicado portado como lógica pura em `lib/features/arenas/domain/slots_page_logic.dart` (junto de `buildDurationOptions`/`selectRangeForDuration`).
-- `slots_page.dart`: badge no chip do slot de pico restrito; opções de duração abaixo do mínimo desabilitadas com a mesma mensagem.
+- `slots_page.dart`: badge no chip do slot de pico restrito; seleção que viola o mínimo desabilita o "Continuar" com a dica no rodapé ("Horário concorrido: mínimo de 2h"). O seletor de duração do app não é ancorado a um slot (a violação depende do range escolhido), então o bloqueio equivalente fica no continuar, não nas opções.
 - Fluxo de criação inalterado — o servidor é a autoridade; a UI só evita frustração.
 
 ## 5. Painel da arena (`frontend/projects/arena`)

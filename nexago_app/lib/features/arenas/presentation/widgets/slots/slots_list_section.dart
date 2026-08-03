@@ -19,6 +19,7 @@ class SlotsListSection extends StatelessWidget {
     required this.isSelectionAnchor,
     required this.onSlotTap,
     required this.priceLabelFor,
+    this.peakBadgeFor,
     this.mostPopularIndex,
     this.lastAvailableIndex,
     this.nextAvailableIndex,
@@ -37,6 +38,9 @@ class SlotsListSection extends StatelessWidget {
   final bool Function(int index) isSelectionAnchor;
   final void Function(int index) onSlotTap;
   final String? Function(ArenaSlot slot) priceLabelFor;
+
+  /// Rótulo do badge de horário de pico (ex.: "mín. 2h"); `null` = sem badge.
+  final String? Function(ArenaSlot slot)? peakBadgeFor;
 
   /// Slot lotado (não bloqueado, não passado) -> abre o fluxo de lista de espera.
   final void Function(ArenaSlot slot)? onJoinWaitlist;
@@ -146,6 +150,7 @@ class SlotsListSection extends StatelessWidget {
       isMostPopular: mostPopularIndex == index && !selected,
       isLastSlot: lastAvailableIndex == index && !selected,
       priceLabel: priceLabelFor(slot),
+      peakBadge: peakBadgeFor?.call(slot),
       onTap: () => onSlotTap(index),
       onJoinWaitlist:
           onJoinWaitlist == null ? null : () => onJoinWaitlist!(slot),

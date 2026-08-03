@@ -13,6 +13,7 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_court.dart';
 import '../domain/arena_list_item.dart';
+import '../domain/arena_peak_rule.dart';
 import '../domain/arena_slot.dart';
 import '../domain/court_pricing.dart';
 import '../../../core/auth/auth_providers.dart';
@@ -889,6 +890,24 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     final slotDurationMinutes = ref.watch(
       courtSlotDurationMinutesProvider((arenaId: arenaId, courtId: courtId)),
     );
+    final peakRules =
+        ref.watch(arenaPeakRulesProvider(arenaId)).valueOrNull ??
+            const <ArenaPeakRule>[];
+    var peakCheck = const PeakSelectionCheck(minSlots: 1);
+    if (!slotsLoading && _selStart != null && _selEnd != null) {
+      peakCheck = peakCheckForRange(
+        rules: peakRules,
+        courtId: courtId,
+        slots: slots,
+        selectedDay: _selectedDay,
+        start: _selStart!,
+        end: _selEnd!,
+        slotDurationMinutes: slotDurationMinutes,
+      );
+    }
+    final peakViolated = _selStart != null &&
+        _selEnd != null &&
+        (_selEnd! - _selStart! + 1) < peakCheck.minSlots;
     final hourly = CourtPricing.resolveHourlyBase(
       court: court,
       arenaFallbackPerHourReais: widget.arena.pricePerHourReais,
@@ -908,7 +927,8 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         !slotsLoading &&
         _selStart != null &&
         _selEnd != null &&
-        _rangeStillValid(slots, _selStart!, _selEnd!);
+        _rangeStillValid(slots, _selStart!, _selEnd!) &&
+        !peakViolated;
 
     final stripStart = computeSlotsDayStripStart(
       today: DateTime.now(),
@@ -1073,6 +1093,21 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                               priceLabelFor: (slot) => slot.priceReais != null
                                   ? formatBRLWhole(slot.priceReais!)
                                   : null,
+                              peakBadgeFor: (slot) {
+                                final idx = slots.indexOf(slot);
+                                if (idx < 0) return null;
+                                final min = peakBadgeMinSlots(
+                                  rules: peakRules,
+                                  courtId: courtId,
+                                  slots: slots,
+                                  selectedDay: _selectedDay,
+                                  index: idx,
+                                  slotDurationMinutes: slotDurationMinutes,
+                                );
+                                return min > 1
+                                    ? 'mín. ${formatSelectionDurationLabel(min, slotDurationMinutes)}'
+                                    : null;
+                              },
                               mostPopularIndex: popularIdx,
                               lastAvailableIndex: lastIdx,
                               nextAvailableIndex: nextIdx,
@@ -1099,7 +1134,12 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                       ),
                       SlotsBottomBar(
                         enabled: canContinue,
-                        metaLabel: slotsLoading ? null : barLabels.meta,
+                        metaLabel: slotsLoading
+                            ? null
+                            : peakViolated
+                                ? 'Horário concorrido: mínimo de '
+                                    '${formatSelectionDurationLabel(peakCheck.minSlots, slotDurationMinutes)}'
+                                : barLabels.meta,
                         totalLabel: slotsLoading ? null : barLabels.total,
                         onPressed: () {
                           if (slotsLoading) return;

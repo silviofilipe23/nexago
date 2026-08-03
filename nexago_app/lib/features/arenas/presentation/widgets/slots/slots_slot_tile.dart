@@ -15,6 +15,7 @@ class SlotsSlotTile extends StatelessWidget {
     this.isMostPopular = false,
     this.isLastSlot = false,
     this.priceLabel,
+    this.peakBadge,
     this.onJoinWaitlist,
   });
 
@@ -25,6 +26,9 @@ class SlotsSlotTile extends StatelessWidget {
   final bool isLastSlot;
   final VoidCallback? onTap;
   final String? priceLabel;
+
+  /// Rótulo do badge de horário de pico (ex.: "mín. 2h"); `null` = sem badge.
+  final String? peakBadge;
 
   /// Quando o slot está lotado (não bloqueado) e ainda é um horário futuro,
   /// permite entrar na lista de espera em vez de deixar o tile só desabilitado.
@@ -145,14 +149,33 @@ class SlotsSlotTile extends StatelessWidget {
                             : context.themeColors.onSurface,
                       ),
                     ),
-                    if (detailLine.isNotEmpty) ...[
+                    if (detailLine.isNotEmpty || peakBadge != null) ...[
                       SizedBox(height: 4),
-                      Text(
-                        detailLine,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        children: [
+                          if (detailLine.isNotEmpty)
+                            Flexible(
+                              child: Text(
+                                detailLine,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: context.themeColors.onSurfaceMuted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          if (peakBadge != null) ...[
+                            if (detailLine.isNotEmpty) SizedBox(width: 6),
+                            Text(
+                              peakBadge!,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: const Color(0xFFEA580C),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                     if (subtitle != null && occupied) ...[

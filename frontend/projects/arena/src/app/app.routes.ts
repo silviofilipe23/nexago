@@ -198,6 +198,31 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/horarios-pico',
+    title: 'Horários de pico — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],
+    loadComponent: () =>
+      import('./painel/peak-rules/panel-peak-rules.component').then((m) => m.PanelPeakRulesComponent),
+  },
+  {
+    path: 'painel/horarios-pico/nova',
+    title: 'Nova regra de pico — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],
+    loadComponent: () =>
+      import('./painel/peak-rules/panel-peak-rule-form.component').then(
+        (m) => m.PanelPeakRuleFormComponent,
+      ),
+  },
+  {
+    path: 'painel/horarios-pico/:id/editar',
+    title: 'Editar regra de pico — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],
+    loadComponent: () =>
+      import('./painel/peak-rules/panel-peak-rule-form.component').then(
+        (m) => m.PanelPeakRuleFormComponent,
+      ),
+  },
+  {
     path: 'painel/cupons',
     title: 'Cupons — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],

@@ -939,6 +939,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const preview = request.data?.preview !== false;
   const avoidAthleteConflict = request.data?.avoidAthleteConflict !== false;
   const respectBracketDeps = request.data?.respectBracketDeps !== false;
+  const categoryId = (request.data?.categoryId as string)?.trim() ?? "";
 
   if (!tournamentId || !dayKey) {
     throw new HttpsError("invalid-argument", "tournamentId e dayKey obrigatórios");
@@ -956,19 +957,27 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const [h, m] = dayStartStr.split(":").map(Number);
   const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
 
-  const courts =
+  const allCourts =
     (tournament.courts as Array<{id: string; name?: string; order: number}>) ?? [];
-  if (courts.length === 0) {
+  if (allCourts.length === 0) {
     throw new HttpsError("failed-precondition", "Configure quadras no torneio");
+  }
+  // `courtIds` restringe onde o auto-agendamento pode alocar; o que já estava
+  // marcado nas quadras de fora continua intocado e segue bloqueando horário.
+  const courts = selectAutoScheduleCourts(allCourts, request.data?.courtIds);
+  if (courts.length === 0) {
+    throw new HttpsError("invalid-argument", "Nenhuma quadra válida selecionada");
   }
 
   const allMatches = await loadTournamentMatches(db, projectId, tournamentId);
   const unscheduled = allMatches.filter((doc) => {
     const d = doc.data();
     if (d.scheduleTime || isMatchCompleted(d.status)) return false;
-    if (!isMatchAutoSchedulable(d, respectBracketDeps)) return false;
-    const matchDayKey = String(d.dayKey ?? "").trim();
-    return matchDayKey === "" || matchDayKey === dayKey;
+    return isMatchEligibleForAutoSchedule(d, {
+      respectBracketDeps,
+      dayKey,
+      categoryId,
+    });
   });
 
   const courtBusyUntil: Record<string, Date> = {};
@@ -1063,12 +1072,12 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
     }
   }
 
+  let applied = 0;
   if (!preview) {
     const batch = db.batch();
     const matchesById = new Map(
       allMatches.map((d) => [d.id, d] as const),
     );
-    let applied = 0;
     for (const slot of slots) {
       const matchDoc = matchesById.get(slot.matchId);
       if (!matchDoc) continue;
@@ -1116,7 +1125,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
     }
   }
 
-  return {ok: true, preview, slots, skipped, count: slots.length};
+  return {ok: true, preview, slots, skipped, count: slots.length, applied};
 });
 
 export const applyLeagueRankingForMatch = onCall(async (request) => {
@@ -1170,6 +1179,52 @@ export function isMatchAutoSchedulable(
   const teamA = typeof data.teamAId === "string" ? data.teamAId.trim() : "";
   const teamB = typeof data.teamBId === "string" ? data.teamBId.trim() : "";
   return teamA !== "" && teamB !== "";
+}
+
+/**
+ * Quadras que o auto-agendamento pode usar. `courtIds` vazio (ou ausente) =
+ * todas as quadras do torneio, que é o comportamento histórico e o que o app
+ * Flutter continua enviando. Quando vem preenchido, filtra PRESERVANDO a ordem
+ * do doc do torneio: a ordem das quadras define o desempate na escolha gulosa
+ * (`courts[0]` é o chute inicial), então reordenar mudaria a grade gerada.
+ * Ids desconhecidos são ignorados — cabe ao chamador tratar o resultado vazio.
+ */
+export function selectAutoScheduleCourts<T extends {id: string}>(
+  allCourts: T[],
+  courtIds: unknown,
+): T[] {
+  if (!Array.isArray(courtIds)) return allCourts;
+  const wanted = new Set(
+    courtIds
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v) => v !== ""),
+  );
+  if (wanted.size === 0) return allCourts;
+  return allCourts.filter((c) => wanted.has(c.id));
+}
+
+/**
+ * Partida candidata a receber horário nesta rodada de auto-agendamento.
+ * Restringe apenas o conjunto que SERÁ agendado — a leitura de ocupação de
+ * quadra/descanso continua varrendo todas as partidas do torneio, senão uma
+ * partida de outra categoria seria sobreposta.
+ */
+export function isMatchEligibleForAutoSchedule(
+  data: {
+    teamAId?: unknown;
+    teamBId?: unknown;
+    dayKey?: unknown;
+    categoryId?: unknown;
+  },
+  opts: {respectBracketDeps: boolean; dayKey: string; categoryId: string},
+): boolean {
+  if (!isMatchAutoSchedulable(data, opts.respectBracketDeps)) return false;
+  if (opts.categoryId) {
+    const cat = typeof data.categoryId === "string" ? data.categoryId.trim() : "";
+    if (cat !== opts.categoryId) return false;
+  }
+  const matchDayKey = String(data.dayKey ?? "").trim();
+  return matchDayKey === "" || matchDayKey === opts.dayKey;
 }
 
 /**

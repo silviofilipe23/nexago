@@ -134,14 +134,34 @@ export function unscheduleMatch(matchId: string): Promise<unknown> {
   return call('unscheduleMatch', { matchId: matchId.trim() });
 }
 
+export interface AutoScheduleSlot {
+  matchId: string;
+  courtId: string;
+  /** ISO 8601 em UTC. */
+  start: string;
+  end: string;
+}
+
+export interface AutoScheduleSkip {
+  matchId: string;
+  reason: string;
+}
+
 export interface AutoScheduleResult {
   ok?: boolean;
-  applied?: boolean;
-  slots?: Array<Record<string, unknown>>;
-  skipped?: Array<Record<string, unknown>>;
+  preview?: boolean;
+  /** Slots calculados (preview e apply calculam a mesma grade). */
+  slots?: AutoScheduleSlot[];
+  /** Rejeitados na gravação por quadra ocupada ou descanso insuficiente. */
+  skipped?: AutoScheduleSkip[];
+  count?: number;
+  /** Quantos foram realmente gravados — 0 em preview. */
+  applied?: number;
   [key: string]: unknown;
 }
 
+/** `courtIds` vazio = todas as quadras; `categoryId` vazio = torneio inteiro
+ *  (ambos omitidos da chamada, que é o que o app Flutter faz hoje). */
 export function autoScheduleTournamentDay(params: {
   tournamentId: string;
   dayKey: string;
@@ -149,7 +169,11 @@ export function autoScheduleTournamentDay(params: {
   avoidAthleteConflict?: boolean;
   respectBracketDeps?: boolean;
   dayStart?: string;
+  courtIds?: readonly string[];
+  categoryId?: string | null;
 }): Promise<AutoScheduleResult> {
+  const courtIds = (params.courtIds ?? []).map((id) => id.trim()).filter(Boolean);
+  const categoryId = params.categoryId?.trim() ?? '';
   return call('autoScheduleTournamentDay', {
     tournamentId: params.tournamentId.trim(),
     dayKey: params.dayKey.trim(),
@@ -157,6 +181,8 @@ export function autoScheduleTournamentDay(params: {
     avoidAthleteConflict: params.avoidAthleteConflict ?? true,
     respectBracketDeps: params.respectBracketDeps ?? true,
     ...(params.dayStart?.trim() ? { dayStart: params.dayStart.trim() } : {}),
+    ...(courtIds.length > 0 ? { courtIds } : {}),
+    ...(categoryId ? { categoryId } : {}),
   });
 }
 

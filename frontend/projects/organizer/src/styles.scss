@@ -1340,20 +1340,79 @@ button {
   max-width: 640px;
 }
 
-.og-wizard-progress {
+.og-wizard-steps {
   display: flex;
   gap: 6px;
 }
 
-.og-wizard-progress span {
+.og-wizard-step {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.og-wizard-step:disabled {
+  cursor: default;
+}
+
+.og-wizard-step-bar {
   height: 4px;
   border-radius: 2px;
   background: var(--nx-line);
 }
 
-.og-wizard-progress span.done {
+.og-wizard-step.done .og-wizard-step-bar {
   background: var(--nx-orange-500);
+}
+
+.og-wizard-step:not(:disabled):not(.current):hover .og-wizard-step-bar {
+  background: var(--nx-orange-400);
+}
+
+.og-wizard-step-label {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.og-wizard-step.done .og-wizard-step-label {
+  color: var(--nx-text-mute);
+}
+
+.og-wizard-step.current .og-wizard-step-label {
+  color: var(--nx-orange-500);
+  font-weight: 700;
+}
+
+.og-wizard-step:not(:disabled):not(.current):hover .og-wizard-step-label {
+  color: var(--nx-text);
+}
+
+/* Portal é desktop-first: em telas estreitas ficam só as barras (o `title` mantém o rótulo).
+   Sem o rótulo o botão herdaria a altura da barra (4px) — o min-height segura o alvo de toque. */
+@media (max-width: 860px) {
+  .og-wizard-step-label {
+    display: none;
+  }
+
+  .og-wizard-step {
+    min-height: 24px;
+    justify-content: center;
+  }
 }
 
 .og-wizard-body {

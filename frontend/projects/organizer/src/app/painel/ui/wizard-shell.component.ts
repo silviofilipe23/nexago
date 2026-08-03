@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
-/** Cabeçalho + barra de progresso compartilhados pelos wizards de Torneio/Liga/Etapa.
+/** Cabeçalho + stepper compartilhados pelos wizards de Torneio/Liga/Etapa.
  *  `ctaBusy` troca o CTA pra spinner + `ctaBusyLabel` e, quando `busyTitle` é informado,
- *  cobre o wizard com o overlay de processamento (publicar faz upload de capa + callable). */
+ *  cobre o wizard com o overlay de processamento (publicar faz upload de capa + callable).
+ *  O stepper navega direto: passos até `unlockedUpTo` são clicáveis e emitem `stepSelected`. */
 @Component({
   selector: 'og-wizard-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,7 +20,7 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
     <div class="og-wizard-top">
       <div class="og-wizard-top-row">
         <div>
-          <div class="og-wizard-flow">{{ flow() }} · Passo {{ step() }} de {{ total() }}</div>
+          <div class="og-wizard-flow">{{ flow() }} · Passo {{ step() }} de {{ steps().length }}</div>
           <h1 class="og-wizard-title">{{ title() }}</h1>
           @if (subtitle()) {
             <div class="og-wizard-subtitle">{{ subtitle() }}</div>
@@ -40,11 +41,23 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
           </button>
         </div>
       </div>
-      <div class="og-wizard-progress">
-        @for (i of stepsArray(); track i) {
-          <span [class.done]="i < step()"></span>
+      <nav class="og-wizard-steps" aria-label="Passos do wizard">
+        @for (label of steps(); track $index) {
+          <button
+            type="button"
+            class="og-wizard-step"
+            [class.done]="$index + 1 <= step()"
+            [class.current]="$index + 1 === step()"
+            [disabled]="$index + 1 > unlockedUpTo() || ctaBusy()"
+            [attr.aria-current]="$index + 1 === step() ? 'step' : null"
+            [title]="label"
+            (click)="stepSelected.emit($index + 1)"
+          >
+            <span class="og-wizard-step-bar"></span>
+            <span class="og-wizard-step-label">{{ $index + 1 }}. {{ label }}</span>
+          </button>
         }
-      </div>
+      </nav>
     </div>
     <div class="og-wizard-body">
       <div class="og-wizard-col">
@@ -58,8 +71,11 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 })
 export class OgWizardShellComponent {
   readonly flow = input.required<string>();
-  readonly total = input.required<number>();
+  /** Rótulos curtos dos passos, em ordem — definem também o total. */
+  readonly steps = input.required<readonly string[]>();
   readonly step = input.required<number>();
+  /** Maior passo (1-based) liberado pra clique direto. `0` trava o stepper inteiro. */
+  readonly unlockedUpTo = input(0);
   readonly title = input.required<string>();
   readonly subtitle = input<string>('');
   readonly ctaLabel = input('Continuar');
@@ -75,8 +91,6 @@ export class OgWizardShellComponent {
   readonly cta = output<void>();
   readonly back = output<void>();
   readonly saveDraft = output<void>();
-
-  protected stepsArray(): number[] {
-    return Array.from({ length: this.total() }, (_, i) => i + 1);
-  }
+  /** Passo escolhido no stepper (1-based). */
+  readonly stepSelected = output<number>();
 }

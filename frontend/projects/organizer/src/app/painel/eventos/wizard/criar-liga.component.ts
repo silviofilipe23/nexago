@@ -45,6 +45,8 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 type SubView = 'categoria' | 'etapa' | null;
 
 const TITLES = ['', 'Identidade da liga', 'Temporada', 'Categorias da liga', 'Ranking & Grande Final', 'Etapas da temporada', 'Revisar a liga'];
+/** Rótulos curtos do stepper — mesma ordem dos passos, sem o índice 0 de `TITLES`. */
+const STEP_LABELS = ['Identidade', 'Temporada', 'Categorias', 'Ranking', 'Etapas', 'Revisão'];
 const SUBTITLES = [
   '',
   'O circuito completo — as etapas você adiciona depois.',
@@ -119,8 +121,9 @@ function inputToDate(v: string): Date | null {
     } @else {
       <og-wizard-shell
         [flow]="flow()"
-        [total]="6"
+        [steps]="stepLabels"
         [step]="step()"
+        [unlockedUpTo]="unlockedUpTo()"
         [title]="title()"
         [subtitle]="subtitle()"
         [ctaLabel]="ctaLabel()"
@@ -131,6 +134,7 @@ function inputToDate(v: string): Date | null {
         [showDraft]="false"
         (cta)="onCta()"
         (back)="onBack()"
+        (stepSelected)="goToStep($event)"
       >
         @if (feedback(); as fb) {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
@@ -411,6 +415,8 @@ export class CriarLigaComponent {
 
   protected readonly draft = signal<LeagueCreateDraft>(emptyLeagueDraft());
   protected readonly step = signal<Step>(1);
+  /** Passo mais avançado já alcançado (1-based) — limita o clique direto no stepper. */
+  private readonly maxStepReached = signal(1);
   protected readonly subView = signal<SubView>(null);
   protected readonly saving = signal(false);
   protected readonly publishedId = signal<string | null>(null);
@@ -430,6 +436,7 @@ export class CriarLigaComponent {
   protected readonly genderOptions = Object.values(GENDER_LABEL);
   protected readonly ageBandOptions = Object.values(AGE_BAND_LABEL);
   protected readonly rankingPointsRows = RANKING_POINTS_ROWS;
+  protected readonly stepLabels = STEP_LABELS;
   protected readonly suggestCategoryName = suggestCategoryName;
   protected readonly tagsOf = categoryTags;
 
@@ -445,6 +452,10 @@ export class CriarLigaComponent {
     if (this.step() === 6) return 'Publicar circuito';
     return 'Continuar';
   });
+
+  /** Só volta/avança pra onde já passou; nas subviews (categoria/etapa) o stepper trava,
+   *  porque ali o cabeçalho descreve a subview, não o passo. */
+  protected readonly unlockedUpTo = computed(() => (this.subView() !== null ? 0 : this.maxStepReached()));
 
   protected readonly hasDefinedStage = computed(() => this.draft().stages.some((s) => this.stageIsDefined(s)));
 
@@ -606,6 +617,14 @@ export class CriarLigaComponent {
       return;
     }
     this.step.set((s + 1) as Step);
+    this.maxStepReached.update((m) => Math.max(m, s + 1));
+  }
+
+  /** Pulo direto pelo stepper — só chega aqui pra passo já alcançado, que já passou por `stepBlock`. */
+  protected goToStep(n: number): void {
+    if (n === this.step()) return;
+    this.feedback.set(null);
+    this.step.set(n as Step);
   }
 
   protected onBack(): void {

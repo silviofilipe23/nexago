@@ -7,6 +7,7 @@ import { fetchProfileDisplays, fetchTeamsByIds, type OrganizerTeamPlayers, type 
 import { watchTournament } from '../data/tournaments-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { teamShortLabel } from './telao-selectors';
+import { nextStreakOf, type TeamStreak } from './telao-streaks';
 
 /** Dupla resolvida pro telão: rótulo completo, curto ("Lucas / Paula"), sublinha com os nomes
  *  inteiros e avatares (foto quando o perfil tem). */
@@ -46,6 +47,9 @@ export class TelaoDataService {
   readonly tournament = signal<OrganizerTournament | null>(null);
   readonly matches = signal<TournamentMatch[]>([]);
   readonly teams = signal<ReadonlyMap<string, TelaoTeamDisplay>>(new Map());
+  /** Sequência de pontos seguidos por partida ao vivo ("em chamas") — derivada dos deltas
+   *  entre snapshots, ver `telao-streaks.ts`. */
+  readonly streaks = signal<ReadonlyMap<string, TeamStreak>>(new Map());
   /** Algum snapshot já chegou nesta transmissão (vira o "TRANSMITINDO" do preview). */
   readonly connected = signal(false);
   readonly error = signal(false);
@@ -62,6 +66,7 @@ export class TelaoDataService {
       this.tournament.set(null);
       this.matches.set([]);
       this.teams.set(new Map());
+      this.streaks.set(new Map());
       this.hydrated.clear();
       this.connected.set(false);
       this.error.set(false);
@@ -79,6 +84,7 @@ export class TelaoDataService {
         id,
         (ms) => {
           this.matches.set(ms);
+          this.updateStreaks(ms);
           this.connected.set(true);
           this.error.set(false);
           void this.hydrateTeams(ms, this.generation);
@@ -90,6 +96,16 @@ export class TelaoDataService {
         unsubMatches();
       });
     });
+  }
+
+  private updateStreaks(matches: TournamentMatch[]): void {
+    const next = new Map<string, TeamStreak>();
+    const prevMap = this.streaks();
+    for (const m of matches) {
+      const streak = nextStreakOf(prevMap.get(m.id) ?? null, m);
+      if (streak) next.set(m.id, streak);
+    }
+    this.streaks.set(next);
   }
 
   private async hydrateTeams(matches: TournamentMatch[], generation: number): Promise<void> {

@@ -99,6 +99,7 @@ function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
     showCall: o['showCall'] !== false,
     showAvatars: o['showAvatars'] !== false,
     autoRotate: o['autoRotate'] !== false,
+    showStreak: o['showStreak'] !== false,
   };
 }
 
@@ -146,7 +147,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
 export function effectiveTelaoConfig(t: OrganizerTournament): TelaoConfig {
   const allCourtIds = t.courts.map((c) => c.id);
   const cfg = t.bigScreen;
-  if (!cfg) return { courtIds: allCourtIds, showUpcoming: true, showCall: true, showAvatars: true, autoRotate: true };
+  if (!cfg) return { courtIds: allCourtIds, showUpcoming: true, showCall: true, showAvatars: true, autoRotate: true, showStreak: true };
   const courtIds = cfg.courtIds.filter((id) => allCourtIds.includes(id));
   return { ...cfg, courtIds: courtIds.length > 0 ? courtIds : allCourtIds };
 }

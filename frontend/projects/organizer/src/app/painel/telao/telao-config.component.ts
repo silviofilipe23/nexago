@@ -16,13 +16,14 @@ import { TelaoScreenComponent } from './telao-screen.component';
 import { TelaoStageComponent } from './telao-stage.component';
 import { courtNowOf } from './telao-selectors';
 
-type TelaoToggleKey = 'showUpcoming' | 'showCall' | 'showAvatars' | 'autoRotate';
+type TelaoToggleKey = 'showUpcoming' | 'showCall' | 'showAvatars' | 'autoRotate' | 'showStreak';
 
 const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showUpcoming', title: 'Próximos jogos', desc: 'Fila lateral com horário e quadra' },
   { key: 'showCall', title: 'Chamada de atletas', desc: 'Barra inferior convocando a próxima partida' },
   { key: 'showAvatars', title: 'Avatares dos atletas', desc: 'Iniciais das duplas em cada quadra' },
   { key: 'autoRotate', title: 'Rotação automática', desc: 'Alterna as quadras exibidas a cada 20 s' },
+  { key: 'showStreak', title: 'Em chamas', desc: 'Destaque na dupla com 3+ pontos seguidos — cresce com a sequência' },
 ];
 
 const STATUS_LABEL: Record<OrganizerTournament['status'], string> = {

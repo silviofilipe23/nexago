@@ -31,7 +31,9 @@ async function chunkedByIds<T>(db: Firestore, path: string[], ids: readonly stri
   return result;
 }
 
-async function fetchProfileNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string>> {
+/** Nomes de exibição de atletas (`nickname` → `fullName` → `name`) — uids sem nome ficam fora
+ *  do mapa pra quem chama decidir o fallback. */
+export async function fetchProfileNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string>> {
   const profiles = await chunkedByIds(db, ['public_profiles'], uids, (data) => optionalStr(data['nickname']) ?? optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? '');
   const names = new Map<string, string>();
   for (const [uid, name] of profiles) if (name) names.set(uid, name);

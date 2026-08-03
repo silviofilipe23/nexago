@@ -1,4 +1,4 @@
-import { collection, documentId, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { collection, documentId, getCountFromServer, getDocs, query, where, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames, fetchTeamsByIds } from './teams-repository';
@@ -108,6 +108,20 @@ function resolveParticipantUids(
   if (raw.participantUids.length > 0) return [...new Set(raw.participantUids)];
   if (!teamPlayers) return [];
   return [teamPlayers.player1Id, teamPlayers.player2Id].filter((id) => id.length > 0);
+}
+
+/** Só o total de inscrições do torneio — agregação server-side, sem baixar os docs nem fazer
+ *  os joins de nome que o `listInscriptions` faz. Usado onde a tela só mostra o número
+ *  (ex.: lista de etapas da liga). */
+export async function countInscriptions(tournamentId: string): Promise<number> {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) return 0;
+
+  const snap = await getCountFromServer(
+    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)),
+  );
+  return snap.data().count;
 }
 
 export async function listInscriptions(tournamentId: string): Promise<TournamentInscription[]> {

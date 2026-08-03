@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
-import type { OrganizerLeague } from '../data/league.model';
+import type { League } from '@nexago/leagues';
 import { listMyLeagues } from '../data/leagues-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
 import { listMatches, resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
@@ -364,7 +364,7 @@ export class PanelInicioComponent {
 
   protected readonly loading = signal(true);
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
-  protected readonly leagues = signal<OrganizerLeague[]>([]);
+  protected readonly leagues = signal<League[]>([]);
   protected readonly totalInscritos = signal(0);
   protected readonly inscritosPorTorneio = signal<Map<string, number>>(new Map());
   protected readonly saldoDisponivel = signal(0);

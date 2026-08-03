@@ -9,13 +9,14 @@ import {
   saveLeagueStage,
 } from '../../data/league-create.model';
 import { listMyLeagues } from '../../data/leagues-repository';
-import type { OrganizerLeague } from '../../data/league.model';
+import type { League } from '@nexago/leagues';
 import { OgCardComponent } from '../../ui/card.component';
 import { OgFormFieldComponent } from '../../ui/form-field.component';
 import { OgIconComponent } from '../../ui/icon.component';
 import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
+import { PanelContextService } from '../../shell/panel-context.service';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 
 type Step = 1 | 2 | 3;
@@ -60,7 +61,11 @@ function inputToDate(v: string): Date | null {
         </div>
         <div class="og-wizard-done-actions">
           <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', pubId]">Ver página da etapa</a>
-          <a class="og-ghost-btn" routerLink="/painel/eventos">Meus eventos</a>
+          @if (selectedLeagueId(); as ligaId) {
+            <a class="og-ghost-btn" [routerLink]="['/painel/ligas', ligaId, 'etapas']">Etapas da liga</a>
+          } @else {
+            <a class="og-ghost-btn" routerLink="/painel/eventos">Meus eventos</a>
+          }
         </div>
       </div>
     } @else {
@@ -189,6 +194,7 @@ function inputToDate(v: string): Date | null {
 export class CriarEtapaComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly ctx = inject(PanelContextService);
   protected readonly brLocations = inject(BrLocationsService);
 
   protected readonly titles = TITLES;
@@ -197,7 +203,7 @@ export class CriarEtapaComponent {
   protected readonly step = signal<Step>(1);
   protected readonly saving = signal(false);
   protected readonly loadingLeagues = signal(true);
-  protected readonly leagues = signal<OrganizerLeague[]>([]);
+  protected readonly leagues = signal<League[]>([]);
   protected readonly selectedLeagueId = signal<string | null>(null);
   protected readonly league = signal<PublishedLeagueForStageAdd | null>(null);
   protected readonly leagueError = signal<string | null>(null);
@@ -221,7 +227,13 @@ export class CriarEtapaComponent {
       return;
     }
     void listMyLeagues(uid)
-      .then((leagues) => this.leagues.set(leagues))
+      .then((leagues) => {
+        // Só liga publicada recebe etapa (`saveStage` e as rules exigem `listingStatus == 'open'`).
+        this.leagues.set(leagues.filter((l) => l.listingStatus === 'open'));
+        // Entrando por `/painel/ligas/:leagueId/nova-etapa`, o circuito já vem escolhido.
+        const fromRoute = this.ctx.leagueId();
+        if (fromRoute && this.leagues().some((l) => l.id === fromRoute)) this.selectLeague(fromRoute, uid);
+      })
       .finally(() => this.loadingLeagues.set(false));
   }
 
@@ -241,11 +253,14 @@ export class CriarEtapaComponent {
 
   protected onLeague(event: Event): void {
     const id = (event.target as HTMLSelectElement).value;
-    if (!id) return;
+    const uid = this.auth.user()?.uid;
+    if (!id || !uid) return;
+    this.selectLeague(id, uid);
+  }
+
+  private selectLeague(id: string, uid: string): void {
     this.selectedLeagueId.set(id);
     this.leagueError.set(null);
-    const uid = this.auth.user()?.uid;
-    if (!uid) return;
     void getPublishedLeagueForStageAdd(id, uid)
       .then((league) => {
         this.league.set(league);

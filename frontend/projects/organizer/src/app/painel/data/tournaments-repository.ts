@@ -161,6 +161,14 @@ export async function listMyTournaments(uid: string): Promise<OrganizerTournamen
   return tournaments.sort((a, b) => (b.startAt?.getTime() ?? 0) - (a.startAt?.getTime() ?? 0));
 }
 
+/** Torneios das etapas de uma liga (`leagueId == id`) — uma query só, em vez de um `get` por
+ *  etapa. Cada etapa do doc da liga referencia no máximo um torneio destes. */
+export async function listTournamentsByLeague(leagueId: string): Promise<OrganizerTournament[]> {
+  const db = organizerFirestore();
+  const snap = await getDocs(query(collection(db, 'tournaments'), where('leagueId', '==', leagueId)));
+  return snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
 export async function getTournament(id: string): Promise<OrganizerTournament | null> {
   const db = organizerFirestore();
   const snap = await getDoc(doc(db, 'tournaments', id));

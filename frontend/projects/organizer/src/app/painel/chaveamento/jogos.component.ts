@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { truncateName, type PillTone } from '../data/mock-data';
-import type { TournamentMatch } from '../data/matches-repository';
+import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -9,15 +9,14 @@ import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
-type JogoStatus = 'encerrado' | 'agendado';
-
-const JOGO_TONE: Record<JogoStatus, PillTone> = { encerrado: 'dim', agendado: 'orange' };
-const JOGO_LABEL: Record<JogoStatus, string> = { encerrado: 'Encerrado', agendado: 'Agendado' };
+const JOGO_TONE: Record<MatchDisplayStatus, PillTone> = { scheduled: 'orange', in_progress: 'red', completed: 'dim', canceled: 'dim' };
+const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', in_progress: 'Ao vivo', completed: 'Encerrado', canceled: 'Cancelado' };
 
 /** Lista de partidas — dados reais de `listMatches` (Task O6): horário, confronto, placar,
- *  quadra e status (encerrado quando há placar, agendado quando não). Não existe conceito de
- *  "ao vivo" no modelo `TournamentMatch` (só placar final ou nulo), então essa 3ª variação do
- *  protótipo não é reproduzida aqui. Agendar/editar partida continuam mock/fase 2. */
+ *  quadra e status REAL do doc (incluindo "Ao vivo" quando a mesa está rodando). Cada linha
+ *  leva pra mesa ao vivo (`ao-vivo/:matchId` — iniciar/marcar ponto a ponto) e pro placar
+ *  completo (`placar/:matchId`). O status só atualiza no reload (a lista segue one-shot;
+ *  tempo real é da mesa e do portal do atleta). */
 @Component({
   selector: 'og-jogos',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,7 +45,7 @@ const JOGO_LABEL: Record<JogoStatus, string> = { encerrado: 'Encerrado', agendad
             <span style="width:110px;text-align:center">Placar</span>
             <span style="width:90px">Quadra</span>
             <span style="width:100px">Status</span>
-            <span style="width:70px"></span>
+            <span style="width:170px"></span>
           </div>
           <div class="og-table-body">
             @for (j of jogos(); track j.match.id) {
@@ -67,9 +66,21 @@ const JOGO_LABEL: Record<JogoStatus, string> = { encerrado: 'Encerrado', agendad
                 </span>
                 <span style="width:110px;text-align:center" class="og-jogos-score">{{ j.match.score ?? 'Não jogado' }}</span>
                 <span style="width:90px" class="og-jogos-quadra">{{ j.match.court ?? '—' }}</span>
-                <span style="width:100px"><og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill></span>
+                <span style="width:100px;display:flex;align-items:center;gap:6px">
+                  @if (j.status === 'in_progress') {
+                    <span class="og-dot og-dot-red og-dot-pulse"></span>
+                  }
+                  <og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill>
+                </span>
                 @if (canOpenScore(j.match)) {
-                  <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]">{{ j.status === 'agendado' ? 'Lançar placar' : 'Placar' }}</a>
+                  <span style="width:170px;display:flex;align-items:center;gap:8px;justify-content:flex-end">
+                    @if (j.status === 'in_progress') {
+                      <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Ao vivo</a>
+                    } @else if (j.status === 'scheduled') {
+                      <a class="og-mini-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Iniciar</a>
+                    }
+                    <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]">{{ j.status === 'scheduled' ? 'Lançar placar' : 'Placar' }}</a>
+                  </span>
                 } @else {
                   <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Aguardando as duas equipes">Aguardando</span>
                 }
@@ -182,7 +193,7 @@ export class JogosComponent {
     return [...this.ctx.matchesFiltered()]
       .sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity))
       .map((match) => {
-        const status: JogoStatus = match.score != null ? 'encerrado' : 'agendado';
+        const status = match.status;
         const roundLabel = match.round ?? '—';
         const catLabel = showCategory ? (categoryNameOf.get(match.categoryId ?? '') ?? 'Sem categoria') : null;
         return {

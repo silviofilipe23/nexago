@@ -73,6 +73,10 @@ export interface TournamentMatch {
   queueStatus: string | null;
   /** Melhor de N sets; ausente em partidas antigas — a UI cai em `DEFAULT_BEST_OF`. */
   bestOf: number | null;
+  /** Índice (0-based) do set em andamento — gravado pela MESA ponto a ponto (app I1 / mesa web
+   *  do organizador), que mantém o set corrente DENTRO de `sets[]`. Nulo nas partidas lançadas
+   *  só pelo placar agregado (`updateLiveMatchScore`/`submitMatchResult`). */
+  currentSetIndex: number | null;
 }
 
 export const DEFAULT_BEST_OF = 3;
@@ -157,6 +161,7 @@ function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatc
     checkIn: checkInFromRaw(data['checkIn']),
     queueStatus: optionalStr(data['queueStatus']),
     bestOf: intOf(data['bestOf']),
+    currentSetIndex: intOf(data['currentSetIndex']),
   };
 }
 
@@ -175,8 +180,8 @@ export async function fetchMatchesForTournament(db: Firestore, projectId: string
 }
 
 /** Versão ao vivo de `fetchMatchesForTournament`. Só as telas que mostram placar em tempo real
- *  (aba Hoje e detalhe da partida) abrem esse listener — as demais seguem com o one-shot, pra
- *  não pagar a leitura da chave inteira em toda navegação. */
+ *  (abas Hoje e Partidas e o detalhe da partida) abrem esse listener — as demais seguem com o
+ *  one-shot, pra não pagar a leitura da chave inteira em toda navegação. */
 export function watchMatchesForTournament(
   db: Firestore,
   projectId: string,
@@ -213,11 +218,28 @@ export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
   return m.bestOf && m.bestOf > 0 ? m.bestOf : DEFAULT_BEST_OF;
 }
 
+/** Regras de set (espelho mínimo de `match_scoring_logic.dart`): alvo 21, decisivo até 15 no
+ *  3º set de MD3, vantagem de 2 — o suficiente pra separar set fechado de set em andamento. */
+const DEFAULT_SET_POINTS = 21;
+const TIEBREAK_SET_POINTS = 15;
+const MIN_ADVANTAGE = 2;
+
+function setIsWon(s: MatchSet, index: number, bestOf: number): boolean {
+  const target = bestOf === 3 && index === 2 ? TIEBREAK_SET_POINTS : DEFAULT_SET_POINTS;
+  return (s.a >= target && s.a - s.b >= MIN_ADVANTAGE) || (s.b >= target && s.b - s.a >= MIN_ADVANTAGE);
+}
+
+type MatchScoreFields = Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore' | 'status' | 'bestOf' | 'currentSetIndex'>;
+
 /** Sets ganhos por lado, unificando as três formas em que o placar aparece no doc:
- *  `sets[]` (canônico), `resultA/resultB` (legado, "21,19,10") e `liveScore` (set em andamento). */
-export function matchSetWins(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB' | 'liveScore'>): [number, number] {
+ *  `sets[]` (canônico), `resultA/resultB` (legado, "21,19,10") e `liveScore` (agregado).
+ *  Ao vivo, a mesa ponto a ponto mantém o set EM ANDAMENTO dentro de `sets[]` — só sets que
+ *  já satisfazem a regra de vitória contam; encerrada, todo set vale (dados históricos podem
+ *  fugir da regra e continuam contando como sempre contaram). */
+export function matchSetWins(m: MatchScoreFields): [number, number] {
   if (m.sets.length > 0) {
-    return [m.sets.filter((s) => s.a > s.b).length, m.sets.filter((s) => s.b > s.a).length];
+    const closed = matchIsLive(m) ? m.sets.filter((s, i) => setIsWon(s, i, matchBestOf(m))) : m.sets;
+    return [closed.filter((s) => s.a > s.b).length, closed.filter((s) => s.b > s.a).length];
   }
   const legacy = legacySets(m.resultA, m.resultB);
   if (legacy.length > 0) {
@@ -226,9 +248,39 @@ export function matchSetWins(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resu
   return m.liveScore ? [m.liveScore.setsA, m.liveScore.setsB] : [0, 0];
 }
 
-/** Sets fechados, já normalizados: usa `sets[]` e cai no formato legado quando ele não existe. */
-export function matchClosedSets(m: Pick<TournamentMatch, 'sets' | 'resultA' | 'resultB'>): MatchSet[] {
-  return m.sets.length > 0 ? m.sets : legacySets(m.resultA, m.resultB);
+/** Sets fechados, já normalizados: usa `sets[]` e cai no formato legado quando ele não existe.
+ *  Ao vivo, exclui o set em andamento que a mesa mantém dentro de `sets[]`. */
+export function matchClosedSets(m: MatchScoreFields): MatchSet[] {
+  const sets = m.sets.length > 0 ? m.sets : legacySets(m.resultA, m.resultB);
+  if (!matchIsLive(m)) return sets;
+  return sets.filter((s, i) => setIsWon(s, i, matchBestOf(m)));
+}
+
+export interface MatchLiveSetScore {
+  /** Número do set pro atleta (1-based, contando só os fechados antes dele). */
+  setNumber: number;
+  a: number;
+  b: number;
+}
+
+/** Pontos do set em andamento de uma partida ao vivo, unificando os dois escritores:
+ *  a mesa ponto a ponto (app I1 / mesa web do organizador) mantém o set corrente dentro de
+ *  `sets[]` + `currentSetIndex`, enquanto o placar agregado (`updateLiveMatchScore`) publica
+ *  só `liveScore.currentGames*`. A mesa tem prioridade (é o detalhe real); devolve `null`
+ *  fora do ao vivo ou entre sets (corrente ainda sem ponto gravado). */
+export function matchLiveCurrentSet(m: MatchScoreFields): MatchLiveSetScore | null {
+  if (!matchIsLive(m)) return null;
+  if (m.sets.length > 0) {
+    const idx = Math.min(Math.max(m.currentSetIndex ?? m.sets.length - 1, 0), matchBestOf(m) - 1);
+    const s = m.sets[idx];
+    if (s && !setIsWon(s, idx, matchBestOf(m))) return { setNumber: matchClosedSets(m).length + 1, a: s.a, b: s.b };
+    // Sem set aberto dentro de sets[] (todos fechados) — o corrente, se houver, está no
+    // agregado `liveScore` (fluxo do lançamento rápido: sets fechados + currentGames).
+  }
+  const live = m.liveScore;
+  if (!live) return null;
+  const setNumber = m.sets.length > 0 ? matchClosedSets(m).length + 1 : live.setsA + live.setsB + 1;
+  return { setNumber, a: live.currentGamesA, b: live.currentGamesB };
 }
 
 function legacySets(resultA: string | null, resultB: string | null): MatchSet[] {

@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchLiveCurrentSet, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import { ordinalOf, roundsProgressLabel, timeLabelOf } from '../tournament-format';
 import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, qualificationOf, roundGroupsOf } from '../tournament-live.selectors';
@@ -59,8 +59,9 @@ const STATE_LABEL: Record<MatchRowState, string> = {
 
 /**
  * Aba "Partidas & tabela": todos os jogos da categoria em ordem de rodada, com a classificação
- * do grupo ao lado. Sem tempo real — quem quer acompanhar placar mudando usa a aba Hoje ou o
- * detalhe da partida, que são as telas que assinam o listener.
+ * do grupo ao lado. Assina o tempo real (`acquireLive`) como a aba Hoje e o detalhe: quando o
+ * organizador dá o start na mesa, o selo vira "Ao vivo" e os pontos do set correm aqui sem
+ * recarregar — é a lista por onde o atleta acompanha as partidas em andamento do torneio.
  */
 @Component({
   selector: 'app-matches-tab',
@@ -71,6 +72,12 @@ const STATE_LABEL: Record<MatchRowState, string> = {
 })
 export class MatchesTabComponent {
   protected readonly store = inject(TournamentLiveStore);
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    const release = this.store.acquireLive();
+    this.destroyRef.onDestroy(release);
+  }
 
   protected readonly onlyMine = signal(false);
   private readonly manualCategoryId = signal<string | null>(null);
@@ -180,10 +187,10 @@ export class MatchesTabComponent {
       won = m.winnerId != null && m.winnerId === teamId;
       lost = m.winnerId != null && m.winnerId !== teamId;
     } else if (state === 'live') {
-      const live = m.liveScore;
+      const live = matchLiveCurrentSet(m);
       if (live) {
-        const mine = side === 'A' ? live.currentGamesA : live.currentGamesB;
-        const theirs = side === 'A' ? live.currentGamesB : live.currentGamesA;
+        const mine = side === 'A' ? live.a : live.b;
+        const theirs = side === 'A' ? live.b : live.a;
         score = String(mine);
         leading = mine > theirs;
       } else {

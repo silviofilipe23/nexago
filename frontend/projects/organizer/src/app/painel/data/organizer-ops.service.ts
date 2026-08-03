@@ -93,6 +93,20 @@ export function validateMatchResult(matchId: string): Promise<unknown> {
   return call('validateMatchResult', { matchId: matchId.trim() });
 }
 
+/** Placar agregado de transmissão (`liveScore`) — só a CF pode gravá-lo (fora das allowlists
+ *  das rules). Com tudo zerado é o START explícito da mesa: o servidor seta `In Progress` +
+ *  `matchStartedAt` e recalcula `tournaments.liveMatchesNow`, então a partida aparece "ao
+ *  vivo" pros atletas antes do primeiro ponto. */
+export function updateLiveMatchScore(params: { matchId: string; setsA: number; setsB: number; currentGamesA: number; currentGamesB: number }): Promise<{ ok?: boolean }> {
+  return call('updateLiveMatchScore', {
+    matchId: params.matchId.trim(),
+    setsA: params.setsA,
+    setsB: params.setsB,
+    currentGamesA: params.currentGamesA,
+    currentGamesB: params.currentGamesB,
+  });
+}
+
 export function declareMatchWalkover(params: { matchId: string; winnerTeamId: string; loserStatus?: string }): Promise<unknown> {
   return call('declareMatchWalkover', {
     matchId: params.matchId.trim(),

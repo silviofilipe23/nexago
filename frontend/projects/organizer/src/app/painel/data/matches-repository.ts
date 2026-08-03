@@ -137,7 +137,7 @@ function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
   return null;
 }
 
-function statusOf(raw: unknown): MatchDisplayStatus {
+export function statusOf(raw: unknown): MatchDisplayStatus {
   const v = String(raw ?? '')
     .trim()
     .toLowerCase()

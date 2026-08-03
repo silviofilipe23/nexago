@@ -1,4 +1,4 @@
-import { matchBestOf, matchClosedSets, matchIsLive, matchSetWins, type MatchSet, type TournamentMatch } from '../data/matches-repository';
+import { matchBestOf, matchClosedSets, matchIsLive, matchLiveCurrentSet, matchSetWins, type MatchSet, type TournamentMatch } from '../data/matches-repository';
 import { displaySetsOf } from './tournament-live.selectors';
 
 /** Formatação compartilhada pela aba Hoje, pela aba Partidas e pela tela de Partida. Tudo em
@@ -80,10 +80,10 @@ export function setWinsLabelOf(m: TournamentMatch): string {
 /** Linha de placar ao vivo: "1–0 · 2º set 14-11". Fora do ao vivo devolve `null`. */
 export function liveScoreLineOf(m: TournamentMatch): string | null {
   if (!matchIsLive(m)) return null;
-  const live = m.liveScore;
-  if (!live) return null;
-  const setNumber = live.setsA + live.setsB + 1;
-  return `${live.setsA}–${live.setsB} · ${setNumber}º set ${live.currentGamesA}-${live.currentGamesB}`;
+  const current = matchLiveCurrentSet(m);
+  if (!current) return null;
+  const [a, b] = matchSetWins(m);
+  return `${a}–${b} · ${current.setNumber}º set ${current.a}-${current.b}`;
 }
 
 /** "MD3" / "MD5". */
@@ -106,6 +106,5 @@ export function currentSetNumberOf(m: TournamentMatch): number | null {
   const sets = displaySetsOf(m);
   const inProgress = sets.find((s) => s.inProgress);
   if (inProgress) return inProgress.index;
-  const live = m.liveScore;
-  return live ? live.setsA + live.setsB + 1 : sets.length + 1;
+  return matchLiveCurrentSet(m)?.setNumber ?? sets.length + 1;
 }

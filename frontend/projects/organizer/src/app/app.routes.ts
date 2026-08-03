@@ -172,6 +172,11 @@ export const routes: Routes = [
                 title: 'Placar — NexaGO Organizador',
                 loadComponent: () => import('./painel/chaveamento/placar.component').then((m) => m.PlacarComponent),
               },
+              {
+                path: 'ao-vivo/:matchId',
+                title: 'Mesa ao vivo — NexaGO Organizador',
+                loadComponent: () => import('./painel/chaveamento/mesa-ao-vivo.component').then((m) => m.MesaAoVivoComponent),
+              },
             ],
           },
         ],

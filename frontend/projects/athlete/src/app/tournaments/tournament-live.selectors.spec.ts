@@ -34,6 +34,8 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     winnerId: null,
     isGroupMatch: true,
     matchNumber: 1,
+    winnerAdvanceMatchNumber: null,
+    winnerAdvanceSlot: null,
     scheduleTime: null,
     courtName: null,
     liveScore: null,
@@ -41,6 +43,7 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     checkIn: { teamA: null, teamB: null },
     queueStatus: null,
     bestOf: 3,
+    currentSetIndex: null,
     ...partial,
   };
 }
@@ -188,6 +191,40 @@ describe('displaySetsOf', () => {
       { index: 1, a: 21, b: 18, inProgress: false },
       { index: 2, a: 19, b: 21, inProgress: false },
     ]);
+  });
+
+  // A mesa ponto a ponto (app I1 / mesa web do organizador) mantém o set EM ANDAMENTO dentro
+  // de sets[] com currentSetIndex — o portal precisa marcá-lo como corrente, não como fechado.
+  it('marca como em andamento o set corrente gravado pela mesa dentro de sets[]', () => {
+    const m = match({
+      id: 'm',
+      status: 'In Progress',
+      sets: [
+        { a: 21, b: 18 },
+        { a: 5, b: 3 },
+      ],
+      currentSetIndex: 1,
+    });
+    expect(displaySetsOf(m)).toEqual([
+      { index: 1, a: 21, b: 18, inProgress: false },
+      { index: 2, a: 5, b: 3, inProgress: true },
+    ]);
+  });
+
+  it('no primeiro set da mesa, o único set é o corrente', () => {
+    const m = match({ id: 'm', status: 'In Progress', sets: [{ a: 2, b: 1 }], currentSetIndex: 0 });
+    expect(displaySetsOf(m)).toEqual([{ index: 1, a: 2, b: 1, inProgress: true }]);
+  });
+
+  it('não duplica o set corrente quando há liveScore residual do start junto dos sets da mesa', () => {
+    const m = match({
+      id: 'm',
+      status: 'In Progress',
+      sets: [{ a: 2, b: 1 }],
+      currentSetIndex: 0,
+      liveScore: { setsA: 0, setsB: 0, currentGamesA: 0, currentGamesB: 0 },
+    });
+    expect(displaySetsOf(m)).toEqual([{ index: 1, a: 2, b: 1, inProgress: true }]);
   });
 });
 

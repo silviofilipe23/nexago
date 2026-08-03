@@ -46,21 +46,26 @@ Hoje o portal do organizador só tem lançamento de placar final (`PlacarCompone
   `pointEvents` com `seq` sequencial). Lógica portada de `MatchScoringLogic` para
   `live-scoring.ts` (puro, com specs). Undo idêntico ao do app (inclusive desfazer ponto
   de match, apagando `winnerId`/`matchEndedAt`).
-- **Sincronização do liveScore**: após cada mudança local, um sincronizador serializado
-  (coalescido — envia sempre o estado mais recente, payload absoluto) chama
-  `updateLiveMatchScore`. Falha não bloqueia a mesa; o próximo ponto corrige.
-- **Fim de partida**: a transação do ponto final já grava `Completed`+`winnerId` (dispara
-  o avanço de chave). Em seguida chama `submitMatchResult(sets, bestOf)` para validação
-  autoritativa + limpeza do `liveScore` (dedupe do trigger garante que não avança 2×).
-- Realtime da mesa: `onSnapshot` no doc da partida; hidrata quando não há escrita local
-  em andamento.
+- **Fim de partida**: a transação do ponto final grava `Completed`+`winnerId`+`matchEndedAt`
+  — o trigger `onTournamentMatchCompletedAdvance` avança a chave e recalcula
+  `liveMatchesNow`, exatamente como no app. (Sem sincronizador de `liveScore` por ponto:
+  o portal do atleta aprendeu a ler o modelo da mesa — ver abaixo — então o agregado só é
+  usado no start.)
+- Realtime da mesa: `onSnapshot` no doc da partida + na subcoleção `pointEvents`; a tela é
+  dirigida pelo doc (sem estado local de placar), igual à mesa do app. O undo usa replay
+  dos eventos (não desfaz o mesmo lado duas vezes).
 
 ### Portal do atleta (ajustes)
 
-- `matchSetWins`: não contar set inacabado (o modelo do app inclui o set corrente em
-  `sets[]`) — usa `currentSetIndex` + regra de set fechado.
-- `displaySetsOf`: quando `sets[]` contém o set em andamento (dados da mesa), marcá-lo
-  como `inProgress` em vez de fechado; sem duplicar com o set corrente do `liveScore`.
+- Novo `matchLiveCurrentSet` unifica os dois escritores de placar ao vivo: mesa ponto a
+  ponto (set corrente dentro de `sets[]` + `currentSetIndex`) e agregado
+  (`liveScore.currentGames*`), com prioridade pra mesa e fallback pro agregado quando
+  todos os sets de `sets[]` estão fechados.
+- `matchSetWins`/`matchClosedSets`: não contar set inacabado (o modelo da mesa inclui o
+  set corrente em `sets[]`) — regra 21/15 decisivo/vantagem 2 só quando ao vivo; partida
+  encerrada mantém a contagem histórica.
+- `displaySetsOf`: o set em andamento (de qualquer escritor) aparece como `inProgress`,
+  sem duplicar.
 - Aba **Partidas** passa a assinar o realtime (`acquireLive`), como Hoje e o detalhe —
   status vira "Ao vivo" e os pontos correm sem recarregar.
 - Detalhe da partida e aba Hoje já são realtime e já exibem badge, cronômetro e parciais.

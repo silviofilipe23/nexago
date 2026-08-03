@@ -40,6 +40,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
       } @else {
         <og-card pad="0" flex="1">
           <div class="og-table-head">
+            <span style="width:40px">Nº</span>
             <span style="width:76px">Quando</span>
             <span style="flex:1">Partida</span>
             <span style="width:110px;text-align:center">Placar</span>
@@ -50,6 +51,7 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
           <div class="og-table-body">
             @for (j of jogos(); track j.match.id) {
               <div class="og-row">
+                <span class="og-jogos-number" style="width:40px">#{{ j.match.matchNumber }}</span>
                 <span style="width:76px;display:flex;flex-direction:column;gap:1px">
                   <span class="og-jogos-time">{{ j.time }}</span>
                   @if (j.day) {
@@ -94,6 +96,12 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
     </div>
   `,
   styles: `
+    .og-jogos-number {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
     .og-jogos-time {
       font-family: var(--nx-font-mono);
       font-weight: 700;
@@ -191,7 +199,7 @@ export class JogosComponent {
     const showCategory = this.ctx.selectedCategoryId() === null;
 
     return [...this.ctx.matchesFiltered()]
-      .sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity))
+      .sort((a, b) => a.matchNumber - b.matchNumber)
       .map((match) => {
         const status = match.status;
         const roundLabel = match.round ?? '—';

@@ -8,13 +8,14 @@ final qua = DateTime(2026, 8, 5);
 final nowCedo = DateTime(2026, 8, 5, 10, 0);
 
 ArenaPeakRule rule({
+  String id = 'r1',
   int minDurationMinutes = 120,
   int? releaseHoursBefore,
   List<int> weekdays = const [],
   List<String> courtIds = const [],
 }) {
   return ArenaPeakRule(
-    id: 'r1', active: true, label: 'Pico noturno',
+    id: id, active: true, label: 'Pico noturno',
     courtIds: courtIds, weekdays: weekdays,
     startTime: '20:00', endTime: '21:00',
     minDurationMinutes: minDurationMinutes,
@@ -114,5 +115,56 @@ void main() {
       ),
       2,
     );
+  });
+
+  test('regras sobrepostas: vale o maior mínimo', () {
+    final grade4 = [
+      slot('18:00', '19:00'),
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00'),
+    ];
+    final r = peakCheckForRange(
+      rules: [rule(), rule(id: 'r2', minDurationMinutes: 180)],
+      courtId: 'q1', slots: grade4, selectedDay: qua,
+      start: 2, end: 2, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(r.minSlots, 3);
+    expect(r.rule?.id, 'r2');
+  });
+
+  test('cadeia assimétrica: uma vizinha livre basta para manter a exigência', () {
+    final parcial = [
+      slot('19:00', '20:00', status: 'booked'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00'),
+    ];
+    final r = peakCheckForRange(
+      rules: [rule()], courtId: 'q1', slots: parcial, selectedDay: qua,
+      start: 1, end: 1, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(r.minSlots, 2);
+  });
+
+  test('slot de 30min: mínimo de 120min exige 4 slots', () {
+    final meia = [
+      slot('19:00', '19:30'),
+      slot('19:30', '20:00'),
+      slot('20:00', '20:30'),
+      slot('20:30', '21:00'),
+      slot('21:00', '21:30'),
+      slot('21:30', '22:00'),
+    ];
+    final avulso = peakCheckForRange(
+      rules: [rule()], courtId: 'q1', slots: meia, selectedDay: qua,
+      start: 2, end: 2, slotDurationMinutes: 30, now: nowCedo,
+    );
+    expect(avulso.minSlots, 4);
+
+    final completo = peakCheckForRange(
+      rules: [rule()], courtId: 'q1', slots: meia, selectedDay: qua,
+      start: 0, end: 3, slotDurationMinutes: 30, now: nowCedo,
+    );
+    expect(completo.minSlots, 1); // 19h-21h já cumpre o mínimo
   });
 }

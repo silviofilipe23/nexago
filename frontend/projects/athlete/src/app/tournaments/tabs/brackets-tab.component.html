@@ -136,69 +136,103 @@
   Árvore da chave: mesma geometria do painel do organizador — canvas em posicionamento absoluto
   com conectores SVG seguindo a fiação real da planta. O scroll (horizontal e vertical) fica
   contido neste wrapper, nunca na página; o wrapper é focável para quem navega só pelo teclado.
+
+  Zoom: pinça (2 dedos) no mobile, ctrl+scroll no desktop e botões −/％/＋ como alternativa de
+  ponteiro único. O sizer carrega a extensão do scroll já escalada; o canvas mantém as medidas
+  originais da árvore e só é escalado visualmente via transform, então a geometria dos
+  conectores nunca muda.
 -->
 <ng-template #treeTpl>
   @if (bracketLayout(); as tree) {
-    <div class="bx-canvas-scroll" tabindex="0" role="group" aria-label="Chave da categoria — role para ver as demais rodadas">
-      <div class="bx-canvas" [style.width.px]="tree.width" [style.height.px]="tree.height">
-        <svg class="bx-lines" [attr.width]="tree.width" [attr.height]="tree.height" aria-hidden="true" focusable="false">
-          @for (e of tree.edges; track $index) {
-            <path [attr.d]="e.d" />
-          }
-        </svg>
+    <div class="bx-tree-wrap">
+      <div
+        class="bx-canvas-scroll"
+        #scroller
+        tabindex="0"
+        role="group"
+        aria-label="Chave da categoria — role para ver as demais rodadas; use os botões de zoom para ampliar"
+        (touchstart)="onPinchStart($event)"
+        (touchmove)="onPinchMove($event, scroller)"
+        (touchend)="onPinchEnd($event)"
+        (touchcancel)="onPinchEnd($event)"
+        (wheel)="onWheelZoom($event, scroller)"
+      >
+        <div class="bx-canvas-sizer" [style.width.px]="tree.width * zoom()" [style.height.px]="tree.height * zoom()">
+          <div class="bx-canvas" [style.width.px]="tree.width" [style.height.px]="tree.height" [style.transform]="'scale(' + zoom() + ')'">
+            <svg class="bx-lines" [attr.width]="tree.width" [attr.height]="tree.height" aria-hidden="true" focusable="false">
+              @for (e of tree.edges; track $index) {
+                <path [attr.d]="e.d" />
+              }
+            </svg>
 
-        @for (lbl of tree.labels; track lbl.key) {
-          <span class="bx-round-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</span>
-        }
+            @for (lbl of tree.labels; track lbl.key) {
+              <span class="bx-round-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</span>
+            }
 
-        @for (n of tree.nodes; track n.match.id) {
-          @if (cardOf(n.match.id); as m) {
-            <div
-              class="bx-match"
-              [class.bx-match--viewer]="matchHasViewer(m)"
-              [class.bx-match--live]="m.status === 'live'"
-              [class.bx-match--clickable]="canOpenMatch(m)"
-              [style.left.px]="n.left"
-              [style.top.px]="n.top"
-              [style.width.px]="matchWidth"
-              [style.height.px]="matchHeight"
-              [attr.role]="canOpenMatch(m) ? 'link' : null"
-              [attr.tabindex]="canOpenMatch(m) ? 0 : null"
-              [attr.aria-label]="canOpenMatch(m) ? 'Jogo ' + m.metaLabel + ': ' + (m.sideA.duo?.name ?? 'a definir') + ' contra ' + (m.sideB.duo?.name ?? 'a definir') : null"
-              (click)="openMatch(m)"
-              (keydown.enter)="openMatch(m)"
-              (keydown.space)="openMatch(m)"
-            >
-              <div class="bx-match-head">
-                <span class="bx-match-num">{{ m.metaLabel }}</span>
-                <span
-                  class="bx-pill"
-                  [class.bx-pill--live]="m.status === 'live'"
-                  [class.bx-pill--done]="m.status === 'done'"
-                  [class.bx-pill--dim]="m.status === 'canceled'"
+            @for (n of tree.nodes; track n.match.id) {
+              @if (cardOf(n.match.id); as m) {
+                <div
+                  class="bx-match"
+                  [class.bx-match--viewer]="matchHasViewer(m)"
+                  [class.bx-match--live]="m.status === 'live'"
+                  [class.bx-match--clickable]="canOpenMatch(m)"
+                  [style.left.px]="n.left"
+                  [style.top.px]="n.top"
+                  [style.width.px]="matchWidth"
+                  [style.height.px]="matchHeight"
+                  [attr.role]="canOpenMatch(m) ? 'link' : null"
+                  [attr.tabindex]="canOpenMatch(m) ? 0 : null"
+                  [attr.aria-label]="canOpenMatch(m) ? 'Jogo ' + m.metaLabel + ': ' + (m.sideA.duo?.name ?? 'a definir') + ' contra ' + (m.sideB.duo?.name ?? 'a definir') : null"
+                  (click)="openMatch(m)"
+                  (keydown.enter)="openMatch(m)"
+                  (keydown.space)="openMatch(m)"
                 >
-                  @if (m.status === 'live') {
-                    <span class="bx-pill-dot" aria-hidden="true"></span>
-                  }
-                  {{ m.statusLabel }}
-                </span>
-              </div>
+                  <div class="bx-match-head">
+                    <span class="bx-match-num">{{ m.metaLabel }}</span>
+                    <span
+                      class="bx-pill"
+                      [class.bx-pill--live]="m.status === 'live'"
+                      [class.bx-pill--done]="m.status === 'done'"
+                      [class.bx-pill--dim]="m.status === 'canceled'"
+                    >
+                      @if (m.status === 'live') {
+                        <span class="bx-pill-dot" aria-hidden="true"></span>
+                      }
+                      {{ m.statusLabel }}
+                    </span>
+                  </div>
 
-              <ng-container [ngTemplateOutlet]="sideTpl" [ngTemplateOutletContext]="{ $implicit: m.sideA }"></ng-container>
-              <ng-container [ngTemplateOutlet]="sideTpl" [ngTemplateOutletContext]="{ $implicit: m.sideB }"></ng-container>
+                  <ng-container [ngTemplateOutlet]="sideTpl" [ngTemplateOutletContext]="{ $implicit: m.sideA }"></ng-container>
+                  <ng-container [ngTemplateOutlet]="sideTpl" [ngTemplateOutletContext]="{ $implicit: m.sideB }"></ng-container>
 
-              <div class="bx-match-foot" [class.bx-match-foot--set]="m.scheduled">
-                @if (m.scheduled) {
-                  <svg class="bx-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M12 7v5l3.5 2" />
-                  </svg>
-                }
-                <span>{{ m.scheduleLabel }}</span>
-              </div>
-            </div>
-          }
-        }
+                  <div class="bx-match-foot" [class.bx-match-foot--set]="m.scheduled">
+                    @if (m.scheduled) {
+                      <svg class="bx-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7v5l3.5 2" />
+                      </svg>
+                    }
+                    <span>{{ m.scheduleLabel }}</span>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="bx-zoom" role="group" aria-label="Zoom da chave">
+        <button type="button" class="bx-zoom-btn" (click)="zoomStep(-1, scroller)" [disabled]="zoom() <= zoomMin" aria-label="Diminuir zoom">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <button type="button" class="bx-zoom-reset" (click)="resetZoom(scroller)" aria-label="Restaurar zoom para 100%">{{ zoomPct() }}%</button>
+        <button type="button" class="bx-zoom-btn" (click)="zoomStep(1, scroller)" [disabled]="zoom() >= zoomMax" aria-label="Aumentar zoom">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
       </div>
     </div>
   } @else {

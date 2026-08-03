@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -16,6 +16,7 @@ import {
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import type { BracketDuo, BracketMatch, BracketMatchSide, BracketRound, CategoryBracketData, CategoryGroup, GroupStanding } from '../bracket-results.models';
 import { BRACKET_MATCH_HEIGHT, BRACKET_MATCH_WIDTH, buildCategoryBracketLayout, type BracketLayout } from '../bracket-tree';
+import { BRACKET_ZOOM_MAX, BRACKET_ZOOM_MIN, BRACKET_ZOOM_STEP, zoomAt } from '../bracket-zoom';
 import { TournamentLiveStore } from '../tournament-live.store';
 
 function titleCase(input: string): string {
@@ -115,6 +116,12 @@ const STATUS_LABEL: Record<BracketMatch['status'], string> = {
   canceled: 'Cancelado',
 };
 
+function pinchDistanceOf(ev: TouchEvent): number {
+  const a = ev.touches[0]!;
+  const b = ev.touches[1]!;
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
 /** Aba "Chaves": grupos + mata-mata da categoria selecionada.
  *
  *  A árvore usa a MESMA geometria do painel do organizador (`bracket-tree.ts`): canvas único com
@@ -141,6 +148,19 @@ export class BracketsTabComponent {
   protected readonly initialsOf = initialsOf;
   protected readonly matchWidth = BRACKET_MATCH_WIDTH;
   protected readonly matchHeight = BRACKET_MATCH_HEIGHT;
+  protected readonly zoomMin = BRACKET_ZOOM_MIN;
+  protected readonly zoomMax = BRACKET_ZOOM_MAX;
+
+  /** Zoom da árvore — persiste ao trocar de categoria (é preferência de leitura, não da chave). */
+  protected readonly zoom = signal(1);
+  protected readonly zoomPct = computed(() => Math.round(this.zoom() * 100));
+
+  /** Distância entre os dois dedos no último evento da pinça em andamento. */
+  private pinchDist: number | null = null;
+  /** Scroll já calculado mas ainda não aplicado (aguardando o render da nova extensão). Sem ele,
+   *  dois touchmove entre renders leriam o scroll defasado do DOM e a âncora derivaria. */
+  private pendingScroll: { left: number; top: number } | null = null;
+  private readonly injector = inject(Injector);
 
   private readonly categoryParam = toSignal(this.route.queryParamMap.pipe(map((p) => p.get('categoria'))), {
     initialValue: this.route.snapshot.queryParamMap.get('categoria'),
@@ -256,6 +276,77 @@ export class BracketsTabComponent {
 
   protected selectCategory(id: string): void {
     this.manualCategoryId.set(id);
+  }
+
+  // ── Zoom da árvore ─────────────────────────────────────────
+  // Pinça (touch) e ctrl+scroll (pinça de trackpad) ancorados no ponto sob os dedos/cursor;
+  // botões −/％/＋ como alternativa de ponteiro único, ancorados no centro do viewport.
+
+  protected onPinchStart(ev: TouchEvent): void {
+    if (ev.touches.length === 2) this.pinchDist = pinchDistanceOf(ev);
+  }
+
+  protected onPinchMove(ev: TouchEvent, scroller: HTMLElement): void {
+    if (ev.touches.length !== 2) return;
+    // Dois dedos são sempre zoom da chave — sem o preventDefault o navegador amplia a página.
+    ev.preventDefault();
+    const dist = pinchDistanceOf(ev);
+    if (dist <= 0) return;
+    if (this.pinchDist == null) {
+      this.pinchDist = dist;
+      return;
+    }
+    const rect = scroller.getBoundingClientRect();
+    const a = ev.touches[0]!;
+    const b = ev.touches[1]!;
+    const anchorX = (a.clientX + b.clientX) / 2 - rect.left;
+    const anchorY = (a.clientY + b.clientY) / 2 - rect.top;
+    this.applyZoom(this.zoom() * (dist / this.pinchDist), scroller, anchorX, anchorY);
+    this.pinchDist = dist;
+  }
+
+  protected onPinchEnd(ev: TouchEvent): void {
+    if (ev.touches.length < 2) this.pinchDist = null;
+  }
+
+  /** Pinça de trackpad chega como wheel com ctrlKey; roda sem Ctrl segue rolando a chave. */
+  protected onWheelZoom(ev: WheelEvent, scroller: HTMLElement): void {
+    if (!ev.ctrlKey) return;
+    ev.preventDefault();
+    const rect = scroller.getBoundingClientRect();
+    this.applyZoom(this.zoom() * Math.exp(-ev.deltaY * 0.002), scroller, ev.clientX - rect.left, ev.clientY - rect.top);
+  }
+
+  protected zoomStep(direction: 1 | -1, scroller: HTMLElement): void {
+    const factor = direction === 1 ? BRACKET_ZOOM_STEP : 1 / BRACKET_ZOOM_STEP;
+    this.applyZoom(this.zoom() * factor, scroller, scroller.clientWidth / 2, scroller.clientHeight / 2);
+  }
+
+  protected resetZoom(scroller: HTMLElement): void {
+    this.applyZoom(1, scroller, scroller.clientWidth / 2, scroller.clientHeight / 2);
+  }
+
+  private applyZoom(targetZoom: number, scroller: HTMLElement, anchorX: number, anchorY: number): void {
+    const current = {
+      zoom: this.zoom(),
+      scrollLeft: this.pendingScroll?.left ?? scroller.scrollLeft,
+      scrollTop: this.pendingScroll?.top ?? scroller.scrollTop,
+    };
+    const next = zoomAt(current, targetZoom, anchorX, anchorY);
+    if (next.zoom === current.zoom) return;
+    this.zoom.set(next.zoom);
+    const pending = { left: next.scrollLeft, top: next.scrollTop };
+    this.pendingScroll = pending;
+    // O scroll só pode ser reposicionado depois que o sizer renderiza a nova extensão — antes
+    // disso o navegador limita o valor à extensão antiga (app zoneless: render é assíncrono).
+    afterNextRender(
+      () => {
+        scroller.scrollLeft = pending.left;
+        scroller.scrollTop = pending.top;
+        if (this.pendingScroll === pending) this.pendingScroll = null;
+      },
+      { injector: this.injector },
+    );
   }
 
   protected matchHasViewer(m: BracketMatch): boolean {

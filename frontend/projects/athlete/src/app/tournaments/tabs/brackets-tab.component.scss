@@ -321,6 +321,9 @@
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  // Um dedo continua rolando via scroll nativo; dois dedos ficam para a pinça do componente —
+  // sem isso o navegador aplicaria o zoom nativo na página inteira em vez de na chave.
+  touch-action: pan-x pan-y;
   padding: 4px 2px 8px;
   // Sem teto a chave de dupla eliminação empurraria a página inteira pra baixo.
   max-height: min(70vh, 640px);
@@ -337,9 +340,96 @@
   }
 }
 
+// O wrapper da árvore existe só para ancorar os controles de zoom sobre a área de scroll.
+.bx-tree-wrap {
+  position: relative;
+}
+
+// Extensão do scroll no nível de zoom atual (medidas da árvore × zoom). O canvas dentro dele
+// mantém as medidas originais e é escalado via transform — a geometria de cards e conectores
+// nunca muda, só a apresentação.
+.bx-canvas-sizer {
+  position: relative;
+}
+
 .bx-canvas {
   position: relative;
   flex: none;
+  transform-origin: 0 0;
+}
+
+// Controles de zoom (padrão de mapa): alternativa de ponteiro único à pinça — obrigatória para
+// desktop sem trackpad e para acessibilidade. O ％ central restaura os 100%.
+.bx-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 14px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line-strong);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.bx-zoom-btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--nx-r-pill);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--nx-text);
+    background: var(--nx-surface-1);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 1px;
+  }
+}
+
+.bx-zoom-reset {
+  // Largura fixa segura o layout enquanto o número varia (50% → 100% → 200%).
+  min-width: 48px;
+  height: 38px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  border-radius: var(--nx-r-pill);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--nx-text-dim);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 1px;
+  }
 }
 
 .bx-lines {

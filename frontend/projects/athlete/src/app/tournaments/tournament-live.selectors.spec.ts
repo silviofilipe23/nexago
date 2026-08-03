@@ -34,6 +34,8 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
     winnerId: null,
     isGroupMatch: true,
     matchNumber: 1,
+    winnerAdvanceMatchNumber: null,
+    winnerAdvanceSlot: null,
     scheduleTime: null,
     courtName: null,
     liveScore: null,

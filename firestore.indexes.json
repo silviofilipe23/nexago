@@ -1271,6 +1271,10 @@
         {
           "fieldPath": "status",
           "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "communityFeed",
       "queryScope": "COLLECTION",
       "fields": [

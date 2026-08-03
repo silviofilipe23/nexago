@@ -238,11 +238,32 @@ export class ArenaBookingComponent {
 
   protected readonly durationOptions = computed<DurationOption[]>(() => {
     const base = this.baseSlotMinutes();
-    return DURATION_MULTIPLIERS.map((n) => {
+    const options: DurationOption[] = DURATION_MULTIPLIERS.map((n) => {
       const chain = this.chainForDuration(n);
       const enabled = chain != null && this.peakCheckFor(chain).minSlots <= n;
       return { slots: n, minutes: base * n, label: formatDurationLabel(base * n), enabled };
     });
+
+    // Quadras com slot-base curto (ex.: 30min) podem exigir mais slots contíguos do
+    // que os multiplicadores padrão oferecem (ex.: pico de 2h = 4 slots de 30min).
+    // Sem isso, o auto-bump em selectStartSlot cai num durationSlots() sem chip
+    // correspondente (estado fantasma).
+    const start = this.selectedStartSlot();
+    const maxBaseSlots = DURATION_MULTIPLIERS[DURATION_MULTIPLIERS.length - 1];
+    if (start) {
+      const minSlots = this.peakCheckFor([start]).minSlots;
+      if (minSlots > maxBaseSlots) {
+        const chain = this.chainForDuration(minSlots);
+        options.push({
+          slots: minSlots,
+          minutes: base * minSlots,
+          label: formatDurationLabel(base * minSlots),
+          enabled: chain != null && this.peakCheckFor(chain).minSlots <= minSlots,
+        });
+      }
+    }
+
+    return options;
   });
 
   protected readonly selectedChain = computed<ArenaSlot[] | null>(() =>
@@ -380,7 +401,16 @@ export class ArenaBookingComponent {
       const courts = await fetchCourts(this.firestore, id);
       this.courts.set(courts);
 
-      this.peakRules.set(await fetchActivePeakRules(this.firestore!, id));
+      // Dado só de UX (o servidor reforça o mínimo de qualquer forma): uma falha aqui
+      // não pode derrubar a página inteira de reserva.
+      try {
+        this.peakRules.set(await fetchActivePeakRules(this.firestore!, id));
+      } catch (peakErr) {
+        if (!environment.production) {
+          console.error('[arena-booking] fetchActivePeakRules error', peakErr);
+        }
+        this.peakRules.set([]);
+      }
 
       const requestedCourtId = this.route.snapshot.queryParamMap.get('courtId');
       const initialCourtId =

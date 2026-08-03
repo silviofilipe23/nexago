@@ -436,6 +436,7 @@ export class PanelPeakRuleFormComponent {
       this.showRemoveConfirm.set(false);
       this.router.navigate(['/painel/horarios-pico']);
     } catch {
+      this.showRemoveConfirm.set(false);
       this.error.set('Não foi possível excluir a regra. Tente novamente.');
     } finally {
       this.saving.set(false);

@@ -75,7 +75,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                   }
                 </span>
                 <span style="flex:1;min-width:0">
-                  <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 32) }}</div>
+                  <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 100) }}</div>
                   <div class="og-categoria-meta">{{ i.createdAt ? 'Inscrito em ' + shortDate(i.createdAt) : 'Sem data de inscrição' }}</div>
                 </span>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>

@@ -88,7 +88,7 @@ interface TelaoQueueRow {
         @if (call(); as c) {
           <span class="og-telao-bar-pill">Chamada</span>
           <span class="og-telao-bar-text">
-            <strong>{{ c.a }}</strong> <em>vs</em> <strong>{{ c.b }}</strong> — apresentar-se à {{ c.court }} até
+            <strong>{{ c.a }}</strong>&ngsp;<em>vs</em>&ngsp;<strong>{{ c.b }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
             <span class="og-telao-bar-deadline">{{ c.deadline }}</span>
           </span>
         }

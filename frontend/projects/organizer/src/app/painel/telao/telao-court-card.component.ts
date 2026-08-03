@@ -89,8 +89,9 @@ import type { TelaoTeamDisplay } from './telao-data.service';
     }
     .og-tlc-head {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 14px;
+      min-width: 0;
     }
     .og-tlc-court {
       font-family: var(--nx-font-display);
@@ -98,6 +99,8 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       font-size: 28px;
       letter-spacing: 0.02em;
       text-transform: uppercase;
+      white-space: nowrap;
+      flex: none;
     }
     .og-tlc-cat {
       font-family: var(--nx-font-mono);
@@ -105,6 +108,10 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
     .og-tlc-flex {
       flex: 1;
@@ -120,6 +127,8 @@ import type { TelaoTeamDisplay } from './telao-data.service';
       padding: 7px 14px;
       border-radius: var(--nx-r-pill);
       align-self: center;
+      white-space: nowrap;
+      flex: none;
     }
     .og-tlc-badge.live {
       color: var(--nx-live);

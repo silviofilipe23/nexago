@@ -78,3 +78,12 @@ export { toggleFavoriteArena, watchFavoriteArenaIds } from './favorites-reposito
 
 export type { ArenaPromotion } from './arena-promotion';
 export { arenaPromotionFromFirestore, promotionMatches, promotionApplyToSlot } from './arena-promotion';
+
+export type { ArenaPeakRule, PeakSelectionCheck } from './arena-peak-rule';
+export {
+  arenaPeakRuleFromFirestore,
+  fetchActivePeakRules,
+  peakBadgeMinSlots,
+  peakCheckForSelection,
+  peakRuleMatches,
+} from './arena-peak-rule';

@@ -4,16 +4,18 @@ import type { TournamentMatch } from '../data/matches-repository';
 import { initialsOf } from '../data/mock-data';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
+import { OgIconComponent } from '../ui/icon.component';
 import { OgPulseDirective } from './og-pulse.directive';
 import type { TelaoTeamDisplay } from './telao-data.service';
 import { leadingSideOf } from './telao-selectors';
+import { fireLevelOf } from './telao-streaks';
 
 /** Card de uma quadra no telão: partida ao vivo (avatares, sets fechados, pontos do set
  *  corrente e indicador de saque), próxima partida ("em seguida") ou quadra livre. */
 @Component({
   selector: 'og-telao-court-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent, OgPulseDirective],
+  imports: [OgAvatarComponent, OgIconComponent, OgPulseDirective],
   host: { class: 'og-tlc', '[class.og-tlc-live]': 'kind() === "live"' },
   template: `
     <header class="og-tlc-head">
@@ -55,6 +57,12 @@ import { leadingSideOf } from './telao-selectors';
                 @if (servingSide() === row.side) {
                   <span class="og-tlc-serve" title="No saque"></span>
                 }
+                @if (fireLevel(row.side); as level) {
+                  <span class="og-tlc-fire" [class.fire-2]="level === 2" [class.fire-3]="level >= 3" role="img" [attr.aria-label]="fireCount(row.side) + ' pontos seguidos'">
+                    <og-icon name="flame" [size]="20" [strokeWidth]="2" />
+                    <span class="og-tlc-fire-count">×{{ fireCount(row.side) }}</span>
+                  </span>
+                }
               </span>
               @if (row.team.sub) {
                 <span class="og-tlc-sub">{{ row.team.sub }}</span>
@@ -66,7 +74,14 @@ import { leadingSideOf } from './telao-selectors';
                   <span class="og-tlc-set" [class.win]="row.side === 'A' ? s.a > s.b : s.b > s.a">{{ row.side === 'A' ? s.a : s.b }}</span>
                 }
                 @if (current(); as c) {
-                  <span class="og-tlc-points" [ogPulse]="row.side === 'A' ? c.a : c.b">{{ row.side === 'A' ? c.a : c.b }}</span>
+                  <span
+                    class="og-tlc-points"
+                    [class.fire-1]="fireLevel(row.side) === 1"
+                    [class.fire-2]="fireLevel(row.side) === 2"
+                    [class.fire-3]="fireLevel(row.side) >= 3"
+                    [ogPulse]="row.side === 'A' ? c.a : c.b"
+                    >{{ row.side === 'A' ? c.a : c.b }}</span
+                  >
                 }
               </span>
             }
@@ -260,6 +275,53 @@ import { leadingSideOf } from './telao-selectors';
       border-radius: var(--nx-r-2);
       padding: 0 12px;
     }
+    /* "Em chamas": 3+ pontos seguidos. A intensidade cresce com a sequência —
+       nível 1 (×3–4) chama laranja · nível 2 (×5–6) + brilho no placar · nível 3 (×7+) vermelho. */
+    .og-tlc-fire {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: 8px;
+      color: var(--nx-orange-400);
+      vertical-align: middle;
+      animation: og-tlc-in 220ms var(--nx-ease-out);
+    }
+    .og-tlc-fire og-icon {
+      display: inline-flex;
+      animation: og-tlc-flicker 700ms ease-in-out infinite alternate;
+    }
+    .og-tlc-fire-count {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+    .og-tlc-fire.fire-2 {
+      color: var(--nx-orange-500);
+    }
+    .og-tlc-fire.fire-2 og-icon {
+      animation-duration: 480ms;
+    }
+    .og-tlc-fire.fire-3 {
+      color: var(--nx-live);
+    }
+    .og-tlc-fire.fire-3 og-icon {
+      animation-duration: 340ms;
+    }
+    .og-tlc-points {
+      transition: box-shadow var(--nx-d-base) var(--nx-ease-out), border-color var(--nx-d-base) var(--nx-ease-out);
+    }
+    .og-tlc-points.fire-1 {
+      border-color: rgba(255, 106, 26, 0.5);
+    }
+    .og-tlc-points.fire-2 {
+      border-color: rgba(255, 106, 26, 0.7);
+      box-shadow: 0 0 18px rgba(255, 106, 26, 0.35);
+    }
+    .og-tlc-points.fire-3 {
+      border-color: rgba(255, 59, 48, 0.75);
+      box-shadow: 0 0 26px rgba(255, 59, 48, 0.45);
+    }
     /* Ponto marcado: pop com flash laranja (ogPulse reinicia a cada mudança de valor). */
     .og-tlc-points.og-pulse-run {
       animation: og-tlc-score-pop 280ms var(--nx-ease-out);
@@ -287,12 +349,23 @@ import { leadingSideOf } from './telao-selectors';
         opacity: 1;
       }
     }
+    @keyframes og-tlc-flicker {
+      from {
+        transform: scale(1) rotate(-4deg);
+      }
+      to {
+        transform: scale(1.14) rotate(4deg);
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
-      .og-tlc-team {
+      .og-tlc-team,
+      .og-tlc-points {
         transition: none;
       }
       .og-tlc-set,
       .og-tlc-serve,
+      .og-tlc-fire,
+      .og-tlc-fire og-icon,
       .og-tlc-points.og-pulse-run {
         animation: none;
       }
@@ -307,6 +380,9 @@ export class TelaoCourtCardComponent {
   readonly teamA = input<TelaoTeamDisplay | null>(null);
   readonly teamB = input<TelaoTeamDisplay | null>(null);
   readonly showAvatars = input(true);
+  /** Pontos seguidos de cada lado (0 = sem sequência ou recurso desligado na config). */
+  readonly streakA = input(0);
+  readonly streakB = input(0);
 
   protected readonly rows = computed(() => {
     const a = this.teamA();
@@ -351,5 +427,13 @@ export class TelaoCourtCardComponent {
 
   protected fallbackInitials(label: string): string {
     return initialsOf(label.split(' / ').join(' ')) || '—';
+  }
+
+  protected fireCount(side: 'A' | 'B'): number {
+    return this.kind() === 'live' ? (side === 'A' ? this.streakA() : this.streakB()) : 0;
+  }
+
+  protected fireLevel(side: 'A' | 'B'): number {
+    return fireLevelOf(this.fireCount(side));
   }
 }

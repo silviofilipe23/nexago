@@ -52,6 +52,8 @@ interface TelaoQueueRow {
             [teamA]="card.teamA"
             [teamB]="card.teamB"
             [showAvatars]="showAvatars()"
+            [streakA]="card.streakA"
+            [streakB]="card.streakB"
           />
         } @empty {
           <div class="og-telao-empty">{{ error() ? 'Sem conexão — reconectando…' : 'Carregando telão…' }}</div>
@@ -444,8 +446,10 @@ export class TelaoScreenComponent {
     if (!t || !cfg) return [];
     const courtById = new Map(t.courts.map((c) => [c.id, c]));
     const teams = this.svc.teams();
+    const streaks = this.svc.streaks();
     return courtPageOf(cfg.courtIds, this.pageIndex()).map((courtId) => {
       const { kind, match } = courtNowOf(this.matches(), courtId, this.now());
+      const streak = cfg.showStreak && match ? streaks.get(match.id) : undefined;
       return {
         court: courtById.get(courtId) ?? { id: courtId, name: courtId, order: 0 },
         courtName: formatCourtLabel(courtById.get(courtId)?.name ?? courtId),
@@ -454,6 +458,8 @@ export class TelaoScreenComponent {
         categoryLabel: match ? this.categoryLabelOf(match) : '',
         teamA: match ? (teams.get(match.teamAId) ?? fallbackTeamDisplay(match.team1Label)) : null,
         teamB: match ? (teams.get(match.teamBId) ?? fallbackTeamDisplay(match.team2Label)) : null,
+        streakA: streak?.side === 'A' ? streak.count : 0,
+        streakB: streak?.side === 'B' ? streak.count : 0,
       };
     });
   });

@@ -31,6 +31,8 @@ export interface TelaoConfig {
   showCall: boolean;
   showAvatars: boolean;
   autoRotate: boolean;
+  /** Destaque "em chamas" na dupla com 3+ pontos seguidos. */
+  showStreak: boolean;
 }
 
 /** Espelha `TournamentMatchOpsConfig` (Flutter): jornada e durações do dia de jogo. */

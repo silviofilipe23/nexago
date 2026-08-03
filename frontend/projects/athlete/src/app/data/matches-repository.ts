@@ -1,10 +1,15 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 
 /** `artifacts/{projectId}/public/data/matches` — espelha `TournamentMatchMapper` +
- *  `TournamentMatchesLogic` (Flutter). A árvore da chave NUNCA vem de ponteiros salvos
- *  (`winnerAdvance`/`loserAdvance` existem no doc mas só o Cloud Function server-side os lê,
- *  pra preencher a próxima partida quando um resultado é lançado) — o client deriva tudo de
- *  `round`+`matchType`+`matchNumber`, olhando só a POSIÇÃO dos jogos numa coluna. */
+ *  `TournamentMatchesLogic` (Flutter).
+ *
+ *  `winnerAdvance`/`loserAdvance` continuam sendo escritos e LIDOS só pelo Cloud Function
+ *  server-side, que preenche a próxima partida quando um resultado é lançado — o client jamais
+ *  decide resultado ou avanço por eles. O ponteiro do vencedor é exposto aqui apenas como
+ *  informação de DESENHO: `bracket-tree.ts` usa a fiação da planta pra ordenar as colunas e
+ *  ligar os conectores da árvore (mesma autoridade visual do painel do organizador). O
+ *  agrupamento em colunas (`buildBracketColumns`) segue derivado de `round`+`matchType`+
+ *  `matchNumber`, sem depender do ponteiro. */
 
 function toDate(v: unknown): Date | null {
   const t = v as { toDate?: () => Date } | undefined;
@@ -55,6 +60,10 @@ export interface TournamentMatch {
   winnerId: string | null;
   isGroupMatch: boolean;
   matchNumber: number;
+  /** Fiação da planta (`bracket-definitions`): pra qual jogo o VENCEDOR desta partida vai e em
+   *  qual slot (A/B). Usado só pelo layout da árvore — ver o cabeçalho deste arquivo. */
+  winnerAdvanceMatchNumber: number | null;
+  winnerAdvanceSlot: 'A' | 'B' | null;
   scheduleTime: Date | null;
   courtName: string | null;
   /** Campos da operação ao vivo (`organizer-match-ops.ts`). */
@@ -106,6 +115,20 @@ function checkInFromRaw(raw: unknown): MatchCheckIn {
   return { teamA: sideStatus(o['teamA']), teamB: sideStatus(o['teamB']) };
 }
 
+/** `winnerAdvance: { matchNumber, teamSlot }` — mesmo shape lido pelo painel do organizador. */
+function advanceMatchNumberOf(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  return intOf((raw as Record<string, unknown>)['matchNumber']);
+}
+
+function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const slot = (raw as Record<string, unknown>)['teamSlot'];
+  if (slot === 'teamAId') return 'A';
+  if (slot === 'teamBId') return 'B';
+  return null;
+}
+
 function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatch {
   return {
     id,
@@ -125,6 +148,8 @@ function matchFromDoc(id: string, data: Record<string, unknown>): TournamentMatc
     winnerId: optionalStr(data['winnerId']),
     isGroupMatch: data['isGroupMatch'] === true,
     matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
+    winnerAdvanceMatchNumber: advanceMatchNumberOf(data['winnerAdvance']),
+    winnerAdvanceSlot: advanceSlotOf(data['winnerAdvance']),
     scheduleTime: toDate(data['scheduleTime']),
     courtName: optionalStr(data['courtName']),
     liveScore: liveScoreFromRaw(data['liveScore']),
@@ -215,7 +240,9 @@ function legacySets(resultA: string | null, resultB: string | null): MatchSet[] 
   return out;
 }
 
-function isBracketMatch(m: TournamentMatch): boolean {
+/** Partida de mata-mata (exclui fase de grupos) — o mesmo recorte que `buildBracketColumns`
+ *  aplica, exposto pra árvore da chave (`bracket-tree.ts`) usar o recorte idêntico. */
+export function isBracketMatch(m: TournamentMatch): boolean {
   return !m.isGroupMatch && m.matchType.trim().toLowerCase() !== 'group' && m.poolId.trim() === '';
 }
 

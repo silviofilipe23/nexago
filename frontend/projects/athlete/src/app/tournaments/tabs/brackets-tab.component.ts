@@ -3,9 +3,19 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
-import { buildBracketColumns, buildGroupStandings, distinctPoolIds, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import {
+  buildBracketColumns,
+  buildGroupStandings,
+  distinctPoolIds,
+  matchIsCanceled,
+  matchIsCompleted,
+  matchIsLive,
+  matchSetWins,
+  type TournamentMatch,
+} from '../../data/matches-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
-import type { BracketDuo, BracketMatch, BracketRound, CategoryBracketData, CategoryGroup, GroupStanding } from '../bracket-results.models';
+import type { BracketDuo, BracketMatch, BracketMatchSide, BracketRound, CategoryBracketData, CategoryGroup, GroupStanding } from '../bracket-results.models';
+import { BRACKET_MATCH_HEIGHT, BRACKET_MATCH_WIDTH, buildCategoryBracketLayout, type BracketLayout } from '../bracket-tree';
 import { TournamentLiveStore } from '../tournament-live.store';
 
 function titleCase(input: string): string {
@@ -15,6 +25,29 @@ function titleCase(input: string): string {
     .filter((part) => part.length > 0)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function initialsOf(name: string): string {
+  const parts = name
+    .replace(/\s*[&/]\s*/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return '—';
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase() || '—';
+}
+
+/** Quebra o nome da dupla ("Martins / Silva") nos até 2 atletas do stack de avatares — mesma
+ *  regra do card do organizador. Rótulos sem "/" ("A definir", "Vencedor Jogo #5") caem no
+ *  fallback de 1 avatar com o rótulo inteiro. */
+function athleteNamesOf(teamLabel: string): string[] {
+  const parts = teamLabel
+    .split('/')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.slice(0, 2) : [teamLabel];
 }
 
 // Dia/hora na parede America/Sao_Paulo — fuso canônico dos eventos, mesmo formato dos cards
@@ -31,13 +64,24 @@ function courtLabelOf(courtName: string | null): string {
   return /quadra/i.test(court) ? court : `Quadra ${court}`;
 }
 
-/** "Sáb 29/03 · 16:30 · Quadra 1" — badge do card da chave pra partida agendada. */
-function scheduleLabelOf(m: TournamentMatch): string | null {
-  if (!m.scheduleTime) return null;
+/** Topo do card: `#12 · Quadra 1` — paridade com `matchMetaLabel` do organizador. */
+function metaLabelOf(m: TournamentMatch): string {
+  const parts: string[] = [];
+  if (m.matchNumber > 0) parts.push(`#${m.matchNumber}`);
+  const court = courtLabelOf(m.courtName);
+  if (court) parts.push(court);
+  return parts.length > 0 ? parts.join(' · ') : '#—';
+}
+
+/** Rodapé do card: "Sáb 29/03 · 16:30 · Quadra 1" quando agendada; senão o que existir
+ *  ("Quadra 1 · sem horário" / "Sem horário"). Paridade com `matchScheduleLabel` do organizador
+ *  e com `matchScheduleFooterLabelPt` no app. */
+function scheduleLabelOf(m: TournamentMatch): string {
+  const court = courtLabelOf(m.courtName);
+  if (!m.scheduleTime) return court ? `${court} · sem horário` : 'Sem horário';
   const wd = SCHED_WD.format(m.scheduleTime).replace('.', '');
   const day = `${wd.charAt(0).toUpperCase()}${wd.slice(1)} ${SCHED_DATE.format(m.scheduleTime)}`;
   const parts = [day, SCHED_TIME.format(m.scheduleTime)];
-  const court = courtLabelOf(m.courtName);
   if (court) parts.push(court);
   return parts.join(' · ');
 }
@@ -64,14 +108,24 @@ function formatLabelOf(bracketFormat: string): string {
   return FORMAT_LABEL[normalized] ?? titleCase(bracketFormat);
 }
 
+const STATUS_LABEL: Record<BracketMatch['status'], string> = {
+  done: 'Finalizado',
+  live: 'Ao vivo',
+  scheduled: 'Agendado',
+  canceled: 'Cancelado',
+};
+
 /** Aba "Chaves": grupos + mata-mata da categoria selecionada.
  *
- *  A árvore é derivada só de `round`+`matchType`+`matchNumber` — nenhum ponteiro salvo é lido no
- *  client (`winnerAdvance`/`loserAdvance` só existem para o Cloud Function preencher a próxima
- *  partida server-side). Layout em colunas de cards, sem geometria de conectores pixel-a-pixel.
+ *  A árvore usa a MESMA geometria do painel do organizador (`bracket-tree.ts`): canvas único com
+ *  os tracks WB/LB, cards posicionados em absoluto e conectores SVG seguindo a fiação real da
+ *  planta. O atleta enxerga a chave igual a quem a operou — e o card repete a anatomia de lá
+ *  (nº do jogo + quadra, selo de status, avatares por dupla, sets, rodapé de agendamento), com
+ *  os acréscimos que só fazem sentido aqui: destaque da partida do próprio atleta e do jogo ao
+ *  vivo.
  *
- *  Diferente da versão anterior, não busca nada: consome as partidas já carregadas pelo
- *  `TournamentLiveStore`, então trocar de categoria é instantâneo. */
+ *  Não busca nada: consome as partidas já carregadas pelo `TournamentLiveStore`, então trocar de
+ *  categoria é instantâneo. */
 @Component({
   selector: 'app-brackets-tab',
   imports: [NgTemplateOutlet],
@@ -83,6 +137,10 @@ export class BracketsTabComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly store = inject(TournamentLiveStore);
+
+  protected readonly initialsOf = initialsOf;
+  protected readonly matchWidth = BRACKET_MATCH_WIDTH;
+  protected readonly matchHeight = BRACKET_MATCH_HEIGHT;
 
   private readonly categoryParam = toSignal(this.route.queryParamMap.pipe(map((p) => p.get('categoria'))), {
     initialValue: this.route.snapshot.queryParamMap.get('categoria'),
@@ -100,10 +158,34 @@ export class BracketsTabComponent {
     return cats.find((c) => c.id === id) ?? cats[0] ?? null;
   });
 
+  /** Partidas da categoria selecionada — base tanto do VM dos cards quanto da geometria. */
+  private readonly categoryMatches = computed<TournamentMatch[]>(() => {
+    const category = this.selectedCategory();
+    if (!category) return [];
+    return this.store.matches().filter((m) => m.categoryId === category.id);
+  });
+
+  /** Geometria da árvore (posições + conectores). Os cards vêm do `bracketData` por id. */
+  protected readonly bracketLayout = computed<BracketLayout | null>(() => buildCategoryBracketLayout(this.categoryMatches()));
+
+  /** Card por id de partida — o nó do layout carrega a partida crua, o desenho vem daqui. */
+  private readonly cardsById = computed<Map<string, BracketMatch>>(() => {
+    const data = this.bracketData();
+    const byId = new Map<string, BracketMatch>();
+    for (const round of data?.bracketRounds ?? []) {
+      for (const m of round.matches) byId.set(m.id, m);
+    }
+    return byId;
+  });
+
+  protected cardOf(matchId: string): BracketMatch | null {
+    return this.cardsById().get(matchId) ?? null;
+  }
+
   protected readonly bracketData = computed<CategoryBracketData | null>(() => {
     const category = this.selectedCategory();
     if (!category) return null;
-    const matches = this.store.matches().filter((m) => m.categoryId === category.id);
+    const matches = this.categoryMatches();
 
     const duoOf = (teamId: string, fallbackDescription: string | null): BracketDuo | null => {
       if (!teamId) return fallbackDescription ? { id: 'tbd', name: fallbackDescription, isViewer: false, players: this.store.duoPlayersOf('') } : null;
@@ -115,17 +197,27 @@ export class BracketsTabComponent {
       };
     };
 
+    const sideOf = (teamId: string, fallbackDescription: string | null, score: number | null, winner: boolean): BracketMatchSide => {
+      const duo = duoOf(teamId, fallbackDescription);
+      return { duo, names: duo ? athleteNamesOf(duo.name) : [], score, winner };
+    };
+
     const toBracketMatch = (m: TournamentMatch): BracketMatch => {
       const completed = matchIsCompleted(m);
       const live = matchIsLive(m);
+      const canceled = matchIsCanceled(m);
       const [scoreA, scoreB] = matchSetWins(m);
       const showScore = completed || live;
+      const status: BracketMatch['status'] = canceled ? 'canceled' : completed ? 'done' : live ? 'live' : 'scheduled';
       return {
         id: m.id,
-        status: completed ? 'done' : live ? 'live' : m.scheduleTime ? 'scheduled' : 'tbd',
-        scheduledLabel: !completed && !live ? scheduleLabelOf(m) : null,
-        sideA: { duo: duoOf(m.teamAId, m.teamADescription), score: showScore ? scoreA : null, winner: completed && m.winnerId === m.teamAId },
-        sideB: { duo: duoOf(m.teamBId, m.teamBDescription), score: showScore ? scoreB : null, winner: completed && m.winnerId === m.teamBId },
+        metaLabel: metaLabelOf(m),
+        status,
+        statusLabel: STATUS_LABEL[status],
+        scheduleLabel: scheduleLabelOf(m),
+        scheduled: m.scheduleTime != null,
+        sideA: sideOf(m.teamAId, m.teamADescription, showScore ? scoreA : null, completed && m.winnerId === m.teamAId),
+        sideB: sideOf(m.teamBId, m.teamBDescription, showScore ? scoreB : null, completed && m.winnerId === m.teamBId),
       };
     };
 
@@ -166,14 +258,6 @@ export class BracketsTabComponent {
     this.manualCategoryId.set(id);
   }
 
-  protected matchPairs(matches: BracketMatch[]): BracketMatch[][] {
-    const pairs: BracketMatch[][] = [];
-    for (let i = 0; i < matches.length; i += 2) {
-      pairs.push(matches.slice(i, i + 2));
-    }
-    return pairs;
-  }
-
   protected matchHasViewer(m: BracketMatch): boolean {
     return Boolean(m.sideA.duo?.isViewer || m.sideB.duo?.isViewer);
   }
@@ -201,7 +285,7 @@ export class BracketsTabComponent {
         const b = m.sideB.duo?.name ?? 'A definir';
         const scoreA = m.sideA.score != null ? ` ${m.sideA.score}` : '';
         const scoreB = m.sideB.score != null ? ` ${m.sideB.score}` : '';
-        const suffix = m.status === 'live' ? ' (ao vivo)' : m.scheduledLabel ? ` (${m.scheduledLabel})` : '';
+        const suffix = m.status === 'live' ? ' (ao vivo)' : m.scheduled ? ` (${m.scheduleLabel})` : '';
         lines.push(`  ${a}${scoreA} x ${b}${scoreB}${suffix}`);
       }
       lines.push('');

@@ -188,8 +188,13 @@ export class BracketsTabComponent {
     const matches = this.categoryMatches();
 
     const duoOf = (teamId: string, fallbackDescription: string | null): BracketDuo | null => {
-      if (!teamId) return fallbackDescription ? { id: 'tbd', name: fallbackDescription, isViewer: false } : null;
-      return { id: teamId, name: this.store.duoNameOf(teamId, fallbackDescription), isViewer: this.store.isMyTeam(teamId) };
+      if (!teamId) return fallbackDescription ? { id: 'tbd', name: fallbackDescription, isViewer: false, players: this.store.duoPlayersOf('') } : null;
+      return {
+        id: teamId,
+        name: this.store.duoNameOf(teamId, fallbackDescription),
+        isViewer: this.store.isMyTeam(teamId),
+        players: this.store.duoPlayersOf(teamId),
+      };
     };
 
     const sideOf = (teamId: string, fallbackDescription: string | null, score: number | null, winner: boolean): BracketMatchSide => {
@@ -224,7 +229,7 @@ export class BracketsTabComponent {
       const standings = buildGroupStandings(matches, poolId);
       const rows: GroupStanding[] = standings.map((s, idx) => ({
         rank: idx + 1,
-        duo: duoOf(s.teamId, null) ?? { id: s.teamId, name: 'Dupla', isViewer: false },
+        duo: duoOf(s.teamId, null) ?? { id: s.teamId, name: 'Dupla', isViewer: false, players: this.store.duoPlayersOf(s.teamId) },
         wins: s.wins,
         losses: matches.filter((m) => m.poolId === poolId && matchIsCompleted(m) && (m.teamAId === s.teamId || m.teamBId === s.teamId) && m.winnerId !== s.teamId).length,
         setsFor: s.setsWon,

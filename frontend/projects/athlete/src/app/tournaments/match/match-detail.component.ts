@@ -17,7 +17,7 @@ import {
   type CampaignEntry,
   type DisplaySet,
 } from '../tournament-live.selectors';
-import { TournamentLiveStore } from '../tournament-live.store';
+import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
 import { MatchShareDialogComponent } from './match-share-dialog.component';
 import { nextRoundPreviewOf } from './next-round-preview';
 
@@ -39,7 +39,7 @@ export interface MatchSideView {
   teamId: string;
   name: string;
   isMe: boolean;
-  initials: [string, string];
+  players: [DuoPlayer, DuoPlayer];
   /** "1º do Grupo B" — só existe se a dupla passou por fase de grupos. */
   seedLine: string | null;
   campaign: CampaignEntry[];
@@ -184,7 +184,7 @@ export class MatchDetailComponent {
       teamId,
       name: this.store.duoNameOf(teamId, description),
       isMe: this.store.isMyTeam(teamId),
-      initials: this.store.duoInitialsOf(teamId),
+      players: this.store.duoPlayersOf(teamId),
       seedLine: this.seedLineOf(teamId, categoryMatches),
       campaign: campaignOf(categoryMatches, teamId, (opponentId) => this.store.duoNameOf(opponentId)),
       winner: matchIsCompleted(m) && m.winnerId === teamId,

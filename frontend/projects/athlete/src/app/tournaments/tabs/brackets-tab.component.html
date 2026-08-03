@@ -196,6 +196,70 @@
                 }
                 <span>{{ m.scheduleLabel }}</span>
               </div>
+                  <div class="bx-match-side" [class.bx-match-side--winner]="m.sideA.winner">
+                    <span class="bx-duo" aria-hidden="true">
+                      @if (m.sideA.duo; as duo) {
+                        @for (p of duo.players; track $index) {
+                          <span class="duo-avatar">
+                            @if (p.photo) {
+                              <img [src]="p.photo" alt="" loading="lazy" />
+                            } @else {
+                              {{ p.initial }}
+                            }
+                          </span>
+                        }
+                      } @else {
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                      }
+                    </span>
+                    <span class="bx-match-name">
+                      @if (m.sideA.duo) {
+                        {{ m.sideA.duo.name }}
+                        @if (m.sideA.duo.isViewer) {
+                          <span class="bx-dim">· você</span>
+                        }
+                      } @else {
+                        <span class="bx-dim">A definir</span>
+                      }
+                    </span>
+                    @if (m.sideA.score != null) {
+                      <span class="bx-match-score">{{ m.sideA.score }}</span>
+                    }
+                  </div>
+                  <div class="bx-match-side" [class.bx-match-side--winner]="m.sideB.winner">
+                    <span class="bx-duo" aria-hidden="true">
+                      @if (m.sideB.duo; as duo) {
+                        @for (p of duo.players; track $index) {
+                          <span class="duo-avatar">
+                            @if (p.photo) {
+                              <img [src]="p.photo" alt="" loading="lazy" />
+                            } @else {
+                              {{ p.initial }}
+                            }
+                          </span>
+                        }
+                      } @else {
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                        <span class="duo-avatar duo-avatar--empty">—</span>
+                      }
+                    </span>
+                    <span class="bx-match-name">
+                      @if (m.sideB.duo) {
+                        {{ m.sideB.duo.name }}
+                        @if (m.sideB.duo.isViewer) {
+                          <span class="bx-dim">· você</span>
+                        }
+                      } @else {
+                        <span class="bx-dim">A definir</span>
+                      }
+                    </span>
+                    @if (m.sideB.score != null) {
+                      <span class="bx-match-score">{{ m.sideB.score }}</span>
+                    }
+                  </div>
+                </div>
+              }
             </div>
           }
         }

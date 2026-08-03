@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
-import { matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { matchBestOf, matchClosedSets, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import { NxToastService } from '../../shared/feedback';
-import { closedPartialsLabelOf, courtLabelOf, currentSetNumberOf, ordinalOf, timeLabelOf } from '../tournament-format';
+import { courtLabelOf, dayLabelOf, liveScoreLineOf, timeLabelOf } from '../tournament-format';
 import { groupLabelOf, knockoutLabelOf, roundDisplayNumberOf } from '../tournament-live.selectors';
 import { TournamentLiveStore } from '../tournament-live.store';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH, drawShareCard, type ShareCardData } from './match-share-card';
+import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH, drawShareCard, type ShareCardData, type ShareStage, type ShareTeam } from './match-share-card';
 
 /**
  * Compartilhar a partida como imagem (04i).
@@ -42,39 +42,47 @@ export class MatchShareDialogComponent {
     const m = this.match();
     const [a, b] = matchSetWins(m);
     const live = matchIsLive(m);
+    const finished = matchIsCompleted(m);
+    const bestOf = matchBestOf(m);
     return {
-      kicker: [this.phaseLabel(m), this.store.tournament()?.name].filter((p): p is string => p != null && p.length > 0).join(' · '),
-      nameA: this.store.duoNameOf(m.teamAId, m.teamADescription),
-      nameB: this.store.duoNameOf(m.teamBId, m.teamBDescription),
-      score: `${a}–${b}`,
-      detail: this.detailOf(m),
-      live,
-      statusLabel: this.statusLabelOf(m),
+      tournamentName: this.store.tournament()?.name ?? null,
+      phaseLabel: this.phaseLabel(m),
       categoryName: this.store.tournament()?.categories.find((c) => c.id === m.categoryId)?.categoryName ?? null,
+      stage: this.stageOf(m),
+      live,
+      finished,
+      teamA: this.teamOf(m.teamAId, m.teamADescription),
+      teamB: this.teamOf(m.teamBId, m.teamBDescription),
+      winner: finished && m.winnerId ? (m.winnerId === m.teamAId ? 'A' : 'B') : null,
+      sets: matchClosedSets(m),
+      setWins: [a, b],
+      liveLine: liveScoreLineOf(m),
+      formatLine: bestOf <= 1 ? 'Set único' : `Melhor de ${bestOf}`,
+      dateLine: this.dateLineOf(m),
     };
   });
 
   constructor() {
     // Redesenha a cada mudança de placar: com a partida ao vivo, o card do preview acompanha.
+    // Encadeado numa fila porque o desenho é assíncrono (fontes + fotos) — dois redraws em
+    // paralelo intercalariam traços de estados diferentes.
     effect(() => {
       const data = this.cardData();
-      void this.draw(data);
+      this.drawChain = this.drawChain.then(() => this.draw(data)).catch(() => undefined);
     });
   }
+
+  private drawChain: Promise<void> = Promise.resolve();
 
   private async draw(data: ShareCardData): Promise<void> {
     const canvas = this.canvasRef().nativeElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    // Sem esperar as fontes, o primeiro desenho sai no fallback do sistema.
-    if (typeof document !== 'undefined' && document.fonts?.ready) {
-      try {
-        await document.fonts.ready;
-      } catch {
-        /* segue com o que estiver carregado */
-      }
-    }
-    drawShareCard(ctx, data);
+    await drawShareCard(ctx, data);
+  }
+
+  private teamOf(teamId: string, description: string | null): ShareTeam {
+    return { name: this.store.duoNameOf(teamId, description), players: this.store.duoPlayersOf(teamId) };
   }
 
   private phaseLabel(m: TournamentMatch): string {
@@ -83,19 +91,21 @@ export class MatchShareDialogComponent {
       : knockoutLabelOf(m);
   }
 
-  private detailOf(m: TournamentMatch): string | null {
-    if (matchIsLive(m) && m.liveScore) {
-      const setNumber = currentSetNumberOf(m) ?? m.liveScore.setsA + m.liveScore.setsB + 1;
-      return `${ordinalOf(setNumber)} set ${m.liveScore.currentGamesA}–${m.liveScore.currentGamesB}`;
-    }
-    return closedPartialsLabelOf(m);
+  /** Final e 3º lugar ganham a paleta ouro/bronze do pôster da Copa VH. */
+  private stageOf(m: TournamentMatch): ShareStage {
+    if (m.poolId) return 'game';
+    const label = knockoutLabelOf(m);
+    if (label === 'Final' || label === 'Grand final') return 'final';
+    if (label === '3º lugar') return 'third';
+    return 'game';
   }
 
-  private statusLabelOf(m: TournamentMatch): string {
-    if (matchIsLive(m)) return 'Ao vivo';
-    if (matchIsCompleted(m)) return 'Encerrada';
-    const parts = [m.scheduleTime ? timeLabelOf(m.scheduleTime) : null, courtLabelOf(m.courtName)].filter((p): p is string => p != null);
-    return parts.length > 0 ? parts.join(' · ') : 'Agendada';
+  /** "Sáb 02/08 · 17:30 · Quadra 1" — rodapé do pôster. */
+  private dateLineOf(m: TournamentMatch): string | null {
+    const parts = [dayLabelOf(m.scheduleTime), m.scheduleTime ? timeLabelOf(m.scheduleTime) : null, courtLabelOf(m.courtName)].filter(
+      (p): p is string => p != null,
+    );
+    return parts.length > 0 ? parts.join(' · ') : null;
   }
 
   private async toBlob(): Promise<Blob | null> {
@@ -105,7 +115,7 @@ export class MatchShareDialogComponent {
 
   private fileName(): string {
     const data = this.cardData();
-    const slug = `${data.nameA}-x-${data.nameB}`
+    const slug = `${data.teamA.name}-x-${data.teamB.name}`
       .toLowerCase()
       .normalize('NFD')
       // Remove os diacríticos decompostos pelo NFD (bloco combining diacritical marks).
@@ -128,8 +138,9 @@ export class MatchShareDialogComponent {
       }
       const file = new File([blob], this.fileName(), { type: 'image/png' });
       const data = this.cardData();
+      const score = `${data.setWins[0]}–${data.setWins[1]}`;
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `${data.nameA} x ${data.nameB}`, text: `${data.nameA} ${data.score} ${data.nameB}` });
+        await navigator.share({ files: [file], title: `${data.teamA.name} x ${data.teamB.name}`, text: `${data.teamA.name} ${score} ${data.teamB.name}` });
         this.close();
         return;
       }

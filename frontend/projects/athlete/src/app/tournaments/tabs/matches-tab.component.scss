@@ -154,200 +154,348 @@
   }
 }
 
-// ── Seções por rodada ────────────────────────────────────────
-.mt-section {
-  @include tl.card;
-  padding: 0;
-  overflow: hidden;
+// ── Seções por rodada: rótulo mono + grid de cards (desenho da Copa VH) ──────
+.mt-round-label {
+  margin: var(--nx-s-2) 0 var(--nx-s-2);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
 }
 
-.mt-section-title {
-  margin: 0;
-  padding: var(--nx-s-4) var(--nx-s-5);
-  border-bottom: 1px solid var(--nx-line);
-  background: var(--nx-surface-1);
-  font-family: var(--nx-font-display);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--nx-text);
-}
-
-.mt-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-// Grid nomeado: no desktop tudo em uma linha; a partir de 900px o placar e as parciais
-// quebram para uma segunda linha em vez de espremer os nomes.
-.mt-row {
+.mt-grid {
   display: grid;
-  grid-template-columns: 52px 34px minmax(0, 1fr) 64px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--nx-s-3);
-  padding: var(--nx-s-3) var(--nx-s-5);
-  border-top: 1px solid var(--nx-line);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+// ── Card de partida (porta de .nx-match do site da Copa VH) ──────────────────
+.mt-match {
+  display: block;
+  padding: var(--nx-s-4);
+  border-radius: 16px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
   text-decoration: none;
   color: inherit;
 
-  li:first-child & {
-    border-top: none;
+  &--live {
+    box-shadow: var(--nx-glow-orange);
+    border-color: rgba(255, 106, 26, 0.4);
   }
 
-  &--mine {
-    background: rgba(255, 106, 26, 0.07);
+  &--mine:not(&--live) {
+    border-color: rgba(255, 106, 26, 0.35);
   }
 
-  // Só a variante link (`<a class="mt-row">`) reage ao ponteiro; a `<div>` é linha estática.
-  &:is(a):hover,
-  &:is(a):focus-visible {
-    background: rgba(255, 255, 255, 0.04);
-  }
+  // Só a variante link (`<a class="mt-match">`) reage ao ponteiro.
+  &:is(a) {
+    transition:
+      border-color var(--nx-d-fast) var(--nx-ease-out),
+      transform var(--nx-d-fast) var(--nx-ease-out);
 
-  // No mobile a linha vira um bloco de placar legível: as duas duplas empilhadas com o
-  // resultado à direita, e a faixa inferior com parciais e estado. Sem áreas nomeadas o
-  // auto-placement espalhava o "vs" e o horário em três linhas desencontradas.
-  @media (max-width: 900px) {
-    grid-template-columns: 52px minmax(0, 1fr) auto;
-    grid-template-areas:
-      'time teamA score'
-      'time teamB score'
-      'court partials state';
-    row-gap: var(--nx-s-2);
-    padding-inline: var(--nx-s-4);
-  }
-}
-
-.mt-row-time {
-  font-family: var(--nx-font-mono);
-  font-size: 12px;
-  color: var(--nx-text-dim);
-  font-variant-numeric: tabular-nums;
-
-  @media (max-width: 900px) {
-    grid-area: time;
-    align-self: center;
-  }
-}
-
-.mt-row-court {
-  justify-self: start;
-  padding: 2px 7px;
-  border-radius: var(--nx-r-1);
-  border: 1px solid var(--nx-line);
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  color: var(--nx-text-dim);
-
-  @media (max-width: 900px) {
-    grid-area: court;
-    justify-self: start;
-  }
-}
-
-.mt-row-team {
-  display: flex;
-  align-items: center;
-  gap: var(--nx-s-2);
-  min-width: 0;
-
-  &--mine .mt-row-name {
-    font-weight: 700;
-  }
-
-  // Primeiro `.mt-row-team` do markup é o A, o segundo é o B.
-  @media (max-width: 900px) {
-    grid-area: teamA;
-
-    & ~ & {
-      grid-area: teamB;
+    &:hover,
+    &:focus-visible {
+      border-color: var(--nx-orange-500);
+      transform: translateY(-2px);
     }
   }
+}
+
+.mt-match-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--nx-s-2);
+  margin-bottom: var(--nx-s-3);
+}
+
+.mt-match-context {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &--live {
+    color: var(--nx-orange-500);
+  }
+}
+
+.mt-match-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line);
+  font-family: var(--nx-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+
+  &[data-state='live'] {
+    background: var(--nx-live);
+    border-color: transparent;
+    color: #fff;
+    animation: mt-chip-pulse 1.6s infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+
+  &[data-state='done'] {
+    background: rgba(43, 209, 126, 0.16);
+    border-color: rgba(43, 209, 126, 0.3);
+    color: var(--nx-win);
+  }
+
+  &[data-state='scheduled'],
+  &[data-state='tbd'] {
+    background: rgba(244, 197, 67, 0.12);
+    border-color: rgba(244, 197, 67, 0.3);
+    color: var(--nx-pending);
+  }
+}
+
+@keyframes mt-chip-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 59, 48, 0);
+  }
+}
+
+// O chip "ao vivo" tem texto branco; o mixin pinta o ponto com currentColor.
+.mt-live-dot {
+  @include tl.live-dot(6px);
+}
+
+.mt-match-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--nx-s-3);
+  padding: 7px 0;
+}
+
+.mt-match-team {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  min-width: 0;
 }
 
 .mt-duo {
   @include tl.duo-avatars(28px);
 }
 
-.mt-row-name {
+.mt-match-name {
+  font-family: var(--nx-font-display);
   font-size: 14px;
+  font-weight: 600;
   color: var(--nx-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  &--dim {
+    color: var(--nx-text-mute);
+    font-weight: 500;
+  }
+
+  &--tbd {
+    color: var(--nx-text-dim);
+    font-weight: 500;
+    font-style: italic;
+  }
+
+  &--mine {
+    font-weight: 700;
+  }
 }
 
 .mt-you {
   color: var(--nx-orange-400);
 }
 
-.mt-row-score {
-  justify-self: center;
-  font-family: var(--nx-font-display);
-  font-size: 17px;
+.mt-match-score {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 20px;
   font-weight: 700;
   color: var(--nx-text);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 
-  // Partida sem placar mostra "vs": em corpo de placar ele competia com os resultados reais
-  // na varredura da lista.
-  &--pending {
-    font-family: var(--nx-font-mono);
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--nx-text-dim);
-  }
-
-  @media (max-width: 900px) {
-    grid-area: score;
-    align-self: center;
-    justify-self: end;
-  }
-}
-
-.mt-row-partials {
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  color: var(--nx-text-dim);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-
-  @media (max-width: 900px) {
-    grid-area: partials;
-  }
-}
-
-.mt-row-state {
-  @include tl.status-badge;
-  justify-self: end;
-
-  &[data-state='done'] {
-    border-color: rgba(43, 209, 126, 0.35);
-    background: rgba(43, 209, 126, 0.1);
+  &--win {
     color: var(--nx-win);
   }
 
-  &[data-state='live'] {
-    border-color: rgba(255, 59, 48, 0.45);
-    background: rgba(255, 59, 48, 0.14);
-    color: #ff6b62;
+  &--lose {
+    color: var(--nx-text-mute);
   }
 
-  &[data-state='scheduled'] {
-    border-color: rgba(255, 106, 26, 0.35);
-    color: var(--nx-orange-400);
+  &--led {
+    color: var(--nx-orange-500);
   }
 
-  @media (max-width: 900px) {
-    grid-area: state;
+  &--idle {
+    opacity: 0.35;
   }
 }
 
-.mt-live-dot {
-  @include tl.live-dot(5px);
+.mt-match-foot {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: var(--nx-s-2);
+  padding-top: var(--nx-s-3);
+  border-top: 1px solid var(--nx-line);
+}
+
+.mt-set-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--nx-r-pill);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  background: var(--nx-surface-1);
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+
+  &[data-tone='win'] {
+    color: var(--nx-win);
+    background: rgba(43, 209, 126, 0.12);
+  }
+
+  &[data-tone='current'] {
+    color: var(--nx-orange-500);
+    border: 1px solid var(--nx-orange-500);
+    background: transparent;
+  }
+}
+
+// ── Final e 3º lugar: cards premium (ouro/bronze), porta 1:1 da Copa VH ──────
+$gold: #f2c14e;
+$gold-hi: #ffe9a8;
+$bronze: #d08a5a;
+$bronze-hi: #f3c9a8;
+
+.mt-match--final,
+.mt-match--third {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-size: 240% 100%;
+    background-repeat: no-repeat;
+    animation: mt-shimmer-sweep 4.6s ease-in-out infinite;
+  }
+}
+
+.mt-match--final {
+  border-color: rgba(242, 193, 78, 0.55);
+  background: linear-gradient(180deg, rgba(242, 193, 78, 0.08), rgba(11, 11, 12, 0) 58%), var(--nx-surface-0);
+  animation: mt-gold-breathe 3.6s ease-in-out infinite;
+
+  &::after {
+    background-image: linear-gradient(115deg, transparent 40%, rgba(255, 233, 168, 0.16) 50%, transparent 60%);
+  }
+
+  .mt-match-context {
+    color: $gold;
+  }
+
+  .mt-match-chip[data-state='scheduled'],
+  .mt-match-chip[data-state='tbd'] {
+    color: #241a00;
+    border-color: transparent;
+    background: linear-gradient(135deg, $gold-hi, $gold 65%);
+    font-weight: 700;
+  }
+}
+
+.mt-match--third {
+  border-color: rgba(208, 138, 90, 0.5);
+  background: linear-gradient(180deg, rgba(208, 138, 90, 0.07), rgba(11, 11, 12, 0) 58%), var(--nx-surface-0);
+  animation: mt-bronze-breathe 3.6s ease-in-out infinite;
+
+  &::after {
+    background-image: linear-gradient(115deg, transparent 40%, rgba(243, 201, 168, 0.12) 50%, transparent 60%);
+  }
+
+  .mt-match-context {
+    color: $bronze;
+  }
+
+  .mt-match-chip[data-state='scheduled'],
+  .mt-match-chip[data-state='tbd'] {
+    color: #2a1608;
+    border-color: transparent;
+    background: linear-gradient(135deg, $bronze-hi, $bronze 65%);
+    font-weight: 700;
+  }
+}
+
+@keyframes mt-gold-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(242, 193, 78, 0.22), 0 8px 28px rgba(242, 193, 78, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(242, 193, 78, 0.45), 0 10px 46px rgba(242, 193, 78, 0.3);
+  }
+}
+
+@keyframes mt-bronze-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(208, 138, 90, 0.2), 0 8px 28px rgba(208, 138, 90, 0.09);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(208, 138, 90, 0.4), 0 10px 42px rgba(208, 138, 90, 0.26);
+  }
+}
+
+@keyframes mt-shimmer-sweep {
+  0% {
+    background-position: 220% 0;
+  }
+  60% {
+    background-position: -120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-match--final,
+  .mt-match--third {
+    animation: none;
+
+    &::after {
+      animation: none;
+    }
+  }
 }
 
 // ── Lateral ──────────────────────────────────────────────────

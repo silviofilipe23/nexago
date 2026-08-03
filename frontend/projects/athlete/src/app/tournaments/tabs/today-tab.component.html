@@ -15,8 +15,14 @@
         <div class="tdy-next-body">
           <div class="tdy-side">
             <span class="tdy-duo-avatars" aria-hidden="true">
-              @for (initial of nm.sideA.initials; track $index) {
-                <span class="duo-avatar">{{ initial }}</span>
+              @for (p of nm.sideA.players; track $index) {
+                <span class="duo-avatar">
+                  @if (p.photo) {
+                    <img [src]="p.photo" alt="" loading="lazy" />
+                  } @else {
+                    {{ p.initial }}
+                  }
+                </span>
               }
             </span>
             <strong class="tdy-side-name">{{ nm.sideA.name }}</strong>
@@ -45,8 +51,14 @@
 
           <div class="tdy-side tdy-side--right">
             <span class="tdy-duo-avatars" aria-hidden="true">
-              @for (initial of nm.sideB.initials; track $index) {
-                <span class="duo-avatar">{{ initial }}</span>
+              @for (p of nm.sideB.players; track $index) {
+                <span class="duo-avatar">
+                  @if (p.photo) {
+                    <img [src]="p.photo" alt="" loading="lazy" />
+                  } @else {
+                    {{ p.initial }}
+                  }
+                </span>
               }
             </span>
             <strong class="tdy-side-name">{{ nm.sideB.name }}</strong>

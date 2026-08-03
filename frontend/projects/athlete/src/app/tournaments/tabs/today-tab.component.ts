@@ -24,14 +24,13 @@ import {
   roundGroupsOf,
   sideOf,
 } from '../tournament-live.selectors';
-import { TournamentLiveStore } from '../tournament-live.store';
+import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
 
 export interface DuoView {
   teamId: string;
   name: string;
   isMe: boolean;
-  initials: [string, string];
-  avatars: [string | null, string | null];
+  players: [DuoPlayer, DuoPlayer];
   /** "1º do grupo · 2V 0D" — só existe em partida de fase de grupos. */
   standingLine: string | null;
 }
@@ -246,8 +245,7 @@ export class TodayTabComponent {
       teamId,
       name: this.store.duoNameOf(teamId, description),
       isMe: this.store.isMyTeam(teamId),
-      initials: this.store.duoInitialsOf(teamId),
-      avatars: this.store.duoAvatarsOf(teamId),
+      players: this.store.duoPlayersOf(teamId),
       standingLine: this.standingLineOf(teamId, poolId),
     };
   }

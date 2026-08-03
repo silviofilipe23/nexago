@@ -1,9 +1,13 @@
+import type { DuoPlayer } from './tournament-live.store';
+
 export type CategoryBracketFormat = 'chave' | 'grupos';
 
 export interface BracketDuo {
   id: string;
   name: string;
   isViewer: boolean;
+  /** Foto + inicial de cada atleta — o card da chave mostra a dupla, não um círculo genérico. */
+  players: [DuoPlayer, DuoPlayer];
 }
 
 export interface GroupStanding {

@@ -26,6 +26,12 @@ export function courtLabelOf(courtName: string | null): string | null {
   return /quadra/i.test(court) ? court : `Quadra ${court}`;
 }
 
+/** `#12` — o número que a súmula, o chaveamento e a mesa usam pra chamar o jogo. `null` nas
+ *  partidas antigas, geradas antes do `matchNumber` existir (o campo cai em 0 no parse). */
+export function matchNumberLabelOf(m: TournamentMatch): string | null {
+  return m.matchNumber > 0 ? `#${m.matchNumber}` : null;
+}
+
 /** Versão curta pra tabelas: "Q3". */
 export function shortCourtLabelOf(courtName: string | null): string | null {
   const court = courtName?.trim() ?? '';

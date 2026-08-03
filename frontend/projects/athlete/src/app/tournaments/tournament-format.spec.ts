@@ -1,4 +1,5 @@
-import { countdownLabelOf, elapsedLabelOf, ordinalOf, roundsProgressLabel, shortCourtLabelOf } from './tournament-format';
+import type { TournamentMatch } from '../data/matches-repository';
+import { countdownLabelOf, elapsedLabelOf, matchNumberLabelOf, ordinalOf, roundsProgressLabel, shortCourtLabelOf } from './tournament-format';
 
 describe('roundsProgressLabel', () => {
   it('não diz "após 0 de N" antes de qualquer rodada acontecer', () => {
@@ -51,6 +52,16 @@ describe('elapsedLabelOf', () => {
 
   it('nunca devolve tempo negativo se os relógios divergirem', () => {
     expect(elapsedLabelOf(new Date('2026-08-29T15:04:00Z'), new Date('2026-08-29T15:00:00Z'))).toBe('0:00');
+  });
+});
+
+describe('matchNumberLabelOf', () => {
+  it('mostra o número pelo qual o organizador chama o jogo', () => {
+    expect(matchNumberLabelOf({ matchNumber: 12 } as TournamentMatch)).toBe('#12');
+  });
+
+  it('omite o número nas chaves antigas, geradas antes do campo existir', () => {
+    expect(matchNumberLabelOf({ matchNumber: 0 } as TournamentMatch)).toBeNull();
   });
 });
 

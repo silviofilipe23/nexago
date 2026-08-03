@@ -8,6 +8,7 @@ import {
   countdownLabelOf,
   courtLabelOf,
   liveScoreLineOf,
+  matchNumberLabelOf,
   ordinalOf,
   roundsProgressLabel,
   setWinsLabelOf,
@@ -38,6 +39,8 @@ export interface DuoView {
 export interface NextMatchView {
   matchId: string;
   kicker: string;
+  /** "Jogo #12" — o nome pelo qual o organizador chama a partida na quadra. `null` sem número. */
+  numberLabel: string | null;
   timeLabel: string;
   countdown: string | null;
   courtLabel: string | null;
@@ -77,6 +80,13 @@ export interface QualificationNote {
 }
 
 const ANNOUNCE_TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+
+/** Na pílula de meta da próxima partida o número aparece sozinho, então vai por extenso
+ *  ("Jogo #12") — diferente da linha mono dos cards, onde o `#12` já se explica pelo contexto. */
+function numberChipOf(m: TournamentMatch): string | null {
+  const number = matchNumberLabelOf(m);
+  return number ? `Jogo ${number}` : null;
+}
 
 /**
  * Aba "Hoje": o que o atleta precisa saber com o torneio rolando — próxima partida, o dia
@@ -118,6 +128,7 @@ export class TodayTabComponent {
     return {
       matchId: m.id,
       kicker: this.kickerOf(m),
+      numberLabel: numberChipOf(m),
       timeLabel: timeLabelOf(m.scheduleTime),
       countdown: live ? null : countdownLabelOf(m.scheduleTime, this.store.now()),
       courtLabel: courtLabelOf(m.courtName),
@@ -144,7 +155,7 @@ export class TodayTabComponent {
       return {
         matchId: m.id,
         time: timeLabelOf(m.scheduleTime),
-        title: [this.phaseLabelOf(m), `vs ${this.store.duoNameOf(opponentId, opponentDescription)}`, courtLabelOf(m.courtName)]
+        title: [matchNumberLabelOf(m), this.phaseLabelOf(m), `vs ${this.store.duoNameOf(opponentId, opponentDescription)}`, courtLabelOf(m.courtName)]
           .filter((p): p is string => p != null)
           .join(' · '),
         detail: done ? closedPartialsLabelOf(m) : live ? liveScoreLineOf(m) : null,

@@ -6,7 +6,7 @@ import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
-import { bestOfLabelOf, courtLabelOf, currentSetNumberOf, elapsedLabelOf, ordinalOf, timeLabelOf } from '../tournament-format';
+import { bestOfLabelOf, courtLabelOf, currentSetNumberOf, elapsedLabelOf, matchNumberLabelOf, ordinalOf, timeLabelOf } from '../tournament-format';
 import {
   campaignOf,
   displaySetsOf,
@@ -137,11 +137,15 @@ export class MatchDetailComponent {
     return this.store.tournament()?.categories.find((c) => c.id === m.categoryId)?.categoryName ?? null;
   });
 
-  /** "MD3 · Quadra 2" — sem a fase, que já é o título da página logo acima. */
+  /** "Jogo #12 · MD3 · Quadra 2" — sem a fase, que já é o título da página logo acima. O número
+   *  vem escrito por extenso porque aqui ele aparece solto, fora da linha mono dos cards. */
   protected readonly contextLine = computed(() => {
     const m = this.match();
     if (!m) return '';
-    return [bestOfLabelOf(m), courtLabelOf(m.courtName)].filter((p): p is string => p != null && p.length > 0).join(' · ');
+    const number = matchNumberLabelOf(m);
+    return [number ? `Jogo ${number}` : null, bestOfLabelOf(m), courtLabelOf(m.courtName)]
+      .filter((p): p is string => p != null && p.length > 0)
+      .join(' · ');
   });
 
   /** "início 15:04 · 0:52 em quadra" — o relógio corre com o tick do store. */

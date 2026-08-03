@@ -32,7 +32,7 @@ interface TelaoQueueRow {
     <header class="og-telao-head">
       <span class="og-telao-brand">
         <span class="og-telao-brand-name">nexa<em>GO</em></span>
-        <span class="og-telao-brand-kicker">Telão ao vivo</span>
+        <span class="og-telao-brand-kicker">Ao vivo</span>
       </span>
       <span class="og-telao-title">
         <span class="og-telao-event">{{ tournament()?.name ?? 'Carregando…' }}</span>

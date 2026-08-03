@@ -42,10 +42,10 @@ import { leadingSideOf } from './telao-selectors';
               <span class="og-tlc-avatars">
                 @if (row.team.players.length > 0) {
                   @for (p of row.team.players; track $index) {
-                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="52" />
+                    <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="100" />
                   }
                 } @else {
-                  <og-avatar [initials]="fallbackInitials(row.team.label)" [size]="52" />
+                  <og-avatar [initials]="fallbackInitials(row.team.label)" [size]="100" />
                 }
               </span>
             }

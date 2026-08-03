@@ -6,7 +6,9 @@ import {
   callToCourtFields,
   compareByMatchNumber,
   isMatchAutoSchedulable,
+  isMatchEligibleForAutoSchedule,
   scheduleCourtFields,
+  selectAutoScheduleCourts,
   shouldPropagateMatchAdvance,
 } from "./organizer-match-ops";
 
@@ -212,6 +214,9 @@ test("callToCourtFields cai pro rótulo genérico sem quadra nenhuma", () => {
   assert.deepEqual(
     callToCourtFields(COURTS, "", {}),
     {patch: null, label: "quadra"},
+  );
+});
+
 test("scheduleCourtFields grava o nome da quadra junto do id", () => {
   assert.deepEqual(
     scheduleCourtFields(
@@ -241,5 +246,86 @@ test("scheduleCourtFields ignora nome em branco ou não-texto", () => {
   assert.deepEqual(
     scheduleCourtFields([{id: "Q1", name: 7}], "Q1"),
     {courtId: "Q1", courtName: "Q1"},
+  );
+});
+
+const ALL_COURTS = [
+  {id: "Q1", order: 1},
+  {id: "Q2", order: 2},
+  {id: "Q3", order: 3},
+];
+
+test("selectAutoScheduleCourts sem seleção usa todas as quadras", () => {
+  assert.deepEqual(selectAutoScheduleCourts(ALL_COURTS, undefined), ALL_COURTS);
+  assert.deepEqual(selectAutoScheduleCourts(ALL_COURTS, []), ALL_COURTS);
+  assert.deepEqual(selectAutoScheduleCourts(ALL_COURTS, ["  ", ""]), ALL_COURTS);
+});
+
+test("selectAutoScheduleCourts filtra preservando a ordem do torneio", () => {
+  assert.deepEqual(
+    selectAutoScheduleCourts(ALL_COURTS, ["Q3", "Q1"]).map((c) => c.id),
+    ["Q1", "Q3"],
+  );
+});
+
+test("selectAutoScheduleCourts ignora ids desconhecidos", () => {
+  assert.deepEqual(
+    selectAutoScheduleCourts(ALL_COURTS, ["Q2", "Q9"]).map((c) => c.id),
+    ["Q2"],
+  );
+  assert.deepEqual(selectAutoScheduleCourts(ALL_COURTS, ["Q9"]), []);
+});
+
+const ELIGIBLE_OPTS = {
+  respectBracketDeps: true,
+  dayKey: "2026-10-24",
+  categoryId: "",
+};
+const READY = {teamAId: "t1", teamBId: "t2"};
+
+test("isMatchEligibleForAutoSchedule aceita partida do dia ou sem dia", () => {
+  assert.equal(
+    isMatchEligibleForAutoSchedule({...READY, dayKey: "2026-10-24"}, ELIGIBLE_OPTS),
+    true,
+  );
+  assert.equal(isMatchEligibleForAutoSchedule({...READY}, ELIGIBLE_OPTS), true);
+  assert.equal(
+    isMatchEligibleForAutoSchedule({...READY, dayKey: "2026-10-25"}, ELIGIBLE_OPTS),
+    false,
+  );
+});
+
+test("isMatchEligibleForAutoSchedule sem categoria aceita todas", () => {
+  assert.equal(
+    isMatchEligibleForAutoSchedule({...READY, categoryId: "femB"}, ELIGIBLE_OPTS),
+    true,
+  );
+});
+
+test("isMatchEligibleForAutoSchedule restringe à categoria pedida", () => {
+  const opts = {...ELIGIBLE_OPTS, categoryId: "femB"};
+  assert.equal(
+    isMatchEligibleForAutoSchedule({...READY, categoryId: "femB"}, opts),
+    true,
+  );
+  assert.equal(
+    isMatchEligibleForAutoSchedule({...READY, categoryId: "mascA"}, opts),
+    false,
+  );
+  // Partida sem categoria não entra numa rodada restrita a uma categoria.
+  assert.equal(isMatchEligibleForAutoSchedule({...READY}, opts), false);
+});
+
+test("isMatchEligibleForAutoSchedule respeita dependências da chave", () => {
+  assert.equal(
+    isMatchEligibleForAutoSchedule({teamAId: "t1", teamBId: ""}, ELIGIBLE_OPTS),
+    false,
+  );
+  assert.equal(
+    isMatchEligibleForAutoSchedule(
+      {teamAId: "t1", teamBId: ""},
+      {...ELIGIBLE_OPTS, respectBracketDeps: false},
+    ),
+    true,
   );
 });

@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -17,6 +17,16 @@ import { fetchTeamNames } from './teams-repository';
 /** Status normalizado — espelha `MatchStatus` (`functions/src/match-status.ts`: "Scheduled"/
  *  "In Progress"/"Completed"/"Canceled") em snake_case pro template Angular. */
 export type MatchDisplayStatus = 'scheduled' | 'in_progress' | 'completed' | 'canceled';
+
+/** Placar parcial gravado por `updateLiveMatchScore` (lançamento rápido) — o set em andamento
+ *  vive aqui quando a partida NÃO usa a mesa ponto a ponto (que mantém o corrente em `sets[]`).
+ *  Mesmo shape lido pelo athlete (`matches-repository.ts` de lá). */
+export interface MatchLiveScore {
+  setsA: number;
+  setsB: number;
+  currentGamesA: number;
+  currentGamesB: number;
+}
 
 export interface TournamentMatch {
   id: string;
@@ -52,6 +62,13 @@ export interface TournamentMatch {
    *  árvore (slot A acima do B), seguindo a fiação da planta (`bracket-definitions`). */
   winnerAdvanceSlot: 'A' | 'B' | null;
   loserAdvanceMatchNumber: number | null;
+  /** Campos da operação ao vivo (telão): agregado do lançamento rápido, índice (0-based) do
+   *  set corrente mantido pela mesa ponto a ponto dentro de `sets[]` (nulo fora da mesa),
+   *  dupla no saque e início real da partida. */
+  liveScore: MatchLiveScore | null;
+  currentSetIndex: number | null;
+  servingTeamId: string;
+  matchStartedAt: Date | null;
 }
 
 function toDate(v: unknown): Date | null {
@@ -81,6 +98,21 @@ function optionalStr(v: unknown): string | null {
 interface RawSet {
   a: number;
   b: number;
+}
+
+function intOf(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : null;
+}
+
+function liveScoreFromRaw(raw: unknown): MatchLiveScore | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const setsA = intOf(o['setsA']);
+  const setsB = intOf(o['setsB']);
+  const currentGamesA = intOf(o['currentGamesA']);
+  const currentGamesB = intOf(o['currentGamesB']);
+  if (setsA == null || setsB == null || currentGamesA == null || currentGamesB == null) return null;
+  return { setsA, setsB, currentGamesA, currentGamesB };
 }
 
 function setsFromRaw(raw: unknown): RawSet[] {
@@ -172,6 +204,10 @@ interface RawMatch {
   courtId: string;
   scheduleEndAt: Date | null;
   bestOf: 1 | 3;
+  liveScore: MatchLiveScore | null;
+  currentSetIndex: number | null;
+  servingTeamId: string;
+  matchStartedAt: Date | null;
 }
 
 function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
@@ -210,6 +246,10 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     courtId: optionalStr(data['courtId']) ?? '',
     scheduleEndAt: toDate(data['scheduleEndTime']),
     bestOf: data['bestOf'] === 1 ? 1 : 3,
+    liveScore: liveScoreFromRaw(data['liveScore']),
+    currentSetIndex: intOf(data['currentSetIndex']),
+    servingTeamId: optionalStr(data['servingTeamId']) ?? '',
+    matchStartedAt: toDate(data['matchStartedAt']),
   };
 }
 
@@ -380,21 +420,8 @@ export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): G
   return rows;
 }
 
-export async function listMatches(tournamentId: string): Promise<TournamentMatch[]> {
-  const db = organizerFirestore();
-  const projectId = environment.firebase.projectId;
-  if (!projectId) return [];
-  const snap = await getDocs(query(collection(db, 'artifacts', projectId, 'public', 'data', 'matches'), where('tournamentId', '==', tournamentId)));
-  const rows = snap.docs.map((d) => rawMatchFromDoc(d.id, d.data() as Record<string, unknown>));
-
-  const teamIds = rows.flatMap((r) => [r.teamAId, r.teamBId]).filter((id): id is string => id != null);
-  const teamNames = await fetchTeamNames(db, projectId, teamIds);
-  // Prioridade igual à do app (`_teamViewModel`): equipe resolvida PRIMEIRO; a descrição
-  // placeholder ("Vencedor Jogo #1", "1º Grupo A") só aparece enquanto o slot não tem equipe
-  // definida — senão a partida seguiria rotulada de placeholder mesmo depois do avanço.
-  const labelOf = (description: string | null, teamId: string | null): string => (teamId ? teamNames.get(teamId) : null) ?? description ?? 'A definir';
-
-  return rows.map((r) => ({
+function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: string | null) => string): TournamentMatch {
+  return {
     id: r.id,
     tournamentId: r.tournamentId,
     categoryId: r.categoryId,
@@ -418,5 +445,50 @@ export async function listMatches(tournamentId: string): Promise<TournamentMatch
     courtId: r.courtId,
     scheduleEndAt: r.scheduleEndAt,
     bestOf: r.bestOf,
-  }));
+    liveScore: r.liveScore,
+    currentSetIndex: r.currentSetIndex,
+    servingTeamId: r.servingTeamId,
+    matchStartedAt: r.matchStartedAt,
+  };
+}
+
+export async function listMatches(tournamentId: string): Promise<TournamentMatch[]> {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) return [];
+  const snap = await getDocs(query(collection(db, 'artifacts', projectId, 'public', 'data', 'matches'), where('tournamentId', '==', tournamentId)));
+  const rows = snap.docs.map((d) => rawMatchFromDoc(d.id, d.data() as Record<string, unknown>));
+
+  const teamIds = rows.flatMap((r) => [r.teamAId, r.teamBId]).filter((id): id is string => id != null);
+  const teamNames = await fetchTeamNames(db, projectId, teamIds);
+  // Prioridade igual à do app (`_teamViewModel`): equipe resolvida PRIMEIRO; a descrição
+  // placeholder ("Vencedor Jogo #1", "1º Grupo A") só aparece enquanto o slot não tem equipe
+  // definida — senão a partida seguiria rotulada de placeholder mesmo depois do avanço.
+  const labelOf = (description: string | null, teamId: string | null): string => (teamId ? teamNames.get(teamId) : null) ?? description ?? 'A definir';
+
+  return rows.map((r) => rawToMatch(r, labelOf));
+}
+
+/** Versão ao vivo de `listMatches`, SEM o join de nomes — cada snapshot precisa emitir na
+ *  hora, e o telão hidrata nomes/fotos por conta própria (`telao-data.service.ts`).
+ *  `team1Label`/`team2Label` caem na descrição do slot ("Vencedor Jogo #1") ou "A definir". */
+export function watchMatches(
+  tournamentId: string,
+  onChange: (matches: TournamentMatch[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) {
+    onChange([]);
+    return () => {};
+  }
+  return onSnapshot(
+    query(collection(db, 'artifacts', projectId, 'public', 'data', 'matches'), where('tournamentId', '==', tournamentId)),
+    (snap) => {
+      const rows = snap.docs.map((d) => rawMatchFromDoc(d.id, d.data() as Record<string, unknown>));
+      onChange(rows.map((r) => rawToMatch(r, (description) => description ?? 'A definir')));
+    },
+    (err) => onError?.(err),
+  );
 }

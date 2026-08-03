@@ -1,5 +1,3 @@
-@use '../tournament-live' as tl;
-
 :host {
   display: block;
 }
@@ -568,13 +566,6 @@
   line-height: 1;
 
   &--empty {
-// Dupla de avatares (foto ou iniciais) no card da chave — 26px pra manter o card compacto.
-.bx-duo {
-  @include tl.duo-avatars(26px);
-
-  // Slot ainda sem dupla: círculo neutro, sem o gradiente de atleta. O seletor duplo empata
-  // a especificidade com o `:nth-child(2)` do mixin — e vence por vir depois.
-  .duo-avatar.duo-avatar--empty {
     background: var(--nx-surface-1);
     border-color: var(--nx-line-strong);
     color: var(--nx-text-dim);

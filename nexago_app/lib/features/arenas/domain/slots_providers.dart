@@ -2,10 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/coupons_repository.dart';
 import '../data/courts_repository.dart';
+import '../data/peak_rules_repository.dart';
 import '../data/promotions_repository.dart';
 import '../data/slots_repository.dart';
 import 'arena_coupon.dart';
 import 'arena_court.dart';
+import 'arena_peak_rule.dart';
 import 'arena_promotion.dart';
 import 'arena_slot.dart';
 import 'arenas_providers.dart';
@@ -36,6 +38,18 @@ final arenaAllPromotionsProvider =
     StreamProvider.autoDispose.family<List<ArenaPromotion>, String>(
   (ref, arenaId) {
     return ref.watch(promotionsRepositoryProvider).watchAllPromotions(arenaId);
+  },
+);
+
+final peakRulesRepositoryProvider = Provider<PeakRulesRepository>((ref) {
+  return PeakRulesRepository(ref.watch(firestoreProvider));
+});
+
+/// Regras de pico ativas da arena (`arenas/{arenaId}/peakRules`).
+final arenaPeakRulesProvider =
+    StreamProvider.autoDispose.family<List<ArenaPeakRule>, String>(
+  (ref, arenaId) {
+    return ref.watch(peakRulesRepositoryProvider).watchActivePeakRules(arenaId);
   },
 );
 

@@ -14,6 +14,7 @@ OrganizerCategoryTeamRow _team({
   bool partnerPending = false,
   int paidAmountCents = 0,
   String paymentMethod = '',
+  List<String> lgpdAcceptedUids = const [],
 }) {
   return OrganizerCategoryTeamRow(
     registrationId: 'r-$teamId',
@@ -26,6 +27,7 @@ OrganizerCategoryTeamRow _team({
     paidAmountCents: paidAmountCents,
     paymentMethod: paymentMethod,
     partnerPending: partnerPending,
+    lgpdAcceptedUids: lgpdAcceptedUids,
   );
 }
 
@@ -490,6 +492,47 @@ void main() {
         bracketStructureSummary(5),
         '5 duplas · chave de 8 · 3 byes (top 3 avançam direto)',
       );
+    });
+  });
+
+  group('lgpd consent status', () {
+    test('all participants accepted → lgpdAcceptedByAll', () {
+      final team = _team(
+        teamId: 'a',
+        name: 'Alpha',
+        lgpdAcceptedUids: const ['p1-a', 'p2-a'],
+      );
+      expect(team.lgpdAcceptedByAll, isTrue);
+      expect(team.lgpdPartiallyAccepted, isFalse);
+    });
+
+    test('only one of the pair accepted → partial', () {
+      final team = _team(
+        teamId: 'a',
+        name: 'Alpha',
+        lgpdAcceptedUids: const ['p1-a'],
+      );
+      expect(team.lgpdAcceptedByAll, isFalse);
+      expect(team.lgpdPartiallyAccepted, isTrue);
+    });
+
+    test('legacy inscription without the field → pending, not partial', () {
+      final team = _team(teamId: 'a', name: 'Alpha');
+      expect(team.lgpdAcceptedByAll, isFalse);
+      expect(team.lgpdPartiallyAccepted, isFalse);
+    });
+
+    test('solo inscription (single uid) with acceptance counts as all', () {
+      final team = OrganizerCategoryTeamRow(
+        registrationId: 'r-solo',
+        teamId: '',
+        player1: const OrganizerCategoryPlayerInfo(uid: 'p1', name: 'Solo'),
+        player2: const OrganizerCategoryPlayerInfo(uid: ''),
+        partnerPending: true,
+        lgpdAcceptedUids: const ['p1'],
+      );
+      expect(team.lgpdAcceptedByAll, isTrue);
+      expect(team.lgpdPartiallyAccepted, isFalse);
     });
   });
 }

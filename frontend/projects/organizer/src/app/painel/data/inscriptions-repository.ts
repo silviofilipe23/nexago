@@ -29,6 +29,8 @@ export interface TournamentInscription {
   paymentStatus: string; // raw (ex.: paid/pending/…)
   paid: boolean;
   partnerPending: boolean; // inscrição solo aguardando parceiro — não entra na chave
+  /** Uids que aceitaram o termo de uso de imagem/LGPD na inscrição (docs antigos: vazio). */
+  lgpdAcceptedUids: string[];
   createdAt: Date | null;
 }
 
@@ -50,6 +52,7 @@ interface RawInscription {
   isPaid: boolean;
   waitlist: boolean;
   partnerPending: boolean;
+  lgpdAcceptedUids: string[];
   createdAt: Date | null;
 }
 
@@ -70,6 +73,9 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
     partnerPending: data['partnerPending'] === true,
+    lgpdAcceptedUids: Array.isArray(data['lgpdAcceptedUids'])
+      ? data['lgpdAcceptedUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+      : [],
     createdAt: toDate(data['createdAt']),
   };
 }
@@ -155,6 +161,7 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       paymentStatus,
       paid: r.isPaid,
       partnerPending: r.partnerPending,
+      lgpdAcceptedUids: r.lgpdAcceptedUids,
       createdAt: r.createdAt,
     };
   });

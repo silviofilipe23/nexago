@@ -44,6 +44,7 @@ class TournamentPartnerInviteService {
     required String inviteeName,
     required String inviterName,
     TournamentUniformSelection? inviterUniform,
+    bool lgpdAccepted = false,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
@@ -65,6 +66,7 @@ class TournamentPartnerInviteService {
           payload['inviterUniform'] = uniformMap;
         }
       }
+      if (lgpdAccepted) payload['lgpdAccepted'] = true;
       final raw = await callable.call(payload);
       final data = raw.data;
       if (data is! Map) {
@@ -88,6 +90,7 @@ class TournamentPartnerInviteService {
     required String tournamentId,
     required String categoryId,
     TournamentUniformSelection? uniform,
+    bool lgpdAccepted = false,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
@@ -103,6 +106,7 @@ class TournamentPartnerInviteService {
         final uniformMap = uniform.toCallableMap();
         if (uniformMap.isNotEmpty) payload['uniform'] = uniformMap;
       }
+      if (lgpdAccepted) payload['lgpdAccepted'] = true;
       final raw = await callable.call(payload);
       final data = raw.data;
       if (data is! Map) {
@@ -141,6 +145,7 @@ class TournamentPartnerInviteService {
   Future<TournamentPartnerInviteAcceptResult> acceptInvite(
     String inviteId, {
     TournamentUniformSelection? inviteeUniform,
+    bool lgpdAccepted = false,
   }) async {
     if (inviteId.isEmpty) {
       throw TournamentPartnerInviteException('Convite inválido.');
@@ -155,6 +160,7 @@ class TournamentPartnerInviteService {
           payload['inviteeUniform'] = uniformMap;
         }
       }
+      if (lgpdAccepted) payload['lgpdAccepted'] = true;
       final raw = await callable.call(payload);
       final data = raw.data;
       if (data is! Map) {

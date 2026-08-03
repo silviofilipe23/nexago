@@ -50,6 +50,7 @@ class OrganizerCategoryTeamRow {
     this.registeredAt,
     this.paymentMethod = '',
     this.partnerPending = false,
+    this.lgpdAcceptedUids = const [],
   });
 
   final String registrationId;
@@ -64,6 +65,25 @@ class OrganizerCategoryTeamRow {
   final String paymentMethod;
   /// Solo pagou o total e ainda aguarda parceiro — não entra na chave.
   final bool partnerPending;
+
+  /// Uids que aceitaram o termo de uso de imagem/LGPD na inscrição
+  /// (inscrições antigas, de antes do termo existir no fluxo: vazio).
+  final List<String> lgpdAcceptedUids;
+
+  List<String> get _participantUids => [
+        if (player1.uid.trim().isNotEmpty) player1.uid,
+        if (player2.uid.trim().isNotEmpty) player2.uid,
+      ];
+
+  /// Todos os atletas da inscrição aceitaram o termo LGPD.
+  bool get lgpdAcceptedByAll {
+    final uids = _participantUids;
+    return uids.isNotEmpty && uids.every(lgpdAcceptedUids.contains);
+  }
+
+  /// Só parte da dupla aceitou o termo LGPD.
+  bool get lgpdPartiallyAccepted =>
+      !lgpdAcceptedByAll && _participantUids.any(lgpdAcceptedUids.contains);
 
   String get displayName {
     final n1 = player1.name.trim();

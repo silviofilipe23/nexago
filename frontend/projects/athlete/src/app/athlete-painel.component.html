@@ -297,4 +297,8 @@
     </div>
     }
   </div>
+
+  @if (lgpdInviteToAccept()) {
+    <app-lgpd-consent-dialog (confirmed)="confirmLgpdAndAccept()" (cancelled)="lgpdInviteToAccept.set(null)" />
+  }
 </app-at-panel-shell>

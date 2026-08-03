@@ -43,6 +43,7 @@ import 'widgets/tournament_registration/tournament_registration_price_summary.da
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 import 'widgets/tournament_registration/tournament_registration_waiting_step.dart';
+import 'widgets/lgpd_consent_sheet.dart';
 import 'widgets/tournament_partner_invite_error_feedback.dart';
 
 class TournamentRegistrationPage extends ConsumerStatefulWidget {
@@ -77,6 +78,9 @@ class _TournamentRegistrationPageState
   String _paymentType = 'share';
   bool _canPayFull = true;
   bool _submitting = false;
+  /// Aceite do termo de uso de imagem/LGPD já confirmado nesta sessão do
+  /// wizard — evita reabrir o sheet a cada ação (o aceite vai nas callables).
+  bool _lgpdAccepted = false;
   bool _appliedInitialCategory = false;
   bool _appliedInitialRegistration = false;
   bool _appliedInitialInvite = false;
@@ -542,6 +546,15 @@ class _TournamentRegistrationPageState
     }
   }
 
+  /// Garante o aceite do termo de uso de imagem/LGPD antes de qualquer ação
+  /// que crie inscrição/convite. Retorna false se o atleta não aceitou.
+  Future<bool> _ensureLgpdConsent() async {
+    if (_lgpdAccepted) return true;
+    final accepted = await showLgpdConsentSheet(context);
+    if (accepted && mounted) setState(() => _lgpdAccepted = true);
+    return accepted;
+  }
+
   Future<void> _sendInvite(TournamentDetail tournament) async {
     final cat = _category;
     final partner = _selectedPartner;
@@ -551,6 +564,8 @@ class _TournamentRegistrationPageState
       _showProfileAccessBlocked();
       return;
     }
+
+    if (!await _ensureLgpdConsent() || !mounted) return;
 
     final athlete = _athleteDisplay();
     final uniformSelection = _uniformForInvite(cat);
@@ -581,6 +596,7 @@ class _TournamentRegistrationPageState
           category: cat,
           selection: uniformSelection,
         ),
+        lgpdAccepted: true,
       );
       if (!mounted) return;
       setState(() {
@@ -633,6 +649,7 @@ class _TournamentRegistrationPageState
       _showProfileAccessBlocked();
       return false;
     }
+    if (!await _ensureLgpdConsent() || !mounted) return false;
     setState(() => _submitting = true);
     try {
       final registrationId = await ref
@@ -642,6 +659,7 @@ class _TournamentRegistrationPageState
             categoryId: cat.id,
             // Uniforme é coletado depois (pós-inscrição), não bloqueia a vaga.
             uniform: null,
+            lgpdAccepted: true,
           );
       if (!mounted) return false;
       setState(() {

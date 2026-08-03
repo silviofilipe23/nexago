@@ -33,6 +33,11 @@ import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 
+// Versão do termo LGPD/uso de imagem exibido nas UIs de inscrição. O aceite é
+// opcional no payload (apps antigos não enviam); quando presente, fica
+// registrado na inscrição para o organizador consultar.
+const LGPD_TERM_VERSION = "2026-08";
+
 
 
 
@@ -515,6 +520,7 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
   const uniformRequired = categoryRequiresUniform(category);
+  const inviterLgpdAccepted = request.data?.lgpdAccepted === true;
   const inviterUniform = parseUniformPayload(request.data?.inviterUniform);
   // Uniforme é opcional na inscrição (coletado depois); valida só se enviado.
   validateUniformPayload(
@@ -587,6 +593,15 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
       ? {
           attachRegistrationId: regAction.registrationId,
           ...(regAction.teamId ? {attachTeamId: regAction.teamId} : {}),
+        }
+      : {}),
+    // Aceite LGPD do convidante fica no convite e é copiado para a inscrição
+    // quando o convidado aceita.
+    ...(inviterLgpdAccepted
+      ? {
+          inviterLgpdAccepted: true,
+          inviterLgpdAcceptedAt: FieldValue.serverTimestamp(),
+          lgpdTermVersion: LGPD_TERM_VERSION,
         }
       : {}),
   };
@@ -695,6 +710,7 @@ export const registerSoloTournament = onCall(async (request) => {
   });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
+  const lgpdAccepted = request.data?.lgpdAccepted === true;
   const uniform = parseUniformPayload(request.data?.uniform);
   // Uniforme é coletado depois (pós-inscrição) — não bloqueia a vaga. Valida só
   // se o cliente enviou um uniforme aqui.
@@ -728,6 +744,13 @@ export const registerSoloTournament = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     ...(shouldWaitlist ? {waitlist: true} : {}),
     ...(uniform ? registrationUniformPlayer1(uniform) : {}),
+    ...(lgpdAccepted
+      ? {
+          lgpdAcceptedUids: [uid],
+          lgpdAcceptedAt: {[uid]: FieldValue.serverTimestamp()},
+          lgpdTermVersion: LGPD_TERM_VERSION,
+        }
+      : {}),
   };
   await regRef.set(regData);
 
@@ -873,6 +896,7 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
 
   const inviteRef = db.collection(INVITES_COLLECTION).doc(inviteId);
 
+  const inviteeLgpdAccepted = request.data?.lgpdAccepted === true;
   const inviteeUniform = parseUniformPayload(request.data?.inviteeUniform);
 
   const invitePreview = await inviteRef.get();
@@ -1006,6 +1030,30 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
         Object.assign(attachUpdate, registrationUniformPlayer2(inviteeUniform));
       }
 
+      // Registra o aceite LGPD do convidado e, se a inscrição solo ainda não
+      // tiver, o do convidante (capturado no envio do convite).
+      const existingLgpdUids = Array.isArray(existingReg.lgpdAcceptedUids)
+        ? (existingReg.lgpdAcceptedUids as unknown[])
+        : [];
+      const lgpdUnion: string[] = [];
+      if (inviteeLgpdAccepted) {
+        lgpdUnion.push(uid);
+        attachUpdate[`lgpdAcceptedAt.${uid}`] = FieldValue.serverTimestamp();
+      }
+      if (
+        invite.inviterLgpdAccepted === true &&
+        inviterId &&
+        !existingLgpdUids.includes(inviterId)
+      ) {
+        lgpdUnion.push(inviterId);
+        attachUpdate[`lgpdAcceptedAt.${inviterId}`] =
+          invite.inviterLgpdAcceptedAt ?? FieldValue.serverTimestamp();
+      }
+      if (lgpdUnion.length > 0) {
+        attachUpdate.lgpdAcceptedUids = FieldValue.arrayUnion(...lgpdUnion);
+        attachUpdate.lgpdTermVersion = LGPD_TERM_VERSION;
+      }
+
       let teamId = attachTeamId ?? "";
       if (attachTeamId) {
         // Solo legado: já existe equipe de 1 atleta → preenche o player2.
@@ -1070,6 +1118,24 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
         registrationData,
         registrationUniformPlayer2(inviteeUniform),
       );
+    }
+
+    // Aceites LGPD: convidante (capturado no envio do convite) + convidado.
+    const lgpdUids: string[] = [];
+    const lgpdAt: Record<string, unknown> = {};
+    if (invite.inviterLgpdAccepted === true) {
+      lgpdUids.push(inviterUid);
+      lgpdAt[inviterUid] =
+        invite.inviterLgpdAcceptedAt ?? FieldValue.serverTimestamp();
+    }
+    if (inviteeLgpdAccepted) {
+      lgpdUids.push(uid);
+      lgpdAt[uid] = FieldValue.serverTimestamp();
+    }
+    if (lgpdUids.length > 0) {
+      registrationData.lgpdAcceptedUids = lgpdUids;
+      registrationData.lgpdAcceptedAt = lgpdAt;
+      registrationData.lgpdTermVersion = LGPD_TERM_VERSION;
     }
     tx.set(regRef, registrationData);
 

@@ -4,6 +4,8 @@ import {
   peakViolation,
   resolveDayAvailability,
   spNow,
+  parsePeakRulesFromDocs,
+  ensurePeakRuleSatisfied,
   type ArenaPeakRuleDoc,
   type PeakSlotView,
   type SpNow,
@@ -165,5 +167,194 @@ describe("spNow", () => {
     const n = spNow(new Date(Date.UTC(2026, 7, 6, 2, 59)));
     assert.equal(n.dateKey, "2026-08-05");
     assert.equal(n.minutes, 23 * 60 + 59);
+  });
+});
+
+describe("parsePeakRulesFromDocs", () => {
+  it("aplica defaults: minDurationMinutes fora do range", () => {
+    const docs = [
+      {id: "r1", data: () => ({minDurationMinutes: 50})},
+      {id: "r2", data: () => ({minDurationMinutes: 400})},
+      {id: "r3", data: () => ({})},
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const parsed = parsePeakRulesFromDocs(docs);
+    assert.equal(parsed[0]?.minDurationMinutes, 120);
+    assert.equal(parsed[1]?.minDurationMinutes, 120);
+    assert.equal(parsed[2]?.minDurationMinutes, 120);
+  });
+
+  it("releaseHoursBefore ausente/<=0 vira null", () => {
+    const docs = [
+      {id: "r1", data: () => ({releaseHoursBefore: undefined})},
+      {id: "r2", data: () => ({releaseHoursBefore: 0})},
+      {id: "r3", data: () => ({releaseHoursBefore: -1})},
+      {id: "r4", data: () => ({releaseHoursBefore: 3})},
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const parsed = parsePeakRulesFromDocs(docs);
+    assert.equal(parsed[0]?.releaseHoursBefore, null);
+    assert.equal(parsed[1]?.releaseHoursBefore, null);
+    assert.equal(parsed[2]?.releaseHoursBefore, null);
+    assert.equal(parsed[3]?.releaseHoursBefore, 3);
+  });
+
+  it("courtIds/weekdays não-array vira []", () => {
+    const docs = [
+      {id: "r1", data: () => ({courtIds: "q1", weekdays: 3})},
+      {id: "r2", data: () => ({})},
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const parsed = parsePeakRulesFromDocs(docs);
+    assert.deepEqual(parsed[0]?.courtIds, []);
+    assert.deepEqual(parsed[0]?.weekdays, []);
+    assert.deepEqual(parsed[1]?.courtIds, []);
+    assert.deepEqual(parsed[1]?.weekdays, []);
+  });
+
+  it("active !== true vira false", () => {
+    const docs = [
+      {id: "r1", data: () => ({active: false})},
+      {id: "r2", data: () => ({active: undefined})},
+      {id: "r3", data: () => ({active: "true"})},
+      {id: "r4", data: () => ({active: true})},
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const parsed = parsePeakRulesFromDocs(docs);
+    assert.equal(parsed[0]?.active, false);
+    assert.equal(parsed[1]?.active, false);
+    assert.equal(parsed[2]?.active, false);
+    assert.equal(parsed[3]?.active, true);
+  });
+
+  it("label ausente usa default 'Horário de pico'", () => {
+    const docs = [
+      {id: "r1", data: () => ({})},
+      {id: "r2", data: () => ({label: "  Pico noturno  "})},
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const parsed = parsePeakRulesFromDocs(docs);
+    assert.equal(parsed[0]?.label, "Horário de pico");
+    assert.equal(parsed[1]?.label, "Pico noturno");
+  });
+
+  it("normaliza HH:mm (startTime/endTime)", () => {
+    const docs = [
+      {id: "r1", data: () => ({startTime: "20:00", endTime: "21:15"})},
+      {id: "r2", data: () => ({startTime: "20", endTime: "21"})},
+      {id: "r3", data: () => ({})},
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const parsed = parsePeakRulesFromDocs(docs);
+    assert.equal(parsed[0]?.startTime, "20:00");
+    assert.equal(parsed[0]?.endTime, "21:15");
+    assert.equal(parsed[1]?.startTime, "20");
+    assert.equal(parsed[1]?.endTime, "21");
+    assert.equal(parsed[2]?.startTime, "00:00");
+    assert.equal(parsed[2]?.endTime, "00:00");
+  });
+});
+
+describe("ensurePeakRuleSatisfied", () => {
+  it("sem regra ativa: resolves sem chamar db", async () => {
+    const dbThrows = {
+      collection: () => {
+        throw new Error("db.collection should not be called");
+      },
+    } as unknown as Parameters<typeof ensurePeakRuleSatisfied>[0]["db"];
+    await ensurePeakRuleSatisfied({
+      db: dbThrows,
+      arenaId: "a1",
+      courtId: "q1",
+      dateKey: "2030-01-05",
+      peakRules: [],
+      courtData: undefined,
+      arenaFallback: null,
+      selectionStartTimes: ["20:00"],
+    });
+  });
+
+  it("violação lança HttpsError com mensagem exata", async () => {
+    const docs = [] as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const db = {
+      collection: () => ({
+        where: () => ({
+          get: async () => ({docs}),
+        }),
+      }),
+    } as unknown as Parameters<typeof ensurePeakRuleSatisfied>[0]["db"];
+    await assert.rejects(
+      () => ensurePeakRuleSatisfied({
+        db,
+        arenaId: "a1",
+        courtId: "q1",
+        dateKey: "2030-01-05",
+        peakRules: [rule({minDurationMinutes: 120})],
+        courtData: {basePricePerHourReais: 100},
+        arenaFallback: null,
+        selectionStartTimes: ["20:00"],
+      }),
+      (err: Error) => {
+        assert.equal(err.message, "Este horário exige reserva mínima de 2h. Inclua uma hora vizinha para confirmar.");
+        return true;
+      },
+    );
+  });
+
+  it("seleção cumprindo mínimo: resolves", async () => {
+    const docs = [] as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const db = {
+      collection: () => ({
+        where: () => ({
+          get: async () => ({docs}),
+        }),
+      }),
+    } as unknown as Parameters<typeof ensurePeakRuleSatisfied>[0]["db"];
+    await ensurePeakRuleSatisfied({
+      db,
+      arenaId: "a1",
+      courtId: "q1",
+      dateKey: "2030-01-05",
+      peakRules: [rule({minDurationMinutes: 120})],
+      courtData: {basePricePerHourReais: 100},
+      arenaFallback: null,
+      selectionStartTimes: ["20:00", "21:00"],
+    });
+  });
+
+  it("vizinhas bloqueadas: avulso resolves", async () => {
+    const docs = [
+      {
+        data: () => ({
+          arenaId: "a1",
+          courtId: "q1",
+          dateKey: "2030-01-05",
+          startTime: "19:00",
+          endTime: "20:00",
+          status: "booked",
+        }),
+      },
+      {
+        data: () => ({
+          arenaId: "a1",
+          courtId: "q1",
+          dateKey: "2030-01-05",
+          startTime: "21:00",
+          endTime: "22:00",
+          status: "booked",
+        }),
+      },
+    ] as unknown as Parameters<typeof parsePeakRulesFromDocs>[0];
+    const db = {
+      collection: () => ({
+        where: () => ({
+          get: async () => ({docs}),
+        }),
+      }),
+    } as unknown as Parameters<typeof ensurePeakRuleSatisfied>[0]["db"];
+    await ensurePeakRuleSatisfied({
+      db,
+      arenaId: "a1",
+      courtId: "q1",
+      dateKey: "2030-01-05",
+      peakRules: [rule({minDurationMinutes: 120})],
+      courtData: {basePricePerHourReais: 100},
+      arenaFallback: null,
+      selectionStartTimes: ["20:00"],
+    });
   });
 });

@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "start:athlete"],
       "port": 4200
+    },
+    {
+      "name": "athlete-live",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ng", "serve", "athlete", "--port", "4310"],
+      "port": 4310
+    },
+    {
+      "name": "organizer-live",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ng", "serve", "organizer", "--port", "4311"],
+      "port": 4311
     }
   ]
 }

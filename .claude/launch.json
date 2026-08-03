@@ -4,26 +4,84 @@
     {
       "name": "athlete",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "start:athlete", "--", "--port", "4211"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "start:athlete",
+        "--",
+        "--port",
+        "4211"
+      ],
       "port": 4211
     },
     {
       "name": "site",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend/projects/site", "run", "dev", "--", "--port", "3999"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend/projects/site",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3999"
+      ],
       "port": 3999
     },
     {
       "name": "arena",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "start:arena", "--", "--port", "4212"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "start:arena",
+        "--",
+        "--port",
+        "4212"
+      ],
       "port": 4212
     },
     {
       "name": "proto",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "/private/tmp/claude-501/-Users-silviodionizio-Documents-projects-volley-nexago-frontend-projects-athlete--claude-worktrees-athlete-avatar-sidebar-navtop-7d6309/425e03d2-7de4-4780-898a-9f02ffdd3ee6/scratchpad/proto", "-l", "4399"],
+      "runtimeArgs": [
+        "--yes",
+        "serve",
+        "/private/tmp/claude-501/-Users-silviodionizio-Documents-projects-volley-nexago-frontend-projects-athlete--claude-worktrees-athlete-avatar-sidebar-navtop-7d6309/425e03d2-7de4-4780-898a-9f02ffdd3ee6/scratchpad/proto",
+        "-l",
+        "4399"
+      ],
       "port": 4399
+    },
+    {
+      "name": "athlete-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "start:athlete",
+        "--",
+        "--port",
+        "4310"
+      ],
+      "port": 4310
+    },
+    {
+      "name": "organizer-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "start:organizer",
+        "--",
+        "--port",
+        "4311"
+      ],
+      "port": 4311
     }
   ]
 }

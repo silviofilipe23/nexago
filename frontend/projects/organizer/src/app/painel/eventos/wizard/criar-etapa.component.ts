@@ -22,6 +22,8 @@ import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 type Step = 1 | 2 | 3;
 
 const TITLES = ['', 'Liga e local', 'Inscrições', 'Publicar a etapa'];
+/** Rótulos curtos do stepper — mesma ordem dos passos, sem o índice 0 de `TITLES`. */
+const STEP_LABELS = ['Liga e local', 'Inscrições', 'Publicar'];
 const SUBTITLES = [
   '',
   'Escolha o circuito e onde a etapa acontece — categorias, formato e ranking vêm da liga.',
@@ -71,8 +73,9 @@ function inputToDate(v: string): Date | null {
     } @else {
       <og-wizard-shell
         flow="Nova etapa"
-        [total]="3"
+        [steps]="stepLabels"
         [step]="step()"
+        [unlockedUpTo]="maxStepReached()"
         [title]="titles[step()]!"
         [subtitle]="subtitles[step()]!"
         [ctaLabel]="step() === 3 ? 'Publicar etapa' : 'Continuar'"
@@ -84,6 +87,7 @@ function inputToDate(v: string): Date | null {
         [showDraft]="false"
         (cta)="onCta()"
         (back)="onBack()"
+        (stepSelected)="goToStep($event)"
       >
         @if (feedback(); as fb) {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
@@ -199,8 +203,11 @@ export class CriarEtapaComponent {
 
   protected readonly titles = TITLES;
   protected readonly subtitles = SUBTITLES;
+  protected readonly stepLabels = STEP_LABELS;
 
   protected readonly step = signal<Step>(1);
+  /** Passo mais avançado já alcançado (1-based) — limita o clique direto no stepper. */
+  protected readonly maxStepReached = signal(1);
   protected readonly saving = signal(false);
   protected readonly loadingLeagues = signal(true);
   protected readonly leagues = signal<League[]>([]);
@@ -289,14 +296,26 @@ export class CriarEtapaComponent {
         this.feedback.set({ ok: false, message: 'Preencha local e data de início da etapa.' });
         return;
       }
-      this.step.set(2);
+      this.goTo(2);
       return;
     }
     if (s === 2) {
-      this.step.set(3);
+      this.goTo(3);
       return;
     }
     void this.publish();
+  }
+
+  private goTo(s: Step): void {
+    this.step.set(s);
+    this.maxStepReached.update((m) => Math.max(m, s));
+  }
+
+  /** Pulo direto pelo stepper — só chega aqui pra passo já alcançado, que já passou pela validação. */
+  protected goToStep(n: number): void {
+    if (n === this.step()) return;
+    this.feedback.set(null);
+    this.step.set(n as Step);
   }
 
   protected onBack(): void {

@@ -61,6 +61,18 @@ const STEP_TITLE: Record<TournamentCreateStep, string> = {
   review: 'Tudo pronto?',
 };
 
+/** Rótulos curtos do stepper — o array segue a ordem de `TOURNAMENT_CREATE_STEPS`. */
+const STEP_LABEL: Record<TournamentCreateStep, string> = {
+  identity: 'Identidade',
+  location: 'Local',
+  categories: 'Categorias',
+  registration: 'Inscrições',
+  rules: 'Premiação',
+  review: 'Revisão',
+};
+
+const STEP_LABELS = TOURNAMENT_CREATE_STEPS.map((s) => STEP_LABEL[s]);
+
 const STEP_SUBTITLE: Record<TournamentCreateStep, string> = {
   identity: 'O básico que aparece para os atletas na busca.',
   location: 'Onde e quando o torneio acontece.',
@@ -138,8 +150,9 @@ function inputToDatetime(v: string): Date | null {
     } @else {
       <og-wizard-shell
         [flow]="flow()"
-        [total]="6"
+        [steps]="stepLabels"
         [step]="stepNumber()"
+        [unlockedUpTo]="unlockedUpTo()"
         [title]="title()"
         [subtitle]="subtitle()"
         [ctaLabel]="ctaLabel()"
@@ -151,6 +164,7 @@ function inputToDatetime(v: string): Date | null {
         (cta)="onCta()"
         (back)="onBack()"
         (saveDraft)="saveDraft()"
+        (stepSelected)="goToStep($event)"
       >
         @if (feedback(); as fb) {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
@@ -583,6 +597,10 @@ export class CriarTorneioComponent {
 
   protected readonly draft = signal<TournamentCreateDraft>(emptyTournamentDraft());
   protected readonly step = signal<TournamentCreateStep>('identity');
+  /** Passo mais avançado já alcançado (1-based) — limita o clique direto na criação. */
+  private readonly maxStepReached = signal(1);
+  /** A tela abriu por `?editar=` e o doc carregou — libera o stepper inteiro. */
+  private readonly editEntry = signal(false);
   protected readonly subView = signal<SubView>(null);
   protected readonly saving = signal(false);
   /** Carga do doc no modo edição (`?editar=`) — sem isso o form pisca vazio até popular. */
@@ -627,7 +645,17 @@ export class CriarTorneioComponent {
 
   protected readonly skillOptions = computed(() => skillLevelOptionsForSport(this.draft().sport).map((s) => SKILL_LEVEL_LABEL[s]));
 
+  protected readonly stepLabels = STEP_LABELS;
+
   protected readonly stepNumber = computed(() => TOURNAMENT_CREATE_STEPS.indexOf(this.step()) + 1);
+
+  /** Editando um torneio existente todos os passos já têm conteúdo, então liberam de cara.
+   *  Criando do zero, só até onde o organizador já chegou — e nas subviews (categoria/premiação)
+   *  o stepper trava, porque ali o cabeçalho descreve a subview, não o passo. */
+  protected readonly unlockedUpTo = computed(() => {
+    if (this.subView() !== null) return 0;
+    return this.editEntry() ? TOURNAMENT_CREATE_STEPS.length : this.maxStepReached();
+  });
 
   protected readonly isEdit = computed(() => this.draft().tournamentId != null);
 
@@ -693,6 +721,7 @@ export class CriarTorneioComponent {
       console.log('[DEBUG torneio loadForEdit] doc carregado:', { city: loaded.draft.city, state: loaded.draft.state, existingListingStatus: loaded.existingListingStatus });
       this.draft.set(loaded.draft);
       this.existingListingStatus = loaded.existingListingStatus;
+      this.editEntry.set(true);
     } finally {
       this.editLoading.set(false);
     }
@@ -910,6 +939,16 @@ export class CriarTorneioComponent {
     }
     const idx = TOURNAMENT_CREATE_STEPS.indexOf(current);
     this.step.set(TOURNAMENT_CREATE_STEPS[idx + 1]!);
+    this.maxStepReached.update((m) => Math.max(m, idx + 2));
+  }
+
+  /** Pulo direto pelo stepper. Não revalida: os passos liberados ou já passaram por
+   *  `canContinueFromStep` (criação) ou vêm de um torneio existente (edição). */
+  protected goToStep(n: number): void {
+    const target = TOURNAMENT_CREATE_STEPS[n - 1];
+    if (!target || target === this.step()) return;
+    this.feedback.set(null);
+    this.step.set(target);
   }
 
   protected onBack(): void {

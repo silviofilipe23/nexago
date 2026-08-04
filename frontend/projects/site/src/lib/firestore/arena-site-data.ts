@@ -150,10 +150,56 @@ export interface ArenaSiteTournament {
   dateLabel: string;
   startAt: Date | null;
   listingStatus: string;
+  /** Pôster do torneio (card grande da seção Torneios). */
+  coverUrl: string | null;
+  description: string;
+  /** "3 categorias" ou o nome quando só há uma. Vazio se o doc não trouxer. */
+  categoriesLabel: string;
+  /** "Premiação R$ 1.000" quando o torneio publica prêmio. Vazio se não houver. */
+  prizeLabel: string;
 }
 
 function toDate(value: unknown): Date | null {
   return value instanceof Timestamp ? value.toDate() : null;
+}
+
+/** `prizes[]` no torneio ou dentro de `categories[]`. No volley-track, `value`
+ *  é gravado como string ("2000" ou "R$ 2.000,00") — só formata quando dá para
+ *  ler um número; senão devolve o texto como veio. */
+function prizeLabel(data: DocumentData): string {
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const lists = [data.prizes, ...categories.map((c: DocumentData) => c?.prizes)];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const raw = (item as DocumentData).value;
+      const text = typeof raw === 'number' ? String(raw) : str(raw).trim();
+      if (!text) continue;
+      const digits = text.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.');
+      const amount = Number(digits);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      return `Premiação ${amount.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })}`;
+    }
+  }
+  return '';
+}
+
+function categoriesLabel(data: DocumentData): string {
+  const categories = (Array.isArray(data.categories) ? data.categories : []).filter(
+    (c: unknown): c is DocumentData => !!c && typeof c === 'object',
+  );
+  if (categories.length === 0) return '';
+  if (categories.length === 1) {
+    const name = str(categories[0].categoryName) || str(categories[0].name);
+    if (name) return name;
+  }
+  return `${categories.length} categorias`;
 }
 
 /** Próximos torneios com a arena como sede. Sem `orderBy` na query (evita exigir
@@ -175,6 +221,10 @@ export async function getArenaUpcomingTournaments(arenaId: string, max = 4): Pro
           listingStatus: str(data.listingStatus),
           visibility: str(data.visibility),
           endAt: toDate(data.endAt),
+          coverUrl: str(data.coverUrl) || str(data.imageUrl) || null,
+          description: str(data.description),
+          categoriesLabel: categoriesLabel(data),
+          prizeLabel: prizeLabel(data),
         };
       })
       .filter((t) => t.name && t.visibility === 'publicListing')
@@ -185,8 +235,9 @@ export async function getArenaUpcomingTournaments(arenaId: string, max = 4): Pro
       })
       .sort((a, b) => (a.startAt?.getTime() ?? 0) - (b.startAt?.getTime() ?? 0))
       .slice(0, max)
-      .map(({ id, name, sport, dateLabel, startAt, listingStatus }) => ({
+      .map(({ id, name, sport, dateLabel, startAt, listingStatus, coverUrl, description, categoriesLabel: cats, prizeLabel: prize }) => ({
         id, name, sport, dateLabel, startAt, listingStatus,
+        coverUrl, description, categoriesLabel: cats, prizeLabel: prize,
       }));
   } catch {
     return [];

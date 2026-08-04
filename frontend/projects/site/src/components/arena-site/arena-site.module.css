@@ -1,65 +1,169 @@
-/* Mini-site público da arena (template clay-v1, dark-first).
-   A cor de destaque vem do catálogo fechado via `--arena-accent` (inline no <main>). */
+/* Mini-site público da arena — template "premium" (protótipo Meu Site · nexaGO).
+ *
+ * A página é dark-first e NÃO acompanha o data-theme do site institucional: o
+ * template foi desenhado sobre o preto #050505 (scrim do hero, tints do accent,
+ * mapa) e é a marca da arena, não a do nexaGO. Por isso a paleta é local, não
+ * os tokens globais que invertem no tema claro.
+ *
+ * A cor de destaque vem do catálogo fechado via `--arena-accent` (inline no <main>).
+ */
 
 .page {
+  --bg: #050505;
+  --s0: #0b0b0c;
+  --s1: #131316;
+  --s2: #1b1b1f;
+  --line: rgba(255, 255, 255, 0.08);
+  --line2: rgba(255, 255, 255, 0.14);
+  --text: #f4f4f5;
+  --mute: rgba(244, 244, 245, 0.62);
+  /* 0.55 (e não os 0.40 do protótipo) mantém ≥4.5:1 em texto pequeno sobre as
+     superfícies escuras — mesma correção já aplicada aos tokens globais. */
+  --dim: rgba(244, 244, 245, 0.55);
+  --ac: var(--arena-accent);
+  --on-ac: #0a0a0a;
+  --ac-tint: color-mix(in oklab, var(--ac) 12%, transparent);
+  --ac-line: color-mix(in oklab, var(--ac) 32%, transparent);
+  --ac-soft: color-mix(in oklab, var(--ac) 75%, white);
+  --maxw: 1160px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
   min-height: 100dvh;
-  background: var(--color-bg);
-  color: var(--color-fg);
-  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  overflow-x: clip;
+}
+
+.page a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.page img {
+  display: block;
+  max-width: 100%;
+}
+
+.wrap {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ac);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.kicker::before {
+  content: '';
+  width: 22px;
+  height: 2px;
+  background: var(--ac);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.kickerCenter {
+  composes: kicker;
+  justify-content: center;
+}
+
+.secTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(30px, 4vw, 42px);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 14px 0 0;
+  /* A nav fixa não pode cobrir o título ao navegar por âncora. */
+  scroll-margin-top: 84px;
+}
+
+.secSub {
+  color: var(--mute);
+  font-size: 16.5px;
+  max-width: 560px;
+  margin: 14px 0 0;
+}
+
+.block {
+  padding: 104px 0 0;
+  scroll-margin-top: 68px;
 }
 
 /* ── Nav fixa ─────────────────────────────────────────── */
 
 .nav {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 24px;
-  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--color-line);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border-bottom: 1px solid transparent;
+  transition: background 0.3s, border-color 0.3s;
 }
 
-.navBrand {
+.navScrolled {
+  background: rgba(5, 5, 5, 0.82);
+  border-bottom-color: var(--line);
+}
+
+/* O blur da nav e do card do mapa é aplicado por style inline no componente:
+   o compilador de CSS do Next descarta `backdrop-filter` declarado em CSS
+   Module (a regra sai vazia no bundle), inclusive dentro de @supports. */
+
+.navIn {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 32px;
+  height: 68px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: var(--color-fg);
+  gap: 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15.5px;
   min-width: 0;
 }
 
-.navLogo {
-  border-radius: 50%;
+.brandMark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--ac), color-mix(in oklab, var(--ac) 60%, #000));
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--on-ac);
+  flex-shrink: 0;
+}
+
+.brandLogo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   object-fit: cover;
   flex-shrink: 0;
 }
 
-.navLogoFallback {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--arena-accent);
-  color: #0a0a0a;
-  font-weight: 700;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.navName {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 15px;
+.brandName {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -68,99 +172,99 @@
 .navLinks {
   display: flex;
   gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  margin-left: auto;
 }
 
-.navLinks::-webkit-scrollbar {
-  display: none;
+.navLinks a {
+  font-size: 13.5px;
+  color: var(--mute);
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
 }
 
-.navLink {
-  font-size: 13px;
-  color: var(--color-text-mute);
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-  transition: color var(--motion-fast) var(--ease-out);
-}
-
-.navLink:hover {
-  color: var(--arena-accent);
+.navLinks a:hover,
+.navLinks a:focus-visible {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .navCta {
-  flex-shrink: 0;
-  background: var(--arena-accent);
-  color: #0a0a0a;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 8px 16px;
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-  transition: filter var(--motion-fast) var(--ease-out);
+  margin-left: auto;
 }
 
-.navCta:hover {
-  filter: brightness(1.06);
+.navLinks + .navCta {
+  margin-left: 0;
 }
 
-/* ── Badges do hero (dados ao vivo) ───────────────────── */
+/* ── Botões ───────────────────────────────────────────── */
 
-.heroBadges {
-  margin-top: 26px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.heroBadge,
-.openBadge,
-.closedBadge {
+.btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14.5px;
+  height: 50px;
+  padding: 0 26px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: transform 0.18s var(--ease), box-shadow 0.18s, background 0.18s, border-color 0.18s;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btnAc {
+  composes: btn;
+  background: var(--ac);
+  color: var(--on-ac);
+}
+
+.btnAc:hover {
+  box-shadow: 0 10px 32px -8px color-mix(in oklab, var(--ac) 55%, transparent);
+  color: var(--on-ac);
+}
+
+.btnGhost {
+  composes: btn;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line2);
+  color: var(--text);
+}
+
+.btnGhost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.btnSm {
+  height: 40px;
+  padding: 0 18px;
   font-size: 13px;
-  color: var(--color-text-mute);
-  border: 1px solid var(--color-line-strong);
-  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
-  backdrop-filter: blur(6px);
-  padding: 7px 13px;
-  border-radius: var(--radius-pill);
-}
-
-.openBadge {
-  color: var(--color-win);
-  border-color: color-mix(in srgb, var(--color-win) 45%, transparent);
-}
-
-.closedBadge {
-  color: var(--color-text-dim);
-}
-
-.openDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
+  border-radius: 10px;
 }
 
 /* ── Hero ─────────────────────────────────────────────── */
 
 .hero {
   position: relative;
-  min-height: 72dvh;
+  min-height: 92dvh;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
   overflow: hidden;
 }
 
 .heroBg {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
@@ -168,678 +272,921 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(80% 60% at 20% 30%, color-mix(in srgb, var(--arena-accent) 26%, transparent), transparent 70%),
-    radial-gradient(60% 50% at 85% 20%, color-mix(in srgb, var(--arena-accent) 12%, transparent), transparent 70%),
-    var(--color-surface-0);
+    radial-gradient(80% 60% at 20% 30%, color-mix(in oklab, var(--ac) 26%, transparent), transparent 70%),
+    radial-gradient(60% 50% at 85% 20%, color-mix(in oklab, var(--ac) 12%, transparent), transparent 70%),
+    var(--s0);
 }
 
-.heroShade {
+.heroScrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, var(--color-bg) 4%, rgba(5, 5, 5, 0.55) 45%, rgba(5, 5, 5, 0.25));
+  background: linear-gradient(
+    180deg,
+    rgba(5, 5, 5, 0.55) 0%,
+    rgba(5, 5, 5, 0.25) 40%,
+    rgba(5, 5, 5, 0.92) 88%,
+    #050505 100%
+  );
+  pointer-events: none;
 }
 
-.heroInner {
+.heroGlow {
+  position: absolute;
+  left: -10%;
+  bottom: -30%;
+  width: 70%;
+  height: 80%;
+  background: radial-gradient(closest-side, var(--ac-tint), transparent 70%);
+  pointer-events: none;
+}
+
+.heroIn {
   position: relative;
-  width: 100%;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 96px 24px 64px;
-}
-
-.kicker {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--arena-accent);
-  margin-bottom: 14px;
+  padding-top: 150px;
 }
 
 .headline {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(34px, 6.5vw, 64px);
-  line-height: 1.04;
-  letter-spacing: -0.02em;
-  margin: 0;
-  max-width: 18ch;
+  font-weight: 800;
+  font-size: clamp(44px, 7vw, 84px);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  margin: 20px 0 0;
+  max-width: 14ch;
 }
 
-.tagline {
-  margin-top: 16px;
-  font-size: clamp(15px, 2.2vw, 18px);
-  line-height: 1.55;
-  color: var(--color-text-mute);
-  max-width: 52ch;
+.heroSub {
+  font-size: clamp(16px, 1.6vw, 19px);
+  color: var(--mute);
+  max-width: 520px;
+  margin: 22px 0 0;
 }
 
-.heroActions {
-  margin-top: 28px;
+.heroCta {
   display: flex;
-  gap: 12px;
+  gap: 14px;
+  margin: 34px 0 0;
   flex-wrap: wrap;
 }
 
-.cta {
-  display: inline-flex;
+.heroStrip {
+  position: relative;
+  margin-top: 64px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.heroStrip > div {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--arena-accent);
-  color: #0a0a0a;
+  gap: 11px;
+  padding: 22px 34px 26px 0;
+  margin-right: 34px;
+  font-size: 14px;
+  color: var(--mute);
+}
+
+.heroStrip svg {
+  color: var(--ac);
+  flex-shrink: 0;
+}
+
+.heroStrip b {
+  color: var(--text);
   font-weight: 600;
-  font-size: 15px;
-  padding: 14px 26px;
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-  transition: transform var(--motion-fast) var(--ease-out), filter var(--motion-fast) var(--ease-out);
 }
 
-.cta:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.06);
+.dotLive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ac);
+  box-shadow: 0 0 0 0 var(--ac);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
 }
 
-.ctaGhost {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--color-line-strong);
-  color: var(--color-fg);
-  font-weight: 500;
-  font-size: 15px;
-  padding: 14px 26px;
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-  transition: border-color var(--motion-fast) var(--ease-out);
+.dotOff {
+  composes: dotLive;
+  background: var(--dim);
+  animation: none;
+  box-shadow: none;
 }
 
-.ctaGhost:hover {
-  border-color: var(--arena-accent);
-}
-
-/* ── Seções ───────────────────────────────────────────── */
-
-.section {
-  width: 100%;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 72px 24px 0;
-}
-
-.sectionTitle {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(24px, 3.4vw, 32px);
-  letter-spacing: -0.01em;
-  margin: 0 0 8px;
-  /* A nav sticky não pode cobrir o título ao navegar por âncora. */
-  scroll-margin-top: 72px;
-}
-
-.sectionRule {
-  width: 44px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--arena-accent);
-  margin-bottom: 24px;
-}
-
-.aboutGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 32px;
-  align-items: start;
-}
-
-@media (max-width: 720px) {
-  .aboutGrid {
-    grid-template-columns: 1fr;
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--ac) 50%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
-.aboutBody {
-  font-size: 16px;
-  line-height: 1.7;
-  color: var(--color-text-mute);
-  white-space: pre-line;
-  margin: 0;
+@media (prefers-reduced-motion: reduce) {
+  .dotLive {
+    animation: none;
+  }
 }
 
-.aboutImages {
+/* ── Sobre ────────────────────────────────────────────── */
+
+.sobreGrid {
   display: grid;
-  gap: 12px;
-}
-
-.statsRow {
+  grid-template-columns: 1fr 1.05fr;
+  gap: 64px;
+  align-items: center;
   margin-top: 26px;
-  display: flex;
-  gap: 28px;
-  flex-wrap: wrap;
 }
 
-.statItem {
-  min-width: 90px;
+/* Sem fotos no "sobre" o texto ocupa a largura toda em vez de deixar
+   metade da seção vazia. */
+.sobreGridSolo {
+  composes: sobreGrid;
+  grid-template-columns: 1fr;
 }
 
-.statValue {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 30px;
-  letter-spacing: -0.01em;
-  color: var(--arena-accent);
-  line-height: 1.1;
+.sobreCopy p {
+  color: var(--mute);
+  font-size: 16.5px;
+  margin: 0 0 18px;
 }
 
-.statLabel {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--color-text-mute);
+.sobreBody {
+  white-space: pre-line;
 }
 
-/* ── Estrutura (amenidades do cadastro) ───────────────── */
-
-.amenityGrid {
+.sobreFacts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-top: 30px;
 }
 
-.amenityCard {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-3);
-  padding: 16px;
+.sobreFacts > div {
+  background: var(--s0);
+  padding: 18px 20px;
 }
 
-.amenityIcon {
-  color: var(--arena-accent);
-  display: inline-flex;
-  flex-shrink: 0;
-  margin-top: 2px;
+.sobreFacts b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.02em;
 }
 
-.amenityLabel {
-  font-size: 14px;
-  font-weight: 600;
+.sobreFacts span {
+  font-size: 12.5px;
+  color: var(--dim);
 }
 
-.amenityHint {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--color-text-dim);
+.sobreMedia {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 220px;
+  gap: 14px;
 }
 
-.aboutImg {
+.sobreMedia .ph:first-child:nth-last-child(3) {
+  grid-column: 1 / -1;
+}
+
+.sobreMedia .ph:only-child {
+  grid-column: 1 / -1;
+}
+
+.ph {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--s1);
+}
+
+.ph img {
   width: 100%;
-  height: auto;
-  border-radius: var(--radius-4);
-  border: 1px solid var(--color-line);
+  height: 100%;
   object-fit: cover;
 }
 
-/* ── Horários (dados ao vivo) ─────────────────────────── */
+/* ── Estrutura ────────────────────────────────────────── */
 
-.scheduleList {
-  margin: 0;
-  max-width: 480px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-3);
-  background: var(--color-surface-0);
-  overflow: hidden;
+.amenGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 44px;
 }
 
-.scheduleRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--color-line);
+.amen {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px 22px;
+  transition: border-color 0.2s, transform 0.2s var(--ease);
 }
 
-.scheduleRow:last-child {
-  border-bottom: none;
+.amen:hover {
+  border-color: var(--ac-line);
+  transform: translateY(-3px);
 }
 
-.scheduleRowToday {
-  composes: scheduleRow;
-  background: color-mix(in srgb, var(--arena-accent) 7%, transparent);
+.amenIcon {
+  color: var(--ac);
+  background: var(--ac-tint);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
 }
 
-.todayTag {
-  margin-left: 8px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--arena-accent);
-  border: 1px solid color-mix(in srgb, var(--arena-accent) 50%, transparent);
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
-}
-
-.scheduleDay {
-  font-size: 14px;
-  color: var(--color-text-mute);
-}
-
-.scheduleHours {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--color-fg);
-}
-
-.scheduleClosed {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--color-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-/* ── Torneios (dados ao vivo) ─────────────────────────── */
-
-.eventList {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 640px;
-}
-
-.eventCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-3);
-  padding: 16px 18px;
-  text-decoration: none;
-  color: var(--color-fg);
-  transition: border-color var(--motion-fast) var(--ease-out);
-}
-
-.eventCard:hover {
-  border-color: var(--arena-accent);
-}
-
-.eventName {
-  font-weight: 600;
+.amen b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 15px;
+  margin-top: 16px;
 }
 
-.eventMeta {
-  margin-top: 4px;
+.amen span:last-child {
+  display: block;
   font-size: 13px;
-  color: var(--color-text-mute);
+  color: var(--dim);
+  margin-top: 4px;
 }
 
-.eventBadge,
-.eventBadgeOpen {
-  flex-shrink: 0;
+/* ── Horários ─────────────────────────────────────────── */
+
+.hoursWrap {
+  display: grid;
+  grid-template-columns: 0.9fr 1.4fr;
+  gap: 64px;
+  margin-top: 44px;
+  align-items: start;
+}
+
+.hoursNote {
+  color: var(--mute);
+  font-size: 15.5px;
+  margin-top: 16px;
+}
+
+.openPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--ac-tint);
+  border: 1px solid var(--ac-line);
+  color: var(--ac-soft);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  padding: 9px 16px;
+  border-radius: 99px;
+  margin-top: 20px;
+}
+
+.openPillClosed {
+  composes: openPill;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line2);
+  color: var(--mute);
+}
+
+.hoursCard {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 0;
+}
+
+.hoursRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 26px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14.5px;
+}
+
+.hoursRow:last-child {
+  border-bottom: 0;
+}
+
+.hoursRowToday {
+  composes: hoursRow;
+  background: var(--ac-tint);
+  position: relative;
+}
+
+.hoursRowToday::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--ac);
+}
+
+.hoursDay {
+  color: var(--mute);
+  display: flex;
+  align-items: center;
+}
+
+.hoursRowToday .hoursDay {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hoursTime {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+}
+
+.hoursClosed {
+  composes: hoursTime;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hoursTag {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 5px 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-line-strong);
-  color: var(--color-text-mute);
-}
-
-.eventBadgeOpen {
-  border-color: color-mix(in srgb, var(--arena-accent) 55%, transparent);
-  color: var(--arena-accent);
+  letter-spacing: 0.14em;
+  color: var(--ac);
+  border: 1px solid var(--ac-line);
+  padding: 3px 9px;
+  border-radius: 99px;
+  margin-left: 12px;
 }
 
 /* ── Galeria ──────────────────────────────────────────── */
 
-.galleryGrid {
+.galGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 200px;
+  gap: 14px;
+  margin-top: 44px;
 }
 
-.galleryImg,
-.galleryImgLead {
-  width: 100%;
-  height: 100%;
-  min-height: 180px;
-  object-fit: cover;
-  border-radius: var(--radius-3);
-  border: 1px solid var(--color-line);
-}
-
-.galleryImgLead {
+.galA {
   grid-column: span 2;
   grid-row: span 2;
 }
 
-@media (max-width: 560px) {
-  .galleryImgLead {
-    grid-column: span 1;
-    grid-row: span 1;
-  }
+.galB {
+  grid-column: span 2;
+}
+
+/* Grades pequenas: mantêm a linha cheia em vez de deixar buracos na grade de 4. */
+.galFull {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+
+.galHalf {
+  grid-column: span 2;
+  grid-row: span 2;
 }
 
 /* ── Planos ───────────────────────────────────────────── */
 
-.planGrid {
+.plans {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  align-items: start;
+  grid-template-columns: repeat(var(--plan-cols, 3), 1fr);
+  gap: 18px;
+  margin-top: 44px;
 }
 
-.planCard,
-.planCardFeatured {
-  position: relative;
+.plan {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 32px 30px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-4);
-  padding: 22px 20px;
+  position: relative;
 }
 
-.planCardFeatured {
-  border-color: color-mix(in srgb, var(--arena-accent) 60%, transparent);
-  background: color-mix(in srgb, var(--arena-accent) 6%, var(--color-surface-1));
+.planFeat {
+  composes: plan;
+  border-color: var(--ac-line);
+  background: linear-gradient(180deg, var(--ac-tint), var(--s0) 55%);
 }
 
-.planBadge {
+.planFlag {
   position: absolute;
-  top: -10px;
-  left: 18px;
-  background: var(--arena-accent);
-  color: #0a0a0a;
+  top: -13px;
+  left: 28px;
+  background: var(--ac);
+  color: var(--on-ac);
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
   font-weight: 600;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
+  padding: 6px 13px;
+  border-radius: 99px;
 }
 
 .planName {
   font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--color-text-mute);
+  color: var(--mute);
 }
 
 .planPrice {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 26px;
-  letter-spacing: -0.01em;
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+  margin-top: 14px;
 }
 
-.planFeatures {
+.planPriceUnit {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--dim);
+  letter-spacing: 0;
+}
+
+.planList {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 22px 0 28px;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 11px;
+  flex: 1;
 }
 
-.planFeature {
+.planItem {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
   font-size: 14px;
-  line-height: 1.45;
-  color: var(--color-text-mute);
+  color: var(--mute);
 }
 
-.planFeature svg {
-  color: var(--arena-accent);
+.planItem svg {
+  color: var(--ac);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
-.planCta {
-  margin-top: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--arena-accent) 55%, transparent);
-  color: var(--arena-accent);
-  font-weight: 500;
-  font-size: 14px;
-  padding: 10px 16px;
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-  transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
-}
+/* ── Torneios ─────────────────────────────────────────── */
 
-.planCta:hover {
-  background: var(--arena-accent);
-  color: #0a0a0a;
-}
-
-/* ── FAQ ──────────────────────────────────────────────── */
-
-.faqList {
+.copaList {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-width: 640px;
+  gap: 18px;
 }
 
-.faqItem {
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-3);
-  padding: 0 18px;
+.copa {
+  margin-top: 44px;
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s var(--ease);
 }
 
-.faqItem[open] {
-  border-color: color-mix(in srgb, var(--arena-accent) 40%, transparent);
+.copaList .copa {
+  margin-top: 0;
 }
 
-.faqQuestion {
-  cursor: pointer;
-  list-style: none;
-  font-size: 15px;
-  font-weight: 500;
-  padding: 16px 0;
-  position: relative;
-  padding-right: 28px;
+/* Torneio sem pôster: o card vira só o corpo, sem painel vazio ao lado. */
+.copaNoCover {
+  composes: copa;
+  grid-template-columns: 1fr;
 }
 
-.faqQuestion::-webkit-details-marker {
-  display: none;
+a.copa:hover {
+  border-color: var(--ac-line);
+  transform: translateY(-3px);
 }
 
-.faqQuestion::after {
-  content: '+';
-  position: absolute;
-  right: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--arena-accent);
-  font-size: 18px;
-  font-weight: 400;
+.copaPh {
+  composes: ph;
+  border: 0;
+  border-radius: 0;
+  min-height: 320px;
 }
 
-.faqItem[open] .faqQuestion::after {
-  content: '–';
+.copaBody {
+  padding: 44px 46px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
 }
 
-.faqAnswer {
-  margin: 0;
-  padding: 0 0 16px;
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--color-text-mute);
-  white-space: pre-line;
+.copaTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 14px 0 0;
 }
 
-/* ── Avaliações (dados ao vivo) ───────────────────────── */
+.copaBody p {
+  color: var(--mute);
+  font-size: 15.5px;
+  margin: 14px 0 0;
+  max-width: 44ch;
+}
+
+.copaMeta {
+  display: flex;
+  gap: 26px;
+  margin: 22px 0 28px;
+  flex-wrap: wrap;
+}
+
+.copaMeta div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--mute);
+}
+
+.copaMeta svg {
+  color: var(--ac);
+  flex-shrink: 0;
+}
+
+/* ── Avaliações ───────────────────────────────────────── */
 
 .reviewsSummary {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
+  margin-top: 30px;
 }
 
 .reviewsScore {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 34px;
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
 .stars {
   display: inline-flex;
   gap: 2px;
-  color: var(--arena-accent);
+  color: var(--ac);
 }
 
 .reviewsCount {
   font-size: 14px;
-  color: var(--color-text-mute);
+  color: var(--mute);
 }
 
 .reviewList {
-  margin-top: 20px;
+  margin-top: 24px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
 }
 
 .reviewCard {
   margin: 0;
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-3);
-  padding: 18px;
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px 22px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .reviewText {
   margin: 0;
-  font-size: 14px;
+  font-size: 14.5px;
   line-height: 1.6;
-  color: var(--color-fg);
+  color: var(--text);
 }
 
 .reviewAuthor {
-  font-size: 12px;
-  color: var(--color-text-dim);
+  font-size: 12.5px;
+  color: var(--dim);
 }
 
-/* ── Contato ──────────────────────────────────────────── */
+/* ── FAQ ──────────────────────────────────────────────── */
+
+.faq {
+  max-width: 760px;
+  margin: 44px auto 0;
+}
+
+.faqItem {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--s0);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.faqSummary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15.5px;
+  cursor: pointer;
+}
+
+.faqSummary::-webkit-details-marker {
+  display: none;
+}
+
+.faqSummary svg {
+  color: var(--ac);
+  flex-shrink: 0;
+  transition: transform 0.25s var(--ease);
+}
+
+.faqItem[open] .faqSummary svg {
+  transform: rotate(45deg);
+}
+
+.faqAnswer {
+  padding: 0 26px 22px;
+  color: var(--mute);
+  font-size: 14.5px;
+  max-width: 60ch;
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* ── Contato + mapa ───────────────────────────────────── */
 
 .contactGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: 0.9fr 1.3fr;
+  gap: 18px;
+  margin-top: 44px;
+}
+
+.cCards {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.contactLabel {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
-  margin-bottom: 4px;
+.cCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  transition: border-color 0.2s, transform 0.2s var(--ease);
 }
 
-.mapWrap {
+a.cCard:hover {
+  border-color: var(--ac-line);
+  transform: translateY(-2px);
+  color: var(--text);
+}
+
+.cIcon {
+  color: var(--ac);
+  background: var(--ac-tint);
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.cCard b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 14.5px;
+}
+
+.cCard span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+.cGo {
+  margin-left: auto;
+  color: var(--dim);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.mapCard {
   position: relative;
-  margin-top: 20px;
-  border-radius: var(--radius-4);
+  border: 1px solid var(--line);
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid var(--color-line);
+  min-height: 440px;
 }
 
-.mapFrame {
-  display: block;
-  width: 100%;
-  height: 320px;
-  border: 0;
-  filter: grayscale(0.35) contrast(0.92) brightness(0.9);
-}
-
-.mapDirections {
+.mapAddr {
   position: absolute;
-  bottom: 14px;
-  right: 14px;
-  background: var(--arena-accent);
-  color: #0a0a0a;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 9px 16px;
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-}
-
-.contactItem {
+  left: 16px;
+  bottom: 16px;
+  z-index: 500;
+  background: rgba(10, 10, 11, 0.88);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  padding: 16px 18px;
   display: flex;
   align-items: center;
   gap: 14px;
-  background: var(--color-surface-1);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-3);
-  padding: 16px 18px;
-  color: var(--color-fg);
-  text-decoration: none;
-  font-size: 15px;
-  transition: border-color var(--motion-fast) var(--ease-out);
+  max-width: calc(100% - 32px);
 }
 
-a.contactItem:hover {
-  border-color: var(--arena-accent);
-}
-
-.contactIcon {
-  color: var(--arena-accent);
+.mapAddr svg {
+  color: var(--ac);
   flex-shrink: 0;
-  display: inline-flex;
+}
+
+.mapAddr b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+}
+
+.mapAddr span {
+  display: block;
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  background: var(--s1);
+}
+
+/* Pino injetado pelo divIcon do Leaflet (string de HTML) — a classe hasheada do
+   módulo é passada no componente, por isso não precisa de :global aqui. */
+.pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ac);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px var(--ac-tint), 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+/* Chrome do Leaflet: atribuição escura para não estourar sobre o tema dark. */
+.map :global(.leaflet-control-attribution) {
+  background: rgba(5, 5, 5, 0.7);
+  color: var(--dim);
+  font-size: 10px;
+}
+
+.map :global(.leaflet-control-attribution a) {
+  color: var(--mute);
 }
 
 /* ── Rodapé ───────────────────────────────────────────── */
 
 .footer {
-  margin-top: 88px;
-  border-top: 1px solid var(--color-line);
-  padding: 28px 24px 36px;
+  margin-top: 110px;
+  border-top: 1px solid var(--line);
 }
 
-.footerInner {
-  max-width: 960px;
+.footIn {
+  max-width: var(--maxw);
   margin: 0 auto;
+  padding: 30px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 20px;
   font-size: 13px;
-  color: var(--color-text-dim);
+  color: var(--dim);
 }
 
-.footerBrand {
-  color: var(--color-text-mute);
-  text-decoration: none;
-  font-weight: 500;
+.footNx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
 }
 
-.footerBrand:hover {
-  color: var(--color-brand);
+.footNx img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+
+.footIn a:hover {
+  color: var(--text);
+}
+
+/* ── Responsivo ───────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  .navLinks {
+    display: none;
+  }
+
+  .sobreGrid,
+  .hoursWrap,
+  .contactGrid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+
+  .amenGrid,
+  .reviewList {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .plans {
+    grid-template-columns: 1fr;
+  }
+
+  .copa {
+    grid-template-columns: 1fr;
+  }
+
+  .galGrid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 160px;
+  }
+
+  .galA {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
+
+  .block {
+    padding: 72px 0 0;
+  }
+
+  .copaBody {
+    padding: 32px 26px;
+  }
+}
+
+@media (max-width: 620px) {
+  .wrap,
+  .navIn,
+  .footIn {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .amenGrid,
+  .reviewList {
+    grid-template-columns: 1fr;
+  }
+
+  .sobreMedia {
+    grid-auto-rows: 170px;
+  }
+
+  .heroStrip > div {
+    padding-right: 20px;
+    margin-right: 20px;
+  }
+
+  .footIn {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 }

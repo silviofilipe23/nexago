@@ -448,7 +448,7 @@ export class TelaoScreenComponent {
     const teams = this.svc.teams();
     const streaks = this.svc.streaks();
     return courtPageOf(cfg.courtIds, this.pageIndex()).map((courtId) => {
-      const { kind, match } = courtNowOf(this.matches(), courtId, this.now());
+      const { kind, match } = courtNowOf(this.matches(), courtId, this.now(), this.svc.finishMemory());
       const streak = cfg.showStreak && match ? streaks.get(match.id) : undefined;
       return {
         court: courtById.get(courtId) ?? { id: courtId, name: courtId, order: 0 },

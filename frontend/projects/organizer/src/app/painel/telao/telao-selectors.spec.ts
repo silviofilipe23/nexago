@@ -36,6 +36,7 @@ function match(overrides: Partial<TournamentMatch>): TournamentMatch {
     currentSetIndex: null,
     servingTeamId: '',
     matchStartedAt: null,
+    matchEndedAt: null,
     ...overrides,
   };
 }
@@ -75,6 +76,27 @@ describe('telao-selectors', () => {
     it('só olha a quadra pedida', () => {
       const outra = match({ status: 'in_progress', courtId: 'Q2' });
       expect(courtNowOf([outra], 'Q1', NOW).kind).toBe('free');
+    });
+
+    it('recém-encerrada em celebração vence a próxima agendada por 30 s', () => {
+      const done = match({ id: 'done', status: 'completed' });
+      const futura = match({ id: 'futura', scheduledAt: at(10) });
+      const memory = new Map([['done', { status: 'completed' as const, endedSeenAtMs: NOW - 10_000 }]]);
+      expect(courtNowOf([done, futura], 'Q1', NOW, memory)).toEqual({ kind: 'finished', match: done });
+    });
+
+    it('celebração expira depois de 30 s → volta pra próxima agendada', () => {
+      const done = match({ id: 'done', status: 'completed' });
+      const futura = match({ id: 'futura', scheduledAt: at(10) });
+      const memory = new Map([['done', { status: 'completed' as const, endedSeenAtMs: NOW - 31_000 }]]);
+      expect(courtNowOf([done, futura], 'Q1', NOW, memory).match?.id).toBe('futura');
+    });
+
+    it('ao vivo na quadra vence a celebração (próximo jogo já começou)', () => {
+      const done = match({ id: 'done', status: 'completed' });
+      const liveM = match({ id: 'live', status: 'in_progress' });
+      const memory = new Map([['done', { status: 'completed' as const, endedSeenAtMs: NOW - 5000 }]]);
+      expect(courtNowOf([done, liveM], 'Q1', NOW, memory).kind).toBe('live');
     });
   });
 

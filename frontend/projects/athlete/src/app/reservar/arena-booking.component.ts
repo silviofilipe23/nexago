@@ -21,6 +21,7 @@ import {
   fetchArenaRangeSlotsMerged,
   fetchCourts,
   isPastSlot,
+  minimumChainContaining,
   peakBadgeMinSlots,
   peakCheckForSelection,
   slotsQueryDateKey,
@@ -33,6 +34,7 @@ import {
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxBlockingDialogComponent } from '../shared/feedback';
 import {
   MAX_HORIZON_DAYS,
   addDays,
@@ -42,6 +44,7 @@ import {
   findSlotByTime,
   shouldShowMonth,
 } from './booking-dates';
+import { peakPromptFor, type PeakPrompt } from './peak-prompt';
 
 const WEEKDAY_ABBR = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'] as const;
 const MONTH_ABBR = [
@@ -122,8 +125,7 @@ function formatDurationLabel(minutes: number): string {
 
 @Component({
   selector: 'app-arena-booking',
-  standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxBlockingDialogComponent],
   templateUrl: './arena-booking.component.html',
   styleUrl: './arena-booking.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -171,6 +173,8 @@ export class ArenaBookingComponent {
   protected readonly selectedCourtId = signal<string | null>(null);
   protected readonly selectedStartSlot = signal<ArenaSlot | null>(null);
   protected readonly durationSlots = signal(1);
+  /** Modal da regra de pico: `null` = fechado. */
+  protected readonly peakPrompt = signal<PeakPrompt | null>(null);
 
   protected readonly selectedDateKey = computed(() => slotsQueryDateKey(this.selectedDate()));
   protected readonly selectedDateSlots = computed(
@@ -236,6 +240,35 @@ export class ArenaBookingComponent {
     return `Horário concorrido: reserva mínima de ${formatDurationLabel(check.minSlots * this.baseSlotMinutes())}.`;
   });
 
+  /** Intervalo que o botão primário do modal aplica, ex. `19:00–21:00`. */
+  private promptRangeLabel(prompt: PeakPrompt): string {
+    const first = prompt.chain[0]!;
+    const last = prompt.chain[prompt.chain.length - 1]!;
+    return `${first.startTime}–${last.endTime}`;
+  }
+
+  protected readonly peakPromptBody = computed(() => {
+    const prompt = this.peakPrompt();
+    if (!prompt) return '';
+    const faixa = `${prompt.rule.startTime}–${prompt.rule.endTime}`;
+    const minimo = formatDurationLabel(prompt.minSlots * this.baseSlotMinutes());
+    const first = prompt.chain[0]!;
+    const last = prompt.chain[prompt.chain.length - 1]!;
+    const arenaFallback = this.arena()?.pricePerHourReais ?? 0;
+    const total = prompt.chain.reduce((sum, s) => sum + (s.priceReais ?? arenaFallback), 0);
+    const precoTrecho = total > 0 ? `, por R$ ${total}` : '';
+    return (
+      `${faixa} é o horário mais procurado desta arena. Para a quadra não ficar ` +
+      `vaga na hora seguinte, a reserva mínima nesta faixa é de ${minimo}. ` +
+      `Sua reserva ficaria das ${first.startTime} às ${last.endTime}${precoTrecho}.`
+    );
+  });
+
+  protected readonly peakPromptPrimaryLabel = computed(() => {
+    const prompt = this.peakPrompt();
+    return prompt ? `Reservar ${this.promptRangeLabel(prompt)}` : '';
+  });
+
   protected readonly durationOptions = computed<DurationOption[]>(() => {
     const base = this.baseSlotMinutes();
     const options: DurationOption[] = DURATION_MULTIPLIERS.map((n) => {
@@ -246,21 +279,33 @@ export class ArenaBookingComponent {
 
     // Quadras com slot-base curto (ex.: 30min) podem exigir mais slots contíguos do
     // que os multiplicadores padrão oferecem (ex.: pico de 2h = 4 slots de 30min).
-    // Sem isso, o auto-bump em selectStartSlot cai num durationSlots() sem chip
-    // correspondente (estado fantasma).
+    // Sem isso, o atleta fica sem chip correspondente ao mínimo exigido.
     const start = this.selectedStartSlot();
     const maxBaseSlots = DURATION_MULTIPLIERS[DURATION_MULTIPLIERS.length - 1];
+    let extraSlots: number | null = null;
     if (start) {
       const minSlots = this.peakCheckFor([start]).minSlots;
       if (minSlots > maxBaseSlots) {
-        const chain = this.chainForDuration(minSlots);
-        options.push({
-          slots: minSlots,
-          minutes: base * minSlots,
-          label: formatDurationLabel(base * minSlots),
-          enabled: chain != null && this.peakCheckFor(chain).minSlots <= minSlots,
-        });
+        extraSlots = minSlots;
       }
+    }
+    // Depois que acceptPeakPrompt/selectDuration movem o start pra fora da faixa de
+    // pico, o cálculo acima (que reavalia a partir do start ATUAL) já não pede o
+    // chip extra — mas durationSlots() continua no valor da cadeia aplicada, e sem
+    // chip correspondente nenhum fica marcado como ativo. Cobre esse caso também,
+    // sem duplicar quando o ramo acima já pediu o mesmo número de slots.
+    if (extraSlots == null && this.durationSlots() > maxBaseSlots) {
+      extraSlots = this.durationSlots();
+    }
+    if (extraSlots != null) {
+      // O que habilita o chip é exatamente o que o clique consegue aplicar
+      // (selectDuration usa o mesmo resolveChainForDuration).
+      options.push({
+        slots: extraSlots,
+        minutes: base * extraSlots,
+        label: formatDurationLabel(base * extraSlots),
+        enabled: this.resolveChainForDuration(extraSlots) != null,
+      });
     }
 
     return options;
@@ -378,6 +423,22 @@ export class ArenaBookingComponent {
     return chain;
   }
 
+  /** Cadeia de `n` slots para a duração escolhida: para frente a partir do
+   *  slot selecionado quando possível, senão a cadeia mínima que o contém
+   *  (pode começar antes — o start é reposicionado ao aplicar). */
+  private resolveChainForDuration(n: number): ArenaSlot[] | null {
+    const forward = this.chainForDuration(n);
+    if (forward != null) return forward;
+    const start = this.selectedStartSlot();
+    if (!start) return null;
+    return minimumChainContaining({
+      courtDaySlots: this.selectedCourtSlots(),
+      targetStartTime: start.startTime,
+      minSlots: n,
+      date: this.selectedDate(),
+    });
+  }
+
   private async load(): Promise<void> {
     const id = this.arenaId();
     if (!id || !this.firestore) {
@@ -493,15 +554,38 @@ export class ArenaBookingComponent {
   protected selectStartSlot(view: SlotView): void {
     if (!view.isAvailable || view.isPast) return;
     this.selectedStartSlot.set(view.slot);
-    const minSlots = this.peakCheckFor([view.slot]).minSlots;
-    if (minSlots > this.durationSlots() && this.chainForDuration(minSlots) != null) {
-      this.durationSlots.set(minSlots);
-    }
+    // Horário de pico restrito: o modal explica a regra e aplica a reserva
+    // mínima com o aceite do atleta — nunca mudamos a duração por trás.
+    this.peakPrompt.set(
+      peakPromptFor({
+        rules: this.peakRules(),
+        courtId: this.selectedCourtId() ?? '',
+        date: this.selectedDate(),
+        courtDaySlots: this.selectedCourtSlots(),
+        slot: view.slot,
+        slotDurationMinutes: this.baseSlotMinutes(),
+      }),
+    );
+  }
+
+  protected acceptPeakPrompt(): void {
+    const prompt = this.peakPrompt();
+    if (!prompt) return;
+    // A cadeia pode começar antes do slot clicado (quando só ela é possível).
+    this.selectedStartSlot.set(prompt.chain[0]!);
+    this.durationSlots.set(prompt.chain.length);
+    this.peakPrompt.set(null);
+  }
+
+  protected dismissPeakPrompt(): void {
+    this.peakPrompt.set(null);
   }
 
   protected selectDuration(n: number): void {
-    if (!this.chainForDuration(n)) return;
-    this.durationSlots.set(n);
+    const chain = this.resolveChainForDuration(n);
+    if (!chain) return;
+    this.selectedStartSlot.set(chain[0]!);
+    this.durationSlots.set(chain.length);
   }
 
   protected continueBooking(): void {

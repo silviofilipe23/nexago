@@ -595,22 +595,168 @@ bool _peakChainExists(
   DateTime day,
   DateTime now,
 ) {
-  for (var start = (index - (minSlots - 1)).clamp(0, index); start <= index; start++) {
-    if (start + minSlots > slots.length) break;
-    var ok = true;
-    for (var i = start; i < start + minSlots; i++) {
-      final s = slots[i];
-      if (!s.isAvailable ||
-          isPastBookableSlot(selectedDay: day, slot: s, now: now)) {
-        ok = false;
-        break;
-      }
-      if (i > start && slots[i - 1].endTime != s.startTime) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) return true;
+  return minimumChainContaining(
+        slots: slots,
+        selectionStart: index,
+        selectionEnd: index,
+        minSlots: minSlots,
+        selectedDay: day,
+        now: now,
+      ) !=
+      null;
+}
+
+/// Melhor cadeia contígua de [minSlots] slots selecionáveis que contém todo o
+/// intervalo `[selectionStart..selectionEnd]`. Prefere a cadeia que começa na
+/// própria seleção e só então recua o início — é o que o modal da regra de
+/// pico oferece. `null` quando nenhuma cadeia é possível.
+({int start, int end})? minimumChainContaining({
+  required List<ArenaSlot> slots,
+  required int selectionStart,
+  required int selectionEnd,
+  required int minSlots,
+  required DateTime selectedDay,
+  DateTime? now,
+}) {
+  final n = now ?? DateTime.now();
+  if (minSlots < 1 || selectionStart < 0 || selectionEnd >= slots.length) {
+    return null;
   }
-  return false;
+  final selectionLength = selectionEnd - selectionStart + 1;
+  if (minSlots < selectionLength) return null;
+  final earliest = (selectionEnd - minSlots + 1).clamp(0, selectionStart);
+  for (var start = selectionStart; start >= earliest; start--) {
+    final end = start + minSlots - 1;
+    if (end >= slots.length) continue;
+    if (_peakChainBookable(slots, start, end, selectedDay, n)) {
+      return (start: start, end: end);
+    }
+  }
+  return null;
+}
+
+bool _peakChainBookable(
+  List<ArenaSlot> slots,
+  int start,
+  int end,
+  DateTime day,
+  DateTime now,
+) {
+  for (var i = start; i <= end; i++) {
+    final s = slots[i];
+    if (!s.isAvailable || isPastBookableSlot(selectedDay: day, slot: s, now: now)) {
+      return false;
+    }
+    if (i > start && slots[i - 1].endTime != s.startTime) return false;
+  }
+  return true;
+}
+
+/// Conteúdo do modal da regra de pico no app: a regra que restringe a seleção
+/// e o intervalo mínimo que o botão primário aplica.
+class PeakPrompt {
+  const PeakPrompt({
+    required this.rule,
+    required this.start,
+    required this.end,
+    required this.minSlots,
+  });
+
+  final ArenaPeakRule rule;
+  final int start;
+  final int end;
+  final int minSlots;
+}
+
+/// Decide se o toque num slot deve abrir o modal da regra de pico. `null`
+/// quando não deve: seleção já cumpre o mínimo, slot fora de faixa de pico,
+/// regra liberada (antecedência ou cadeia impossível).
+PeakPrompt? peakPromptForSelection({
+  required List<ArenaPeakRule> rules,
+  required String courtId,
+  required List<ArenaSlot> slots,
+  required DateTime selectedDay,
+  required int start,
+  required int end,
+  required int slotDurationMinutes,
+  DateTime? now,
+}) {
+  final n = now ?? DateTime.now();
+  final initialCheck = peakCheckForRange(
+    rules: rules,
+    courtId: courtId,
+    slots: slots,
+    selectedDay: selectedDay,
+    start: start,
+    end: end,
+    slotDurationMinutes: slotDurationMinutes,
+    now: n,
+  );
+  final initialRule = initialCheck.rule;
+  if (initialCheck.minSlots <= (end - start + 1) || initialRule == null) return null;
+
+  final firstChain = minimumChainContaining(
+    slots: slots,
+    selectionStart: start,
+    selectionEnd: end,
+    minSlots: initialCheck.minSlots,
+    selectedDay: selectedDay,
+    now: n,
+  );
+  // Sem cadeia que cubra a seleção inteira não há o que oferecer no modal.
+  // Não é impossível: `peakCheckForRange` valida a janela em torno do slot
+  // restrito, não do intervalo todo. Nesse caso o rodapé segue bloqueando a
+  // seleção — o atleta só fica sem a explicação em modal.
+  if (firstChain == null) return null;
+
+  // Tipados não-nuláveis a partir daqui (via inferência de `var` sobre um
+  // valor já promovido) para que a reatribuição dentro do loop não perca a
+  // promoção de nulidade do Dart entre iterações.
+  var rule = initialRule;
+  var chain = firstChain;
+
+  // Fixpoint: a cadeia oferecida pode cair na faixa de OUTRA regra com
+  // mínimo maior (ex.: regra A 20:00–21:00 mín 2h vizinha da regra B
+  // 21:00–22:00 mín 3h — tocar 20:00 oferece 20:00–22:00, que a regra B
+  // ainda rejeita). Reavalia a própria cadeia até que nenhuma regra exija
+  // mais do que ela já cobre. Limitado por `slots.length` como guarda
+  // contra loop infinito — não deveria disparar na prática, já que cada
+  // iteração só cresce a cadeia.
+  for (var i = 0; i < slots.length; i++) {
+    final check = peakCheckForRange(
+      rules: rules,
+      courtId: courtId,
+      slots: slots,
+      selectedDay: selectedDay,
+      start: chain.start,
+      end: chain.end,
+      slotDurationMinutes: slotDurationMinutes,
+      now: n,
+    );
+    final chainLength = chain.end - chain.start + 1;
+    if (check.minSlots <= chainLength) {
+      return PeakPrompt(
+        rule: rule,
+        start: chain.start,
+        end: chain.end,
+        minSlots: chainLength,
+      );
+    }
+    // check.minSlots > chainLength > 0 implica check.rule != null (ver
+    // peakCheckForRange: demandedRule só fica null quando demandedSlots
+    // permanece no valor inicial 1).
+    final nextRule = check.rule;
+    if (nextRule != null) rule = nextRule;
+    final nextChain = minimumChainContaining(
+      slots: slots,
+      selectionStart: chain.start,
+      selectionEnd: chain.end,
+      minSlots: check.minSlots,
+      selectedDay: selectedDay,
+      now: n,
+    );
+    if (nextChain == null) return null;
+    chain = nextChain;
+  }
+  return null;
 }

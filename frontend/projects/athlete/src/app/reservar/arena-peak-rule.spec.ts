@@ -1,4 +1,5 @@
 import {
+  minimumChainContaining,
   peakCheckForSelection,
   peakBadgeMinSlots,
   peakRuleMatches,
@@ -199,5 +200,94 @@ describe('peakBadgeMinSlots', () => {
       rules: [rule()], courtId: 'q1', date: QUA, courtDaySlots: daySlots,
       slot: daySlots[0]!, slotDurationMinutes: 60, now: NOW_CEDO,
     })).toBe(1);
+  });
+});
+
+describe('minimumChainContaining', () => {
+  it('prefere a cadeia que começa no slot clicado', () => {
+    const daySlots = day(
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00'),
+    );
+    const chain = minimumChainContaining({
+      courtDaySlots: daySlots, targetStartTime: '20:00', minSlots: 2,
+      date: QUA, now: NOW_CEDO,
+    });
+    expect(chain?.map((s: ArenaSlot) => s.startTime)).toEqual(['20:00', '21:00']);
+  });
+
+  it('recua o início quando a cadeia para frente não existe', () => {
+    const daySlots = day(
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', 'booked'),
+    );
+    const chain = minimumChainContaining({
+      courtDaySlots: daySlots, targetStartTime: '20:00', minSlots: 2,
+      date: QUA, now: NOW_CEDO,
+    });
+    expect(chain?.map((s: ArenaSlot) => s.startTime)).toEqual(['19:00', '20:00']);
+  });
+
+  it('devolve null quando nenhuma cadeia é possível', () => {
+    const daySlots = day(
+      slot('19:00', '20:00', 'booked'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', 'blocked'),
+    );
+    const chain = minimumChainContaining({
+      courtDaySlots: daySlots, targetStartTime: '20:00', minSlots: 2,
+      date: QUA, now: NOW_CEDO,
+    });
+    expect(chain).toBeNull();
+  });
+
+  it('não usa slot já passado para montar a cadeia', () => {
+    const tarde = new Date(2026, 7, 5, 19, 30);
+    const daySlots = day(
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', 'booked'),
+    );
+    const chain = minimumChainContaining({
+      courtDaySlots: daySlots, targetStartTime: '20:00', minSlots: 2,
+      date: QUA, now: tarde,
+    });
+    expect(chain).toBeNull();
+  });
+
+  it('exige contiguidade entre os slots da cadeia', () => {
+    const comBuraco = day(
+      slot('19:00', '20:00'),
+      slot('21:00', '22:00'),
+    );
+    const chain = minimumChainContaining({
+      courtDaySlots: comBuraco, targetStartTime: '21:00', minSlots: 2,
+      date: QUA, now: NOW_CEDO,
+    });
+    expect(chain).toBeNull();
+  });
+
+  it('monta 4 slots em quadra de 30min', () => {
+    const meia = day(
+      slot('19:00', '19:30'), slot('19:30', '20:00'),
+      slot('20:00', '20:30'), slot('20:30', '21:00'),
+      slot('21:00', '21:30'), slot('21:30', '22:00'),
+    );
+    const chain = minimumChainContaining({
+      courtDaySlots: meia, targetStartTime: '20:00', minSlots: 4,
+      date: QUA, now: NOW_CEDO,
+    });
+    expect(chain?.map((s: ArenaSlot) => s.startTime)).toEqual(['20:00', '20:30', '21:00', '21:30']);
+  });
+
+  it('slot inexistente na grade devolve null', () => {
+    const daySlots = day(slot('19:00', '20:00'), slot('20:00', '21:00'));
+    const chain = minimumChainContaining({
+      courtDaySlots: daySlots, targetStartTime: '23:00', minSlots: 2,
+      date: QUA, now: NOW_CEDO,
+    });
+    expect(chain).toBeNull();
   });
 });

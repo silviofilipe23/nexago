@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -306,7 +308,13 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     now: DateTime.now(),
   );
 
-  void _onSlotTap(int index, List<ArenaSlot> slots) {
+  void _onSlotTap(
+    int index,
+    List<ArenaSlot> slots, {
+    required List<ArenaPeakRule> peakRules,
+    required String courtId,
+    required int slotDurationMinutes,
+  }) {
     final slot = slots[index];
     if (_isPastSlot(slot)) return;
     if (!slot.isSelectable) return;
@@ -342,6 +350,22 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       _selStart = index;
       _selEnd = index;
     });
+
+    final s = _selStart;
+    final e = _selEnd;
+    if (s == null || e == null) return;
+    final prompt = peakPromptForSelection(
+      rules: peakRules,
+      courtId: courtId,
+      slots: slots,
+      selectedDay: _selectedDay,
+      start: s,
+      end: e,
+      slotDurationMinutes: slotDurationMinutes,
+    );
+    if (prompt != null) {
+      unawaited(_showPeakRuleDialog(prompt, slots, slotDurationMinutes));
+    }
   }
 
   /// Primeiro índice ainda alugável (vide [_isPastSlot]).
@@ -648,6 +672,53 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         );
       }
     }
+  }
+
+  /// Explica a regra de horário de pico e, no aceite, aplica a reserva mínima.
+  /// Mesmo padrão de diálogo da lista de espera nesta página.
+  Future<void> _showPeakRuleDialog(
+    PeakPrompt prompt,
+    List<ArenaSlot> slots,
+    int slotDurationMinutes,
+  ) async {
+    final faixa = '${prompt.rule.startTime}–${prompt.rule.endTime}';
+    final minimo = formatSelectionDurationLabel(prompt.minSlots, slotDurationMinutes);
+    final intervalo = formatCompactTimeRange(
+      slots[prompt.start].startTime,
+      slots[prompt.end].endTime,
+    );
+    final total = totalPriceForRange(slots, prompt.start, prompt.end);
+    final precoFrase = total != null ? ', por ${formatBRLWhole(total)}' : '';
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.themeColors.surfaceSheet,
+        title: Text('Horário concorrido'),
+        content: Text(
+          '$faixa é o horário mais procurado desta arena. Para a quadra não '
+          'ficar vaga na hora seguinte, a reserva mínima nesta faixa é de '
+          '$minimo. Sua reserva ficaria das ${slots[prompt.start].startTime} '
+          'às ${slots[prompt.end].endTime}$precoFrase.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Escolher outro horário'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Reservar $intervalo'),
+          ),
+        ],
+      ),
+    );
+
+    if (accepted != true || !mounted) return;
+    setState(() {
+      _selStart = prompt.start;
+      _selEnd = prompt.end;
+    });
   }
 
   void _ensureNextSlotVisible(int nextIdx) {
@@ -1089,7 +1160,13 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                               scrollController: _slotListScrollController,
                               isIndexSelected: _isIndexSelected,
                               isSelectionAnchor: _isSelectionAnchorIndex,
-                              onSlotTap: (i) => _onSlotTap(i, slots),
+                              onSlotTap: (i) => _onSlotTap(
+                                i,
+                                slots,
+                                peakRules: peakRules,
+                                courtId: courtId,
+                                slotDurationMinutes: slotDurationMinutes,
+                              ),
                               priceLabelFor: (slot) => slot.priceReais != null
                                   ? formatBRLWhole(slot.priceReais!)
                                   : null,

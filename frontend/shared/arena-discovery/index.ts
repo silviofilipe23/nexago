@@ -83,6 +83,7 @@ export type { ArenaPeakRule, PeakSelectionCheck } from './arena-peak-rule';
 export {
   arenaPeakRuleFromFirestore,
   fetchActivePeakRules,
+  minimumChainContaining,
   peakBadgeMinSlots,
   peakCheckForSelection,
   peakRuleMatches,

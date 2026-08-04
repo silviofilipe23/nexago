@@ -17,7 +17,7 @@ import { CHAMPIONS_SHOWCASE_MS, type FinalKind } from './telao-final-mode';
       <h1 class="og-tch-title">{{ kind() === 'third-place' ? '3º LUGAR' : 'CAMPEÕES' }}</h1>
       <span class="og-tch-avatars">
         @for (p of team()?.players ?? []; track $index) {
-          <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="74" />
+          <og-avatar [initials]="p.initials" [photoUrl]="p.photoUrl" [size]="420" />
         }
       </span>
       <p class="og-tch-names">{{ team()?.label ?? '—' }}</p>

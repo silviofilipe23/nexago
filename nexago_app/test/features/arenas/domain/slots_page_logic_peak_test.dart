@@ -218,22 +218,24 @@ void main() {
     expect(chain?.end, 3);
   });
 
-  test(
-      'minimumChainContaining recua além da tentativa ancorada e ainda '
-      'cobre selectionEnd', () {
+  test('minimumChainContaining não devolve janela que deixa selectionEnd de fora', () {
+    // Gap de horário entre os índices 4 e 5 (22:00 ≠ 23:00): a única janela de
+    // 4 slots contígua e disponível é [2..5], mas ela quebra em 4→5 e falha;
+    // uma fórmula que ignorasse selectionEnd chegaria em [1..4], que não cobre
+    // selectionEnd = 5.
     final grade = [
+      slot('17:00', '18:00'),
       slot('18:00', '19:00'),
       slot('19:00', '20:00'),
       slot('20:00', '21:00'),
-      slot('21:00', '22:00', status: 'booked'),
-      slot('22:00', '23:00'),
+      slot('21:00', '22:00'),
+      slot('23:00', '00:00'),
     ];
     final chain = minimumChainContaining(
-      slots: grade, selectionStart: 1, selectionEnd: 2, minSlots: 3,
+      slots: grade, selectionStart: 3, selectionEnd: 5, minSlots: 4,
       selectedDay: qua, now: nowCedo,
     );
-    expect(chain?.start, 0);
-    expect(chain?.end, 2);
+    expect(chain, isNull);
   });
 
   test(

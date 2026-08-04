@@ -5,7 +5,14 @@ import { effectiveTelaoConfig } from '../data/tournaments-repository';
 import { OgPulseDirective } from './og-pulse.directive';
 import { fallbackTeamDisplay, TelaoDataService } from './telao-data.service';
 import { TelaoCourtCardComponent } from './telao-court-card.component';
+import { TelaoFinalModeComponent } from './telao-final-mode.component';
+import { finalShowcaseOf, hasOtherLiveCourts } from './telao-final-mode';
 import { callOf, courtNowOf, courtPageCount, courtPageOf, ROTATE_INTERVAL_MS, teamShortLabel, upcomingQueue } from './telao-selectors';
+
+/** Rodízio do modo GRANDE FINAL quando outras quadras também estão jogando: a final segura a
+ *  tela por mais tempo, mas a grade volta pra quem joga fora da quadra decisiva acompanhar. */
+const FINAL_TAKEOVER_MS = 30_000;
+const FINAL_GRID_MS = 20_000;
 
 const CLOCK_FMT = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/Sao_Paulo' });
 const HEADER_DAY_FMT = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'short', timeZone: 'America/Sao_Paulo' });
@@ -26,9 +33,22 @@ interface TelaoQueueRow {
 @Component({
   selector: 'og-telao-screen',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TelaoCourtCardComponent, OgPulseDirective],
+  imports: [TelaoCourtCardComponent, TelaoFinalModeComponent, OgPulseDirective],
   host: { class: 'og-telao' },
   template: `
+    @if (finalTakeover(); as fm) {
+      <og-telao-final-mode
+        [match]="fm.match"
+        [kind]="fm.kind"
+        [state]="fm.state"
+        [teamA]="finalTeamA()"
+        [teamB]="finalTeamB()"
+        [eventLine]="finalEventLine()"
+        [categoryLine]="finalCategoryLine()"
+        [courtLabel]="finalCourtLabel()"
+        [clock]="clock()"
+      />
+    } @else {
     <header class="og-telao-head">
       <span class="og-telao-brand">
         <span class="og-telao-brand-name">nexa<em>GO</em></span>
@@ -102,11 +122,13 @@ interface TelaoQueueRow {
         </span>
       </footer>
     }
+    }
   `,
   styles: `
     :host {
       display: flex;
       flex-direction: column;
+      position: relative;
       width: 1920px;
       height: 1080px;
       background: var(--nx-bg);
@@ -487,6 +509,63 @@ export class TelaoScreenComponent {
     });
   });
 
+  // ── Modo GRANDE FINAL ───────────────────────────────────────
+  /** Alterna entre a final e a grade quando outras quadras também estão jogando. */
+  private readonly finalPhase = signal<'final' | 'grid'>('final');
+
+  private readonly finalShowcase = computed(() => {
+    const cfg = this.cfg();
+    if (!cfg?.showFinalMode) return null;
+    return finalShowcaseOf(this.matches(), cfg.courtIds, this.now(), this.svc.finishMemory());
+  });
+
+  /** A tela de campeões (90 s, clímax do torneio) nunca sai do ar pro rodízio — só o ao vivo
+   *  reveza com a grade. */
+  protected readonly finalTakeover = computed(() => {
+    const showcase = this.finalShowcase();
+    if (!showcase) return null;
+    if (showcase.state === 'champions') return showcase;
+    return this.finalPhase() === 'final' ? showcase : null;
+  });
+
+  protected readonly finalTeamA = computed(() => {
+    const m = this.finalShowcase()?.match;
+    return m ? (this.svc.teams().get(m.teamAId) ?? fallbackTeamDisplay(m.team1Label)) : null;
+  });
+
+  protected readonly finalTeamB = computed(() => {
+    const m = this.finalShowcase()?.match;
+    return m ? (this.svc.teams().get(m.teamBId) ?? fallbackTeamDisplay(m.team2Label)) : null;
+  });
+
+  protected readonly finalEventLine = computed(() => {
+    const t = this.svc.tournament();
+    return t ? [t.name, t.location ?? t.city].filter(Boolean).join(' · ') : '';
+  });
+
+  protected readonly finalCategoryLine = computed(() => {
+    const m = this.finalShowcase()?.match;
+    if (!m) return '';
+    const category = m.categoryId ? this.categoryNameById().get(m.categoryId) : null;
+    return [category, m.bestOf === 1 ? 'Set único' : `Melhor de ${m.bestOf} sets`].filter(Boolean).join(' · ');
+  });
+
+  protected readonly finalCourtLabel = computed(() => {
+    const m = this.finalShowcase()?.match;
+    return m ? formatCourtLabel(m.court) || 'Quadra' : '';
+  });
+
+  /** Id da final que precisa revezar com a grade, ou `null` quando ela pode segurar a tela.
+   *  É uma STRING de propósito: `finalShowcase` devolve um objeto novo a cada tique do
+   *  relógio (1 s) e reiniciaria o timer do rodízio pra sempre — com a chave estável o efeito
+   *  só re-executa quando a situação realmente muda. */
+  private readonly finalRotationKey = computed(() => {
+    const showcase = this.finalShowcase();
+    const cfg = this.cfg();
+    if (!showcase || showcase.state !== 'live' || !cfg) return null;
+    return hasOtherLiveCourts(this.svc.matches(), cfg.courtIds, showcase.match) ? showcase.match.id : null;
+  });
+
   protected readonly call = computed(() => {
     const c = callOf(this.queue());
     if (!c) return null;
@@ -514,6 +593,22 @@ export class TelaoScreenComponent {
       }
       const timer = setInterval(() => this.pageIndex.update((i) => (i + 1) % pages), ROTATE_INTERVAL_MS);
       onCleanup(() => clearInterval(timer));
+    });
+
+    // Rodízio do modo GRANDE FINAL: só quando há jogo em OUTRA quadra do telão; senão a
+    // final segura a tela inteira até acabar.
+    effect((onCleanup) => {
+      if (!this.finalRotationKey()) {
+        this.finalPhase.set('final');
+        return;
+      }
+      let timer: ReturnType<typeof setTimeout>;
+      const schedule = (phase: 'final' | 'grid') => {
+        this.finalPhase.set(phase);
+        timer = setTimeout(() => schedule(phase === 'final' ? 'grid' : 'final'), phase === 'final' ? FINAL_TAKEOVER_MS : FINAL_GRID_MS);
+      };
+      schedule('final');
+      onCleanup(() => clearTimeout(timer));
     });
   }
 

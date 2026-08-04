@@ -16,7 +16,7 @@ import { TelaoScreenComponent } from './telao-screen.component';
 import { TelaoStageComponent } from './telao-stage.component';
 import { courtNowOf } from './telao-selectors';
 
-type TelaoToggleKey = 'showUpcoming' | 'showCall' | 'showAvatars' | 'autoRotate' | 'showStreak';
+type TelaoToggleKey = 'showUpcoming' | 'showCall' | 'showAvatars' | 'autoRotate' | 'showStreak' | 'showFinalMode';
 
 const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showUpcoming', title: 'Próximos jogos', desc: 'Fila lateral com horário e quadra' },
@@ -24,6 +24,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showAvatars', title: 'Avatares dos atletas', desc: 'Iniciais das duplas em cada quadra' },
   { key: 'autoRotate', title: 'Rotação automática', desc: 'Alterna as quadras exibidas a cada 20 s' },
   { key: 'showStreak', title: 'Em chamas', desc: 'Destaque na dupla com 3+ pontos seguidos — cresce com a sequência' },
+  { key: 'showFinalMode', title: 'Modo Grande Final', desc: 'Final e 3º lugar assumem a tela inteira, com tela de campeões no fim' },
 ];
 
 const STATUS_LABEL: Record<OrganizerTournament['status'], string> = {

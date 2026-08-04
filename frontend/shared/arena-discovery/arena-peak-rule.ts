@@ -145,6 +145,42 @@ export function peakBadgeMinSlots(params: {
   }).minSlots;
 }
 
+/** Melhor cadeia contígua de `minSlots` slots disponíveis contendo o slot de
+ *  `targetStartTime`. Prefere a cadeia que COMEÇA no slot clicado e só então
+ *  recua o início — é o que o modal da regra de pico oferece ao atleta.
+ *  `null` quando nenhuma cadeia é possível (nesse caso o slot está liberado e
+ *  o modal não deve abrir). */
+export function minimumChainContaining(params: {
+  courtDaySlots: ArenaSlot[];
+  targetStartTime: string;
+  minSlots: number;
+  date: Date;
+  now?: Date;
+}): ArenaSlot[] | null {
+  const now = params.now ?? new Date();
+  const slots = params.courtDaySlots;
+  if (params.minSlots < 1) return null;
+  const idx = slots.findIndex((s) => s.startTime === params.targetStartTime);
+  if (idx === -1) return null;
+
+  const earliestStart = Math.max(0, idx - (params.minSlots - 1));
+  for (let start = idx; start >= earliestStart; start--) {
+    if (start + params.minSlots > slots.length) continue;
+    const chain = slots.slice(start, start + params.minSlots);
+    if (chainIsBookable(chain, params.date, now)) return chain;
+  }
+  return null;
+}
+
+function chainIsBookable(chain: ArenaSlot[], date: Date, now: Date): boolean {
+  for (let i = 0; i < chain.length; i++) {
+    const s = chain[i]!;
+    if (!chainEligible(s, date, now)) return false;
+    if (i > 0 && chain[i - 1]!.endTime !== s.startTime) return false;
+  }
+  return true;
+}
+
 function restrictionForSlot(
   slot: ArenaSlot,
   rules: ArenaPeakRule[],
@@ -174,19 +210,7 @@ function chainExistsContaining(
   date: Date,
   now: Date,
 ): boolean {
-  const idx = courtDaySlots.findIndex((s) => s.startTime === targetStartTime);
-  if (idx === -1) return false;
-  for (let start = Math.max(0, idx - (minSlots - 1)); start <= idx; start++) {
-    if (start + minSlots > courtDaySlots.length) break;
-    let ok = true;
-    for (let i = start; i < start + minSlots; i++) {
-      const s = courtDaySlots[i]!;
-      if (!chainEligible(s, date, now)) { ok = false; break; }
-      if (i > start && courtDaySlots[i - 1]!.endTime !== s.startTime) { ok = false; break; }
-    }
-    if (ok) return true;
-  }
-  return false;
+  return minimumChainContaining({courtDaySlots, targetStartTime, minSlots, date, now}) != null;
 }
 
 function chainEligible(slot: ArenaSlot, date: Date, now: Date): boolean {

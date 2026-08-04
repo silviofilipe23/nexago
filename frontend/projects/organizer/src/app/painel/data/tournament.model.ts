@@ -33,6 +33,8 @@ export interface TelaoConfig {
   autoRotate: boolean;
   /** Destaque "em chamas" na dupla com 3+ pontos seguidos. */
   showStreak: boolean;
+  /** Modo GRANDE FINAL: final/grand final/3º lugar assumem a tela inteira. */
+  showFinalMode: boolean;
 }
 
 /** Espelha `TournamentMatchOpsConfig` (Flutter): jornada e durações do dia de jogo. */

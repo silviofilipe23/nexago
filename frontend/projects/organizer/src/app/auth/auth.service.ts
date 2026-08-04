@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
+  GoogleAuthProvider,
   browserLocalPersistence,
   browserSessionPersistence,
   confirmPasswordReset,
@@ -10,6 +11,7 @@ import {
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
   verifyPasswordResetCode,
@@ -64,6 +66,17 @@ export class AuthService {
   async signInWithEmail(email: string, password: string, remember: boolean): Promise<void> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    await this.assertOrganizerRole(credential.user);
+  }
+
+  /** Conta criada com Google (caso comum: o atleta se cadastrou pelo app/portal
+   *  do atleta com Google e depois recebeu o papel `organizer`) não tem senha,
+   *  então o login por e-mail é impossível pra ela. O popup emite um ID token
+   *  novo, então `assertOrganizerRole` já enxerga a claim recém-concedida sem
+   *  precisar de `getIdToken(true)`. */
+  async signInWithGoogle(remember: boolean): Promise<void> {
+    await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
+    const credential = await signInWithPopup(this.auth, new GoogleAuthProvider());
     await this.assertOrganizerRole(credential.user);
   }
 

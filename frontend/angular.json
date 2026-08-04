@@ -386,6 +386,9 @@
             ],
             "styles": [
               "projects/organizer/src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": [
+              "qrcode"
             ]
           },
           "configurations": {

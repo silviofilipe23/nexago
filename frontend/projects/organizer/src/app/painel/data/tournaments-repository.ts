@@ -128,6 +128,11 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     sportId: optionalStr(data['sport']),
     coverUrl: coverUrlOf(data),
     status: statusFromRaw(statusRaw),
+    // Estrito de propósito: o site só publica `visibility === 'publicListing'`, então doc antigo
+    // SEM o campo não tem página pública (404). Tratar a ausência como `linkOnly` é o que faz o
+    // link compartilhado apontar pra um lugar que existe. O wizard, esse sim, assume público
+    // quando cria (`tournament-create-mapper.ts`).
+    visibility: data['visibility'] === 'publicListing' ? 'publicListing' : 'linkOnly',
     startAt: toDate(data['startAt']),
     endAt: toDate(data['endAt']),
     city: optionalStr(data['city']),

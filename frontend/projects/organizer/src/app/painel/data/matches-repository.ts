@@ -69,6 +69,9 @@ export interface TournamentMatch {
   currentSetIndex: number | null;
   servingTeamId: string;
   matchStartedAt: Date | null;
+  /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
+   *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
+  matchEndedAt: Date | null;
 }
 
 function toDate(v: unknown): Date | null {
@@ -208,6 +211,7 @@ interface RawMatch {
   currentSetIndex: number | null;
   servingTeamId: string;
   matchStartedAt: Date | null;
+  matchEndedAt: Date | null;
 }
 
 function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
@@ -250,6 +254,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     currentSetIndex: intOf(data['currentSetIndex']),
     servingTeamId: optionalStr(data['servingTeamId']) ?? '',
     matchStartedAt: toDate(data['matchStartedAt']),
+    matchEndedAt: toDate(data['matchEndedAt']),
   };
 }
 
@@ -449,6 +454,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     currentSetIndex: r.currentSetIndex,
     servingTeamId: r.servingTeamId,
     matchStartedAt: r.matchStartedAt,
+    matchEndedAt: r.matchEndedAt,
   };
 }
 

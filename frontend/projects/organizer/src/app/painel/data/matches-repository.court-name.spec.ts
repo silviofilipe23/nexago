@@ -29,6 +29,7 @@ function match(overrides: Partial<TournamentMatch>): TournamentMatch {
     currentSetIndex: null,
     servingTeamId: '',
     matchStartedAt: null,
+    matchEndedAt: null,
     ...overrides,
   };
 }

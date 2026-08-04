@@ -1,6 +1,7 @@
 import { matchLiveCurrentSet, matchSetWins, type LiveScoreFields } from '../data/live-set-display';
 import { truncateName } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
+import { FINISHED_SHOWCASE_MS, finishedAtOf, type MatchFinishMemory } from './telao-finished';
 
 /** Lógica pura do telão — o que aparece em cada quadra, a fila de próximos jogos, a chamada
  *  de atletas e a paginação da rotação automática. Tudo determinístico em cima de
@@ -17,21 +18,35 @@ export const QUEUE_GRACE_MS = 10 * 60_000;
  *  esquecido não segura a quadra. */
 export const COURT_NOW_GRACE_MS = 30 * 60_000;
 
-export type CourtNowKind = 'live' | 'next' | 'free';
+export type CourtNowKind = 'live' | 'finished' | 'next' | 'free';
 
 export interface CourtNow {
   kind: CourtNowKind;
   match: TournamentMatch | null;
 }
 
+const EMPTY_FINISH_MEMORY: ReadonlyMap<string, MatchFinishMemory> = new Map();
+
 /** Partida em destaque da quadra: ao vivo (desempate: começou por último — é a que está na
- *  areia) → senão a próxima agendada dentro da tolerância → senão livre. */
-export function courtNowOf(matches: readonly TournamentMatch[], courtId: string, nowMs: number): CourtNow {
+ *  areia) → senão partida recém-encerrada em celebração (30 s, fim observado pela TV) →
+ *  senão a próxima agendada dentro da tolerância → senão livre. */
+export function courtNowOf(
+  matches: readonly TournamentMatch[],
+  courtId: string,
+  nowMs: number,
+  finishMemory: ReadonlyMap<string, MatchFinishMemory> = EMPTY_FINISH_MEMORY,
+): CourtNow {
   const onCourt = matches.filter((m) => m.courtId === courtId);
   const live = onCourt
     .filter((m) => m.status === 'in_progress')
     .sort((a, b) => (b.matchStartedAt?.getTime() ?? 0) - (a.matchStartedAt?.getTime() ?? 0))[0];
   if (live) return { kind: 'live', match: live };
+  const finished = onCourt
+    .filter((m) => m.status === 'completed')
+    .map((m) => ({ m, at: finishedAtOf(finishMemory, m.id) }))
+    .filter((x): x is { m: TournamentMatch; at: number } => x.at != null && nowMs - x.at < FINISHED_SHOWCASE_MS)
+    .sort((a, b) => b.at - a.at)[0];
+  if (finished) return { kind: 'finished', match: finished.m };
   const next = onCourt
     .filter((m) => m.status === 'scheduled' && m.scheduledAt != null)
     .sort((a, b) => a.scheduledAt!.getTime() - b.scheduledAt!.getTime())

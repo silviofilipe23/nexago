@@ -6,6 +6,7 @@ import { initialsOf } from '../data/mock-data';
 import { fetchProfileDisplays, fetchTeamsByIds, type OrganizerTeamPlayers, type ProfileDisplay } from '../data/teams-repository';
 import { watchTournament } from '../data/tournaments-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
+import { nextFinishMemoryOf, type MatchFinishMemory } from './telao-finished';
 import { teamShortLabel } from './telao-selectors';
 import { nextStreakOf, type TeamStreak } from './telao-streaks';
 
@@ -50,6 +51,8 @@ export class TelaoDataService {
   /** Sequência de pontos seguidos por partida ao vivo ("em chamas") — derivada dos deltas
    *  entre snapshots, ver `telao-streaks.ts`. */
   readonly streaks = signal<ReadonlyMap<string, TeamStreak>>(new Map());
+  /** Fim de partida observado pela TV (celebração de 30 s) — ver `telao-finished.ts`. */
+  readonly finishMemory = signal<ReadonlyMap<string, MatchFinishMemory>>(new Map());
   /** Algum snapshot já chegou nesta transmissão (vira o "TRANSMITINDO" do preview). */
   readonly connected = signal(false);
   readonly error = signal(false);
@@ -67,6 +70,7 @@ export class TelaoDataService {
       this.matches.set([]);
       this.teams.set(new Map());
       this.streaks.set(new Map());
+      this.finishMemory.set(new Map());
       this.hydrated.clear();
       this.connected.set(false);
       this.error.set(false);
@@ -106,6 +110,7 @@ export class TelaoDataService {
       if (streak) next.set(m.id, streak);
     }
     this.streaks.set(next);
+    this.finishMemory.set(nextFinishMemoryOf(this.finishMemory(), matches, Date.now()));
   }
 
   private async hydrateTeams(matches: TournamentMatch[], generation: number): Promise<void> {

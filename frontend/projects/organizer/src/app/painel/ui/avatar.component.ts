@@ -22,6 +22,11 @@ import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core
     img {
       width: 100%;
       height: 100%;
+      /* O host é grid com place-items:center, então a trilha auto não dá altura
+         definida e o height:100% cairia no aspecto intrínseco da foto (elipse
+         vazando do círculo). aspect-ratio trava o quadrado a partir da largura. */
+      aspect-ratio: 1;
+      min-height: 0;
       border-radius: 50%;
       object-fit: cover;
       display: block;

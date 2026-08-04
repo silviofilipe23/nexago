@@ -130,6 +130,9 @@
                           @if (view.isLast) {
                             <span class="bk-slot-tag bk-slot-tag--last">ÚLTIMO</span>
                           }
+                          @if (view.peakMinLabel) {
+                            <span class="bk-slot-tag bk-slot-tag--peak">{{ view.peakMinLabel }}</span>
+                          }
                           <span class="bk-slot-price">R$ {{ slotPrice(view) }}</span>
                         }
                       </button>
@@ -155,6 +158,9 @@
                     </button>
                   }
                 </div>
+                @if (peakHint(); as hint) {
+                  <p class="bk-peak-hint">{{ hint }}</p>
+                }
               </div>
             }
           </section>

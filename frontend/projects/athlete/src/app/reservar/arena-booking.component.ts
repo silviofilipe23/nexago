@@ -16,14 +16,19 @@ import {
   arenaSlotIsAvailable,
   arenaSlotIsBlocked,
   arenaSlotIsBooked,
+  fetchActivePeakRules,
   fetchArenaById,
   fetchArenaRangeSlotsMerged,
   fetchCourts,
   isPastSlot,
+  peakBadgeMinSlots,
+  peakCheckForSelection,
   slotsQueryDateKey,
+  type ArenaPeakRule,
   type ArenaCourtDoc,
   type ArenaListItem,
   type ArenaSlot,
+  type PeakSelectionCheck,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -62,6 +67,7 @@ export interface SlotView {
   isSelectedStart: boolean;
   isInChain: boolean;
   priceReais: number | null;
+  peakMinLabel: string | null;
 }
 
 export interface DurationOption {
@@ -145,6 +151,7 @@ export class ArenaBookingComponent {
   protected readonly arena = signal<ArenaListItem | null>(null);
   protected readonly courts = signal<ArenaCourtDoc[]>([]);
   protected readonly slotsByDateKey = signal<Record<string, ArenaSlot[]>>({});
+  protected readonly peakRules = signal<ArenaPeakRule[]>([]);
 
   private readonly today = dateOnly(new Date());
 
@@ -209,21 +216,65 @@ export class ArenaBookingComponent {
 
   protected readonly baseSlotMinutes = computed(() => slotDurationMinutesOf(this.selectedCourt()?.data));
 
+  private peakCheckFor(selection: ArenaSlot[]): PeakSelectionCheck {
+    return peakCheckForSelection({
+      rules: this.peakRules(),
+      courtId: this.selectedCourtId() ?? '',
+      date: this.selectedDate(),
+      courtDaySlots: this.selectedCourtSlots(),
+      selection,
+      slotDurationMinutes: this.baseSlotMinutes(),
+    });
+  }
+
+  /** Dica exibida sob o seletor de duração quando o slot inicial é de pico restrito. */
+  protected readonly peakHint = computed<string | null>(() => {
+    const start = this.selectedStartSlot();
+    if (!start) return null;
+    const check = this.peakCheckFor([start]);
+    if (check.minSlots <= 1) return null;
+    return `Horário concorrido: reserva mínima de ${formatDurationLabel(check.minSlots * this.baseSlotMinutes())}.`;
+  });
+
   protected readonly durationOptions = computed<DurationOption[]>(() => {
     const base = this.baseSlotMinutes();
-    return DURATION_MULTIPLIERS.map((n) => ({
-      slots: n,
-      minutes: base * n,
-      label: formatDurationLabel(base * n),
-      enabled: this.chainForDuration(n) != null,
-    }));
+    const options: DurationOption[] = DURATION_MULTIPLIERS.map((n) => {
+      const chain = this.chainForDuration(n);
+      const enabled = chain != null && this.peakCheckFor(chain).minSlots <= n;
+      return { slots: n, minutes: base * n, label: formatDurationLabel(base * n), enabled };
+    });
+
+    // Quadras com slot-base curto (ex.: 30min) podem exigir mais slots contíguos do
+    // que os multiplicadores padrão oferecem (ex.: pico de 2h = 4 slots de 30min).
+    // Sem isso, o auto-bump em selectStartSlot cai num durationSlots() sem chip
+    // correspondente (estado fantasma).
+    const start = this.selectedStartSlot();
+    const maxBaseSlots = DURATION_MULTIPLIERS[DURATION_MULTIPLIERS.length - 1];
+    if (start) {
+      const minSlots = this.peakCheckFor([start]).minSlots;
+      if (minSlots > maxBaseSlots) {
+        const chain = this.chainForDuration(minSlots);
+        options.push({
+          slots: minSlots,
+          minutes: base * minSlots,
+          label: formatDurationLabel(base * minSlots),
+          enabled: chain != null && this.peakCheckFor(chain).minSlots <= minSlots,
+        });
+      }
+    }
+
+    return options;
   });
 
   protected readonly selectedChain = computed<ArenaSlot[] | null>(() =>
     this.chainForDuration(this.durationSlots()),
   );
 
-  protected readonly canContinue = computed(() => this.selectedChain() != null);
+  protected readonly canContinue = computed(() => {
+    const chain = this.selectedChain();
+    if (!chain) return false;
+    return this.peakCheckFor(chain).minSlots <= chain.length;
+  });
 
   protected readonly totalPrice = computed(() => {
     const chain = this.selectedChain();
@@ -249,6 +300,18 @@ export class ArenaBookingComponent {
       noite: [],
     };
     for (const s of slots) {
+      const isSelectable = arenaSlotIsAvailable(s) && !isPastSlot(date, s.startTime);
+      const badgeSlots = isSelectable
+        ? peakBadgeMinSlots({
+            rules: this.peakRules(),
+            courtId: this.selectedCourtId() ?? '',
+            date,
+            courtDaySlots: slots,
+            slot: s,
+            slotDurationMinutes: this.baseSlotMinutes(),
+          })
+        : 1;
+
       const view: SlotView = {
         slot: s,
         isAvailable: arenaSlotIsAvailable(s),
@@ -259,6 +322,7 @@ export class ArenaBookingComponent {
         isSelectedStart: s.id === startId,
         isInChain: chainIds.has(s.id),
         priceReais: s.priceReais,
+        peakMinLabel: badgeSlots > 1 ? `mín. ${formatDurationLabel(badgeSlots * this.baseSlotMinutes())}` : null,
       };
       const hour = Number.parseInt(s.startTime.split(':')[0] ?? '0', 10);
       if (hour < 12) buckets.manha.push(view);
@@ -336,6 +400,17 @@ export class ArenaBookingComponent {
 
       const courts = await fetchCourts(this.firestore, id);
       this.courts.set(courts);
+
+      // Dado só de UX (o servidor reforça o mínimo de qualquer forma): uma falha aqui
+      // não pode derrubar a página inteira de reserva.
+      try {
+        this.peakRules.set(await fetchActivePeakRules(this.firestore!, id));
+      } catch (peakErr) {
+        if (!environment.production) {
+          console.error('[arena-booking] fetchActivePeakRules error', peakErr);
+        }
+        this.peakRules.set([]);
+      }
 
       const requestedCourtId = this.route.snapshot.queryParamMap.get('courtId');
       const initialCourtId =
@@ -418,6 +493,10 @@ export class ArenaBookingComponent {
   protected selectStartSlot(view: SlotView): void {
     if (!view.isAvailable || view.isPast) return;
     this.selectedStartSlot.set(view.slot);
+    const minSlots = this.peakCheckFor([view.slot]).minSlots;
+    if (minSlots > this.durationSlots() && this.chainForDuration(minSlots) != null) {
+      this.durationSlots.set(minSlots);
+    }
   }
 
   protected selectDuration(n: number): void {

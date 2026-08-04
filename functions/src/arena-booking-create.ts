@@ -23,6 +23,7 @@ import {
   reserveCouponRedemptionInTransaction,
   type CouponPricingOutcome,
 } from "./arena-coupons";
+import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -86,13 +87,19 @@ function safeIdPart(s: string): string {
 
 async function loadPricingContext(arenaId: string, courtId: string) {
   const db = getFirestore();
-  const [arenaSnap, courtSnap, promoSnap] = await Promise.all([
+  const [arenaSnap, courtSnap, promoSnap, peakSnap] = await Promise.all([
     db.collection("arenas").doc(arenaId).get(),
     db.collection("arenas").doc(arenaId).collection("courts").doc(courtId).get(),
     db
       .collection("arenas")
       .doc(arenaId)
       .collection("promotions")
+      .where("active", "==", true)
+      .get(),
+    db
+      .collection("arenas")
+      .doc(arenaId)
+      .collection("peakRules")
       .where("active", "==", true)
       .get(),
   ]);
@@ -108,6 +115,7 @@ async function loadPricingContext(arenaId: string, courtId: string) {
     arenaData: arenaSnap.data() as Record<string, unknown>,
     courtData: courtSnap.data() as Record<string, unknown>,
     promotions: parsePromotionsFromDocs(promoSnap.docs),
+    peakRules: parsePeakRulesFromDocs(peakSnap.docs),
     arenaFallback: readArenaFallbackPrice(
       arenaSnap.data() as Record<string, unknown>,
     ),
@@ -152,6 +160,17 @@ async function quoteInternal(
     arenaFallback: ctx.arenaFallback,
     promotions: ctx.promotions,
     selectedSlotStartTimes: input.selectedSlotStartTimes,
+  });
+
+  await ensurePeakRuleSatisfied({
+    db: getFirestore(),
+    arenaId,
+    courtId,
+    dateKey,
+    peakRules: ctx.peakRules,
+    courtData: ctx.courtData,
+    arenaFallback: ctx.arenaFallback,
+    selectionStartTimes: promoTotal.lineItems.map((l) => l.startTime),
   });
 
   const {result, coupon} = await resolveCouponForBooking({
@@ -279,6 +298,17 @@ export const createArenaBooking = onCall(async (request) => {
   });
 
   assertPositiveBookingTotal(total);
+
+  await ensurePeakRuleSatisfied({
+    db,
+    arenaId,
+    courtId,
+    dateKey,
+    peakRules: ctx.peakRules,
+    courtData: ctx.courtData,
+    arenaFallback: ctx.arenaFallback,
+    selectionStartTimes: total.lineItems.map((l) => l.startTime),
+  });
 
   if (
     input.clientAmountReais != null &&

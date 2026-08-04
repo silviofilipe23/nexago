@@ -1,3 +1,4 @@
+import 'arena_peak_rule.dart';
 import 'arena_slot.dart';
 import 'arena_slot_block_reason.dart';
 import 'arena_search_providers.dart';
@@ -486,4 +487,130 @@ String formatCompactSlotTime(String time) {
 
 String formatCompactTimeRange(String start, String end) {
   return '${formatCompactSlotTime(start)}–${formatCompactSlotTime(end)}';
+}
+
+/// Resultado do predicado de pico para uma seleção [start..end].
+class PeakSelectionCheck {
+  const PeakSelectionCheck({required this.minSlots, this.rule});
+
+  /// Mínimo de slots contíguos exigido (1 = livre).
+  final int minSlots;
+  final ArenaPeakRule? rule;
+}
+
+/// Predicado central do horário de pico (ver spec 2026-08-03): exige o mínimo
+/// apenas quando existe cadeia contígua disponível que o cumpra; a janela de
+/// antecedência (`releaseHoursBefore`) também libera.
+PeakSelectionCheck peakCheckForRange({
+  required List<ArenaPeakRule> rules,
+  required String courtId,
+  required List<ArenaSlot> slots,
+  required DateTime selectedDay,
+  required int start,
+  required int end,
+  required int slotDurationMinutes,
+  DateTime? now,
+}) {
+  final n = now ?? DateTime.now();
+  if (rules.isEmpty || start < 0 || end >= slots.length || start > end) {
+    return const PeakSelectionCheck(minSlots: 1);
+  }
+  final selectionLength = end - start + 1;
+  var demandedSlots = 1;
+  ArenaPeakRule? demandedRule;
+
+  for (var i = start; i <= end; i++) {
+    final rule = _peakRestrictionFor(slots[i], rules, courtId, selectedDay, n);
+    if (rule == null) continue;
+    final minSlots = durationSlotCount(rule.minDurationMinutes, slotDurationMinutes);
+    if (selectionLength >= minSlots) continue;
+    if (!_peakChainExists(slots, i, minSlots, selectedDay, n)) continue;
+    if (minSlots > demandedSlots) {
+      demandedSlots = minSlots;
+      demandedRule = rule;
+    }
+  }
+  return PeakSelectionCheck(minSlots: demandedSlots, rule: demandedRule);
+}
+
+/// Mínimo a exibir no chip do slot (badge "mín. 2h"); 1 = sem badge.
+int peakBadgeMinSlots({
+  required List<ArenaPeakRule> rules,
+  required String courtId,
+  required List<ArenaSlot> slots,
+  required DateTime selectedDay,
+  required int index,
+  required int slotDurationMinutes,
+  DateTime? now,
+}) {
+  return peakCheckForRange(
+    rules: rules,
+    courtId: courtId,
+    slots: slots,
+    selectedDay: selectedDay,
+    start: index,
+    end: index,
+    slotDurationMinutes: slotDurationMinutes,
+    now: now,
+  ).minSlots;
+}
+
+ArenaPeakRule? _peakRestrictionFor(
+  ArenaSlot slot,
+  List<ArenaPeakRule> rules,
+  String courtId,
+  DateTime day,
+  DateTime now,
+) {
+  ArenaPeakRule? best;
+  for (final r in rules) {
+    if (!r.matches(
+      courtId: courtId,
+      date: day,
+      slotStartTime: slot.startTime,
+    )) {
+      continue;
+    }
+    if (best == null || r.minDurationMinutes > best.minDurationMinutes) {
+      best = r;
+    }
+  }
+  final release = best?.releaseHoursBefore;
+  if (best != null && release != null) {
+    final startMin = slotStartMinutes(slot.startTime);
+    final slotStart = DateTime(
+      day.year, day.month, day.day, startMin ~/ 60, startMin % 60,
+    );
+    if (!now.isBefore(slotStart.subtract(Duration(hours: release)))) {
+      return null;
+    }
+  }
+  return best;
+}
+
+bool _peakChainExists(
+  List<ArenaSlot> slots,
+  int index,
+  int minSlots,
+  DateTime day,
+  DateTime now,
+) {
+  for (var start = (index - (minSlots - 1)).clamp(0, index); start <= index; start++) {
+    if (start + minSlots > slots.length) break;
+    var ok = true;
+    for (var i = start; i < start + minSlots; i++) {
+      final s = slots[i];
+      if (!s.isAvailable ||
+          isPastBookableSlot(selectedDay: day, slot: s, now: now)) {
+        ok = false;
+        break;
+      }
+      if (i > start && slots[i - 1].endTime != s.startTime) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return true;
+  }
+  return false;
 }

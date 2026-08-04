@@ -15,7 +15,8 @@ export type ArenaCapability =
   | 'metricasCompletas'
   | 'receberTorneios'
   | 'multiUnidade'
-  | 'equipe';
+  | 'equipe'
+  | 'horariosPico'; // horariosPico: regras de reserva mínima em horário de pico (peakRules)
 
 /** Carência após o vencimento em que a arena `overdue` ainda mantém o plano (dias). Espelha `firestore.rules`. */
 const ARENA_OVERDUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -84,6 +85,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'receberTorneios',
         'multiUnidade',
         'equipe',
+        'horariosPico',
       ]);
     case 'pro':
       return new Set<ArenaCapability>([
@@ -94,6 +96,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'metricasCompletas',
         'receberTorneios',
         'equipe',
+        'horariosPico',
       ]);
     default:
       return new Set<ArenaCapability>();

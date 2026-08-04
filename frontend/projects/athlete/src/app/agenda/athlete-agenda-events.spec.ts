@@ -34,6 +34,7 @@ function makeRegistration(overrides: Partial<AthleteTournamentRegistration> = {}
     sharePaidUids: [],
     player1Id: null,
     participantUids: [],
+    lgpdAcceptedUids: [],
     uniformPlayer1: EMPTY_UNIFORM_SLOT,
     uniformPlayer2: EMPTY_UNIFORM_SLOT,
     ...overrides,

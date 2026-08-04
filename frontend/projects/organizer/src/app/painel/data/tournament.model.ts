@@ -2,6 +2,8 @@
  *  filtrado por `managerId == uid` — quem organiza o torneio. Ver `tournaments-repository.ts`
  *  pro mapeamento de campos. */
 
+import type { TournamentVisibility } from './tournament-create.model';
+
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
 export interface OrganizerTournamentCategory {
@@ -57,6 +59,9 @@ export interface OrganizerTournament {
   /** Capa do torneio (`coverUrl`/`imageUrl`/… no Firestore) — nula quando não enviada. */
   coverUrl: string | null;
   status: OrganizerTournamentStatus;
+  /** `linkOnly` fica fora da listagem pública do site — o único caminho até ele é o link que o
+   *  organizador compartilha, e é isso que decide o destino em `tournament-share.ts`. */
+  visibility: TournamentVisibility;
   startAt: Date | null;
   endAt: Date | null;
   city: string | null;

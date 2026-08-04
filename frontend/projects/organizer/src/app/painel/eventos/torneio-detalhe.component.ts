@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { environment } from '../../../environments/environment';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches } from '../data/matches-repository';
 import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
@@ -9,6 +10,7 @@ import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import { OgCompartilharTorneioDialogComponent } from './compartilhar-torneio-dialog.component';
 
 const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
@@ -37,10 +39,15 @@ interface CategoriaRow {
 @Component({
   selector: 'og-torneio-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, NxSpinnerComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, NxSpinnerComponent, OgCompartilharTorneioDialogComponent],
   template: `
     <og-page-header [title]="tournament()?.name ?? 'Torneio'" [subtitle]="headerSubtitle()">
       @if (tournament(); as t) {
+        @if (canShare()) {
+          <button type="button" class="og-mini-btn og-mini-btn-primary" (click)="shareOpen.set(true)">
+            <og-icon name="share" [size]="14" />Compartilhar
+          </button>
+        }
         @if (t.status === 'inscricoes') {
           <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="closeRegistrations()">
             @if (actingKind() === 'close') {
@@ -155,6 +162,18 @@ interface CategoriaRow {
         </div>
       }
     </div>
+
+    @if (shareOpen()) {
+      @if (tournament(); as t) {
+        <og-compartilhar-torneio-dialog
+          [tournament]="t"
+          [bases]="shareBases"
+          [place]="sharePlace()"
+          [dateLabel]="shareDateLabel()"
+          (closed)="shareOpen.set(false)"
+        />
+      }
+    }
   `,
   styles: `
     /* ── Hero de capa — background full-bleed que desvanece no fundo da página ──
@@ -387,6 +406,29 @@ export class TorneioDetalheComponent {
   protected readonly categoriesWithMatches = signal<ReadonlySet<string>>(new Set<string>());
   /** Capa falhou ao carregar — o banner some (a página funciona igual sem ele). */
   protected readonly coverFailed = signal(false);
+  protected readonly shareOpen = signal(false);
+
+  protected readonly shareBases = {
+    siteBaseUrl: environment.publicSiteUrl,
+    athleteBaseUrl: environment.athleteAppUrl,
+  };
+
+  /** Divulgar segue valendo com o torneio rolando (categoria não lotada ainda recebe inscrição);
+   *  em concluído/cancelado o link só levaria o atleta a uma porta fechada. */
+  protected readonly canShare = computed(() => {
+    const status = this.tournament()?.status;
+    return status === 'inscricoes' || status === 'andamento';
+  });
+
+  protected readonly sharePlace = computed(() => {
+    const t = this.tournament();
+    return t ? (t.location ?? t.city) : null;
+  });
+
+  protected readonly shareDateLabel = computed(() => {
+    const t = this.tournament();
+    return t?.startAt ? this.dateRangeLabel(t.startAt, t.endAt) : null;
+  });
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -427,6 +469,7 @@ export class TorneioDetalheComponent {
       this.inscriptions.set([]);
       this.categoriesWithMatches.set(new Set<string>());
       this.coverFailed.set(false);
+      this.shareOpen.set(false);
       if (!tid) {
         this.loading.set(false);
         return;

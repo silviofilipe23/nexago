@@ -13,6 +13,7 @@ describe('liga-stages', () => {
       sportId: 'beachVolleyball',
       coverUrl: null,
       status: 'inscricoes',
+      visibility: 'publicListing',
       startAt: null,
       endAt: null,
       city: null,

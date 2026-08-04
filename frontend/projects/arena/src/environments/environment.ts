@@ -4,5 +4,5 @@ export const environment = {
   production: false,
   firebase: firebaseConfig,
   /** Host onde a página pública de links é servida (site Next.js). */
-  publicSiteUrl: 'https://site-3fbe8.web.app',
+  publicSiteUrl: 'https://nexago.com.br',
 };

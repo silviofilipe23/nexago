@@ -218,6 +218,42 @@ void main() {
     expect(chain?.end, 3);
   });
 
+  test(
+      'minimumChainContaining recua além da tentativa ancorada e ainda '
+      'cobre selectionEnd', () {
+    final grade = [
+      slot('18:00', '19:00'),
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', status: 'booked'),
+      slot('22:00', '23:00'),
+    ];
+    final chain = minimumChainContaining(
+      slots: grade, selectionStart: 1, selectionEnd: 2, minSlots: 3,
+      selectedDay: qua, now: nowCedo,
+    );
+    expect(chain?.start, 0);
+    expect(chain?.end, 2);
+  });
+
+  test(
+      'minimumChainContaining devolve null quando minSlots é menor que o '
+      'comprimento da seleção', () {
+    final grade = [
+      slot('15:00', '16:00'),
+      slot('16:00', '17:00'),
+      slot('17:00', '18:00'),
+      slot('18:00', '19:00'),
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+    ];
+    final chain = minimumChainContaining(
+      slots: grade, selectionStart: 2, selectionEnd: 5, minSlots: 2,
+      selectedDay: qua, now: nowCedo,
+    );
+    expect(chain, isNull);
+  });
+
   test('peakPromptForSelection abre no slot de pico restrito', () {
     final grade = [slot('19:00', '20:00'), slot('20:00', '21:00'), slot('21:00', '22:00')];
     final prompt = peakPromptForSelection(

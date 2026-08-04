@@ -595,24 +595,15 @@ bool _peakChainExists(
   DateTime day,
   DateTime now,
 ) {
-  for (var start = (index - (minSlots - 1)).clamp(0, index); start <= index; start++) {
-    if (start + minSlots > slots.length) break;
-    var ok = true;
-    for (var i = start; i < start + minSlots; i++) {
-      final s = slots[i];
-      if (!s.isAvailable ||
-          isPastBookableSlot(selectedDay: day, slot: s, now: now)) {
-        ok = false;
-        break;
-      }
-      if (i > start && slots[i - 1].endTime != s.startTime) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) return true;
-  }
-  return false;
+  return minimumChainContaining(
+        slots: slots,
+        selectionStart: index,
+        selectionEnd: index,
+        minSlots: minSlots,
+        selectedDay: day,
+        now: now,
+      ) !=
+      null;
 }
 
 /// Melhor cadeia contígua de [minSlots] slots selecionáveis que contém todo o
@@ -631,6 +622,8 @@ bool _peakChainExists(
   if (minSlots < 1 || selectionStart < 0 || selectionEnd >= slots.length) {
     return null;
   }
+  final selectionLength = selectionEnd - selectionStart + 1;
+  if (minSlots < selectionLength) return null;
   final earliest = (selectionEnd - minSlots + 1).clamp(0, selectionStart);
   for (var start = selectionStart; start >= earliest; start--) {
     final end = start + minSlots - 1;
@@ -710,7 +703,10 @@ PeakPrompt? peakPromptForSelection({
     selectedDay: selectedDay,
     now: n,
   );
-  // Defensivo: o predicado só exige o mínimo quando a cadeia existe.
+  // Sem cadeia que cubra a seleção inteira não há o que oferecer no modal.
+  // Não é impossível: `peakCheckForRange` valida a janela em torno do slot
+  // restrito, não do intervalo todo. Nesse caso o rodapé segue bloqueando a
+  // seleção — o atleta só fica sem a explicação em modal.
   if (chain == null) return null;
 
   return PeakPrompt(

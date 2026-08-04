@@ -2182,3 +2182,67 @@ button {
   position: absolute;
   z-index: 1;
 }
+
+/* Configurações (/painel/config) — compartilhado pelos três cards (Perfil, Pagamentos e Regras),
+   que são componentes irmãos; por isso vive aqui e não no `styles:` de um deles. */
+.og-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.og-config-row.last {
+  border-bottom: none;
+}
+
+.og-config-row .lbl {
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+  flex: none;
+}
+
+.og-config-row .val {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--nx-text);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.og-cfg-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.og-cfg-error {
+  margin-top: 10px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-live);
+}
+
+.og-cfg-feedback {
+  margin-top: 12px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+}
+
+.og-cfg-hint {
+  margin: 0 0 14px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+}

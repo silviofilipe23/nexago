@@ -2,6 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../auth/auth.service';
+import { fetchOrganizerSettings } from '../../data/organizer-settings-repository';
+import {
+  DEFAULT_ORGANIZER_EVENT_DEFAULTS,
+  applyOrganizerCategoryDefaults,
+  applyOrganizerDefaults,
+  applyOrganizerPaymentDefaults,
+  type OrganizerEventDefaults,
+} from '../../data/organizer-settings.model';
 import { loadTournamentDraft, publishTournamentDraft } from '../../data/tournament-create-mapper';
 import {
   AGE_BAND_LABEL,
@@ -171,6 +179,8 @@ function inputToDatetime(v: string): Date | null {
         }
         @if (editLoading()) {
           <app-nx-page-loading title="Carregando torneio…" subtitle="Preenchendo o rascunho para edição" />
+        } @else if (defaultsLoading()) {
+          <app-nx-page-loading title="Preparando o rascunho…" subtitle="Aplicando suas regras padrão de evento" />
         } @else {
 
         @switch (subView()) {
@@ -596,6 +606,9 @@ export class CriarTorneioComponent {
   protected readonly brLocations = inject(BrLocationsService);
 
   protected readonly draft = signal<TournamentCreateDraft>(emptyTournamentDraft());
+  /** Regras padrão do organizador (`/painel/config`), carregadas uma vez na criação. Só as
+   *  de categoria sobrevivem depois disso — as de torneio já foram aplicadas no rascunho. */
+  private organizerDefaults: OrganizerEventDefaults = DEFAULT_ORGANIZER_EVENT_DEFAULTS;
   protected readonly step = signal<TournamentCreateStep>('identity');
   /** Passo mais avançado já alcançado (1-based) — limita o clique direto na criação. */
   private readonly maxStepReached = signal(1);
@@ -605,6 +618,9 @@ export class CriarTorneioComponent {
   protected readonly saving = signal(false);
   /** Carga do doc no modo edição (`?editar=`) — sem isso o form pisca vazio até popular. */
   protected readonly editLoading = signal(false);
+  /** Carga das regras padrão na criação — segura o primeiro passo pra o organizador não digitar
+   *  em cima de um campo que está prestes a ser preenchido. */
+  protected readonly defaultsLoading = signal(false);
   protected readonly publishedId = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   private existingListingStatus: string | null = null;
@@ -696,6 +712,7 @@ export class CriarTorneioComponent {
   protected readonly totalPrize = computed(() => totalPrizeCents(this.draft()));
 
   constructor() {
+    void this.loadOrganizerDefaults();
     effect(() => {
       const editId = this.queryParams()?.get('editar');
       if (!editId || this.draft().tournamentId === editId) return;
@@ -707,6 +724,31 @@ export class CriarTorneioComponent {
       // eslint-disable-next-line no-console
       console.log('[DEBUG torneio draft]', { tournamentId: d.tournamentId, city: d.city, state: d.state });
     });
+  }
+
+  /** Preenche o rascunho NOVO com as regras padrão do organizador (`/painel/config`).
+   *
+   *  Nunca roda no modo edição: aplicar defaults sobre um torneio já carregado sobrescreveria
+   *  dados reais. Daí as duas guardas — `?editar=` na rota antes de começar, e de novo depois do
+   *  await, porque a query param pode chegar durante a leitura. `fetchOrganizerSettings` não
+   *  lança: sem configuração (ou sem rede) segue com os defaults de fábrica, que são exatamente
+   *  os que o wizard usava antes desta tela existir. */
+  private async loadOrganizerDefaults(): Promise<void> {
+    if (this.route.snapshot.queryParamMap.get('editar')) return;
+    const uid = this.auth.user()?.uid;
+    if (!uid) return;
+
+    this.defaultsLoading.set(true);
+    try {
+      const settings = await fetchOrganizerSettings(uid);
+      this.organizerDefaults = settings.defaults;
+      if (this.draft().tournamentId != null || this.route.snapshot.queryParamMap.get('editar')) return;
+      this.draft.update((d) =>
+        applyOrganizerPaymentDefaults(applyOrganizerDefaults(d, settings.defaults), settings.payments),
+      );
+    } finally {
+      this.defaultsLoading.set(false);
+    }
   }
 
   private async loadForEdit(id: string): Promise<void> {
@@ -834,7 +876,15 @@ export class CriarTorneioComponent {
   // ── Categorias ──
   protected openCategoriaBuilder(id: string | null): void {
     const existing = id ? this.draft().categories.find((c) => c.id === id) : null;
-    this.cat.set(existing ? { ...existing } : { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents });
+    // Categoria existente abre como está; só a NOVA nasce com as regras padrão do organizador.
+    this.cat.set(
+      existing
+        ? { ...existing }
+        : applyOrganizerCategoryDefaults(
+            { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
+            this.organizerDefaults,
+          ),
+    );
     this.subView.set('categoria');
   }
 

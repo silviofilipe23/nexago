@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../auth/auth.service';
+import { fetchOrganizerSettings } from '../../data/organizer-settings-repository';
+import {
+  DEFAULT_ORGANIZER_EVENT_DEFAULTS,
+  applyOrganizerCategoryDefaults,
+  type OrganizerEventDefaults,
+} from '../../data/organizer-settings.model';
 import {
   COUNTING_MODE_LABEL,
   DEFAULT_LEAGUE_RANKING_POINTS,
@@ -413,6 +419,10 @@ export class CriarLigaComponent {
   private readonly auth = inject(AuthService);
   protected readonly brLocations = inject(BrLocationsService);
 
+  /** Regras padrão do organizador (`/painel/config`) — aqui só as de categoria são usadas; o
+   *  rascunho da liga tem modelo próprio (`league-create.model.ts`) e não recebe defaults. */
+  private organizerDefaults: OrganizerEventDefaults = DEFAULT_ORGANIZER_EVENT_DEFAULTS;
+
   protected readonly draft = signal<LeagueCreateDraft>(emptyLeagueDraft());
   protected readonly step = signal<Step>(1);
   /** Passo mais avançado já alcançado (1-based) — limita o clique direto no stepper. */
@@ -458,6 +468,18 @@ export class CriarLigaComponent {
   protected readonly unlockedUpTo = computed(() => (this.subView() !== null ? 0 : this.maxStepReached()));
 
   protected readonly hasDefinedStage = computed(() => this.draft().stages.some((s) => this.stageIsDefined(s)));
+
+  constructor() {
+    void this.loadOrganizerDefaults();
+  }
+
+  /** Sem gate de loading porque nada aqui é aplicado ao abrir a tela: os defaults só entram
+   *  quando o organizador abre o builder de uma categoria nova, bem depois da leitura. */
+  private async loadOrganizerDefaults(): Promise<void> {
+    const uid = this.auth.user()?.uid;
+    if (!uid) return;
+    this.organizerDefaults = (await fetchOrganizerSettings(uid)).defaults;
+  }
 
   // ── Helpers ──
   protected patch(partial: Partial<LeagueCreateDraft>): void {
@@ -536,7 +558,15 @@ export class CriarLigaComponent {
   // ── Categorias ──
   protected openCategoria(id: string | null): void {
     const existing = id ? this.draft().categories.find((c) => c.id === id) : null;
-    this.cat.set(existing ? { ...existing } : { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents });
+    // Categoria existente abre como está; só a NOVA nasce com as regras padrão do organizador.
+    this.cat.set(
+      existing
+        ? { ...existing }
+        : applyOrganizerCategoryDefaults(
+            { ...emptyCategoryDraft(`${Date.now()}`), priceCents: this.draft().defaultPriceCents },
+            this.organizerDefaults,
+          ),
+    );
     this.subView.set('categoria');
   }
 

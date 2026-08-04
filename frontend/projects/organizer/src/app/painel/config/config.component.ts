@@ -1,104 +1,97 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { OgCardComponent } from '../ui/card.component';
-import { OgIconComponent } from '../ui/icon.component';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { AuthService } from '../../auth/auth.service';
+import { watchOrganizerSettings } from '../data/organizer-settings-repository';
+import { DEFAULT_ORGANIZER_SETTINGS, type OrganizerSettings } from '../data/organizer-settings.model';
+import { watchWallet, type OrganizerWalletSummary } from '../data/wallet-repository';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
+import { OgConfigPagamentosCardComponent } from './pagamentos-card.component';
+import { OgConfigPerfilCardComponent } from './perfil-card.component';
+import { OgConfigRegrasCardComponent } from './regras-card.component';
 
-interface ConfigRow {
-  label: string;
-  value: string;
-}
+const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 0, payoutPixKey: '', payoutPixKeyType: '' };
 
-const ORG_ROWS: ConfigRow[] = [
-  { label: 'Nome', value: 'Liga Amadora Goiânia' },
-  { label: 'Responsável', value: 'Rafael Souza' },
-  { label: 'E-mail de contato', value: 'contato@ligaamadora.gg' },
-  { label: 'Cidade', value: 'Goiânia · GO' },
-];
-
-const REGRAS_ROWS: ConfigRow[] = [
-  { label: 'Formato padrão', value: 'Eliminação simples' },
-  { label: 'Taxa da plataforma', value: '6% por inscrição' },
-  { label: 'Política de estorno', value: 'Até 48h antes' },
-  { label: 'Repasse', value: 'D+2 após o evento' },
-];
-
-const PAGAMENTOS_ROWS: ConfigRow[] = [
-  { label: 'Conta bancária', value: 'Itaú •••• 4021' },
-  { label: 'Chave Pix', value: 'contato@ligaamadora.gg' },
-  { label: 'Saque automático', value: 'Semanal' },
-];
-
-/** Dados da organização, regras padrão de evento e pagamentos. A equipe de acesso agora é
- *  por torneio (`/painel/eventos/:id/equipe`, gestor/mesário) — não existe mais uma "equipe do
- *  painel" global, então o card mockado que vivia aqui foi removido. */
+/** Configurações do organizador: perfil da organização, dados de recebimento e regras padrão de
+ *  evento — os três mapas de `users/{uid}` descritos em `organizer-settings.model.ts`.
+ *
+ *  Este componente é só a casca: mantém o listener e distribui as fatias. Cada card cuida do
+ *  próprio ciclo de edição/salvamento, então um erro ao salvar Pagamentos não derruba o Perfil.
+ *
+ *  A equipe de acesso é por torneio (`/painel/eventos/:id/equipe`, gestor/mesário) — não existe
+ *  "equipe do painel" global, por isso não há card de equipe aqui. */
 @Component({
   selector: 'og-config',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent],
+  imports: [
+    OgPageHeaderComponent,
+    OgConfigPerfilCardComponent,
+    OgConfigPagamentosCardComponent,
+    OgConfigRegrasCardComponent,
+  ],
   template: `
-    <og-page-header title="Configurações" subtitle="Dados da organização e pagamentos" />
+    <og-page-header title="Configurações" subtitle="Dados da organização, pagamentos e padrões de evento" />
 
-    <div class="og-content" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <og-card title="Organização" kicker="Perfil">
-        <button card-action type="button" class="og-ghost-btn"><og-icon name="edit" [size]="13" />Editar</button>
-        @for (r of orgRows; track r.label; let last = $last) {
-          <div class="og-config-row" [class.last]="last">
-            <span class="lbl">{{ r.label }}</span>
-            <span class="val">{{ r.value }}<og-icon name="chevron" [size]="14" style="color:var(--nx-text-dim)" /></span>
-          </div>
-        }
-      </og-card>
-
-      <og-card title="Regras padrão de evento" kicker="Modelos">
-        <button card-action type="button" class="og-ghost-btn"><og-icon name="edit" [size]="13" />Editar</button>
-        @for (r of regrasRows; track r.label; let last = $last) {
-          <div class="og-config-row" [class.last]="last">
-            <span class="lbl">{{ r.label }}</span>
-            <span class="val">{{ r.value }}<og-icon name="chevron" [size]="14" style="color:var(--nx-text-dim)" /></span>
-          </div>
-        }
-      </og-card>
-
-      <og-card title="Pagamentos" kicker="NexaGO Pay">
-        <button card-action type="button" class="og-ghost-btn"><og-icon name="edit" [size]="13" />Gerenciar</button>
-        @for (r of pagamentosRows; track r.label; let last = $last) {
-          <div class="og-config-row" [class.last]="last">
-            <span class="lbl">{{ r.label }}</span>
-            <span class="val">{{ r.value }}<og-icon name="chevron" [size]="14" style="color:var(--nx-text-dim)" /></span>
-          </div>
-        }
-      </og-card>
+    <div class="og-content og-config-grid">
+      <og-config-perfil
+        [uid]="uid()"
+        [profile]="settings().profile"
+        [responsavel]="responsavel()"
+        [accountEmail]="accountEmail()"
+        [loading]="loading()"
+      />
+      <og-config-pagamentos
+        [uid]="uid()"
+        [payments]="settings().payments"
+        [payoutPixKey]="wallet().payoutPixKey"
+        [payoutPixKeyType]="wallet().payoutPixKeyType"
+        [loading]="loading()"
+      />
+      <og-config-regras [uid]="uid()" [defaults]="settings().defaults" [loading]="loading()" />
     </div>
   `,
   styles: `
-    .og-config-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 13px 0;
-      border-bottom: 1px solid var(--nx-line);
+    .og-config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
     }
-    .og-config-row.last {
-      border-bottom: none;
-    }
-    .og-config-row .lbl {
-      font-family: var(--nx-font-ui);
-      font-size: 13.5px;
-      color: var(--nx-text-mute);
-    }
-    .og-config-row .val {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-family: var(--nx-font-display);
-      font-weight: 600;
-      font-size: 13.5px;
-      color: var(--nx-text);
+
+    @media (max-width: 1100px) {
+      .og-config-grid {
+        grid-template-columns: 1fr;
+      }
     }
   `,
 })
 export class ConfigComponent {
-  protected readonly orgRows = ORG_ROWS;
-  protected readonly regrasRows = REGRAS_ROWS;
-  protected readonly pagamentosRows = PAGAMENTOS_ROWS;
+  private readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly settings = signal<OrganizerSettings>(DEFAULT_ORGANIZER_SETTINGS);
+  protected readonly wallet = signal<OrganizerWalletSummary>(EMPTY_WALLET);
+  protected readonly loading = signal(true);
+
+  protected readonly uid = computed(() => this.auth.user()?.uid ?? '');
+  protected readonly responsavel = computed(() => this.auth.displayName() ?? '');
+  protected readonly accountEmail = computed(() => this.auth.user()?.email ?? '');
+
+  constructor() {
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      this.loading.set(false);
+      return;
+    }
+
+    const stopSettings = watchOrganizerSettings(uid, (s) => {
+      this.settings.set(s);
+      this.loading.set(false);
+    });
+    // Só leitura: a chave de saque é escrita por Cloud Function na tela Financeiro.
+    const stopWallet = watchWallet(uid, (w) => this.wallet.set(w));
+
+    this.destroyRef.onDestroy(() => {
+      stopSettings();
+      stopWallet();
+    });
+  }
 }

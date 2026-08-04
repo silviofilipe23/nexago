@@ -120,12 +120,12 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           } @else {
             @for (r of filtered(); track r.id) {
               <div class="og-row" style="flex-wrap:wrap">
-                <span class="og-inscricoes-avatars" [style.width.px]="r.athletes.length > 1 ? 52 : 34">
+                <span class="og-inscricoes-avatars" [style.width.px]="r.athletes.length > 1 ? 85 : 52">
                   @for (a of r.athletes; track $index; let i = $index) {
                     <og-avatar
                       [initials]="initialsOf(a.name)"
                       [photoUrl]="a.photoUrl"
-                      [size]="34"
+                      [size]="52"
                       [style.margin-left.px]="i ? -16 : 0"
                       [style.z-index]="r.athletes.length - i"
                     />

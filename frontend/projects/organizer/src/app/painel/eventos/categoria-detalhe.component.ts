@@ -66,12 +66,12 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
             @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
               <div class="og-row" [class.last]="last">
                 <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
-                <span class="og-categoria-avatars" [style.width.px]="athletesOf(i).length > 1 ? 52 : 34">
+                <span class="og-categoria-avatars" [style.width.px]="athletesOf(i).length > 1 ? 52 : 52">
                   @for (p of athletesOf(i); track $index; let ai = $index) {
                     <og-avatar
                       [initials]="initialsOf(p.name)"
                       [photoUrl]="p.photoUrl"
-                      [size]="34"
+                      [size]="52"
                       [style.margin-left.px]="ai ? -16 : 0"
                       [style.z-index]="2 - ai"
                     />

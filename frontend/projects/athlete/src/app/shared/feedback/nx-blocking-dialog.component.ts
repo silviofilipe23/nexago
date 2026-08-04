@@ -66,18 +66,31 @@ let nextId = 0;
         position: fixed;
         inset: 0;
         z-index: 1000;
-        display: grid;
-        place-items: center;
-        padding: 20px;
+        display: flex;
+        align-items: safe center;
+        justify-content: center;
+        box-sizing: border-box;
+        padding: max(16px, env(safe-area-inset-top, 0px))
+          max(16px, env(safe-area-inset-right, 0px))
+          max(16px, env(safe-area-inset-bottom, 0px))
+          max(16px, env(safe-area-inset-left, 0px));
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
         background: rgba(5, 5, 5, 0.72);
         backdrop-filter: blur(3px);
         animation: scrim-in var(--nx-d-fast) var(--nx-ease-out) both;
       }
 
       .dialog {
-        width: 460px;
-        max-width: 100%;
+        box-sizing: border-box;
+        width: min(460px, 100%);
+        max-height: min(100%, calc(100dvh - 32px));
+        margin: auto;
         padding: 30px 30px 26px;
+        overflow-x: hidden;
+        overflow-y: auto;
         background: var(--nx-surface-2);
         border: 1px solid var(--nx-line-strong);
         border-radius: var(--nx-r-4);
@@ -88,6 +101,7 @@ let nextId = 0;
       .chip {
         display: grid;
         place-items: center;
+        flex-shrink: 0;
         width: 52px;
         height: 52px;
         border-radius: var(--nx-r-3);
@@ -103,6 +117,7 @@ let nextId = 0;
         letter-spacing: -0.2px;
         line-height: 1.25;
         color: var(--nx-text);
+        overflow-wrap: anywhere;
       }
 
       .body {
@@ -111,6 +126,7 @@ let nextId = 0;
         font-size: 13.5px;
         line-height: 20.9px;
         color: var(--nx-text-mute);
+        overflow-wrap: anywhere;
       }
 
       /* Código técnico do erro: útil pro suporte, irrelevante pro atleta —
@@ -130,17 +146,23 @@ let nextId = 0;
 
       .actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 10px;
         margin-top: 16px;
       }
 
       .btn {
-        flex: 1;
+        box-sizing: border-box;
+        flex: 1 1 140px;
+        min-width: 0;
         min-height: 46px;
-        padding: 1px 6px;
+        padding: 10px 12px;
         border-radius: var(--nx-r-3);
         font-family: var(--nx-font-display);
         font-size: 14px;
+        line-height: 1.25;
+        white-space: normal;
+        text-align: center;
         cursor: pointer;
         transition:
           background var(--nx-d-fast) var(--nx-ease-out),
@@ -185,11 +207,21 @@ let nextId = 0;
 
       @media (max-width: 520px) {
         .dialog {
-          padding: 24px 20px 20px;
+          padding: 24px 16px 20px;
+          border-radius: var(--nx-r-3);
+        }
+
+        .title {
+          font-size: 18px;
         }
 
         .actions {
           flex-direction: column;
+        }
+
+        .btn {
+          flex: 1 1 auto;
+          width: 100%;
         }
       }
 

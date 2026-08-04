@@ -34,12 +34,22 @@ export interface RankingScoringRule {
   detail: string;
 }
 
-/** Tabela real de pontos por colocação (`ranking_constants.dart`) — "melhores 5" só vale
- *  no modo Temporada; no modo Geral soma tudo que o atleta já ganhou. */
+/** Tabela real de pontos por colocação (`DEFAULT_GLOBAL_POINTS` em
+ *  `functions/src/tournament-ranking.ts`). "Melhores 5" só vale no modo
+ *  Temporada; no modo Geral soma tudo que o atleta já ganhou. */
 export const RANKING_SCORING_RULES: readonly RankingScoringRule[] = [
-  { id: 'rule-1', title: '1º lugar', detail: '100 pts' },
-  { id: 'rule-2', title: '2º lugar', detail: '80 pts' },
+  { id: 'rule-1', title: '1º lugar (campeão)', detail: '100 pts' },
+  { id: 'rule-2', title: '2º lugar (vice)', detail: '80 pts' },
   { id: 'rule-3', title: '3º lugar', detail: '60 pts' },
   { id: 'rule-4', title: '4º lugar', detail: '50 pts' },
-  { id: 'rule-5-8', title: '5º–8º lugar', detail: '33 pts' },
+  {
+    id: 'rule-quarters',
+    title: 'Eliminado no mata-mata antes da semi',
+    detail: '33 pts',
+  },
+  {
+    id: 'rule-groups',
+    title: 'Eliminado na fase de grupos',
+    detail: '10 pts',
+  },
 ];

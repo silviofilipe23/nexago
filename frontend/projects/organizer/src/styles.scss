@@ -232,6 +232,56 @@ button {
   cursor: default;
 }
 
+.og-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.og-divider::before,
+.og-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--nx-line);
+}
+
+.og-btn-social {
+  height: 52px;
+  width: 100%;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  border: 1px solid var(--nx-line-strong);
+  cursor: pointer;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 180ms var(--nx-ease-out);
+}
+
+.og-btn-social:hover:not(:disabled) {
+  background: var(--nx-surface-2);
+  border-color: var(--nx-line-strong);
+}
+
+.og-btn-social:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.og-btn-social:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .og-text-link {
   background: transparent;
   border: none;
@@ -345,6 +395,12 @@ button {
   border: 2px solid rgba(10, 10, 10, 0.25);
   border-top-color: #0A0A0A;
   animation: og-spin 0.7s linear infinite;
+}
+
+/* O `.og-spinner` é escuro (feito pro botão laranja); em superfície escura ele some. */
+.og-spinner-light {
+  border-color: rgba(255, 255, 255, 0.25);
+  border-top-color: var(--nx-text);
 }
 
 @keyframes og-spin {

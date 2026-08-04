@@ -29,6 +29,17 @@ export function mapFirebaseAuthError(error: unknown): string {
       return 'Link inválido ou já usado. Peça um novo link de redefinição.';
     case 'auth/operation-not-allowed':
       return 'Este método de login não está habilitado no projeto.';
+    // Erros do popup de login social. Sem casos próprios eles caem no genérico
+    // abaixo, que esconde problemas de configuração (domínio não autorizado).
+    case 'auth/popup-blocked':
+      return 'Seu navegador bloqueou a janela do Google. Libere pop-ups para este site e tente de novo.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'A janela do Google foi fechada antes de concluir. Tente de novo.';
+    case 'auth/unauthorized-domain':
+      return 'Este domínio não está liberado para login com Google no Firebase. Avise o suporte.';
+    case 'auth/account-exists-with-different-credential':
+      return 'Já existe uma conta com este e-mail criada por outro método de login. Entre pelo método original.';
     default:
       if (code.startsWith('auth/')) {
         return 'Não foi possível concluir. Tente novamente.';

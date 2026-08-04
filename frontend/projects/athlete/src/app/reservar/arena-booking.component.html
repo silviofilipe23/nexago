@@ -208,3 +208,16 @@
     </div>
   }
 </app-at-panel-shell>
+
+@if (peakPrompt(); as prompt) {
+  <app-nx-blocking-dialog
+    tone="warning"
+    role="dialog"
+    heading="Horário concorrido"
+    [body]="peakPromptBody()"
+    [primaryLabel]="peakPromptPrimaryLabel()"
+    secondaryLabel="Escolher outro horário"
+    (primary)="acceptPeakPrompt()"
+    (secondary)="dismissPeakPrompt()"
+  />
+}

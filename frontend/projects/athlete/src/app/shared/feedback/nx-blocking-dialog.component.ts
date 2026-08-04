@@ -22,6 +22,8 @@ let nextId = 0;
  *  Reserve pra beco sem saída de verdade: pagamento recusado com sessão
  *  expirada, inscrição perdida, conflito que exige decisão. Erro que dá pra
  *  consertar na própria tela é inline; aviso que só informa é banner ou toast.
+ *  Serve também para decisão informada que o atleta precisa tomar antes de
+ *  seguir (ex.: regra de horário de pico) — nesse caso, `role="dialog"`.
  *
  *  É declarativo de propósito — o chamador renderiza dentro de um `@if` e
  *  controla o próprio estado, sem overlay imperativo global. */
@@ -31,7 +33,7 @@ let nextId = 0;
   template: `
     <div
       class="dialog"
-      role="alertdialog"
+      [attr.role]="role()"
       aria-modal="true"
       [attr.aria-labelledby]="titleId"
       [attr.aria-describedby]="bodyId"
@@ -212,6 +214,10 @@ export class NxBlockingDialogComponent implements OnDestroy {
   private readonly previouslyFocused = document.activeElement as HTMLElement | null;
 
   readonly tone = input<NxFeedbackTone>('error');
+  /** `alertdialog` (default) anuncia com urgência — certo para erro que
+   *  interrompe. Decisão informada, como a regra de horário de pico, usa
+   *  `dialog`. */
+  readonly role = input<'alertdialog' | 'dialog'>('alertdialog');
   /** Renomeado de `title` pra não virar atributo HTML nativo (tooltip). */
   readonly heading = input.required<string>();
   readonly body = input.required<string>();

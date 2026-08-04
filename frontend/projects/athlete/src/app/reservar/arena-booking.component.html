@@ -212,7 +212,7 @@
 @if (peakPrompt(); as prompt) {
   <app-nx-blocking-dialog
     tone="warning"
-    role="dialog"
+    [role]="'dialog'"
     heading="Horário concorrido"
     [body]="peakPromptBody()"
     [primaryLabel]="peakPromptPrimaryLabel()"

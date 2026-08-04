@@ -28,7 +28,7 @@ export function peakPromptFor(params: {
   slotDurationMinutes: number;
   now?: Date;
 }): PeakPrompt | null {
-  const check = peakCheckForSelection({
+  const initialCheck = peakCheckForSelection({
     rules: params.rules,
     courtId: params.courtId,
     date: params.date,
@@ -37,12 +37,13 @@ export function peakPromptFor(params: {
     slotDurationMinutes: params.slotDurationMinutes,
     now: params.now,
   });
-  if (check.minSlots <= 1 || check.rule == null) return null;
+  let rule = initialCheck.rule;
+  if (initialCheck.minSlots <= 1 || rule == null) return null;
 
-  const chain = minimumChainContaining({
+  let chain = minimumChainContaining({
     courtDaySlots: params.courtDaySlots,
     targetStartTime: params.slot.startTime,
-    minSlots: check.minSlots,
+    minSlots: initialCheck.minSlots,
     date: params.date,
     now: params.now,
   });
@@ -50,5 +51,39 @@ export function peakPromptFor(params: {
   // `chain` não deveria ser null aqui. Sem cadeia não há o que oferecer.
   if (chain == null) return null;
 
-  return { rule: check.rule, chain, minSlots: check.minSlots };
+  // Fixpoint: a cadeia oferecida pode cair na faixa de OUTRA regra com mínimo
+  // maior (ex.: regra A 20:00–21:00 mín 2h vizinha da regra B 21:00–22:00 mín
+  // 3h — clicar 20:00 oferece 20:00–22:00, que a regra B ainda rejeita).
+  // Reavalia a própria cadeia até que nenhuma regra exija mais do que ela já
+  // cobre. Limitado por `courtDaySlots.length` como guarda contra loop
+  // infinito — não deveria disparar na prática, já que cada iteração só
+  // cresce a cadeia.
+  for (let i = 0; i < params.courtDaySlots.length; i++) {
+    const check = peakCheckForSelection({
+      rules: params.rules,
+      courtId: params.courtId,
+      date: params.date,
+      courtDaySlots: params.courtDaySlots,
+      selection: chain,
+      slotDurationMinutes: params.slotDurationMinutes,
+      now: params.now,
+    });
+    if (check.minSlots <= chain.length) {
+      return { rule, chain, minSlots: chain.length };
+    }
+    // check.minSlots > chain.length > 0 implica check.rule != null (ver
+    // peakCheckForSelection: demandedRule só fica null quando demandedSlots
+    // permanece no valor inicial 1).
+    rule = check.rule ?? rule;
+    const nextChain = minimumChainContaining({
+      courtDaySlots: params.courtDaySlots,
+      targetStartTime: params.slot.startTime,
+      minSlots: check.minSlots,
+      date: params.date,
+      now: params.now,
+    });
+    if (nextChain == null) return null;
+    chain = nextChain;
+  }
+  return null;
 }

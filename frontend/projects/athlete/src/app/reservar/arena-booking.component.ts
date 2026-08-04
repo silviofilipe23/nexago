@@ -125,7 +125,6 @@ function formatDurationLabel(minutes: number): string {
 
 @Component({
   selector: 'app-arena-booking',
-  standalone: true,
   imports: [RouterLink, AtPanelShellComponent, NxBlockingDialogComponent],
   templateUrl: './arena-booking.component.html',
   styleUrl: './arena-booking.component.scss',
@@ -257,10 +256,11 @@ export class ArenaBookingComponent {
     const last = prompt.chain[prompt.chain.length - 1]!;
     const arenaFallback = this.arena()?.pricePerHourReais ?? 0;
     const total = prompt.chain.reduce((sum, s) => sum + (s.priceReais ?? arenaFallback), 0);
+    const precoTrecho = total > 0 ? `, por R$ ${total}` : '';
     return (
       `${faixa} é o horário mais procurado desta arena. Para a quadra não ficar ` +
       `vaga na hora seguinte, a reserva mínima nesta faixa é de ${minimo}. ` +
-      `Sua reserva ficaria das ${first.startTime} às ${last.endTime}, por R$ ${total}.`
+      `Sua reserva ficaria das ${first.startTime} às ${last.endTime}${precoTrecho}.`
     );
   });
 
@@ -282,18 +282,30 @@ export class ArenaBookingComponent {
     // Sem isso, o atleta fica sem chip correspondente ao mínimo exigido.
     const start = this.selectedStartSlot();
     const maxBaseSlots = DURATION_MULTIPLIERS[DURATION_MULTIPLIERS.length - 1];
+    let extraSlots: number | null = null;
     if (start) {
       const minSlots = this.peakCheckFor([start]).minSlots;
       if (minSlots > maxBaseSlots) {
-        // O que habilita o chip é exatamente o que o clique consegue aplicar
-        // (selectDuration usa o mesmo resolveChainForDuration).
-        options.push({
-          slots: minSlots,
-          minutes: base * minSlots,
-          label: formatDurationLabel(base * minSlots),
-          enabled: this.resolveChainForDuration(minSlots) != null,
-        });
+        extraSlots = minSlots;
       }
+    }
+    // Depois que acceptPeakPrompt/selectDuration movem o start pra fora da faixa de
+    // pico, o cálculo acima (que reavalia a partir do start ATUAL) já não pede o
+    // chip extra — mas durationSlots() continua no valor da cadeia aplicada, e sem
+    // chip correspondente nenhum fica marcado como ativo. Cobre esse caso também,
+    // sem duplicar quando o ramo acima já pediu o mesmo número de slots.
+    if (extraSlots == null && this.durationSlots() > maxBaseSlots) {
+      extraSlots = this.durationSlots();
+    }
+    if (extraSlots != null) {
+      // O que habilita o chip é exatamente o que o clique consegue aplicar
+      // (selectDuration usa o mesmo resolveChainForDuration).
+      options.push({
+        slots: extraSlots,
+        minutes: base * extraSlots,
+        label: formatDurationLabel(base * extraSlots),
+        enabled: this.resolveChainForDuration(extraSlots) != null,
+      });
     }
 
     return options;

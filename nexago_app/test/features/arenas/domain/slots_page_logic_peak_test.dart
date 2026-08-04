@@ -299,4 +299,58 @@ void main() {
     );
     expect(prompt, isNull);
   });
+
+  test(
+      'peakPromptForSelection expande (fixpoint) quando a cadeia oferecida cai '
+      'na faixa de outra regra com mínimo maior', () {
+    // r1 20:00–21:00 mín 2h vizinha de r2 21:00–22:00 mín 3h: a cadeia de 2
+    // slots que satisfaz r1 (20:00–22:00) ainda viola r2, que exige 3
+    // (20:00–23:00).
+    final grade = [
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00'),
+      slot('22:00', '23:00'),
+    ];
+    final r1 = rule(id: 'r1', minDurationMinutes: 120);
+    final r2 = ArenaPeakRule(
+      id: 'r2', active: true, label: 'Pico noturno',
+      courtIds: const [], weekdays: const [],
+      startTime: '21:00', endTime: '22:00',
+      minDurationMinutes: 180, releaseHoursBefore: null,
+    );
+    final prompt = peakPromptForSelection(
+      rules: [r1, r2], courtId: 'q1', slots: grade, selectedDay: qua,
+      start: 1, end: 1, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(prompt, isNotNull);
+    expect(prompt!.start, 1);
+    expect(prompt.end, 3);
+    expect(prompt.minSlots, 3);
+    expect(prompt.rule.id, 'r2');
+  });
+
+  test(
+      'peakPromptForSelection devolve null quando a expansão para a segunda '
+      'regra é impossível (vizinha ocupada, sem recuo)', () {
+    // Grade começa no próprio slot tocado (sem recuo possível) e a vizinha
+    // que fecharia o mínimo de r1 já está ocupada: nem a primeira cadeia
+    // existe.
+    final grade = [
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', status: 'booked'),
+    ];
+    final r1 = rule(id: 'r1', minDurationMinutes: 120);
+    final r2 = ArenaPeakRule(
+      id: 'r2', active: true, label: 'Pico noturno',
+      courtIds: const [], weekdays: const [],
+      startTime: '21:00', endTime: '22:00',
+      minDurationMinutes: 180, releaseHoursBefore: null,
+    );
+    final prompt = peakPromptForSelection(
+      rules: [r1, r2], courtId: 'q1', slots: grade, selectedDay: qua,
+      start: 0, end: 0, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(prompt, isNull);
+  });
 }

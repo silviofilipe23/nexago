@@ -682,7 +682,7 @@ PeakPrompt? peakPromptForSelection({
   DateTime? now,
 }) {
   final n = now ?? DateTime.now();
-  final check = peakCheckForRange(
+  final initialCheck = peakCheckForRange(
     rules: rules,
     courtId: courtId,
     slots: slots,
@@ -692,14 +692,14 @@ PeakPrompt? peakPromptForSelection({
     slotDurationMinutes: slotDurationMinutes,
     now: n,
   );
-  final rule = check.rule;
-  if (check.minSlots <= (end - start + 1) || rule == null) return null;
+  final initialRule = initialCheck.rule;
+  if (initialCheck.minSlots <= (end - start + 1) || initialRule == null) return null;
 
-  final chain = minimumChainContaining(
+  final firstChain = minimumChainContaining(
     slots: slots,
     selectionStart: start,
     selectionEnd: end,
-    minSlots: check.minSlots,
+    minSlots: initialCheck.minSlots,
     selectedDay: selectedDay,
     now: n,
   );
@@ -707,12 +707,56 @@ PeakPrompt? peakPromptForSelection({
   // Não é impossível: `peakCheckForRange` valida a janela em torno do slot
   // restrito, não do intervalo todo. Nesse caso o rodapé segue bloqueando a
   // seleção — o atleta só fica sem a explicação em modal.
-  if (chain == null) return null;
+  if (firstChain == null) return null;
 
-  return PeakPrompt(
-    rule: rule,
-    start: chain.start,
-    end: chain.end,
-    minSlots: check.minSlots,
-  );
+  // Tipados não-nuláveis a partir daqui (via inferência de `var` sobre um
+  // valor já promovido) para que a reatribuição dentro do loop não perca a
+  // promoção de nulidade do Dart entre iterações.
+  var rule = initialRule;
+  var chain = firstChain;
+
+  // Fixpoint: a cadeia oferecida pode cair na faixa de OUTRA regra com
+  // mínimo maior (ex.: regra A 20:00–21:00 mín 2h vizinha da regra B
+  // 21:00–22:00 mín 3h — tocar 20:00 oferece 20:00–22:00, que a regra B
+  // ainda rejeita). Reavalia a própria cadeia até que nenhuma regra exija
+  // mais do que ela já cobre. Limitado por `slots.length` como guarda
+  // contra loop infinito — não deveria disparar na prática, já que cada
+  // iteração só cresce a cadeia.
+  for (var i = 0; i < slots.length; i++) {
+    final check = peakCheckForRange(
+      rules: rules,
+      courtId: courtId,
+      slots: slots,
+      selectedDay: selectedDay,
+      start: chain.start,
+      end: chain.end,
+      slotDurationMinutes: slotDurationMinutes,
+      now: n,
+    );
+    final chainLength = chain.end - chain.start + 1;
+    if (check.minSlots <= chainLength) {
+      return PeakPrompt(
+        rule: rule,
+        start: chain.start,
+        end: chain.end,
+        minSlots: chainLength,
+      );
+    }
+    // check.minSlots > chainLength > 0 implica check.rule != null (ver
+    // peakCheckForRange: demandedRule só fica null quando demandedSlots
+    // permanece no valor inicial 1).
+    final nextRule = check.rule;
+    if (nextRule != null) rule = nextRule;
+    final nextChain = minimumChainContaining(
+      slots: slots,
+      selectionStart: chain.start,
+      selectionEnd: chain.end,
+      minSlots: check.minSlots,
+      selectedDay: selectedDay,
+      now: n,
+    );
+    if (nextChain == null) return null;
+    chain = nextChain;
+  }
+  return null;
 }

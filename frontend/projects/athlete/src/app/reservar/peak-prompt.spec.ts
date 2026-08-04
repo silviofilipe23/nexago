@@ -90,4 +90,28 @@ describe('peakPromptFor', () => {
     expect(prompt?.rule.id).toBe('r2');
     expect(prompt?.chain.length).toBe(3);
   });
+
+  it('expande a cadeia (fixpoint) quando ela cai na faixa de outra regra com mínimo maior', () => {
+    // r1 20:00–21:00 mín 2h vizinha de r2 21:00–22:00 mín 3h: a cadeia de 2 slots que
+    // satisfaz r1 (20:00–22:00) ainda viola r2, que exige 3 (20:00–23:00).
+    const grade = [
+      slot('19:00', '20:00'), slot('20:00', '21:00'),
+      slot('21:00', '22:00'), slot('22:00', '23:00'),
+    ];
+    const r1 = rule({ id: 'r1', startTime: '20:00', endTime: '21:00', minDurationMinutes: 120 });
+    const r2 = rule({ id: 'r2', startTime: '21:00', endTime: '22:00', minDurationMinutes: 180 });
+    const prompt = promptFor(grade, grade[1]!, [r1, r2]);
+    expect(prompt?.chain.map((s: ArenaSlot) => s.startTime)).toEqual(['20:00', '21:00', '22:00']);
+    expect(prompt?.minSlots).toBe(3);
+    expect(prompt?.rule.id).toBe('r2');
+  });
+
+  it('devolve null quando a expansão para a segunda regra é impossível (vizinha ocupada, sem recuo)', () => {
+    // Grade começa no próprio slot clicado (sem recuo possível) e a vizinha que
+    // fecharia o mínimo de r1 já está ocupada: nem a primeira cadeia existe.
+    const grade = [slot('20:00', '21:00'), slot('21:00', '22:00', 'booked')];
+    const r1 = rule({ id: 'r1', startTime: '20:00', endTime: '21:00', minDurationMinutes: 120 });
+    const r2 = rule({ id: 'r2', startTime: '21:00', endTime: '22:00', minDurationMinutes: 180 });
+    expect(promptFor(grade, grade[0]!, [r1, r2])).toBeNull();
+  });
 });

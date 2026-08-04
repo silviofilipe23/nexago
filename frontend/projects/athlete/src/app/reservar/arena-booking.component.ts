@@ -285,17 +285,13 @@ export class ArenaBookingComponent {
     if (start) {
       const minSlots = this.peakCheckFor([start]).minSlots;
       if (minSlots > maxBaseSlots) {
-        const chain = minimumChainContaining({
-          courtDaySlots: this.selectedCourtSlots(),
-          targetStartTime: start.startTime,
-          minSlots,
-          date: this.selectedDate(),
-        });
+        // O que habilita o chip é exatamente o que o clique consegue aplicar
+        // (selectDuration usa o mesmo resolveChainForDuration).
         options.push({
           slots: minSlots,
           minutes: base * minSlots,
           label: formatDurationLabel(base * minSlots),
-          enabled: chain != null,
+          enabled: this.resolveChainForDuration(minSlots) != null,
         });
       }
     }
@@ -413,6 +409,22 @@ export class ArenaBookingComponent {
       cursor = next;
     }
     return chain;
+  }
+
+  /** Cadeia de `n` slots para a duração escolhida: para frente a partir do
+   *  slot selecionado quando possível, senão a cadeia mínima que o contém
+   *  (pode começar antes — o start é reposicionado ao aplicar). */
+  private resolveChainForDuration(n: number): ArenaSlot[] | null {
+    const forward = this.chainForDuration(n);
+    if (forward != null) return forward;
+    const start = this.selectedStartSlot();
+    if (!start) return null;
+    return minimumChainContaining({
+      courtDaySlots: this.selectedCourtSlots(),
+      targetStartTime: start.startTime,
+      minSlots: n,
+      date: this.selectedDate(),
+    });
   }
 
   private async load(): Promise<void> {
@@ -558,8 +570,10 @@ export class ArenaBookingComponent {
   }
 
   protected selectDuration(n: number): void {
-    if (!this.chainForDuration(n)) return;
-    this.durationSlots.set(n);
+    const chain = this.resolveChainForDuration(n);
+    if (!chain) return;
+    this.selectedStartSlot.set(chain[0]!);
+    this.durationSlots.set(chain.length);
   }
 
   protected continueBooking(): void {

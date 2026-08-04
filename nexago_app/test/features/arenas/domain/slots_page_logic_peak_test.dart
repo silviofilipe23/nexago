@@ -167,4 +167,98 @@ void main() {
     );
     expect(completo.minSlots, 1); // 19h-21h já cumpre o mínimo
   });
+
+  test('minimumChainContaining prefere a cadeia que começa na seleção', () {
+    final grade = [slot('19:00', '20:00'), slot('20:00', '21:00'), slot('21:00', '22:00')];
+    final chain = minimumChainContaining(
+      slots: grade, selectionStart: 1, selectionEnd: 1, minSlots: 2,
+      selectedDay: qua, now: nowCedo,
+    );
+    expect(chain?.start, 1);
+    expect(chain?.end, 2);
+  });
+
+  test('minimumChainContaining recua quando a cadeia para frente não existe', () {
+    final grade = [
+      slot('19:00', '20:00'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', status: 'booked'),
+    ];
+    final chain = minimumChainContaining(
+      slots: grade, selectionStart: 1, selectionEnd: 1, minSlots: 2,
+      selectedDay: qua, now: nowCedo,
+    );
+    expect(chain?.start, 0);
+    expect(chain?.end, 1);
+  });
+
+  test('minimumChainContaining devolve null sem cadeia possível', () {
+    final cercado = [
+      slot('19:00', '20:00', status: 'booked'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', status: 'blocked'),
+    ];
+    final chain = minimumChainContaining(
+      slots: cercado, selectionStart: 1, selectionEnd: 1, minSlots: 2,
+      selectedDay: qua, now: nowCedo,
+    );
+    expect(chain, isNull);
+  });
+
+  test('minimumChainContaining engloba todo o intervalo selecionado', () {
+    final grade = [
+      slot('18:00', '19:00'), slot('19:00', '20:00'),
+      slot('20:00', '21:00'), slot('21:00', '22:00'),
+    ];
+    final chain = minimumChainContaining(
+      slots: grade, selectionStart: 1, selectionEnd: 2, minSlots: 3,
+      selectedDay: qua, now: nowCedo,
+    );
+    expect(chain?.start, 1);
+    expect(chain?.end, 3);
+  });
+
+  test('peakPromptForSelection abre no slot de pico restrito', () {
+    final grade = [slot('19:00', '20:00'), slot('20:00', '21:00'), slot('21:00', '22:00')];
+    final prompt = peakPromptForSelection(
+      rules: [rule()], courtId: 'q1', slots: grade, selectedDay: qua,
+      start: 1, end: 1, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(prompt, isNotNull);
+    expect(prompt!.minSlots, 2);
+    expect(prompt.start, 1);
+    expect(prompt.end, 2);
+    expect(prompt.rule.id, 'r1');
+  });
+
+  test('peakPromptForSelection não abre quando a seleção já cumpre o mínimo', () {
+    final grade = [slot('19:00', '20:00'), slot('20:00', '21:00'), slot('21:00', '22:00')];
+    final prompt = peakPromptForSelection(
+      rules: [rule()], courtId: 'q1', slots: grade, selectedDay: qua,
+      start: 0, end: 1, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(prompt, isNull);
+  });
+
+  test('peakPromptForSelection não abre em slot liberado', () {
+    final cercado = [
+      slot('19:00', '20:00', status: 'booked'),
+      slot('20:00', '21:00'),
+      slot('21:00', '22:00', status: 'blocked'),
+    ];
+    final prompt = peakPromptForSelection(
+      rules: [rule()], courtId: 'q1', slots: cercado, selectedDay: qua,
+      start: 1, end: 1, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(prompt, isNull);
+  });
+
+  test('peakPromptForSelection não abre sem regra', () {
+    final grade = [slot('19:00', '20:00'), slot('20:00', '21:00'), slot('21:00', '22:00')];
+    final prompt = peakPromptForSelection(
+      rules: const [], courtId: 'q1', slots: grade, selectedDay: qua,
+      start: 1, end: 1, slotDurationMinutes: 60, now: nowCedo,
+    );
+    expect(prompt, isNull);
+  });
 }

@@ -614,3 +614,109 @@ bool _peakChainExists(
   }
   return false;
 }
+
+/// Melhor cadeia contígua de [minSlots] slots selecionáveis que contém todo o
+/// intervalo `[selectionStart..selectionEnd]`. Prefere a cadeia que começa na
+/// própria seleção e só então recua o início — é o que o modal da regra de
+/// pico oferece. `null` quando nenhuma cadeia é possível.
+({int start, int end})? minimumChainContaining({
+  required List<ArenaSlot> slots,
+  required int selectionStart,
+  required int selectionEnd,
+  required int minSlots,
+  required DateTime selectedDay,
+  DateTime? now,
+}) {
+  final n = now ?? DateTime.now();
+  if (minSlots < 1 || selectionStart < 0 || selectionEnd >= slots.length) {
+    return null;
+  }
+  final earliest = (selectionEnd - minSlots + 1).clamp(0, selectionStart);
+  for (var start = selectionStart; start >= earliest; start--) {
+    final end = start + minSlots - 1;
+    if (end >= slots.length) continue;
+    if (_peakChainBookable(slots, start, end, selectedDay, n)) {
+      return (start: start, end: end);
+    }
+  }
+  return null;
+}
+
+bool _peakChainBookable(
+  List<ArenaSlot> slots,
+  int start,
+  int end,
+  DateTime day,
+  DateTime now,
+) {
+  for (var i = start; i <= end; i++) {
+    final s = slots[i];
+    if (!s.isAvailable || isPastBookableSlot(selectedDay: day, slot: s, now: now)) {
+      return false;
+    }
+    if (i > start && slots[i - 1].endTime != s.startTime) return false;
+  }
+  return true;
+}
+
+/// Conteúdo do modal da regra de pico no app: a regra que restringe a seleção
+/// e o intervalo mínimo que o botão primário aplica.
+class PeakPrompt {
+  const PeakPrompt({
+    required this.rule,
+    required this.start,
+    required this.end,
+    required this.minSlots,
+  });
+
+  final ArenaPeakRule rule;
+  final int start;
+  final int end;
+  final int minSlots;
+}
+
+/// Decide se o toque num slot deve abrir o modal da regra de pico. `null`
+/// quando não deve: seleção já cumpre o mínimo, slot fora de faixa de pico,
+/// regra liberada (antecedência ou cadeia impossível).
+PeakPrompt? peakPromptForSelection({
+  required List<ArenaPeakRule> rules,
+  required String courtId,
+  required List<ArenaSlot> slots,
+  required DateTime selectedDay,
+  required int start,
+  required int end,
+  required int slotDurationMinutes,
+  DateTime? now,
+}) {
+  final n = now ?? DateTime.now();
+  final check = peakCheckForRange(
+    rules: rules,
+    courtId: courtId,
+    slots: slots,
+    selectedDay: selectedDay,
+    start: start,
+    end: end,
+    slotDurationMinutes: slotDurationMinutes,
+    now: n,
+  );
+  final rule = check.rule;
+  if (check.minSlots <= (end - start + 1) || rule == null) return null;
+
+  final chain = minimumChainContaining(
+    slots: slots,
+    selectionStart: start,
+    selectionEnd: end,
+    minSlots: check.minSlots,
+    selectedDay: selectedDay,
+    now: n,
+  );
+  // Defensivo: o predicado só exige o mínimo quando a cadeia existe.
+  if (chain == null) return null;
+
+  return PeakPrompt(
+    rule: rule,
+    start: chain.start,
+    end: chain.end,
+    minSlots: check.minSlots,
+  );
+}

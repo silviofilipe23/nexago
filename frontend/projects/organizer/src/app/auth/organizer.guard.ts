@@ -6,8 +6,10 @@ import { AuthService } from './auth.service';
 
 /**
  * Bloqueia /painel pra quem está autenticado mas não tem a claim `organizer`
- * (ex.: atleta que nunca completou o autocadastro de organizador). Assume
- * `authGuard` já rodou antes na mesma rota — não checa `isAuthenticated`.
+ * (ex.: atleta que nunca completou o autocadastro de organizador). O super
+ * admin passa sem o papel `organizer`: ele entra pra dar suporte a torneio de
+ * qualquer organizador. Assume `authGuard` já rodou antes na mesma rota — não
+ * checa `isAuthenticated`.
  */
 export const organizerGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
@@ -16,7 +18,7 @@ export const organizerGuard: CanActivateFn = () => {
     filter((ready) => ready),
     take(1),
     map(() => {
-      if (auth.isOrganizer()) {
+      if (auth.canAccessPanel()) {
         return true;
       }
       return router.createUrlTree(['/entrar']);

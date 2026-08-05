@@ -1,4 +1,21 @@
-import { collection, doc, getDoc, getDocs, onSnapshot, query, updateDoc, where, type Unsubscribe } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  endAt,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  startAfter,
+  startAt,
+  updateDoc,
+  where,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+  type Unsubscribe,
+} from 'firebase/firestore';
 import { organizerFirestore } from './firestore';
 import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig } from './tournament.model';
 
@@ -218,6 +235,88 @@ export function watchTournament(id: string, onChange: (t: OrganizerTournament | 
     (snap) => onChange(snap.exists() ? tournamentFromDoc(snap.id, snap.data() as Record<string, unknown>) : null),
     (err) => onError?.(err),
   );
+}
+
+/** Página da aba Plataforma (super admin). */
+export interface AllTournamentsPage {
+  tournaments: OrganizerTournament[];
+  /** Último doc da página — devolva em `cursor` pra pedir a próxima. */
+  cursor: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+}
+
+/** Tamanho da página da aba Plataforma. */
+export const ALL_TOURNAMENTS_PAGE_SIZE = 40;
+
+/**
+ * Ordenação da consulta da aba Plataforma.
+ *
+ * Buscar por nome NÃO é só um filtro a mais: `orderBy('startAt')` descarta em
+ * silêncio todo doc sem o campo, e torneio em rascunho costuma não ter data.
+ * Ordenar por `name` é o único caminho que alcança esses docs — por isso a
+ * busca troca de ordenação em vez de acrescentar um `where`.
+ */
+export function allTournamentsPlan(term: string, hasCursor: boolean): { orderField: 'name' | 'startAt'; usesCursor: boolean } {
+  if (term) return { orderField: 'name', usesCursor: false };
+  return { orderField: 'startAt', usesCursor: hasCursor };
+}
+
+/** A busca não pagina: o intervalo de prefixo já devolve o resultado inteiro. */
+export function allTournamentsHasMore(term: string, returned: number): boolean {
+  return !term && returned === ALL_TOURNAMENTS_PAGE_SIZE;
+}
+
+/**
+ * Todos os torneios da plataforma — só a aba de super admin usa. `tournaments`
+ * é de leitura pública nas rules, então a query vai direta ao Firestore, sem
+ * callable e sem índice composto (não há `where`).
+ *
+ * Os dois caminhos de ordenação não são estilo: **`orderBy('startAt')` exclui
+ * em silêncio todo doc sem `startAt`** (Firestore descarta quem não tem o
+ * campo do orderBy), e torneio em rascunho costuma não ter data. A busca por
+ * nome ordena por `name`, e é por ela que esses docs aparecem — mesma solução
+ * do repositório de torneios do backoffice.
+ */
+export async function listAllTournaments(options: { term?: string; cursor?: QueryDocumentSnapshot<DocumentData> | null } = {}): Promise<AllTournamentsPage> {
+  const db = organizerFirestore();
+  const term = options.term?.trim() ?? '';
+  const cursor = options.cursor ?? null;
+
+  //  fecha o intervalo do prefixo (último caractere da faixa de uso privado).
+  const plan = allTournamentsPlan(term, cursor != null);
+  const constraints = plan.orderField === 'name'
+    ? [orderBy('name'), startAt(term), endAt(`${term}`), limit(ALL_TOURNAMENTS_PAGE_SIZE)]
+    : plan.usesCursor
+      ? [orderBy('startAt', 'desc'), startAfter(cursor!), limit(ALL_TOURNAMENTS_PAGE_SIZE)]
+      : [orderBy('startAt', 'desc'), limit(ALL_TOURNAMENTS_PAGE_SIZE)];
+
+  const snap = await getDocs(query(collection(db, 'tournaments'), ...constraints));
+  return {
+    tournaments: snap.docs.map((d) => tournamentFromDoc(d.id, d.data() as Record<string, unknown>)),
+    cursor: snap.docs.length > 0 ? (snap.docs[snap.docs.length - 1] ?? null) : null,
+    hasMore: allTournamentsHasMore(term, snap.docs.length),
+  };
+}
+
+/**
+ * Nome de exibição dos organizadores, por uid — para rotular os torneios
+ * alheios na aba Plataforma. Lê `public_profiles`, o espelho SEM PII mantido
+ * por Cloud Function e legível por qualquer autenticado; `users` traria e-mail
+ * e telefone que esta tela não precisa. Uid sem espelho fica de fora do mapa.
+ */
+export async function listOrganizerNames(uids: readonly string[]): Promise<Map<string, string>> {
+  const db = organizerFirestore();
+  const unique = [...new Set(uids.filter((uid) => uid.trim().length > 0))];
+  const snaps = await Promise.all(unique.map((uid) => getDoc(doc(db, 'public_profiles', uid)).catch(() => null)));
+  const names = new Map<string, string>();
+  snaps.forEach((snap, i) => {
+    if (!snap?.exists()) return;
+    const data = snap.data() as Record<string, unknown>;
+    // Mesma ordem de fallback do espelho (`PUBLIC_PROFILE_FIELDS`): não existe `displayName` aqui.
+    const name = optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? optionalStr(data['nickname']);
+    if (name) names.set(unique[i]!, name);
+  });
+  return names;
 }
 
 /** Grava a config do telão direto no doc (rules: update permitido ao `managerId`/staff

@@ -52,10 +52,6 @@
     </header>
 
     <div class="pp-body">
-      @if (actionNotice(); as notice) {
-        <div class="pp-notice" role="status">{{ notice }}</div>
-      }
-
       <div class="pp-main-grid">
         <div class="pp-col">
           <div class="pp-card pp-identity-card">
@@ -94,7 +90,7 @@
                     />
                   }
                 </div>
-                @if (demoExtras(); as extra) {
+                @if (gamificationExtras(); as extra) {
                   <span class="pp-level-badge">LV {{ extra.levelNumber }}</span>
                 }
               </div>
@@ -110,7 +106,7 @@
               </div>
             </div>
 
-            @if (demoExtras(); as extra) {
+            @if (gamificationExtras(); as extra) {
               <div class="pp-xp-block">
                 <div class="pp-xp-head">
                   <span class="pp-xp-level">Nível {{ extra.levelNumber }}</span>
@@ -119,30 +115,25 @@
                 <div class="pp-xp-bar"><span [style.width.%]="extra.xpProgressPercent"></span></div>
                 <p class="pp-xp-caption">Faltam {{ extra.xpForNextLevel }} XP pro nível {{ extra.levelNumber + 1 }}</p>
               </div>
+            }
 
+            @if (activityLoading()) {
               <div class="pp-stat-list">
-                <div class="pp-stat-row"><span>Jogos</span><strong>{{ extra.totalGames }}</strong></div>
-                @if (extra.wins != null) {
-                  <div class="pp-stat-row"><span>Vitórias</span><strong>{{ extra.wins }}</strong></div>
-                }
-                <div class="pp-stat-row"><span>Sequência</span><strong>{{ extra.streakDays }} dias</strong></div>
-                @if (primaryRanking(); as r) {
+                @for (i of [1, 2, 3]; track i) {
                   <div class="pp-stat-row">
-                    <span>Ranking individual</span>
-                    <strong>{{ r.positionLabel }}{{ r.categoryLabel ? ' · ' + r.categoryLabel : '' }}</strong>
+                    <app-nx-skeleton [w]="'96px'" [h]="'12px'" [r]="4" />
+                    <app-nx-skeleton [w]="'40px'" [h]="'14px'" [r]="4" />
                   </div>
+                }
+              </div>
+            } @else if (statRows().length > 0) {
+              <div class="pp-stat-list">
+                @for (row of statRows(); track row.label) {
+                  <div class="pp-stat-row"><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div>
                 }
               </div>
             } @else {
               <p class="pp-empty-inline">Estatísticas de jogo ainda não disponíveis para este atleta.</p>
-              @if (primaryRanking(); as r) {
-                <div class="pp-stat-list">
-                  <div class="pp-stat-row">
-                    <span>Ranking individual</span>
-                    <strong>{{ r.positionLabel }}{{ r.categoryLabel ? ' · ' + r.categoryLabel : '' }}</strong>
-                  </div>
-                </div>
-              }
             }
           </div>
 
@@ -151,7 +142,7 @@
             <p class="pp-body-text">{{ athlete.bio }}</p>
           </div>
 
-          @if (demoExtras(); as extra) {
+          @if (gamificationExtras(); as extra) {
             <div class="pp-card">
               <span class="pp-card-kicker">{{ extra.unlockedCount }} de {{ extra.achievementTotal }} desbloqueadas</span>
               <h2 class="pp-card-title">Conquistas</h2>
@@ -168,65 +159,80 @@
         </div>
 
         <div class="pp-col pp-col--side">
-          @if (demoExtras(); as extra) {
-            @if (extra.teams.length > 0) {
-              <div class="pp-card">
-                <span class="pp-card-kicker">Equipes que {{ firstName() }} integra</span>
-                <h2 class="pp-card-title">Duplas ativas</h2>
-                <div class="pp-team-list">
-                  @for (t of extra.teams; track t.id) {
-                    @if (t.teamId; as teamId) {
-                      <a class="pp-team-row pp-team-row--link" [routerLink]="['/equipes', teamId]" [queryParams]="{ from: 'perfil' }">
-                        <span class="pp-team-avatar-pair">
-                          <span class="pp-team-avatar">{{ teamInitials(t.teamName)[0] }}</span>
-                          <span class="pp-team-avatar pp-team-avatar--second">{{ teamInitials(t.teamName)[1] }}</span>
-                        </span>
-                        <div class="pp-team-info">
-                          <p class="pp-team-name">{{ t.teamName }}</p>
-                          <p class="pp-team-detail">{{ t.detailLabel }}</p>
-                        </div>
-                      </a>
-                    } @else {
-                      <div class="pp-team-row">
-                        <span class="pp-team-avatar-pair">
-                          <span class="pp-team-avatar">{{ teamInitials(t.teamName)[0] }}</span>
-                          <span class="pp-team-avatar pp-team-avatar--second">{{ teamInitials(t.teamName)[1] }}</span>
-                        </span>
-                        <div class="pp-team-info">
-                          <p class="pp-team-name">{{ t.teamName }}</p>
-                          <p class="pp-team-detail">{{ t.detailLabel }}</p>
-                        </div>
-                      </div>
-                    }
-                  }
-                </div>
+          <div class="pp-card">
+            <span class="pp-card-kicker">Equipes que {{ firstName() }} integra</span>
+            <h2 class="pp-card-title">Duplas ativas</h2>
+            @if (activityLoading()) {
+              <div class="pp-team-list">
+                @for (i of [1, 2]; track i) {
+                  <div class="pp-team-row">
+                    <app-nx-skeleton [w]="'54px'" [h]="'32px'" [r]="16" />
+                    <app-nx-skeleton [w]="'60%'" [h]="'28px'" [r]="6" />
+                  </div>
+                }
+              </div>
+            } @else if (teams().length === 0) {
+              <p class="pp-empty-inline">Ainda não faz parte de nenhuma dupla.</p>
+            } @else {
+              <div class="pp-team-list">
+                @for (t of teams(); track t.id) {
+                  <a class="pp-team-row pp-team-row--link" [routerLink]="['/equipes', t.id]" [queryParams]="{ from: 'perfil' }">
+                    <span class="pp-team-avatar-pair" aria-hidden="true">
+                      <span class="pp-team-avatar">{{ t.initials[0] }}</span>
+                      <span class="pp-team-avatar pp-team-avatar--second">{{ t.initials[1] }}</span>
+                    </span>
+                    <div class="pp-team-info">
+                      <p class="pp-team-name">{{ t.teamName }}</p>
+                      <p class="pp-team-detail">{{ t.detailLabel }}</p>
+                    </div>
+                  </a>
+                }
               </div>
             }
+          </div>
 
-            <div class="pp-card">
-              <span class="pp-card-kicker">Últimos 30 dias</span>
-              <h2 class="pp-card-title">Histórico de partidas</h2>
-              @if (extra.matches.length === 0) {
-                <p class="pp-empty-inline">Sem partidas registradas ainda.</p>
-              } @else {
-                <div class="pp-match-list">
-                  @for (m of extra.matches; track m.id) {
-                    <div class="pp-match-row">
-                      <span class="pp-match-result" [attr.data-result]="m.result">{{ m.result }}</span>
-                      <div class="pp-match-info">
-                        <p class="pp-match-opponent">vs {{ m.opponent }}</p>
-                        <p class="pp-match-context">{{ m.contextLabel }}</p>
-                      </div>
-                      <div class="pp-match-meta">
-                        <span class="pp-match-score">{{ m.score }}</span>
-                        <span class="pp-match-date">{{ m.dateLabel }}</span>
-                      </div>
-                    </div>
-                  }
-                </div>
+          <div class="pp-card">
+            <div class="pp-card-head">
+              <div class="pp-card-head-titles">
+                <span class="pp-card-kicker">{{ matchesKicker() }}</span>
+                <h2 class="pp-card-title">Histórico de partidas</h2>
+              </div>
+              @if (hasOlderMatches() || showAllMatches()) {
+                <button type="button" class="pp-card-action" (click)="toggleAllMatches()">
+                  {{ showAllMatches() ? 'Ver menos' : 'Ver tudo' }}
+                </button>
               }
             </div>
-          }
+            @if (activityLoading()) {
+              <div class="pp-match-list">
+                @for (i of [1, 2, 3]; track i) {
+                  <div class="pp-match-row">
+                    <app-nx-skeleton [w]="'26px'" [h]="'26px'" [r]="'50%'" />
+                    <app-nx-skeleton class="pp-match-skeleton-info" [w]="'100%'" [h]="'28px'" [r]="6" />
+                    <app-nx-skeleton [w]="'48px'" [h]="'28px'" [r]="6" />
+                  </div>
+                }
+              </div>
+            } @else if (visibleMatches().length === 0) {
+              <p class="pp-empty-inline">{{ matchesEmptyLabel() }}</p>
+            } @else {
+              <div class="pp-match-list">
+                @for (m of visibleMatches(); track m.id) {
+                  <div class="pp-match-row">
+                    <span class="pp-match-result" [attr.data-result]="m.result" [attr.aria-label]="m.result === 'W' ? 'Vitória' : 'Derrota'">{{ m.result }}</span>
+                    <div class="pp-match-info">
+                      <p class="pp-match-opponent">vs {{ m.opponent }}</p>
+                      <p class="pp-match-context">{{ m.contextLabel }}</p>
+                    </div>
+                    <div class="pp-match-meta">
+                      <span class="pp-match-score">{{ m.score }}</span>
+                      <span class="pp-match-date">{{ m.dateLabel }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
 
           <div class="pp-card">
             <span class="pp-card-kicker">Pra combinar desafios e jogos avulsos</span>

@@ -9,7 +9,7 @@ import { fetchLeague } from '../data/leagues-repository';
 import { fetchMyBookings, bookingIsActive, type MyBooking } from '../data/my-bookings-repository';
 import { bookingIsReviewCandidate, type ReviewableBooking } from '../data/pending-arena-review';
 import { PendingArenaReviewService } from '../data/pending-arena-review.service';
-import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from '../data/teams-repository';
+import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, roundFullLabel, type ArenaMatch } from '../data/teams-repository';
 import { fetchTournamentSummariesByIds, type TournamentSummary } from '../data/tournaments-repository';
 import { ArenaReviewDialogComponent } from '../agenda/review/arena-review-dialog.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
@@ -101,20 +101,6 @@ function dateFromKeyAndTime(dateKey: string, time: string): Date {
   const [y, m, d] = dateKey.split('-').map(Number);
   const [h, min] = time.split(':').map(Number);
   return new Date(y || 1970, (m || 1) - 1, d || 1, h || 0, min || 0);
-}
-
-/** `Final` / `Semifinal` / `Quartas de final` etc — mesmas pistas de `roundShortLabel`
- *  (teams-repository), mas por extenso pro histórico. */
-function roundFullLabel(matchType: string): string {
-  const t = matchType.trim().toLowerCase();
-  if (t.includes('final') && !t.includes('semi') && !t.includes('quarter') && !t.includes('third')) return 'Final';
-  if (t.includes('third') || t.includes('bronze')) return 'Disputa de 3º lugar';
-  if (t.includes('semi')) return 'Semifinal';
-  if (t.includes('quarter')) return 'Quartas de final';
-  if (t.includes('16')) return 'Oitavas de final';
-  if (t.includes('32')) return 'Rodada de 32';
-  if (t.includes('group') || t.includes('pool')) return 'Fase de grupos';
-  return 'Partida';
 }
 
 const MONTH_TITLE_FMT = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });

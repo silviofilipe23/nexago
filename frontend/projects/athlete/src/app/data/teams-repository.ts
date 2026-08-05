@@ -1,4 +1,5 @@
 import { collection, doc, documentId, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import type { MatchSet } from './matches-repository';
 
 /** Espelha `TournamentTeam`/`TournamentTeamsRepository` (Flutter) — `teams/{teamId}` só existe
  *  como efeito colateral de inscrição em torneio (`acceptTournamentPartnerInvite` cria o doc);
@@ -87,6 +88,8 @@ export interface ArenaMatch {
   teamBDescription: string | null;
   resultA: string | null;
   resultB: string | null;
+  /** Placar canônico por set. `resultA`/`resultB` ("21,19,10") são o formato legado. */
+  sets: MatchSet[];
   scheduleTime: Date | null;
   matchEndedAt: Date | null;
   courtName: string | null;
@@ -99,6 +102,42 @@ function toDate(v: unknown): Date | null {
 
 function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+function setsFromRaw(raw: unknown): MatchSet[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((s) => {
+      if (!s || typeof s !== 'object') return null;
+      const o = s as Record<string, unknown>;
+      const a = typeof o['a'] === 'number' ? o['a'] : null;
+      const b = typeof o['b'] === 'number' ? o['b'] : null;
+      return a == null || b == null ? null : { a, b };
+    })
+    .filter((s): s is MatchSet => s != null);
+}
+
+function parseLegacyResult(raw: string | null): number[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n));
+}
+
+/** Sets ganhos por lado [A, B] numa partida ENCERRADA — `sets[]` quando existe, senão o formato
+ *  legado `resultA`/`resultB`. Diferente de `matchSetWins` (matches-repository), que também trata
+ *  o set em andamento do ao vivo: aqui só entram partidas concluídas. */
+export function completedMatchSetWins(m: Pick<ArenaMatch, 'sets' | 'resultA' | 'resultB'>): [number, number] {
+  const sets =
+    m.sets.length > 0
+      ? m.sets
+      : (() => {
+          const a = parseLegacyResult(m.resultA);
+          const b = parseLegacyResult(m.resultB);
+          return Array.from({ length: Math.max(a.length, b.length) }, (_, i) => ({ a: a[i] ?? 0, b: b[i] ?? 0 }));
+        })();
+  return [sets.filter((s) => s.a > s.b).length, sets.filter((s) => s.b > s.a).length];
 }
 
 function matchFromDoc(id: string, data: Record<string, unknown>): ArenaMatch {
@@ -115,6 +154,7 @@ function matchFromDoc(id: string, data: Record<string, unknown>): ArenaMatch {
     teamBDescription: optionalStr(data['teamBDescription']),
     resultA: optionalStr(data['resultA']),
     resultB: optionalStr(data['resultB']),
+    sets: setsFromRaw(data['sets']),
     scheduleTime: toDate(data['scheduleTime']),
     matchEndedAt: toDate(data['matchEndedAt']),
     courtName: optionalStr(data['courtName']),
@@ -148,6 +188,20 @@ export function roundShortLabel(matchType: string): string {
   if (t.includes('16')) return 'O16';
   if (t.includes('32')) return 'R32';
   return t.toUpperCase() || '—';
+}
+
+/** `Final` / `Semifinal` / `Quartas de final` etc — mesmas pistas de `roundShortLabel`, mas por
+ *  extenso (histórico do atleta e perfil público). */
+export function roundFullLabel(matchType: string): string {
+  const t = matchType.trim().toLowerCase();
+  if (t.includes('final') && !t.includes('semi') && !t.includes('quarter') && !t.includes('third')) return 'Final';
+  if (t.includes('third') || t.includes('bronze')) return 'Disputa de 3º lugar';
+  if (t.includes('semi')) return 'Semifinal';
+  if (t.includes('quarter')) return 'Quartas de final';
+  if (t.includes('16')) return 'Oitavas de final';
+  if (t.includes('32')) return 'Rodada de 32';
+  if (t.includes('group') || t.includes('pool')) return 'Fase de grupos';
+  return 'Partida';
 }
 
 function isFinalMatchType(matchType: string): boolean {

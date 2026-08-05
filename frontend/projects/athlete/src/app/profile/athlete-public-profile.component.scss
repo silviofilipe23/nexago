@@ -315,15 +315,6 @@
   }
 }
 
-.pp-notice {
-  padding: 10px 14px;
-  border-radius: var(--nx-r-2);
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line);
-  color: var(--nx-text-mute);
-  font-size: 13px;
-}
-
 .pp-main-grid {
   display: grid;
   grid-template-columns: 380px 1fr;
@@ -352,6 +343,40 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+}
+
+// Cabeçalho de card com ação à direita ("Ver tudo" no histórico).
+.pp-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pp-card-head-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pp-card-action {
+  flex: none;
+  // Área de toque maior que o texto sem empurrar o layout do cabeçalho.
+  min-height: 34px;
+  padding: 6px 10px;
+  margin: -6px -10px 0 0;
+  background: none;
+  border: none;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
 }
 
 .pp-card-kicker {
@@ -782,6 +807,10 @@
 .pp-match-result[data-result='L'] {
   background: rgba(255, 59, 48, 0.16);
   color: var(--nx-live);
+}
+
+.pp-match-skeleton-info {
+  flex: 1;
 }
 
 .pp-match-info {

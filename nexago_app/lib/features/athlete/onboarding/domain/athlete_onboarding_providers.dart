@@ -51,7 +51,8 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
 
   void setName(String v) => state = state.copyWith(name: v);
   void setNickname(String v) => state = state.copyWith(nickname: v);
-  void setPhoneDigits(String v) => state = state.copyWith(phoneDigits: v);
+  void setVerifiedPhoneNumber(String v) =>
+      state = state.copyWith(verifiedPhoneNumber: v);
   void setBirthDate(String v) => state = state.copyWith(birthDate: v);
   void setGender(String? v) => state = state.copyWith(gender: v);
 

@@ -13,6 +13,9 @@ void main() {
     String city = 'Goiânia',
     String? state = 'GO',
     String? phone = '(62) 99999-9999',
+    // O passo de WhatsApp exige posse comprovada por SMS, não só formato
+    // válido — o default espelha "tem telefone porque verificou".
+    bool? phoneVerified,
     List<String> goals = const ['RESERVAR_ARENA'],
   }) {
     return AthleteProfile(
@@ -24,6 +27,7 @@ void main() {
       city: city,
       state: state,
       phoneNumber: phone,
+      phoneVerified: phoneVerified ?? phone != null,
       goals: goals,
       onboardingCompleted: onboarding,
       isProfileComplete: isProfileComplete,
@@ -73,6 +77,29 @@ void main() {
     );
     expect(gamificationIncomplete.allComplete, isFalse);
     expect(gamificationIncomplete.canUnlockTournaments, isTrue);
+  });
+
+  test('phone with valid format but unverified does not unlock tournaments', () {
+    // Regressão do gate: o servidor exige `phoneVerified` em
+    // `athlete-tournament-access.ts`. Se o client aceitar só o formato, o
+    // atleta passa no banner e leva `failed-precondition` na inscrição.
+    final typedOnly = baseProfile(
+      onboarding: true,
+      goals: [],
+      phone: '(62) 99999-9999',
+      phoneVerified: false,
+    );
+
+    expect(isTournamentProfileReady(typedOnly), isFalse);
+    expect(canAccessOfficialTournaments(profile: typedOnly), isFalse);
+    expect(tournamentProfileMissingTitles(typedOnly), contains('WhatsApp'));
+    expect(
+      ProfileCompletionState.fromProfile(typedOnly)
+          .steps
+          .firstWhere((s) => s.step == ProfileCompletionStep.whatsapp)
+          .isDone,
+      isFalse,
+    );
   });
 
   test('whatsapp validation accepts 10-11 digits', () {

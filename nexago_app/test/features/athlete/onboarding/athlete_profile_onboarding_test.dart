@@ -69,6 +69,28 @@ void main() {
       expect(onboarding.containsKey('completedAt'), isTrue);
     });
 
+    test('never writes phoneNumber, even when the profile has one', () {
+      // As rules do Firestore recusam qualquer `phoneNumber` vindo do client
+      // (`create` proíbe, `update` só aceita valor idêntico ao salvo). Se este
+      // campo voltar ao payload, TODO save de perfil quebra com
+      // `permission-denied` — não só a parte do telefone. Quem grava é a
+      // Cloud Function `confirmPhoneVerification`.
+      const profile = AthleteProfile(
+        id: 'u1',
+        name: 'Ana',
+        sport: 'Vôlei de praia',
+        level: 'Intermediário',
+        city: 'Goiânia',
+        phoneNumber: '+5562999999999',
+        phoneVerified: true,
+      );
+
+      final data = profile.toFirestore();
+      expect(data.containsKey('phoneNumber'), isFalse);
+      expect(data.containsKey('phoneVerified'), isFalse);
+      expect(data.containsKey('phoneVerifiedAt'), isFalse);
+    });
+
     test('persists city and state on user document', () {
       const profile = AthleteProfile(
         id: 'u1',
@@ -138,6 +160,34 @@ void main() {
       final profile = AthleteProfile.fromFirestore(snap);
       expect(profile.birthDate, '01/01/2000');
     });
+
+    test('reads phoneVerified written by the Cloud Function', () {
+      final verified = AthleteProfile.fromFirestore(
+        _FakeDoc(
+          id: 'u3',
+          fields: {
+            'name': 'Ana',
+            'phoneNumber': '+5562999999999',
+            'phoneVerified': true,
+          },
+        ),
+      );
+      expect(verified.phoneNumber, '+5562999999999');
+      expect(verified.phoneVerified, isTrue);
+    });
+
+    test('legacy doc with a phone but no flag is not verified', () {
+      // Contas anteriores à verificação por SMS têm o número digitado, sem
+      // posse comprovada — precisam passar pelo fluxo para liberar torneios.
+      final legacy = AthleteProfile.fromFirestore(
+        _FakeDoc(
+          id: 'u4',
+          fields: {'name': 'Ana', 'whatsapp': '(62) 99999-9999'},
+        ),
+      );
+      expect(legacy.phoneNumber, '(62) 99999-9999');
+      expect(legacy.phoneVerified, isFalse);
+    });
   });
 
   group('AthleteOnboardingDraft.toAthleteProfile', () {
@@ -148,7 +198,7 @@ void main() {
         level: 'Intermediário',
         goalIds: {'book_arena', 'compete'},
         name: 'Marcelo',
-        phoneDigits: '(11) 98765-4321',
+        verifiedPhoneNumber: '+5511987654321',
         birthDate: '15/03/1990',
         gender: 'Feminino',
       );

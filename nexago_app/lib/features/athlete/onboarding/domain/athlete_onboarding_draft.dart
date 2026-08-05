@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import '../../../../core/formatting/br_phone_format.dart';
 import '../../domain/athlete_firestore_codes.dart';
 import '../../domain/athlete_profile.dart';
 import 'athlete_onboarding_options.dart';
@@ -26,7 +25,7 @@ class AthleteOnboardingDraft {
     this.goalIds = const {},
     this.name = '',
     this.nickname = '',
-    this.phoneDigits = '',
+    this.verifiedPhoneNumber = '',
     this.birthDate = '',
     this.gender,
     this.avatarBytes,
@@ -40,7 +39,11 @@ class AthleteOnboardingDraft {
   final Set<String> goalIds;
   final String name;
   final String nickname;
-  final String phoneDigits;
+  /// Telefone confirmado por SMS (E.164), devolvido pela Cloud Function
+  /// `confirmPhoneVerification`. Vazio enquanto o atleta não verificar — não é
+  /// um campo digitável, o client não pode gravar telefone (ver
+  /// `firestore.rules`).
+  final String verifiedPhoneNumber;
   final String birthDate;
   final String? gender;
   final Uint8List? avatarBytes;
@@ -72,8 +75,10 @@ class AthleteOnboardingDraft {
 
   bool get isNameValid => name.trim().isNotEmpty;
 
-  bool get isPhoneValid =>
-      phoneDigits.replaceAll(RegExp(r'\D'), '').length >= 10;
+  /// Telefone verificado por SMS. Não basta ter formato válido: o gate de
+  /// torneios do servidor exige `phoneVerified` (ver
+  /// `athlete-tournament-access.ts`).
+  bool get isPhoneValid => verifiedPhoneNumber.isNotEmpty;
 
   bool get isBirthDateValid => _isBirthDateValid(birthDate);
 
@@ -101,7 +106,7 @@ class AthleteOnboardingDraft {
     Set<String>? goalIds,
     String? name,
     String? nickname,
-    String? phoneDigits,
+    String? verifiedPhoneNumber,
     String? birthDate,
     String? gender,
     Uint8List? avatarBytes,
@@ -116,7 +121,7 @@ class AthleteOnboardingDraft {
       goalIds: goalIds ?? this.goalIds,
       name: name ?? this.name,
       nickname: nickname ?? this.nickname,
-      phoneDigits: phoneDigits ?? this.phoneDigits,
+      verifiedPhoneNumber: verifiedPhoneNumber ?? this.verifiedPhoneNumber,
       birthDate: birthDate ?? this.birthDate,
       gender: gender ?? this.gender,
       avatarBytes: clearAvatar ? null : (avatarBytes ?? this.avatarBytes),
@@ -132,7 +137,6 @@ class AthleteOnboardingDraft {
     String? avatarUrl,
   }) {
     final primary = primarySportLabel ?? '';
-    final phone = formatPhoneBrDisplay(phoneDigits);
     final primaryFs =
         AthleteFirestoreCodes.sportAppToFirestore(primarySportId);
     final secondaryFs = otherSportIds
@@ -153,7 +157,11 @@ class AthleteOnboardingDraft {
       level: level ?? '',
       city: '',
       state: null,
-      phoneNumber: phone,
+      // Só em memória: `toFirestore` não grava telefone (é a Cloud Function
+      // que grava). Vai no perfil porque `saveProfile` deriva
+      // `isProfileComplete`/`onboardingCompleted` a partir destes campos.
+      phoneNumber: verifiedPhoneNumber.isEmpty ? null : verifiedPhoneNumber,
+      phoneVerified: verifiedPhoneNumber.isNotEmpty,
       sports: otherSportLabels,
       goals: goalsFs,
       nickname: nickname.trim().isEmpty ? null : nickname.trim(),

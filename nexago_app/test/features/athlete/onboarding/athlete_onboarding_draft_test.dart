@@ -46,7 +46,7 @@ void main() {
 
       const valid = AthleteOnboardingDraft(
         name: 'Marcelo Antunes',
-        phoneDigits: '(11) 98765-4321',
+        verifiedPhoneNumber: '+5511987654321',
         birthDate: '15/03/1990',
         gender: 'Masculino',
       );
@@ -64,10 +64,11 @@ void main() {
       expect(onlyName.isNameValid, isTrue);
       expect(onlyName.isPhoneValid, isFalse);
 
-      // Telefone curto e data fora do formato continuam inválidos.
+      // Telefone não verificado e data fora do formato continuam inválidos.
+      // Digitar o número não basta mais: sem passar pelo SMS o gate de
+      // torneios do servidor recusaria a inscrição depois.
       const partial = AthleteOnboardingDraft(
         name: 'Ana',
-        phoneDigits: '1198',
         birthDate: '31/13/2050',
         gender: 'Feminino',
       );
@@ -85,7 +86,7 @@ void main() {
         goalIds: {'compete', 'play_fun'},
         name: 'Marcelo',
         nickname: 'Marcelão',
-        phoneDigits: '(11) 98765-4321',
+        verifiedPhoneNumber: '+5511987654321',
         birthDate: '15/03/1990',
         gender: 'Feminino',
       );
@@ -98,7 +99,8 @@ void main() {
       expect(profile.goals, containsAll(['COMPETIR', 'JOGAR_DIVERSAO']));
       expect(profile.name, 'Marcelo');
       expect(profile.nickname, 'Marcelão');
-      expect(profile.phoneNumber, '(11) 98765-4321');
+      expect(profile.phoneNumber, '+5511987654321');
+      expect(profile.phoneVerified, isTrue);
       expect(profile.birthDate, '1990-03-15');
       expect(profile.gender, 'Feminino');
       expect(profile.primarySportFirestoreId, 'VOLEI_PRAIA');

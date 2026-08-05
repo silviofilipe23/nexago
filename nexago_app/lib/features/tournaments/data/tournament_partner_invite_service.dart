@@ -13,10 +13,13 @@ class TournamentPartnerInviteException implements Exception {
   final String message;
 
   /// Conflito de inscrição/dupla — exibir FeedbackPage.alert.
+  /// Espelha `registrationConflictMessage` (Cloud Functions): mudou a copy lá,
+  /// atualize aqui.
   bool get isRegistrationConflict =>
       message.contains('já possui inscrição') ||
       message.contains('já está inscrito') ||
-      message.contains('Já existe uma dupla');
+      message.contains('Já existe uma dupla') ||
+      message.contains('já pagaram uma inscrição');
 
   @override
   String toString() => message;

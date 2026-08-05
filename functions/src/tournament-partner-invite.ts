@@ -17,13 +17,13 @@ import {
   resolveCategoryMatchKeys,
 } from "./tournament-registration-guards";
 import {
-  resolveInviteRegistrationAction,
+  resolvePartnerRegistrationPlan,
   type InviterCategoryRegistration,
 } from "./tournament-solo-registration";
 import {
-  assertNoPairConflictTx,
-  pairAlreadyRegistered,
+  loadCategoryRegistrationsTx,
   parseCategoryRegistration,
+  registrationConflictMessage,
   type ParsedCategoryRegistration,
 } from "./tournament-pair-uniqueness";
 import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
@@ -190,40 +190,46 @@ function uniformToInviteFields(
   return out;
 }
 
+type UniformSlot = "Player1" | "Player2";
+
+/** Uniforme no slot do atleta — quem é player1 depende de qual inscrição sobrevive. */
+function registrationUniformForSlot(
+  uniform: UniformPayload,
+  slot: UniformSlot,
+): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  if (uniform.sizeTop) out[`sizeTop${slot}`] = uniform.sizeTop;
+  if (uniform.sizeShorts) out[`sizeShorts${slot}`] = uniform.sizeShorts;
+  if (uniform.jerseyNumber != null) {
+    out[`jerseyNumber${slot}`] = uniform.jerseyNumber;
+  }
+  if (uniform.jerseyName) out[`jerseyName${slot}`] = uniform.jerseyName;
+  return out;
+}
+
+/** Uniforme do convidante guardado no convite, de volta como payload. */
+function inviterUniformFromInvite(
+  invite: Record<string, unknown>,
+): UniformPayload | null {
+  return parseUniformPayload({
+    sizeTop: invite.inviterSizeTop,
+    sizeShorts: invite.inviterSizeShorts,
+    jerseyNumber: invite.inviterJerseyNumber,
+    jerseyName: invite.inviterJerseyName,
+  });
+}
+
 function registrationUniformFromInvite(
   invite: Record<string, unknown>,
 ): Record<string, string | number> {
-  const out: Record<string, string | number> = {};
-  const sizeTop = invite.inviterSizeTop;
-  const sizeShorts = invite.inviterSizeShorts;
-  const jerseyNumber = invite.inviterJerseyNumber;
-  const jerseyName = invite.inviterJerseyName;
-  if (typeof sizeTop === "string" && sizeTop.trim()) {
-    out.sizeTopPlayer1 = sizeTop.trim();
-  }
-  if (typeof sizeShorts === "string" && sizeShorts.trim()) {
-    out.sizeShortsPlayer1 = sizeShorts.trim();
-  }
-  if (typeof jerseyNumber === "number") {
-    out.jerseyNumberPlayer1 = jerseyNumber;
-  }
-  if (typeof jerseyName === "string" && jerseyName.trim()) {
-    out.jerseyNamePlayer1 = jerseyName.trim();
-  }
-  return out;
+  const uniform = inviterUniformFromInvite(invite);
+  return uniform ? registrationUniformForSlot(uniform, "Player1") : {};
 }
 
 function registrationUniformPlayer2(
   uniform: UniformPayload,
 ): Record<string, string | number> {
-  const out: Record<string, string | number> = {};
-  if (uniform.sizeTop) out.sizeTopPlayer2 = uniform.sizeTop;
-  if (uniform.sizeShorts) out.sizeShortsPlayer2 = uniform.sizeShorts;
-  if (uniform.jerseyNumber != null) {
-    out.jerseyNumberPlayer2 = uniform.jerseyNumber;
-  }
-  if (uniform.jerseyName) out.jerseyNamePlayer2 = uniform.jerseyName;
-  return out;
+  return registrationUniformForSlot(uniform, "Player2");
 }
 
 async function loadTournamentDataForInvite(
@@ -237,14 +243,7 @@ async function loadTournamentDataForInvite(
 function registrationUniformPlayer1(
   uniform: UniformPayload,
 ): Record<string, string | number> {
-  const out: Record<string, string | number> = {};
-  if (uniform.sizeTop) out.sizeTopPlayer1 = uniform.sizeTop;
-  if (uniform.sizeShorts) out.sizeShortsPlayer1 = uniform.sizeShorts;
-  if (uniform.jerseyNumber != null) {
-    out.jerseyNumberPlayer1 = uniform.jerseyNumber;
-  }
-  if (uniform.jerseyName) out.jerseyNamePlayer1 = uniform.jerseyName;
-  return out;
+  return registrationUniformForSlot(uniform, "Player1");
 }
 
 /** Inscrições do atleta na categoria (para decidir criar/anexar/bloquear). */
@@ -529,39 +528,21 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     inviterUniform != null && uniformRequired,
   );
 
-  // Solo: se o convidador já tem uma inscrição solo (parceiro pendente) onde é
-  // player1, o convite ANEXA o convidado a ela; dupla completa bloqueia.
-  const inviterRegs = await loadAthleteCategoryRegistrations(
-    db,
-    projectId,
-    uid,
-    tournamentId,
-    categoryKeys,
-  );
-  const regAction = resolveInviteRegistrationAction(inviterRegs);
-  if (regAction.kind === "blocked") {
-    throw new HttpsError(
-      "failed-precondition",
-      "Você já possui inscrição nesta categoria."
-    );
-  }
-  if (await userHasCategoryRegistration(db, projectId, inviteeUid, tournamentId, categoryKeys)) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Este parceiro já está inscrito nesta categoria."
-    );
-  }
-
+  // Reserva solo (`partnerPending`) é vaga guardada, não dupla fechada — dos DOIS
+  // lados. O plano decide qual inscrição recebe a dupla e qual reserva é
+  // liberada; só dupla já fechada bloqueia. É reavaliado no aceite (a situação
+  // pode mudar nas 48h do convite), então aqui ele vale como validação adiantada.
   const categoryRegs = await loadCategoryRegistrationsForPairCheck(
     db,
     projectId,
     tournamentId,
     categoryKeys,
   );
-  if (pairAlreadyRegistered(categoryRegs, uid, inviteeUid)) {
+  const plan = resolvePartnerRegistrationPlan(categoryRegs, uid, inviteeUid);
+  if (plan.kind === "blocked") {
     throw new HttpsError(
       "failed-precondition",
-      "Já existe uma dupla com vocês dois nesta categoria.",
+      registrationConflictMessage(plan.reason),
     );
   }
 
@@ -586,13 +567,13 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     status: "pending",
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
-    // Modo anexar: convite preenche a inscrição solo existente do convidador.
-    // attachTeamId só existe em solo legado (com equipe); no solo novo a equipe
-    // é criada no aceite.
-    ...(regAction.kind === "attach"
+    // Modo anexar: o convite preenche uma reserva solo já existente — do
+    // convidante ou do convidado. attachTeamId só existe em solo legado (com
+    // equipe); no solo novo a equipe é criada no aceite.
+    ...(plan.kind === "attach"
       ? {
-          attachRegistrationId: regAction.registrationId,
-          ...(regAction.teamId ? {attachTeamId: regAction.teamId} : {}),
+          attachRegistrationId: plan.registrationId,
+          ...(plan.teamId ? {attachTeamId: plan.teamId} : {}),
         }
       : {}),
     // Aceite LGPD do convidante fica no convite e é copiado para a inscrição
@@ -980,116 +961,165 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
     const teamsPath = artifactsTeamsPath(projectId);
 
-    const attachRegId = (invite.attachRegistrationId as string | undefined)?.trim();
-
-    await assertNoPairConflictTx(
+    // O plano é reavaliado aqui (não no convite): nas 48h de validade os dois
+    // podem ter reservado solo, cancelado ou fechado dupla com outra pessoa.
+    const categoryRegs = await loadCategoryRegistrationsTx(
       tx,
       inscriptionsRef,
       teamsPath,
       tournamentId,
       previewCategoryKeys,
-      inviterUid,
-      uid,
-      attachRegId ? {ignoreRegistrationId: attachRegId} : undefined,
     );
+    const plan = resolvePartnerRegistrationPlan(categoryRegs, inviterUid, uid);
+    if (plan.kind === "blocked") {
+      throw new HttpsError(
+        "failed-precondition",
+        registrationConflictMessage(plan.reason),
+      );
+    }
 
-    // Modo anexar: o convite preenche a inscrição solo existente do convidador
-    // em vez de criar uma nova (vaga já estava reservada).
-    const attachTeamId = (invite.attachTeamId as string | undefined)?.trim();
-    if (attachRegId) {
-      const existingRegRef = inscriptionsRef.doc(attachRegId);
-      const existingRegSnap = await tx.get(existingRegRef);
-      if (!existingRegSnap.exists) {
+    // Modo anexar: a dupla ocupa uma reserva solo que já existe — do convidante
+    // ou do convidado. A reserva do outro (quando os dois reservaram) é liberada.
+    if (plan.kind === "attach") {
+      const baseRegRef = inscriptionsRef.doc(plan.registrationId);
+      // Todas as leituras antes de qualquer escrita (exigência da transaction).
+      const baseRegSnap = await tx.get(baseRegRef);
+      if (!baseRegSnap.exists) {
         throw new HttpsError(
           "failed-precondition",
           "Inscrição solo não encontrada.",
         );
       }
-      const existingReg = existingRegSnap.data()!;
-      if (existingReg.partnerPending !== true) {
+      const baseReg = baseRegSnap.data()!;
+      if (baseReg.partnerPending !== true) {
         throw new HttpsError(
           "failed-precondition",
           "Esta inscrição já tem parceiro.",
         );
       }
-      const inviterId =
-        (existingReg.player1Id as string | undefined)?.trim() ||
-        (invite.inviterUid as string | undefined)?.trim() ||
-        "";
+
+      // Quem já ocupa a reserva e quem está entrando nela.
+      const baseOwnerUid =
+        (baseReg.player1Id as string | undefined)?.trim() || inviterUid;
+      const joiningUid = baseOwnerUid === uid ? inviterUid : uid;
+
+      const releaseRegRef = plan.releaseRegistrationId
+        ? inscriptionsRef.doc(plan.releaseRegistrationId)
+        : null;
+      const releaseRegSnap = releaseRegRef ? await tx.get(releaseRegRef) : null;
+
+      const baseTeamId = (baseReg.teamId as string | undefined)?.trim() ?? "";
+      const existingTeamSnap = baseTeamId
+        ? await tx.get(teamsRef.doc(baseTeamId))
+        : null;
+      if (baseTeamId && !existingTeamSnap?.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Equipe da inscrição não encontrada.",
+        );
+      }
 
       const attachUpdate: Record<string, unknown> = {
-        participantUids: FieldValue.arrayUnion(uid),
+        participantUids: FieldValue.arrayUnion(joiningUid),
         partnerPending: false,
         updatedAt: FieldValue.serverTimestamp(),
       };
-      // Inscrição já paga pelo solo (pagou o total) → parceiro entra sem taxa.
-      if (existingReg.isPaid === true) {
-        attachUpdate.sharePaidUids = FieldValue.arrayUnion(uid);
-      }
-      if (inviteeUniform) {
-        Object.assign(attachUpdate, registrationUniformPlayer2(inviteeUniform));
+      // Reserva já paga (pagou o total) → o parceiro entra sem taxa.
+      if (baseReg.isPaid === true) {
+        attachUpdate.sharePaidUids = FieldValue.arrayUnion(joiningUid);
       }
 
-      // Registra o aceite LGPD do convidado e, se a inscrição solo ainda não
-      // tiver, o do convidante (capturado no envio do convite).
-      const existingLgpdUids = Array.isArray(existingReg.lgpdAcceptedUids)
-        ? (existingReg.lgpdAcceptedUids as unknown[])
+      // Uniforme: quem entra ocupa o slot do player2; o dono da reserva mantém
+      // o player1 (e atualiza se acabou de informar um).
+      const joiningUniform =
+        joiningUid === uid ? inviteeUniform : inviterUniformFromInvite(invite);
+      if (joiningUniform) {
+        Object.assign(
+          attachUpdate,
+          registrationUniformForSlot(joiningUniform, "Player2"),
+        );
+      }
+      if (joiningUid !== uid && inviteeUniform) {
+        Object.assign(
+          attachUpdate,
+          registrationUniformForSlot(inviteeUniform, "Player1"),
+        );
+      }
+
+      // Aceite LGPD dos dois: o do convidado vem desta chamada, o do convidante
+      // ficou guardado no convite. Preserva o que a reserva já registrava.
+      const existingLgpdUids = Array.isArray(baseReg.lgpdAcceptedUids)
+        ? (baseReg.lgpdAcceptedUids as unknown[])
         : [];
       const lgpdUnion: string[] = [];
-      if (inviteeLgpdAccepted) {
+      if (inviteeLgpdAccepted && !existingLgpdUids.includes(uid)) {
         lgpdUnion.push(uid);
         attachUpdate[`lgpdAcceptedAt.${uid}`] = FieldValue.serverTimestamp();
       }
       if (
         invite.inviterLgpdAccepted === true &&
-        inviterId &&
-        !existingLgpdUids.includes(inviterId)
+        inviterUid &&
+        !existingLgpdUids.includes(inviterUid)
       ) {
-        lgpdUnion.push(inviterId);
-        attachUpdate[`lgpdAcceptedAt.${inviterId}`] =
+        lgpdUnion.push(inviterUid);
+        attachUpdate[`lgpdAcceptedAt.${inviterUid}`] =
           invite.inviterLgpdAcceptedAt ?? FieldValue.serverTimestamp();
+      }
+      // A reserva liberada some, mas o aceite que ela registrava não pode sumir.
+      const releasedLgpdUids = Array.isArray(releaseRegSnap?.data()?.lgpdAcceptedUids)
+        ? (releaseRegSnap!.data()!.lgpdAcceptedUids as unknown[])
+        : [];
+      for (const raw of releasedLgpdUids) {
+        const carried = String(raw).trim();
+        if (!carried) continue;
+        if (existingLgpdUids.includes(carried)) continue;
+        if (lgpdUnion.includes(carried)) continue;
+        lgpdUnion.push(carried);
+        const releasedAt = (
+          releaseRegSnap?.data()?.lgpdAcceptedAt as Record<string, unknown> | undefined
+        )?.[carried];
+        attachUpdate[`lgpdAcceptedAt.${carried}`] =
+          releasedAt ?? FieldValue.serverTimestamp();
       }
       if (lgpdUnion.length > 0) {
         attachUpdate.lgpdAcceptedUids = FieldValue.arrayUnion(...lgpdUnion);
         attachUpdate.lgpdTermVersion = LGPD_TERM_VERSION;
       }
 
-      let teamId = attachTeamId ?? "";
-      if (attachTeamId) {
+      let teamId = baseTeamId;
+      if (baseTeamId) {
         // Solo legado: já existe equipe de 1 atleta → preenche o player2.
-        const existingTeamRef = teamsRef.doc(attachTeamId);
-        const existingTeamSnap = await tx.get(existingTeamRef);
-        if (!existingTeamSnap.exists) {
-          throw new HttpsError(
-            "failed-precondition",
-            "Equipe da inscrição não encontrada.",
-          );
-        }
-        tx.update(existingTeamRef, {player2Id: uid});
+        tx.update(teamsRef.doc(baseTeamId), {player2Id: joiningUid});
       } else {
         // Solo novo: CRIA a equipe agora (player1 + player2) — "criar equipe".
         const teamRef = teamsRef.doc();
         tx.set(teamRef, {
-          player1Id: inviterId,
-          player2Id: uid,
+          player1Id: baseOwnerUid,
+          player2Id: joiningUid,
           createdAt: FieldValue.serverTimestamp(),
         });
         teamId = teamRef.id;
         attachUpdate.teamId = teamId;
       }
 
-      tx.update(existingRegRef, attachUpdate);
+      // Libera a reserva solo do outro atleta: a dupla ocupa uma vaga só.
+      if (releaseRegRef && releaseRegSnap?.exists) {
+        tx.delete(releaseRegRef);
+      }
+
+      tx.update(baseRegRef, attachUpdate);
       tx.update(inviteRef, {
         status: "accepted",
         teamId,
-        registrationId: attachRegId,
+        registrationId: plan.registrationId,
         acceptedAt: FieldValue.serverTimestamp(),
       });
       return {
-        registrationId: attachRegId,
+        registrationId: plan.registrationId,
         teamId,
         tournamentId,
         categoryId,
+        releasedRegistrationId: plan.releaseRegistrationId,
       };
     }
 

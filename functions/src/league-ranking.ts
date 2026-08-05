@@ -158,8 +158,13 @@ function resolveDoubleEliminationLbPlacement(
   loserId: string,
   lbRound: number,
   maxLbRound: number,
+  hasThirdPlaceMatch: boolean,
 ): LeaguePlacementAward {
-  if (maxLbRound <= 0) {
+  // Com disputa de 3º lugar — o caso de TODAS as plantas do NexaGO — o pódio
+  // sai só dela: o perdedor da final da LB ainda joga o 3º lugar, e quem cai
+  // antes disso está eliminado ANTES do pódio (5º ou pior). Sem essa partida
+  // (chave legada), a final da LB decide o 3º e a rodada anterior o 4º.
+  if (hasThirdPlaceMatch || maxLbRound <= 0) {
     return {teamId: loserId, bucket: "quarters"};
   }
   if (lbRound === maxLbRound) {
@@ -200,7 +205,14 @@ export function resolveLeaguePlacementsFromMatch(
     if (matchType === "lb") {
       const lbRound = (match.round as number | undefined) ?? 0;
       const maxLbRound = context.maxLbRound ?? 0;
-      return [resolveDoubleEliminationLbPlacement(loserId, lbRound, maxLbRound)];
+      return [
+        resolveDoubleEliminationLbPlacement(
+          loserId,
+          lbRound,
+          maxLbRound,
+          context.hasThirdPlaceMatch,
+        ),
+      ];
     }
   }
 
@@ -308,29 +320,23 @@ export async function loadKnockoutTeamIds(
   return ids;
 }
 
-export async function loadCategoryBracketContext(
-  db: Firestore,
-  projectId: string,
-  tournamentId: string,
-  categoryId: string,
-): Promise<{
+export interface CategoryBracketContext {
   isDoubleElimination: boolean;
   maxLbRound: number;
   knockoutFinalRound: number;
   hasThirdPlaceMatch: boolean;
-}> {
-  const snap = await db
-    .collection(artifactsMatchesPath(projectId))
-    .where("tournamentId", "==", tournamentId)
-    .where("categoryId", "==", categoryId)
-    .get();
+}
 
+/** Deriva o contexto da chave das partidas da categoria (puro, testável). */
+export function bracketContextFromMatches(
+  matches: Array<Record<string, unknown>>,
+): CategoryBracketContext {
   let maxLbRound = 0;
   let isDoubleElimination = false;
   let knockoutFinalRound = 0;
   let hasThirdPlaceMatch = false;
-  for (const doc of snap.docs) {
-    const matchType = normalizeMatchType(doc.data().matchType);
+  for (const data of matches) {
+    const matchType = normalizeMatchType(data.matchType);
     if (isThirdPlaceMatchType(matchType)) {
       hasThirdPlaceMatch = true;
     }
@@ -338,17 +344,32 @@ export async function loadCategoryBracketContext(
       isDoubleElimination = true;
     }
     if (matchType === "lb") {
-      const round = (doc.data().round as number | undefined) ?? 0;
+      const round = (data.round as number | undefined) ?? 0;
       if (round > maxLbRound) maxLbRound = round;
     }
     // Rodada da final do mata-mata SE/grupos (Final está sempre na última
     // rodada da cadeia "knockout"→"Final"). Ignora a fase de grupos (round 0).
     if (matchType === "knockout" || isFinalMatchType(matchType)) {
-      const round = (doc.data().round as number | undefined) ?? 0;
+      const round = (data.round as number | undefined) ?? 0;
       if (round > knockoutFinalRound) knockoutFinalRound = round;
     }
   }
   return {isDoubleElimination, maxLbRound, knockoutFinalRound, hasThirdPlaceMatch};
+}
+
+export async function loadCategoryBracketContext(
+  db: Firestore,
+  projectId: string,
+  tournamentId: string,
+  categoryId: string,
+): Promise<CategoryBracketContext> {
+  const snap = await db
+    .collection(artifactsMatchesPath(projectId))
+    .where("tournamentId", "==", tournamentId)
+    .where("categoryId", "==", categoryId)
+    .get();
+
+  return bracketContextFromMatches(snap.docs.map((doc) => doc.data()));
 }
 
 export async function loadTeamAthleteIds(

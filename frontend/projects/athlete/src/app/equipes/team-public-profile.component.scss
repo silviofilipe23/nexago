@@ -507,12 +507,12 @@
   font-size: 12px;
 }
 
-.tp-match-result[data-result='W'] {
+.tp-match-result[data-result='V'] {
   background: rgba(43, 209, 126, 0.16);
   color: var(--nx-win);
 }
 
-.tp-match-result[data-result='L'] {
+.tp-match-result[data-result='D'] {
   background: rgba(255, 59, 48, 0.16);
   color: var(--nx-live);
 }

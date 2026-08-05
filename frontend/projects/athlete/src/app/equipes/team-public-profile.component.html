@@ -98,7 +98,7 @@
               <div class="tp-match-list">
                 @for (m of t.matches; track m.id) {
                   <div class="tp-match-row">
-                    <span class="tp-match-result" [attr.data-result]="m.result">{{ m.result }}</span>
+                    <span class="tp-match-result" [attr.data-result]="m.result" [attr.aria-label]="m.result === 'V' ? 'Vitória' : 'Derrota'">{{ m.result }}</span>
                     <div class="tp-match-info">
                       <p class="tp-match-opponent">vs {{ m.opponent }}</p>
                       <p class="tp-match-context">{{ m.contextLabel }}</p>

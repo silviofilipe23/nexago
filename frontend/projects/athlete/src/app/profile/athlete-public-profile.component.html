@@ -114,7 +114,7 @@
             </div>
             <div class="pp-identity-head">
               <h2 class="pp-name">{{ athlete.fullName }}</h2>
-              <p class="pp-handle">&#64;{{ athlete.handle }} · {{ athlete.locationLabel }}</p>
+              <p class="pp-handle">{{ athlete.locationLabel }}</p>
               <div class="pp-pill-row">
                 @if (athlete.primarySport) {
                   <span class="pp-sport-pill">{{ athlete.primarySport }}</span>
@@ -236,7 +236,7 @@
               <div class="pp-match-list">
                 @for (m of visibleMatches(); track m.id) {
                   <div class="pp-match-row">
-                    <span class="pp-match-result" [attr.data-result]="m.result" [attr.aria-label]="m.result === 'W' ? 'Vitória' : 'Derrota'">{{ m.result }}</span>
+                    <span class="pp-match-result" [attr.data-result]="m.result" [attr.aria-label]="m.result === 'W' ? 'Vitória' : 'Derrota'">{{ m.result === 'W' ? 'V' : 'D' }}</span>
                     <div class="pp-match-info">
                       <p class="pp-match-opponent">vs {{ m.opponent }}</p>
                       <p class="pp-match-context">{{ m.contextLabel }}</p>

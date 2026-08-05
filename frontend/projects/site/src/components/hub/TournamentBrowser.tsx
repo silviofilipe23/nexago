@@ -5,9 +5,11 @@ import { SlidersHorizontal, X } from 'lucide-react';
 import { TournamentCard } from './TournamentCard';
 import { Chip, FilterGroup, SearchInput } from './filter-controls';
 import { sportLabel, STATUS_META } from '@/lib/format';
+// Só o resolvedor puro — `firestore/tournaments.ts` puxaria o SDK do Firebase pro bundle do cliente.
+import { isActiveStatus } from '@/lib/firestore/tournament-status';
 import type { TournamentListingStatus, TournamentSummary } from '@/lib/firestore/types';
 
-const STATUS_ORDER: TournamentListingStatus[] = ['open', 'live', 'almost_full', 'ended'];
+const STATUS_ORDER: TournamentListingStatus[] = ['live', 'open', 'almost_full', 'closed', 'ended'];
 
 function unique(values: (string | null)[]): string[] {
   return [...new Set(values.filter((v): v is string => Boolean(v)))];
@@ -48,6 +50,11 @@ export function TournamentBrowser({ tournaments }: { tournaments: TournamentSumm
       return true;
     });
   }, [tournaments, query, sport, status, state]);
+
+  // A lista já chega ordenada (ativos por data crescente, encerrados decrescente) — aqui só
+  // separa em duas seções, preservando essa ordem.
+  const active = useMemo(() => filtered.filter((t) => isActiveStatus(t.listingStatus)), [filtered]);
+  const ended = useMemo(() => filtered.filter((t) => !isActiveStatus(t.listingStatus)), [filtered]);
 
   const hasActiveFilters = Boolean(query || sport || status || state);
 
@@ -140,15 +147,39 @@ export function TournamentBrowser({ tournaments }: { tournaments: TournamentSumm
         )}
       </div>
 
-      {/* Resultados */}
+      {/* Resultados — ativos no grid principal, encerrados na seção abaixo */}
       {filtered.length > 0 ? (
-        <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((t) => (
-            <li key={t.id}>
-              <TournamentCard t={t} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {active.length > 0 ? (
+            <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {active.map((t) => (
+                <li key={t.id}>
+                  <TournamentCard t={t} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-6 rounded-4 border border-line bg-surface-1 px-5 py-4 text-sm text-text-mute">
+              Nenhum torneio aberto ou em andamento no momento — veja os que já aconteceram abaixo.
+            </p>
+          )}
+
+          {ended.length > 0 && (
+            <section className="mt-14">
+              <h2 className="font-display text-xl font-700 tracking-tight text-fg">Já aconteceram</h2>
+              <p className="mt-1 text-sm text-text-mute">
+                {ended.length === 1 ? '1 torneio encerrado' : `${ended.length} torneios encerrados`}
+              </p>
+              <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {ended.map((t) => (
+                  <li key={t.id}>
+                    <TournamentCard t={t} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       ) : (
         <div className="mt-6 rounded-5 border border-line bg-surface-1 p-12 text-center">
           <div className="mx-auto mb-4 inline-flex size-12 items-center justify-center rounded-full border border-line bg-surface-2 text-text-dim">

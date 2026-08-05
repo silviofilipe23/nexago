@@ -1,6 +1,12 @@
 /** Tipos do hub público, espelhando o schema real do Firestore (somente leitura). */
 
-export type TournamentListingStatus = 'open' | 'almost_full' | 'live' | 'ended';
+/**
+ * Estado exibido no badge. Derivado do doc por `resolveListingStatus` (tournament-status.ts) —
+ * nunca lido cru do Firestore, que grava outro vocabulário (`draft|open|closed|completed|cancelled`
+ * + legados). `closed` = inscrição encerrada, evento ainda por vir. `cancelled` só aparece na
+ * página individual: fica fora da listagem.
+ */
+export type TournamentListingStatus = 'open' | 'almost_full' | 'closed' | 'live' | 'ended' | 'cancelled';
 export type Sport = 'beachTennis' | 'beachVolleyball' | string;
 
 export interface TournamentCategory {

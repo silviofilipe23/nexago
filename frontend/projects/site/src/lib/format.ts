@@ -31,7 +31,11 @@ export const STATUS_META: Record<
   live: { label: 'Ao vivo', tone: 'live' },
   open: { label: 'Inscrições abertas', tone: 'open' },
   almost_full: { label: 'Últimas vagas', tone: 'pending' },
+  // Inscrição fechada mas o torneio ainda vai acontecer — não é "Últimas vagas" (convidaria a
+  // se inscrever) nem "Encerrado" (o evento não passou).
+  closed: { label: 'Inscrições encerradas', tone: 'pending' },
   ended: { label: 'Encerrado', tone: 'muted' },
+  cancelled: { label: 'Cancelado', tone: 'muted' },
 };
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });

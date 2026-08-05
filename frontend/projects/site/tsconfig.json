@@ -15,6 +15,9 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Os specs rodam no `node --test` com type stripping, que exige a extensão `.ts` explícita
+    // no import. Seguro com `noEmit`.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

@@ -8,8 +8,38 @@ import { Reveal } from '@/components/motion/Reveal';
 import { ButtonLink } from '@/components/ui/Button';
 import { sportLabel, genderLabel, formatCents } from '@/lib/format';
 import { extractId, toSlugId } from '@/lib/slug';
+import type { TournamentListingStatus } from '@/lib/firestore/types';
 
 export const revalidate = 300;
+
+/** O bloco de ação no pé da página fala a verdade do status — nada de "Inscreva-se" em torneio
+ *  cancelado ou que já aconteceu. */
+const CTA_COPY: Record<TournamentListingStatus, { title: string; description: string }> = {
+  open: {
+    title: 'Quer jogar essa etapa?',
+    description: 'Inscreva-se pelo site ou pelo app e acompanhe ao vivo.',
+  },
+  almost_full: {
+    title: 'Últimas vagas nessa etapa',
+    description: 'As vagas estão acabando — garanta a sua pelo site ou pelo app.',
+  },
+  closed: {
+    title: 'Inscrições encerradas',
+    description: 'As chaves já estão fechadas. Acompanhe os jogos ao vivo pelo app.',
+  },
+  live: {
+    title: 'Acontecendo agora',
+    description: 'Acompanhe as chaves e os resultados ao vivo pelo app.',
+  },
+  ended: {
+    title: 'Esse torneio já aconteceu',
+    description: 'Veja as etapas com inscrições abertas e não perca a próxima.',
+  },
+  cancelled: {
+    title: 'Esse torneio foi cancelado',
+    description: 'O organizador cancelou essa etapa. Veja outros torneios abertos na areia.',
+  },
+};
 
 // O segmento `[id]` aceita "slug-id" (ex.: copa-de-verao-aBc123); o id real é
 // extraído do final. Links antigos só com o id seguem funcionando (redirect canônico).
@@ -43,12 +73,14 @@ export default async function TorneioDetailPage({ params }: Params) {
   if (id !== slug) permanentRedirect(`/torneios/${slug}`);
 
   const place = [t.locationName, t.city, t.state].filter(Boolean).join(', ');
-  const statusMap: Record<string, string> = {
-    open: 'https://schema.org/EventScheduled',
-    almost_full: 'https://schema.org/EventScheduled',
-    live: 'https://schema.org/EventScheduled',
-    ended: 'https://schema.org/EventScheduled',
-  };
+  // O Google lê isto: torneio cancelado precisa sair como cancelado, não como agendado.
+  const eventStatus =
+    t.listingStatus === 'cancelled'
+      ? 'https://schema.org/EventCancelled'
+      : 'https://schema.org/EventScheduled';
+  // Só convida a se inscrever quando a inscrição existe de fato.
+  const acceptsRegistration = t.listingStatus === 'open' || t.listingStatus === 'almost_full';
+  const cta = CTA_COPY[t.listingStatus];
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -58,7 +90,7 @@ export default async function TorneioDetailPage({ params }: Params) {
     sport: sportLabel(t.sport),
     startDate: t.startAt?.toISOString(),
     endDate: t.endAt?.toISOString(),
-    eventStatus: statusMap[t.listingStatus],
+    eventStatus,
     url: `https://nexago.com.br/torneios/${slug}`,
     location: place
       ? {
@@ -121,21 +153,34 @@ export default async function TorneioDetailPage({ params }: Params) {
         )}
 
         <Reveal>
-          <section className="mt-14 flex flex-col items-start gap-4 rounded-5 border border-brand/20 bg-surface-1 p-7 sm:flex-row sm:items-center sm:justify-between">
+          <section
+            className={`mt-14 flex flex-col items-start gap-4 rounded-5 border bg-surface-1 p-7 sm:flex-row sm:items-center sm:justify-between ${
+              acceptsRegistration ? 'border-brand/20' : 'border-line'
+            }`}
+          >
             <div className="flex items-center gap-3">
-              <Trophy className="size-6 text-brand" aria-hidden="true" />
+              <Trophy
+                className={`size-6 ${acceptsRegistration ? 'text-brand' : 'text-text-dim'}`}
+                aria-hidden="true"
+              />
               <div>
-                <p className="font-display font-700 text-fg">Quer jogar essa etapa?</p>
-                <p className="text-sm text-text-mute">Inscreva-se pelo site ou pelo app e acompanhe ao vivo.</p>
+                <p className="font-display font-700 text-fg">{cta.title}</p>
+                <p className="text-sm text-text-mute">{cta.description}</p>
               </div>
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-              <ButtonLink
-                href={`https://atleta.nexago.com.br/torneios/${t.id}/inscricao`}
-                className="w-full sm:w-auto"
-              >
-                Inscreva-se
-              </ButtonLink>
+              {acceptsRegistration ? (
+                <ButtonLink
+                  href={`https://atleta.nexago.com.br/torneios/${t.id}/inscricao`}
+                  className="w-full sm:w-auto"
+                >
+                  Inscreva-se
+                </ButtonLink>
+              ) : (
+                <ButtonLink href="/torneios" className="w-full sm:w-auto">
+                  Ver torneios abertos
+                </ButtonLink>
+              )}
               <ButtonLink href="https://linktr.ee/nexago" variant="secondary" className="w-full sm:w-auto">
                 Baixar o app
               </ButtonLink>

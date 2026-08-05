@@ -16,10 +16,11 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
   { id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
-  { id: 'atletas', label: 'Atletas', icon: 'users', route: null },
-  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: null },
+  { id: 'organizadores', label: 'Organizadores', icon: 'id-badge', route: '/painel/organizadores' },
+  { id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
+  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
   { id: 'moderacao', label: 'Moderação', icon: 'shield', route: null },
-  { id: 'equipe', label: 'Equipe', icon: 'team', route: null },
+  { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe' },
 ];
 
 function pathOnly(url: string): string {
@@ -357,6 +358,18 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/torneios')) {
       return 'torneios';
+    }
+    if (path.startsWith('/painel/organizadores')) {
+      return 'organizadores';
+    }
+    if (path.startsWith('/painel/financeiro')) {
+      return 'financeiro';
+    }
+    if (path.startsWith('/painel/equipe')) {
+      return 'equipe';
+    }
+    if (path.startsWith('/painel/atletas')) {
+      return 'atletas';
     }
     if (path === '/painel') {
       return 'inicio';

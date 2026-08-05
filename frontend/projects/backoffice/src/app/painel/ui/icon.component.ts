@@ -12,6 +12,10 @@ export type PanelIconName =
   | 'bell'
   | 'search'
   | 'chevron-right'
+  | 'chevron-left'
+  | 'chevron-down'
+  | 'id-badge'
+  | 'file'
   | 'check'
   | 'alert'
   | 'clock'
@@ -84,6 +88,20 @@ export type PanelIconName =
         }
         @case ('chevron-right') {
           <path d="m9 6 6 6-6 6" />
+        }
+        @case ('chevron-left') {
+          <path d="m15 6-6 6 6 6" />
+        }
+        @case ('chevron-down') {
+          <path d="m6 9 6 6 6-6" />
+        }
+        @case ('id-badge') {
+          <rect x="5" y="3" width="14" height="18" rx="2.5" /><circle cx="12" cy="10" r="2.4" />
+          <path d="M8.4 17.4a4 4 0 0 1 7.2 0" />
+        }
+        @case ('file') {
+          <path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L13.5 3z" />
+          <path d="M13.5 3v5.5H19" /><path d="M9 14h6M9 17h4" />
         }
         @case ('check') {
           <path d="m4.5 12.5 5 5 10-11" />

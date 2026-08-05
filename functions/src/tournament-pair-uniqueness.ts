@@ -3,18 +3,17 @@
  * Par normalizado: UIDs ordenados (A,B) ≡ (B,A).
  */
 
-import {HttpsError} from "firebase-functions/v2/https";
 import type {
   CollectionReference,
   Transaction,
 } from "firebase-admin/firestore";
 
-export type RegistrationConflictRole = "inviter" | "invitee" | "pair";
-
-export type RegistrationConflict = {
-  role: RegistrationConflictRole;
-  message: string;
-};
+export type RegistrationConflictRole =
+  | "inviter"
+  | "invitee"
+  | "pair"
+  /** Os dois reservaram solo e já pagaram: fundir exigiria estorno. */
+  | "bothPaid";
 
 /** Chave canônica do par — independente da ordem dos UIDs. */
 export function buildPairKey(uidA: string, uidB: string): string {
@@ -30,6 +29,17 @@ export type ParsedCategoryRegistration = {
   partnerPending: boolean;
   pairKey: string | null;
   isComplete: boolean;
+  /**
+   * Dono da reserva (player1). Vazio quando não dá para determinar — nesse caso
+   * a inscrição incompleta não é fundível e volta a ser tratada como conflito.
+   */
+  ownerUid: string;
+  /** Equipe da inscrição ("" no solo novo: a equipe nasce no aceite). */
+  teamId: string;
+  isPaid: boolean;
+  /** Reserva criada já na fila de espera (categoria lotada). */
+  waitlist: boolean;
+  createdAtMs: number | null;
 };
 
 /** Extrai membros e par da inscrição (com ou sem doc de equipe). */
@@ -48,7 +58,36 @@ export function parseCategoryRegistration(
     partnerPending,
     pairKey,
     isComplete,
+    ownerUid: resolveOwnerUid(registration, team),
+    teamId: trimmed(registration.teamId),
+    isPaid: registration.isPaid === true,
+    waitlist: registration.waitlist === true,
+    createdAtMs: toMillis(registration.createdAt),
   };
+}
+
+function trimmed(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Player1 da inscrição — a equipe manda quando existe. */
+function resolveOwnerUid(
+  registration: Record<string, unknown>,
+  team?: Record<string, unknown> | null,
+): string {
+  return trimmed(team?.player1Id) || trimmed(registration.player1Id);
+}
+
+/** Aceita Timestamp do Firestore, Date ou número de milissegundos. */
+function toMillis(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) return value.getTime();
+  const maybe = value as {toMillis?: () => number} | null | undefined;
+  if (maybe && typeof maybe.toMillis === "function") {
+    const ms = maybe.toMillis();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  return null;
 }
 
 function extractParticipantUids(
@@ -104,7 +143,10 @@ function isCompleteRegistration(
   return p1.length > 0 && p2.length > 0;
 }
 
-function memberMessage(role: RegistrationConflictRole): string {
+/** Copy única dos bloqueios de convite (backend é a fonte da verdade). */
+export function registrationConflictMessage(
+  role: RegistrationConflictRole,
+): string {
   switch (role) {
   case "inviter":
     return "Você já possui inscrição nesta categoria.";
@@ -112,99 +154,28 @@ function memberMessage(role: RegistrationConflictRole): string {
     return "Este parceiro já está inscrito nesta categoria.";
   case "pair":
     return "Já existe uma dupla com vocês dois nesta categoria.";
+  case "bothPaid":
+    return (
+      "Vocês dois já pagaram uma inscrição nesta categoria. " +
+      "Fale com o organizador para juntar a dupla."
+    );
   }
-}
-
-/**
- * Detecta conflito de par/membros na categoria.
- * `ignoreRegistrationId`: inscrição alvo do modo attach (solo pendente).
- */
-export function findRegistrationConflict(
-  registrations: ParsedCategoryRegistration[],
-  inviterUid: string,
-  inviteeUid: string,
-  options?: {ignoreRegistrationId?: string},
-): RegistrationConflict | null {
-  const inviter = inviterUid.trim();
-  const invitee = inviteeUid.trim();
-  const targetPairKey = buildPairKey(inviter, invitee);
-  const ignoreId = options?.ignoreRegistrationId?.trim() ?? "";
-
-  for (const reg of registrations) {
-    if (ignoreId && reg.registrationId === ignoreId) continue;
-
-    const hasInviter = reg.participantUids.includes(inviter);
-    const hasInvitee = reg.participantUids.includes(invitee);
-
-    if (!reg.isComplete) {
-      if (hasInvitee) {
-        return {role: "invitee", message: memberMessage("invitee")};
-      }
-      if (hasInviter) {
-        return {role: "inviter", message: memberMessage("inviter")};
-      }
-      continue;
-    }
-
-    if (targetPairKey && reg.pairKey === targetPairKey) {
-      return {role: "pair", message: memberMessage("pair")};
-    }
-    if (hasInviter) {
-      return {role: "inviter", message: memberMessage("inviter")};
-    }
-    if (hasInvitee) {
-      return {role: "invitee", message: memberMessage("invitee")};
-    }
-  }
-  return null;
-}
-
-/** Lança HttpsError se houver conflito de par/membros. */
-export function assertNoRegistrationConflict(
-  registrations: ParsedCategoryRegistration[],
-  inviterUid: string,
-  inviteeUid: string,
-  options?: {ignoreRegistrationId?: string},
-): void {
-  const conflict = findRegistrationConflict(
-    registrations,
-    inviterUid,
-    inviteeUid,
-    options,
-  );
-  if (conflict) {
-    throw new HttpsError("failed-precondition", conflict.message);
-  }
-}
-
-/** Verifica se o par já existe em inscrições completas (para send). */
-export function pairAlreadyRegistered(
-  registrations: ParsedCategoryRegistration[],
-  uidA: string,
-  uidB: string,
-): boolean {
-  const key = buildPairKey(uidA, uidB);
-  if (!key) return false;
-  return registrations.some(
-    (reg) => reg.isComplete && reg.pairKey === key,
-  );
 }
 
 type TxLike = Pick<Transaction, "get">;
 
 /**
- * Carrega inscrições da categoria dentro de uma transaction e valida conflitos.
+ * Carrega e interpreta as inscrições da categoria dentro de uma transaction.
+ * Quem decide bloqueio/fusão é `resolvePartnerRegistrationPlan` — fonte única,
+ * usada tanto no envio quanto no aceite do convite.
  */
-export async function assertNoPairConflictTx(
+export async function loadCategoryRegistrationsTx(
   tx: TxLike,
   inscriptionsRef: CollectionReference,
   teamsPath: string,
   tournamentId: string,
   categoryKeys: Set<string>,
-  inviterUid: string,
-  inviteeUid: string,
-  options?: {ignoreRegistrationId?: string},
-): Promise<void> {
+): Promise<ParsedCategoryRegistration[]> {
   const snap = await tx.get(
     inscriptionsRef.where("tournamentId", "==", tournamentId),
   );
@@ -227,5 +198,5 @@ export async function assertNoPairConflictTx(
     parsed.push(parseCategoryRegistration(doc.id, data, team));
   }
 
-  assertNoRegistrationConflict(parsed, inviterUid, inviteeUid, options);
+  return parsed;
 }

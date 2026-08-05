@@ -64,7 +64,9 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
         <div class="og-card og-card-pad-0" style="flex:1;min-height:0">
           <div class="og-table-body" style="padding:4px 20px">
             @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
-              <div class="og-row" [class.last]="last">
+              <div class="og-row og-categoria-row" [class.last]="last">
+                
+                <div class="og-categoria-avatars-container">
                 <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
                 <span class="og-categoria-avatars" [style.width.px]="athletesOf(i).length > 1 ? 52 : 52">
                   @for (p of athletesOf(i); track $index; let ai = $index) {
@@ -80,7 +82,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span style="flex:1;min-width:0">
                   <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 100) }}</div>
                   <div class="og-categoria-meta">{{ levelsLine(i) }}</div>
-                </span>
+                </span></div>
                 <og-pill tone="dim" [title]="scoreHint(i)">{{ scoreLabel(i) }}</og-pill>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
               </div>
@@ -106,6 +108,24 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       font-weight: 700;
       font-size: 12px;
       color: var(--nx-text-dim);
+    }
+    .og-categoria-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex: none;
+      width: auto;
+      // height: 34px;
+    }
+    .og-categoria-avatars-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 50px;
+      flex: none;
+      width: auto;
+      // height: 34px;
     }
     .og-categoria-avatars {
       display: flex;

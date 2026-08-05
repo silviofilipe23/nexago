@@ -22,7 +22,21 @@ enum AuthErrorField { email, password, form }
 }
 
 /// Mensagens amigáveis para [FirebaseAuthException] (PT-BR).
+///
+/// Para códigos desconhecidos cai na mensagem crua do SDK — que vem em inglês.
+/// Quem não quiser esse vazamento deve usar [tryMapFirebaseAuthException] e
+/// decidir o próprio texto de fallback.
 String mapFirebaseAuthException(FirebaseAuthException e) {
+  return tryMapFirebaseAuthException(e) ??
+      (e.message?.isNotEmpty == true
+          ? e.message!
+          : 'Não foi possível concluir a operação (${e.code}).');
+}
+
+/// Igual a [mapFirebaseAuthException], mas devolve `null` quando o código não
+/// tem tradução — deixando o chamador escolher o fallback em vez de expor o
+/// texto do SDK ao usuário.
+String? tryMapFirebaseAuthException(FirebaseAuthException e) {
   switch (e.code) {
     case 'invalid-email':
       return 'E-mail inválido.';
@@ -64,14 +78,16 @@ String mapFirebaseAuthException(FirebaseAuthException e) {
       return 'Não foi possível confirmar que você não é um robô. Tente novamente.';
     case 'web-context-cancelled':
       return 'Verificação cancelada. Tente novamente.';
-    // Play Integrity (Android) ou APNs (iOS) não validaram o app — é
-    // configuração do projeto, não algo que o usuário resolva sozinho.
+    // Falha na verificação do app antes de enviar o SMS: Play Integrity no
+    // Android, push silencioso APNs no iOS (com fallback de reCAPTCHA). É
+    // configuração do projeto, não algo que o usuário resolva sozinho — e no
+    // Simulador do iOS acontece sempre, porque ele não recebe push remoto.
     case 'missing-client-identifier':
+    case 'app-not-verified':
+    case 'app-not-authorized':
       return 'Não foi possível validar o app para envio de SMS. '
           'Tente novamente ou fale com o suporte.';
     default:
-      return e.message?.isNotEmpty == true
-          ? e.message!
-          : 'Não foi possível concluir a operação (${e.code}).';
+      return null;
   }
 }

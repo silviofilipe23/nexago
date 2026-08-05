@@ -764,8 +764,27 @@ export class CriarTorneioComponent {
       this.draft.set(loaded.draft);
       this.existingListingStatus = loaded.existingListingStatus;
       this.editEntry.set(true);
+      this.applyDeepLink();
     } finally {
       this.editLoading.set(false);
+    }
+  }
+
+  /** Entrada direta num passo (`?passo=`) e, opcionalmente, no builder de uma categoria
+   *  (`?categoria=`). É por aqui que o "Editar" da tela de Equipes cai na categoria certa em
+   *  vez de largar o organizador no primeiro passo do wizard. Só roda depois do doc carregado
+   *  — `openCategoriaBuilder` precisa das categorias já no rascunho. */
+  private applyDeepLink(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const step = params.get('passo');
+    if (step && (TOURNAMENT_CREATE_STEPS as readonly string[]).includes(step)) {
+      this.step.set(step as TournamentCreateStep);
+    }
+    const catId = params.get('categoria');
+    // Categoria removida (ou id inválido no link) abre o passo sem builder, em vez de um
+    // formulário de categoria nova que o organizador não pediu.
+    if (catId && this.draft().categories.some((c) => c.id === catId)) {
+      this.openCategoriaBuilder(catId);
     }
   }
 

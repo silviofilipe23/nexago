@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
@@ -6,6 +6,8 @@ import { doc, getDoc, getDocs, getFirestore, collection, query, where, limit, ty
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
+import { fetchFollowersCount, fetchIsFollowing, setFollowing } from '../data/athlete-follow-repository';
+import { NxToastService } from '../shared/feedback';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
@@ -372,6 +374,7 @@ export class AthletePublicProfileComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly gamification = inject(AthleteGamificationService);
+  private readonly toasts = inject(NxToastService);
   private readonly firestore = createFirestore();
 
   protected readonly loading = signal(true);
@@ -382,6 +385,10 @@ export class AthletePublicProfileComponent {
   protected readonly activity = signal<PublicProfileActivity | null>(null);
   protected readonly activityLoading = signal(true);
   protected readonly showAllMatches = signal(false);
+  /** Follow: `users/{atleta}/followers/{viewer}` + `users/{viewer}/following/{atleta}`. */
+  protected readonly isFollowing = signal(false);
+  protected readonly followBusy = signal(false);
+  protected readonly followersCount = signal<number | null>(null);
   /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
   protected readonly avatarLoaded = signal(false);
   protected readonly coverLoaded = signal(false);
@@ -418,6 +425,16 @@ export class AthletePublicProfileComponent {
     const uid = this.auth.user()?.uid;
     return !!p && !!uid && p.uid === uid;
   });
+
+  /** O botão só aparece com sessão Firebase real: as regras exigem `request.auth.uid` nos dois
+   *  lados da escrita, então no modo dev (sem Auth) seguir falharia em silêncio. */
+  protected readonly canFollow = computed(() => {
+    const p = this.profile();
+    const uid = this.auth.user()?.uid;
+    return !!p && !!uid && p.uid !== uid;
+  });
+
+  protected readonly followLabel = computed(() => (this.isFollowing() ? 'Seguindo' : 'Seguir'));
 
   /** XP/conquistas existem só pro dono do perfil — `users/{uid}/gamification/**` é privado. */
   protected readonly gamificationExtras = computed<ProfileGamificationExtras | null>(() => {
@@ -493,6 +510,11 @@ export class AthletePublicProfileComponent {
         value: ranking.categoryLabel ? `${ranking.positionLabel} · ${ranking.categoryLabel}` : ranking.positionLabel,
       });
     }
+
+    const followers = this.followersCount();
+    if (followers != null) {
+      rows.push({ label: 'Seguidores', value: String(followers) });
+    }
     return rows;
   });
 
@@ -511,6 +533,58 @@ export class AthletePublicProfileComponent {
 
   constructor() {
     void this.loadProfile();
+
+    // Reage à sessão, não só ao perfil: o `onAuthStateChanged` costuma resolver DEPOIS do
+    // primeiro load, e sem isso um atleta que já sigo apareceria como "Seguir".
+    effect(() => {
+      const athleteUid = this.profile()?.uid;
+      const viewerUid = this.auth.user()?.uid ?? null;
+      if (athleteUid) void this.loadFollowState(athleteUid, viewerUid);
+    });
+  }
+
+  private async loadFollowState(athleteUid: string, viewerUid: string | null): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      const [count, following] = await Promise.all([
+        fetchFollowersCount(db, athleteUid),
+        viewerUid ? fetchIsFollowing(db, viewerUid, athleteUid) : Promise.resolve(false),
+      ]);
+      this.followersCount.set(count);
+      this.isFollowing.set(following);
+    } catch {
+      // Sem contador a linha "Seguidores" some; o botão continua utilizável.
+    }
+  }
+
+  /** Otimista: o botão responde na hora e volta atrás se a escrita falhar. */
+  protected async toggleFollow(): Promise<void> {
+    const db = this.firestore;
+    const athleteUid = this.profile()?.uid;
+    const viewerUid = this.auth.user()?.uid;
+    if (!db || !athleteUid || !viewerUid || this.followBusy()) return;
+
+    const next = !this.isFollowing();
+    const previousCount = this.followersCount();
+    this.followBusy.set(true);
+    this.isFollowing.set(next);
+    if (previousCount != null) {
+      this.followersCount.set(Math.max(0, previousCount + (next ? 1 : -1)));
+    }
+
+    try {
+      await setFollowing(db, viewerUid, athleteUid, next);
+    } catch {
+      this.isFollowing.set(!next);
+      this.followersCount.set(previousCount);
+      this.toasts.error(
+        next ? 'Não foi possível seguir' : 'Não foi possível deixar de seguir',
+        'Verifique sua conexão e tente de novo em instantes.',
+      );
+    } finally {
+      this.followBusy.set(false);
+    }
   }
 
   private async loadProfile(): Promise<void> {

@@ -253,6 +253,48 @@
   }
 }
 
+// Seguir: laranja cheio no estado "não sigo" (é a ação primária do header) e contorno discreto
+// depois que já sigo — o destaque some quando o convite à ação já foi aceito.
+.pp-follow-btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-500);
+  border: 1px solid var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: background var(--nx-d-fast), border-color var(--nx-d-fast), color var(--nx-d-fast);
+
+  &:hover:not(:disabled) {
+    background: var(--nx-orange-400);
+    border-color: var(--nx-orange-400);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.pp-follow-btn--following {
+  background: var(--nx-surface-1);
+  border-color: var(--nx-line-strong);
+  color: var(--nx-text);
+
+  &:hover:not(:disabled) {
+    background: var(--nx-surface-2);
+    border-color: var(--nx-line-strong);
+    color: var(--nx-text);
+  }
+}
+
 .pp-btn-ghost {
   height: 38px;
   padding: 0 16px;

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { Reveal } from '@/components/motion/Reveal';
+import { submitLead } from '@/lib/firestore/public-writes';
 
 type Persona = 'organizador' | 'arena';
 type Status = 'idle' | 'loading' | 'success' | 'error';
@@ -51,15 +52,8 @@ export function LeadForm({ persona, id = 'contato' }: { persona: Persona; id?: s
     setStatus('loading');
     setMessage('');
     try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, org, message: msg, persona }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? 'Não foi possível enviar agora.');
-      }
+      const result = await submitLead({ name, email, phone, org, message: msg, persona });
+      if (!result.ok) throw new Error(result.error);
       setStatus('success');
       form.reset();
     } catch (err) {

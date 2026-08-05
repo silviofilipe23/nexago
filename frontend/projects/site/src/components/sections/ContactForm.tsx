@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { submitLead } from '@/lib/firestore/public-writes';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -32,15 +33,8 @@ export function ContactForm() {
     setStatus('loading');
     setMessage('');
     try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, org: '', message: msg, persona: 'geral' }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? 'Não foi possível enviar agora.');
-      }
+      const result = await submitLead({ name, email, phone, org: '', message: msg, persona: 'geral' });
+      if (!result.ok) throw new Error(result.error);
       setStatus('success');
       form.reset();
     } catch (err) {

@@ -82,18 +82,29 @@ function mapCategory(c: DocumentData): TournamentCategory {
  * o índice composto, não voltar o `orderBy`.
  */
 export async function getPublicTournaments(max = 48): Promise<TournamentSummary[]> {
+  // Cancelado só existe pelo link compartilhado — não ocupa espaço na vitrine.
+  const tournaments = await getPublishedTournaments();
+  return tournaments.filter((t) => t.listingStatus !== 'cancelled').slice(0, max);
+}
+
+/**
+ * Todo torneio que tem página pública — **inclui cancelado**, que sai da listagem mas mantém a
+ * página aberta pelo link que o organizador compartilhou.
+ *
+ * É o que o `generateStaticParams` precisa no export estático: enumerar só a listagem deixaria o
+ * link de um torneio cancelado sem página gerada, ou seja, 404 em vez do aviso de cancelamento.
+ */
+export async function getPublishedTournaments(max = 500): Promise<TournamentSummary[]> {
   try {
     const snap = await getDocs(collection(db, 'tournaments'));
     const now = new Date();
     return snap.docs
       .filter((doc) => isPublic(doc.data()) && !isDraftStatus(rawStatusOf(doc.data())))
       .map((doc) => mapSummary(doc.id, doc.data(), now))
-      // Cancelado só existe pelo link compartilhado — não ocupa espaço na vitrine.
-      .filter((t) => t.listingStatus !== 'cancelled')
       .sort(byRelevance)
       .slice(0, max);
   } catch (err) {
-    console.error('[tournaments] getPublicTournaments failed:', err);
+    console.error('[tournaments] getPublishedTournaments failed:', err);
     return [];
   }
 }

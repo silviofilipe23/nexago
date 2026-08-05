@@ -64,6 +64,16 @@ dependencies:
   timezone: ^0.11.0
   package_info_plus: ^8.1.2
 
+  # NÃO REMOVER por parecer sem uso: nenhum arquivo Dart importa este pacote,
+  # e é proposital. Ele existe para linkar o SDK nativo do reCAPTCHA
+  # Enterprise no binário, que o Firebase Phone Auth exige como fallback da
+  # verificação do app quando o push silencioso (APNs) não chega — usuário com
+  # atualização em segundo plano desligada e, sempre, o Simulador do iOS.
+  # Sem ele o envio do SMS falha com "The reCAPTCHA SDK is not linked to your
+  # app". O Firebase provisiona a própria chave; não usamos a API do pacote.
+  # É o que obriga o mínimo de iOS 15 (ver ios/Podfile).
+  recaptcha_enterprise_flutter: ^18.9.1
+
 dev_dependencies:
   firebase_auth_mocks: ^0.14.1
   flutter_launcher_icons: ^0.14.3

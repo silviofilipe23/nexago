@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'athlete_profile.dart';
-import 'profile_completion_models.dart';
 
 /// Cadastro inicial concluído (onboarding ou flag legada).
 bool isTournamentOnboardingDone(AthleteProfile profile) {
@@ -14,10 +13,15 @@ bool hasTournamentCity(AthleteProfile profile) {
 }
 
 /// Perfil mínimo para inscrição em torneios: onboarding + WhatsApp + cidade.
+///
+/// Espelho exato de `isTournamentProfileReady` em
+/// `functions/src/athlete-tournament-access.ts` — inclusive o curto-circuito
+/// por `isProfileComplete`. Divergir daqui só troca o bloqueio antecipado (com
+/// banner) por um `failed-precondition` no meio da inscrição.
 bool isTournamentProfileReady(AthleteProfile profile) {
   if (profile.isProfileComplete) return true;
   return isTournamentOnboardingDone(profile) &&
-      ProfileCompletionValidators.isValidWhatsApp(profile.phoneNumber) &&
+      profile.phoneVerified &&
       hasTournamentCity(profile);
 }
 
@@ -28,7 +32,7 @@ List<String> tournamentProfileMissingTitles(AthleteProfile profile) {
   if (!isTournamentOnboardingDone(profile)) {
     missing.add('Cadastro inicial');
   }
-  if (!ProfileCompletionValidators.isValidWhatsApp(profile.phoneNumber)) {
+  if (!profile.phoneVerified) {
     missing.add('WhatsApp');
   }
   if (!hasTournamentCity(profile)) {
@@ -44,7 +48,7 @@ List<String> tournamentProfileMissingLabels(AthleteProfile profile) {
   if (!isTournamentOnboardingDone(profile)) {
     missing.add('cadastro inicial');
   }
-  if (!ProfileCompletionValidators.isValidWhatsApp(profile.phoneNumber)) {
+  if (!profile.phoneVerified) {
     missing.add('WhatsApp');
   }
   if (!hasTournamentCity(profile)) {

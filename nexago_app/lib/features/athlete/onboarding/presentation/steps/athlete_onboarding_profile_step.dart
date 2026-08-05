@@ -13,6 +13,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 import '../../../domain/athlete_profile_options.dart';
+import '../../../phone_verification/presentation/phone_verification_field.dart';
 import '../../domain/athlete_onboarding_draft.dart';
 import '../../domain/athlete_onboarding_options.dart';
 import '../../domain/athlete_onboarding_providers.dart';
@@ -33,7 +34,6 @@ class _AthleteOnboardingProfileStepState
     extends ConsumerState<AthleteOnboardingProfileStep> {
   final _nameCtrl = TextEditingController();
   final _nicknameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _birthCtrl = TextEditingController();
   final _referralCodeCtrl = TextEditingController();
   bool _submitting = false;
@@ -48,7 +48,6 @@ class _AthleteOnboardingProfileStepState
     final draft = ref.read(athleteOnboardingDraftProvider);
     _nameCtrl.text = draft.name;
     _nicknameCtrl.text = draft.nickname;
-    _phoneCtrl.text = draft.phoneDigits;
     _birthCtrl.text = draft.birthDate;
     _referralCodeCtrl.text = draft.referralCode;
   }
@@ -57,7 +56,6 @@ class _AthleteOnboardingProfileStepState
   void dispose() {
     _nameCtrl.dispose();
     _nicknameCtrl.dispose();
-    _phoneCtrl.dispose();
     _birthCtrl.dispose();
     _referralCodeCtrl.dispose();
     super.dispose();
@@ -79,7 +77,6 @@ class _AthleteOnboardingProfileStepState
     final notifier = ref.read(athleteOnboardingDraftProvider.notifier);
     notifier.setName(_nameCtrl.text);
     notifier.setNickname(_nicknameCtrl.text);
-    notifier.setPhoneDigits(_phoneCtrl.text);
     notifier.setBirthDate(_birthCtrl.text);
     notifier.setReferralCode(_referralCodeCtrl.text);
   }
@@ -93,7 +90,8 @@ class _AthleteOnboardingProfileStepState
       // um botão desabilitado mudo ou um aviso genérico.
       setState(() {
         _nameError = draft.isNameValid ? null : 'Informe seu nome';
-        _phoneError = draft.isPhoneValid ? null : 'WhatsApp inválido';
+        _phoneError =
+            draft.isPhoneValid ? null : 'Verifique seu WhatsApp por SMS';
         _birthError = draft.isBirthDateValid ? null : 'Data inválida (dd/mm/aaaa)';
         _genderMissing = !draft.isGenderValid;
       });
@@ -190,19 +188,14 @@ class _AthleteOnboardingProfileStepState
           ),
           SizedBox(height: 16),
           const AuthFieldLabel(label: 'WHATSAPP *'),
-          AuthTextField(
-            controller: _phoneCtrl,
-            hintText: '(00) 00000-0000',
-            keyboardType: TextInputType.phone,
-            inputFormatters: [BrPhoneInputFormatter()],
+          PhoneVerificationField(
+            phoneNumber: draft.verifiedPhoneNumber.isEmpty
+                ? null
+                : draft.verifiedPhoneNumber,
+            verified: draft.verifiedPhoneNumber.isNotEmpty,
             errorText: _phoneError,
-            prefixIcon: Icon(
-              Icons.chat_bubble_outline_rounded,
-              size: 20,
-              color: context.themeColors.onSurfaceMuted,
-            ),
-            onChanged: (v) {
-              notifier.setPhoneDigits(v);
+            onVerified: (phoneNumber) {
+              notifier.setVerifiedPhoneNumber(phoneNumber);
               if (_phoneError != null) setState(() => _phoneError = null);
             },
           ),

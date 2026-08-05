@@ -23,6 +23,7 @@ class AthleteProfile {
     required this.city,
     this.state,
     this.phoneNumber,
+    this.phoneVerified = false,
     this.cpfCnpj,
     this.bio,
     this.sports = const [],
@@ -57,6 +58,11 @@ class AthleteProfile {
   /// Sigla da UF (ex.: `GO`).
   final String? state;
   final String? phoneNumber;
+
+  /// Posse do telefone confirmada por SMS (Firebase Phone Auth). Gravado só
+  /// pela Cloud Function `confirmPhoneVerification` — o client não escreve
+  /// este campo nem [phoneNumber] (ver `firestore.rules` em `users/{userId}`).
+  final bool phoneVerified;
   final String? cpfCnpj;
   final String? bio;
   final List<String> sports;
@@ -108,6 +114,9 @@ class AthleteProfile {
       city: '',
       state: null,
       phoneNumber: user.phoneNumber,
+      // `User.phoneNumber` só existe quando o Firebase Phone Auth confirmou o
+      // número por SMS — se está aqui, está verificado.
+      phoneVerified: user.phoneNumber != null,
       onboardingCompleted: false,
     );
   }
@@ -227,6 +236,7 @@ class AthleteProfile {
       city: _resolveCity(data),
       state: _resolveState(data),
       phoneNumber: _resolvePhoneNumber(data),
+      phoneVerified: data['phoneVerified'] == true,
       cpfCnpj: _digitsOnly(
         (data['cpfCnpj'] as String?) ?? (data['cpf'] as String?),
       ),
@@ -402,8 +412,14 @@ class AthleteProfile {
 
     return <String, dynamic>{
       'fullName': name,
-      if (phoneNumber != null && phoneNumber!.trim().isNotEmpty)
-        'phoneNumber': phoneNumber!.trim(),
+      // IMPORTANTE: `phoneNumber` NUNCA entra neste payload. As rules do
+      // Firestore só aceitam `update` em `users/{uid}` quando o campo está
+      // ausente ou idêntico ao já salvo, e proíbem qualquer valor no
+      // `create` — quem grava é a Cloud Function `confirmPhoneVerification`,
+      // a partir do telefone que o Firebase Phone Auth verificou por SMS
+      // (anti-fraude: impede auto-declarar telefone sem comprovar posse).
+      // Mesma restrição que já vale para `roles`, ver
+      // `AthleteProfileRepository.saveProfile`.
       if (birthIso != null && birthIso.isNotEmpty) 'birthDate': birthIso,
       if (gender != null && gender!.isNotEmpty) 'gender': gender,
       if (nickname != null && nickname!.isNotEmpty) 'nickname': nickname,
@@ -466,6 +482,7 @@ class AthleteProfile {
     String? city,
     Object? state = _copyWithUnset,
     String? phoneNumber,
+    bool? phoneVerified,
     String? cpfCnpj,
     String? bio,
     List<String>? sports,
@@ -505,6 +522,7 @@ class AthleteProfile {
       city: city ?? this.city,
       state: identical(state, _copyWithUnset) ? this.state : state as String?,
       phoneNumber: clearPhone ? null : (phoneNumber ?? this.phoneNumber),
+      phoneVerified: clearPhone ? false : (phoneVerified ?? this.phoneVerified),
       cpfCnpj: cpfCnpj ?? this.cpfCnpj,
       bio: clearBio ? null : (bio ?? this.bio),
       sports: sports ?? this.sports,

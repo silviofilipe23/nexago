@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/formatting/br_phone_format.dart';
 import '../../../core/location/br_locations_data.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
@@ -149,8 +150,9 @@ class ProfileCompletionState {
             (profile.sport.trim().isNotEmpty && profile.level.trim().isNotEmpty) ||
             profile.sport.trim().isNotEmpty,
       ProfileCompletionStep.city => _isCityStepDone(profile),
-      ProfileCompletionStep.whatsapp =>
-        ProfileCompletionValidators.isValidWhatsApp(profile.phoneNumber),
+      // Só conta com posse comprovada por SMS, igual ao servidor
+      // (`profile-completion-shared.ts`: `data["phoneVerified"] === true`).
+      ProfileCompletionStep.whatsapp => profile.phoneVerified,
       ProfileCompletionStep.goals =>
         profile.goals.isNotEmpty ||
         (profile.gameObjective?.trim().isNotEmpty ?? false),
@@ -170,7 +172,10 @@ class ProfileCompletionState {
       ProfileCompletionStep.city => profile.locationLabel.isNotEmpty
           ? profile.locationLabel
           : profile.city.trim(),
-      ProfileCompletionStep.whatsapp => profile.phoneNumber?.trim() ?? '',
+      // O telefone verificado é gravado em E.164 (`+55...`) — mascara para
+      // exibição, senão o subtítulo mostra o número cru.
+      ProfileCompletionStep.whatsapp =>
+        formatPhoneBrDisplay(profile.phoneNumber) ?? '',
       ProfileCompletionStep.goals => _goalsSubtitle(profile),
     };
   }

@@ -19,6 +19,7 @@ import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_providers.dart';
 import '../domain/profile_completion_providers.dart';
+import '../phone_verification/presentation/phone_verification_field.dart';
 import 'widgets/br_state_city_fields.dart';
 import 'widgets/edit_profile/edit_profile_account_prefs_group.dart';
 import 'widgets/edit_profile/edit_profile_completion_banner.dart';
@@ -51,8 +52,12 @@ class _AthleteEditProfilePageState
   final _nameCtrl = TextEditingController();
   final _nicknameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
+
+  /// Telefone verificado por SMS. Não é editável aqui: só muda pelo fluxo do
+  /// `PhoneVerificationField`, que grava via Cloud Function.
+  String? _phoneNumber;
+  bool _phoneVerified = false;
 
   String? _selectedState;
   String? _selectedCity;
@@ -85,7 +90,6 @@ class _AthleteEditProfilePageState
     _nameCtrl.dispose();
     _nicknameCtrl.dispose();
     _emailCtrl.dispose();
-    _phoneCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();
   }
@@ -93,7 +97,8 @@ class _AthleteEditProfilePageState
   void _applyProfile(AthleteProfile p) {
     _nameCtrl.text = p.name;
     _nicknameCtrl.text = p.nickname ?? '';
-    _phoneCtrl.text = p.phoneNumber ?? '';
+    _phoneNumber = p.phoneNumber;
+    _phoneVerified = p.phoneVerified;
     _selectedState = p.state;
     _selectedCity = p.city.trim().isEmpty ? null : p.city.trim();
     _bioCtrl.text = p.bio ?? '';
@@ -265,9 +270,10 @@ class _AthleteEditProfilePageState
         sport: _sport,
         // level intencionalmente não passa por aqui: "nível só sobe",
         // gerenciado apenas em Esportes e níveis.
-        phoneNumber: _phoneCtrl.text.trim().isEmpty
-            ? null
-            : _phoneCtrl.text.trim(),
+        // Só em memória — `toFirestore` não grava telefone. Vai no perfil
+        // porque `saveProfile` deriva `isProfileComplete` a partir daqui.
+        phoneNumber: _phoneNumber,
+        phoneVerified: _phoneVerified,
         city: city,
         state: state,
         bio: bio,
@@ -504,17 +510,29 @@ class _AthleteEditProfilePageState
                   ),
                   KeyedSubtree(
                     key: _phoneSectionKey,
-                    child: EditProfileTextField(
-                      controller: _phoneCtrl,
-                      label: 'WHATSAPP',
-                      required: true,
-                      keyboardType: TextInputType.phone,
-                      hintText: '(00) 00000-0000',
-                      prefixIcon: Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        size: 20,
-                        color: context.themeColors.onSurfaceMuted,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'WHATSAPP *',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: context.themeColors.onSurfaceMuted,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                        PhoneVerificationField(
+                          phoneNumber: _phoneNumber,
+                          verified: _phoneVerified,
+                          onVerified: (phoneNumber) => setState(() {
+                            _phoneNumber = phoneNumber;
+                            _phoneVerified = true;
+                          }),
+                        ),
+                      ],
                     ),
                   ),
                   SizedBox(height: 12),

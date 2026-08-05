@@ -15,8 +15,6 @@ enum AuthErrorField { email, password, form }
       return (field: AuthErrorField.email, message: message);
     case 'wrong-password':
     case 'invalid-credential':
-    case 'invalid-verification-code':
-    case 'invalid-verification-id':
       return (field: AuthErrorField.password, message: message);
     default:
       return (field: AuthErrorField.form, message: message);
@@ -35,8 +33,6 @@ String mapFirebaseAuthException(FirebaseAuthException e) {
     case 'wrong-password':
       return 'Senha incorreta.';
     case 'invalid-credential':
-    case 'invalid-verification-code':
-    case 'invalid-verification-id':
       return 'Credenciais inválidas. Verifique e-mail e senha.';
     case 'email-already-in-use':
       return 'Este e-mail já está em uso.';
@@ -48,6 +44,31 @@ String mapFirebaseAuthException(FirebaseAuthException e) {
       return 'Falha de rede. Verifique sua conexão.';
     case 'too-many-requests':
       return 'Muitas tentativas. Tente novamente mais tarde.';
+    // Verificação de telefone por SMS (Firebase Phone Auth). Mensagens
+    // alinhadas com o portal web (`firebase-auth-errors.ts`); os dois últimos
+    // códigos só ocorrem no mobile e não têm equivalente lá.
+    case 'invalid-verification-code':
+      return 'Código incorreto. Confira os 6 dígitos e tente de novo.';
+    case 'invalid-verification-id':
+    case 'session-expired':
+      return 'Essa verificação expirou. Peça um novo código.';
+    case 'invalid-phone-number':
+      return 'Número de telefone inválido.';
+    case 'quota-exceeded':
+      return 'Limite de envios de SMS atingido. Tente novamente mais tarde.';
+    case 'credential-already-in-use':
+      return 'Este número já está vinculado a outra conta.';
+    case 'provider-already-linked':
+      return 'Esta conta já tem um telefone vinculado.';
+    case 'captcha-check-failed':
+      return 'Não foi possível confirmar que você não é um robô. Tente novamente.';
+    case 'web-context-cancelled':
+      return 'Verificação cancelada. Tente novamente.';
+    // Play Integrity (Android) ou APNs (iOS) não validaram o app — é
+    // configuração do projeto, não algo que o usuário resolva sozinho.
+    case 'missing-client-identifier':
+      return 'Não foi possível validar o app para envio de SMS. '
+          'Tente novamente ou fale com o suporte.';
     default:
       return e.message?.isNotEmpty == true
           ? e.message!

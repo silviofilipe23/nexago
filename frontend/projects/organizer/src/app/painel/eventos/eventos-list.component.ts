@@ -5,13 +5,15 @@ import { LEAGUE_STATUS_LABEL, type League, type LeagueListingStatus } from '@nex
 import { listMyLeagues } from '../data/leagues-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
-import { listMyTournaments } from '../data/tournaments-repository';
+import { listAllTournaments, listMyTournaments, listOrganizerNames } from '../data/tournaments-repository';
+import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { OgChartTabsComponent } from '../ui/chart-tabs.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
-type Tab = 'todos' | 'ativos' | 'encerrados';
+/** `plataforma` só existe pra super admin — ver `tabs()`. */
+type Tab = 'todos' | 'ativos' | 'encerrados' | 'plataforma';
 type Bucket = 'ativos' | 'encerrados';
 type Tone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
 
@@ -56,6 +58,8 @@ interface EventoCard {
   etapas: number | null;
   link: string[] | null;
   bucket: Bucket;
+  /** Dono do torneio, só nos cards da aba Plataforma (torneio alheio). */
+  ownerLabel: string | null;
 }
 
 /** Lista de ligas e torneios organizados, com progresso de inscrição por evento. */
@@ -70,9 +74,30 @@ interface EventoCard {
     </og-page-header>
 
     <div class="og-content">
-      <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
+      <og-chart-tabs [tabs]="tabs()" [active]="tab()" (changed)="onTabChange($event)" />
 
-      @if (loading()) {
+      @if (tab() === 'plataforma') {
+        <div class="og-plataforma-bar">
+          <input
+            type="search"
+            class="og-plataforma-search"
+            placeholder="Buscar torneio pelo nome…"
+            aria-label="Buscar torneio pelo nome"
+            [value]="termDraft()"
+            (input)="termDraft.set($any($event.target).value)"
+            (keyup.enter)="searchPlatform()"
+          />
+          <button type="button" class="og-mini-btn" (click)="searchPlatform()">
+            <og-icon name="search" [size]="14" />Buscar
+          </button>
+        </div>
+        <p class="og-plataforma-hint">
+          Torneios de todos os organizadores, para suporte. A lista por data não traz torneios sem data
+          de início — esses aparecem na busca pelo nome.
+        </p>
+      }
+
+      @if (showSkeleton()) {
         <div class="og-eventos-grid">
           @for (i of [1, 2, 3]; track i) {
             <div class="og-evento-card">
@@ -105,6 +130,11 @@ interface EventoCard {
                 <div>
                   <div class="og-evento-card-name">{{ e.name }}</div>
                   <div class="og-evento-card-meta">{{ e.metaLabel }}</div>
+                  @if (e.ownerLabel) {
+                    <div class="og-evento-card-owner">
+                      <og-icon name="users" [size]="12" [strokeWidth]="1.9" />{{ e.ownerLabel }}
+                    </div>
+                  }
                 </div>
                 @if (e.kind === 'Torneio') {
                   <div>
@@ -131,9 +161,28 @@ interface EventoCard {
               </div>
             </a>
           } @empty {
-            <p class="og-empty">Nenhum torneio ou liga ainda — crie pelo app nexaGO</p>
+            @if (tab() === 'plataforma') {
+              @if (allError()) {
+                <p class="og-empty">
+                  Não foi possível carregar os torneios da plataforma.
+                  <button type="button" class="og-link-btn" (click)="searchPlatform()">Tentar de novo</button>
+                </p>
+              } @else {
+                <p class="og-empty">Nenhum torneio encontrado.</p>
+              }
+            } @else {
+              <p class="og-empty">Nenhum torneio ou liga ainda — crie pelo app nexaGO</p>
+            }
           }
         </div>
+
+        @if (tab() === 'plataforma' && allHasMore()) {
+          <div class="og-plataforma-more">
+            <button type="button" class="og-mini-btn" [disabled]="allLoading()" (click)="loadMorePlatform()">
+              {{ allLoading() ? 'Carregando…' : 'Carregar mais' }}
+            </button>
+          </div>
+        }
       }
     </div>
   `,
@@ -142,6 +191,53 @@ interface EventoCard {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
+    }
+    .og-plataforma-bar {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0 8px;
+    }
+    .og-plataforma-search {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 12px;
+      border-radius: var(--nx-r-3);
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-0);
+      color: inherit;
+      font: inherit;
+    }
+    .og-plataforma-search:focus-visible {
+      outline: none;
+      border-color: var(--nx-line-strong);
+    }
+    .og-plataforma-hint {
+      margin: 0 0 14px;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+    }
+    .og-plataforma-more {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .og-link-btn {
+      margin-left: 6px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--nx-orange-400);
+      font: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .og-evento-card-owner {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--nx-text-dim);
     }
     .og-evento-card {
       background: var(--nx-surface-0);
@@ -294,9 +390,27 @@ interface EventoCard {
 export class EventosListComponent {
   private readonly auth = inject(AuthService);
 
-  protected readonly tabs = ['todos', 'ativos', 'encerrados'];
+  /** A aba Plataforma só aparece pra super admin — as demais são os eventos do próprio usuário. */
+  protected readonly tabs = computed(() =>
+    this.auth.isSuperAdmin() ? ['todos', 'ativos', 'encerrados', 'plataforma'] : ['todos', 'ativos', 'encerrados'],
+  );
   protected readonly tab = signal<Tab>('todos');
   protected readonly loading = signal(true);
+
+  // --- Aba Plataforma (super admin) ---
+  protected readonly allTournaments = signal<OrganizerTournament[]>([]);
+  protected readonly organizerNames = signal<ReadonlyMap<string, string>>(new Map());
+  protected readonly allLoading = signal(false);
+  protected readonly allHasMore = signal(false);
+  /** Falha da consulta precisa se distinguir de "não há torneios" — sem isso um erro de
+   *  permissão ou de rede é lido como base vazia. */
+  protected readonly allError = signal(false);
+  protected readonly allTerm = signal('');
+  /** Rascunho do campo de busca; só vira `allTerm` ao confirmar (Enter/botão). */
+  protected readonly termDraft = signal('');
+  private allCursor: QueryDocumentSnapshot<DocumentData> | null = null;
+  /** Evita refazer a primeira página a cada volta pra aba. */
+  private allLoaded = false;
 
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
   protected readonly leagues = signal<League[]>([]);
@@ -320,6 +434,7 @@ export class EventosListComponent {
       etapas: null,
       link: ['/painel/eventos', t.id],
       bucket: t.status === 'concluido' || t.status === 'cancelado' ? 'encerrados' : 'ativos',
+      ownerLabel: null,
     }));
 
     const ligas: EventoCard[] = this.leagues().map((l) => ({
@@ -335,13 +450,42 @@ export class EventosListComponent {
       etapas: l.stages.length,
       link: ['/painel/ligas', l.id],
       bucket: l.listingStatus === 'closed' || l.listingStatus === 'cancelled' ? 'encerrados' : 'ativos',
+      ownerLabel: null,
     }));
 
     return [...torneios, ...ligas];
   });
 
+  /** Cards da aba Plataforma: só torneios, sem contagem de inscritos (seriam 40 queries
+   *  por página) e com o dono anotado. Ligas não entram — a aba é de torneios. */
+  protected readonly platformCards = computed<EventoCard[]>(() => {
+    const names = this.organizerNames();
+    const myUid = this.auth.user()?.uid;
+    return this.allTournaments().map((t) => ({
+      key: `p:${t.id}`,
+      kind: 'Torneio' as const,
+      name: t.name,
+      metaLabel: `Torneio · ${t.sportLabel} · ${this.dateRangeLabel(t.startAt, t.endAt)}`,
+      statusLabel: STATUS_LABEL[t.status],
+      statusTone: STATUS_TONE[t.status],
+      coverUrl: t.coverUrl,
+      inscritos: null,
+      vagas: t.capacity,
+      etapas: null,
+      link: ['/painel/eventos', t.id],
+      bucket: t.status === 'concluido' || t.status === 'cancelado' ? 'encerrados' : 'ativos',
+      ownerLabel: t.managerId === myUid ? 'Você' : (names.get(t.managerId) ?? 'Organizador não identificado'),
+    }));
+  });
+
+  /** Na Plataforma o esqueleto é só da primeira página — paginar não pode apagar o que já está na tela. */
+  protected readonly showSkeleton = computed(() =>
+    this.tab() === 'plataforma' ? this.allLoading() && this.allTournaments().length === 0 : this.loading(),
+  );
+
   protected readonly filtered = computed<EventoCard[]>(() => {
     const t = this.tab();
+    if (t === 'plataforma') return this.platformCards();
     if (t === 'todos') return this.cards();
     return this.cards().filter((c) => c.bucket === t);
   });
@@ -370,6 +514,53 @@ export class EventosListComponent {
       this.inscritosPorTorneio.set(map);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /** A aba Plataforma carrega sob demanda: nunca na abertura da tela. */
+  protected onTabChange(next: string): void {
+    this.tab.set(next as Tab);
+    if (next === 'plataforma' && !this.allLoaded) {
+      this.allLoaded = true;
+      void this.loadPlatformPage(true);
+    }
+  }
+
+  protected searchPlatform(): void {
+    this.allTerm.set(this.termDraft().trim());
+    void this.loadPlatformPage(true);
+  }
+
+  protected loadMorePlatform(): void {
+    void this.loadPlatformPage(false);
+  }
+
+  /** `reset` recomeça da primeira página (troca de busca); senão pagina a partir do cursor. */
+  private async loadPlatformPage(reset: boolean): Promise<void> {
+    if (this.allLoading()) return;
+    this.allLoading.set(true);
+    this.allError.set(false);
+    try {
+      if (reset) {
+        this.allCursor = null;
+      }
+      const page = await listAllTournaments({ term: this.allTerm(), cursor: this.allCursor });
+      const tournaments = reset ? page.tournaments : [...this.allTournaments(), ...page.tournaments];
+      this.allTournaments.set(tournaments);
+      this.allCursor = page.cursor;
+      this.allHasMore.set(page.hasMore);
+
+      const missing = tournaments.map((t) => t.managerId).filter((uid) => uid && !this.organizerNames().has(uid));
+      if (missing.length > 0) {
+        const names = await listOrganizerNames(missing);
+        this.organizerNames.update((prev) => new Map([...prev, ...names]));
+      }
+    } catch {
+      // Deixa a próxima abertura da aba tentar de novo, em vez de fixar a lista vazia.
+      this.allLoaded = false;
+      this.allError.set(true);
+    } finally {
+      this.allLoading.set(false);
     }
   }
 

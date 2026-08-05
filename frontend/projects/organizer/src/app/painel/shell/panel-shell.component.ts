@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { listOrganizerNames } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { PanelContextService } from './panel-context.service';
@@ -20,6 +21,22 @@ const SECTION_LABEL = { global: 'Geral', liga: 'Liga', torneio: 'Torneio', categ
 const CONTEXT_ICON = { liga: 'flag', torneio: 'trophy', categoria: 'bracket' } as const;
 
 const CONTEXT_KICKER = { liga: 'Liga', torneio: 'Torneio', categoria: 'Categoria' } as const;
+
+/**
+ * `managerId` do torneio aberto quando ele é de OUTRA pessoa e quem olha é super
+ * admin — é o gatilho da faixa de suporte. Devolve `null` no caso normal
+ * (torneio próprio, organizador comum, ou nenhum torneio em contexto), inclusive
+ * pro super admin dentro do próprio torneio: ali não há nada a avisar.
+ */
+export function foreignTournamentOwnerId(params: {
+  isSuperAdmin: boolean;
+  uid: string | null | undefined;
+  managerId: string | null | undefined;
+}): string | null {
+  const { isSuperAdmin, uid, managerId } = params;
+  if (!isSuperAdmin || !uid || !managerId || managerId === uid) return null;
+  return managerId;
+}
 
 /** "silvio.dionizio" → "Silvio Dionizio" — fallback de nome quando o Auth não tem displayName. */
 function nameFromEmail(email: string): string {
@@ -134,8 +151,36 @@ function initialsOfName(name: string): string {
     </nav>
 
     <div class="og-main">
+      @if (supportBanner(); as owner) {
+        <div class="og-support-banner" role="status">
+          <og-icon name="alert" [size]="16" [strokeWidth]="2" />
+          <span>
+            Você está operando como super admin o torneio de <strong>{{ owner }}</strong
+            >. As alterações são reais e valem para o organizador.
+          </span>
+        </div>
+      }
       <router-outlet />
     </div>
+  `,
+  styles: `
+    .og-support-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      border: 1px solid var(--nx-orange-500);
+      border-radius: var(--nx-r-3);
+      background: var(--nx-orange-tint);
+      color: var(--nx-text);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .og-support-banner og-icon {
+      flex: none;
+      color: var(--nx-orange-400);
+    }
   `,
 })
 export class PanelShellComponent {
@@ -153,6 +198,42 @@ export class PanelShellComponent {
   );
 
   protected readonly sectionLabel = computed(() => SECTION_LABEL[this.ctx.level()]);
+
+  /** Nome do dono do torneio aberto — resolvido só quando a faixa de suporte precisa dele. */
+  private readonly ownerName = signal<string | null>(null);
+
+  /** Dono do torneio quando um super admin abre torneio alheio; `null` no caso normal.
+   *  Fica no shell (e não em cada tela) porque vale pra todo o nível torneio/categoria:
+   *  chave, inscrições, placar e financeiro herdam o aviso. */
+  protected readonly supportBanner = computed<string | null>(() => {
+    const managerId = this.foreignTournamentOwnerId();
+    if (!managerId) return null;
+    return this.ownerName() ?? 'outro organizador';
+  });
+
+  private readonly foreignTournamentOwnerId = computed<string | null>(() =>
+    foreignTournamentOwnerId({
+      isSuperAdmin: this.auth.isSuperAdmin(),
+      uid: this.auth.user()?.uid,
+      managerId: this.ctx.tournament()?.managerId,
+    }),
+  );
+
+  constructor() {
+    effect(() => {
+      const managerId = this.foreignTournamentOwnerId();
+      if (!managerId) {
+        this.ownerName.set(null);
+        return;
+      }
+      void listOrganizerNames([managerId]).then((names) => {
+        // A rota pode ter mudado durante o fetch — só aplica se ainda for o mesmo dono.
+        if (this.foreignTournamentOwnerId() === managerId) {
+          this.ownerName.set(names.get(managerId) ?? null);
+        }
+      });
+    });
+  }
 
   protected readonly nav = computed<OgNavEntry[]>(() => {
     const level = this.ctx.level();

@@ -110,10 +110,30 @@
           <div class="rk-empty-card">
             <app-nx-page-loading title="Carregando ranking…" subtitle="Somando os pontos da temporada" />
           </div>
+        } @else if (hasQuery()) {
+          @if (searchCount() === 0) {
+            <div class="rk-empty-card">
+              <p class="rk-empty-title">Nenhum atleta encontrado para “{{ filterQuery() }}”</p>
+              <p class="rk-empty-sub">A busca cobre o ranking de {{ sliceLabel() }}. Ajuste os filtros para ampliar.</p>
+            </div>
+          } @else {
+            <div class="rk-list-card">
+              <div class="rk-list-head">
+                <span class="rk-list-kicker">Busca</span>
+                <h2 class="rk-list-title" aria-live="polite">{{ searchCountLabel() }} para “{{ filterQuery() }}”</h2>
+                <p class="rk-list-note">Posição no ranking de {{ sliceLabel() }}.</p>
+              </div>
+              <div class="rk-list">
+                @for (p of searchResults(); track p.id) {
+                  <ng-container [ngTemplateOutlet]="rankRow" [ngTemplateOutletContext]="{ $implicit: p }" />
+                }
+              </div>
+            </div>
+          }
         } @else if (totalCount() === 0) {
           <div class="rk-empty-card">
             <p class="rk-empty-title">Nenhum atleta encontrado</p>
-            <p class="rk-empty-sub">Ajuste os filtros ou a busca para ver mais resultados.</p>
+            <p class="rk-empty-sub">Ajuste os filtros para ver mais resultados.</p>
           </div>
         } @else {
           <div class="rk-podium-card">
@@ -140,24 +160,7 @@
               </div>
               <div class="rk-list">
                 @for (p of restList(); track p.id) {
-                  <div class="rk-row">
-                    <span class="rk-row-rank">{{ p.rank }}</span>
-                    <span class="rk-row-avatar">{{ rowInitials(p.name) }}</span>
-                    <div class="rk-row-info">
-                      <p class="rk-row-name">{{ p.name }}</p>
-                      <p class="rk-row-city">{{ p.city }}</p>
-                    </div>
-                    <span class="rk-row-level">{{ p.level ?? '—' }}</span>
-                    <span class="rk-row-points">{{ p.points }}</span>
-                    <span class="rk-trend" [attr.data-tone]="trendTone(p.trend)">
-                      @if (trendTone(p.trend) === 'neutral') {
-                        —
-                      } @else {
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.rk-trend-arrow--down]="trendTone(p.trend) === 'down'" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
-                        {{ absTrend(p.trend) }}
-                      }
-                    </span>
-                  </div>
+                  <ng-container [ngTemplateOutlet]="rankRow" [ngTemplateOutletContext]="{ $implicit: p }" />
                 }
               </div>
             </div>
@@ -218,4 +221,28 @@
       </div>
     </div>
   </div>
+
+  <!-- Linha do ranking: mesma marcação na classificação completa e nos resultados da busca.
+       `asRow` só reancora o tipo, porque o contexto de um ng-template solto chega como `any`. -->
+  <ng-template #rankRow let-item>
+    @let p = asRow(item);
+    <div class="rk-row">
+      <span class="rk-row-rank">{{ p.rank }}</span>
+      <span class="rk-row-avatar">{{ rowInitials(p.name) }}</span>
+      <div class="rk-row-info">
+        <p class="rk-row-name">{{ p.name }}</p>
+        <p class="rk-row-city">{{ p.city }}</p>
+      </div>
+      <span class="rk-row-level">{{ p.level ?? '—' }}</span>
+      <span class="rk-row-points">{{ p.points }}</span>
+      <span class="rk-trend" [attr.data-tone]="trendTone(p.trend)">
+        @if (trendTone(p.trend) === 'neutral') {
+          —
+        } @else {
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.rk-trend-arrow--down]="trendTone(p.trend) === 'down'" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+          {{ absTrend(p.trend) }}
+        }
+      </span>
+    </div>
+  </ng-template>
 </app-at-panel-shell>

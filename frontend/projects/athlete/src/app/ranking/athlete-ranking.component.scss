@@ -478,6 +478,14 @@ $rk-bronze: #d98a4b;
   margin: 0;
 }
 
+// Só nos resultados da busca: lembra que o número da linha é a posição no ranking do
+// recorte, não a colocação entre os resultados encontrados.
+.rk-list-note {
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  margin: 4px 0 0;
+}
+
 .rk-list {
   display: flex;
   flex-direction: column;

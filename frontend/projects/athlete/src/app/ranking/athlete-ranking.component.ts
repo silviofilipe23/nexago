@@ -9,6 +9,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
 import { getApps, initializeApp } from 'firebase/app';
@@ -29,13 +30,11 @@ import {
 import { fetchTeamsByIds, teamIsLookingForPartner, type ArenaTeam } from '../data/teams-repository';
 import { RANKING_SCORING_RULES } from './athlete-ranking.models';
 import type { FilterLevel, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
+import { CITY_ALL, hasSearchQuery, rankParticipants, searchRanking, type RankingRow } from './athlete-ranking.selectors';
 
-export interface RankingRow extends RankingParticipant {
-  rank: number;
-}
+export type { RankingRow };
 
 const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
-const CITY_ALL = 'all';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -86,7 +85,7 @@ function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, 
 @Component({
   selector: 'app-athlete-ranking',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent],
+  imports: [NgTemplateOutlet, RouterLink, AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent],
   templateUrl: './athlete-ranking.component.html',
   styleUrl: './athlete-ranking.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -134,20 +133,25 @@ export class AthleteRankingComponent {
     return [CITY_ALL, ...cities];
   });
 
-  protected readonly rankedList = computed<RankingRow[]>(() => {
-    const sport = this.sportFilter();
-    const level = this.levelFilter();
-    const city = this.cityFilter();
-    const q = this.filterQuery().trim().toLowerCase();
+  /** Ranking do recorte (esporte + categoria + cidade). A busca fica de fora de propósito:
+   *  ela é consulta, não recorte — se entrasse aqui renumeraria o buscado como 1º e o
+   *  jogaria no pódio, além de zerar o card "Sua posição". */
+  protected readonly rankedList = computed<RankingRow[]>(() =>
+    rankParticipants(this.allParticipants(), { sport: this.sportFilter(), level: this.levelFilter(), city: this.cityFilter() }),
+  );
 
-    return this.allParticipants()
-      .filter((p) => p.sport === sport)
-      .filter((p) => level === 'all' || p.level === level)
-      .filter((p) => city === CITY_ALL || p.city === city)
-      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q))
-      .sort((a, b) => b.points - a.points)
-      .map((p, i) => ({ ...p, rank: i + 1 }));
-  });
+  protected readonly hasQuery = computed(() => hasSearchQuery(this.filterQuery()));
+  /** Linhas que casam com a busca, carregando a posição real do recorte. */
+  protected readonly searchResults = computed(() => searchRanking(this.rankedList(), this.filterQuery()));
+  protected readonly searchCount = computed(() => this.searchResults().length);
+  protected readonly searchCountLabel = computed(() =>
+    this.searchCount() === 1 ? '1 resultado' : `${this.searchCount()} resultados`,
+  );
+  /** Recorte ativo em texto — o esporte já vem travado em Vôlei de praia, então sem isso
+   *  a busca por um atleta de outro esporte dá "nenhum resultado" sem explicar por quê. */
+  protected readonly sliceLabel = computed(
+    () => `${this.sportLabel(this.sportFilter())} · ${this.levelLabel(this.levelFilter())} · ${this.cityLabel(this.cityFilter())}`,
+  );
 
   protected readonly podium = computed(() => this.rankedList().slice(0, 3));
   protected readonly restList = computed(() => this.rankedList().slice(3));
@@ -320,6 +324,11 @@ export class AthleteRankingComponent {
 
   protected cityLabel(city: string): string {
     return city === CITY_ALL ? 'Todas as cidades' : city;
+  }
+
+  /** Reancora o tipo do contexto do `ng-template` da linha, que chega como `any`. */
+  protected asRow(value: RankingRow): RankingRow {
+    return value;
   }
 
   protected readonly trendTone = trendTone;

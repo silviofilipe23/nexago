@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { Trophy } from 'lucide-react';
-import { getPublicTournaments, getTournamentById } from '@/lib/firestore/tournaments';
+import { getPublishedTournaments, getTournamentById } from '@/lib/firestore/tournaments';
 import { TournamentHero } from '@/components/hub/TournamentHero';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import { Reveal } from '@/components/motion/Reveal';
@@ -14,8 +14,10 @@ export const revalidate = 300;
 
 // Gera a URL canônica (slug-id) e também o id puro — links antigos sem slug
 // batem no param "id puro" e o permanentRedirect resolve pra URL canônica.
+// Usa `getPublishedTournaments` (e não a listagem) porque o torneio cancelado sai da vitrine mas
+// mantém página: enumerar só a listagem deixaria o link compartilhado dele em 404.
 export async function generateStaticParams() {
-  const tournaments = await getPublicTournaments(500);
+  const tournaments = await getPublishedTournaments();
   const params = tournaments.flatMap((t) => {
     const slug = toSlugId(t.name, t.id);
     return slug === t.id ? [{ id: t.id }] : [{ id: slug }, { id: t.id }];

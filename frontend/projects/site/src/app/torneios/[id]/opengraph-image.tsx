@@ -1,5 +1,5 @@
 import { renderOg, OG_SIZE, OG_CONTENT_TYPE } from '@/lib/og';
-import { getPublicTournaments, getTournamentById } from '@/lib/firestore/tournaments';
+import { getPublishedTournaments, getTournamentById } from '@/lib/firestore/tournaments';
 import { sportLabel } from '@/lib/format';
 import { ensureNonEmptyParams, extractId, toSlugId } from '@/lib/slug';
 
@@ -8,8 +8,9 @@ export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 export const alt = 'Torneio no nexaGO';
 
+// Mesmo conjunto da página (inclui cancelado) — a OG image tem de existir para todo link válido.
 export async function generateStaticParams() {
-  const tournaments = await getPublicTournaments(500);
+  const tournaments = await getPublishedTournaments();
   const params = tournaments.flatMap((t) => {
     const slug = toSlugId(t.name, t.id);
     return slug === t.id ? [{ id: t.id }] : [{ id: slug }, { id: t.id }];

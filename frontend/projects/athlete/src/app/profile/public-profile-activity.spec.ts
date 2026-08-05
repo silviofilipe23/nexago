@@ -1,6 +1,8 @@
-import type { ArenaMatch } from '../data/teams-repository';
+import type { ArenaMatch, ArenaTeam } from '../data/teams-repository';
+import type { AthletePublicProfile } from '../data/public-profiles-repository';
 import {
   buildMatchRow,
+  duoNameOf,
   matchScoreLabel,
   matchesWithinDays,
   teamDetailLabel,
@@ -8,6 +10,14 @@ import {
   winStreakOf,
   type PublicProfileMatchRow,
 } from './public-profile-activity';
+
+function makeTeam(overrides: Partial<ArenaTeam> = {}): ArenaTeam {
+  return { id: 'teamB', player1Id: 'u1', player2Id: 'u2', teamName: null, gender: null, createdAt: null, ...overrides };
+}
+
+function profileMap(entries: Record<string, string>): Map<string, AthletePublicProfile> {
+  return new Map(Object.entries(entries).map(([id, displayName]) => [id, { id, displayName } as AthletePublicProfile]));
+}
 
 function makeMatch(overrides: Partial<ArenaMatch> = {}): ArenaMatch {
   return {
@@ -92,15 +102,43 @@ describe('public-profile-activity', () => {
     });
   });
 
+  describe('duoNameOf', () => {
+    it('prefers the registered team name', () => {
+      const teams = new Map([['teamB', makeTeam({ teamName: 'Ana & Beto' })]]);
+      expect(duoNameOf('teamB', teams, new Map(), '2º Grupo C')).toBe('Ana & Beto');
+    });
+
+    it('builds the name from both athletes first names', () => {
+      const teams = new Map([['teamB', makeTeam()]]);
+      expect(duoNameOf('teamB', teams, profileMap({ u1: 'Ana Ribeiro', u2: 'Beto Lima' }), '2º Grupo C')).toBe('Ana / Beto');
+    });
+
+    it('does not repeat the athlete when the pair is still looking for a partner', () => {
+      const teams = new Map([['teamB', makeTeam({ player1Id: 'u1', player2Id: 'u1' })]]);
+      expect(duoNameOf('teamB', teams, profileMap({ u1: 'Ana Ribeiro' }), null)).toBe('Ana');
+    });
+
+    it('falls back to the match description only when the team is unknown', () => {
+      expect(duoNameOf('gone', new Map(), new Map(), '2º Grupo C')).toBe('2º Grupo C');
+      expect(duoNameOf('', new Map(), new Map(), null)).toBe('Adversário');
+    });
+  });
+
   describe('buildMatchRow', () => {
     const tournamentNames = new Map([['t1', 'Open Goiânia Beach']]);
+    const opponentTeams = new Map([
+      ['teamA', makeTeam({ id: 'teamA', player1Id: 'a1', player2Id: 'a2' })],
+      ['teamB', makeTeam({ id: 'teamB', player1Id: 'b1', player2Id: 'b2' })],
+    ]);
+    const opponentProfiles = profileMap({ a1: 'Rafaela Nunes', a2: 'Antonio Souza', b1: 'Ana Ribeiro', b2: 'Beto Lima' });
+    const resolve = (id: string, fallback: string | null) => duoNameOf(id, opponentTeams, opponentProfiles, fallback);
 
     it('builds a win row from the athlete side A', () => {
-      const row = buildMatchRow(makeMatch({ sets: [{ a: 21, b: 18 }, { a: 21, b: 15 }] }), new Set(['teamA']), tournamentNames);
+      const row = buildMatchRow(makeMatch({ sets: [{ a: 21, b: 18 }, { a: 21, b: 15 }] }), new Set(['teamA']), tournamentNames, resolve);
       expect(row).toEqual(
         jasmine.objectContaining({
           result: 'W',
-          opponent: 'Ana R. & Beto L.',
+          opponent: 'Ana / Beto',
           contextLabel: 'Open Goiânia Beach · Final',
           score: '2–0',
           dateLabel: '28/06',
@@ -109,31 +147,41 @@ describe('public-profile-activity', () => {
     });
 
     it('builds a loss row from the athlete side B', () => {
-      const row = buildMatchRow(makeMatch({ sets: [{ a: 21, b: 18 }, { a: 21, b: 15 }] }), new Set(['teamB']), tournamentNames);
-      expect(row).toEqual(jasmine.objectContaining({ result: 'L', opponent: 'Rafa & Tonho', score: '0–2' }));
+      const row = buildMatchRow(makeMatch({ sets: [{ a: 21, b: 18 }, { a: 21, b: 15 }] }), new Set(['teamB']), tournamentNames, resolve);
+      expect(row).toEqual(jasmine.objectContaining({ result: 'L', opponent: 'Rafaela / Antonio', score: '0–2' }));
+    });
+
+    it('never shows the bracket seeding description when the opponent team is known', () => {
+      const row = buildMatchRow(makeMatch({ teamBDescription: '2º Grupo C' }), new Set(['teamA']), tournamentNames, resolve);
+      expect(row?.opponent).toBe('Ana / Beto');
     });
 
     it('keeps only the round label when the tournament name is unknown', () => {
-      const row = buildMatchRow(makeMatch({ matchType: 'group' }), new Set(['teamA']), new Map());
+      const row = buildMatchRow(makeMatch({ matchType: 'group' }), new Set(['teamA']), new Map(), resolve);
       expect(row?.contextLabel).toBe('Fase de grupos');
     });
 
-    it('falls back to a generic opponent when the match has no description', () => {
-      const row = buildMatchRow(makeMatch({ teamBDescription: null }), new Set(['teamA']), tournamentNames);
+    it('falls back to a generic opponent when neither the team nor the description resolve', () => {
+      const row = buildMatchRow(makeMatch({ teamBId: 'gone', teamBDescription: null }), new Set(['teamA']), tournamentNames, resolve);
       expect(row?.opponent).toBe('Adversário');
     });
 
     it('ignores matches the athlete did not play', () => {
-      expect(buildMatchRow(makeMatch(), new Set(['other']), tournamentNames)).toBeNull();
+      expect(buildMatchRow(makeMatch(), new Set(['other']), tournamentNames, resolve)).toBeNull();
     });
 
     it('ignores matches without a winner or without a date', () => {
-      expect(buildMatchRow(makeMatch({ winnerId: null }), new Set(['teamA']), tournamentNames)).toBeNull();
-      expect(buildMatchRow(makeMatch({ matchEndedAt: null }), new Set(['teamA']), tournamentNames)).toBeNull();
+      expect(buildMatchRow(makeMatch({ winnerId: null }), new Set(['teamA']), tournamentNames, resolve)).toBeNull();
+      expect(buildMatchRow(makeMatch({ matchEndedAt: null }), new Set(['teamA']), tournamentNames, resolve)).toBeNull();
     });
 
     it('uses the scheduled time when the match has no end timestamp', () => {
-      const row = buildMatchRow(makeMatch({ matchEndedAt: null, scheduleTime: new Date(2026, 5, 7) }), new Set(['teamA']), tournamentNames);
+      const row = buildMatchRow(
+        makeMatch({ matchEndedAt: null, scheduleTime: new Date(2026, 5, 7) }),
+        new Set(['teamA']),
+        tournamentNames,
+        resolve,
+      );
       expect(row?.dateLabel).toBe('07/06');
     });
   });

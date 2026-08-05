@@ -16,6 +16,12 @@
       "port": 4211
     },
     {
+      "name": "backoffice",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "start:backoffice", "--", "--port", "4213"],
+      "port": 4213
+    },
+    {
       "name": "site",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

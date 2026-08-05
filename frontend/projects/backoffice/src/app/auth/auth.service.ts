@@ -41,9 +41,17 @@ export class AuthService {
   /** updateProfile() muta o User do Firebase in-place; sem isso, signals que leem user()?.displayName não notificariam. */
   private readonly displayNameOverride = signal<string | null>(null);
 
+  /** Claims do token em cache — fonte das permissões que a UI usa para habilitar ações. */
+  private readonly tokenClaims = signal<{ roles: string[]; superAdmin: boolean }>({
+    roles: [],
+    superAdmin: false,
+  });
+
   readonly authReady = signal(false);
   readonly user = computed(() => this.firebaseUser());
   readonly isAuthenticated = computed(() => this.firebaseUser() != null);
+  readonly roles = computed(() => this.tokenClaims().roles);
+  readonly isSuperAdmin = computed(() => this.tokenClaims().superAdmin);
   readonly mfaPending = computed(() => this.pendingMfaResolver() != null);
   readonly displayName = computed(
     () => this.displayNameOverride() ?? this.firebaseUser()?.displayName ?? null,
@@ -57,7 +65,30 @@ export class AuthService {
       this.firebaseUser.set(u);
       this.displayNameOverride.set(null);
       this.authReady.set(true);
+      void this.refreshClaims(u);
     });
+  }
+
+  /**
+   * Lê `roles`/`superAdmin` do token. Usa o token em cache (pode levar até ~1 h
+   * para refletir mudança de papel) — serve para habilitar/ocultar ação na UI,
+   * nunca como autorização: quem decide é a Cloud Function.
+   */
+  private async refreshClaims(user: User | null): Promise<void> {
+    if (!user) {
+      this.tokenClaims.set({ roles: [], superAdmin: false });
+      return;
+    }
+    try {
+      const token = await user.getIdTokenResult();
+      const raw = token.claims['roles'];
+      this.tokenClaims.set({
+        roles: Array.isArray(raw) ? raw.filter((r): r is string => typeof r === 'string') : [],
+        superAdmin: token.claims['superAdmin'] === true,
+      });
+    } catch {
+      this.tokenClaims.set({ roles: [], superAdmin: false });
+    }
   }
 
   private get auth(): Auth {

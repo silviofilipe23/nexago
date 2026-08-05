@@ -56,6 +56,52 @@ export const routes: Routes = [
       import('./painel/torneios/panel-torneios.component').then((m) => m.PanelTorneiosComponent),
   },
   {
+    path: 'painel/organizadores',
+    title: 'Organizadores — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/organizadores/panel-organizadores.component').then(
+        (m) => m.PanelOrganizadoresComponent,
+      ),
+  },
+  {
+    path: 'painel/organizadores/promover',
+    title: 'Promover atleta — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/organizadores/promover-atleta.component').then((m) => m.PromoverAtletaComponent),
+  },
+  {
+    path: 'painel/organizadores/solicitacoes/:id',
+    title: 'Analisar solicitação — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/organizadores/analisar-solicitacao.component').then(
+        (m) => m.AnalisarSolicitacaoComponent,
+      ),
+  },
+  {
+    path: 'painel/financeiro',
+    title: 'Financeiro — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/financeiro/panel-financeiro.component').then((m) => m.PanelFinanceiroComponent),
+  },
+  {
+    path: 'painel/atletas',
+    title: 'Atletas — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/atletas/panel-atletas.component').then((m) => m.PanelAtletasComponent),
+  },
+  {
+    path: 'painel/equipe',
+    title: 'Equipe — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/equipe/panel-equipe.component').then((m) => m.PanelEquipeComponent),
+  },
+  {
     path: 'painel/perfil',
     title: 'Meu perfil — NexaGO Backoffice',
     canActivate: [authGuard],

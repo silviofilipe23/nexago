@@ -1,5 +1,5 @@
 import { MIN_TEAMS_FOR_BRACKET, countBracketEligible, isBracketEligible } from './bracket-eligibility';
-import type { TournamentInscription } from './inscriptions-repository';
+import { EMPTY_INSCRIPTION_UNIFORM, type TournamentInscription } from './inscriptions-repository';
 
 /** A regra tem de bater com `paidTeamIds` em `functions/src/organizer-category-ops.ts`: se a tela
  *  contar uma dupla a mais que o servidor, o organizador chega em "Gerar chave" e leva um erro
@@ -17,6 +17,8 @@ function inscription(overrides: Partial<TournamentInscription> = {}): Tournament
     paid: true,
     partnerPending: false,
     lgpdAcceptedUids: [],
+    uniformPlayer1: EMPTY_INSCRIPTION_UNIFORM,
+    uniformPlayer2: EMPTY_INSCRIPTION_UNIFORM,
     createdAt: null,
     ...overrides,
   };

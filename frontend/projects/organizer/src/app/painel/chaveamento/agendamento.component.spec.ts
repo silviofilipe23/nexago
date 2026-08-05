@@ -21,7 +21,22 @@ function tournamentFixture(): OrganizerTournament {
     endAt: new Date(`${DAY}T22:00:00-03:00`),
     city: null,
     location: null,
-    categories: [{ id: 'femB', name: 'Feminino B', maxTeams: null, bracketFormat: null, teamsPerGroup: 3, qualifiersPerGroup: 2, bestOf: null }],
+    categories: [
+      {
+        id: 'femB',
+        name: 'Feminino B',
+        maxTeams: null,
+        bracketFormat: null,
+        teamsPerGroup: 3,
+        qualifiersPerGroup: 2,
+        bestOf: null,
+        uniformType: null,
+        uniformNumberOnShirt: false,
+        uniformNameOnShirt: false,
+        uniformSizeOptionsTop: [],
+        uniformSizeOptionsShorts: [],
+      },
+    ],
     capacity: null,
     leagueId: null,
     courts: [
@@ -31,6 +46,9 @@ function tournamentFixture(): OrganizerTournament {
     courtsCount: 2,
     matchOps: { dayStart: '08:00', dayEnd: '10:00', defaultMatchDurationMin: 30, minRestBetweenMatchesMin: 30 },
     bigScreen: null,
+    uniformRequired: false,
+    uniformNumberOnShirt: false,
+    uniformNameOnShirt: false,
   };
 }
 

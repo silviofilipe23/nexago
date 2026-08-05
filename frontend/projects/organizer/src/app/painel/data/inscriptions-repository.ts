@@ -22,13 +22,31 @@ export interface InscriptionParticipant {
   legacyLevel: string | null;
 }
 
+/** Uniforme escolhido por UM dos atletas da inscrição, cru do doc (`sizeTopPlayer1`,
+ *  `jerseyNumberPlayer2`, …) — o mesmo formato que o portal do atleta lê em
+ *  `tournament-registrations-repository.ts`. */
+export interface InscriptionUniformSlot {
+  sizeTop: string | null;
+  sizeShorts: string | null;
+  jerseyNumber: number | null;
+  jerseyName: string | null;
+}
+
+export const EMPTY_INSCRIPTION_UNIFORM: InscriptionUniformSlot = {
+  sizeTop: null,
+  sizeShorts: null,
+  jerseyNumber: null,
+  jerseyName: null,
+};
+
 export interface TournamentInscription {
   id: string;
   tournamentId: string;
   categoryId: string | null;
   teamId: string | null; // id da dupla em `teams` — usado nos seeds da geração de chave
   teamName: string; // nome da dupla/equipe ou jogadores
-  /** Atletas da inscrição (1 solo / 2 dupla) — para avatares na lista. */
+  /** Atletas da inscrição (1 solo / 2 dupla) — para avatares na lista. A ORDEM é o slot de
+   *  uniforme: índice 0 = `…Player1`, índice 1 = `…Player2` (ver `resolveParticipantUids`). */
   participants: InscriptionParticipant[];
   participantNames: string[];
   paymentStatus: string; // raw (ex.: paid/pending/…)
@@ -36,6 +54,9 @@ export interface TournamentInscription {
   partnerPending: boolean; // inscrição solo aguardando parceiro — não entra na chave
   /** Uids que aceitaram o termo de uso de imagem/LGPD na inscrição (docs antigos: vazio). */
   lgpdAcceptedUids: string[];
+  /** Uniforme de cada slot; casa com `participants[0]`/`participants[1]`. */
+  uniformPlayer1: InscriptionUniformSlot;
+  uniformPlayer2: InscriptionUniformSlot;
   createdAt: Date | null;
 }
 
@@ -54,10 +75,15 @@ interface RawInscription {
   categoryId: string | null;
   teamId: string | null;
   participantUids: string[];
+  /** Só existe em inscrição criada por `registerSoloTournament`; aceitar convite sem solo prévio
+   *  cria o doc sem ele — daí `participantUids[0]` ser o fallback pra saber o slot. */
+  player1Id: string | null;
   isPaid: boolean;
   waitlist: boolean;
   partnerPending: boolean;
   lgpdAcceptedUids: string[];
+  uniformPlayer1: InscriptionUniformSlot;
+  uniformPlayer2: InscriptionUniformSlot;
   createdAt: Date | null;
 }
 
@@ -81,6 +107,19 @@ function levelsBySportOf(data: Record<string, unknown>): Record<string, string> 
   return out;
 }
 
+function optionalNum(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function uniformSlotFromDoc(data: Record<string, unknown>, slot: 'Player1' | 'Player2'): InscriptionUniformSlot {
+  return {
+    sizeTop: optionalStr(data[`sizeTop${slot}`]),
+    sizeShorts: optionalStr(data[`sizeShorts${slot}`]),
+    jerseyNumber: optionalNum(data[`jerseyNumber${slot}`]),
+    jerseyName: optionalStr(data[`jerseyName${slot}`]),
+  };
+}
+
 function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
   return {
     id,
@@ -90,12 +129,15 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
     participantUids: Array.isArray(data['participantUids'])
       ? data['participantUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
       : [],
+    player1Id: optionalStr(data['player1Id']),
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
     partnerPending: data['partnerPending'] === true,
     lgpdAcceptedUids: Array.isArray(data['lgpdAcceptedUids'])
       ? data['lgpdAcceptedUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
       : [],
+    uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
+    uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
     createdAt: toDate(data['createdAt']),
   };
 }
@@ -126,11 +168,20 @@ async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Pro
   return result;
 }
 
+/** Uids da inscrição NA ORDEM DOS SLOTS de uniforme: quem está no slot 1 é `player1Id` quando o
+ *  doc o tem, senão `participantUids[0]` — mesma regra que o portal do atleta usa pra achar o
+ *  próprio uniforme (`registration-progress.ts`). Sem `participantUids` (docs antigos), cai na
+ *  dupla em `teams`, onde `player1Id` já é o slot 1. */
 function resolveParticipantUids(
   raw: RawInscription,
   teamPlayers: { player1Id: string; player2Id: string } | null,
 ): string[] {
-  if (raw.participantUids.length > 0) return [...new Set(raw.participantUids)];
+  if (raw.participantUids.length > 0) {
+    const uids = [...new Set(raw.participantUids)];
+    const p1 = raw.player1Id;
+    if (p1 && uids.includes(p1)) return [p1, ...uids.filter((uid) => uid !== p1)];
+    return uids;
+  }
   if (!teamPlayers) return [];
   return [teamPlayers.player1Id, teamPlayers.player2Id].filter((id) => id.length > 0);
 }
@@ -203,6 +254,8 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       paid: r.isPaid,
       partnerPending: r.partnerPending,
       lgpdAcceptedUids: r.lgpdAcceptedUids,
+      uniformPlayer1: r.uniformPlayer1,
+      uniformPlayer2: r.uniformPlayer2,
       createdAt: r.createdAt,
     };
   });

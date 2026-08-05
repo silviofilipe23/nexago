@@ -51,6 +51,11 @@ function numberOf(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
+function stringListOf(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => s.length > 0);
+}
+
 function sportLabelOf(raw: unknown): string {
   const v = optionalStr(raw);
   if (!v) return 'Esporte';
@@ -80,6 +85,11 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
     teamsPerGroup: numberOf(o['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: numberOf(o['qualifiersPerGroup']) ?? 2,
     bestOf: optionalStr(o['bestOf']),
+    uniformType: optionalStr(o['uniformType']),
+    uniformNumberOnShirt: o['uniformNumberOnShirt'] === true,
+    uniformNameOnShirt: o['uniformNameOnShirt'] === true,
+    uniformSizeOptionsTop: stringListOf(o['uniformSizeOptionsTop']),
+    uniformSizeOptionsShorts: stringListOf(o['uniformSizeOptionsShorts']),
   };
 }
 
@@ -161,6 +171,9 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     courtsCount,
     matchOps: matchOpsFromRaw(data['matchOps']),
     bigScreen: telaoConfigFromRaw(data['bigScreen']),
+    uniformRequired: data['uniformRequired'] === true,
+    uniformNumberOnShirt: data['uniformNumberOnShirt'] === true,
+    uniformNameOnShirt: data['uniformNameOnShirt'] === true,
   };
 }
 

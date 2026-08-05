@@ -148,6 +148,11 @@ export const routes: Routes = [
             loadComponent: () => import('./painel/inscricoes/inscricoes.component').then((m) => m.InscricoesComponent),
           },
           {
+            path: 'uniformes',
+            title: 'Uniformes — NexaGO Organizador',
+            loadComponent: () => import('./painel/uniformes/uniformes.component').then((m) => m.UniformesComponent),
+          },
+          {
             path: 'agendamento',
             title: 'Agendamento — NexaGO Organizador',
             loadComponent: () => import('./painel/chaveamento/agendamento.component').then((m) => m.AgendamentoComponent),

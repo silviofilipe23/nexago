@@ -16,6 +16,14 @@ export interface OrganizerTournamentCategory {
   teamsPerGroup: number;
   qualifiersPerGroup: number;
   bestOf: string | null; // singleSet | bestOf3 | bestOf5
+  /** Uniforme CRU da categoria (`none`/`top_only`/`top`/`full`). A herança das flags da raiz
+   *  (categoria sem exigência própria em torneio com `uniformRequired`) fica em `uniforms.ts`,
+   *  igual ao portal do atleta — aqui só o que está gravado no doc. */
+  uniformType: string | null;
+  uniformNumberOnShirt: boolean;
+  uniformNameOnShirt: boolean;
+  uniformSizeOptionsTop: string[];
+  uniformSizeOptionsShorts: string[];
 }
 
 export interface OrganizerTournamentCourt {
@@ -73,4 +81,10 @@ export interface OrganizerTournament {
   courtsCount: number;
   matchOps: OrganizerMatchOpsConfig;
   bigScreen: TelaoConfig | null;
+  /** Flags de uniforme da RAIZ do torneio (`uniformRequired`/`uniformNumberOnShirt`/
+   *  `uniformNameOnShirt`) — o wizard grava as duas coisas (raiz + categoria), e categoria sem
+   *  exigência própria herda daqui (ver `uniforms.ts`). */
+  uniformRequired: boolean;
+  uniformNumberOnShirt: boolean;
+  uniformNameOnShirt: boolean;
 }

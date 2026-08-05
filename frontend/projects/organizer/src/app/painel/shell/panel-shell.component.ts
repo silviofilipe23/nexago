@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { listOrganizerNames } from '../data/tournaments-repository';
+import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { PanelContextService } from './panel-context.service';
@@ -254,6 +255,11 @@ export class PanelShellComponent {
       return [
         { label: 'Visão geral', icon: 'grid', link: base },
         { label: 'Inscrições', icon: 'users', link: `${base}/inscricoes` },
+        // Só torneio com uniforme incluso — sem kit, a tela não teria o que consolidar. O doc
+        // chega assíncrono (contexto busca o torneio), então o item aparece junto com ele.
+        ...(tournamentUsesUniform(this.ctx.tournament())
+          ? [{ label: 'Uniformes', icon: 'shirt' as OgIconName, link: `${base}/uniformes` }]
+          : []),
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },

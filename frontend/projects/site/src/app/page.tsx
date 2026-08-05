@@ -9,14 +9,16 @@ import { ProvaSocial } from '@/components/sections/ProvaSocial';
 import { FAQ } from '@/components/sections/FAQ';
 import { Waitlist } from '@/components/sections/Waitlist';
 import { Download } from '@/components/sections/Download';
-import { getPublicTournaments } from '@/lib/firestore/tournaments';
+import { getActiveTournaments } from '@/lib/firestore/tournaments';
 import { getPublicArenas } from '@/lib/firestore/arenas';
 
 export const revalidate = 300;
 
 export default async function HomePage() {
+  // Só torneios ativos: a seção promete "etapas com inscrições abertas", então encerrado
+  // nunca entra na vitrine da home.
   const [tournaments, arenas] = await Promise.all([
-    getPublicTournaments(6),
+    getActiveTournaments(6),
     getPublicArenas(12),
   ]);
 

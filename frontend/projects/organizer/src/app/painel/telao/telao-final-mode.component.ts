@@ -2,10 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { matchClosedSets, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { TournamentMatch } from '../data/matches-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
+import { OgIconComponent } from '../ui/icon.component';
 import { OgPulseDirective } from './og-pulse.directive';
 import { TelaoChampionsComponent } from './telao-champions.component';
 import type { TelaoTeamDisplay } from './telao-data.service';
 import { pointAlertOf, type FinalKind } from './telao-final-mode';
+import { fireLevelOf } from './telao-streaks';
 
 const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
 
@@ -15,7 +17,7 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
 @Component({
   selector: 'og-telao-final-mode',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgAvatarComponent, OgPulseDirective, TelaoChampionsComponent],
+  imports: [OgAvatarComponent, OgIconComponent, OgPulseDirective, TelaoChampionsComponent],
   host: { class: 'og-fm', '[class.bronze]': 'kind() === "third-place"' },
   template: `
     <span class="og-fm-corner tl"></span><span class="og-fm-corner tr"></span>
@@ -36,12 +38,33 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
             }
           </span>
           <p class="og-fm-name">{{ row.team?.short ?? '—' }}</p>
-          @if (serving() === row.side) {
-            <p class="og-fm-serve"><span></span>Saque</p>
-          } @else {
-            <p class="og-fm-players">{{ row.team?.sub ?? '' }}</p>
-          }
-          <span class="og-fm-points" [class.hot]="serving() === row.side" [ogPulse]="points(row.side)">{{ points(row.side) }}</span>
+          <p class="og-fm-meta">
+            @if (serving() === row.side) {
+              <span class="og-fm-serve"><i></i>Saque</span>
+            } @else if (row.team?.sub) {
+              <span class="og-fm-players">{{ row.team?.sub }}</span>
+            }
+            @if (fireLevel(row.side); as level) {
+              <span
+                class="og-fm-fire"
+                [class.fire-2]="level === 2"
+                [class.fire-3]="level >= 3"
+                role="img"
+                [attr.aria-label]="fireCount(row.side) + ' pontos seguidos'"
+              >
+                <og-icon name="flame" [size]="40" [strokeWidth]="2" />×{{ fireCount(row.side) }}
+              </span>
+            }
+          </p>
+          <span
+            class="og-fm-points"
+            [class.hot]="serving() === row.side"
+            [class.fire-1]="fireLevel(row.side) === 1"
+            [class.fire-2]="fireLevel(row.side) === 2"
+            [class.fire-3]="fireLevel(row.side) >= 3"
+            [ogPulse]="points(row.side)"
+            >{{ points(row.side) }}</span
+          >
         </section>
 
         @if (row.side === 'A') {
@@ -208,8 +231,17 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
       line-height: 1.05;
       text-align: center;
     }
-    .og-fm-players {
+    /* Linha de metadados sob o nome: saque OU nomes completos, mais a chama quando a dupla
+       emenda pontos. Altura fixa pra o placar não pular quando o conteúdo troca. */
+    .og-fm-meta {
       margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      min-height: 46px;
+    }
+    .og-fm-players {
       font-family: var(--nx-font-mono);
       font-size: 16px;
       letter-spacing: 0.16em;
@@ -217,7 +249,6 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
       color: var(--nx-text-mute);
     }
     .og-fm-serve {
-      margin: 0;
       display: flex;
       align-items: center;
       gap: 9px;
@@ -227,11 +258,44 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
       text-transform: uppercase;
       color: var(--fm-a);
     }
-    .og-fm-serve span {
+    .og-fm-serve i {
       width: 10px;
       height: 10px;
       border-radius: 50%;
       background: var(--fm-a);
+    }
+    /* "Em chamas" na decisiva — mesma escada do card (×3–4 · ×5–6 · ×7+), no tamanho da
+       tela cheia. Laranja mesmo no modo bronze: fogo é fogo. */
+    .og-fm-fire {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 34px;
+      font-variant-numeric: tabular-nums;
+      color: var(--nx-orange-400);
+      animation: og-fm-rise 320ms var(--nx-ease-out);
+    }
+    .og-fm-fire og-icon {
+      display: inline-flex;
+      animation: og-fm-flicker 700ms ease-in-out infinite alternate;
+    }
+    /* A chama esquenta com a sequência: mais viva, mais rápida e com brilho próprio pra ler
+       de longe na arena. */
+    .og-fm-fire.fire-2 {
+      color: var(--nx-orange-500);
+      filter: drop-shadow(0 0 16px rgba(255, 106, 26, 0.5));
+    }
+    .og-fm-fire.fire-2 og-icon {
+      animation-duration: 480ms;
+    }
+    .og-fm-fire.fire-3 {
+      color: var(--nx-live);
+      filter: drop-shadow(0 0 22px rgba(255, 59, 48, 0.6));
+    }
+    .og-fm-fire.fire-3 og-icon {
+      animation-duration: 340ms;
     }
     .og-fm-points {
       margin-top: 18px;
@@ -252,6 +316,18 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
     .og-fm-points.hot {
       border-color: rgba(244, 197, 67, 0.55);
       box-shadow: 0 0 46px rgba(244, 197, 67, 0.16);
+    }
+    /* A sequência esquenta o placar gigante — vence o realce de saque. */
+    .og-fm-points.fire-1 {
+      border-color: rgba(255, 106, 26, 0.5);
+    }
+    .og-fm-points.fire-2 {
+      border-color: rgba(255, 106, 26, 0.72);
+      box-shadow: 0 0 56px rgba(255, 106, 26, 0.28);
+    }
+    .og-fm-points.fire-3 {
+      border-color: rgba(255, 59, 48, 0.78);
+      box-shadow: 0 0 68px rgba(255, 59, 48, 0.36);
     }
     .og-fm-points.og-pulse-run {
       animation: og-fm-pop 320ms var(--nx-ease-out);
@@ -375,8 +451,12 @@ const ORDINAL = ['1º', '2º', '3º', '4º', '5º'];
       0%, 100% { box-shadow: 0 0 0 rgba(244, 197, 67, 0); }
       50% { box-shadow: 0 0 34px var(--fm-glow); }
     }
+    @keyframes og-fm-flicker {
+      from { transform: scale(1) rotate(-4deg); }
+      to { transform: scale(1.14) rotate(4deg); }
+    }
     @media (prefers-reduced-motion: reduce) {
-      :host, .og-fm-head, .og-fm-team, .og-fm-center, .og-fm-alert, .og-fm-points.og-pulse-run {
+      :host, .og-fm-head, .og-fm-team, .og-fm-center, .og-fm-alert, .og-fm-fire, .og-fm-fire og-icon, .og-fm-points.og-pulse-run {
         animation: none;
       }
       .og-fm-points {
@@ -397,6 +477,9 @@ export class TelaoFinalModeComponent {
   readonly categoryLine = input('');
   readonly courtLabel = input('');
   readonly clock = input('');
+  /** Pontos seguidos de cada lado (0 = sem sequência ou "em chamas" desligado na config). */
+  readonly streakA = input(0);
+  readonly streakB = input(0);
 
   protected readonly ORDINAL = ORDINAL;
 
@@ -437,6 +520,14 @@ export class TelaoFinalModeComponent {
   );
 
   protected readonly championEvent = computed(() => [this.eventLine().split(' · ')[0], this.categoryLine().split(' · ')[0]].filter(Boolean).join(' · '));
+
+  protected fireCount(side: 'A' | 'B'): number {
+    return this.state() === 'live' ? (side === 'A' ? this.streakA() : this.streakB()) : 0;
+  }
+
+  protected fireLevel(side: 'A' | 'B'): number {
+    return fireLevelOf(this.fireCount(side));
+  }
 
   protected points(side: 'A' | 'B'): number {
     const c = this.current();

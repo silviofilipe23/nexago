@@ -47,6 +47,8 @@ interface TelaoQueueRow {
         [categoryLine]="finalCategoryLine()"
         [courtLabel]="finalCourtLabel()"
         [clock]="clock()"
+        [streakA]="finalStreak().a"
+        [streakB]="finalStreak().b"
       />
     } @else {
     <header class="og-telao-head">
@@ -553,6 +555,13 @@ export class TelaoScreenComponent {
   protected readonly finalCourtLabel = computed(() => {
     const m = this.finalShowcase()?.match;
     return m ? formatCourtLabel(m.court) || 'Quadra' : '';
+  });
+
+  /** Pontos seguidos da decisiva — mesma fonte e mesmo toggle da grade. */
+  protected readonly finalStreak = computed(() => {
+    const m = this.finalShowcase()?.match;
+    const streak = this.cfg()?.showStreak && m ? this.svc.streaks().get(m.id) : undefined;
+    return { a: streak?.side === 'A' ? streak.count : 0, b: streak?.side === 'B' ? streak.count : 0 };
   });
 
   /** Id da final que precisa revezar com a grade, ou `null` quando ela pode segurar a tela.

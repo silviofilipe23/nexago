@@ -12,7 +12,13 @@ import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
 import { athleteLevelLabel } from './profile-format';
-import type { ProfileDemoExtras } from './public-profile-demo.models';
+import {
+  loadPublicProfileActivity,
+  matchesWithinDays,
+  type PublicProfileActivity,
+  type PublicProfileMatchRow,
+} from './public-profile-activity';
+import type { ProfileGamificationExtras } from './public-profile-extras.models';
 
 /** Escopo do ranking publico: hub inteiro, liga ou arena especifica. */
 export type PublicRankingScope = 'global' | 'league' | 'arena';
@@ -346,6 +352,14 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
+/** Janela padrão do card "Histórico de partidas"; "Ver tudo" abre o histórico inteiro. */
+const RECENT_MATCH_DAYS = 30;
+
+export interface ProfileStatRow {
+  label: string;
+  value: string;
+}
+
 @Component({
   selector: 'app-athlete-public-profile',
   standalone: true,
@@ -363,14 +377,14 @@ export class AthletePublicProfileComponent {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly copyFeedback = signal<string | null>(null);
-  protected readonly actionNotice = signal<string | null>(null);
   protected readonly profile = signal<PublicAthleteProfile | null>(null);
-  protected readonly followed = signal(false);
+  /** Duplas + partidas do atleta (coleções públicas) — vale pra qualquer perfil, não só o meu. */
+  protected readonly activity = signal<PublicProfileActivity | null>(null);
+  protected readonly activityLoading = signal(true);
+  protected readonly showAllMatches = signal(false);
   /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
   protected readonly avatarLoaded = signal(false);
   protected readonly coverLoaded = signal(false);
-
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly handle = computed(() => this.route.snapshot.paramMap.get('handle') ?? '');
   protected readonly profileUrl = computed(() => {
@@ -405,7 +419,8 @@ export class AthletePublicProfileComponent {
     return !!p && !!uid && p.uid === uid;
   });
 
-  protected readonly demoExtras = computed<ProfileDemoExtras | null>(() => {
+  /** XP/conquistas existem só pro dono do perfil — `users/{uid}/gamification/**` é privado. */
+  protected readonly gamificationExtras = computed<ProfileGamificationExtras | null>(() => {
     if (!this.isSelfProfile()) {
       return null;
     }
@@ -420,17 +435,66 @@ export class AthletePublicProfileComponent {
       xpForNextLevel: summary.progress.xpForNextLevel,
       xpProgressPercent: Math.round(summary.progress.progressRatio * 100),
       totalGames: summary.totalGames,
-      wins: null,
       streakDays: summary.streak,
       achievementViewModels,
       unlockedCount: achievementViewModels.filter((a) => a.unlocked).length,
       achievementTotal: ACHIEVEMENT_CATALOG.length,
-      teams: [],
-      matches: [],
     };
   });
 
   protected readonly primaryRanking = computed(() => this.profile()?.rankings[0] ?? null);
+
+  protected readonly teams = computed(() => this.activity()?.teams ?? []);
+
+  private readonly recentMatches = computed<readonly PublicProfileMatchRow[]>(() =>
+    matchesWithinDays(this.activity()?.matches ?? [], RECENT_MATCH_DAYS),
+  );
+
+  protected readonly visibleMatches = computed<readonly PublicProfileMatchRow[]>(() =>
+    this.showAllMatches() ? (this.activity()?.matches ?? []) : this.recentMatches(),
+  );
+
+  protected readonly hasOlderMatches = computed(() => (this.activity()?.matches.length ?? 0) > this.recentMatches().length);
+
+  protected readonly matchesKicker = computed(() =>
+    this.showAllMatches() ? 'Histórico completo' : `Últimos ${RECENT_MATCH_DAYS} dias`,
+  );
+
+  protected readonly matchesEmptyLabel = computed(() =>
+    this.hasOlderMatches() ? `Sem partidas nos últimos ${RECENT_MATCH_DAYS} dias.` : 'Sem partidas registradas ainda.',
+  );
+
+  /**
+   * Estatísticas do card de identidade. Jogos/vitórias/sequência saem do histórico REAL de
+   * partidas (público, funciona pra qualquer atleta); a gamificação só entra como fallback no
+   * meu próprio perfil quando ainda não existe nenhuma partida de torneio registrada — e aí a
+   * sequência é de dias ativos, não de vitórias, então o rótulo carrega a unidade.
+   */
+  protected readonly statRows = computed<ProfileStatRow[]>(() => {
+    const rows: ProfileStatRow[] = [];
+    const activity = this.activity();
+    const extras = this.gamificationExtras();
+
+    if (activity && activity.totalGames > 0) {
+      rows.push({ label: 'Jogos', value: String(activity.totalGames) });
+      rows.push({ label: 'Vitórias', value: String(activity.wins) });
+      if (activity.winStreak > 0) {
+        rows.push({ label: 'Sequência', value: `${activity.winStreak} ${activity.winStreak === 1 ? 'vitória' : 'vitórias'}` });
+      }
+    } else if (extras) {
+      rows.push({ label: 'Jogos', value: String(extras.totalGames) });
+      rows.push({ label: 'Sequência', value: `${extras.streakDays} ${extras.streakDays === 1 ? 'dia' : 'dias'}` });
+    }
+
+    const ranking = this.primaryRanking();
+    if (ranking?.positionLabel) {
+      rows.push({
+        label: 'Ranking individual',
+        value: ranking.categoryLabel ? `${ranking.positionLabel} · ${ranking.categoryLabel}` : ranking.positionLabel,
+      });
+    }
+    return rows;
+  });
 
   protected readonly firstName = computed(() => this.profile()?.fullName.split(/\s+/)[0] ?? 'atleta');
 
@@ -564,6 +628,9 @@ export class AthletePublicProfileComponent {
         profileStrength: toProfileStrength(completionScore, readString(data, ['profileStrength'])),
         rankings: buildPublicRankingsList(rankingData),
       });
+
+      // Duplas/partidas são leituras públicas independentes — não seguram o render do perfil.
+      void this.loadActivity(docSnap.id);
     } catch (error) {
       if (!environment.production) {
         console.error('[athlete-public-profile] load error', error);
@@ -572,6 +639,18 @@ export class AthletePublicProfileComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private async loadActivity(uid: string): Promise<void> {
+    const projectId = environment.firebase.projectId;
+    if (!this.firestore || !projectId) {
+      this.activityLoading.set(false);
+      return;
+    }
+    this.activityLoading.set(true);
+    // `loadPublicProfileActivity` já absorve erro de leitura e devolve atividade vazia.
+    this.activity.set(await loadPublicProfileActivity(this.firestore, projectId, uid));
+    this.activityLoading.set(false);
   }
 
   /** Resolve `public_profiles/{uid}` pelo uid direto ou, em links legados, pelo slug em
@@ -613,29 +692,7 @@ export class AthletePublicProfileComponent {
     }
   }
 
-  protected teamInitials(teamName: string): [string, string] {
-    const [a, b] = teamName.split('&').map((part) => part.trim());
-    const first = (a ?? teamName).slice(0, 2).toUpperCase();
-    const second = (b ?? '').slice(0, 2).toUpperCase() || first;
-    return [first, second];
-  }
-
-  protected toggleFollow(): void {
-    this.followed.update((v) => !v);
-  }
-
-  protected sendMessage(): void {
-    this.showNotice('Mensagens diretas chegam em breve por aqui.');
-  }
-
-  protected challenge(): void {
-    const name = this.profile()?.fullName ?? 'este atleta';
-    this.showNotice(`Desafio para ${name} chega em breve por aqui.`);
-  }
-
-  private showNotice(message: string): void {
-    this.actionNotice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.actionNotice.set(null), 4000);
+  protected toggleAllMatches(): void {
+    this.showAllMatches.update((v) => !v);
   }
 }

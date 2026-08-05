@@ -88,7 +88,9 @@ class _PhoneVerificationSheetState
       _sending = true;
     });
 
-    await ref.read(phoneVerificationServiceProvider).sendCode(
+    await ref
+        .read(phoneVerificationServiceProvider)
+        .sendCode(
           phoneNumberRaw: _phoneCtrl.text,
           resendToken: _session?.resendToken,
           onCodeSent: (session) {
@@ -125,11 +127,9 @@ class _PhoneVerificationSheetState
     });
 
     try {
-      final phoneNumber =
-          await ref.read(phoneVerificationServiceProvider).confirmCode(
-                session: session,
-                smsCode: _codeCtrl.text,
-              );
+      final phoneNumber = await ref
+          .read(phoneVerificationServiceProvider)
+          .confirmCode(session: session, smsCode: _codeCtrl.text);
       if (!mounted) return;
       Navigator.of(context).pop(phoneNumber);
     } catch (error) {
@@ -174,9 +174,7 @@ class _PhoneVerificationSheetState
     final busy = _sending || _confirming;
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -193,8 +191,9 @@ class _PhoneVerificationSheetState
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: context.themeColors.onSurfaceMuted
-                              .withValues(alpha: 0.35),
+                          color: context.themeColors.onSurfaceMuted.withValues(
+                            alpha: 0.35,
+                          ),
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -203,8 +202,9 @@ class _PhoneVerificationSheetState
                   SizedBox(
                     width: 40,
                     child: IconButton(
-                      onPressed:
-                          busy ? null : () => Navigator.of(context).pop(),
+                      onPressed: busy
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close_rounded, size: 20),
                       color: context.themeColors.onSurfaceMuted,
                       tooltip: 'Fechar',
@@ -214,9 +214,7 @@ class _PhoneVerificationSheetState
               ),
               SizedBox(height: 4),
               Text(
-                _step == _Step.phone
-                    ? 'Verificar WhatsApp'
-                    : 'Digite o código',
+                _step == _Step.phone ? 'Verificar Número' : 'Digite o código',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: context.themeColors.onSurface,

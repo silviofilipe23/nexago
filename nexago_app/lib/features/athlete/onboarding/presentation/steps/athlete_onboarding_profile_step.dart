@@ -67,10 +67,9 @@ class _AthleteOnboardingProfileStepState
       target: ProfileImageCropTarget.avatar,
     );
     if (result == null || !mounted) return;
-    ref.read(athleteOnboardingDraftProvider.notifier).setAvatar(
-          bytes: result.bytes,
-          contentType: result.contentType,
-        );
+    ref
+        .read(athleteOnboardingDraftProvider.notifier)
+        .setAvatar(bytes: result.bytes, contentType: result.contentType);
   }
 
   void _syncDraftFromControllers() {
@@ -90,9 +89,12 @@ class _AthleteOnboardingProfileStepState
       // um botão desabilitado mudo ou um aviso genérico.
       setState(() {
         _nameError = draft.isNameValid ? null : 'Informe seu nome';
-        _phoneError =
-            draft.isPhoneValid ? null : 'Verifique seu WhatsApp por SMS';
-        _birthError = draft.isBirthDateValid ? null : 'Data inválida (dd/mm/aaaa)';
+        _phoneError = draft.isPhoneValid
+            ? null
+            : 'Verifique seu WhatsApp por SMS';
+        _birthError = draft.isBirthDateValid
+            ? null
+            : 'Data inválida (dd/mm/aaaa)';
         _genderMissing = !draft.isGenderValid;
       });
       return;
@@ -100,8 +102,9 @@ class _AthleteOnboardingProfileStepState
 
     setState(() => _submitting = true);
     try {
-      final photoWarning =
-          await ref.read(athleteOnboardingDraftProvider.notifier).submit();
+      final photoWarning = await ref
+          .read(athleteOnboardingDraftProvider.notifier)
+          .submit();
       if (!mounted) return;
       ref.read(goRouterProvider).go(AppRoutes.discover);
       if (photoWarning != null) {
@@ -112,11 +115,7 @@ class _AthleteOnboardingProfileStepState
         debugPrint('onboarding profile submit FirebaseException: $e');
       }
       if (!mounted) return;
-      showAppSnackBar(
-        context,
-        _submitErrorMessage(e),
-        isError: true,
-      );
+      showAppSnackBar(context, _submitErrorMessage(e), isError: true);
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('onboarding profile submit: $e\n$st');
@@ -162,10 +161,7 @@ class _AthleteOnboardingProfileStepState
             subtitle: 'Preenche o essencial pra liberar sua conta.',
           ),
           SizedBox(height: 20),
-          _PhotoPickerCard(
-            avatarBytes: draft.avatarBytes,
-            onPick: _pickPhoto,
-          ),
+          _PhotoPickerCard(avatarBytes: draft.avatarBytes, onPick: _pickPhoto),
           SizedBox(height: 20),
           const AuthFieldLabel(label: 'NOME *'),
           AuthTextField(
@@ -187,7 +183,7 @@ class _AthleteOnboardingProfileStepState
             onChanged: notifier.setNickname,
           ),
           SizedBox(height: 16),
-          const AuthFieldLabel(label: 'WHATSAPP *'),
+          const AuthFieldLabel(label: 'NÚMERO DE TELEFONE *'),
           PhoneVerificationField(
             phoneNumber: draft.verifiedPhoneNumber.isEmpty
                 ? null
@@ -231,16 +227,20 @@ class _AthleteOnboardingProfileStepState
                   child: OutlinedButton(
                     onPressed: () {
                       notifier.setGender(g);
-                      if (_genderMissing) setState(() => _genderMissing = false);
+                      if (_genderMissing)
+                        setState(() => _genderMissing = false);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          selected ? AppColors.brand : context.themeColors.onSurface,
+                      foregroundColor: selected
+                          ? AppColors.brand
+                          : context.themeColors.onSurface,
                       backgroundColor: Colors.transparent,
                       side: BorderSide(
                         color: selected
                             ? AppColors.brand
-                            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                            : context.themeColors.onSurfaceMuted.withValues(
+                                alpha: 0.35,
+                              ),
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -288,10 +288,7 @@ class _AthleteOnboardingProfileStepState
 }
 
 class _PhotoPickerCard extends StatelessWidget {
-  const _PhotoPickerCard({
-    required this.avatarBytes,
-    required this.onPick,
-  });
+  const _PhotoPickerCard({required this.avatarBytes, required this.onPick});
 
   final Uint8List? avatarBytes;
   final VoidCallback onPick;
@@ -316,8 +313,7 @@ class _PhotoPickerCard extends StatelessWidget {
             CircleAvatar(
               radius: 28,
               backgroundColor: context.themeColors.surfaceRaised,
-              backgroundImage:
-                  hasPhoto ? MemoryImage(avatarBytes!) : null,
+              backgroundImage: hasPhoto ? MemoryImage(avatarBytes!) : null,
               child: hasPhoto
                   ? null
                   : Icon(
@@ -357,7 +353,9 @@ class _PhotoPickerCard extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: context.themeColors.onSurface,
                 side: BorderSide(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.35,
+                  ),
                 ),
               ),
             ),

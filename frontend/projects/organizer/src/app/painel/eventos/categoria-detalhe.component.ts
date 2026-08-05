@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, signal } f
 import { RouterLink } from '@angular/router';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
+import { MIN_TEAMS_FOR_BRACKET, countBracketEligible } from '../data/bracket-eligibility';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
@@ -26,13 +27,22 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
   imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
   template: `
     <og-page-header title="Equipes" [subtitle]="headerSubtitle()">
-      <!-- mock (fase 2): edição de categoria depois do torneio criado ainda não existe no app -->
-      <button type="button" class="og-ghost-btn"><og-icon name="edit" [size]="13" />Editar</button>
+      <!-- Edição da categoria = wizard do torneio em modo edição, já no passo "Categorias" e com
+           o builder desta categoria aberto (ver applyDeepLink em criar-torneio.component.ts). -->
+      <a class="og-ghost-btn" routerLink="/painel/novo-torneio" [queryParams]="{ editar: id(), passo: 'categories', categoria: catId() }">
+        <og-icon name="edit" [size]="13" />Editar
+      </a>
       <!-- Some quando a chave já foi gerada (categoria com jogos) — regerar apagaria resultados. -->
       @if (!loading() && matches().length === 0) {
-        <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'seeds']">
-          <og-icon name="bracket" [size]="14" />Sortear chave
-        </a>
+        @if (canDrawBracket()) {
+          <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'seeds']">
+            <og-icon name="bracket" [size]="14" />Sortear chave
+          </a>
+        } @else {
+          <span class="og-draw-hint">
+            Chave a partir de {{ minTeams }} duplas confirmadas (pagas, fora da espera e com dupla completa) — há {{ eligibleCount() }}.
+          </span>
+        }
       }
     </og-page-header>
 
@@ -155,6 +165,14 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       padding: 8px 0;
       margin: 0;
     }
+    .og-draw-hint {
+      max-width: 320px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      line-height: 1.35;
+      color: var(--nx-text-mute);
+      text-align: right;
+    }
   `,
 })
 export class CategoriaDetalheComponent {
@@ -194,6 +212,14 @@ export class CategoriaDetalheComponent {
 
   protected readonly pagasCount = computed(() => this.inscriptions().filter((i) => i.paid).length);
   protected readonly pendentesCount = computed(() => this.inscriptions().filter((i) => !i.paid).length);
+
+  protected readonly minTeams = MIN_TEAMS_FOR_BRACKET;
+
+  /** Duplas que realmente entram na chave — não é o mesmo que `pagasCount`, que conta também
+   *  quem está na fila de espera ou ainda sem parceiro. */
+  protected readonly eligibleCount = computed(() => countBracketEligible(this.inscriptions()));
+
+  protected readonly canDrawBracket = computed(() => this.eligibleCount() >= MIN_TEAMS_FOR_BRACKET);
 
   /** Rótulo do formato salvo na categoria (`bracketFormat`) — mesmo vocabulário curto do app. */
   protected readonly formatLabel = computed(() => {

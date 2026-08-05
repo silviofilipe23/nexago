@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { Router } from '@angular/router';
 import { tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
+import { MIN_TEAMS_FOR_BRACKET, isBracketEligible } from '../data/bracket-eligibility';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
 import {
@@ -140,8 +141,8 @@ function shuffled<T>(items: readonly T[]): T[] {
             >
               <og-icon name="trophy" [size]="14" />Ordenar por nível
             </button>
-            @if (eligible().length < 2) {
-              <p class="og-seeds-empty">É necessário ao menos 2 duplas pagas (e completas) pra gerar a chave.</p>
+            @if (eligible().length < minTeams) {
+              <p class="og-seeds-empty">É necessário ao menos {{ minTeams }} duplas pagas (e completas) pra gerar a chave.</p>
             }
             <div style="display:flex;flex-direction:column;gap:8px">
               @for (t of eligible(); track t.teamId; let i = $index; let last = $last) {
@@ -340,6 +341,7 @@ export class SeedsComponent {
   protected readonly formatLabel = FORMAT_LABEL;
   protected readonly deMin = DE_MIN;
   protected readonly deMax = DE_MAX;
+  protected readonly minTeams = MIN_TEAMS_FOR_BRACKET;
 
   protected readonly loading = signal(true);
   protected readonly publishing = signal(false);
@@ -411,7 +413,7 @@ export class SeedsComponent {
   protected readonly deCountOk = computed(() => this.eligible().length >= DE_MIN && this.eligible().length <= DE_MAX);
 
   protected readonly canPublish = computed(() => {
-    if (this.eligible().length < 2) return false;
+    if (this.eligible().length < MIN_TEAMS_FOR_BRACKET) return false;
     if (this.format() === 'double_elimination') return this.deCountOk();
     if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
     return true;
@@ -434,9 +436,7 @@ export class SeedsComponent {
     try {
       const [tournament, allInscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
       this.tournament.set(tournament);
-      // Elegibilidade da chave — mesmo filtro do servidor (`generateCategoryBracket`):
-      // paga, fora da fila de espera, dupla completa e com teamId.
-      const eligible = allInscriptions.filter((i) => i.categoryId === cid && i.paid && i.paymentStatus !== 'waitlist' && !i.partnerPending && i.teamId);
+      const eligible = allInscriptions.filter((i) => i.categoryId === cid && isBracketEligible(i));
       this.eligible.set(eligible);
       this.ratings.set(
         await fetchAthleteRatings(

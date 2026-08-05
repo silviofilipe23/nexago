@@ -4,6 +4,7 @@ import { fetchTeamRankingGeneral } from '../data/rankings-repository';
 import {
   completedMatchSetWins,
   fetchMatchesForTeam,
+  fetchTeamsByIds,
   fetchTeamsForAthlete,
   matchIsCompleted,
   roundFullLabel,
@@ -77,6 +78,28 @@ export function teamDisplayName(
   return `${a} / ${b}`;
 }
 
+/** Resolve o nome de uma dupla pelo id, igual ao `duoNameOf` do `TournamentLiveStore`.
+ *
+ *  O `teamDescription` do doc da partida NÃO serve como nome: nas partidas geradas pela planta
+ *  ele guarda a origem da vaga ("2º Grupo C", "Vencedor J5"). Só entra como último recurso,
+ *  quando o time nem existe mais em `teams`. */
+export function duoNameOf(
+  teamId: string,
+  teams: ReadonlyMap<string, ArenaTeam>,
+  profiles: ReadonlyMap<string, AthletePublicProfile>,
+  fallback: string | null,
+): string {
+  const team = teamId ? teams.get(teamId) : undefined;
+  if (!team) return fallback ?? 'Adversário';
+  if (team.teamName) return team.teamName;
+  const p1 = profiles.get(team.player1Id)?.displayName?.trim().split(/\s+/)[0];
+  const p2 = profiles.get(team.player2Id)?.displayName?.trim().split(/\s+/)[0];
+  if (!p1 && !p2) return fallback ?? 'Adversário';
+  // Dupla ainda procurando parceiro grava o mesmo uid nos dois slots.
+  if (team.player1Id === team.player2Id) return p1 ?? fallback ?? 'Adversário';
+  return `${p1 ?? 'Atleta'} / ${p2 ?? 'Atleta'}`;
+}
+
 /** "#3 no ranking de duplas · 12 vitórias" — cai pro saldo quando a dupla ainda não pontuou. */
 export function teamDetailLabel(rankPosition: number | null, wins: number, losses: number): string {
   const winsLabel = plural(wins, 'vitória', 'vitórias');
@@ -98,6 +121,7 @@ export function buildMatchRow(
   match: ArenaMatch,
   athleteTeamIds: ReadonlySet<string>,
   tournamentNames: ReadonlyMap<string, string>,
+  resolveOpponentName: (teamId: string, fallback: string | null) => string,
 ): PublicProfileMatchRow | null {
   const athleteIsTeamA = athleteTeamIds.has(match.teamAId);
   const athleteTeamId = athleteIsTeamA ? match.teamAId : athleteTeamIds.has(match.teamBId) ? match.teamBId : null;
@@ -105,7 +129,9 @@ export function buildMatchRow(
   const date = match.matchEndedAt ?? match.scheduleTime;
   if (!date) return null;
 
-  const opponent = (athleteIsTeamA ? match.teamBDescription : match.teamADescription) ?? 'Adversário';
+  const opponent = athleteIsTeamA
+    ? resolveOpponentName(match.teamBId, match.teamBDescription)
+    : resolveOpponentName(match.teamAId, match.teamADescription);
   const tournamentName = tournamentNames.get(match.tournamentId);
   return {
     id: match.id,
@@ -147,10 +173,9 @@ export async function loadPublicProfileActivity(db: Firestore, projectId: string
     const teams = await fetchTeamsForAthlete(db, projectId, uid);
     if (teams.length === 0) return EMPTY_PUBLIC_PROFILE_ACTIVITY;
 
-    const [matchesByTeam, teamRanking, profiles] = await Promise.all([
+    const [matchesByTeam, teamRanking] = await Promise.all([
       Promise.all(teams.map((team) => fetchMatchesForTeam(db, projectId, team.id))),
       fetchTeamRankingGeneral(db, projectId),
-      fetchPublicProfilesByIds(db, teams.flatMap((team) => [team.player1Id, team.player2Id])),
     ]);
 
     const rankByTeamId = new Map(teamRanking.map((row, index) => [row.id, index + 1]));
@@ -163,10 +188,19 @@ export async function loadPublicProfileActivity(db: Firestore, projectId: string
     }
     const completed = [...completedById.values()];
 
-    const tournamentNames = await fetchTournamentNamesByIds(db, completed.map((m) => m.tournamentId));
+    // As duplas adversárias precisam ser resolvidas por id: o `teamDescription` da partida é a
+    // origem da vaga na planta ("2º Grupo C"), não o nome de quem jogou.
+    const opponentIds = [...new Set(completed.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id && !teamIds.has(id)))];
+    const [opponentTeams, tournamentNames] = await Promise.all([
+      fetchTeamsByIds(db, projectId, opponentIds),
+      fetchTournamentNamesByIds(db, completed.map((m) => m.tournamentId)),
+    ]);
+
+    const allTeams = new Map<string, ArenaTeam>([...opponentTeams, ...teams.map((team) => [team.id, team] as const)]);
+    const profiles = await fetchPublicProfilesByIds(db, [...allTeams.values()].flatMap((team) => [team.player1Id, team.player2Id]));
 
     const matches = completed
-      .map((match) => buildMatchRow(match, teamIds, tournamentNames))
+      .map((match) => buildMatchRow(match, teamIds, tournamentNames, (id, fallback) => duoNameOf(id, allTeams, profiles, fallback)))
       .filter((row): row is PublicProfileMatchRow => row != null)
       .sort((a, b) => b.date.getTime() - a.date.getTime());
 

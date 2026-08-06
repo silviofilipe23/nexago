@@ -17,6 +17,7 @@ import {
   cancellationRequestBlockReason,
   parseCancellationRequest,
 } from "./tournament-cancellation-request";
+import {findCategory} from "./tournament-registration-guards";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -129,11 +130,17 @@ export const requestRegistrationCancellation = onCall(async (request) => {
       String(athleteSnap.data()?.fullName ?? athleteSnap.data()?.name ?? "").trim() ||
       "Um atleta";
     const categoryId = String(registration.categoryId ?? "").trim();
+    const category = categoryId
+      ? findCategory(tournamentSnap.data() ?? {}, categoryId)
+      : null;
+    const categoryLabel = String(
+      category?.categoryName ?? category?.name ?? "",
+    ).trim();
     await deliverNotificationToUser({
       userId: managerId,
       title: "Pedido de cancelamento",
       body: `${athleteName} pediu o cancelamento da inscrição${
-        categoryId ? ` em ${categoryId}` : ""
+        categoryLabel ? ` na categoria ${categoryLabel}` : ""
       }.`,
       type: "tournament_cancellation_requested",
       data: {

@@ -85,15 +85,8 @@
   width: 44px;
   height: 44px;
   flex: none;
-  border-radius: 10.5px;
-  background: var(--nx-orange-500);
-  display: grid;
-  place-items: center;
-  position: relative;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 1px rgba(255, 106, 26, 0.3),
-    0 12px 32px rgba(255, 106, 26, 0.22);
+  display: block;
+  object-fit: contain;
 }
 
 .auth-wordmark {

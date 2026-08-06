@@ -61,12 +61,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     </div>
 
     <ng-template #mark>
-      <div class="mark" aria-hidden="true">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-          <path d="M5 4 L5 20 M19 4 L19 20 M5 4 L19 20" stroke="#0A0A0A" stroke-width="3.4" stroke-linecap="square" stroke-linejoin="miter" />
-        </svg>
-        <div class="shine"></div>
-      </div>
+      <img class="mark" src="/brand/logo.png" alt="" width="44" height="44" />
     </ng-template>
   `,
   styles: `
@@ -118,21 +113,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     .mark {
       width: 44px;
       height: 44px;
-      border-radius: 11px;
-      background: var(--nx-orange-500);
-      display: grid;
-      place-items: center;
-      position: relative;
-      overflow: hidden;
-      box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.3), 0 12px 32px rgba(255, 106, 26, 0.22);
       flex: none;
-    }
-
-    .mark .shine {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(140deg, rgba(255, 255, 255, 0.3) 0%, transparent 40%);
-      pointer-events: none;
+      display: block;
+      object-fit: contain;
     }
 
     .wordmark {

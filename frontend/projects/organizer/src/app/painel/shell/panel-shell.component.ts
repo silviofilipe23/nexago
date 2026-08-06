@@ -73,7 +73,7 @@ function initialsOfName(name: string): string {
   template: `
     <nav class="og-sidebar">
       <a class="og-sidebar-brand" routerLink="/painel/inicio">
-        <span class="og-sidebar-mark"><og-icon name="trophy" [size]="16" style="color:#0A0A0A" /></span>
+        <img class="og-sidebar-mark" src="/brand/logo.png" alt="" width="32" height="32" />
         <span>
           <div class="og-sidebar-name">nexa<em>GO</em></div>
           <div class="og-sidebar-kicker">Organizador</div>

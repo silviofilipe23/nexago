@@ -47,11 +47,7 @@ function initialsOf(name: string): string {
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="mark" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M5 4 L5 20 M19 4 L19 20 M5 4 L19 20" stroke="#0A0A0A" stroke-width="3.4" stroke-linecap="square" stroke-linejoin="miter" />
-            </svg>
-          </div>
+          <img class="mark" src="/brand/logo.png" alt="" width="32" height="32" />
           <div class="wordmark">
             <div class="name">nexa<span>GO</span></div>
             <div class="tag">Backoffice</div>
@@ -133,12 +129,9 @@ function initialsOf(name: string): string {
     .mark {
       width: 32px;
       height: 32px;
-      border-radius: 8px;
-      background: var(--nx-orange-500);
-      display: grid;
-      place-items: center;
       flex: none;
-      box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.3);
+      display: block;
+      object-fit: contain;
     }
 
     .wordmark {

@@ -71,6 +71,7 @@ function makeTournament(overrides: Partial<TournamentSummary> = {}): TournamentS
     featured: false,
     liveMatchesNow: 0,
     rawStatus: null,
+    isCancelled: false,
     isDraftOrCancelled: false,
     leagueId: null,
     leagueStageId: null,
@@ -246,6 +247,22 @@ describe('buildInProgressRegistrations', () => {
     const result = buildInProgressRegistrations(registrations, tournaments, ME, 'Marcelo', new Map());
 
     expect(result.map((r) => r.registrationId)).toEqual(['r-cedo', 'r-tarde']);
+  });
+
+  it('descarta inscrição de torneio cancelado, mesmo com passo pendente', () => {
+    const cat = makeCategory();
+    const tournaments = new Map<string, TournamentSummary>([
+      ['t-cancelado', makeTournament({ id: 't-cancelado', isCancelled: true, isDraftOrCancelled: true, categories: [cat] })],
+      ['t-ativo', makeTournament({ id: 't-ativo', categories: [cat] })],
+    ]);
+    const registrations = [
+      makeRegistration({ id: 'r-cancelada', tournamentId: 't-cancelado' }),
+      makeRegistration({ id: 'r-ativa', tournamentId: 't-ativo' }),
+    ];
+
+    const result = buildInProgressRegistrations(registrations, tournaments, ME, 'Marcelo', new Map());
+
+    expect(result.map((r) => r.registrationId)).toEqual(['r-ativa']);
   });
 
   it('torneio sem data de início vai pro fim da lista', () => {

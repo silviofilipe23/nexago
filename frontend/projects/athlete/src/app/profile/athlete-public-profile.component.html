@@ -159,6 +159,17 @@
             <p class="pp-body-text">{{ athlete.bio }}</p>
           </div>
 
+          <!-- Sem fotos a galeria não renderiza nada (nem o card): perfil de
+               quem nunca adicionou não deve mostrar seção vazia. -->
+          @if (athlete.highlightPhotoUrls.length > 0) {
+            <div class="pp-card">
+              <app-athlete-highlights-gallery
+                [photos]="athlete.highlightPhotoUrls"
+                [photoAlt]="'Foto em destaque de ' + athlete.fullName"
+              />
+            </div>
+          }
+
           @if (gamificationExtras(); as extra) {
             <div class="pp-card">
               <span class="pp-card-kicker">{{ extra.unlockedCount }} de {{ extra.achievementTotal }} desbloqueadas</span>

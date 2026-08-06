@@ -7,6 +7,8 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { fetchFollowersCount, fetchIsFollowing, setFollowing } from '../data/athlete-follow-repository';
+import { MAX_HIGHLIGHT_PHOTOS } from '../data/athlete-highlight-upload';
+import { AthleteHighlightsGalleryComponent } from './athlete-highlights-gallery.component';
 import { NxToastService } from '../shared/feedback';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
@@ -47,6 +49,9 @@ export interface PublicAthleteProfile {
   locationLabel: string;
   coverPhotoUrl: string | null;
   profilePhotoUrl: string | null;
+  /** Fotos de destaque escolhidas pelo atleta (`users.highlightPhotoUrls`,
+   *  espelhadas em `public_profiles` pela CF de sync). */
+  highlightPhotoUrls: string[];
   sports: string[];
   primarySport: string | null;
   level: string;
@@ -365,7 +370,15 @@ export interface ProfileStatRow {
 @Component({
   selector: 'app-athlete-public-profile',
   standalone: true,
-  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent, NxPageLoadingComponent, NxSkeletonComponent, AuthShellComponent],
+  imports: [
+    RouterLink,
+    NgTemplateOutlet,
+    AtPanelShellComponent,
+    NxPageLoadingComponent,
+    NxSkeletonComponent,
+    AuthShellComponent,
+    AthleteHighlightsGalleryComponent,
+  ],
   templateUrl: './athlete-public-profile.component.html',
   styleUrl: './athlete-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -678,6 +691,7 @@ export class AthletePublicProfileComponent {
         coverPhotoUrl: readString(data, ['coverPhotoUrl', 'coverImageUrl', 'bannerUrl']) || null,
         profilePhotoUrl:
           readString(data, ['profilePhotoUrl', 'photoURL', 'avatarUrl', 'avatar']) || null,
+        highlightPhotoUrls: readStringArray(data, ['highlightPhotoUrls']).slice(0, MAX_HIGHLIGHT_PHOTOS),
         sports: mergedSports,
         primarySport: primarySport || null,
         level: levelLabel || 'Em evolucao',

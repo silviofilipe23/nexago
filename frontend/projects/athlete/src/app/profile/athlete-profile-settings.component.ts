@@ -37,7 +37,19 @@ import {
   uploadAthleteAvatar,
   uploadAthleteCoverPhoto,
 } from '../data/athlete-avatar-upload';
+import {
+  HIGHLIGHT_ASPECT_RATIO,
+  HIGHLIGHT_JPEG_QUALITY,
+  HIGHLIGHT_MAX_OUTPUT_WIDTH,
+  MAX_HIGHLIGHT_PHOTOS,
+  buildHighlightPhotoId,
+  deleteAthleteHighlightPhoto,
+  uploadAthleteHighlightPhoto,
+} from '../data/athlete-highlight-upload';
 import { athleteStorage } from '../data/storage';
+import { AthleteHighlightsEditorComponent } from './athlete-highlights-editor.component';
+import { AthleteHighlightsGalleryComponent } from './athlete-highlights-gallery.component';
+import { NxImageCropperComponent } from '../shared/media/nx-image-cropper.component';
 
 interface AthleteProfileData {
   fullName: string;
@@ -51,6 +63,7 @@ interface AthleteProfileData {
   publicProfileEnabled: boolean;
   profilePhotoUrl: string | null;
   coverPhotoUrl: string | null;
+  highlightPhotoUrls: string[];
 }
 
 const EMPTY_PROFILE: AthleteProfileData = {
@@ -65,7 +78,16 @@ const EMPTY_PROFILE: AthleteProfileData = {
   publicProfileEnabled: true,
   profilePhotoUrl: null,
   coverPhotoUrl: null,
+  highlightPhotoUrls: [],
 };
+
+function readStringArray(data: DocumentData | null | undefined, key: string): string[] {
+  const value = data?.[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
 
 interface StatRow {
   label: string;
@@ -119,6 +141,9 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
     NxSkeletonComponent,
     NxSpinnerComponent,
     PhoneVerificationComponent,
+    AthleteHighlightsGalleryComponent,
+    AthleteHighlightsEditorComponent,
+    NxImageCropperComponent,
   ],
   templateUrl: './athlete-profile-settings.component.html',
   styleUrl: './athlete-profile-settings.component.scss',
@@ -146,6 +171,11 @@ export class AthleteProfileSettingsComponent {
   protected readonly avatarUploadError = signal<string | null>(null);
   protected readonly uploadingCover = signal(false);
   protected readonly coverUploadError = signal<string | null>(null);
+  /** Arquivo aguardando recorte — enquanto não for null o cropper está aberto. */
+  protected readonly highlightCropFile = signal<File | null>(null);
+  protected readonly uploadingHighlight = signal(false);
+  protected readonly removingHighlight = signal(false);
+  protected readonly highlightError = signal<string | null>(null);
   /** Controla o skeleton de cada imagem — falso enquanto o <img> não disparou (load)/(error). */
   protected readonly avatarLoaded = signal(false);
   protected readonly coverLoaded = signal(false);
@@ -191,6 +221,11 @@ export class AthleteProfileSettingsComponent {
     () => this.profileState().profilePhotoUrl ?? this.auth.user()?.photoURL ?? null,
   );
   protected readonly coverUrl = computed(() => this.profileState().coverPhotoUrl);
+  protected readonly highlightPhotos = computed(() => this.profileState().highlightPhotoUrls);
+  protected readonly highlightAspectRatio = HIGHLIGHT_ASPECT_RATIO;
+  protected readonly highlightMaxOutputWidth = HIGHLIGHT_MAX_OUTPUT_WIDTH;
+  protected readonly highlightQuality = HIGHLIGHT_JPEG_QUALITY;
+  protected readonly maxHighlightPhotos = MAX_HIGHLIGHT_PHOTOS;
   protected readonly handle = computed(() => slugify(this.displayName()) || 'atleta');
   protected readonly cityStateLabel = computed(
     () => joinCityState(this.profileState().city, this.profileState().state) || 'Cidade não informada',
@@ -315,6 +350,7 @@ export class AthleteProfileSettingsComponent {
     this.saveSuccess.set(null);
     this.avatarUploadError.set(null);
     this.coverUploadError.set(null);
+    this.highlightError.set(null);
     this.isEditing.set(true);
 
     await this.brLocations.ready;
@@ -337,6 +373,10 @@ export class AthleteProfileSettingsComponent {
     this.saveError.set(null);
     this.avatarUploadError.set(null);
     this.coverUploadError.set(null);
+    this.highlightError.set(null);
+    // Fotos de destaque já foram persistidas no momento do upload; cancelar a
+    // edição do formulário não deve deixar um recorte pendente aberto.
+    this.highlightCropFile.set(null);
   }
 
   protected toggleAllAchievements(): void {
@@ -416,6 +456,96 @@ export class AthleteProfileSettingsComponent {
       this.coverUploadError.set('Não foi possível enviar a capa agora. Tente novamente.');
     } finally {
       this.uploadingCover.set(false);
+    }
+  }
+
+  /** Passo 1 da foto de destaque: valida o arquivo e abre o recorte 1:1. */
+  protected onHighlightFileChosen(file: File): void {
+    this.highlightError.set(null);
+
+    if (this.highlightPhotos().length >= MAX_HIGHLIGHT_PHOTOS) {
+      this.highlightError.set(`Você já tem ${MAX_HIGHLIGHT_PHOTOS} fotos. Remova uma pra adicionar outra.`);
+      return;
+    }
+
+    const fileError = isAllowedAvatarFile(file);
+    if (fileError) {
+      this.highlightError.set(fileError);
+      return;
+    }
+
+    this.highlightCropFile.set(file);
+  }
+
+  protected cancelHighlightCrop(): void {
+    this.highlightCropFile.set(null);
+  }
+
+  /** Passo 2: sobe o recorte e persiste na hora, como avatar e capa. */
+  protected async onHighlightCropped(blob: Blob): Promise<void> {
+    this.highlightCropFile.set(null);
+    this.highlightError.set(null);
+
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.firestore) {
+      this.highlightError.set('Faça login para adicionar fotos de destaque.');
+      return;
+    }
+
+    const current = this.highlightPhotos();
+    if (current.length >= MAX_HIGHLIGHT_PHOTOS) {
+      this.highlightError.set(`Você já tem ${MAX_HIGHLIGHT_PHOTOS} fotos. Remova uma pra adicionar outra.`);
+      return;
+    }
+
+    this.uploadingHighlight.set(true);
+    try {
+      const photoId = buildHighlightPhotoId(current.length);
+      const url = await uploadAthleteHighlightPhoto(athleteStorage(), uid, photoId, blob);
+      const next = [...current, url];
+      await setDoc(
+        doc(this.firestore, 'users', uid),
+        { highlightPhotoUrls: next, updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+      this.profileState.update((state) => ({ ...state, highlightPhotoUrls: next }));
+    } catch {
+      this.highlightError.set('Não foi possível enviar a foto agora. Tente novamente.');
+    } finally {
+      this.uploadingHighlight.set(false);
+    }
+  }
+
+  protected async removeHighlight(index: number): Promise<void> {
+    this.highlightError.set(null);
+
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.firestore) {
+      this.highlightError.set('Faça login para editar suas fotos de destaque.');
+      return;
+    }
+
+    const current = this.highlightPhotos();
+    const removed = current[index];
+    if (!removed) {
+      return;
+    }
+
+    this.removingHighlight.set(true);
+    try {
+      const next = current.filter((_, i) => i !== index);
+      await setDoc(
+        doc(this.firestore, 'users', uid),
+        { highlightPhotoUrls: next, updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+      this.profileState.update((state) => ({ ...state, highlightPhotoUrls: next }));
+      // Só depois de a foto sair do perfil — falhar aqui não desfaz a remoção.
+      void deleteAthleteHighlightPhoto(athleteStorage(), removed);
+    } catch {
+      this.highlightError.set('Não foi possível remover a foto agora. Tente novamente.');
+    } finally {
+      this.removingHighlight.set(false);
     }
   }
 
@@ -692,6 +822,8 @@ export class AthleteProfileSettingsComponent {
         publicProfileEnabled: profileData?.['publicProfileEnabled'] !== false,
         profilePhotoUrl: readString(userData, ['profilePhotoUrl']),
         coverPhotoUrl: readString(userData, ['coverPhotoUrl']),
+        // `users/{uid}` é a fonte; o espelho `public_profiles` é derivado por CF.
+        highlightPhotoUrls: readStringArray(userData, 'highlightPhotoUrls').slice(0, MAX_HIGHLIGHT_PHOTOS),
       });
       this.referredBy.set(readString(userData, ['referredBy']));
     } catch {

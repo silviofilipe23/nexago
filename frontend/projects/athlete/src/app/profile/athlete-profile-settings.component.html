@@ -218,6 +218,34 @@
               <p class="at-profile-bio-text">{{ profileBio() }}</p>
             </section>
           }
+
+          <section class="at-card">
+            @if (isEditing()) {
+              <div class="at-card-head">
+                <div>
+                  <p class="at-card-kicker">Até {{ maxHighlightPhotos }} fotos, recortadas em quadrado</p>
+                  <span class="at-card-title">Destaques</span>
+                </div>
+              </div>
+              <app-athlete-highlights-editor
+                [photos]="highlightPhotos()"
+                [uploading]="uploadingHighlight()"
+                [removing]="removingHighlight()"
+                (fileChosen)="onHighlightFileChosen($event)"
+                (remove)="removeHighlight($event)"
+              />
+            } @else {
+              <app-athlete-highlights-gallery
+                [photos]="highlightPhotos()"
+                kicker="Aparecem no seu perfil público"
+                emptyHint="Você ainda não escolheu fotos de destaque. Edite o perfil pra adicionar até {{ maxHighlightPhotos }}."
+                photoAlt="Sua foto em destaque"
+              />
+            }
+            @if (highlightError(); as err) {
+              <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
+            }
+          </section>
         </div>
 
         <div class="at-col">
@@ -366,3 +394,16 @@
     }
   </div>
 </app-at-panel-shell>
+
+@if (highlightCropFile(); as pending) {
+  <app-nx-image-cropper
+    [file]="pending"
+    [aspectRatio]="highlightAspectRatio"
+    [maxOutputWidth]="highlightMaxOutputWidth"
+    [quality]="highlightQuality"
+    heading="Ajustar foto de destaque"
+    confirmLabel="Adicionar"
+    (cropped)="onHighlightCropped($event)"
+    (cancelled)="cancelHighlightCrop()"
+  />
+}

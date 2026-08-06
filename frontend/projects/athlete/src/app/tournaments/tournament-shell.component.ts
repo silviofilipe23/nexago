@@ -29,6 +29,7 @@ const TAB_LABELS: Record<TournamentTabId, string> = {
   hoje: 'Hoje',
   categorias: 'Categorias',
   'minha-inscricao': 'Minha inscrição',
+  palpites: 'Palpites',
 };
 
 const HEADER_DATE = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Sao_Paulo' });

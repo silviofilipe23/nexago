@@ -291,19 +291,38 @@ describe('campaignOf', () => {
 
 describe('visibleTabsOf / defaultTabOf', () => {
   it('mostra só visão geral e categorias para quem não está inscrito', () => {
-    const tabs = visibleTabsOf({ hasMyMatchToday: false, isRegistered: false });
+    const tabs = visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: false });
     expect(tabs).toEqual(['visao-geral', 'categorias']);
     expect(defaultTabOf(tabs)).toBe('visao-geral');
   });
 
   it('abre em "hoje" para quem tem jogo no dia', () => {
-    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true });
+    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: false });
     expect(tabs).toEqual(['visao-geral', 'hoje', 'categorias', 'minha-inscricao']);
     expect(defaultTabOf(tabs)).toBe('hoje');
   });
 
   it('mantém "minha inscrição" para o inscrito sem jogo hoje', () => {
-    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: true })).toEqual(['visao-geral', 'categorias', 'minha-inscricao']);
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: true, hasDefinedMatchups: false })).toEqual([
+      'visao-geral',
+      'categorias',
+      'minha-inscricao',
+    ]);
+  });
+
+  it('libera "palpites" assim que existe confronto definido, sempre por último', () => {
+    expect(visibleTabsOf({ hasMyMatchToday: false, isRegistered: false, hasDefinedMatchups: true })).toEqual([
+      'visao-geral',
+      'categorias',
+      'palpites',
+    ]);
+    expect(visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: true })).toEqual([
+      'visao-geral',
+      'hoje',
+      'categorias',
+      'minha-inscricao',
+      'palpites',
+    ]);
   });
 });
 

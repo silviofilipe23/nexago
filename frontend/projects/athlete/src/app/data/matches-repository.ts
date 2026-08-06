@@ -214,6 +214,12 @@ export function matchIsCanceled(m: Pick<TournamentMatch, 'status'>): boolean {
   return m.status.trim().toLowerCase() === 'canceled';
 }
 
+/** Partida ainda por começar. É a janela em que o palpite é aceito — mesma leitura de
+ *  `isMatchScheduled` (`functions/src/match-status.ts`), que a callable usa pra travar. */
+export function matchIsScheduled(m: Pick<TournamentMatch, 'status'>): boolean {
+  return m.status.trim().toLowerCase() === 'scheduled';
+}
+
 export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
   return m.bestOf && m.bestOf > 0 ? m.bestOf : DEFAULT_BEST_OF;
 }

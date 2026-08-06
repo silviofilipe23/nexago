@@ -271,22 +271,28 @@ export function qualificationOf(
   };
 }
 
-export type TournamentTabId = 'visao-geral' | 'hoje' | 'categorias' | 'minha-inscricao';
+export type TournamentTabId = 'visao-geral' | 'hoje' | 'categorias' | 'minha-inscricao' | 'palpites';
 
 export interface TabVisibilityInput {
   hasMyMatchToday: boolean;
   isRegistered: boolean;
+  /** Existe ao menos um confronto definido? Antes disso não há em quem palpitar. */
+  hasDefinedMatchups: boolean;
 }
 
-/** Abas adaptativas: "Visão geral" e "Categorias" são o esqueleto fixo; as outras duas só
- *  aparecem quando têm conteúdo real, pra quem só está olhando o torneio não encarar abas
- *  vazias. Partidas, grupos e chave não são abas do torneio: vivem DENTRO da categoria, senão
- *  trocar de aba trocava a categoria que o atleta estava acompanhando. */
+/** Abas adaptativas: "Visão geral" e "Categorias" são o esqueleto fixo; as outras só aparecem
+ *  quando têm conteúdo real, pra quem só está olhando o torneio não encarar abas vazias.
+ *  Partidas, grupos e chave não são abas do torneio: vivem DENTRO da categoria, senão trocar de
+ *  aba trocava a categoria que o atleta estava acompanhando.
+ *
+ *  "Palpites" fica por último — é a aba de torcida, não de operação — e NÃO some quando o
+ *  torneio acaba: é justamente aí que o ranking de palpiteiros e o "você acertou" importam. */
 export function visibleTabsOf(input: TabVisibilityInput): TournamentTabId[] {
   const tabs: TournamentTabId[] = ['visao-geral'];
   if (input.hasMyMatchToday) tabs.push('hoje');
   tabs.push('categorias');
   if (input.isRegistered) tabs.push('minha-inscricao');
+  if (input.hasDefinedMatchups) tabs.push('palpites');
   return tabs;
 }
 

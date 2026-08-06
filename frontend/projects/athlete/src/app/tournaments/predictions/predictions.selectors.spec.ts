@@ -4,6 +4,7 @@ import {
   buildPredictionLeaderboard,
   canPredictMatch,
   championPickOf,
+  groupMatchesByCategory,
   isChampionDecidingMatch,
   isPredictionLocked,
   openMatchPicksToSubmit,
@@ -88,6 +89,36 @@ describe('openMatchPicksToSubmit', () => {
   it('ignora palpite vazio e partida que não está na lista', () => {
     const picks = openMatchPicksToSubmit({ aberta: '  ', fantasma: 'A' }, [match({ id: 'aberta' })]);
     expect(picks).toEqual({});
+  });
+});
+
+describe('groupMatchesByCategory', () => {
+  it('agrupa por categoria na ordem cadastrada no torneio, não na ordem das partidas', () => {
+    const groups = groupMatchesByCategory(
+      [
+        match({ id: 'm1', categoryId: 'fem', matchNumber: 1 }),
+        match({ id: 'm2', categoryId: 'masc', matchNumber: 2 }),
+        match({ id: 'm3', categoryId: 'fem', matchNumber: 3 }),
+      ],
+      ['masc', 'fem'],
+    );
+
+    expect(groups.map((g) => g.categoryId)).toEqual(['masc', 'fem']);
+    expect(groups[1]!.matches.map((m) => m.id)).toEqual(['m1', 'm3']);
+  });
+
+  it('joga para o fim a categoria que sumiu do torneio, sem esconder as partidas dela', () => {
+    const groups = groupMatchesByCategory(
+      [match({ id: 'orfa', categoryId: 'removida' }), match({ id: 'ok', categoryId: 'masc' })],
+      ['masc'],
+    );
+
+    expect(groups.map((g) => g.categoryId)).toEqual(['masc', 'removida']);
+    expect(groups[1]!.matches.map((m) => m.id)).toEqual(['orfa']);
+  });
+
+  it('devolve lista vazia sem partidas', () => {
+    expect(groupMatchesByCategory([], ['masc'])).toEqual([]);
   });
 });
 

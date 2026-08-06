@@ -211,6 +211,62 @@ class TournamentPartnerInviteService {
     }
   }
 
+  /// Pede ao organizador o cancelamento de uma inscrição JÁ PAGA. A plataforma
+  /// não estorna: aprovado, o organizador libera a vaga e a devolução do valor
+  /// é combinada entre os dois fora da plataforma.
+  Future<void> requestRegistrationCancellation({
+    required String registrationId,
+    required String reason,
+  }) async {
+    if (registrationId.isEmpty) {
+      throw TournamentPartnerInviteException('Inscrição inválida.');
+    }
+    if (reason.trim().isEmpty) {
+      throw TournamentPartnerInviteException(
+        'Escreva o motivo do cancelamento para o organizador.',
+      );
+    }
+
+    try {
+      final callable = _functions.httpsCallable(
+        'requestRegistrationCancellation',
+      );
+      await callable.call({
+        'registrationId': registrationId,
+        'reason': reason.trim(),
+      });
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível enviar o pedido.',
+      );
+    }
+  }
+
+  /// Contato do organizador (só para atleta inscrito) — é por onde o acerto do
+  /// reembolso acontece, fora da plataforma.
+  Future<TournamentOrganizerContact> organizerContact(
+    String tournamentId,
+  ) async {
+    if (tournamentId.isEmpty) {
+      throw TournamentPartnerInviteException('Torneio inválido.');
+    }
+    try {
+      final callable = _functions.httpsCallable(
+        'getTournamentOrganizerContact',
+      );
+      final raw = await callable.call({'tournamentId': tournamentId});
+      final data = raw.data;
+      if (data is! Map) {
+        throw TournamentPartnerInviteException('Resposta inválida do servidor.');
+      }
+      return TournamentOrganizerContact.fromMap(data['contact']);
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível obter o contato do organizador.',
+      );
+    }
+  }
+
   Stream<TournamentPartnerInvite?> watchInvite(String inviteId) {
     if (inviteId.isEmpty) return Stream.value(null);
     return _firestore.collection(_collection).doc(inviteId).snapshots().map((snap) {

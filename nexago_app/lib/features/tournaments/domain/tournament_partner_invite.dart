@@ -1,5 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Contato do organizador do torneio, vindo de `getTournamentOrganizerContact`.
+/// Serve ao acerto do reembolso, que acontece FORA da plataforma.
+class TournamentOrganizerContact {
+  const TournamentOrganizerContact({
+    required this.name,
+    required this.whatsappPhone,
+    required this.email,
+  });
+
+  final String name;
+
+  /// Só dígitos, com DDI — pronto para `wa.me`. Vazio quando o organizador não
+  /// tem telefone cadastrado.
+  final String whatsappPhone;
+  final String email;
+
+  bool get hasWhatsApp => whatsappPhone.isNotEmpty;
+
+  factory TournamentOrganizerContact.fromMap(Object? raw) {
+    final map = raw is Map ? raw : const {};
+    String str(Object? v) => v is String ? v.trim() : '';
+    return TournamentOrganizerContact(
+      name: str(map['name']).isEmpty ? 'Organizador' : str(map['name']),
+      whatsappPhone: str(map['whatsappPhone']),
+      email: str(map['email']),
+    );
+  }
+}
+
 class TournamentPartnerInvite {
   const TournamentPartnerInvite({
     required this.id,

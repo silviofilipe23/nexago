@@ -42,6 +42,7 @@ import {
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {tournamentManagerUids} from "./tournament-acl";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
@@ -509,6 +510,57 @@ async function notifyRegistrationFullyConfirmed({
   );
 }
 
+/** Avisa quem opera o torneio que uma dupla declarou ter pago direto no Pix do organizador.
+ *
+ *  Só dispara quando os DOIS atletas declararam: é quando existe o valor cheio para bater no
+ *  extrato. Avisar a cada declaração individual dobraria o volume sem dar o que conferir.
+ *
+ *  O modo `directWithOrganizer` não tem webhook — ninguém verifica se o dinheiro caiu. Sem este
+ *  aviso a declaração morre no doc, que é o que acontecia antes: o portal marcava a inscrição
+ *  como paga e o organizador nunca soubera que precisava conferir. */
+async function notifyOrganizersPaymentDeclared({
+  db,
+  registrationId,
+  tournamentId,
+  tournamentData,
+  categoryId,
+  teamName,
+}: {
+  db: Firestore;
+  registrationId: string;
+  tournamentId: string;
+  tournamentData: Record<string, unknown>;
+  categoryId: string;
+  teamName: string | null;
+}): Promise<void> {
+  const recipients = await tournamentManagerUids(db, tournamentId, tournamentData);
+  if (recipients.length === 0) return;
+
+  const category = findCategory(tournamentData, categoryId);
+  const categoryName = String(
+    category?.categoryName ?? category?.name ?? categoryId ?? "",
+  ).trim();
+  const who = teamName?.trim() || "Uma dupla";
+  const where = categoryName ? ` em ${categoryName}` : "";
+
+  await Promise.all(
+    recipients.map((uid) =>
+      deliverNotificationToUser({
+        userId: uid,
+        title: "Pagamento a conferir",
+        body: `${who} declarou que pagou a inscrição${where}. Confira o recebimento e confirme.`,
+        type: "tournament_payment_declared",
+        data: {
+          tournamentId,
+          registrationId,
+          categoryId,
+          url: `/painel/eventos/${tournamentId}/inscricoes`,
+        },
+      }),
+    ),
+  );
+}
+
 /** Confirma inscrição gratuita (taxa zero) sem PIX. */
 export const confirmFreeTournamentRegistration = onCall({
 }, async (request) => {
@@ -752,9 +804,32 @@ export const reserveDirectOrganizerRegistration = onCall({
     sharePaidUids: FieldValue.arrayUnion(callerUid),
     isPaid: bothAthletesReserved,
     paymentChannel: "directOrganizer",
+    // Entra na fila de conferência do organizador só quando a dupla fecha — é quando existe o
+    // valor cheio para bater no extrato. O portal deriva o selo "A conferir" deste campo (e não
+    // de `paymentChannel`) para que inscrições diretas ANTERIORES a este fluxo não apareçam
+    // retroativamente como pendentes de uma conferência que ninguém vai fazer.
+    ...(bothAthletesReserved ? {declaredPaidAt: FieldValue.serverTimestamp()} : {}),
     ...(shouldWaitlist ? {waitlist: true} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  if (bothAthletesReserved) {
+    try {
+      await notifyOrganizersPaymentDeclared({
+        db,
+        registrationId,
+        tournamentId,
+        tournamentData,
+        categoryId,
+        teamName: typeof team?.teamName === "string" ? team.teamName : null,
+      });
+    } catch (notifyError) {
+      logger.warn(
+        `Falha ao avisar organizador da declaração de pagamento ${registrationId}`,
+        notifyError,
+      );
+    }
+  }
 
   if (bothAthletesReserved && teamId) {
     try {

@@ -160,6 +160,9 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     // link compartilhado apontar pra um lugar que existe. O wizard, esse sim, assume público
     // quando cria (`tournament-create-mapper.ts`).
     visibility: data['visibility'] === 'publicListing' ? 'publicListing' : 'linkOnly',
+    // Mesma leitura do wizard (`tournament-create-mapper.ts`): só `directWithOrganizer` explícito
+    // sai do padrão de cobrança pelo app.
+    paymentMode: data['paymentMode'] === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
     startAt: toDate(data['startAt']),
     endAt: toDate(data['endAt']),
     city: optionalStr(data['city']),

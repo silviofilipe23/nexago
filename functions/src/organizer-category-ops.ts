@@ -377,6 +377,11 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
     paidAmount: paidAmount ?? FieldValue.delete(),
     paymentMethod: ORGANIZER_DIRECT_PAYMENT_METHOD,
     paidAt: FieldValue.serverTimestamp(),
+    // Dá baixa no selo "A conferir" das inscrições em que os atletas declararam o pagamento
+    // direto (`declaredPaidAt`). Confirmar é justamente o ato de dizer "o dinheiro caiu".
+    paymentVerifiedByOrganizer: true,
+    paymentVerifiedAt: FieldValue.serverTimestamp(),
+    paymentVerifiedByUid: uid,
     updatedAt: FieldValue.serverTimestamp(),
   });
 

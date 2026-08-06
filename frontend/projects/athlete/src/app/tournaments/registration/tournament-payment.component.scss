@@ -92,6 +92,14 @@
   min-width: 0;
 }
 
+/* Consulta, não ação: o Pix pós-declaração fica discreto pra não competir com o card de
+   status, mas segue à mão quando o parceiro pede o código. */
+.tp-declared-pix {
+  margin-top: 14px;
+  padding: 14px 20px;
+  gap: 12px;
+}
+
 .tp-card-title {
   font-family: var(--nx-font-display);
   font-weight: 800;

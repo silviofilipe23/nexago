@@ -25,7 +25,13 @@ import {
 import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
-import { NxBannerComponent, NxFieldErrorComponent, NxToastService } from '../../shared/feedback';
+import {
+  NxBannerComponent,
+  NxBlockingDialogComponent,
+  NxFieldErrorComponent,
+  NxToastService,
+} from '../../shared/feedback';
+import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -72,6 +78,7 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
     NxSpinnerComponent,
     NxFieldErrorComponent,
     NxBannerComponent,
+    NxBlockingDialogComponent,
   ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
@@ -158,6 +165,21 @@ export class TournamentPaymentComponent {
     return reg != null && !reg.isPaid && uid != null && reg.sharePaidUids.includes(uid);
   });
 
+  /** Estado do pagamento direto com o organizador — regra em `direct-payment-state.ts`.
+   *  Antes deste estado a tela não mudava depois do "Já paguei": o ramo de `directWithOrganizer`
+   *  era avaliado antes de `mySharePaid()` e engolia tudo, deixando o Pix e o botão na tela como
+   *  se nada tivesse acontecido. */
+  protected readonly directState = computed<DirectPaymentState>(() => {
+    const reg = this.registration();
+    if (!reg) return 'idle';
+    return resolveDirectPaymentState({ registration: reg, myUid: this.auth.user()?.uid ?? null });
+  });
+
+  /** Pix recolhido nos estados pós-declaração (o parceiro ainda pode pedir o código). */
+  protected readonly showDeclaredPix = signal(false);
+  /** Confirmação antes de declarar: a declaração é irreversível pelo app e aciona o organizador. */
+  protected readonly confirmingDeclaration = signal(false);
+
   /** Contagem regressiva `m:ss` até o Pix expirar (null sem cobrança ativa). */
   protected readonly pixCountdownLabel = computed(() => {
     const expiresAt = this.pixExpiresAtMs();
@@ -243,7 +265,17 @@ export class TournamentPaymentComponent {
     if (snap.isPaid) {
       this.clearPixState();
       if (!wasPaid) {
-        this.toasts.success('Inscrição confirmada', 'Sua vaga está garantida. As chaves saem quando o organizador publicar.');
+        // No modo direto ninguém viu o dinheiro ainda — a vaga vale, mas quem confirma o
+        // recebimento é o organizador. Anunciar "pagamento confirmado" aqui seria adiantar
+        // uma etapa que a tela logo abaixo diz que está pendente.
+        if (this.directState() === 'waitingOrganizer') {
+          this.toasts.success(
+            'Pagamento informado',
+            'A vaga da dupla está garantida. O organizador vai conferir o recebimento e confirmar.',
+          );
+        } else {
+          this.toasts.success('Inscrição confirmada', 'Sua vaga está garantida. As chaves saem quando o organizador publicar.');
+        }
       }
       return;
     }
@@ -390,21 +422,38 @@ export class TournamentPaymentComponent {
     }
   }
 
+  /** Abre a confirmação. Declarar não tem desfazer no app e agora aciona o organizador, então o
+   *  clique acidental é caro — vale uma pergunta antes. */
+  protected askToDeclare(): void {
+    if (this.processing()) return;
+    this.confirmingDeclaration.set(true);
+  }
+
+  protected cancelDeclaration(): void {
+    this.confirmingDeclaration.set(false);
+  }
+
+  protected confirmDeclaration(): void {
+    this.confirmingDeclaration.set(false);
+    void this.reserveDirect();
+  }
+
   protected async reserveDirect(): Promise<void> {
     const reg = this.registration();
     if (!reg || this.processing()) return;
     this.processing.set(true);
     try {
       const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id);
+      this.showDeclaredPix.set(false);
       if (result.bothAthletesReserved) {
         this.toasts.success(
-          'Reserva confirmada dos dois lados',
-          'Avise o organizador do torneio que o pagamento foi feito para ele liberar a vaga.',
+          'Pagamento informado',
+          'A vaga da dupla está garantida. O organizador foi avisado e vai confirmar o recebimento.',
         );
       } else {
         this.toasts.success(
-          'Sua reserva foi registrada',
-          'Avise o organizador do torneio que o pagamento foi feito para ele liberar a vaga.',
+          'Sua parte foi informada',
+          'A inscrição fecha quando seu parceiro informar o pagamento dele.',
         );
       }
     } catch (err) {

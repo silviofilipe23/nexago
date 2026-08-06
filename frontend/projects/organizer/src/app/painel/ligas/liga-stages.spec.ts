@@ -14,6 +14,7 @@ describe('liga-stages', () => {
       coverUrl: null,
       status: 'inscricoes',
       visibility: 'publicListing',
+      paymentMode: 'appPixCard',
       startAt: null,
       endAt: null,
       city: null,

@@ -496,6 +496,8 @@ export class TournamentRegistrationShellComponent {
           isPaid: false,
           waitlist: false,
           sharePaidUids: [],
+          declaredPaidAt: null,
+          paymentVerifiedByOrganizer: false,
           player1Id: this.auth.user()?.uid ?? null,
           participantUids: [this.auth.user()?.uid ?? ''].filter(Boolean),
           lgpdAcceptedUids: [this.auth.user()?.uid ?? ''].filter(Boolean),

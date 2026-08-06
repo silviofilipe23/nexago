@@ -34,6 +34,12 @@ export interface AthleteTournamentRegistration {
   waitlist: boolean;
   /** Uids que já pagaram a própria parcela (pagamento em dupla dividido). */
   sharePaidUids: string[];
+  /** Momento em que a dupla fechou a declaração de pagamento direto com o organizador
+   *  (`reserveDirectOrganizerRegistration`). Ausente em inscrição paga pelo app e nas diretas
+   *  anteriores a esse fluxo — que por isso não aparecem como "aguardando conferência". */
+  declaredPaidAt: Date | null;
+  /** O organizador deu baixa no recebimento (`organizerConfirmRegistrationPayment`). */
+  paymentVerifiedByOrganizer: boolean;
   /** Só existe em inscrição criada por `registerSoloTournament`; o caminho "aceitar convite sem
    *  solo prévio" cria o doc sem ele — daí `participantUids` ser o fallback pra saber o slot. */
   player1Id: string | null;
@@ -79,6 +85,8 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
     sharePaidUids: stringList(data['sharePaidUids']),
+    declaredPaidAt: toDate(data['declaredPaidAt']),
+    paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] === true,
     player1Id: optionalStr(data['player1Id']),
     participantUids: stringList(data['participantUids']),
     lgpdAcceptedUids: stringList(data['lgpdAcceptedUids']),

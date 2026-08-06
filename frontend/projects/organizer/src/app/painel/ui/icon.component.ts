@@ -22,6 +22,7 @@ export type OgIconName =
   | 'grid'
   | 'calendar'
   | 'back'
+  | 'close'
   | 'logout'
   | 'share'
   | 'team'
@@ -108,6 +109,9 @@ export type OgIconName =
         }
         @case ('back') {
           <path d="m15 6-6 6 6 6" />
+        }
+        @case ('close') {
+          <path d="M6 6l12 12M18 6 6 18" />
         }
         @case ('logout') {
           <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" /><path d="m16 17 5-5-5-5M21 12H9" />

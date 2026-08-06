@@ -45,11 +45,8 @@
   width: 32px;
   height: 32px;
   flex: none;
-  border-radius: 7.5px;
-  background: var(--nx-orange-500);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.3), 0 8px 24px rgba(255, 106, 26, 0.2);
+  display: block;
+  object-fit: contain;
 }
 
 .at-sidebar-wordmark {

@@ -162,10 +162,8 @@
   width: 28px;
   height: 28px;
   flex: none;
-  border-radius: 7px;
-  background: var(--nx-orange-500);
-  display: grid;
-  place-items: center;
+  display: block;
+  object-fit: contain;
 }
 
 .pp-standalone-wordmark {

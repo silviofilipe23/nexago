@@ -215,12 +215,51 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                         {{ busyKey() === 'waitlist:' + r.id ? 'Movendo…' : 'Mover pra espera' }}
                       </button>
                     }
-                    <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(r)">
+                    <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="startRemove(r)">
                       @if (busyKey() === 'remove:' + r.id) {
                         <app-nx-spinner [size]="12" />
                       }
                       {{ busyKey() === 'remove:' + r.id ? 'Removendo…' : 'Remover da categoria' }}
                     </button>
+
+                    @if (removeFor() === r.id) {
+                      <div class="og-remove-req">
+                        <strong class="og-remove-req-title">Remover da categoria</strong>
+                        <p class="og-remove-req-warn">
+                          A vaga é liberada e o atleta recebe o motivo abaixo por notificação.
+                          @if (r.pay === 'pago') {
+                            A nexaGO não processa o reembolso — combine a devolução diretamente com ele.
+                          }
+                        </p>
+                        <textarea
+                          class="og-remove-req-input"
+                          rows="3"
+                          maxlength="500"
+                          placeholder="Explique ao atleta o motivo da remoção"
+                          [value]="removeReason()"
+                          (input)="onRemoveReasonInput($event)"
+                        ></textarea>
+                        <div class="og-remove-req-actions">
+                          <button
+                            type="button"
+                            class="og-mini-btn"
+                            [disabled]="busy() || !removeReasonValid()"
+                            (click)="confirmRemove(r)"
+                          >
+                            @if (busyKey() === 'remove:' + r.id) {
+                              <app-nx-spinner [size]="12" />
+                            }
+                            {{ busyKey() === 'remove:' + r.id ? 'Removendo…' : 'Confirmar remoção' }}
+                          </button>
+                          <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="cancelRemove()">
+                            Cancelar
+                          </button>
+                          @if (!removeReasonValid()) {
+                            <span class="og-remove-req-hint">Mínimo de 10 caracteres.</span>
+                          }
+                        </div>
+                      </div>
+                    }
 
                     @if (r.cancelPending) {
                       <div class="og-cancel-req">
@@ -348,6 +387,51 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       flex-wrap: wrap;
       margin-top: 10px;
     }
+    .og-remove-req {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px;
+      border: 1px solid rgba(255, 59, 48, 0.35);
+      border-radius: 8px;
+      background: rgba(255, 59, 48, 0.07);
+    }
+    .og-remove-req-title {
+      font-family: var(--nx-font-display);
+      font-size: 13px;
+      color: var(--nx-text);
+    }
+    .og-remove-req-warn {
+      margin: 6px 0 0;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--nx-text-dim);
+    }
+    .og-remove-req-input {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--nx-line);
+      border-radius: 6px;
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      resize: vertical;
+    }
+    .og-remove-req-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .og-remove-req-hint {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+    }
     .og-empty {
       font-family: var(--nx-font-ui);
       font-size: 13px;
@@ -408,6 +492,12 @@ export class InscricoesComponent {
 
   /** Resposta opcional ao atleta; uma por vez porque só uma gaveta abre. */
   protected readonly responseNote = signal('');
+
+  /** Remoção da categoria: qual inscrição está com o formulário aberto e o motivo
+   *  digitado. Separado do `responseNote` pra um fluxo não herdar o texto do outro. */
+  protected readonly removeFor = signal<string | null>(null);
+  protected readonly removeReason = signal('');
+  protected readonly removeReasonValid = computed(() => this.removeReason().trim().length >= 10);
 
   /** A plataforma não devolve dinheiro — o organizador precisa ler isso antes de aprovar. */
   protected readonly refundNotice =
@@ -529,6 +619,7 @@ export class InscricoesComponent {
 
   protected toggleActions(id: string): void {
     this.responseNote.set('');
+    this.cancelRemove();
     this.actionsFor.update((cur) => (cur === id ? null : id));
   }
 
@@ -565,6 +656,7 @@ export class InscricoesComponent {
       await action();
       this.feedback.set({ ok: true, message: okMessage });
       this.actionsFor.set(null);
+      this.cancelRemove();
       const tid = this.id();
       if (tid) {
         this.loading.set(true);
@@ -586,9 +678,28 @@ export class InscricoesComponent {
     void this.run(`waitlist:${r.id}`, () => moveToWaitlist(r.id), `${r.name} movido pra lista de espera.`);
   }
 
-  protected remove(r: InscricaoRow): void {
-    if (!confirm(`Remover ${r.name} da categoria? A vaga é liberada.`)) return;
-    void this.run(`remove:${r.id}`, () => removeFromCategory(r.id), `${r.name} removido da categoria.`);
+  protected startRemove(r: InscricaoRow): void {
+    this.removeReason.set('');
+    this.removeFor.set(r.id);
+  }
+
+  protected cancelRemove(): void {
+    this.removeFor.set(null);
+    this.removeReason.set('');
+  }
+
+  protected onRemoveReasonInput(event: Event): void {
+    this.removeReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected confirmRemove(r: InscricaoRow): void {
+    const description = this.removeReason().trim();
+    if (description.length < 10) return;
+    void this.run(
+      `remove:${r.id}`,
+      () => removeFromCategory(r.id, description),
+      `${r.name} removido da categoria. O motivo foi enviado ao atleta.`,
+    );
   }
 
   protected resend(r: InscricaoRow): void {

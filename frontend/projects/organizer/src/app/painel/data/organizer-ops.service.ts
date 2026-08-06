@@ -45,8 +45,13 @@ export function moveToWaitlist(registrationId: string): Promise<unknown> {
   return call('organizerMoveToWaitlist', { registrationId: registrationId.trim() });
 }
 
-export function removeFromCategory(registrationId: string): Promise<unknown> {
-  return call('organizerRemoveFromCategory', { registrationId: registrationId.trim() });
+/** `description` é obrigatória: a inscrição é deletada, então esse texto é a única
+ *  explicação que o atleta recebe por perder a vaga. */
+export function removeFromCategory(registrationId: string, description: string): Promise<unknown> {
+  return call('organizerRemoveFromCategory', {
+    registrationId: registrationId.trim(),
+    description: description.trim(),
+  });
 }
 
 export function resendRegistrationPayment(registrationId: string): Promise<unknown> {

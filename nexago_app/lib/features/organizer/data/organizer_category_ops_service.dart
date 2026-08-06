@@ -40,9 +40,17 @@ class OrganizerCategoryOpsService {
     await callable.call({'registrationId': registrationId.trim()});
   }
 
-  Future<void> removeFromCategory({required String registrationId}) async {
+  /// [description] é obrigatória: a inscrição é deletada, então esse texto é a
+  /// única explicação que o atleta recebe por perder a vaga.
+  Future<void> removeFromCategory({
+    required String registrationId,
+    required String description,
+  }) async {
     final callable = _functions.httpsCallable('organizerRemoveFromCategory');
-    await callable.call({'registrationId': registrationId.trim()});
+    await callable.call({
+      'registrationId': registrationId.trim(),
+      'description': description.trim(),
+    });
   }
 
   /// Responde ao pedido de cancelamento do atleta. Aprovar remove a inscrição e

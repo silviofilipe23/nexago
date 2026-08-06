@@ -28,7 +28,15 @@ import {
   countPaidRegistrations,
   paidTeamIdsForCancellation,
 } from "./tournament-cancellation";
-import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
+import {
+  registrationAthleteUids,
+  sharePaidUidsFromRegistration,
+} from "./tournament-registration-pix-helpers";
+import {
+  buildRemovalNotificationBody,
+  parseRemovalDescription,
+} from "./organizer-removal-description";
+import {buildRegistrationCancellationAudit} from "./tournament-registration-cancellation";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
@@ -477,41 +485,71 @@ export const organizerRemoveFromCategory = onCall(async (request) => {
 
   await assertCanManageTournament(db, uid, tournamentId);
 
+  // Obrigatório: a inscrição é deletada logo abaixo, então este texto é a única
+  // explicação que o atleta vai receber por perder a vaga.
+  const description = parseRemovalDescription(request.data?.description);
+  if (!description.ok) {
+    throw new HttpsError("invalid-argument", description.message);
+  }
+
   // Inscrição paga (inclui solo que pagou o total): registra/avisa reembolso.
   // Não há estorno automático — o organizador devolve manualmente o valor pago.
   const paidAmount = Number(data.paidAmount) || 0;
   const wasPaid = data.isPaid === true || paidAmount > 0;
   const refundAmount = paidAmount;
 
-  if (wasPaid) {
-    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
-    const athleteUids = new Set<string>();
-    if (teamId) {
-      const teamSnap = await db
-        .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
-        .get();
-      const team = teamSnap.data() ?? {};
-      for (const id of [team.player1Id, team.player2Id]) {
-        if (typeof id === "string" && id.trim()) athleteUids.add(id.trim());
-      }
-    }
-    const amountLabel = refundAmount > 0
-      ? ` Reembolso de R$ ${refundAmount.toFixed(2).replace(".", ",")} será tratado pelo organizador.`
-      : " Procure o organizador para tratar do reembolso.";
-    await Promise.all(
-      [...athleteUids].map((athleteUid) =>
-        deliverNotificationToUser({
-          userId: athleteUid,
-          title: "Inscrição cancelada",
-          body: `Sua inscrição foi cancelada pelo organizador.${amountLabel}`,
-          type: "tournament_registration_cancelled",
-          data: {tournamentId, url: `/torneios/${tournamentId}`},
-        }).catch(() => undefined),
-      ),
-    );
-  }
+  const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+  const teamSnap = teamId
+    ? await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get()
+    : null;
+  // Inscrição sem `teamId` (solo novo) também tem atleta pra avisar: o helper
+  // cai em player1Id/participantUids, coisa que a leitura só do team não fazia.
+  const athleteUids = registrationAthleteUids(
+    data,
+    teamSnap?.exists ? teamSnap.data() : null,
+  );
 
-  await ref.delete();
+  // Auditoria antes do delete: sem ela a remoção pelo organizador não deixaria
+  // rastro nenhum. Mesma coleção do "aprovar pedido de cancelamento".
+  const batch = db.batch();
+  const auditRef = db.collection("tournamentRegistrationCancellations").doc();
+  batch.set(auditRef, {
+    ...buildRegistrationCancellationAudit({
+      registrationId,
+      cancelledBy: uid,
+      athleteUids,
+      registration: data,
+    }),
+    cancelledAt: FieldValue.serverTimestamp(),
+    removedByOrganizer: true,
+    removalDescription: description.value,
+  });
+  batch.delete(ref);
+  await batch.commit();
+
+  await Promise.all(
+    athleteUids.map((athleteUid) =>
+      deliverNotificationToUser({
+        userId: athleteUid,
+        title: "Inscrição cancelada",
+        body: buildRemovalNotificationBody({
+          description: description.value,
+          wasPaid,
+          refundAmount,
+        }),
+        type: "tournament_registration_cancelled",
+        data: {tournamentId, url: `/torneios/${tournamentId}`},
+      }).catch(() => undefined),
+    ),
+  );
+
+  logger.info("Organizer removed registration from category", {
+    registrationId,
+    tournamentId,
+    uid,
+    wasPaid,
+  });
+
   return {ok: true, refundPending: wasPaid, refundAmount};
 });
 

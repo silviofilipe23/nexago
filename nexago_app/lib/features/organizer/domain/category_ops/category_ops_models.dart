@@ -78,6 +78,28 @@ class OrganizerCategoryTeamRow {
 
   bool get hasCancellationRequest => cancellationRequestReason != null;
 
+  /// Copia mudando só o que foi passado. Existe para quem precisa alterar UM
+  /// campo (`applySeedOrder` muda o `seedRank`) não reconstruir a linha campo a
+  /// campo — o que já derrubou `partnerPending`, `lgpdAcceptedUids` e o pedido
+  /// de cancelamento das duplas cabeça de chave.
+  OrganizerCategoryTeamRow copyWith({int? seedRank}) {
+    return OrganizerCategoryTeamRow(
+      registrationId: registrationId,
+      teamId: teamId,
+      player1: player1,
+      player2: player2,
+      status: status,
+      seedRank: seedRank ?? this.seedRank,
+      paidAmountCents: paidAmountCents,
+      expectedAmountCents: expectedAmountCents,
+      registeredAt: registeredAt,
+      paymentMethod: paymentMethod,
+      partnerPending: partnerPending,
+      lgpdAcceptedUids: lgpdAcceptedUids,
+      cancellationRequestReason: cancellationRequestReason,
+    );
+  }
+
   List<String> get _participantUids => [
         if (player1.uid.trim().isNotEmpty) player1.uid,
         if (player2.uid.trim().isNotEmpty) player2.uid,

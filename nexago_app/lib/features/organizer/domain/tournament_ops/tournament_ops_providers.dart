@@ -299,11 +299,22 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
                 ?.whereType<String>()
                 .toList() ??
             const [],
+        cancellationRequestReason: _pendingCancellationReason(row.inscription),
       ),
     );
   }
 
   return applySeedOrder(teams, ops.seeds);
+}
+
+/// Motivo do pedido de cancelamento PENDENTE, ou `null`. Doc antigo (sem o
+/// campo), lixo e pedido já recusado contam como "sem pedido".
+String? _pendingCancellationReason(Map<String, dynamic> inscription) {
+  final raw = inscription['cancellationRequest'];
+  if (raw is! Map) return null;
+  if (raw['status'] != 'pending') return null;
+  final reason = raw['reason'];
+  return reason is String ? reason : '';
 }
 
 final organizerCategoryRegistrationsProvider = StreamProvider.autoDispose

@@ -51,6 +51,7 @@ class OrganizerCategoryTeamRow {
     this.paymentMethod = '',
     this.partnerPending = false,
     this.lgpdAcceptedUids = const [],
+    this.cancellationRequestReason,
   });
 
   final String registrationId;
@@ -69,6 +70,13 @@ class OrganizerCategoryTeamRow {
   /// Uids que aceitaram o termo de uso de imagem/LGPD na inscrição
   /// (inscrições antigas, de antes do termo existir no fluxo: vazio).
   final List<String> lgpdAcceptedUids;
+
+  /// Motivo do pedido de cancelamento PENDENTE escrito pelo atleta — `null`
+  /// quando não há pedido aberto. A plataforma não estorna: aprovar só libera
+  /// a vaga, a devolução é combinada fora dela.
+  final String? cancellationRequestReason;
+
+  bool get hasCancellationRequest => cancellationRequestReason != null;
 
   List<String> get _participantUids => [
         if (player1.uid.trim().isNotEmpty) player1.uid,

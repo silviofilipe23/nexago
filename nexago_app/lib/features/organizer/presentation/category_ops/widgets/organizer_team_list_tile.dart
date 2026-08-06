@@ -106,11 +106,47 @@ class OrganizerTeamListTile extends StatelessWidget {
                   _StatusPill(status: team.status),
                   const SizedBox(height: 4),
                   _LgpdPill(team: team),
+                  if (team.hasCancellationRequest) ...[
+                    const SizedBox(height: 4),
+                    const _CancellationPill(),
+                  ],
                 ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Atleta pediu cancelamento e o organizador ainda não respondeu — a ação fica
+/// no sheet de ações da linha.
+class _CancellationPill extends StatelessWidget {
+  const _CancellationPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.live.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.event_busy_rounded, size: 11, color: AppColors.live),
+          const SizedBox(width: 3),
+          Text(
+            'CANCELAMENTO',
+            style: AppTypography.mono(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: AppColors.live,
+            ),
+          ),
+        ],
       ),
     );
   }

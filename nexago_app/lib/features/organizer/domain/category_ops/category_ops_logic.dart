@@ -323,20 +323,10 @@ List<OrganizerCategoryTeamRow> applySeedOrder(
   for (var i = 0; i < seedTeamIds.length; i++) {
     final team = byTeamId[seedTeamIds[i]];
     if (team == null) continue;
-    ordered.add(
-      OrganizerCategoryTeamRow(
-        registrationId: team.registrationId,
-        teamId: team.teamId,
-        player1: team.player1,
-        player2: team.player2,
-        status: team.status,
-        seedRank: i + 1,
-        paidAmountCents: team.paidAmountCents,
-        expectedAmountCents: team.expectedAmountCents,
-        registeredAt: team.registeredAt,
-        paymentMethod: team.paymentMethod,
-      ),
-    );
+    // copyWith, não reconstrução campo a campo: a versão manual esquecia
+    // `partnerPending`, `lgpdAcceptedUids` e o pedido de cancelamento, e a
+    // dupla cabeça de chave perdia esses dados na tela do organizador.
+    ordered.add(team.copyWith(seedRank: i + 1));
     byTeamId.remove(seedTeamIds[i]);
   }
   ordered.addAll(byTeamId.values);

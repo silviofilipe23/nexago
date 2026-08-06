@@ -119,7 +119,15 @@ export {
   backfillPublicProfiles,
 } from "./public-profile-sync";
 
-export {getTournamentAthleteContacts} from "./tournament-contacts";
+export {
+  getTournamentAthleteContacts,
+  getTournamentOrganizerContact,
+} from "./tournament-contacts";
+
+export {
+  requestRegistrationCancellation,
+  respondRegistrationCancellationRequest,
+} from "./tournament-cancellation-request-ops";
 
 export {
   setOrganizerPayoutPixKey,

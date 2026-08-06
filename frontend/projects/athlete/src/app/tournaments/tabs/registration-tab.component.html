@@ -41,6 +41,51 @@
 
       @if (card.canCancel) {
         <button type="button" class="reg-cancel" (click)="askCancel(card)">Cancelar inscrição</button>
+      } @else if (card.cancellationState === 'pending') {
+        <div class="reg-req reg-req--pending">
+          <strong class="reg-req-title">Cancelamento solicitado</strong>
+          <p class="reg-req-text">{{ refundPendingNotice }}</p>
+          <button type="button" class="reg-req-wa" [disabled]="organizerContactBusy()" (click)="contactOrganizer(card)">
+            {{ organizerContactBusy() ? 'Abrindo…' : 'Falar com o organizador' }}
+          </button>
+        </div>
+      } @else if (requestFormFor() === card.id) {
+        <div class="reg-req">
+          <strong class="reg-req-title">Solicitar cancelamento</strong>
+          <p class="reg-req-text">{{ refundNotice }}</p>
+          <label class="reg-req-label" [attr.for]="'motivo-' + card.id">Por que você precisa cancelar?</label>
+          <textarea
+            class="reg-req-input"
+            [id]="'motivo-' + card.id"
+            rows="3"
+            maxlength="500"
+            placeholder="Escreva um motivo para o organizador"
+            [value]="requestReason()"
+            (input)="onReasonInput($event)"
+          ></textarea>
+          <div class="reg-req-actions">
+            <button
+              type="button"
+              class="reg-req-send"
+              [disabled]="requestSending() || !requestReason().trim()"
+              (click)="submitRequest(card)"
+            >
+              {{ requestSending() ? 'Enviando…' : 'Enviar pedido' }}
+            </button>
+            <button type="button" class="reg-cancel" [disabled]="requestSending()" (click)="closeRequestForm()">Voltar</button>
+          </div>
+        </div>
+      } @else {
+        @if (card.cancellationState === 'declined') {
+          <div class="reg-req reg-req--declined">
+            <strong class="reg-req-title">Pedido de cancelamento recusado</strong>
+            @if (card.cancellationResponseNote) {
+              <p class="reg-req-text">“{{ card.cancellationResponseNote }}”</p>
+            }
+            <p class="reg-req-text">O organizador manteve sua inscrição.</p>
+          </div>
+        }
+        <button type="button" class="reg-cancel" (click)="openRequestForm(card)">Solicitar cancelamento</button>
       }
     </section>
   }

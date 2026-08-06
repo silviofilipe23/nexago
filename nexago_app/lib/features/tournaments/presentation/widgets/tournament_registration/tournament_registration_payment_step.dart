@@ -36,7 +36,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.showInformUniform = false,
     this.onInformUniform,
     this.onCancelRegistration,
-    this.cancelBlockedHint,
+    this.cancellationSection,
   });
 
   final TournamentCategoryOffer category;
@@ -72,11 +72,14 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final VoidCallback? onInformUniform;
 
   /// Cancela a reserva/inscrição do próprio atleta (só enquanto não paga).
+  /// Mantido para quem monta o passo sem a seção de cancelamento.
   final VoidCallback? onCancelRegistration;
 
-  /// Exibido no lugar do botão de cancelar quando já há pagamento na
-  /// inscrição (parcela de um dos dois) — o caminho passa a ser o organizador.
-  final String? cancelBlockedHint;
+  /// Bloco de cancelamento montado pela página
+  /// ([TournamentRegistrationCancellationSection]): cancelar direto, pedir ao
+  /// organizador ou acompanhar o pedido. Quando presente, substitui
+  /// [onCancelRegistration].
+  final Widget? cancellationSection;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +238,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             ),
           ),
         ],
-        if (onCancelRegistration != null) ...[
+        if (cancellationSection != null)
+          cancellationSection!
+        else if (onCancelRegistration != null) ...[
           SizedBox(height: 12),
           TextButton(
             onPressed: onCancelRegistration,
@@ -245,16 +250,6 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
                 color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
               ),
-            ),
-          ),
-        ] else if (cancelBlockedHint != null) ...[
-          SizedBox(height: 12),
-          Text(
-            cancelBlockedHint!,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],

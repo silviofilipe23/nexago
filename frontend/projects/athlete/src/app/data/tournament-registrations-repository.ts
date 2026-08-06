@@ -24,6 +24,15 @@ export interface RegistrationUniformSlot {
   jerseyName: string | null;
 }
 
+/** Pedido de cancelamento ao organizador — só existe em inscrição JÁ PAGA. A
+ *  plataforma não estorna: aprovado, o organizador deleta a inscrição (o doc some)
+ *  e a devolução do valor é combinada fora da plataforma. */
+export interface RegistrationCancellationRequest {
+  status: 'pending' | 'declined';
+  reason: string;
+  responseNote: string;
+}
+
 export interface AthleteTournamentRegistration {
   id: string;
   tournamentId: string;
@@ -32,6 +41,7 @@ export interface AthleteTournamentRegistration {
   partnerPending: boolean;
   isPaid: boolean;
   waitlist: boolean;
+  cancellationRequest: RegistrationCancellationRequest | null;
   /** Uids que já pagaram a própria parcela (pagamento em dupla dividido). */
   sharePaidUids: string[];
   /** Momento em que a dupla fechou a declaração de pagamento direto com o organizador
@@ -75,6 +85,19 @@ function uniformSlotFromDoc(data: Record<string, unknown>, slot: 'Player1' | 'Pl
   };
 }
 
+/** Doc antigo (sem o campo) ou status desconhecido contam como "sem pedido". */
+function cancellationRequestFromDoc(v: unknown): RegistrationCancellationRequest | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const data = v as Record<string, unknown>;
+  const status = data['status'];
+  if (status !== 'pending' && status !== 'declined') return null;
+  return {
+    status,
+    reason: typeof data['reason'] === 'string' ? data['reason'] : '',
+    responseNote: typeof data['responseNote'] === 'string' ? data['responseNote'] : '',
+  };
+}
+
 function registrationFromDoc(id: string, data: Record<string, unknown>): AthleteTournamentRegistration {
   return {
     id,
@@ -84,6 +107,7 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     partnerPending: data['partnerPending'] === true,
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
+    cancellationRequest: cancellationRequestFromDoc(data['cancellationRequest']),
     sharePaidUids: stringList(data['sharePaidUids']),
     declaredPaidAt: toDate(data['declaredPaidAt']),
     paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] === true,
@@ -394,6 +418,41 @@ export function registrationCancellable(r: Pick<AthleteTournamentRegistration, '
 export async function cancelMyRegistration(functions: Functions, registrationId: string): Promise<void> {
   try {
     await httpsCallable(functions, 'cancelTournamentRegistration')({ registrationId });
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** Pede ao organizador o cancelamento de uma inscrição JÁ PAGA. A plataforma não
+ *  estorna nada: aprovado, o organizador libera a vaga e a devolução do valor é
+ *  combinada entre os dois fora da plataforma. */
+export async function requestRegistrationCancellation(
+  functions: Functions,
+  registrationId: string,
+  reason: string,
+): Promise<void> {
+  try {
+    await httpsCallable(functions, 'requestRegistrationCancellation')({ registrationId, reason });
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+export interface OrganizerContact {
+  name: string;
+  whatsappPhone: string;
+  email: string;
+}
+
+/** Contato do organizador do torneio (só para atleta inscrito) — é o canal do acerto
+ *  do reembolso, que acontece fora da plataforma. */
+export async function fetchTournamentOrganizerContact(functions: Functions, tournamentId: string): Promise<OrganizerContact> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, { contact: OrganizerContact }>(
+      functions,
+      'getTournamentOrganizerContact',
+    )({ tournamentId });
+    return result.data.contact;
   } catch (err) {
     throw mapCallableError(err);
   }

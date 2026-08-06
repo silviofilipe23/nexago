@@ -495,6 +495,7 @@ export class TournamentRegistrationShellComponent {
           partnerPending: true,
           isPaid: false,
           waitlist: false,
+          cancellationRequest: null,
           sharePaidUids: [],
           declaredPaidAt: null,
           paymentVerifiedByOrganizer: false,

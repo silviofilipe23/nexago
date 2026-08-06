@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../../data/organizer_category_ops_service.dart';
 import '../../../domain/category_ops/category_ops_logic.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
@@ -87,6 +88,49 @@ class _OrganizerTeamActionsSheetState
     }
   }
 
+  /// Responde ao pedido de cancelamento. Aprovar remove a inscrição e libera a
+  /// vaga — a devolução do valor é combinada com o atleta fora da plataforma.
+  Future<void> _respondCancellation(
+    OrganizerCategoryOpsService service, {
+    required bool approve,
+  }) async {
+    if (_busy) return;
+    if (approve) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Aprovar cancelamento?'),
+          content: const Text(
+            'A inscrição sai da categoria e a vaga é liberada. A nexaGO não '
+            'processa o reembolso — combine a devolução diretamente com o atleta.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Voltar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Aprovar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    await _run(
+      () => service.respondCancellationRequest(
+        registrationId: widget.team.registrationId,
+        approve: approve,
+      ),
+      approve
+          ? 'Cancelamento aprovado. Combine a devolução com o atleta.'
+          : 'Pedido recusado. A inscrição foi mantida.',
+      key: approve ? 'cancel-approve' : 'cancel-decline',
+    );
+  }
+
   void _openSeeding() {
     Navigator.pop(context);
     pushOrganizerCategorySeeding(
@@ -132,6 +176,17 @@ class _OrganizerTeamActionsSheetState
             const SizedBox(height: 16),
             _TeamActionsHeader(team: team, rank: widget.rank),
             const SizedBox(height: 8),
+            if (team.cancellationRequestReason case final reason?) ...[
+              _CancellationRequestCard(
+                reason: reason,
+                busy: _busy,
+                approving: _runningKey == 'cancel-approve',
+                declining: _runningKey == 'cancel-decline',
+                onApprove: () => _respondCancellation(service, approve: true),
+                onDecline: () => _respondCancellation(service, approve: false),
+              ),
+              const SizedBox(height: 8),
+            ],
             Divider(
               height: 1,
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
@@ -585,6 +640,95 @@ class _StatusPill extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: fg,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pedido de cancelamento aberto pelo atleta. O aviso de que a plataforma não
+/// devolve o dinheiro fica ACIMA dos botões — é o que muda a decisão.
+class _CancellationRequestCard extends StatelessWidget {
+  const _CancellationRequestCard({
+    required this.reason,
+    required this.busy,
+    required this.approving,
+    required this.declining,
+    required this.onApprove,
+    required this.onDecline,
+  });
+
+  final String reason;
+  final bool busy;
+  final bool approving;
+  final bool declining;
+  final VoidCallback onApprove;
+  final VoidCallback onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.live.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.live.withValues(alpha: 0.32)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.event_busy_rounded, size: 16, color: AppColors.live),
+              const SizedBox(width: 6),
+              Text(
+                'Pedido de cancelamento',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ],
+          ),
+          if (reason.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              '\u201C${reason.trim()}\u201D',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurface,
+                height: 1.45,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Aprovar remove a inscrição e libera a vaga. A nexaGO não processa '
+            'o reembolso — combine a devolução diretamente com o atleta.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: busy ? null : onApprove,
+                  child: Text(approving ? 'Aprovando\u2026' : 'Aprovar'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy ? null : onDecline,
+                  child: Text(declining ? 'Recusando\u2026' : 'Recusar'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

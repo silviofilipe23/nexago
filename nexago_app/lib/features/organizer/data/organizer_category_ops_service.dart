@@ -45,6 +45,23 @@ class OrganizerCategoryOpsService {
     await callable.call({'registrationId': registrationId.trim()});
   }
 
+  /// Responde ao pedido de cancelamento do atleta. Aprovar remove a inscrição e
+  /// libera a vaga; a plataforma NÃO estorna — a devolução do valor é combinada
+  /// entre organizador e atleta fora dela.
+  Future<void> respondCancellationRequest({
+    required String registrationId,
+    required bool approve,
+    String note = '',
+  }) async {
+    final callable =
+        _functions.httpsCallable('respondRegistrationCancellationRequest');
+    await callable.call({
+      'registrationId': registrationId.trim(),
+      'approve': approve,
+      'note': note.trim(),
+    });
+  }
+
   Future<Map<String, dynamic>> sendCategoryCommunication({
     required String tournamentId,
     required String categoryId,

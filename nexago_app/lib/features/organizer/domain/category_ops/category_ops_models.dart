@@ -51,6 +51,7 @@ class OrganizerCategoryTeamRow {
     this.paymentMethod = '',
     this.partnerPending = false,
     this.lgpdAcceptedUids = const [],
+    this.cancellationRequestReason,
   });
 
   final String registrationId;
@@ -69,6 +70,35 @@ class OrganizerCategoryTeamRow {
   /// Uids que aceitaram o termo de uso de imagem/LGPD na inscrição
   /// (inscrições antigas, de antes do termo existir no fluxo: vazio).
   final List<String> lgpdAcceptedUids;
+
+  /// Motivo do pedido de cancelamento PENDENTE escrito pelo atleta — `null`
+  /// quando não há pedido aberto. A plataforma não estorna: aprovar só libera
+  /// a vaga, a devolução é combinada fora dela.
+  final String? cancellationRequestReason;
+
+  bool get hasCancellationRequest => cancellationRequestReason != null;
+
+  /// Copia mudando só o que foi passado. Existe para quem precisa alterar UM
+  /// campo (`applySeedOrder` muda o `seedRank`) não reconstruir a linha campo a
+  /// campo — o que já derrubou `partnerPending`, `lgpdAcceptedUids` e o pedido
+  /// de cancelamento das duplas cabeça de chave.
+  OrganizerCategoryTeamRow copyWith({int? seedRank}) {
+    return OrganizerCategoryTeamRow(
+      registrationId: registrationId,
+      teamId: teamId,
+      player1: player1,
+      player2: player2,
+      status: status,
+      seedRank: seedRank ?? this.seedRank,
+      paidAmountCents: paidAmountCents,
+      expectedAmountCents: expectedAmountCents,
+      registeredAt: registeredAt,
+      paymentMethod: paymentMethod,
+      partnerPending: partnerPending,
+      lgpdAcceptedUids: lgpdAcceptedUids,
+      cancellationRequestReason: cancellationRequestReason,
+    );
+  }
 
   List<String> get _participantUids => [
         if (player1.uid.trim().isNotEmpty) player1.uid,

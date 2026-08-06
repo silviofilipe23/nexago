@@ -53,6 +53,20 @@ export function resendRegistrationPayment(registrationId: string): Promise<unkno
   return call('resendRegistrationPayment', { registrationId: registrationId.trim() });
 }
 
+/** Responde ao pedido de cancelamento do atleta. Aprovar remove a inscrição e libera
+ *  a vaga; a plataforma NÃO estorna — a devolução é combinada fora dela. */
+export function respondCancellationRequest(
+  registrationId: string,
+  approve: boolean,
+  note = '',
+): Promise<unknown> {
+  return call('respondRegistrationCancellationRequest', {
+    registrationId: registrationId.trim(),
+    approve,
+    note: note.trim(),
+  });
+}
+
 export function sendCategoryCommunication(params: {
   tournamentId: string;
   categoryId: string;

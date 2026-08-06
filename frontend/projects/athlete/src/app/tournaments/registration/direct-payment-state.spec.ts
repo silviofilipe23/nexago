@@ -13,6 +13,7 @@ function makeRegistration(overrides: Partial<AthleteTournamentRegistration> = {}
     partnerPending: false,
     isPaid: false,
     waitlist: false,
+    cancellationRequest: null,
     sharePaidUids: [],
     declaredPaidAt: null,
     paymentVerifiedByOrganizer: false,

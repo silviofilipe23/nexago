@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
@@ -10,6 +11,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../arenas/data/payment_service.dart';
+import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/payment_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
@@ -38,6 +40,8 @@ import 'widgets/tournament_registration/tournament_registration_category_card.da
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_hero_card.dart';
 import 'widgets/tournament_registration/tournament_registration_partner_step.dart';
+import 'widgets/tournament_registration/tournament_cancellation_request_sheet.dart';
+import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
 import 'widgets/tournament_registration/tournament_registration_price_summary.dart';
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
@@ -78,6 +82,7 @@ class _TournamentRegistrationPageState
   String _paymentType = 'share';
   bool _canPayFull = true;
   bool _submitting = false;
+  bool _contactingOrganizer = false;
   /// Aceite do termo de uso de imagem/LGPD já confirmado nesta sessão do
   /// wizard — evita reabrir o sheet a cada ação (o aceite vai nas callables).
   bool _lgpdAccepted = false;
@@ -772,6 +777,95 @@ class _TournamentRegistrationPageState
       await showTournamentPartnerInviteError(context, e);
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// Pedido de cancelamento ao organizador (inscrição JÁ PAGA). A plataforma
+  /// não estorna: o aviso disso é parte do formulário, não um detalhe.
+  Future<void> _openCancellationRequestSheet(TournamentDetail tournament) async {
+    final regId = _registrationId?.trim() ?? '';
+    if (regId.isEmpty || _submitting) return;
+
+    final controller = TextEditingController();
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => TournamentCancellationRequestSheet(
+        controller: controller,
+        tournamentName: tournament.name,
+      ),
+    );
+    controller.dispose();
+    if (reason == null || reason.trim().isEmpty || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .requestRegistrationCancellation(
+            registrationId: regId,
+            reason: reason,
+          );
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Pedido enviado. O organizador foi avisado.',
+      );
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// Abre o WhatsApp do organizador — é por ali que o reembolso é acertado.
+  Future<void> _openOrganizerWhatsApp(TournamentDetail tournament) async {
+    if (_contactingOrganizer) return;
+    setState(() => _contactingOrganizer = true);
+    try {
+      final contact = await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .organizerContact(tournament.id);
+      if (!mounted) return;
+      if (!contact.hasWhatsApp) {
+        showAppSnackBar(
+          context,
+          contact.email.isNotEmpty
+              ? 'Organizador sem WhatsApp. Fale por e-mail: ${contact.email}'
+              : 'Organizador sem WhatsApp cadastrado.',
+          isError: true,
+        );
+        return;
+      }
+      final url = ArenaBookingSuccessActions.buildWhatsAppUrl(
+        phone: contact.whatsappPhone,
+        message:
+            'Olá! Sou atleta inscrito no ${tournament.name} e pedi o '
+            'cancelamento da minha inscrição.',
+      );
+      final uri = url != null ? Uri.tryParse(url) : null;
+      if (uri == null) {
+        showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.',
+            isError: true);
+        return;
+      }
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!mounted) return;
+      if (!launched) {
+        showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.',
+            isError: true);
+      }
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _contactingOrganizer = false);
     }
   }
 
@@ -1695,24 +1789,26 @@ class _TournamentRegistrationPageState
             showInformUniform: categoryRequiresUniform(category),
             onInformUniform: () =>
                 _goToStep(TournamentRegistrationStep.uniform),
-            // Cancelamento direto só sem NENHUM pagamento (espelha a callable);
-            // meio-paga vira hint para falar com o organizador.
-            onCancelRegistration: (!_submitting &&
-                    registrationSnap != null &&
-                    registrationCancellableByAthlete(
-                      isPaid: registrationSnap.isPaid,
-                      sharePaidUids: registrationSnap.sharePaidUids,
-                      paidAmount: registrationSnap.paidAmount,
-                    ))
-                ? _confirmCancelRegistration
-                : null,
-            cancelBlockedHint: (registrationSnap != null &&
-                    !registrationSnap.isPaid &&
-                    (registrationSnap.sharePaidUids.isNotEmpty ||
-                        registrationSnap.paidAmount > 0))
-                ? 'Já existe pagamento nesta inscrição — fale com o '
-                    'organizador para cancelar.'
-                : null,
+            // Sem pagamento cancela direto; com pagamento o caminho é pedir ao
+            // organizador (a plataforma não estorna).
+            cancellationSection: TournamentRegistrationCancellationSection(
+              snapshot: registrationSnap,
+              onCancelDirectly: (!_submitting &&
+                      registrationSnap != null &&
+                      registrationCancellableByAthlete(
+                        isPaid: registrationSnap.isPaid,
+                        sharePaidUids: registrationSnap.sharePaidUids,
+                        paidAmount: registrationSnap.paidAmount,
+                      ))
+                  ? _confirmCancelRegistration
+                  : null,
+              onRequestCancellation:
+                  (!_submitting && registrationSnap != null)
+                      ? () => _openCancellationRequestSheet(tournament)
+                      : null,
+              onContactOrganizer: () => _openOrganizerWhatsApp(tournament),
+              contactBusy: _contactingOrganizer,
+            ),
           ),
         ];
     }

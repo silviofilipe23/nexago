@@ -23,6 +23,42 @@ class TournamentRegistrationResult {
   final String teamId;
 }
 
+/// Pedido de cancelamento ao organizador (inscrição JÁ PAGA). Aprovado, o doc
+/// da inscrição é deletado — por isso só existem estes dois estados aqui.
+enum RegistrationCancellationStatus { pending, declined }
+
+class RegistrationCancellationRequest {
+  const RegistrationCancellationRequest({
+    required this.status,
+    required this.reason,
+    required this.responseNote,
+  });
+
+  final RegistrationCancellationStatus status;
+  final String reason;
+  final String responseNote;
+
+  bool get isPending => status == RegistrationCancellationStatus.pending;
+  bool get isDeclined => status == RegistrationCancellationStatus.declined;
+
+  /// Doc antigo (sem o campo), lixo ou status desconhecido → sem pedido.
+  static RegistrationCancellationRequest? fromDoc(Object? raw) {
+    if (raw is! Map) return null;
+    final status = switch (raw['status']) {
+      'pending' => RegistrationCancellationStatus.pending,
+      'declined' => RegistrationCancellationStatus.declined,
+      _ => null,
+    };
+    if (status == null) return null;
+    String str(Object? v) => v is String ? v : '';
+    return RegistrationCancellationRequest(
+      status: status,
+      reason: str(raw['reason']),
+      responseNote: str(raw['responseNote']),
+    );
+  }
+}
+
 /// Estado da inscrição no Firestore (pagamento acumulado).
 class TournamentRegistrationSnapshot {
   const TournamentRegistrationSnapshot({
@@ -31,6 +67,7 @@ class TournamentRegistrationSnapshot {
     required this.paidAmount,
     this.sharePaidUids = const [],
     this.partnerPending = false,
+    this.cancellationRequest,
   });
 
   final String registrationId;
@@ -40,6 +77,9 @@ class TournamentRegistrationSnapshot {
 
   /// Inscrição solo com vaga de parceiro em aberto.
   final bool partnerPending;
+
+  /// Pedido de cancelamento aberto/recusado, quando houver.
+  final RegistrationCancellationRequest? cancellationRequest;
 
   factory TournamentRegistrationSnapshot.fromDoc(
     String registrationId,
@@ -59,6 +99,9 @@ class TournamentRegistrationSnapshot {
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0,
       sharePaidUids: uids,
       partnerPending: data['partnerPending'] == true,
+      cancellationRequest: RegistrationCancellationRequest.fromDoc(
+        data['cancellationRequest'],
+      ),
     );
   }
 

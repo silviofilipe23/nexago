@@ -106,6 +106,11 @@ class MyTournamentEnrollment {
   DateTime? get startDate => tournament?.startDate ?? registration.startDate;
 
   DateTime? get endDate => registration.endDate;
+
+  /// Atleta pode cancelar direto (sem organizador): nenhum pagamento na
+  /// inscrição — espelha o guard da callable `cancelTournamentRegistration`.
+  bool get canCancelRegistration =>
+      !registration.isPaid && !registration.hasPartialPayment;
 }
 
 /// Tokens visuais da tela Meus torneios (protótipo).

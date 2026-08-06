@@ -48,6 +48,34 @@ void main() {
       },
     );
 
+    test('parcela paga por QUALQUER um da dupla marca hasPartialPayment', () async {
+      const uid = 'athlete-1';
+      final firestore = _FakeFirestore();
+
+      firestore.seedDoc(
+        NexagoArtifactsPaths.inscriptionsCollection(),
+        'reg-meio-paga',
+        {
+          'tournamentId': 't1',
+          'categoryId': 'cat1',
+          'participantUids': [uid, 'athlete-2'],
+          'isPaid': false,
+          'sharePaidUids': ['athlete-2'],
+        },
+      );
+      firestore.seedDoc('tournaments', 't1', {
+        'name': 'Copa Teste',
+        'listingStatus': 'open',
+      });
+
+      final repo = MyTournamentRegistrationsRepository(firestore);
+      final regs = await repo.watchForUser(uid).first;
+
+      expect(regs, hasLength(1));
+      expect(regs.single.hasPartialPayment, isTrue);
+      expect(regs.single.athleteHasReserved, isFalse);
+    });
+
     test('inscrição sem tournamentId é descartada (doc malformado)', () async {
       const uid = 'athlete-1';
       final firestore = _FakeFirestore();

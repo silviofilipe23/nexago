@@ -95,7 +95,8 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   }
 
   if (type == 'tournament_bracket_published' ||
-      type == 'tournament_cancelled') {
+      type == 'tournament_cancelled' ||
+      type == 'tournament_registration_cancelled') {
     final bracketUrl = (data['url'] as String?)?.trim();
     if (bracketUrl != null && bracketUrl.startsWith('/')) return bracketUrl;
     final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';

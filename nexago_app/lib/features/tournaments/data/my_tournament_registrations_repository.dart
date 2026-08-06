@@ -127,6 +127,7 @@ class MyTournamentRegistrationsRepository {
           isWaitlist: isWaitlist,
           athleteHasReserved: athleteHasReserved,
           partnerPending: data['partnerPending'] == true,
+          hasPartialPayment: sharePaidUids.isNotEmpty,
         ),
       );
     }

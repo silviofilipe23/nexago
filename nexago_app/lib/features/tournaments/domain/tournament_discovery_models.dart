@@ -238,6 +238,7 @@ class MyTournamentRegistration {
     this.isWaitlist = false,
     this.athleteHasReserved = false,
     this.partnerPending = false,
+    this.hasPartialPayment = false,
   });
 
   final String registrationId;
@@ -258,4 +259,8 @@ class MyTournamentRegistration {
 
   /// Inscrição solo com vaga de parceiro em aberto (sem player2 confirmado).
   final bool partnerPending;
+
+  /// Alguém da dupla já pagou uma parcela (`sharePaidUids` não vazio) —
+  /// cancelamento pelo atleta fica bloqueado (exigiria estorno).
+  final bool hasPartialPayment;
 }

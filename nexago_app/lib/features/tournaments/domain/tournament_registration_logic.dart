@@ -40,6 +40,15 @@ bool registrationPaidAwaitingPartner({
   required TournamentRegistrationSnapshot? snap,
 }) => snap?.isPaid == true && snap?.partnerPending == true;
 
+/// Inscrição cancelável pelo atleta: nenhum pagamento registrado — nem a dupla
+/// confirmada, nem parcela de um dos dois. Espelha o guard da callable
+/// `cancelTournamentRegistration`; com pagamento, o caminho é o organizador.
+bool registrationCancellableByAthlete({
+  required bool isPaid,
+  required List<String> sharePaidUids,
+  double paidAmount = 0,
+}) => !isPaid && sharePaidUids.isEmpty && paidAmount <= 0;
+
 enum TournamentRegistrationStep { category, uniform, partner, waiting, payment }
 
 class TournamentRegistrationPartnerCandidate {

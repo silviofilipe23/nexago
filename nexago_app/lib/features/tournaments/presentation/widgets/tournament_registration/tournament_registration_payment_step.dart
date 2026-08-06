@@ -36,6 +36,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.showInformUniform = false,
     this.onInformUniform,
     this.onCancelRegistration,
+    this.cancelBlockedHint,
   });
 
   final TournamentCategoryOffer category;
@@ -72,6 +73,10 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
 
   /// Cancela a reserva/inscrição do próprio atleta (só enquanto não paga).
   final VoidCallback? onCancelRegistration;
+
+  /// Exibido no lugar do botão de cancelar quando já há pagamento na
+  /// inscrição (parcela de um dos dois) — o caminho passa a ser o organizador.
+  final String? cancelBlockedHint;
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +245,16 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
                 color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
               ),
+            ),
+          ),
+        ] else if (cancelBlockedHint != null) ...[
+          SizedBox(height: 12),
+          Text(
+            cancelBlockedHint!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

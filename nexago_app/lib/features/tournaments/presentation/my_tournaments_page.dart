@@ -16,6 +16,7 @@ import '../domain/my_tournaments_logic.dart';
 import '../domain/my_tournaments_models.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../data/my_tournament_registrations_repository.dart';
+import '../data/tournament_partner_invite_service.dart';
 import '../domain/my_tournaments_providers.dart';
 import '../domain/tournament_registration_navigation.dart';
 import 'widgets/my_tournaments/my_tournaments_app_bar.dart';
@@ -43,6 +44,7 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
   bool _searchVisible = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _cancelling = false;
 
   @override
   void dispose() {
@@ -74,6 +76,47 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
 
   void _openRegistration(MyTournamentRegistration registration) {
     navigateFromMyTournamentRegistration(context, registration);
+  }
+
+  Future<void> _confirmCancelEnrollment(MyTournamentEnrollment enrollment) async {
+    if (_cancelling) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar inscrição?'),
+        content: Text(
+          'Sua vaga no ${enrollment.displayName} será liberada e outro '
+          'atleta poderá se inscrever nesta categoria.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancelar inscrição'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _cancelling = true);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .cancelRegistration(enrollment.registration.registrationId);
+      if (!mounted) return;
+      showAppSnackBar(context, 'Inscrição cancelada.');
+      ref.invalidate(myTournamentRegistrationsProvider);
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
   }
 
   String _headerSubtitle(WidgetRef ref) {
@@ -247,6 +290,9 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
         MyTournamentsOngoingCard(
           enrollment: e,
           onTap: () => _openRegistration(e.registration),
+          onCancel: e.canCancelRegistration && !_cancelling
+              ? () => _confirmCancelEnrollment(e)
+              : null,
         ),
     ];
   }

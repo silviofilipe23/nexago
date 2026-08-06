@@ -319,13 +319,17 @@ export class CategoriaDetalheComponent {
     return i.createdAt ? `${levels} · Inscrito em ${this.shortDate(i.createdAt)}` : levels;
   }
 
+  /** `needsVerification` vem antes de `paid` de propósito: a dupla que só DECLAROU o pagamento
+   *  direto tem `isPaid` true, e chamar isso de "Pago" aqui contradiria a tela de Inscrições. */
   protected payTone(i: TournamentInscription): Tone {
+    if (i.needsVerification) return 'orange';
     if (i.paid) return 'green';
     if (i.paymentStatus === 'waitlist') return 'dim';
     return 'yellow';
   }
 
   protected payLabel(i: TournamentInscription): string {
+    if (i.needsVerification) return 'A conferir';
     if (i.paid) return 'Pago';
     if (i.paymentStatus === 'waitlist') return 'Espera';
     return 'Pendente';

@@ -49,8 +49,15 @@ export interface TournamentInscription {
    *  uniforme: índice 0 = `…Player1`, índice 1 = `…Player2` (ver `resolveParticipantUids`). */
   participants: InscriptionParticipant[];
   participantNames: string[];
-  paymentStatus: string; // raw (ex.: paid/pending/…)
+  paymentStatus: string; // raw (paid/toVerify/waitlist/pending)
   paid: boolean;
+  /** Os atletas declararam ter pago direto no Pix do organizador e ninguém conferiu ainda.
+   *  `isPaid` já é `true` nesse estado — a vaga vale —, mas nenhum webhook viu o dinheiro. */
+  needsVerification: boolean;
+  /** Quantos atletas da inscrição já quitaram a própria parte (`sharePaidUids`) — em pagamento
+   *  pelo app é dinheiro recebido; no modo direto é declaração do atleta. Serve pra explicar
+   *  por que a inscrição está parada em "Pendente". */
+  sharePaidCount: number;
   partnerPending: boolean; // inscrição solo aguardando parceiro — não entra na chave
   /** Uids que aceitaram o termo de uso de imagem/LGPD na inscrição (docs antigos: vazio). */
   lgpdAcceptedUids: string[];
@@ -92,6 +99,11 @@ interface RawInscription {
   isPaid: boolean;
   waitlist: boolean;
   partnerPending: boolean;
+  sharePaidUids: string[];
+  /** Gravado por `reserveDirectOrganizerRegistration` quando a dupla fecha a declaração. */
+  declaredPaidAt: Date | null;
+  /** Gravado por `organizerConfirmRegistrationPayment` — a baixa manual do organizador. */
+  paymentVerifiedByOrganizer: boolean;
   lgpdAcceptedUids: string[];
   uniformPlayer1: InscriptionUniformSlot;
   uniformPlayer2: InscriptionUniformSlot;
@@ -158,6 +170,11 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
     partnerPending: data['partnerPending'] === true,
+    sharePaidUids: Array.isArray(data['sharePaidUids'])
+      ? data['sharePaidUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+      : [],
+    declaredPaidAt: toDate(data['declaredPaidAt']),
+    paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] === true,
     lgpdAcceptedUids: Array.isArray(data['lgpdAcceptedUids'])
       ? data['lgpdAcceptedUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
       : [],
@@ -267,7 +284,12 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
     const teamName =
       (r.teamId ? teamNames.get(r.teamId) : null) ??
       (participantNames.length > 0 ? participantNames.join(' / ') : 'Inscrição');
-    const paymentStatus = r.isPaid ? 'paid' : r.waitlist ? 'waitlist' : 'pending';
+    // `declaredPaidAt` (e não `paymentChannel === 'directOrganizer'`) é a âncora de propósito:
+    // inscrições diretas anteriores a este fluxo não entram retroativamente numa fila de
+    // conferência que ninguém vai fazer. `toVerify` ocupa exatamente o lugar de `paid` —
+    // a precedência sobre `waitlist` continua a mesma de antes.
+    const needsVerification = r.declaredPaidAt != null && !r.paymentVerifiedByOrganizer;
+    const paymentStatus = needsVerification ? 'toVerify' : r.isPaid ? 'paid' : r.waitlist ? 'waitlist' : 'pending';
     return {
       id: r.id,
       tournamentId: r.tournamentId,
@@ -278,6 +300,8 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       participantNames,
       paymentStatus,
       paid: r.isPaid,
+      needsVerification,
+      sharePaidCount: r.sharePaidUids.filter((uid) => uids.includes(uid)).length,
       partnerPending: r.partnerPending,
       lgpdAcceptedUids: r.lgpdAcceptedUids,
       uniformPlayer1: r.uniformPlayer1,

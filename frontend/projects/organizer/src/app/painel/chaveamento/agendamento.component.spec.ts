@@ -17,6 +17,7 @@ function tournamentFixture(): OrganizerTournament {
     coverUrl: null,
     status: 'andamento',
     visibility: 'publicListing',
+    paymentMode: 'appPixCard',
     startAt: new Date(`${DAY}T09:00:00-03:00`),
     endAt: new Date(`${DAY}T22:00:00-03:00`),
     city: null,

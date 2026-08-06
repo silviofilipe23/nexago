@@ -15,6 +15,8 @@ function inscription(overrides: Partial<TournamentInscription> = {}): Tournament
     participantNames: [],
     paymentStatus: 'paid',
     paid: true,
+    needsVerification: false,
+    sharePaidCount: 0,
     partnerPending: false,
     lgpdAcceptedUids: [],
     uniformPlayer1: EMPTY_INSCRIPTION_UNIFORM,

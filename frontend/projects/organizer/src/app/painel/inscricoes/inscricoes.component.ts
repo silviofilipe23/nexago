@@ -19,13 +19,22 @@ import { OgPillComponent } from '../ui/pill.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 /** Status da linha no vocabulário real do schema (`isPaid`/`waitlist`) — "estorno" não existe
- *  no backend, então a aba do protótipo foi trocada por "espera" (fila real). */
-type PayStatus = 'pago' | 'pendente' | 'espera';
+ *  no backend, então a aba do protótipo foi trocada por "espera" (fila real).
+ *
+ *  `conferir` é a dupla que declarou ter pago o Pix direto do organizador: a vaga já vale
+ *  (`isPaid`), mas nenhum webhook viu o dinheiro. Sem esse estado a linha aparecia como "Pago" e
+ *  o botão de confirmar sumia justamente em quem precisava de conferência. */
+type PayStatus = 'pago' | 'conferir' | 'pendente' | 'espera';
 /** "cancelamento" não é status de pagamento: é o recorte de quem pediu cancelamento. */
 type Tab = 'todos' | PayStatus | 'cancelamento';
 
-const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', pendente: 'yellow', espera: 'dim' };
-const PAY_LABEL: Record<PayStatus, string> = { pago: 'Pago', pendente: 'Pendente', espera: 'Espera' };
+const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', conferir: 'orange', pendente: 'yellow', espera: 'dim' };
+const PAY_LABEL: Record<PayStatus, string> = {
+  pago: 'Pago',
+  conferir: 'A conferir',
+  pendente: 'Pendente',
+  espera: 'Espera',
+};
 
 /** Aceite do termo de uso de imagem/LGPD registrado na inscrição: `aceito` = todos os atletas,
  *  `parcial` = só parte da dupla, `pendente` = ninguém (inclui inscrições antigas, feitas antes
@@ -47,6 +56,10 @@ interface InscricaoRow {
   categoriaId: string | null;
   categoria: string;
   pay: PayStatus;
+  /** Tooltip da pílula de pagamento — em `conferir`, explica que é declaração do atleta. */
+  payTitle: string;
+  /** Legenda sob a pílula quando só parte da dupla acertou ("1 de 2 pagaram"). */
+  payNote: string | null;
   /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */
   cancelPending: boolean;
   cancelReason: string;
@@ -86,6 +99,12 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           <div class="og-kpi-label">Pagamentos pendentes</div>
           <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ pendentes() }}</div>
         </og-card>
+        @if (aConferir() > 0) {
+          <og-card pad="sm" flex="1">
+            <div class="og-kpi-label">A conferir</div>
+            <div class="og-kpi-value sm" style="color:var(--nx-orange-500)">{{ aConferir() }}</div>
+          </og-card>
+        }
         @if (cancelamentos() > 0) {
           <og-card pad="sm" flex="1">
             <div class="og-kpi-label">Cancelamentos</div>
@@ -155,7 +174,12 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 </span>
                 <span style="flex:1" class="og-inscricoes-cat">{{ r.categoria }}</span>
                 <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
-                <span style="width:110px"><og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill></span>
+                <span style="width:110px" [title]="r.payTitle">
+                  <og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill>
+                  @if (r.payNote; as note) {
+                    <div class="og-inscricoes-paynote">{{ note }}</div>
+                  }
+                </span>
                 <span style="width:90px" [title]="r.lgpdTitle"><og-pill [tone]="lgpdTone[r.lgpd]">{{ lgpdLabel[r.lgpd] }}</og-pill></span>
                 @if (r.cancelPending) {
                   <span style="width:100%;padding:6px 0 0 44px">
@@ -170,14 +194,18 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                         @if (busyKey() === 'confirm:' + r.id) {
                           <app-nx-spinner [size]="12" />
                         }
-                        {{ busyKey() === 'confirm:' + r.id ? 'Confirmando…' : 'Confirmar pagamento' }}
+                        {{ busyKey() === 'confirm:' + r.id ? 'Confirmando…' : confirmLabel(r) }}
                       </button>
-                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="resend(r)">
-                        @if (busyKey() === 'resend:' + r.id) {
-                          <app-nx-spinner [size]="12" />
-                        }
-                        {{ busyKey() === 'resend:' + r.id ? 'Reenviando…' : 'Reenviar cobrança' }}
-                      </button>
+                      <!-- Em "conferir" os dois já declararam: resendRegistrationPayment só
+                           cobra quem falta em sharePaidUids, ou seja, não avisaria ninguém. -->
+                      @if (r.pay !== 'conferir') {
+                        <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="resend(r)">
+                          @if (busyKey() === 'resend:' + r.id) {
+                            <app-nx-spinner [size]="12" />
+                          }
+                          {{ busyKey() === 'resend:' + r.id ? 'Reenviando…' : 'Reenviar cobrança' }}
+                        </button>
+                      }
                     }
                     @if (r.pay !== 'espera') {
                       <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toWaitlist(r)">
@@ -261,6 +289,12 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       font-family: var(--nx-font-mono);
       font-size: 11.5px;
       color: var(--nx-text-dim);
+    }
+    .og-inscricoes-paynote {
+      font-family: var(--nx-font-ui);
+      font-size: 10.5px;
+      color: var(--nx-text-dim);
+      margin-top: 4px;
     }
     .og-inscricoes-actions {
       width: 100%;
@@ -348,7 +382,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 export class InscricoesComponent {
   readonly id = input<string>('');
 
-  protected readonly tabs = ['todos', 'pago', 'pendente', 'espera', 'cancelamento'];
+  protected readonly tabs = ['todos', 'pago', 'conferir', 'pendente', 'espera', 'cancelamento'];
   protected readonly tab = signal<Tab>('todos');
   protected readonly categoryFilter = signal<string | null>(null);
   protected readonly payTone = PAY_TONE;
@@ -369,6 +403,7 @@ export class InscricoesComponent {
 
   protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
   protected readonly pendentes = computed(() => this.rows().filter((r) => r.pay === 'pendente').length);
+  protected readonly aConferir = computed(() => this.rows().filter((r) => r.pay === 'conferir').length);
   protected readonly cancelamentos = computed(() => this.rows().filter((r) => r.cancelPending).length);
 
   /** Resposta opcional ao atleta; uma por vez porque só uma gaveta abre. */
@@ -382,8 +417,12 @@ export class InscricoesComponent {
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
     if (!t) return '';
+    const parts = [`${this.rows().length} inscrições`];
     const pend = this.pendentes();
-    return `${t.name} · ${this.rows().length} inscrições${pend > 0 ? ` · ${pend} pendentes` : ''}`;
+    if (pend > 0) parts.push(`${pend} pendentes`);
+    const conf = this.aConferir();
+    if (conf > 0) parts.push(`${conf} a conferir`);
+    return `${t.name} · ${parts.join(' · ')}`;
   });
 
   protected readonly filtered = computed<InscricaoRow[]>(() => {
@@ -415,6 +454,9 @@ export class InscricoesComponent {
       const [tournament, inscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
       this.tournament.set(tournament);
       const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
+      // No modo direto o atleta DECLARA que pagou; no modo app o dinheiro entrou de verdade.
+      // A legenda da linha não pode dizer a mesma coisa nos dois casos.
+      const direct = tournament?.paymentMode === 'directWithOrganizer';
       const rows: InscricaoRow[] = inscriptions.map((insc) => {
         const athletes: InscricaoAthlete[] =
           insc.participants.length > 0
@@ -434,13 +476,27 @@ export class InscricoesComponent {
             : lgpd === 'parcial'
               ? `Sem aceite do termo LGPD: ${missing.map((p) => p.name).join(', ')}`
               : 'Nenhum aceite do termo de uso de imagem/LGPD registrado nesta inscrição';
+        const pay: PayStatus = insc.needsVerification
+          ? 'conferir'
+          : insc.paid
+            ? 'pago'
+            : insc.paymentStatus === 'waitlist'
+              ? 'espera'
+              : 'pendente';
+        const total = insc.participants.length;
+        const partial = pay !== 'conferir' && total > 1 && insc.sharePaidCount > 0 && insc.sharePaidCount < total;
         return {
           id: insc.id,
           name: insc.teamName,
           athletes: athletes.slice(0, 2),
           categoriaId: insc.categoryId,
           categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
-          pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
+          pay,
+          payTitle:
+            pay === 'conferir'
+              ? 'Os atletas declararam ter pago o Pix do organizador. Confira o recebimento e confirme.'
+              : '',
+          payNote: partial ? `${insc.sharePaidCount} de ${total} ${direct ? 'declararam' : 'pagaram'}` : null,
           cancelPending: insc.cancellationRequest?.status === 'pending',
           cancelReason: insc.cancellationRequest?.reason ?? '',
           lgpd,
@@ -459,6 +515,12 @@ export class InscricoesComponent {
   /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */
   protected athleteMeta(r: InscricaoRow): string {
     return [r.categoria === '—' ? null : r.categoria, r.name].filter(Boolean).join(' · ');
+  }
+
+  /** Em `conferir` o organizador não está lançando um pagamento novo: está dando baixa numa
+   *  declaração que já garantiu a vaga. O rótulo tem que dizer isso. */
+  protected confirmLabel(r: InscricaoRow): string {
+    return r.pay === 'conferir' ? 'Confirmar recebimento' : 'Confirmar pagamento';
   }
 
   protected countOf(categoryId: string): number {

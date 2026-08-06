@@ -12,6 +12,7 @@ import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
 import {
   buildPredictionLeaderboard,
   canPredictMatch,
+  groupMatchesByCategory,
   isChampionDecidingMatch,
   isPredictionLocked,
   predictableMatches,
@@ -36,7 +37,7 @@ export interface PickOptionView {
 export interface PredictionCardView {
   matchId: string;
   number: string | null;
-  /** "SEMIFINAL · 17:30" (+ categoria quando a lista mistura categorias). */
+  /** "SEMIFINAL · 17:30" — a categoria não entra aqui: ela titula a seção. */
   head: string;
   state: CardState;
   stateLabel: string;
@@ -50,6 +51,17 @@ export interface PredictionCardView {
   options: PickOptionView[];
   saving: boolean;
   saved: boolean;
+}
+
+export interface PredictionSectionView {
+  categoryId: string;
+  title: string;
+  /** "4 abertas" quando ainda dá pra palpitar; senão o total de jogos. É o que diz ao torcedor
+   *  onde ele ainda tem o que fazer, sem precisar varrer os cards. */
+  detail: string;
+  /** Acende o contador da seção — mesma semântica do selo "Aberto" do card. */
+  hasOpen: boolean;
+  cards: PredictionCardView[];
 }
 
 export interface LeaderRowView {
@@ -223,11 +235,31 @@ export class PredictionsTabComponent {
     return labels;
   });
 
-  protected readonly cards = computed<PredictionCardView[]>(() => {
+  /** Uma seção por categoria — o agrupamento e a ordem são do seletor puro; aqui só vira view. */
+  protected readonly sections = computed<PredictionSectionView[]>(() => {
     const picks = this.picks();
-    const showCategory = this.categoryFilter() == null && this.categories().length > 1;
-    return this.visibleMatches().map((m) => this.cardOf(m, picks, showCategory));
+    const order = (this.store.tournament()?.categories ?? []).map((c) => c.id);
+
+    return groupMatchesByCategory(this.visibleMatches(), order).map((group) => {
+      const open = group.matches.filter(canPredictMatch).length;
+      return {
+        categoryId: group.categoryId,
+        title: this.store.categoryById(group.categoryId)?.categoryName ?? 'Categoria',
+        detail:
+          open > 0
+            ? open === 1
+              ? '1 aberta'
+              : `${open} abertas`
+            : group.matches.length === 1
+              ? '1 jogo'
+              : `${group.matches.length} jogos`,
+        hasOpen: open > 0,
+        cards: group.matches.map((m) => this.cardOf(m, picks)),
+      };
+    });
   });
+
+  protected readonly hasCards = computed(() => this.sections().some((s) => s.cards.length > 0));
 
   /** Fase da partida como o atleta a chama: "Grupo A" na fase de grupos, "Semifinal" no
    *  mata-mata. Sem isso o `matchType` cru vaza em inglês ("Group") no cabeçalho do card. */
@@ -235,17 +267,16 @@ export class PredictionsTabComponent {
     return m.poolId ? (this.poolLabels().get(m.poolId) ?? 'Grupo') : knockoutLabelOf(m);
   }
 
-  private cardOf(m: TournamentMatch, picks: Readonly<Record<string, string>>, showCategory: boolean): PredictionCardView {
+  private cardOf(m: TournamentMatch, picks: Readonly<Record<string, string>>): PredictionCardView {
     const state = this.stateOf(m);
     const pick = picks[m.id] ?? null;
-    const category = showCategory ? (this.store.categoryById(m.categoryId)?.categoryName ?? null) : null;
     const time = m.scheduleTime ? timeLabelOf(m.scheduleTime) : null;
     const isChampion = isChampionDecidingMatch(m);
 
     return {
       matchId: m.id,
       number: matchNumberLabelOf(m),
-      head: [category, this.phaseLabelOf(m), time].filter((p): p is string => p != null && p.length > 0).join(' · '),
+      head: [this.phaseLabelOf(m), time].filter((p): p is string => p != null && p.length > 0).join(' · '),
       state,
       stateLabel: state === 'open' && time ? time : STATE_LABEL[state],
       stage: this.stageOf(m),

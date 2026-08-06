@@ -41,6 +41,40 @@ export async function assertCanManageTournament(
 }
 
 /**
+ * Uids que operam o torneio e devem ser avisados de pendências operacionais:
+ * o dono (`managerId`) mais o staff `manager` ativo — exatamente quem
+ * `assertCanManageTournament` autoriza a agir sobre uma inscrição.
+ *
+ * Admins por claim ficam de fora de propósito: são acesso de suporte, não
+ * destinatários de aviso operacional de cada torneio da plataforma.
+ */
+export async function tournamentManagerUids(
+  db: Firestore,
+  tournamentId: string,
+  tournamentData?: Record<string, unknown>,
+): Promise<string[]> {
+  const uids = new Set<string>();
+
+  const data =
+    tournamentData ?? (await db.doc(`tournaments/${tournamentId}`).get()).data();
+  const managerId = data?.managerId;
+  if (typeof managerId === "string" && managerId.trim()) {
+    uids.add(managerId.trim());
+  }
+
+  const staffSnap = await db
+    .collection(`tournaments/${tournamentId}/staff`)
+    .where("status", "==", "active")
+    .where("role", "==", "manager")
+    .get();
+  for (const doc of staffSnap.docs) {
+    if (doc.id.trim()) uids.add(doc.id.trim());
+  }
+
+  return [...uids];
+}
+
+/**
  * Verifica se o usuário pode lançar placar (owner, staff manager/scorer ou admin).
  */
 export async function assertCanScoreTournament(

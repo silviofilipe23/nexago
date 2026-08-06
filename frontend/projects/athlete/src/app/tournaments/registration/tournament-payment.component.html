@@ -31,6 +31,140 @@
               <p class="tp-defer-note">Você ainda não tem uma inscrição nesta categoria.</p>
               <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Voltar pra inscrição</a>
             </section>
+          } @else if (t.paymentMode === 'directWithOrganizer' && totalPriceReais() > 0) {
+            <!-- Pagamento direto: o dinheiro cai fora do app e o que existe é a DECLARAÇÃO do
+                 atleta. O estado vem de `direct-payment-state.ts` — antes disso este ramo
+                 engolia tudo e a tela ficava idêntica depois do "Já paguei". -->
+            @switch (directState()) {
+              @case ('confirmed') {
+                <section class="tp-card">
+                  <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
+                  <p class="tp-defer-note">
+                    O organizador confirmou o recebimento — sua dupla está garantida na categoria. Nos vemos na quadra!
+                  </p>
+                  <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                </section>
+              }
+              @case ('waitingOrganizer') {
+                <section class="tp-card">
+                  <h2 class="tp-card-title">Pagamento informado ⏳</h2>
+                  <p class="tp-defer-note">
+                    Vocês dois informaram o pagamento e a vaga da dupla está garantida. O organizador foi avisado e vai
+                    conferir o recebimento para confirmar a inscrição.
+                  </p>
+                  <p class="tp-defer-note">Guarde o comprovante do Pix até a confirmação sair.</p>
+                  <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                </section>
+              }
+              @case ('waitingPartner') {
+                <section class="tp-card">
+                  <h2 class="tp-card-title">Sua parte foi informada ✔</h2>
+                  <p class="tp-defer-note">
+                    Agora é com seu parceiro — a inscrição fecha quando ele informar o pagamento dele, e aí o
+                    organizador confere o recebimento dos dois.
+                  </p>
+                  <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                </section>
+              }
+              @default {
+                <section class="tp-card">
+                  <h2 class="tp-card-title">Pagamento direto com o organizador</h2>
+                  <p class="tp-defer-note">Esse torneio não recebe pagamento pelo app — pague o Pix do organizador e informe abaixo.</p>
+
+                  <div class="tp-amount-section">
+                    <p class="tp-amount-label">Quanto você quer pagar agora?</p>
+                    <div class="tp-amount-toggle" role="group" aria-label="Tipo de pagamento">
+                      <button
+                        type="button"
+                        class="tp-amount-btn"
+                        [class.tp-amount-btn--active]="amountType() === 'share'"
+                        (click)="setAmountType('share')"
+                      >
+                        <span class="tp-amount-btn-title">Minha parte</span>
+                        <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / 2) }}</span>
+                        <span class="tp-amount-btn-hint">Metade da inscrição da dupla</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="tp-amount-btn"
+                        [class.tp-amount-btn--active]="amountType() === 'full'"
+                        (click)="setAmountType('full')"
+                      >
+                        <span class="tp-amount-btn-title">Integral</span>
+                        <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais()) }}</span>
+                        <span class="tp-amount-btn-hint">Valor total da dupla</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="tp-due-box">
+                    <span class="tp-due-label">{{ amountType() === 'full' ? 'Total da dupla' : 'Sua parcela' }}</span>
+                    <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
+                  </div>
+
+                  @if (organizerBrCode(); as brCode) {
+                    <div class="tp-pix-block">
+                      @if (organizerQrSrc(); as qrSrc) {
+                        <div class="tp-qr-frame">
+                          <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix do organizador" />
+                        </div>
+                      }
+                      @if (t.organizerPix; as pix) {
+                        @if (pix.recipientName) {
+                          <p class="tp-defer-note">Recebedor: {{ pix.recipientName }}@if (pix.city) { · {{ pix.city }} }</p>
+                        }
+                      }
+                      <div class="tp-pix-code-row">
+                        <span class="tp-pix-code">{{ brCode }}</span>
+                        <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyOrganizerPix()">Copiar</button>
+                      </div>
+                      <p class="tp-pix-note">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                        Escaneie o QR ou cole o código no app do banco — depois informe o pagamento aqui.
+                      </p>
+                    </div>
+                  } @else if (t.organizerPix; as pix) {
+                    <div class="tp-pix-block">
+                      <div class="tp-pix-code-row">
+                        <span class="tp-pix-code">{{ pix.key }} ({{ pix.keyType }})</span>
+                      </div>
+                    </div>
+                  }
+
+                  <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="askToDeclare()">
+                    @if (processing()) {
+                      <app-nx-spinner [size]="14" tone="dark" />
+                    }
+                    {{ processing() ? 'Registrando…' : 'Já paguei, informar pagamento' }}
+                  </button>
+                </section>
+              }
+            }
+
+            <!-- Pós-declaração o Pix sai do centro, mas continua alcançável: o parceiro pode
+                 pedir o código, e sumir com ele tira do atleta a prova do que foi pago. -->
+            @if (directState() === 'waitingPartner' || directState() === 'waitingOrganizer') {
+              @if (organizerBrCode(); as brCode) {
+                <section class="tp-card tp-declared-pix">
+                  <button type="button" class="tp-btn-ghost" (click)="showDeclaredPix.set(!showDeclaredPix())">
+                    {{ showDeclaredPix() ? 'Esconder o código Pix' : 'Ver o código Pix de novo' }}
+                  </button>
+                  @if (showDeclaredPix()) {
+                    <div class="tp-pix-block">
+                      @if (organizerQrSrc(); as qrSrc) {
+                        <div class="tp-qr-frame">
+                          <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix do organizador" />
+                        </div>
+                      }
+                      <div class="tp-pix-code-row">
+                        <span class="tp-pix-code">{{ brCode }}</span>
+                        <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyOrganizerPix()">Copiar</button>
+                      </div>
+                    </div>
+                  }
+                </section>
+              }
+            }
           } @else if (registration()!.isPaid) {
             <section class="tp-card">
               <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
@@ -46,78 +180,6 @@
                   <app-nx-spinner [size]="14" tone="dark" />
                 }
                 {{ processing() ? 'Confirmando…' : 'Confirmar inscrição gratuita' }}
-              </button>
-            </section>
-          } @else if (t.paymentMode === 'directWithOrganizer') {
-            <section class="tp-card">
-              <h2 class="tp-card-title">Pagamento direto com o organizador</h2>
-              <p class="tp-defer-note">Esse torneio não recebe pagamento pelo app — pague o Pix do organizador e marque a reserva.</p>
-
-              <div class="tp-amount-section">
-                <p class="tp-amount-label">Quanto você quer pagar agora?</p>
-                <div class="tp-amount-toggle" role="group" aria-label="Tipo de pagamento">
-                  <button
-                    type="button"
-                    class="tp-amount-btn"
-                    [class.tp-amount-btn--active]="amountType() === 'share'"
-                    (click)="setAmountType('share')"
-                  >
-                    <span class="tp-amount-btn-title">Minha parte</span>
-                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / 2) }}</span>
-                    <span class="tp-amount-btn-hint">Metade da inscrição da dupla</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="tp-amount-btn"
-                    [class.tp-amount-btn--active]="amountType() === 'full'"
-                    (click)="setAmountType('full')"
-                  >
-                    <span class="tp-amount-btn-title">Integral</span>
-                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais()) }}</span>
-                    <span class="tp-amount-btn-hint">Valor total da dupla</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="tp-due-box">
-                <span class="tp-due-label">{{ amountType() === 'full' ? 'Total da dupla' : 'Sua parcela' }}</span>
-                <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
-              </div>
-
-              @if (organizerBrCode(); as brCode) {
-                <div class="tp-pix-block">
-                  @if (organizerQrSrc(); as qrSrc) {
-                    <div class="tp-qr-frame">
-                      <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix do organizador" />
-                    </div>
-                  }
-                  @if (t.organizerPix; as pix) {
-                    @if (pix.recipientName) {
-                      <p class="tp-defer-note">Recebedor: {{ pix.recipientName }}@if (pix.city) { · {{ pix.city }} }</p>
-                    }
-                  }
-                  <div class="tp-pix-code-row">
-                    <span class="tp-pix-code">{{ brCode }}</span>
-                    <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyOrganizerPix()">Copiar</button>
-                  </div>
-                  <p class="tp-pix-note">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
-                    Escaneie o QR ou cole o código no app do banco — depois confirme a reserva abaixo.
-                  </p>
-                </div>
-              } @else if (t.organizerPix; as pix) {
-                <div class="tp-pix-block">
-                  <div class="tp-pix-code-row">
-                    <span class="tp-pix-code">{{ pix.key }} ({{ pix.keyType }})</span>
-                  </div>
-                </div>
-              }
-
-              <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="reserveDirect()">
-                @if (processing()) {
-                  <app-nx-spinner [size]="14" tone="dark" />
-                }
-                {{ processing() ? 'Registrando…' : 'Já paguei, marcar como reservado' }}
               </button>
             </section>
           } @else if (mySharePaid()) {
@@ -248,6 +310,27 @@
         </div>
       </div>
     </div>
+
+    <!-- Decisão informada, não erro: `role="dialog"`. Informar o pagamento não tem desfazer no
+         app e avisa o organizador, então o clique precisa ser deliberado. -->
+    @if (confirmingDeclaration()) {
+      <app-nx-blocking-dialog
+        role="dialog"
+        tone="warning"
+        heading="O Pix já caiu?"
+        [body]="
+          'Confirme que você já enviou ' +
+          formatBRL(amountDueReais()) +
+          ' para o Pix do organizador. O organizador será avisado para conferir o recebimento, e isso não dá pra desfazer por aqui.'
+        "
+        primaryLabel="Sim, já paguei"
+        secondaryLabel="Ainda não"
+        [dismissible]="true"
+        (primary)="confirmDeclaration()"
+        (secondary)="cancelDeclaration()"
+        (dismissed)="cancelDeclaration()"
+      />
+    }
   } @else {
     <div class="tp-notfound">
       <p class="tp-empty-title">Torneio não encontrado.</p>

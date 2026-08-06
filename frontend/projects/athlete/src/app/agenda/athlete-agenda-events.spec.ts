@@ -32,6 +32,8 @@ function makeRegistration(overrides: Partial<AthleteTournamentRegistration> = {}
     isPaid: true,
     waitlist: false,
     sharePaidUids: [],
+    declaredPaidAt: null,
+    paymentVerifiedByOrganizer: false,
     player1Id: null,
     participantUids: [],
     lgpdAcceptedUids: [],

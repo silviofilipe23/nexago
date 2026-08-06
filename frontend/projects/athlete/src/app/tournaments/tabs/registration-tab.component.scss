@@ -108,3 +108,24 @@
     background: var(--nx-orange-400);
   }
 }
+
+.reg-cancel {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: var(--nx-s-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nx-text-mute);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+}

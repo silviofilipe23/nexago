@@ -373,3 +373,20 @@ export async function declinePartnerInvite(functions: Functions, inviteId: strin
     throw mapCallableError(err);
   }
 }
+
+/** Inscrição cancelável pelo próprio atleta: nenhum pagamento registrado (nem a dupla
+ *  confirmada, nem parcela de um dos dois) — espelha o guard da callable. */
+export function registrationCancellable(r: Pick<AthleteTournamentRegistration, 'isPaid' | 'sharePaidUids'>): boolean {
+  return !r.isPaid && r.sharePaidUids.length === 0;
+}
+
+/** Cancela a inscrição do próprio atleta — só sem NENHUM pagamento (o backend bloqueia
+ *  paga/meio-paga com `failed-precondition`, cancela PIX aberto no Asaas e derruba
+ *  convites/equipe junto). */
+export async function cancelMyRegistration(functions: Functions, registrationId: string): Promise<void> {
+  try {
+    await httpsCallable(functions, 'cancelTournamentRegistration')({ registrationId });
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}

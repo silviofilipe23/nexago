@@ -1,10 +1,10 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { RegistrationProgress } from './registration-progress';
 
 /** Card "Continue sua inscrição" do painel — componente burro: recebe a trilha já montada por
  *  `buildRegistrationProgress` e só renderiza. Toda a regra (qual passo, qual rota) fica no
- *  módulo puro. */
+ *  módulo puro. O cancelamento também mora no pai: aqui só emite o item. */
 @Component({
   selector: 'at-registration-tracker',
   imports: [RouterLink],
@@ -14,4 +14,5 @@ import type { RegistrationProgress } from './registration-progress';
 })
 export class AtRegistrationTrackerComponent {
   readonly items = input.required<readonly RegistrationProgress[]>();
+  readonly cancel = output<RegistrationProgress>();
 }

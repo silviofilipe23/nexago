@@ -1,5 +1,6 @@
 import {
   EMPTY_UNIFORM_SLOT,
+  registrationCancellable,
   type AthleteTournamentRegistration,
 } from '../data/tournament-registrations-repository';
 import type { TournamentCategoryOffer, TournamentSummary } from '../data/tournaments-repository';
@@ -109,7 +110,22 @@ function build(
 /** Categoria com uniforme só de regata, sem número e sem nome na camisa. */
 const UNIFORM_CATEGORY = makeCategory({ uniformType: 'top_only', uniformSizeOptionsTop: ['P', 'M', 'G'] });
 
+describe('registrationCancellable', () => {
+  it('cancelável só sem NENHUM pagamento', () => {
+    expect(registrationCancellable(makeRegistration())).toBe(true);
+    expect(registrationCancellable(makeRegistration({ isPaid: true }))).toBe(false);
+    expect(registrationCancellable(makeRegistration({ sharePaidUids: [PARTNER] }))).toBe(false);
+  });
+});
+
 describe('buildRegistrationProgress', () => {
+  it('inscrição sem pagamento sai com canCancel; parcela do parceiro bloqueia', () => {
+    expect(build(makeRegistration())!.canCancel).toBe(true);
+    expect(build(makeRegistration({ sharePaidUids: [PARTNER] }))!.canCancel).toBe(false);
+    // Paga aguardando parceiro ainda gera trilha — mas nunca cancelável.
+    expect(build(makeRegistration({ isPaid: true, partnerPending: true }))!.canCancel).toBe(false);
+  });
+
   it('sem uniforme e sem parceiro: 4 passos, parado na Dupla', () => {
     const progress = build(makeRegistration())!;
 

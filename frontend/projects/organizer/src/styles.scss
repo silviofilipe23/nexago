@@ -1091,8 +1091,19 @@ button {
   padding: 16px;
 }
 
+/* `pad="0"` é pra tabela: quem manda no recuo são o `.og-table-head` e o `.og-table-body`
+   de dentro, que já trazem os 20px. Isto aqui era `padding: 10` — comprimento sem unidade,
+   declaração inválida, descartada pelo navegador —, então o card ficava com os 20px de
+   `.og-card` e todo mundo saía com recuo dobrado (40px) e o título 20px fora do prumo. */
 .og-card.og-card-pad-0 {
-  padding: 10;
+  padding: 0;
+}
+
+/* Card sem recuo mas COM kicker/título (financeiro, chaveamento/grupos): o cabeçalho não tem
+   recuo próprio, então precisa do seu — alinhado com os 20px das linhas. */
+.og-card.og-card-pad-0 > .og-card-head {
+  padding: 18px 20px 0;
+  margin-bottom: 12px;
 }
 
 .og-card-head {

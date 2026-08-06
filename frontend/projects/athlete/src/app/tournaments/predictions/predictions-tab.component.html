@@ -94,11 +94,18 @@
           </div>
         }
 
-        @if (cards().length === 0) {
+        @if (!hasCards()) {
           <p class="pp-empty">Nenhum confronto definido nesta categoria ainda.</p>
         } @else {
-          <div class="pp-grid">
-            @for (card of cards(); track card.matchId) {
+          <div class="pp-sections">
+          @for (section of sections(); track section.categoryId) {
+          <section class="pp-section">
+            <h3 class="pp-section-label">
+              <span class="pp-section-name">{{ section.title }}</span>
+              <span class="pp-section-detail" [class.pp-section-detail--open]="section.hasOpen">{{ section.detail }}</span>
+            </h3>
+            <div class="pp-grid">
+            @for (card of section.cards; track card.matchId) {
               <article
                 class="pp-card"
                 [class.pp-card--final]="card.stage === 'final'"
@@ -171,6 +178,9 @@
                 </p>
               </article>
             }
+            </div>
+          </section>
+          }
           </div>
         }
       </div>

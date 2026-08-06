@@ -25,6 +25,42 @@ export function predictableMatches(matches: readonly TournamentMatch[]): Tournam
     .sort((a, b) => a.matchNumber - b.matchNumber);
 }
 
+export interface PredictionCategoryGroup {
+  categoryId: string;
+  matches: TournamentMatch[];
+}
+
+/**
+ * Agrupa as partidas por categoria, na ordem em que o organizador cadastrou as categorias no
+ * torneio (a mesma da aba Categorias). Um torneio tem dezenas de categorias misturando grupos e
+ * mata-mata: em lista corrida, dois cards vizinhos podiam ser de categorias diferentes sem
+ * nenhuma marca separando.
+ *
+ * Categoria que sumiu do documento do torneio mas ainda tem partidas vai para o fim em vez de
+ * desaparecer — esconder jogo por causa de metadado faltando seria pior que exibi-lo fora de
+ * ordem. A ordem das partidas DENTRO do grupo é preservada.
+ */
+export function groupMatchesByCategory(
+  matches: readonly TournamentMatch[],
+  categoryOrder: readonly string[],
+): PredictionCategoryGroup[] {
+  const groups = new Map<string, TournamentMatch[]>();
+  for (const m of matches) {
+    const list = groups.get(m.categoryId);
+    if (list) list.push(m);
+    else groups.set(m.categoryId, [m]);
+  }
+
+  const rankOf = (categoryId: string): number => {
+    const index = categoryOrder.indexOf(categoryId);
+    return index >= 0 ? index : categoryOrder.length;
+  };
+
+  return [...groups.entries()]
+    .map(([categoryId, list]) => ({ categoryId, matches: list }))
+    .sort((a, b) => rankOf(a.categoryId) - rankOf(b.categoryId));
+}
+
 /** A grande final decide o campeão (`matchType === 'Final'`, mesma leitura de `isFinalMatchType`
  *  no backend): o palpite dela vale +3 e dispensa um seletor de campeão à parte. */
 export function isChampionDecidingMatch(m: TournamentMatch): boolean {

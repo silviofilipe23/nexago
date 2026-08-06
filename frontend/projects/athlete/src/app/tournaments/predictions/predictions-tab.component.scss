@@ -188,6 +188,54 @@
   }
 }
 
+// ── Seção por categoria ──────────────────────────────────────────────────────
+// Um torneio tem dezenas de categorias e a lista corrida deixava dois jogos vizinhos em
+// categorias diferentes sem nenhuma marca. O título é a régua que separa.
+// O espaçamento entre seções vive aqui, e não no gap do `.pp-panel`: caso contrário as duas
+// fontes se somam e a distância deixa de ser previsível.
+.pp-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-6);
+}
+
+.pp-section-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nx-s-3);
+  margin: 0 0 var(--nx-s-3);
+  padding-bottom: var(--nx-s-2);
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.pp-section-name {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Acende só quando a categoria ainda tem palpite a dar — mesma leitura do selo "Aberto".
+.pp-section-detail {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+
+  &--open {
+    color: var(--nx-orange-400);
+  }
+}
+
 // ── Card de palpite ──────────────────────────────────────────────────────────
 .pp-grid {
   display: grid;

@@ -390,6 +390,37 @@ export async function fetchCategoryEnrolledCounts(db: Firestore, projectId: stri
   return counts;
 }
 
+/** Inscritos por torneio, para telas de lista (o card do Competir) — mesma fonte de
+ *  `fetchCategoryEnrolledCounts`, agrupada por torneio em vez de por categoria. O
+ *  `enrolledCount` do doc do torneio não serve: nasce `0` e nunca é incrementado. `in` aceita
+ *  10 valores por consulta, então vai em blocos (igual `fetchTournamentSummariesByIds`). */
+export async function fetchEnrolledCountsByTournament(
+  db: Firestore,
+  projectId: string,
+  tournamentIds: readonly string[],
+): Promise<Map<string, number>> {
+  const unique = [...new Set(tournamentIds.filter((id) => id.trim().length > 0))];
+  const counts = new Map<string, number>();
+  if (unique.length === 0) return counts;
+
+  const chunkPromises: Promise<void>[] = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const chunk = unique.slice(i, i + 10);
+    chunkPromises.push(
+      getDocs(
+        query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', 'in', chunk)),
+      ).then((snap) => {
+        for (const d of snap.docs) {
+          const tid = optionalStr((d.data() as Record<string, unknown>)['tournamentId']);
+          if (tid) counts.set(tid, (counts.get(tid) ?? 0) + 1);
+        }
+      }),
+    );
+  }
+  await Promise.all(chunkPromises);
+  return counts;
+}
+
 export function tournamentIsLive(t: Pick<TournamentSummary, 'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity'>, now = new Date()): boolean {
   return tournamentListingStatus(t, now) === 'live';
 }

@@ -39,6 +39,8 @@ export interface DiscoveryTournament {
   spotsTotal: number;
   status: TournamentListingStatus;
   featured: boolean;
+  /** Vagas preenchidas — inscrições contadas em `inscriptions`, não o `enrolledCount` do doc do
+   *  torneio (que nasce `0` e nunca é incrementado). Ver `tournament-discovery.spots.ts`. */
   enrolledCount: number;
   liveMatchesNow: number;
   /** O atleta logado já está inscrito neste torneio. */

@@ -19,7 +19,13 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { fetchAllLeagues, type League } from '../data/leagues-repository';
 import { fetchMyRegistrations } from '../data/tournament-registrations-repository';
-import { fetchAllTournaments, registrationOpensAt, tournamentListingStatus, type TournamentSummary } from '../data/tournaments-repository';
+import {
+  fetchAllTournaments,
+  fetchEnrolledCountsByTournament,
+  registrationOpensAt,
+  tournamentListingStatus,
+  type TournamentSummary,
+} from '../data/tournaments-repository';
 import type {
   DiscoveryLeague,
   DiscoveryLeagueStage,
@@ -28,6 +34,7 @@ import type {
   FilterFormat,
 } from './tournament-discovery.models';
 import { collectLeagueTournamentIds } from './tournament-league.helpers';
+import { discoveryFillPercent, discoverySpotsOf } from './tournament-discovery.spots';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -45,10 +52,15 @@ function dateLabelFrom(d: Date | null): string {
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(d);
 }
 
-function discoveryTournamentFromSummary(s: TournamentSummary, myTournamentIds: ReadonlySet<string>): DiscoveryTournament {
+/** `enrolled`: inscrições contadas em `inscriptions` — `null` quando a contagem não veio (aí o
+ *  card cai nos contadores do doc; ver `tournament-discovery.spots.ts`). */
+function discoveryTournamentFromSummary(
+  s: TournamentSummary,
+  myTournamentIds: ReadonlySet<string>,
+  enrolled: number | null,
+): DiscoveryTournament {
   const cheapestFee = s.categories.length > 0 ? Math.min(...s.categories.map((c) => c.entryFee)) : 0;
-  const spotsLeftFromCategories = s.categories.reduce((sum, c) => sum + c.spotsLeft, 0);
-  const spotsLeft = s.categories.length > 0 ? spotsLeftFromCategories : Math.max(0, s.capacity - s.enrolledCount);
+  const spots = discoverySpotsOf(s, enrolled);
   return {
     id: s.id,
     name: s.name,
@@ -60,11 +72,11 @@ function discoveryTournamentFromSummary(s: TournamentSummary, myTournamentIds: R
     format: s.format,
     priceLabel: formatBRL(cheapestFee),
     priceValue: cheapestFee,
-    spotsLeft,
-    spotsTotal: s.capacity,
+    spotsLeft: spots.left,
+    spotsTotal: spots.total,
     status: tournamentListingStatus(s),
     featured: s.featured,
-    enrolledCount: s.enrolledCount,
+    enrolledCount: spots.filled,
     liveMatchesNow: s.liveMatchesNow,
     enrolled: myTournamentIds.has(s.id),
     registrationOpensAt: registrationOpensAt(s),
@@ -378,8 +390,21 @@ export class TournamentDiscoveryComponent {
         fetchAllLeagues(db),
         uid ? fetchMyRegistrations(db, projectId, uid) : Promise.resolve([]),
       ]);
+      // Depende dos ids, então é um segundo salto. Degrada por conta própria: sem a contagem o
+      // card mostra as vagas dos contadores do doc em vez de derrubar a listagem inteira.
+      const enrolledByTournament = await fetchEnrolledCountsByTournament(
+        db,
+        projectId,
+        tournaments.map((t) => t.id),
+      ).catch(() => null);
       const myTournamentIds = new Set(registrations.map((r) => r.tournamentId));
-      this.allTournaments.set(tournaments.map((t) => discoveryTournamentFromSummary(t, myTournamentIds)));
+      this.allTournaments.set(
+        tournaments.map((t) =>
+          // Contagem carregada: torneio fora do mapa é torneio sem nenhuma inscrição (0, não
+          // "não sei"). Só a leitura recusada cai nos contadores do doc.
+          discoveryTournamentFromSummary(t, myTournamentIds, enrolledByTournament ? (enrolledByTournament.get(t.id) ?? 0) : null),
+        ),
+      );
       this.leagues.set(leagues.map(discoveryLeagueFromLeague));
     } finally {
       this.loading.set(false);
@@ -474,8 +499,7 @@ export class TournamentDiscoveryComponent {
   }
 
   protected fillPercent(t: DiscoveryTournament): number {
-    if (t.spotsTotal <= 0) return 0;
-    return Math.round(((t.spotsTotal - t.spotsLeft) / t.spotsTotal) * 100);
+    return discoveryFillPercent({ filled: t.enrolledCount, total: t.spotsTotal });
   }
 
   protected readonly heroGradient = heroGradient;

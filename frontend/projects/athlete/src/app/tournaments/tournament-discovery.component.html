@@ -166,13 +166,15 @@
                       }
                       <span class="cp-pill cp-pill--price">{{ t.priceLabel }}</span>
                     </div>
-                    <div class="cp-progress" [attr.data-full]="t.spotsLeft <= 0">
-                      <span class="cp-progress-fill" [style.width.%]="fillPercent(t)"></span>
-                    </div>
-                    <div class="cp-progress-caption">
-                      <span>{{ t.spotsTotal - t.spotsLeft }}/{{ t.spotsTotal }} vagas</span>
-                      <span>{{ fillPercent(t) }}% cheio</span>
-                    </div>
+                    @if (t.spotsTotal > 0) {
+                      <div class="cp-progress" [attr.data-full]="t.spotsLeft <= 0">
+                        <span class="cp-progress-fill" [style.width.%]="fillPercent(t)"></span>
+                      </div>
+                      <div class="cp-progress-caption">
+                        <span>{{ t.enrolledCount }}/{{ t.spotsTotal }} vagas</span>
+                        <span>{{ fillPercent(t) }}% cheio</span>
+                      </div>
+                    }
                   </div>
                 </a>
               }

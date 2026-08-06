@@ -7,6 +7,7 @@ import { listOrganizerNames } from '../data/tournaments-repository';
 import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent, type OgIconName } from '../ui/icon.component';
+import { OgPersonPhotoComponent } from '../ui/person-photo.component';
 import { PanelContextService } from './panel-context.service';
 
 interface OgNavEntry {
@@ -63,7 +64,7 @@ function initialsOfName(name: string): string {
 @Component({
   selector: 'og-panel-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterOutlet, OgIconComponent, OgAvatarComponent],
+  imports: [RouterLink, RouterOutlet, OgIconComponent, OgAvatarComponent, OgPersonPhotoComponent],
   host: {
     class: 'og-shell',
     '(document:click)': 'userMenuOpen.set(false)',
@@ -163,6 +164,9 @@ function initialsOfName(name: string): string {
       }
       <router-outlet />
     </div>
+
+    <!-- Único visualizador de foto do painel: qualquer og-avatar com zoomable abre aqui. -->
+    <og-person-photo />
   `,
   styles: `
     .og-support-banner {

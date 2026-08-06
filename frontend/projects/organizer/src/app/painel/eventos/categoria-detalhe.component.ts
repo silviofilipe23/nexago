@@ -81,7 +81,10 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span class="og-categoria-avatars" [style.width.px]="athletesOf(i).length > 1 ? 52 : 52">
                   @for (p of athletesOf(i); track $index; let ai = $index) {
                     <og-avatar
+                      zoomable
                       [initials]="initialsOf(p.name)"
+                      [personName]="p.name"
+                      [meta]="athleteMeta(i)"
                       [photoUrl]="p.photoUrl"
                       [size]="52"
                       [style.margin-left.px]="ai ? -16 : 0"
@@ -283,6 +286,11 @@ export class CategoriaDetalheComponent {
   }
 
   /** Até 2 atletas pra stack de avatares (solo = 1; sem participantes = fallback no nome da dupla). */
+  /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */
+  protected athleteMeta(i: TournamentInscription): string {
+    return [this.category()?.name, i.teamName].filter(Boolean).join(' · ');
+  }
+
   protected athletesOf(i: TournamentInscription): { name: string; photoUrl: string | null }[] {
     if (i.participants.length > 0) {
       return i.participants.slice(0, 2).map((p) => ({ name: p.name, photoUrl: p.photoUrl }));

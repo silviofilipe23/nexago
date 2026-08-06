@@ -123,7 +123,10 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span class="og-inscricoes-avatars" [style.width.px]="r.athletes.length > 1 ? 85 : 52">
                   @for (a of r.athletes; track $index; let i = $index) {
                     <og-avatar
+                      zoomable
                       [initials]="initialsOf(a.name)"
+                      [personName]="a.name"
+                      [meta]="athleteMeta(r)"
                       [photoUrl]="a.photoUrl"
                       [size]="52"
                       [style.margin-left.px]="i ? -16 : 0"
@@ -342,6 +345,11 @@ export class InscricoesComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */
+  protected athleteMeta(r: InscricaoRow): string {
+    return [r.categoria === '—' ? null : r.categoria, r.name].filter(Boolean).join(' · ');
   }
 
   protected countOf(categoryId: string): number {

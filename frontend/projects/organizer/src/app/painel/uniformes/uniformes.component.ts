@@ -150,7 +150,14 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
           <div class="og-table-body">
             @for (r of filtered(); track r.key) {
               <div class="og-row">
-                <og-avatar [initials]="initialsOf(r.athleteName)" [photoUrl]="r.photoUrl" [size]="40" />
+                <og-avatar
+                  zoomable
+                  [initials]="initialsOf(r.athleteName)"
+                  [personName]="r.athleteName"
+                  [meta]="r.categoryLabel + ' · ' + r.partnerLabel"
+                  [photoUrl]="r.photoUrl"
+                  [size]="40"
+                />
                 <span style="flex:1.6;min-width:0">
                   <div class="og-uniformes-name" [title]="r.athleteName">{{ truncate(r.athleteName, 26) }}</div>
                   <div class="og-uniformes-partner">{{ r.partnerLabel }}</div>

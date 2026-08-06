@@ -105,7 +105,15 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           @if (selectedCandidate(); as sel) {
             <div class="og-equipe-role-pick">
               <div class="og-equipe-role-pick-who">
-                <og-avatar [initials]="initialsOf(nameOf(sel))" [photoUrl]="sel.photoUrl" [size]="30" />
+                <!-- Conferir o rosto aqui é o último passo antes de dar acesso ao torneio.
+                     Ainda é só um atleta cadastrado: o papel só existe depois de adicionar. -->
+                <og-avatar
+                  zoomable
+                  [initials]="initialsOf(nameOf(sel))"
+                  [personName]="nameOf(sel)"
+                  [photoUrl]="sel.photoUrl"
+                  [size]="30"
+                />
                 <span>{{ nameOf(sel) }}</span>
                 <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="selectedCandidate.set(null)">Trocar</button>
               </div>
@@ -145,7 +153,15 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
               } @else {
                 @for (m of filtered(); track m.uid) {
                   <div class="og-row" style="flex-wrap:wrap">
-                    <og-avatar [initials]="initialsOf(nameOf(m))" [photoUrl]="m.photoUrl" [size]="34" />
+                    <og-avatar
+                      zoomable
+                      [initials]="initialsOf(nameOf(m))"
+                      [personName]="nameOf(m)"
+                      [personRole]="roleLabel[m.role]"
+                      [meta]="'Na equipe desde ' + sinceOf(m)"
+                      [photoUrl]="m.photoUrl"
+                      [size]="34"
+                    />
                     <span style="flex:1.3;min-width:0" class="og-equipe-name" [title]="nameOf(m)">{{ nameOf(m) }}</span>
                     <span style="width:100px"><og-pill [tone]="roleTone[m.role]">{{ roleLabel[m.role] }}</og-pill></span>
                     <span style="width:90px" class="og-equipe-since">{{ sinceOf(m) }}</span>

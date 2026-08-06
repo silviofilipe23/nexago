@@ -138,14 +138,23 @@ export const getTournamentOrganizerContact = onCall(async (request) => {
   }
 
   const managerSnap = await db.doc(`users/${managerId}`).get();
-  const manager = managerSnap.data() ?? {};
+  return {contact: organizerContactFromUser(managerSnap.data() ?? {})};
+});
+
+/**
+ * Monta o contato a partir do doc do organizador: `organizerProfile` é o dado
+ * de negócio e `users/{uid}` é o fallback de quem nunca preencheu o perfil.
+ */
+export function organizerContactFromUser(
+  manager: Record<string, unknown>,
+): OrganizerContact {
   const organizerProfile =
     (manager["organizerProfile"] as Record<string, unknown> | undefined) ?? {};
   const rawPhone =
     String(organizerProfile["contactPhone"] ?? "").trim() ||
     String(manager["phoneNumber"] ?? "").trim();
 
-  const contact: OrganizerContact = {
+  return {
     name:
       String(organizerProfile["displayName"] ?? "").trim() ||
       String(manager["fullName"] ?? manager["name"] ?? "").trim() ||
@@ -155,5 +164,4 @@ export const getTournamentOrganizerContact = onCall(async (request) => {
       String(organizerProfile["contactEmail"] ?? "").trim() ||
       String(manager["email"] ?? "").trim(),
   };
-  return {contact};
-});
+}

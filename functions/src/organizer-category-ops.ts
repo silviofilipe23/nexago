@@ -37,6 +37,7 @@ import {
   parseRemovalDescription,
 } from "./organizer-removal-description";
 import {buildRegistrationCancellationAudit} from "./tournament-registration-cancellation";
+import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
@@ -509,6 +510,15 @@ export const organizerRemoveFromCategory = onCall(async (request) => {
     teamSnap?.exists ? teamSnap.data() : null,
   );
 
+  // Contato do organizador vai junto na notificação: a inscrição morre aqui, e
+  // com ela o acesso do atleta a `getTournamentOrganizerContact` (que exige
+  // inscrição ativa). Sem isso ele lê o motivo e não tem a quem responder.
+  const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+  const managerId = String(tournamentSnap.data()?.managerId ?? "").trim();
+  const organizerContact = managerId
+    ? organizerContactFromUser((await db.doc(`users/${managerId}`).get()).data() ?? {})
+    : null;
+
   // Auditoria antes do delete: sem ela a remoção pelo organizador não deixaria
   // rastro nenhum. Mesma coleção do "aprovar pedido de cancelamento".
   const batch = db.batch();
@@ -536,9 +546,21 @@ export const organizerRemoveFromCategory = onCall(async (request) => {
           description: description.value,
           wasPaid,
           refundAmount,
+          organizerPhone: organizerContact?.whatsappPhone,
         }),
         type: "tournament_registration_cancelled",
-        data: {tournamentId, url: `/torneios/${tournamentId}`},
+        data: {
+          tournamentId,
+          url: `/torneios/${tournamentId}`,
+          // Guardado também cru pra uma futura ação "Falar no WhatsApp" no card
+          // da notificação não depender de callable nenhuma.
+          ...(organizerContact?.whatsappPhone
+            ? {
+              organizerName: organizerContact.name,
+              organizerWhatsapp: organizerContact.whatsappPhone,
+            }
+            : {}),
+        },
       }).catch(() => undefined),
     ),
   );

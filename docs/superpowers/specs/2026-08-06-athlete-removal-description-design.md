@@ -133,6 +133,28 @@ descrição via `Navigator.pop(ctx, texto)`:
 `OrganizerCategoryOpsService.removeFromCategory` ganha
 `required String description` e envia no payload.
 
+## Contato do organizador na notificação
+
+Adicionado depois da primeira rodada, ao revisar o que o atleta recebe de fato.
+
+Com a inscrição deletada, o atleta perde acesso a `getTournamentOrganizerContact`
+— a callable exige inscrição ativa (`tournament-contacts.ts:125`). Ou seja: ele
+lia o motivo e a porta para o organizador fechava no mesmo instante.
+
+A notificação passa a levar o contato junto:
+
+- corpo ganha `Fale com o organizador: (11) 98888-7777.` no fim, via
+  `formatPhoneForReading` (dígitos → formato legível; fora do padrão brasileiro
+  devolve o que veio);
+- `data` ganha `organizerName` e `organizerWhatsapp` (dígitos), para uma futura
+  ação "Falar no WhatsApp" no card não precisar de callable nenhuma;
+- a montagem do contato saiu de dentro de `getTournamentOrganizerContact` para
+  `organizerContactFromUser(manager)`, pura e testada, usada pelos dois lados.
+
+Descartado: afrouxar `getTournamentOrganizerContact` para aceitar quem tem
+auditoria de remoção. Nenhuma tela do atleta chama essa callable fora do contexto
+de uma inscrição viva, então seria superfície de permissão sem consumidor.
+
 ## Fluxo
 
 ```

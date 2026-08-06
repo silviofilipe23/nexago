@@ -182,8 +182,10 @@ export function buildRegistrationProgress(input: RegistrationProgressInput): Reg
   };
 }
 
-/** Torneio/categoria que não resolve é descartado (não renderiza bloco quebrado). Ordena por
- *  início do torneio, crescente; sem data vai pro fim. */
+/** Torneio/categoria que não resolve é descartado (não renderiza bloco quebrado). Torneio
+ *  cancelado também sai: a trilha existe pra empurrar o atleta pro próximo passo, e não há
+ *  próximo passo num torneio que não vai acontecer — o CTA levaria a uma inscrição que o
+ *  backend recusa. Ordena por início do torneio, crescente; sem data vai pro fim. */
 export function buildInProgressRegistrations(
   registrations: readonly AthleteTournamentRegistration[],
   tournaments: ReadonlyMap<string, TournamentSummary>,
@@ -195,7 +197,7 @@ export function buildInProgressRegistrations(
     .flatMap((registration) => {
       const tournament = tournaments.get(registration.tournamentId);
       const category = tournament?.categories.find((c) => c.id === registration.categoryId);
-      if (!tournament || !category) return [];
+      if (!tournament || !category || tournament.isCancelled) return [];
       const partnerUid = registration.participantUids.find((uid) => uid !== myUid) ?? null;
       const progress = buildRegistrationProgress({
         registration,

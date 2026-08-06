@@ -758,7 +758,10 @@ export class AthletePainelComponent {
       const items = registrations
         .map((reg) => {
           const tournament = summaries.get(reg.tournamentId);
-          if (!tournament) return null;
+          // Cancelado pelo organizador some da lista: "Inscrito" num torneio que não vai
+          // acontecer é informação errada. O aviso do cancelamento chega por notificação
+          // (`notifyPaidTeamsOfCancellation`) e o torneio segue acessível pelo link direto.
+          if (!tournament || tournament.isCancelled) return null;
           const status: Pick<MyTournamentItem, 'statusLabel' | 'statusTone'> = reg.waitlist
             ? { statusLabel: 'Lista de espera', statusTone: 'yellow' }
             : reg.partnerPending
@@ -819,13 +822,18 @@ export class AthletePainelComponent {
       const summaries = await fetchTournamentSummariesByIds(db, ids);
       if (this.auth.user()?.uid !== uid) return;
       this.pendingInvitesState.set(
-        invites.map((i) => ({
-          id: i.id,
-          inviterName: i.inviterName,
-          tournamentId: i.tournamentId,
-          categoryId: i.categoryId,
-          tournamentName: summaries.get(i.tournamentId)?.name ?? 'Torneio',
-        })),
+        invites
+          // Convite de torneio cancelado é botão que só entrega erro: `acceptTournamentPartnerInvite`
+          // recusa com "Este torneio não aceita novas inscrições". Torneio que não resolveu (fetch
+          // parcial) continua aparecendo com o nome genérico — só o cancelado sai.
+          .filter((i) => summaries.get(i.tournamentId)?.isCancelled !== true)
+          .map((i) => ({
+            id: i.id,
+            inviterName: i.inviterName,
+            tournamentId: i.tournamentId,
+            categoryId: i.categoryId,
+            tournamentName: summaries.get(i.tournamentId)?.name ?? 'Torneio',
+          })),
       );
     } catch {
       // Sem card de convites é estado válido; sem banner por falha pontual (mesmo padrão de "Meus torneios").

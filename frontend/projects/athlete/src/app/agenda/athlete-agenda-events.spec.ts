@@ -57,6 +57,7 @@ function makeTournament(overrides: Partial<TournamentSummary> = {}): TournamentS
     featured: false,
     liveMatchesNow: 0,
     rawStatus: 'open',
+    isCancelled: false,
     isDraftOrCancelled: false,
     leagueId: null,
     leagueStageId: null,

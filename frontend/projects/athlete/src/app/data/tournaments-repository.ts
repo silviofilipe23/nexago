@@ -178,6 +178,10 @@ export interface TournamentSummary {
   featured: boolean;
   liveMatchesNow: number;
   rawStatus: TournamentRawStatus | null;
+  /** Cancelado pelo organizador (`cancelTournament` grava `listingStatus: 'cancelled'`). O
+   *  `rawStatus` colapsa cancelado em `ended`, então quem precisa da distinção — o painel, que
+   *  esconde a inscrição de um torneio que não vai acontecer — lê esta flag. */
+  isCancelled: boolean;
   /** Rascunho ou cancelado — some da listagem pública mas o `rawStatus` colapsado não distingue
    *  "cancelado" de "encerrado" (`isPubliclyListedTournament`). */
   isDraftOrCancelled: boolean;
@@ -223,6 +227,9 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     : [];
   const capacity = numberOf(data['capacity']) || categories.reduce((sum, c) => sum + c.maxTeams, 0);
   const statusRaw = (optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '').toLowerCase();
+  // `cancelled`/`canceled`/`cancelado`/`cancelada` — todo o vocabulário aceito pelo backend
+  // (`tournament-registration-guards`) contém "cancel".
+  const isCancelled = statusRaw.includes('cancel');
   return {
     id,
     name: optionalStr(data['name']) ?? 'Torneio',
@@ -238,7 +245,8 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     featured: data['featured'] === true,
     liveMatchesNow: numberOf(data['liveMatchesNow']) ?? 0,
     rawStatus: rawStatusFromString(statusRaw),
-    isDraftOrCancelled: statusRaw.includes('draft') || statusRaw.includes('programado') || statusRaw.includes('cancel'),
+    isCancelled,
+    isDraftOrCancelled: statusRaw.includes('draft') || statusRaw.includes('programado') || isCancelled,
     leagueId: optionalStr(data['leagueId']),
     leagueStageId: optionalStr(data['leagueStageId']),
     leagueStageOrder: numberOf(data['leagueStageOrder']),

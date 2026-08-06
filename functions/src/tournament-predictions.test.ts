@@ -6,6 +6,7 @@ import {
   assertPickIsAllowed,
   bracketPredictionEntryPath,
   bracketPredictionEventId,
+  buildPredictionEntryPatch,
   computeChampionPickPoints,
   computeMatchPickPoints,
   CHAMPION_PICK_POINTS,
@@ -146,6 +147,72 @@ test("computeChampionPickPoints não soma bônus quando erra o campeão", () => 
 
 test("computeChampionPickPoints não soma bônus sem championPick definido", () => {
   assert.equal(computeChampionPickPoints({}, true, "team-a"), 0);
+});
+
+// —— formato gravado no doc de entrada ——
+
+test("buildPredictionEntryPatch grava picks como MAPA aninhado, não como campo com ponto no nome", () => {
+  const patch = buildPredictionEntryPatch({
+    userId: "u1",
+    picks: {m1: "team-a", m2: "team-b"},
+    isNewEntry: true,
+  });
+
+  // Regressão: `set(..., {merge: true})` NÃO interpreta pontos como caminho de
+  // campo (só `update()` faz isso). Um patch com a chave `picks.m1` criava um
+  // campo de nome literal "picks.m1" e o mapa `picks` nunca existia — o app
+  // lia `data['picks']` vazio e o palpite "sumia" ao reabrir a tela.
+  assert.deepEqual(patch.picks, {m1: "team-a", m2: "team-b"});
+  for (const key of Object.keys(patch)) {
+    assert.ok(
+      !key.includes("."),
+      `chave de topo "${key}" tem ponto — viraria um campo literal no Firestore`,
+    );
+  }
+});
+
+test("buildPredictionEntryPatch omite `picks` quando não há pick novo", () => {
+  const patch = buildPredictionEntryPatch({
+    userId: "u1",
+    picks: {},
+    championPick: "team-a",
+    isNewEntry: false,
+  });
+
+  // Um `picks: {}` explícito entra no document mask como o caminho `picks` e
+  // o merge SUBSTITUIRIA o mapa inteiro por vazio, apagando os palpites já
+  // salvos (ex.: envio só do campeão depois que a final travou).
+  assert.ok(!("picks" in patch), "não deve enviar `picks` vazio");
+  assert.equal(patch.championPick, "team-a");
+});
+
+test("buildPredictionEntryPatch só inicializa score/submittedAt em entrada nova", () => {
+  const novo = buildPredictionEntryPatch({
+    userId: "u1",
+    picks: {m1: "team-a"},
+    isNewEntry: true,
+  });
+  assert.equal(novo.score, 0);
+  assert.ok("submittedAt" in novo);
+
+  const existente = buildPredictionEntryPatch({
+    userId: "u1",
+    picks: {m1: "team-a"},
+    isNewEntry: false,
+  });
+  // Reescrever score zeraria os pontos já creditados pelo trigger.
+  assert.ok(!("score" in existente));
+  assert.ok(!("submittedAt" in existente));
+  assert.equal(existente.userId, "u1");
+});
+
+test("buildPredictionEntryPatch omite championPick quando não informado", () => {
+  const patch = buildPredictionEntryPatch({
+    userId: "u1",
+    picks: {m1: "team-a"},
+    isNewEntry: false,
+  });
+  assert.ok(!("championPick" in patch));
 });
 
 // —— helpers de path/ids ——

@@ -1,0 +1,106 @@
+import type { PillTone } from '../data/mock-data';
+
+/** Status da linha no vocabulário real do schema (`isPaid`/`waitlist`) — "estorno" não existe
+ *  no backend, então a aba do protótipo foi trocada por "espera" (fila real).
+ *
+ *  `conferir` é a dupla que declarou ter pago o Pix direto do organizador: a vaga já vale
+ *  (`isPaid`), mas nenhum webhook viu o dinheiro. Sem esse estado a linha aparecia como "Pago" e
+ *  o botão de confirmar sumia justamente em quem precisava de conferência. */
+export type PayStatus = 'pago' | 'conferir' | 'pendente' | 'espera';
+
+/** "cancelamento" não é status de pagamento: é o recorte de quem pediu cancelamento. */
+export type InscricaoTab = 'todos' | PayStatus | 'cancelamento';
+
+export const PAY_TONE: Record<PayStatus, PillTone> = {
+  pago: 'green',
+  conferir: 'orange',
+  pendente: 'yellow',
+  espera: 'dim',
+};
+
+export const PAY_LABEL: Record<PayStatus, string> = {
+  pago: 'Pago',
+  conferir: 'A conferir',
+  pendente: 'Pendente',
+  espera: 'Espera',
+};
+
+/** Rótulos das abas. O valor cru (`pago`) é o filtro; o rótulo é o que o organizador lê. */
+export const INSCRICAO_TABS: readonly { id: InscricaoTab; label: string }[] = [
+  { id: 'todos', label: 'Todas' },
+  { id: 'pago', label: 'Pagas' },
+  { id: 'conferir', label: 'A conferir' },
+  { id: 'pendente', label: 'Pendentes' },
+  { id: 'espera', label: 'Espera' },
+  { id: 'cancelamento', label: 'Cancelamento' },
+];
+
+/** Aceite do termo de uso de imagem/LGPD registrado na inscrição: `aceito` = todos os atletas,
+ *  `parcial` = só parte da dupla, `pendente` = ninguém (inclui inscrições antigas, feitas antes
+ *  do termo existir no fluxo).
+ *
+ *  A lista mostra LGPD por exceção (só quando falta aceite) — o estado completo, atleta por
+ *  atleta, fica na gaveta de detalhes. Uma coluna com "Aceito" em toda linha era só ruído. */
+export type LgpdStatus = 'aceito' | 'parcial' | 'pendente';
+
+export const LGPD_LABEL: Record<LgpdStatus, string> = {
+  aceito: 'Aceito',
+  parcial: 'Parcial',
+  pendente: 'Pendente',
+};
+
+export interface InscricaoAthlete {
+  name: string;
+  photoUrl: string | null;
+  /** Aceitou o termo de uso de imagem/LGPD nesta inscrição. */
+  lgpdAccepted: boolean;
+}
+
+export interface InscricaoRow {
+  id: string;
+  name: string;
+  athletes: InscricaoAthlete[];
+  categoriaId: string | null;
+  categoria: string;
+  pay: PayStatus;
+  /** Explicação do estado de pagamento, sob a pílula ("1 de 2 pagaram", "declarado pelos atletas"). */
+  payNote: string | null;
+  /** Tooltip da pílula de pagamento — em `conferir`, explica que é declaração do atleta. */
+  payTitle: string;
+  /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */
+  cancelPending: boolean;
+  cancelReason: string;
+  lgpd: LgpdStatus;
+  /** Nomes de quem ainda não aceitou o termo — usado no aviso da linha. */
+  lgpdMissing: string[];
+  date: string;
+  /** Data por extenso para a gaveta ("12 de agosto de 2026"). */
+  dateLong: string;
+  createdAt: Date | null;
+  /** Texto normalizado (sem acento, minúsculo) que a busca varre: dupla + atletas + categoria. */
+  search: string;
+}
+
+export type InscricaoActionKind =
+  | 'confirm'
+  | 'resend'
+  | 'waitlist'
+  | 'remove'
+  | 'cancel-approve'
+  | 'cancel-decline';
+
+export interface InscricaoAction {
+  kind: InscricaoActionKind;
+  row: InscricaoRow;
+  /** Resposta opcional ao atleta, só nas ações de cancelamento. */
+  note?: string;
+}
+
+/** Nome de atleta brasileiro é cheio de acento; buscar "goncalves" tem que achar "Gonçalves". */
+export function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}

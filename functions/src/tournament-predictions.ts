@@ -96,6 +96,46 @@ export function assertPickIsAllowed(
   }
 }
 
+/**
+ * Monta o patch gravado em `tournamentPredictions/{tid}/entries/{uid}` com
+ * `set(..., {merge: true})`.
+ *
+ * `picks` vai como MAPA ANINHADO, nunca como chaves `picks.${matchId}`:
+ * diferente de `update()`, o `set()` NÃO interpreta ponto como separador de
+ * caminho — a chave viraria um campo de nome literal `picks.<matchId>` e o
+ * mapa `picks` jamais existiria (quem lê `data.picks` acharia o palpite
+ * vazio). Com o mapa aninhado o document mask sai como `picks.<matchId>`
+ * (caminho de 2 segmentos), então o merge atualiza pick a pick e preserva os
+ * palpites já salvos em outras partidas — a semântica pretendida.
+ *
+ * Só inicializa `score`/`submittedAt` em entrada nova: reescrever `score`
+ * zeraria os pontos já creditados pelo trigger de conclusão de partida.
+ */
+export function buildPredictionEntryPatch(params: {
+  userId: string;
+  picks: Record<string, string>;
+  championPick?: string;
+  isNewEntry: boolean;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    userId: params.userId,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  // `picks: {}` explícito entraria no mask como o caminho `picks` e o merge
+  // substituiria o mapa inteiro por vazio, apagando o que já estava salvo.
+  if (Object.keys(params.picks).length > 0) {
+    patch.picks = params.picks;
+  }
+  if (params.championPick) {
+    patch.championPick = params.championPick;
+  }
+  if (params.isNewEntry) {
+    patch.submittedAt = FieldValue.serverTimestamp();
+    patch.score = 0;
+  }
+  return patch;
+}
+
 // ─────────────────────────── callable de submissão ────────────────────────
 
 export const submitBracketPrediction = onCall(async (request) => {
@@ -151,20 +191,12 @@ export const submitBracketPrediction = onCall(async (request) => {
   const entryRef = db.doc(bracketPredictionEntryPath(tournamentId, uid));
   const entrySnap = await entryRef.get();
 
-  const patch: Record<string, unknown> = {
+  const patch = buildPredictionEntryPatch({
     userId: uid,
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-  for (const [matchId, teamId] of Object.entries(sanitizedPicks)) {
-    patch[`picks.${matchId}`] = teamId;
-  }
-  if (championPick) {
-    patch.championPick = championPick;
-  }
-  if (!entrySnap.exists) {
-    patch.submittedAt = FieldValue.serverTimestamp();
-    patch.score = 0;
-  }
+    picks: sanitizedPicks,
+    championPick,
+    isNewEntry: !entrySnap.exists,
+  });
 
   await entryRef.set(patch, {merge: true});
 

@@ -120,6 +120,26 @@
   filter: brightness(1.08);
 }
 
+.rt-cancel {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--nx-text-mute);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rt-cancel:hover,
+.rt-cancel:focus-visible {
+  color: var(--nx-text);
+}
+
 .rt-rail {
   display: flex;
   margin: 20px 0 0;

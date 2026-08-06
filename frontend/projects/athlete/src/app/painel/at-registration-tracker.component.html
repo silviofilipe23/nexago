@@ -25,6 +25,16 @@
           >
             Continuar inscrição
           </a>
+          @if (item.canCancel) {
+            <button
+              type="button"
+              class="rt-cancel"
+              (click)="cancel.emit(item)"
+              [attr.aria-label]="'Cancelar inscrição em ' + item.tournamentName + ', ' + item.categoryName"
+            >
+              Cancelar
+            </button>
+          }
         </div>
       </div>
 

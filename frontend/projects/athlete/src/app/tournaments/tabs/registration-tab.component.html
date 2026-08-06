@@ -38,6 +38,23 @@
           Ir para o pagamento
         </a>
       }
+
+      @if (card.canCancel) {
+        <button type="button" class="reg-cancel" (click)="askCancel(card)">Cancelar inscrição</button>
+      }
     </section>
+  }
+
+  @if (cancelTarget(); as target) {
+    <app-nx-blocking-dialog
+      tone="warning"
+      role="dialog"
+      heading="Cancelar inscrição?"
+      [body]="'Sua vaga na categoria ' + target.categoryName + ' será liberada e outro atleta poderá se inscrever.'"
+      [primaryLabel]="cancelling() ? 'Cancelando…' : 'Cancelar inscrição'"
+      secondaryLabel="Voltar"
+      (primary)="confirmCancel()"
+      (secondary)="closeCancel()"
+    />
   }
 </div>

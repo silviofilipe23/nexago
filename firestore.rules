@@ -1792,19 +1792,11 @@ service cloud.firestore {
         isAdmin()
       );
       
-      // Deletar inscrição: atleta/gestor só se não paga; admin sempre
-      allow delete: if request.auth != null && (
-        isAdmin() ||
-        (
-          resource.data.isPaid != true &&
-          (
-            (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
-             (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
-              get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
-            canManageTournament(resource.data.tournamentId)
-          )
-        )
-      );
+      // Deletar inscrição: apenas admin. Atleta cancela via callable
+      // cancelTournamentRegistration (que também limpa pixPending/teams e grava
+      // auditoria); organizador remove via organizerRemoveFromCategory. O delete
+      // direto pelo cliente nunca foi usado e quebrava em inscrição solo (sem teamId).
+      allow delete: if request.auth != null && isAdmin();
     }
 
     // Regras para a coleção de partidas (matches)

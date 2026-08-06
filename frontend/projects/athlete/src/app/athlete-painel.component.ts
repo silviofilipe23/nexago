@@ -14,7 +14,7 @@ import {
 } from './painel/registration-progress';
 import { fetchPublicProfilesByIds } from './data/public-profiles-repository';
 import { NxSkeletonComponent } from './shared/loading/nx-skeleton.component';
-import { NxInlineMessageComponent, NxToastService } from './shared/feedback';
+import { NxBlockingDialogComponent, NxInlineMessageComponent, NxToastService } from './shared/feedback';
 import { LgpdConsentDialogComponent } from './shared/lgpd/lgpd-consent-dialog.component';
 import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
 import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
@@ -30,6 +30,7 @@ import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
 import {
   acceptPartnerInvite,
+  cancelMyRegistration,
   declinePartnerInvite,
   fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
@@ -399,6 +400,7 @@ function communityMessage(item: CommunityFeedItem): string {
     AtBellComponent,
     NxSkeletonComponent,
     AtRegistrationTrackerComponent,
+    NxBlockingDialogComponent,
     NxInlineMessageComponent,
     LgpdConsentDialogComponent,
   ],
@@ -906,6 +908,40 @@ export class AthletePainelComponent {
       );
     } finally {
       this.respondingInviteId.set(null);
+    }
+  }
+
+  /** Cancelamento de inscrição a partir do tracker — só chega aqui item com `canCancel`
+   *  (nenhum pagamento); o backend revalida e recusa paga/meio-paga. */
+  protected readonly registrationToCancel = signal<RegistrationProgress | null>(null);
+  protected readonly cancellingRegistration = signal(false);
+
+  protected askCancelRegistration(item: RegistrationProgress): void {
+    this.registrationToCancel.set(item);
+  }
+
+  protected closeCancelRegistration(): void {
+    if (!this.cancellingRegistration()) this.registrationToCancel.set(null);
+  }
+
+  protected async confirmCancelRegistration(): Promise<void> {
+    const target = this.registrationToCancel();
+    if (!target || this.cancellingRegistration()) return;
+    this.cancellingRegistration.set(true);
+    try {
+      await cancelMyRegistration(athleteFunctions(), target.registrationId);
+      this.inProgressRegistrationsState.update((list) =>
+        list.filter((i) => i.registrationId !== target.registrationId),
+      );
+      this.registrationToCancel.set(null);
+      this.toasts.success('Inscrição cancelada', 'Sua vaga foi liberada para outro atleta.');
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível cancelar',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+      );
+    } finally {
+      this.cancellingRegistration.set(false);
     }
   }
 

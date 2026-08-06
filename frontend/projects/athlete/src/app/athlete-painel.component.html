@@ -90,7 +90,26 @@
     </div>
 
     @if (inProgressRegistrations().length > 0) {
-      <at-registration-tracker [items]="inProgressRegistrations()" />
+      <at-registration-tracker
+        [items]="inProgressRegistrations()"
+        (cancel)="askCancelRegistration($event)"
+      />
+    }
+
+    @if (registrationToCancel(); as target) {
+      <app-nx-blocking-dialog
+        tone="warning"
+        role="dialog"
+        heading="Cancelar inscrição?"
+        [body]="
+          'Sua vaga no ' + target.tournamentName + ' (' + target.categoryName +
+          ') será liberada e outro atleta poderá se inscrever.'
+        "
+        [primaryLabel]="cancellingRegistration() ? 'Cancelando…' : 'Cancelar inscrição'"
+        secondaryLabel="Voltar"
+        (primary)="confirmCancelRegistration()"
+        (secondary)="closeCancelRegistration()"
+      />
     }
 
     <div class="at-main-grid">

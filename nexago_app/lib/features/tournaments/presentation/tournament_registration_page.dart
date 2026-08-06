@@ -775,6 +775,18 @@ class _TournamentRegistrationPageState
     }
   }
 
+  /// "Cancelar inscrição" no passo aguardando: com inscrição criada, cancela a
+  /// inscrição de verdade (a callable derruba os convites junto); sem inscrição
+  /// ainda (convite direto), só o convite existe para cancelar.
+  Future<void> _cancelRegistrationFromWaiting() async {
+    final regId = _registrationId?.trim() ?? '';
+    if (regId.isNotEmpty) {
+      await _confirmCancelRegistration();
+    } else {
+      await _cancelInvite();
+    }
+  }
+
   Future<void> _confirmCancelRegistration() async {
     final regId = _registrationId;
     if (regId == null || regId.isEmpty || _submitting) return;
@@ -1612,7 +1624,7 @@ class _TournamentRegistrationPageState
                 showAppSnackBar(context, 'Aguardando envio do convite.');
               }
             },
-            onCancelRegistration: _cancelInvite,
+            onCancelRegistration: _cancelRegistrationFromWaiting,
           ),
         ];
       case TournamentRegistrationStep.payment:
@@ -1683,8 +1695,23 @@ class _TournamentRegistrationPageState
             showInformUniform: categoryRequiresUniform(category),
             onInformUniform: () =>
                 _goToStep(TournamentRegistrationStep.uniform),
-            onCancelRegistration: (!isFullyPaid && !_submitting)
+            // Cancelamento direto só sem NENHUM pagamento (espelha a callable);
+            // meio-paga vira hint para falar com o organizador.
+            onCancelRegistration: (!_submitting &&
+                    registrationSnap != null &&
+                    registrationCancellableByAthlete(
+                      isPaid: registrationSnap.isPaid,
+                      sharePaidUids: registrationSnap.sharePaidUids,
+                      paidAmount: registrationSnap.paidAmount,
+                    ))
                 ? _confirmCancelRegistration
+                : null,
+            cancelBlockedHint: (registrationSnap != null &&
+                    !registrationSnap.isPaid &&
+                    (registrationSnap.sharePaidUids.isNotEmpty ||
+                        registrationSnap.paidAmount > 0))
+                ? 'Já existe pagamento nesta inscrição — fale com o '
+                    'organizador para cancelar.'
                 : null,
           ),
         ];

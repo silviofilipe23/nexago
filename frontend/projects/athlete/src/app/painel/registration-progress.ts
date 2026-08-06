@@ -1,6 +1,7 @@
-import type {
-  AthleteTournamentRegistration,
-  RegistrationUniformSlot,
+import {
+  registrationCancellable,
+  type AthleteTournamentRegistration,
+  type RegistrationUniformSlot,
 } from '../data/tournament-registrations-repository';
 import type { TournamentCategoryOffer, TournamentSummary } from '../data/tournaments-repository';
 import { categoryRequiresUniform, isUniformSelectionComplete } from '../tournaments/tournament-uniform';
@@ -38,6 +39,8 @@ export interface RegistrationProgress {
   ctaQueryParams: Record<string, string>;
   /** Início do torneio, pra ordenar a lista (mais próximo primeiro). */
   startAtMs: number | null;
+  /** Atleta pode cancelar direto (nenhum pagamento na inscrição). */
+  canCancel: boolean;
 }
 
 export interface RegistrationProgressInput {
@@ -179,6 +182,7 @@ export function buildRegistrationProgress(input: RegistrationProgressInput): Reg
     ctaLink,
     ctaQueryParams,
     startAtMs: tournament.startAt?.getTime() ?? null,
+    canCancel: registrationCancellable(registration),
   };
 }
 

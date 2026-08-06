@@ -11,10 +11,14 @@ class MyTournamentsOngoingCard extends StatelessWidget {
     super.key,
     required this.enrollment,
     required this.onTap,
+    this.onCancel,
   });
 
   final MyTournamentEnrollment enrollment;
   final VoidCallback onTap;
+
+  /// Cancela a inscrição (só oferecido quando não há nenhum pagamento).
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +118,28 @@ class MyTournamentsOngoingCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (onCancel != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: onCancel,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Cancelar inscrição',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: context.themeColors.onSurfaceMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

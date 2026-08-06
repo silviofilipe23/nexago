@@ -201,6 +201,22 @@ export async function deleteAsaasPaymentIfOpen(paymentId: string): Promise<void>
   }
 }
 
+/**
+ * Cancela cobrança aberta e PROPAGA falhas — para fluxos que não podem seguir
+ * com a cobrança viva (ex.: cancelamento de inscrição, que deleta o documento
+ * que o webhook precisaria achar). 404 não é falha: a cobrança já não existe.
+ */
+export async function deleteAsaasPaymentOrThrow(paymentId: string): Promise<void> {
+  const id = paymentId.trim();
+  if (!id) return;
+  try {
+    await fetchAsaas(`/v3/payments/${encodeURIComponent(id)}`, {method: "DELETE"});
+  } catch (e) {
+    if (e instanceof AsaasApiError && e.httpStatus === 404) return;
+    throw e;
+  }
+}
+
 export type AsaasPaymentDetails = {
   id?: string;
   status?: string;

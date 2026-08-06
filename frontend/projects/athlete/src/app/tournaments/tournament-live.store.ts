@@ -144,10 +144,14 @@ export class TournamentLiveStore {
 
   readonly hasMyMatchToday = computed(() => this.dayTimeline().length > 0);
 
+  /** Há confronto definido em algum lugar da chave — o que destrava a aba de palpites. */
+  readonly hasDefinedMatchups = computed(() => this.matches().some((m) => m.teamAId.length > 0 && m.teamBId.length > 0));
+
   readonly visibleTabs = computed<TournamentTabId[]>(() =>
     visibleTabsOf({
       hasMyMatchToday: this.hasMyMatchToday(),
       isRegistered: this.isRegistered(),
+      hasDefinedMatchups: this.hasDefinedMatchups(),
     }),
   );
 

@@ -1,0 +1,205 @@
+<div class="pp">
+  @if (loading()) {
+    <app-nx-page-loading title="Carregando palpites…" subtitle="Buscando os confrontos e o ranking da torcida" />
+  } @else {
+    @if (hasPlayed()) {
+      <!-- Retrato do atleta na disputa: pontos creditados pelo servidor, acertos sobre o que já
+           foi decidido (não sobre o total palpitado — dizer "2 de 9" com 7 jogos por vir seria
+           mentira), e a posição no ranking. -->
+      <section class="pp-summary" aria-label="Seu desempenho nos palpites">
+        <span class="pp-summary-kicker">Seus palpites</span>
+        <div class="pp-summary-stats">
+          <p class="pp-stat">
+            <b class="pp-stat-value">{{ stats().points }}</b>
+            <span class="pp-stat-label">{{ stats().points === 1 ? 'ponto' : 'pontos' }}</span>
+          </p>
+          <p class="pp-stat">
+            <b class="pp-stat-value">{{ stats().hits }}<span class="pp-stat-of">/{{ stats().decided }}</span></b>
+            <span class="pp-stat-label">acertos</span>
+          </p>
+          @if (stats().rank !== null) {
+            <p class="pp-stat">
+              <b class="pp-stat-value">{{ stats().rank }}º</b>
+              <span class="pp-stat-label">de {{ stats().totalPlayers }}</span>
+            </p>
+          }
+        </div>
+        @if (stats().pending > 0) {
+          <p class="pp-summary-note">{{ stats().pending === 1 ? '1 palpite ainda em jogo' : stats().pending + ' palpites ainda em jogo' }}</p>
+        }
+      </section>
+    } @else {
+      <section class="pp-intro">
+        <h2 class="pp-intro-title">Aponte quem vence</h2>
+        <p class="pp-intro-text">
+          Cada acerto vale <b>1 ponto</b>. O palpite da final também é seu palpite de campeão e vale <b>4</b>. Dá para trocar de ideia até a
+          partida começar — depois disso ela fecha.
+        </p>
+      </section>
+    }
+
+    <div class="pp-seg" role="tablist" aria-label="Palpites ou ranking">
+      <button
+        type="button"
+        role="tab"
+        id="pp-tab-picks"
+        aria-controls="pp-panel-picks"
+        [attr.aria-selected]="section() === 'picks'"
+        class="pp-seg-btn"
+        [class.pp-seg-btn--on]="section() === 'picks'"
+        (click)="showSection('picks')"
+      >
+        Meus palpites
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="pp-tab-ranking"
+        aria-controls="pp-panel-ranking"
+        [attr.aria-selected]="section() === 'ranking'"
+        class="pp-seg-btn"
+        [class.pp-seg-btn--on]="section() === 'ranking'"
+        (click)="showSection('ranking')"
+      >
+        Ranking
+      </button>
+    </div>
+
+    @if (section() === 'picks') {
+      <div id="pp-panel-picks" role="tabpanel" aria-labelledby="pp-tab-picks" class="pp-panel">
+        @if (categories().length > 1) {
+          <div class="pp-chips" role="tablist" aria-label="Categorias">
+            <button
+              type="button"
+              role="tab"
+              class="pp-chip"
+              [class.pp-chip--on]="categoryFilter() === null"
+              [attr.aria-selected]="categoryFilter() === null"
+              (click)="selectCategory(null)"
+            >
+              Todas
+            </button>
+            @for (c of categories(); track c.id) {
+              <button
+                type="button"
+                role="tab"
+                class="pp-chip"
+                [class.pp-chip--on]="categoryFilter() === c.id"
+                [attr.aria-selected]="categoryFilter() === c.id"
+                (click)="selectCategory(c.id)"
+              >
+                {{ c.label }}
+              </button>
+            }
+          </div>
+        }
+
+        @if (cards().length === 0) {
+          <p class="pp-empty">Nenhum confronto definido nesta categoria ainda.</p>
+        } @else {
+          <div class="pp-grid">
+            @for (card of cards(); track card.matchId) {
+              <article
+                class="pp-card"
+                [class.pp-card--final]="card.stage === 'final'"
+                [class.pp-card--third]="card.stage === 'third'"
+                [class.pp-card--hit]="card.result === 'hit'"
+              >
+                <div class="pp-card-head">
+                  <span class="pp-card-meta">
+                    @if (card.number) {
+                      <span class="pp-card-num" [title]="'Jogo ' + card.number">{{ card.number }}</span>
+                    }
+                    <span class="pp-card-context">{{ card.head }}</span>
+                  </span>
+                  <span class="pp-card-chip" [attr.data-state]="card.state">{{ card.stateLabel }}</span>
+                </div>
+
+                @if (card.championMatch) {
+                  <p class="pp-card-champion">Vale o título — acertar aqui soma 4 pontos</p>
+                }
+
+                <div class="pp-options" role="group" [attr.aria-label]="'Quem vence: ' + card.head">
+                  @for (option of card.options; track option.teamId) {
+                    <button
+                      type="button"
+                      class="pp-option"
+                      [class.pp-option--on]="option.selected"
+                      [class.pp-option--won]="card.locked && option.won"
+                      [class.pp-option--out]="card.locked && card.state === 'done' && !option.won"
+                      [attr.aria-pressed]="option.selected"
+                      [disabled]="card.locked || card.saving"
+                      (click)="pick(card.matchId, option.teamId)"
+                    >
+                      <span class="pp-duo" aria-hidden="true">
+                        @for (p of option.players; track $index) {
+                          <span class="duo-avatar">
+                            @if (p.photo) {
+                              <img [src]="p.photo" alt="" loading="lazy" />
+                            } @else {
+                              {{ p.initial }}
+                            }
+                          </span>
+                        }
+                      </span>
+                      <span class="pp-option-name">
+                        {{ option.name }}@if (option.mine) {<span class="pp-you"> · você</span>}
+                      </span>
+                      @if (option.selected) {
+                        <span class="pp-option-mark" aria-hidden="true">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7" /></svg>
+                        </span>
+                      }
+                    </button>
+                  }
+                </div>
+
+                <p class="pp-card-foot" aria-live="polite">
+                  @if (card.saving) {
+                    <span class="pp-note">Salvando…</span>
+                  } @else if (card.saved) {
+                    <span class="pp-note pp-note--ok">Palpite salvo</span>
+                  } @else if (card.result === 'hit') {
+                    <span class="pp-note pp-note--ok">Você acertou · +{{ card.hitPoints }}</span>
+                  } @else if (card.result === 'miss') {
+                    <span class="pp-note pp-note--miss">Você errou essa</span>
+                  } @else if (card.locked && card.state !== 'canceled') {
+                    <span class="pp-note">Palpite fechado</span>
+                  } @else if (card.state === 'canceled') {
+                    <span class="pp-note">Partida cancelada — não pontua</span>
+                  }
+                </p>
+              </article>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <div id="pp-panel-ranking" role="tabpanel" aria-labelledby="pp-tab-ranking" class="pp-panel">
+        @if (leaderRows().length === 0) {
+          <p class="pp-empty">Ninguém palpitou neste torneio ainda. Comece você.</p>
+        } @else {
+          <ol class="pp-rank">
+            @for (row of leaderRows(); track row.rank) {
+              <li class="pp-rank-row" [class.pp-rank-row--me]="row.isMe" [attr.data-medal]="row.rank <= 3 ? row.rank : null">
+                <span class="pp-rank-pos">{{ row.rank }}º</span>
+                <span class="pp-rank-avatar" aria-hidden="true">
+                  @if (row.photo) {
+                    <img [src]="row.photo" alt="" loading="lazy" />
+                  } @else {
+                    {{ row.initials }}
+                  }
+                </span>
+                <span class="pp-rank-id">
+                  <span class="pp-rank-name">{{ row.name }}@if (row.isMe) {<span class="pp-you"> · você</span>}</span>
+                  <span class="pp-rank-detail">{{ row.detail }}</span>
+                </span>
+                <span class="pp-rank-score">{{ row.score }}<span class="pp-rank-unit">pts</span></span>
+              </li>
+            }
+          </ol>
+        }
+      </div>
+    }
+  }
+</div>

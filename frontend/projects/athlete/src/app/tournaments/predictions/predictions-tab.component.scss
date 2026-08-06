@@ -1,0 +1,548 @@
+@use '../tournament-live' as tl;
+
+// Semântica de cor da aba, herdada do resto do portal e mantida consistente aqui:
+// LARANJA = você (sua escolha), VERDE = verdade (quem venceu de fato). Quando os dois coincidem
+// o card inteiro acende — é o momento que a funcionalidade existe para produzir.
+:host {
+  display: block;
+}
+
+.pp {
+  @include tl.col-stack;
+}
+
+.pp-empty {
+  @include tl.empty-state;
+}
+
+// ── Topo: resumo de quem já palpitou, convite para quem não ──────────────────
+.pp-summary,
+.pp-intro {
+  @include tl.card;
+}
+
+.pp-summary-kicker {
+  @include tl.kicker;
+}
+
+.pp-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nx-s-6) var(--nx-s-7);
+  margin-top: var(--nx-s-3);
+}
+
+.pp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.pp-stat-value {
+  font-family: var(--nx-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--nx-text);
+  font-variant-numeric: tabular-nums;
+}
+
+// O denominador é contexto, não protagonista: "7/9" lido de longe deve destacar o 7.
+.pp-stat-of {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--nx-text-mute);
+}
+
+.pp-stat-label {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.pp-summary-note {
+  margin: var(--nx-s-4) 0 0;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.pp-intro-title {
+  margin: 0 0 var(--nx-s-2);
+  font-family: var(--nx-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.pp-intro-text {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--nx-text-mute);
+
+  b {
+    color: var(--nx-text);
+    font-weight: 700;
+  }
+}
+
+// ── Segmentado: palpites x ranking ───────────────────────────────────────────
+.pp-seg {
+  display: inline-flex;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-0);
+}
+
+.pp-seg-btn {
+  min-height: 40px;
+  padding: 0 var(--nx-s-5);
+  border: none;
+  border-radius: var(--nx-r-pill);
+  background: transparent;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover {
+    color: var(--nx-text);
+  }
+
+  &--on {
+    background: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+
+    &:hover {
+      color: var(--nx-text-on-orange);
+    }
+  }
+}
+
+.pp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+}
+
+// ── Chips de categoria ───────────────────────────────────────────────────────
+.pp-chips {
+  display: flex;
+  gap: var(--nx-s-2);
+  flex-wrap: wrap;
+
+  // Torneio com muitas categorias empurraria os cards para baixo da dobra no celular.
+  @media (max-width: 720px) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.pp-chip {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  min-height: 44px;
+  padding: 0 var(--nx-s-4);
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+  color: var(--nx-text-mute);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover {
+    color: var(--nx-text);
+    border-color: var(--nx-line-strong);
+  }
+
+  &--on {
+    background: var(--nx-orange-500);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+
+    &:hover {
+      color: var(--nx-text-on-orange);
+    }
+  }
+}
+
+// ── Card de palpite ──────────────────────────────────────────────────────────
+.pp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.pp-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--nx-s-4);
+  border-radius: 16px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+
+  &--hit {
+    border-color: rgba(43, 209, 126, 0.4);
+  }
+}
+
+// A final ganha borda e rótulo dourados, mas SEM o shimmer/breathe do card de Partidas: aqui o
+// destaque tem de ficar com o botão de escolha, não com a moldura.
+.pp-card--final {
+  border-color: rgba(242, 193, 78, 0.5);
+  background: linear-gradient(180deg, rgba(242, 193, 78, 0.07), transparent 60%), var(--nx-surface-0);
+
+  .pp-card-num,
+  .pp-card-context {
+    color: #f2c14e;
+  }
+}
+
+.pp-card--third {
+  border-color: rgba(208, 138, 90, 0.45);
+
+  .pp-card-num,
+  .pp-card-context {
+    color: #d08a5a;
+  }
+}
+
+.pp-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--nx-s-2);
+  margin-bottom: var(--nx-s-3);
+}
+
+.pp-card-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.pp-card-num {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-card-context {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-card-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line);
+  font-family: var(--nx-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+
+  // Aberto é o único estado que convida à ação — é o que fica laranja.
+  &[data-state='open'] {
+    background: var(--nx-orange-tint);
+    border-color: rgba(255, 106, 26, 0.35);
+    color: var(--nx-orange-400);
+  }
+
+  &[data-state='live'] {
+    background: rgba(255, 59, 48, 0.14);
+    border-color: rgba(255, 59, 48, 0.4);
+    color: #ff6b62;
+  }
+
+  &[data-state='done'] {
+    background: rgba(43, 209, 126, 0.14);
+    border-color: rgba(43, 209, 126, 0.3);
+    color: var(--nx-win);
+  }
+}
+
+.pp-card-champion {
+  margin: 0 0 var(--nx-s-3);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #f2c14e;
+}
+
+// ── As duas escolhas ─────────────────────────────────────────────────────────
+.pp-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+}
+
+.pp-option {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--nx-s-2) var(--nx-s-3);
+  border: 1px solid var(--nx-line);
+  // A faixa lateral é o que diferencia escolha (laranja) de vencedor (verde) sem depender de cor
+  // sozinha: ela vem sempre acompanhada do ✓ ou do rótulo no rodapé.
+  border-left-width: 3px;
+  border-left-color: transparent;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    background var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover:not(:disabled) {
+    border-color: var(--nx-line-strong);
+    border-left-color: var(--nx-orange-500);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &--on {
+    background: var(--nx-orange-tint);
+    border-color: rgba(255, 106, 26, 0.45);
+    border-left-color: var(--nx-orange-500);
+  }
+
+  &--won {
+    border-color: rgba(43, 209, 126, 0.45);
+    border-left-color: var(--nx-win);
+  }
+
+  // Quem perdeu recua, mas continua legível — o atleta precisa ler o confronto inteiro.
+  &--out {
+    opacity: 0.5;
+  }
+}
+
+.pp-duo {
+  @include tl.duo-avatars(30px);
+}
+
+.pp-option-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-you {
+  color: var(--nx-orange-400);
+  font-weight: 500;
+}
+
+.pp-option-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--nx-orange-500);
+}
+
+.pp-option--won .pp-option-mark {
+  color: var(--nx-win);
+}
+
+// ── Rodapé de estado do card ─────────────────────────────────────────────────
+.pp-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 18px;
+  margin: var(--nx-s-3) 0 0;
+}
+
+.pp-note {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-dim);
+
+  &--ok {
+    color: var(--nx-win);
+  }
+
+  &--miss {
+    color: var(--nx-text-mute);
+  }
+}
+
+// ── Ranking dos palpiteiros ──────────────────────────────────────────────────
+.pp-rank {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-rank-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  min-height: 56px;
+  padding: var(--nx-s-2) var(--nx-s-4);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-0);
+
+  &--me {
+    border-color: rgba(255, 106, 26, 0.45);
+    background: var(--nx-orange-tint);
+  }
+
+  // Pódio: só a posição muda de cor. A lista continua uma lista.
+  &[data-medal='1'] .pp-rank-pos {
+    color: #f2c14e;
+  }
+
+  &[data-medal='2'] .pp-rank-pos {
+    color: #cbd2d9;
+  }
+
+  &[data-medal='3'] .pp-rank-pos {
+    color: #d08a5a;
+  }
+}
+
+.pp-rank-pos {
+  flex-shrink: 0;
+  min-width: 34px;
+  font-family: var(--nx-font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-rank-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ff6a1a, #c2185b);
+  color: #fff;
+  font-family: var(--nx-font-display);
+  font-size: 12px;
+  font-weight: 700;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.pp-rank-id {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.pp-rank-name {
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-rank-detail {
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.pp-rank-score {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--nx-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-rank-unit {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+// ── Foco e movimento ─────────────────────────────────────────────────────────
+.pp-seg-btn,
+.pp-chip,
+.pp-option {
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-seg-btn,
+  .pp-chip,
+  .pp-option {
+    transition: none;
+  }
+}

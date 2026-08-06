@@ -281,6 +281,10 @@ export const routes: Routes = [
             loadComponent: () => import('./tournaments/tabs/registration-tab.component').then((m) => m.RegistrationTabComponent),
           },
           {
+            path: 'palpites',
+            loadComponent: () => import('./tournaments/predictions/predictions-tab.component').then((m) => m.PredictionsTabComponent),
+          },
+          {
             // A casca redireciona para a aba mais relevante assim que os dados chegam; até lá,
             // a visão geral é o que aparece.
             path: '',

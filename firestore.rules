@@ -156,6 +156,13 @@ service cloud.firestore {
       return (!('waitlist' in request.resource.data) ||
               request.resource.data.waitlist == resource.data.waitlist);
     }
+    function inscriptionCancellationRequestFieldsUnchanged() {
+      // Pedido de cancelamento é escrito apenas pelas Cloud Functions
+      // (requestRegistrationCancellation / respondRegistrationCancellationRequest):
+      // sem isto o atleta forjaria um pedido ou se auto-aprovaria.
+      return (!('cancellationRequest' in request.resource.data) ||
+              request.resource.data.cancellationRequest == resource.data.cancellationRequest);
+    }
     function inscriptionLgpdFieldsUnchanged() {
       // Aceite LGPD é registrado apenas pelas Cloud Functions (Admin SDK).
       return (!('lgpdAcceptedUids' in request.resource.data) ||
@@ -1786,6 +1793,7 @@ service cloud.firestore {
           inscriptionPaymentFieldsUnchanged() &&
           inscriptionEnrollmentFieldsUnchanged() &&
           inscriptionLgpdFieldsUnchanged() &&
+          inscriptionCancellationRequestFieldsUnchanged() &&
           inscriptionParticipantUidsImmutable() &&
           inscriptionCoreFieldsImmutable()
         ) ||

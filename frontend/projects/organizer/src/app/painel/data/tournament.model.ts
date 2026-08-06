@@ -2,7 +2,7 @@
  *  filtrado por `managerId == uid` — quem organiza o torneio. Ver `tournaments-repository.ts`
  *  pro mapeamento de campos. */
 
-import type { TournamentVisibility } from './tournament-create.model';
+import type { TournamentPaymentMode, TournamentVisibility } from './tournament-create.model';
 
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
@@ -70,6 +70,9 @@ export interface OrganizerTournament {
   /** `linkOnly` fica fora da listagem pública do site — o único caminho até ele é o link que o
    *  organizador compartilha, e é isso que decide o destino em `tournament-share.ts`. */
   visibility: TournamentVisibility;
+  /** `directWithOrganizer` não tem webhook: o atleta declara que pagou e o dinheiro cai fora do
+   *  app. É o que separa "pagou" de "disse que pagou" na tela de Inscrições. */
+  paymentMode: TournamentPaymentMode;
   startAt: Date | null;
   endAt: Date | null;
   city: string | null;

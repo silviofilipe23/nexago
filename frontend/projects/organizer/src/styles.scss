@@ -450,6 +450,19 @@ button {
   background: var(--nx-orange-400);
 }
 
+/* Ação destrutiva. O `og-confirm-dialog` já pedia essa classe desde sempre, mas ela nunca
+   existiu — o botão de "remover/cancelar" saía com a mesma cara do "Voltar". */
+.og-mini-btn-danger {
+  background: rgba(255, 59, 48, 0.1);
+  border-color: rgba(255, 59, 48, 0.34);
+  color: var(--nx-live);
+}
+
+.og-mini-btn-danger:hover:not(:disabled) {
+  background: rgba(255, 59, 48, 0.18);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
 .og-ghost-btn {
   height: 32px;
   padding: 0 11px;

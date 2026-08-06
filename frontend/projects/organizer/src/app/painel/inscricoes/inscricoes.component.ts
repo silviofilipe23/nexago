@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
-import { initialsOf, truncateName, type PillTone } from '../data/mock-data';
 import { listInscriptions } from '../data/inscriptions-repository';
 import {
   confirmRegistrationPayment,
@@ -10,387 +9,213 @@ import {
 } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
-import { OgAvatarComponent } from '../ui/avatar.component';
-import { OgCardComponent } from '../ui/card.component';
-import { OgChartTabsComponent } from '../ui/chart-tabs.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
-import { OgPillComponent } from '../ui/pill.component';
-import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
-
-/** Status da linha no vocabulário real do schema (`isPaid`/`waitlist`) — "estorno" não existe
- *  no backend, então a aba do protótipo foi trocada por "espera" (fila real).
- *
- *  `conferir` é a dupla que declarou ter pago o Pix direto do organizador: a vaga já vale
- *  (`isPaid`), mas nenhum webhook viu o dinheiro. Sem esse estado a linha aparecia como "Pago" e
- *  o botão de confirmar sumia justamente em quem precisava de conferência. */
-type PayStatus = 'pago' | 'conferir' | 'pendente' | 'espera';
-/** "cancelamento" não é status de pagamento: é o recorte de quem pediu cancelamento. */
-type Tab = 'todos' | PayStatus | 'cancelamento';
-
-const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', conferir: 'orange', pendente: 'yellow', espera: 'dim' };
-const PAY_LABEL: Record<PayStatus, string> = {
-  pago: 'Pago',
-  conferir: 'A conferir',
-  pendente: 'Pendente',
-  espera: 'Espera',
-};
-
-/** Aceite do termo de uso de imagem/LGPD registrado na inscrição: `aceito` = todos os atletas,
- *  `parcial` = só parte da dupla, `pendente` = ninguém (inclui inscrições antigas, feitas antes
- *  do termo existir no fluxo). */
-type LgpdStatus = 'aceito' | 'parcial' | 'pendente';
-
-const LGPD_TONE: Record<LgpdStatus, PillTone> = { aceito: 'green', parcial: 'yellow', pendente: 'dim' };
-const LGPD_LABEL: Record<LgpdStatus, string> = { aceito: 'Aceito', parcial: 'Parcial', pendente: 'Pendente' };
-
-interface InscricaoAthlete {
-  name: string;
-  photoUrl: string | null;
-}
-
-interface InscricaoRow {
-  id: string;
-  name: string;
-  athletes: InscricaoAthlete[];
-  categoriaId: string | null;
-  categoria: string;
-  pay: PayStatus;
-  /** Tooltip da pílula de pagamento — em `conferir`, explica que é declaração do atleta. */
-  payTitle: string;
-  /** Legenda sob a pílula quando só parte da dupla acertou ("1 de 2 pagaram"). */
-  payNote: string | null;
-  /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */
-  cancelPending: boolean;
-  cancelReason: string;
-  lgpd: LgpdStatus;
-  /** Tooltip da pílula LGPD — em `parcial`, diz quem ainda não aceitou. */
-  lgpdTitle: string;
-  date: string;
-  createdAt: Date | null;
-}
+import { OgInscricoesListComponent } from './inscricoes-list.component';
+import {
+  INSCRICAO_TABS,
+  LGPD_LABEL,
+  PAY_LABEL,
+  normalizeSearch,
+  type InscricaoAction,
+  type InscricaoRow,
+  type InscricaoTab,
+  type LgpdStatus,
+  type PayStatus,
+} from './inscricoes.model';
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+const LONG_DATE = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' });
+
+/** Ação que apaga inscrição ou libera vaga pede confirmação — as outras são reversíveis. */
+interface PendingConfirm {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  run: () => void;
+}
 
 /** Inscrições do torneio em contexto (nível 2 da cascata), com as MESMAS ações do app
  *  (`organizer_category_ops_service.dart`): confirmar pagamento manual, mover pra lista de
  *  espera, remover da categoria e reenviar cobrança — todas via Cloud Functions com validação
- *  no servidor. O torneio vem da rota (`/painel/eventos/:id/inscricoes`); o filtro por
- *  categoria são os chips no topo, espelhando o protótipo da cascata. */
+ *  no servidor. O torneio vem da rota (`/painel/eventos/:id/inscricoes`).
+ *
+ *  Este componente cuida de dados, filtros e ações; o desenho da lista é do
+ *  `og-inscricoes-list`. Os contadores por situação vivem nas próprias abas de filtro — a fila
+ *  de cards de KPI que existia aqui repetia números que já estavam uma linha abaixo, e empurrava
+ *  a lista (que é o assunto da tela) pra fora da primeira dobra. */
 @Component({
   selector: 'og-inscricoes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent],
+  imports: [OgPageHeaderComponent, OgIconComponent, OgInscricoesListComponent, OgConfirmDialogComponent],
   template: `
     <og-page-header title="Inscrições" [subtitle]="headerSubtitle()">
-      <!-- mock (fase 2): busca do header ainda decorativa em toda a IA do protótipo (idem Início) -->
-      <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div>
-      <!-- mock (fase 2): exportação real fica pra depois -->
-      <button type="button" class="og-mini-btn"><og-icon name="download" [size]="14" />Exportar</button>
+      <label class="og-insc-search">
+        <og-icon name="search" [size]="15" />
+        <input
+          type="search"
+          placeholder="Buscar dupla, atleta ou categoria"
+          aria-label="Buscar inscrição por dupla, atleta ou categoria"
+          [value]="query()"
+          (input)="onQueryInput($event)"
+        />
+      </label>
+      <button type="button" class="og-mini-btn" [disabled]="filtered().length === 0" (click)="exportCsv()">
+        <og-icon name="download" [size]="14" />Exportar
+      </button>
     </og-page-header>
 
     <div class="og-content">
-      <div class="og-kpi-row">
-        <og-card pad="sm" flex="1">
-          <div class="og-kpi-label">Total de inscritos</div>
-          <div class="og-kpi-value sm">{{ rows().length }}</div>
-        </og-card>
-        <og-card pad="sm" flex="1">
-          <div class="og-kpi-label">Pagamentos pendentes</div>
-          <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ pendentes() }}</div>
-        </og-card>
-        @if (aConferir() > 0) {
-          <og-card pad="sm" flex="1">
-            <div class="og-kpi-label">A conferir</div>
-            <div class="og-kpi-value sm" style="color:var(--nx-orange-500)">{{ aConferir() }}</div>
-          </og-card>
-        }
-        @if (cancelamentos() > 0) {
-          <og-card pad="sm" flex="1">
-            <div class="og-kpi-label">Cancelamentos</div>
-            <div class="og-kpi-value sm" style="color:var(--nx-live)">{{ cancelamentos() }}</div>
-          </og-card>
-        }
-        <og-card pad="sm" flex="1">
-          <div class="og-kpi-label">Categorias</div>
-          <div class="og-kpi-value sm">{{ categorias().length }}</div>
-        </og-card>
-      </div>
-
       @if (feedback(); as fb) {
-        <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+        <div class="og-banner" [class.win]="fb.ok" role="status">{{ fb.message }}</div>
       }
 
-      @if (categorias().length > 0) {
-        <div class="og-filter-bar">
-          <button type="button" class="og-chip" [class.active]="categoryFilter() === null" (click)="categoryFilter.set(null)">
+      @if (categorias().length > 1) {
+        <div class="og-filter-bar" role="group" aria-label="Filtrar por categoria">
+          <button
+            type="button"
+            class="og-chip"
+            [class.active]="categoryFilter() === null"
+            [attr.aria-pressed]="categoryFilter() === null"
+            (click)="categoryFilter.set(null)"
+          >
             Todas ({{ rows().length }})
           </button>
           @for (c of categorias(); track c.id) {
-            <button type="button" class="og-chip" [class.active]="categoryFilter() === c.id" (click)="categoryFilter.set(c.id)">
+            <button
+              type="button"
+              class="og-chip"
+              [class.active]="categoryFilter() === c.id"
+              [attr.aria-pressed]="categoryFilter() === c.id"
+              (click)="categoryFilter.set(c.id)"
+            >
               {{ c.name }} · {{ countOf(c.id) }}
             </button>
           }
         </div>
       }
 
-      <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
+      <div class="og-chart-tabs og-insc-tabs" role="group" aria-label="Filtrar por situação">
+        @for (t of tabs; track t.id) {
+          <button
+            type="button"
+            [class.active]="tab() === t.id"
+            [attr.aria-pressed]="tab() === t.id"
+            (click)="tab.set(t.id)"
+          >
+            {{ t.label }}
+            <span class="n" [class]="countTone(t.id)">{{ countForTab(t.id) }}</span>
+          </button>
+        }
+      </div>
 
-      <og-card pad="0" flex="1">
-        <div class="og-table-head">
-          <span style="flex:1.4">Atleta / Dupla</span>
-          <span style="flex:1">Categoria</span>
-          <span style="width:70px">Data</span>
-          <span style="width:110px">Pagamento</span>
-          <span style="width:90px">LGPD</span>
-          <span style="width:80px"></span>
-        </div>
-        <div class="og-table-body">
-          @if (loading()) {
-            @for (i of [1, 2, 3, 4]; track i) {
-              <div class="og-row">
-                <div class="og-skeleton-line" style="width:100%"></div>
-              </div>
-            }
-          } @else {
-            @for (r of filtered(); track r.id) {
-              <div class="og-row" style="flex-wrap:wrap">
-                <span class="og-inscricoes-avatars" [style.width.px]="r.athletes.length > 1 ? 85 : 52">
-                  @for (a of r.athletes; track $index; let i = $index) {
-                    <og-avatar
-                      zoomable
-                      [initials]="initialsOf(a.name)"
-                      [personName]="a.name"
-                      [meta]="athleteMeta(r)"
-                      [photoUrl]="a.photoUrl"
-                      [size]="52"
-                      [style.margin-left.px]="i ? -16 : 0"
-                      [style.z-index]="r.athletes.length - i"
-                    />
-                  }
-                </span>
-                <span style="flex:1.4;min-width:0">
-                  <div class="og-inscricoes-name" [title]="r.name">{{ truncate(r.name, 32) }}</div>
-                </span>
-                <span style="flex:1" class="og-inscricoes-cat">{{ r.categoria }}</span>
-                <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
-                <span style="width:110px" [title]="r.payTitle">
-                  <og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill>
-                  @if (r.payNote; as note) {
-                    <div class="og-inscricoes-paynote">{{ note }}</div>
-                  }
-                </span>
-                <span style="width:90px" [title]="r.lgpdTitle"><og-pill [tone]="lgpdTone[r.lgpd]">{{ lgpdLabel[r.lgpd] }}</og-pill></span>
-                @if (r.cancelPending) {
-                  <span style="width:100%;padding:6px 0 0 44px">
-                    <og-pill tone="red">Cancelamento solicitado</og-pill>
-                  </span>
-                }
-                <button type="button" class="og-ghost-btn" (click)="toggleActions(r.id)">{{ actionsFor() === r.id ? 'Fechar' : 'Ações' }}</button>
-                @if (actionsFor() === r.id) {
-                  <div class="og-inscricoes-actions">
-                    @if (r.pay !== 'pago') {
-                      <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="confirmPayment(r)">
-                        @if (busyKey() === 'confirm:' + r.id) {
-                          <app-nx-spinner [size]="12" />
-                        }
-                        {{ busyKey() === 'confirm:' + r.id ? 'Confirmando…' : confirmLabel(r) }}
-                      </button>
-                      <!-- Em "conferir" os dois já declararam: resendRegistrationPayment só
-                           cobra quem falta em sharePaidUids, ou seja, não avisaria ninguém. -->
-                      @if (r.pay !== 'conferir') {
-                        <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="resend(r)">
-                          @if (busyKey() === 'resend:' + r.id) {
-                            <app-nx-spinner [size]="12" />
-                          }
-                          {{ busyKey() === 'resend:' + r.id ? 'Reenviando…' : 'Reenviar cobrança' }}
-                        </button>
-                      }
-                    }
-                    @if (r.pay !== 'espera') {
-                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toWaitlist(r)">
-                        @if (busyKey() === 'waitlist:' + r.id) {
-                          <app-nx-spinner [size]="12" />
-                        }
-                        {{ busyKey() === 'waitlist:' + r.id ? 'Movendo…' : 'Mover pra espera' }}
-                      </button>
-                    }
-                    <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(r)">
-                      @if (busyKey() === 'remove:' + r.id) {
-                        <app-nx-spinner [size]="12" />
-                      }
-                      {{ busyKey() === 'remove:' + r.id ? 'Removendo…' : 'Remover da categoria' }}
-                    </button>
-
-                    @if (r.cancelPending) {
-                      <div class="og-cancel-req">
-                        <strong class="og-cancel-req-title">Pedido de cancelamento</strong>
-                        @if (r.cancelReason) {
-                          <p class="og-cancel-req-reason">“{{ r.cancelReason }}”</p>
-                        }
-                        <p class="og-cancel-req-warn">{{ refundNotice }}</p>
-                        <input
-                          type="text"
-                          class="og-cancel-req-input"
-                          maxlength="500"
-                          placeholder="Resposta ao atleta (opcional)"
-                          [value]="responseNote()"
-                          (input)="onResponseNoteInput($event)"
-                        />
-                        <div class="og-cancel-req-actions">
-                          <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="approveCancellation(r)">
-                            @if (busyKey() === 'cancel-approve:' + r.id) {
-                              <app-nx-spinner [size]="12" />
-                            }
-                            {{ busyKey() === 'cancel-approve:' + r.id ? 'Aprovando…' : 'Aprovar e liberar vaga' }}
-                          </button>
-                          <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="declineCancellation(r)">
-                            @if (busyKey() === 'cancel-decline:' + r.id) {
-                              <app-nx-spinner [size]="12" />
-                            }
-                            {{ busyKey() === 'cancel-decline:' + r.id ? 'Recusando…' : 'Recusar pedido' }}
-                          </button>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            } @empty {
-              <p class="og-empty">Nenhuma inscrição ainda</p>
-            }
-          }
-        </div>
-      </og-card>
+      <og-inscricoes-list
+        [rows]="filtered()"
+        [loading]="loading()"
+        [busy]="busy()"
+        [busyKey]="busyKey()"
+        [openId]="actionsFor()"
+        [emptyTitle]="emptyTitle()"
+        [emptyHint]="emptyHint()"
+        [canClear]="hasFilters()"
+        (toggled)="toggleActions($event)"
+        (action)="onAction($event)"
+        (cleared)="clearFilters()"
+      />
     </div>
+
+    @if (pendingConfirm(); as c) {
+      <og-confirm-dialog
+        [title]="c.title"
+        [message]="c.message"
+        [confirmLabel]="c.confirmLabel"
+        [destructive]="true"
+        [busy]="busy()"
+        (confirmed)="c.run()"
+        (cancelled)="pendingConfirm.set(null)"
+      />
+    }
   `,
   styles: `
-    .og-inscricoes-avatars {
+    .og-insc-search {
       display: flex;
       align-items: center;
-      flex: none;
-      height: 34px;
-    }
-    .og-inscricoes-avatars .og-avatar {
-      box-shadow: 0 0 0 2px var(--nx-surface-0);
-    }
-    .og-inscricoes-name {
-      font-family: var(--nx-font-display);
-      font-weight: 600;
-      font-size: 13.5px;
-      color: var(--nx-text);
-    }
-    .og-inscricoes-cat {
-      font-family: var(--nx-font-ui);
-      font-size: 12.5px;
-      color: var(--nx-text-mute);
-    }
-    .og-inscricoes-date {
-      font-family: var(--nx-font-mono);
-      font-size: 11.5px;
-      color: var(--nx-text-dim);
-    }
-    .og-inscricoes-paynote {
-      font-family: var(--nx-font-ui);
-      font-size: 10.5px;
-      color: var(--nx-text-dim);
-      margin-top: 4px;
-    }
-    .og-inscricoes-actions {
-      width: 100%;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding: 10px 0 4px 44px;
-    }
-    .og-ghost-btn.danger {
-      color: var(--nx-live);
-    }
-    .og-cancel-req {
-      width: 100%;
-      margin-top: 4px;
-      padding: 12px;
-      border: 1px solid rgba(255, 59, 48, 0.35);
-      border-radius: 8px;
-      background: rgba(255, 59, 48, 0.07);
-    }
-    .og-cancel-req-title {
-      font-family: var(--nx-font-display);
-      font-size: 13px;
-      color: var(--nx-text);
-    }
-    .og-cancel-req-reason,
-    .og-cancel-req-warn {
-      margin: 6px 0 0;
-      font-family: var(--nx-font-ui);
-      font-size: 12.5px;
-      line-height: 1.5;
-      color: var(--nx-text-mute);
-    }
-    .og-cancel-req-warn {
-      color: var(--nx-text-dim);
-    }
-    .og-cancel-req-input {
-      box-sizing: border-box;
-      width: 100%;
-      margin-top: 10px;
-      padding: 8px 10px;
-      border: 1px solid var(--nx-line);
-      border-radius: 6px;
+      gap: 9px;
+      width: 268px;
+      height: 38px;
+      padding: 0 12px;
       background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      color: var(--nx-text-dim);
+      transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+
+    .og-insc-search:focus-within {
+      border-color: var(--nx-line-strong);
+    }
+
+    .og-insc-search input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      outline: none;
+      background: transparent;
       color: var(--nx-text);
       font-family: var(--nx-font-ui);
-      font-size: 12.5px;
-    }
-    .og-cancel-req-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-    .og-empty {
-      font-family: var(--nx-font-ui);
       font-size: 13px;
-      color: var(--nx-text-mute);
-      padding: 16px;
-      margin: 0;
     }
-    .og-skeleton-line {
-      height: 34px;
-      border-radius: 6px;
-      background: var(--nx-surface-1);
-      position: relative;
-      overflow: hidden;
+
+    /* O anel de foco fica na caixa inteira, não só no input sem borda. */
+    .og-insc-search:has(input:focus-visible) {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
     }
-    .og-skeleton-line::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent, var(--nx-surface-2), transparent);
-      animation: og-shimmer 1.2s infinite;
+
+    .og-insc-tabs {
+      align-self: flex-start;
     }
-    @keyframes og-shimmer {
-      from {
-        transform: translateX(-100%);
-      }
-      to {
-        transform: translateX(100%);
-      }
+
+    .og-insc-tabs button {
+      gap: 7px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .og-insc-tabs .n {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--nx-text-dim);
+    }
+
+    .og-insc-tabs button.active .n {
+      color: var(--nx-text);
+    }
+
+    /* Contador colorido só onde há trabalho parado — é o que substituiu os cards de KPI. */
+    .og-insc-tabs .n.warn {
+      color: var(--nx-pending);
+    }
+
+    .og-insc-tabs .n.check {
+      color: var(--nx-orange-500);
+    }
+
+    .og-insc-tabs .n.danger {
+      color: var(--nx-live);
     }
   `,
 })
 export class InscricoesComponent {
   readonly id = input<string>('');
 
-  protected readonly tabs = ['todos', 'pago', 'conferir', 'pendente', 'espera', 'cancelamento'];
-  protected readonly tab = signal<Tab>('todos');
+  protected readonly tabs = INSCRICAO_TABS;
+  protected readonly tab = signal<InscricaoTab>('todos');
   protected readonly categoryFilter = signal<string | null>(null);
-  protected readonly payTone = PAY_TONE;
-  protected readonly payLabel = PAY_LABEL;
-  protected readonly lgpdTone = LGPD_TONE;
-  protected readonly lgpdLabel = LGPD_LABEL;
-  protected readonly initialsOf = initialsOf;
-  protected readonly truncate = truncateName;
+  protected readonly query = signal('');
 
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
@@ -398,40 +223,50 @@ export class InscricoesComponent {
   protected readonly busyKey = signal<string | null>(null);
   protected readonly actionsFor = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly rows = signal<InscricaoRow[]>([]);
 
   protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
-  protected readonly pendentes = computed(() => this.rows().filter((r) => r.pay === 'pendente').length);
-  protected readonly aConferir = computed(() => this.rows().filter((r) => r.pay === 'conferir').length);
-  protected readonly cancelamentos = computed(() => this.rows().filter((r) => r.cancelPending).length);
-
-  /** Resposta opcional ao atleta; uma por vez porque só uma gaveta abre. */
-  protected readonly responseNote = signal('');
-
-  /** A plataforma não devolve dinheiro — o organizador precisa ler isso antes de aprovar. */
-  protected readonly refundNotice =
-    'Aprovar remove a inscrição e libera a vaga. A nexaGO não processa o reembolso — ' +
-    'combine a devolução diretamente com o atleta.';
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
     if (!t) return '';
-    const parts = [`${this.rows().length} inscrições`];
-    const pend = this.pendentes();
-    if (pend > 0) parts.push(`${pend} pendentes`);
-    const conf = this.aConferir();
-    if (conf > 0) parts.push(`${conf} a conferir`);
-    return `${t.name} · ${parts.join(' · ')}`;
+    const n = this.rows().length;
+    return `${t.name} · ${n} ${n === 1 ? 'inscrição' : 'inscrições'}`;
+  });
+
+  /** Recorte por categoria e busca — a base sobre a qual as abas contam. Sem isso, o número da
+   *  aba diria "9 pendentes" enquanto a categoria filtrada tem só 2. */
+  private readonly scoped = computed<InscricaoRow[]>(() => {
+    const cat = this.categoryFilter();
+    const q = normalizeSearch(this.query());
+    return this.rows().filter(
+      (r) => (cat === null || r.categoriaId === cat) && (q === '' || r.search.includes(q)),
+    );
   });
 
   protected readonly filtered = computed<InscricaoRow[]>(() => {
     const tab = this.tab();
-    const cat = this.categoryFilter();
-    return this.rows().filter((r) => {
-      const matchesTab = tab === 'todos' || (tab === 'cancelamento' ? r.cancelPending : r.pay === tab);
-      return matchesTab && (cat === null || r.categoriaId === cat);
-    });
+    return this.scoped().filter((r) => this.matchesTab(r, tab));
+  });
+
+  protected readonly hasFilters = computed(
+    () => this.tab() !== 'todos' || this.categoryFilter() !== null || this.query().trim() !== '',
+  );
+
+  protected readonly emptyTitle = computed(() => {
+    if (this.rows().length === 0) return 'Nenhuma inscrição ainda';
+    const q = this.query().trim();
+    if (q !== '' && this.scoped().length === 0) return `Nada encontrado para “${q}”`;
+    return `Nenhuma inscrição em “${this.tabLabel(this.tab())}”`;
+  });
+
+  protected readonly emptyHint = computed(() => {
+    if (this.rows().length === 0) return 'Assim que alguém se inscrever, a dupla aparece aqui.';
+    const q = this.query().trim();
+    if (q !== '' && this.scoped().length === 0) return 'Busque por nome da dupla, de um atleta ou da categoria.';
+    return 'Troque de situação ou limpe os filtros para ver as outras inscrições.';
   });
 
   constructor() {
@@ -440,6 +275,8 @@ export class InscricoesComponent {
       this.tournament.set(null);
       this.rows.set([]);
       this.categoryFilter.set(null);
+      this.query.set('');
+      this.tab.set('todos');
       if (!tid) {
         this.loading.set(false);
         return;
@@ -458,11 +295,15 @@ export class InscricoesComponent {
       // A legenda da linha não pode dizer a mesma coisa nos dois casos.
       const direct = tournament?.paymentMode === 'directWithOrganizer';
       const rows: InscricaoRow[] = inscriptions.map((insc) => {
-        const athletes: InscricaoAthlete[] =
-          insc.participants.length > 0
-            ? insc.participants.map((p) => ({ name: p.name, photoUrl: p.photoUrl }))
-            : [{ name: insc.teamName, photoUrl: null }];
         const accepted = new Set(insc.lgpdAcceptedUids);
+        const athletes =
+          insc.participants.length > 0
+            ? insc.participants.map((p) => ({
+                name: p.name,
+                photoUrl: p.photoUrl,
+                lgpdAccepted: accepted.has(p.uid),
+              }))
+            : [{ name: insc.teamName, photoUrl: null, lgpdAccepted: false }];
         const missing = insc.participants.filter((p) => !accepted.has(p.uid));
         const lgpd: LgpdStatus =
           insc.participants.length > 0 && missing.length === 0
@@ -470,12 +311,6 @@ export class InscricoesComponent {
             : missing.length < insc.participants.length
               ? 'parcial'
               : 'pendente';
-        const lgpdTitle =
-          lgpd === 'aceito'
-            ? 'Termo de uso de imagem/LGPD aceito por todos os atletas'
-            : lgpd === 'parcial'
-              ? `Sem aceite do termo LGPD: ${missing.map((p) => p.name).join(', ')}`
-              : 'Nenhum aceite do termo de uso de imagem/LGPD registrado nesta inscrição';
         const pay: PayStatus = insc.needsVerification
           ? 'conferir'
           : insc.paid
@@ -485,24 +320,31 @@ export class InscricoesComponent {
               : 'pendente';
         const total = insc.participants.length;
         const partial = pay !== 'conferir' && total > 1 && insc.sharePaidCount > 0 && insc.sharePaidCount < total;
+        const categoria = (insc.categoryId && categoryNames.get(insc.categoryId)) || '—';
         return {
           id: insc.id,
           name: insc.teamName,
           athletes: athletes.slice(0, 2),
           categoriaId: insc.categoryId,
-          categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
+          categoria,
           pay,
           payTitle:
             pay === 'conferir'
               ? 'Os atletas declararam ter pago o Pix do organizador. Confira o recebimento e confirme.'
               : '',
-          payNote: partial ? `${insc.sharePaidCount} de ${total} ${direct ? 'declararam' : 'pagaram'}` : null,
+          payNote: partial
+            ? `${insc.sharePaidCount} de ${total} ${direct ? 'declararam' : 'pagaram'}`
+            : pay === 'conferir'
+              ? 'Declarado pelos atletas'
+              : null,
           cancelPending: insc.cancellationRequest?.status === 'pending',
           cancelReason: insc.cancellationRequest?.reason ?? '',
           lgpd,
-          lgpdTitle,
+          lgpdMissing: missing.map((p) => p.name),
           date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
+          dateLong: insc.createdAt ? LONG_DATE.format(insc.createdAt) : 'Data não registrada',
           createdAt: insc.createdAt,
+          search: normalizeSearch([insc.teamName, ...insc.participants.map((p) => p.name), categoria].join(' ')),
         };
       });
       rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
@@ -512,49 +354,93 @@ export class InscricoesComponent {
     }
   }
 
-  /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */
-  protected athleteMeta(r: InscricaoRow): string {
-    return [r.categoria === '—' ? null : r.categoria, r.name].filter(Boolean).join(' · ');
+  private matchesTab(r: InscricaoRow, tab: InscricaoTab): boolean {
+    if (tab === 'todos') return true;
+    if (tab === 'cancelamento') return r.cancelPending;
+    return r.pay === tab;
   }
 
-  /** Em `conferir` o organizador não está lançando um pagamento novo: está dando baixa numa
-   *  declaração que já garantiu a vaga. O rótulo tem que dizer isso. */
-  protected confirmLabel(r: InscricaoRow): string {
-    return r.pay === 'conferir' ? 'Confirmar recebimento' : 'Confirmar pagamento';
+  private tabLabel(tab: InscricaoTab): string {
+    return INSCRICAO_TABS.find((t) => t.id === tab)?.label ?? tab;
+  }
+
+  protected countForTab(tab: InscricaoTab): number {
+    return this.scoped().filter((r) => this.matchesTab(r, tab)).length;
+  }
+
+  /** Contador ganha cor só quando aponta trabalho parado — e só na aba que não está ativa,
+   *  porque a ativa já tem o próprio destaque. */
+  protected countTone(tab: InscricaoTab): string {
+    if (this.countForTab(tab) === 0) return '';
+    if (tab === 'pendente') return 'warn';
+    if (tab === 'conferir') return 'check';
+    if (tab === 'cancelamento') return 'danger';
+    return '';
   }
 
   protected countOf(categoryId: string): number {
     return this.rows().filter((r) => r.categoriaId === categoryId).length;
   }
 
+  protected onQueryInput(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+    this.actionsFor.set(null);
+  }
+
+  protected clearFilters(): void {
+    this.tab.set('todos');
+    this.categoryFilter.set(null);
+    this.query.set('');
+  }
+
   protected toggleActions(id: string): void {
-    this.responseNote.set('');
     this.actionsFor.update((cur) => (cur === id ? null : id));
   }
 
-  protected onResponseNoteInput(event: Event): void {
-    this.responseNote.set((event.target as HTMLInputElement).value);
-  }
-
-  /** Aprovar = remover a inscrição e liberar a vaga. Sem estorno: a devolução é
-   *  combinada fora da plataforma, e o texto acima do botão diz isso. */
-  protected approveCancellation(r: InscricaoRow): void {
-    if (!confirm(`Aprovar o cancelamento de ${r.name}? A inscrição sai e a vaga é liberada.`)) return;
-    const note = this.responseNote();
-    void this.run(
-      `cancel-approve:${r.id}`,
-      () => respondCancellationRequest(r.id, true, note),
-      `Cancelamento de ${r.name} aprovado. Combine a devolução do valor com o atleta.`,
-    );
-  }
-
-  protected declineCancellation(r: InscricaoRow): void {
-    const note = this.responseNote();
-    void this.run(
-      `cancel-decline:${r.id}`,
-      () => respondCancellationRequest(r.id, false, note),
-      `Pedido de ${r.name} recusado. A inscrição foi mantida.`,
-    );
+  protected onAction(a: InscricaoAction): void {
+    const { kind, row, note } = a;
+    switch (kind) {
+      case 'confirm':
+        void this.run(`confirm:${row.id}`, () => confirmRegistrationPayment(row.id), `Pagamento de ${row.name} confirmado.`);
+        return;
+      case 'resend':
+        void this.run(`resend:${row.id}`, () => resendRegistrationPayment(row.id), `Cobrança reenviada pra ${row.name}.`);
+        return;
+      case 'waitlist':
+        void this.run(`waitlist:${row.id}`, () => moveToWaitlist(row.id), `${row.name} movido pra lista de espera.`);
+        return;
+      case 'cancel-decline':
+        void this.run(
+          `cancel-decline:${row.id}`,
+          () => respondCancellationRequest(row.id, false, note ?? ''),
+          `Pedido de ${row.name} recusado. A inscrição foi mantida.`,
+        );
+        return;
+      case 'remove':
+        this.pendingConfirm.set({
+          title: 'Remover da categoria',
+          message: `${row.name} sai da categoria ${row.categoria} e a vaga é liberada. Não dá pra desfazer.`,
+          confirmLabel: 'Remover',
+          run: () =>
+            void this.run(`remove:${row.id}`, () => removeFromCategory(row.id), `${row.name} removido da categoria.`),
+        });
+        return;
+      // Aprovar = remover a inscrição e liberar a vaga. Sem estorno: a devolução é
+      // combinada fora da plataforma, e o diálogo repete isso antes do clique final.
+      case 'cancel-approve':
+        this.pendingConfirm.set({
+          title: 'Aprovar o cancelamento',
+          message: `A inscrição de ${row.name} sai e a vaga é liberada. A nexaGO não estorna o valor — combine a devolução direto com o atleta.`,
+          confirmLabel: 'Aprovar e liberar vaga',
+          run: () =>
+            void this.run(
+              `cancel-approve:${row.id}`,
+              () => respondCancellationRequest(row.id, true, note ?? ''),
+              `Cancelamento de ${row.name} aprovado. Combine a devolução do valor com o atleta.`,
+            ),
+        });
+        return;
+    }
   }
 
   private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
@@ -563,6 +449,7 @@ export class InscricoesComponent {
     this.feedback.set(null);
     try {
       await action();
+      this.pendingConfirm.set(null);
       this.feedback.set({ ok: true, message: okMessage });
       this.actionsFor.set(null);
       const tid = this.id();
@@ -571,6 +458,7 @@ export class InscricoesComponent {
         await this.load(tid);
       }
     } catch (e) {
+      this.pendingConfirm.set(null);
       this.feedback.set({ ok: false, message: (e as Error).message || 'Operação falhou.' });
     } finally {
       this.busy.set(false);
@@ -578,20 +466,36 @@ export class InscricoesComponent {
     }
   }
 
-  protected confirmPayment(r: InscricaoRow): void {
-    void this.run(`confirm:${r.id}`, () => confirmRegistrationPayment(r.id), `Pagamento de ${r.name} confirmado.`);
+  /** Exporta o que está na tela (mesmos filtros e busca), separado por `;` e com BOM — é assim
+   *  que o Excel em pt-BR abre o arquivo já nas colunas certas e com acento. */
+  protected exportCsv(): void {
+    const head = ['Dupla', 'Atletas', 'Categoria', 'Inscrita em', 'Pagamento', 'Termo de imagem', 'Cancelamento'];
+    const lines = this.filtered().map((r) => [
+      r.name,
+      r.athletes.map((a) => a.name).join(' | '),
+      r.categoria,
+      r.dateLong,
+      PAY_LABEL[r.pay] + (r.payNote ? ` (${r.payNote})` : ''),
+      LGPD_LABEL[r.lgpd],
+      r.cancelPending ? `Solicitado${r.cancelReason ? `: ${r.cancelReason}` : ''}` : '',
+    ]);
+    const csv = [head, ...lines].map((cols) => cols.map(csvCell).join(';')).join('\r\n');
+    const name = this.tournament()?.name ?? 'torneio';
+    const slug = normalizeSearch(name).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'torneio';
+    downloadFile(`inscricoes-${slug}.csv`, new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
+    this.feedback.set({ ok: true, message: `${lines.length} inscrições exportadas.` });
   }
+}
 
-  protected toWaitlist(r: InscricaoRow): void {
-    void this.run(`waitlist:${r.id}`, () => moveToWaitlist(r.id), `${r.name} movido pra lista de espera.`);
-  }
+function csvCell(value: string): string {
+  return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
 
-  protected remove(r: InscricaoRow): void {
-    if (!confirm(`Remover ${r.name} da categoria? A vaga é liberada.`)) return;
-    void this.run(`remove:${r.id}`, () => removeFromCategory(r.id), `${r.name} removido da categoria.`);
-  }
-
-  protected resend(r: InscricaoRow): void {
-    void this.run(`resend:${r.id}`, () => resendRegistrationPayment(r.id), `Cobrança reenviada pra ${r.name}.`);
-  }
+function downloadFile(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

@@ -57,7 +57,18 @@ export interface TournamentInscription {
   /** Uniforme de cada slot; casa com `participants[0]`/`participants[1]`. */
   uniformPlayer1: InscriptionUniformSlot;
   uniformPlayer2: InscriptionUniformSlot;
+  /** Pedido de cancelamento aberto pelo atleta (inscrição paga), quando houver. */
+  cancellationRequest: InscriptionCancellationRequest | null;
   createdAt: Date | null;
+}
+
+/** Pedido de cancelamento — só o atleta abre, e só em inscrição JÁ PAGA. Aprovado,
+ *  a inscrição é deletada; por isso só existem estes dois estados. A plataforma não
+ *  estorna: a devolução é combinada fora dela. */
+export interface InscriptionCancellationRequest {
+  status: 'pending' | 'declined';
+  reason: string;
+  responseNote: string;
 }
 
 function optionalStr(v: unknown): string | null {
@@ -84,7 +95,21 @@ interface RawInscription {
   lgpdAcceptedUids: string[];
   uniformPlayer1: InscriptionUniformSlot;
   uniformPlayer2: InscriptionUniformSlot;
+  cancellationRequest: InscriptionCancellationRequest | null;
   createdAt: Date | null;
+}
+
+/** Doc antigo (sem o campo) ou status desconhecido contam como "sem pedido". */
+function cancellationRequestFromDoc(v: unknown): InscriptionCancellationRequest | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const data = v as Record<string, unknown>;
+  const status = data['status'];
+  if (status !== 'pending' && status !== 'declined') return null;
+  return {
+    status,
+    reason: typeof data['reason'] === 'string' ? data['reason'] : '',
+    responseNote: typeof data['responseNote'] === 'string' ? data['responseNote'] : '',
+  };
 }
 
 interface ProfileDisplay {
@@ -138,6 +163,7 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
       : [],
     uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
     uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
+    cancellationRequest: cancellationRequestFromDoc(data['cancellationRequest']),
     createdAt: toDate(data['createdAt']),
   };
 }
@@ -256,6 +282,7 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       lgpdAcceptedUids: r.lgpdAcceptedUids,
       uniformPlayer1: r.uniformPlayer1,
       uniformPlayer2: r.uniformPlayer2,
+      cancellationRequest: r.cancellationRequest,
       createdAt: r.createdAt,
     };
   });

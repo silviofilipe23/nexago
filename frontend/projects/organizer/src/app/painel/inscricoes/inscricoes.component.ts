@@ -1,7 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { initialsOf, truncateName, type PillTone } from '../data/mock-data';
 import { listInscriptions } from '../data/inscriptions-repository';
-import { confirmRegistrationPayment, moveToWaitlist, removeFromCategory, resendRegistrationPayment } from '../data/organizer-ops.service';
+import {
+  confirmRegistrationPayment,
+  moveToWaitlist,
+  removeFromCategory,
+  resendRegistrationPayment,
+  respondCancellationRequest,
+} from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -15,7 +21,8 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 /** Status da linha no vocabulário real do schema (`isPaid`/`waitlist`) — "estorno" não existe
  *  no backend, então a aba do protótipo foi trocada por "espera" (fila real). */
 type PayStatus = 'pago' | 'pendente' | 'espera';
-type Tab = 'todos' | PayStatus;
+/** "cancelamento" não é status de pagamento: é o recorte de quem pediu cancelamento. */
+type Tab = 'todos' | PayStatus | 'cancelamento';
 
 const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', pendente: 'yellow', espera: 'dim' };
 const PAY_LABEL: Record<PayStatus, string> = { pago: 'Pago', pendente: 'Pendente', espera: 'Espera' };
@@ -40,6 +47,9 @@ interface InscricaoRow {
   categoriaId: string | null;
   categoria: string;
   pay: PayStatus;
+  /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */
+  cancelPending: boolean;
+  cancelReason: string;
   lgpd: LgpdStatus;
   /** Tooltip da pílula LGPD — em `parcial`, diz quem ainda não aceitou. */
   lgpdTitle: string;
@@ -76,6 +86,12 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           <div class="og-kpi-label">Pagamentos pendentes</div>
           <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ pendentes() }}</div>
         </og-card>
+        @if (cancelamentos() > 0) {
+          <og-card pad="sm" flex="1">
+            <div class="og-kpi-label">Cancelamentos</div>
+            <div class="og-kpi-value sm" style="color:var(--nx-live)">{{ cancelamentos() }}</div>
+          </og-card>
+        }
         <og-card pad="sm" flex="1">
           <div class="og-kpi-label">Categorias</div>
           <div class="og-kpi-value sm">{{ categorias().length }}</div>
@@ -141,6 +157,11 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
                 <span style="width:110px"><og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill></span>
                 <span style="width:90px" [title]="r.lgpdTitle"><og-pill [tone]="lgpdTone[r.lgpd]">{{ lgpdLabel[r.lgpd] }}</og-pill></span>
+                @if (r.cancelPending) {
+                  <span style="width:100%;padding:6px 0 0 44px">
+                    <og-pill tone="red">Cancelamento solicitado</og-pill>
+                  </span>
+                }
                 <button type="button" class="og-ghost-btn" (click)="toggleActions(r.id)">{{ actionsFor() === r.id ? 'Fechar' : 'Ações' }}</button>
                 @if (actionsFor() === r.id) {
                   <div class="og-inscricoes-actions">
@@ -172,6 +193,38 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                       }
                       {{ busyKey() === 'remove:' + r.id ? 'Removendo…' : 'Remover da categoria' }}
                     </button>
+
+                    @if (r.cancelPending) {
+                      <div class="og-cancel-req">
+                        <strong class="og-cancel-req-title">Pedido de cancelamento</strong>
+                        @if (r.cancelReason) {
+                          <p class="og-cancel-req-reason">“{{ r.cancelReason }}”</p>
+                        }
+                        <p class="og-cancel-req-warn">{{ refundNotice }}</p>
+                        <input
+                          type="text"
+                          class="og-cancel-req-input"
+                          maxlength="500"
+                          placeholder="Resposta ao atleta (opcional)"
+                          [value]="responseNote()"
+                          (input)="onResponseNoteInput($event)"
+                        />
+                        <div class="og-cancel-req-actions">
+                          <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="approveCancellation(r)">
+                            @if (busyKey() === 'cancel-approve:' + r.id) {
+                              <app-nx-spinner [size]="12" />
+                            }
+                            {{ busyKey() === 'cancel-approve:' + r.id ? 'Aprovando…' : 'Aprovar e liberar vaga' }}
+                          </button>
+                          <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="declineCancellation(r)">
+                            @if (busyKey() === 'cancel-decline:' + r.id) {
+                              <app-nx-spinner [size]="12" />
+                            }
+                            {{ busyKey() === 'cancel-decline:' + r.id ? 'Recusando…' : 'Recusar pedido' }}
+                          </button>
+                        </div>
+                      </div>
+                    }
                   </div>
                 }
               </div>
@@ -219,6 +272,48 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
     .og-ghost-btn.danger {
       color: var(--nx-live);
     }
+    .og-cancel-req {
+      width: 100%;
+      margin-top: 4px;
+      padding: 12px;
+      border: 1px solid rgba(255, 59, 48, 0.35);
+      border-radius: 8px;
+      background: rgba(255, 59, 48, 0.07);
+    }
+    .og-cancel-req-title {
+      font-family: var(--nx-font-display);
+      font-size: 13px;
+      color: var(--nx-text);
+    }
+    .og-cancel-req-reason,
+    .og-cancel-req-warn {
+      margin: 6px 0 0;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--nx-text-mute);
+    }
+    .og-cancel-req-warn {
+      color: var(--nx-text-dim);
+    }
+    .og-cancel-req-input {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--nx-line);
+      border-radius: 6px;
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+    }
+    .og-cancel-req-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
     .og-empty {
       font-family: var(--nx-font-ui);
       font-size: 13px;
@@ -253,7 +348,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 export class InscricoesComponent {
   readonly id = input<string>('');
 
-  protected readonly tabs = ['todos', 'pago', 'pendente', 'espera'];
+  protected readonly tabs = ['todos', 'pago', 'pendente', 'espera', 'cancelamento'];
   protected readonly tab = signal<Tab>('todos');
   protected readonly categoryFilter = signal<string | null>(null);
   protected readonly payTone = PAY_TONE;
@@ -274,6 +369,15 @@ export class InscricoesComponent {
 
   protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
   protected readonly pendentes = computed(() => this.rows().filter((r) => r.pay === 'pendente').length);
+  protected readonly cancelamentos = computed(() => this.rows().filter((r) => r.cancelPending).length);
+
+  /** Resposta opcional ao atleta; uma por vez porque só uma gaveta abre. */
+  protected readonly responseNote = signal('');
+
+  /** A plataforma não devolve dinheiro — o organizador precisa ler isso antes de aprovar. */
+  protected readonly refundNotice =
+    'Aprovar remove a inscrição e libera a vaga. A nexaGO não processa o reembolso — ' +
+    'combine a devolução diretamente com o atleta.';
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -285,7 +389,10 @@ export class InscricoesComponent {
   protected readonly filtered = computed<InscricaoRow[]>(() => {
     const tab = this.tab();
     const cat = this.categoryFilter();
-    return this.rows().filter((r) => (tab === 'todos' || r.pay === tab) && (cat === null || r.categoriaId === cat));
+    return this.rows().filter((r) => {
+      const matchesTab = tab === 'todos' || (tab === 'cancelamento' ? r.cancelPending : r.pay === tab);
+      return matchesTab && (cat === null || r.categoriaId === cat);
+    });
   });
 
   constructor() {
@@ -334,6 +441,8 @@ export class InscricoesComponent {
           categoriaId: insc.categoryId,
           categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
           pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
+          cancelPending: insc.cancellationRequest?.status === 'pending',
+          cancelReason: insc.cancellationRequest?.reason ?? '',
           lgpd,
           lgpdTitle,
           date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
@@ -357,7 +466,33 @@ export class InscricoesComponent {
   }
 
   protected toggleActions(id: string): void {
+    this.responseNote.set('');
     this.actionsFor.update((cur) => (cur === id ? null : id));
+  }
+
+  protected onResponseNoteInput(event: Event): void {
+    this.responseNote.set((event.target as HTMLInputElement).value);
+  }
+
+  /** Aprovar = remover a inscrição e liberar a vaga. Sem estorno: a devolução é
+   *  combinada fora da plataforma, e o texto acima do botão diz isso. */
+  protected approveCancellation(r: InscricaoRow): void {
+    if (!confirm(`Aprovar o cancelamento de ${r.name}? A inscrição sai e a vaga é liberada.`)) return;
+    const note = this.responseNote();
+    void this.run(
+      `cancel-approve:${r.id}`,
+      () => respondCancellationRequest(r.id, true, note),
+      `Cancelamento de ${r.name} aprovado. Combine a devolução do valor com o atleta.`,
+    );
+  }
+
+  protected declineCancellation(r: InscricaoRow): void {
+    const note = this.responseNote();
+    void this.run(
+      `cancel-decline:${r.id}`,
+      () => respondCancellationRequest(r.id, false, note),
+      `Pedido de ${r.name} recusado. A inscrição foi mantida.`,
+    );
   }
 
   private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {

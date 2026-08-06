@@ -19,6 +19,7 @@ function inscription(overrides: Partial<TournamentInscription> = {}): Tournament
     lgpdAcceptedUids: [],
     uniformPlayer1: EMPTY_INSCRIPTION_UNIFORM,
     uniformPlayer2: EMPTY_INSCRIPTION_UNIFORM,
+    cancellationRequest: null,
     createdAt: null,
     ...overrides,
   };

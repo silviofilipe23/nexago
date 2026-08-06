@@ -29,6 +29,15 @@ import {
 import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
+import {asaasArenaSecrets} from "./asaas-client";
+import {deleteAsaasPaymentOrThrow} from "./asaas-booking-payment";
+import {
+  REGISTRATION_CANCELLATION_BLOCK_MESSAGES,
+  buildRegistrationCancellationAudit,
+  inviteMatchesCancelledRegistration,
+  registrationCancellationBlockReason,
+  shouldDeleteTeamOnCancellation,
+} from "./tournament-registration-cancellation";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -748,12 +757,18 @@ export const registerSoloTournament = onCall(async (request) => {
 });
 
 /**
- * Cancela a reserva/inscrição do próprio atleta — somente enquanto não paga
- * (`isPaid !== true`). Cobre solo (sem `teams` doc, identificado por
- * `player1Id`/`participantUids` na própria inscrição) e dupla já formada
- * (via `teams.player1Id`/`player2Id`).
+ * Cancela a reserva/inscrição do próprio atleta — somente enquanto não há
+ * NENHUM pagamento (nem `isPaid`, nem parcela em `sharePaidUids`). Cobre solo
+ * (sem `teams` doc, identificado por `player1Id`/`participantUids` na própria
+ * inscrição) e dupla já formada (via `teams.player1Id`/`player2Id`).
+ *
+ * Além do doc da inscrição, morrem junto: cobranças PIX abertas no Asaas (e os
+ * docs `pixPending`), a equipe quando nenhuma outra inscrição a referencia e os
+ * convites pendentes ligados. Uma trilha de auditoria é gravada antes do delete.
  */
-export const cancelTournamentRegistration = onCall(async (request) => {
+export const cancelTournamentRegistration = onCall({
+  secrets: [...asaasArenaSecrets],
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para cancelar sua inscrição.");
@@ -777,10 +792,11 @@ export const cancelTournamentRegistration = onCall(async (request) => {
   }
   const registration = regSnap.data()!;
 
-  if (registration.isPaid === true) {
+  const blockReason = registrationCancellationBlockReason(registration);
+  if (blockReason) {
     throw new HttpsError(
       "failed-precondition",
-      "Inscrição já confirmada não pode ser cancelada por aqui. Fale com o organizador.",
+      REGISTRATION_CANCELLATION_BLOCK_MESSAGES[blockReason],
     );
   }
 
@@ -804,6 +820,29 @@ export const cancelTournamentRegistration = onCall(async (request) => {
     (registration.tournamentId as string | undefined)?.trim() ?? "";
   const categoryId = (registration.categoryId as string | undefined)?.trim() ?? "";
 
+  // Cobranças PIX abertas morrem ANTES de qualquer escrita: se o Asaas falhar,
+  // a inscrição continua intacta. Sem isso, a cobrança sobreviveria ao doc e um
+  // pagamento tardio cairia como órfão no webhook.
+  const pixPendingSnap = await regRef.collection("pixPending").get();
+  for (const doc of pixPendingSnap.docs) {
+    const data = doc.data();
+    const asaasId = (data.asaasPaymentId as string | undefined)?.trim() ?? "";
+    if (!asaasId || data.status === "paid") continue;
+    try {
+      await deleteAsaasPaymentOrThrow(asaasId);
+    } catch (e) {
+      logger.error("Falha ao cancelar PIX no Asaas durante cancelamento", {
+        registrationId,
+        asaasId,
+        error: e,
+      });
+      throw new HttpsError(
+        "unavailable",
+        "Não foi possível cancelar a cobrança PIX pendente. Tente novamente.",
+      );
+    }
+  }
+
   // Convites pendentes ligados a esta inscrição (solo aguardando parceiro)
   // não devem sobreviver à reserva cancelada.
   const invitesSnap = await db
@@ -811,16 +850,44 @@ export const cancelTournamentRegistration = onCall(async (request) => {
     .where("tournamentId", "==", tournamentId)
     .where("status", "==", "pending")
     .get();
+
+  // A equipe só morre junto se nenhuma OUTRA inscrição a referencia
+  // (ex.: solo legado reaproveitado).
+  let deleteTeam = false;
+  if (teamId) {
+    const teamRegsSnap = await db
+      .collection(artifactsInscriptionsPath(projectId))
+      .where("teamId", "==", teamId)
+      .get();
+    deleteTeam = shouldDeleteTeamOnCancellation(
+      teamId,
+      teamRegsSnap.docs.map((d) => d.id),
+      registrationId,
+    );
+  }
+
   const batch = db.batch();
+  const auditRef = db.collection("tournamentRegistrationCancellations").doc();
+  batch.set(auditRef, {
+    ...buildRegistrationCancellationAudit({
+      registrationId,
+      cancelledBy: uid,
+      athleteUids,
+      registration,
+    }),
+    cancelledAt: FieldValue.serverTimestamp(),
+  });
+  for (const doc of pixPendingSnap.docs) {
+    batch.delete(doc.ref);
+  }
   let cancelledInvites = 0;
   for (const doc of invitesSnap.docs) {
-    const data = doc.data();
-    const attachId = (data.attachRegistrationId as string | undefined)?.trim() ?? "";
-    const inviter = (data.inviterUid as string | undefined)?.trim() ?? "";
-    const matchesThisRegistration =
-      attachId === registrationId ||
-      (attachId === "" && inviter === uid && data.categoryId === categoryId);
-    if (!matchesThisRegistration) continue;
+    const matches = inviteMatchesCancelledRegistration(doc.data(), {
+      registrationId,
+      cancellerUid: uid,
+      categoryId,
+    });
+    if (!matches) continue;
     batch.update(doc.ref, {
       status: "cancelled",
       cancelReason: "registration_cancelled",
@@ -828,9 +895,13 @@ export const cancelTournamentRegistration = onCall(async (request) => {
     });
     cancelledInvites++;
   }
-  if (cancelledInvites > 0) await batch.commit();
+  if (deleteTeam) {
+    batch.delete(db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`));
+  }
+  batch.delete(regRef);
+  await batch.commit();
 
-  // Avisa o outro atleta da dupla, se já houver um.
+  // Avisa o outro atleta da dupla depois que o cancelamento é fato.
   const otherUids = athleteUids.filter((id) => id !== uid);
   if (otherUids.length > 0) {
     await Promise.all(
@@ -846,14 +917,14 @@ export const cancelTournamentRegistration = onCall(async (request) => {
     );
   }
 
-  await regRef.delete();
-
   logger.info("Tournament registration cancelled by athlete", {
     registrationId,
     tournamentId,
     categoryId,
     uid,
     cancelledInvites,
+    deletedTeam: deleteTeam,
+    cancelledPixCharges: pixPendingSnap.size,
   });
 
   return {ok: true, registrationId};

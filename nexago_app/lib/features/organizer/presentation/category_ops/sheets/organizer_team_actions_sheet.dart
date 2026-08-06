@@ -306,35 +306,19 @@ class _OrganizerTeamActionsSheetState
               titleColor: AppColors.live,
               subtitle: 'Reembolsa e cancela a inscrição',
               onTap: () async {
-                final confirm = await showDialog<bool>(
+                final description = await showDialog<String>(
                   context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Remover da categoria?'),
-                    content: Text(
-                      team.paidAmountCents > 0
-                          ? 'A inscrição será cancelada e a vaga liberada. '
-                                'O atleta pagou ${formatCategoryMoneyCents(team.paidAmountCents)} — '
-                                'o reembolso é manual e o atleta será avisado.'
-                          : 'A inscrição será cancelada e a vaga liberada.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Remover'),
-                      ),
-                    ],
+                  builder: (ctx) => _RemoveFromCategoryDialog(
+                    paidAmountCents: team.paidAmountCents,
                   ),
                 );
-                if (confirm == true) {
+                if (description != null) {
                   await _run(
                     () => service.removeFromCategory(
                       registrationId: team.registrationId,
+                      description: description,
                     ),
-                    'Dupla removida.',
+                    'Dupla removida. O motivo foi enviado ao atleta.',
                     key: 'remove',
                   );
                 }
@@ -493,6 +477,79 @@ class _HeaderMetaLine extends StatelessWidget {
         fontWeight: FontWeight.w500,
         color: color,
       );
+}
+
+/// Confirmação da remoção da categoria. O motivo é obrigatório: a inscrição é
+/// deletada, então esse texto é a única explicação que o atleta recebe por
+/// perder a vaga. Devolve o motivo por `Navigator.pop`, ou `null` se cancelar.
+class _RemoveFromCategoryDialog extends StatefulWidget {
+  const _RemoveFromCategoryDialog({required this.paidAmountCents});
+
+  static const int minLength = 10;
+
+  final int paidAmountCents;
+
+  @override
+  State<_RemoveFromCategoryDialog> createState() =>
+      _RemoveFromCategoryDialogState();
+}
+
+class _RemoveFromCategoryDialogState extends State<_RemoveFromCategoryDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final description = _controller.text.trim();
+    final canRemove = description.length >= _RemoveFromCategoryDialog.minLength;
+
+    return AlertDialog(
+      title: const Text('Remover da categoria?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.paidAmountCents > 0
+                ? 'A inscrição será cancelada e a vaga liberada. '
+                      'O atleta pagou ${formatCategoryMoneyCents(widget.paidAmountCents)} — '
+                      'o reembolso é manual e o atleta será avisado.'
+                : 'A inscrição será cancelada e a vaga liberada.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: 500,
+            maxLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Motivo para o atleta',
+              hintText: 'Explique por que a inscrição está sendo removida',
+              helperText: 'Mínimo de 10 caracteres. O atleta recebe por notificação.',
+              helperMaxLines: 2,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: canRemove ? () => Navigator.pop(context, description) : null,
+          child: const Text('Remover'),
+        ),
+      ],
+    );
+  }
 }
 
 class _ActionRow extends StatelessWidget {

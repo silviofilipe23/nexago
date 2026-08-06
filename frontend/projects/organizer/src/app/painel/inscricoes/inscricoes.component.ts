@@ -9,7 +9,7 @@ import {
 } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
-import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
+import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
@@ -33,7 +33,9 @@ interface PendingConfirm {
   title: string;
   message: string;
   confirmLabel: string;
-  run: () => void;
+  /** Texto exigido no diálogo; `run` recebe o que foi digitado (vazio quando não há prompt). */
+  prompt?: ConfirmPrompt;
+  run: (value: string) => void;
 }
 
 /** Inscrições do torneio em contexto (nível 2 da cascata), com as MESMAS ações do app
@@ -132,7 +134,8 @@ interface PendingConfirm {
         [confirmLabel]="c.confirmLabel"
         [destructive]="true"
         [busy]="busy()"
-        (confirmed)="c.run()"
+        [prompt]="c.prompt ?? null"
+        (confirmed)="c.run($event)"
         (cancelled)="pendingConfirm.set(null)"
       />
     }
@@ -416,13 +419,27 @@ export class InscricoesComponent {
           `Pedido de ${row.name} recusado. A inscrição foi mantida.`,
         );
         return;
+      // A inscrição é DELETADA: o motivo escrito aqui é a única explicação que o atleta
+      // recebe por perder a vaga (chega como notificação) — por isso é obrigatório.
       case 'remove':
         this.pendingConfirm.set({
           title: 'Remover da categoria',
-          message: `${row.name} sai da categoria ${row.categoria} e a vaga é liberada. Não dá pra desfazer.`,
+          message:
+            `${row.name} sai da categoria ${row.categoria} e a vaga é liberada. Não dá pra desfazer.` +
+            (row.pay === 'pago' ? ' A nexaGO não estorna o valor — combine a devolução direto com o atleta.' : ''),
           confirmLabel: 'Remover',
-          run: () =>
-            void this.run(`remove:${row.id}`, () => removeFromCategory(row.id), `${row.name} removido da categoria.`),
+          prompt: {
+            label: 'Motivo para o atleta',
+            placeholder: 'Explique por que a inscrição está sendo removida',
+            minLength: 10,
+            helper: 'Mínimo de 10 caracteres. O atleta recebe este texto por notificação.',
+          },
+          run: (description) =>
+            void this.run(
+              `remove:${row.id}`,
+              () => removeFromCategory(row.id, description),
+              `${row.name} removido da categoria. O motivo foi enviado ao atleta.`,
+            ),
         });
         return;
       // Aprovar = remover a inscrição e liberar a vaga. Sem estorno: a devolução é

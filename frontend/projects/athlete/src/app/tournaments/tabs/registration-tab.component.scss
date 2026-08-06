@@ -128,4 +128,99 @@
   &:focus-visible {
     color: var(--nx-text);
   }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+/* Bloco do pedido de cancelamento (inscrição paga): formulário, estado pendente
+   e recusa. O aviso de que o reembolso é fora da plataforma vive aqui. */
+.reg-req {
+  margin-top: var(--nx-s-4);
+  padding: var(--nx-s-4);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-2);
+
+  &--pending {
+    border-color: rgba(244, 197, 67, 0.4);
+    background: rgba(244, 197, 67, 0.08);
+  }
+
+  &--declined {
+    border-color: rgba(233, 84, 84, 0.35);
+    background: rgba(233, 84, 84, 0.08);
+  }
+}
+
+.reg-req-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.reg-req-text {
+  margin: var(--nx-s-2) 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+}
+
+.reg-req-label {
+  display: block;
+  margin-top: var(--nx-s-3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nx-text);
+}
+
+.reg-req-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: var(--nx-s-2);
+  padding: var(--nx-s-3);
+  border: 1px solid var(--nx-line-strong);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.reg-req-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-4);
+  flex-wrap: wrap;
+}
+
+.reg-req-send,
+.reg-req-wa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: var(--nx-s-3);
+  padding: 0 var(--nx-s-5);
+  border: 0;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled),
+  &:focus-visible:not(:disabled) {
+    background: var(--nx-orange-400);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
 }

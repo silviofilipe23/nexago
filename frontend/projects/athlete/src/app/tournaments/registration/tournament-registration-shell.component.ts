@@ -495,6 +495,7 @@ export class TournamentRegistrationShellComponent {
           partnerPending: true,
           isPaid: false,
           waitlist: false,
+          cancellationRequest: null,
           sharePaidUids: [],
           player1Id: this.auth.user()?.uid ?? null,
           participantUids: [this.auth.user()?.uid ?? ''].filter(Boolean),

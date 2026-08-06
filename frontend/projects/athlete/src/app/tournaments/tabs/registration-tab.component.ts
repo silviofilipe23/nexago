@@ -4,7 +4,9 @@ import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
 import {
   cancelMyRegistration,
+  fetchTournamentOrganizerContact,
   registrationCancellable,
+  requestRegistrationCancellation,
   TournamentRegistrationError,
   type AthleteTournamentRegistration,
   type RegistrationUniformSlot,
@@ -33,7 +35,18 @@ export interface RegistrationCard {
   uniformRequired: boolean;
   /** Cancelamento direto pelo atleta: só sem NENHUM pagamento na inscrição. */
   canCancel: boolean;
+  /** Com pagamento o caminho é pedir ao organizador — estes três estados. */
+  cancellationState: 'none' | 'pending' | 'declined';
+  cancellationResponseNote: string;
 }
+
+/** Texto que aparece em TODO ponto do fluxo: a plataforma não devolve dinheiro. */
+export const REFUND_OUTSIDE_PLATFORM_NOTICE =
+  'A nexaGO não processa o reembolso. Ao aprovar, o organizador libera sua vaga — ' +
+  'a devolução do valor pago é combinada diretamente com ele, fora da plataforma.';
+
+export const REFUND_PENDING_NOTICE =
+  'Aguardando o organizador. Combine a devolução do valor diretamente com ele.';
 
 /** Aba "Minha inscrição": o que o atleta já contratou neste torneio. Só aparece pra quem tem
  *  inscrição, então não precisa de estado vazio de "você não está inscrito". */
@@ -75,7 +88,87 @@ export class RegistrationTabComponent {
       uniform: isPlayer1 ? r.uniformPlayer1 : r.uniformPlayer2,
       uniformRequired: category?.uniformType != null && category.uniformType !== 'none',
       canCancel: registrationCancellable(r),
+      cancellationState: r.cancellationRequest?.status ?? 'none',
+      cancellationResponseNote: r.cancellationRequest?.responseNote ?? '',
     };
+  }
+
+  // ——— Pedido de cancelamento (inscrição paga) ———
+
+  protected readonly requestFormFor = signal<string | null>(null);
+  protected readonly requestReason = signal('');
+  protected readonly requestSending = signal(false);
+  protected readonly organizerContactBusy = signal(false);
+
+  protected readonly refundNotice = REFUND_OUTSIDE_PLATFORM_NOTICE;
+  protected readonly refundPendingNotice = REFUND_PENDING_NOTICE;
+
+  protected openRequestForm(card: RegistrationCard): void {
+    this.requestReason.set('');
+    this.requestFormFor.set(card.id);
+  }
+
+  protected closeRequestForm(): void {
+    if (!this.requestSending()) this.requestFormFor.set(null);
+  }
+
+  protected onReasonInput(event: Event): void {
+    this.requestReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected async submitRequest(card: RegistrationCard): Promise<void> {
+    const reason = this.requestReason().trim();
+    if (!reason || this.requestSending()) return;
+    this.requestSending.set(true);
+    try {
+      await requestRegistrationCancellation(athleteFunctions(), card.id, reason);
+      // Atualiza a lista local: o doc muda no servidor, mas a aba só recarrega
+      // o torneio inteiro numa navegação nova.
+      this.store.myRegistrations.update((list) =>
+        list.map((r) =>
+          r.id === card.id
+            ? { ...r, cancellationRequest: { status: 'pending' as const, reason, responseNote: '' } }
+            : r,
+        ),
+      );
+      this.requestFormFor.set(null);
+      this.toasts.success('Pedido enviado', 'O organizador foi avisado e vai responder.');
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível enviar o pedido',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+      );
+    } finally {
+      this.requestSending.set(false);
+    }
+  }
+
+  /** Abre o WhatsApp do organizador — é por ali que o reembolso é acertado. */
+  protected async contactOrganizer(card: RegistrationCard): Promise<void> {
+    if (this.organizerContactBusy()) return;
+    this.organizerContactBusy.set(true);
+    try {
+      const contact = await fetchTournamentOrganizerContact(athleteFunctions(), this.store.tournamentId());
+      if (!contact.whatsappPhone) {
+        this.toasts.warning(
+          'Organizador sem WhatsApp cadastrado',
+          contact.email ? `Fale por e-mail: ${contact.email}` : 'Tente pelos canais do torneio.',
+        );
+        return;
+      }
+      const text = encodeURIComponent(
+        `Olá! Sou atleta inscrito em ${this.store.tournament()?.name ?? 'seu torneio'} ` +
+          `(${card.categoryName}) e pedi o cancelamento da inscrição.`,
+      );
+      window.open(`https://wa.me/${contact.whatsappPhone}?text=${text}`, '_blank', 'noopener');
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível abrir o contato',
+        err instanceof TournamentRegistrationError ? err.message : 'Tente de novo em instantes.',
+      );
+    } finally {
+      this.organizerContactBusy.set(false);
+    }
   }
 
   protected askCancel(card: RegistrationCard): void {

@@ -57,6 +57,13 @@ const DIM = 'rgba(244, 244, 245, 0.38)';
 const ORANGE = '#ff6a1a';
 const LIVE = '#ff3b30';
 
+/** Marca do cabeçalho: quadrada, centrada na altura das maiúsculas do wordmark
+ *  (topo em 92, baseline em 138). */
+const LOGO_SRC = '/brand/logo.png';
+const LOGO_SIZE = 60;
+const LOGO_TOP = 85;
+const LOGO_GAP = 18;
+
 interface Metal {
   main: string;
   hi: string;
@@ -352,8 +359,12 @@ function drawWordmark(ctx: CanvasRenderingContext2D, x: number, baseline: number
   return x + nexaW + ctx.measureText('GO').width;
 }
 
-function drawHeader(ctx: CanvasRenderingContext2D, tournamentName: string | null): void {
-  drawWordmark(ctx, 72, 138, 64);
+/** Cabeçalho: marca + wordmark, alinhados à margem de 72.
+ *  Sem a marca (falha ao carregar o asset) o wordmark volta pra margem, em vez
+ *  de deixar o buraco dela — a mesma regra vale no app. */
+function drawHeader(ctx: CanvasRenderingContext2D, tournamentName: string | null, logo: HTMLImageElement | null): void {
+  if (logo) ctx.drawImage(logo, 72, LOGO_TOP, LOGO_SIZE, LOGO_SIZE);
+  drawWordmark(ctx, logo ? 72 + LOGO_SIZE + LOGO_GAP : 72, 138, 64);
   if (tournamentName) {
     ctx.font = mono(500, 22);
     ctx.fillStyle = DIM;
@@ -518,13 +529,15 @@ export async function drawShareCard(ctx: CanvasRenderingContext2D, data: ShareCa
 
   const urls = [...new Set([...data.teamA.players, ...data.teamB.players].map((p) => p.photo).filter((p): p is string => p != null))];
   const photos = new Map<string, HTMLImageElement | null>();
-  await Promise.all(urls.map(async (url) => photos.set(url, await loadImage(url))));
+  const pending = Promise.all(urls.map(async (url) => photos.set(url, await loadImage(url))));
+  const logo = await loadImage(LOGO_SRC);
+  await pending;
 
   const m = METAL[data.stage];
 
   ctx.clearRect(0, 0, W, H);
   drawBackdrop(ctx, m, data.finished ? m.markDone : m.markPending, data.finished);
-  drawHeader(ctx, data.tournamentName);
+  drawHeader(ctx, data.tournamentName, logo);
 
   // selo da fase
   const badge = m.badge || `🏐 ${data.phaseLabel.toUpperCase()}`;

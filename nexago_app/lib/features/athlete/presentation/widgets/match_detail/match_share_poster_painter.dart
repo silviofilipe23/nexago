@@ -34,32 +34,52 @@ const Color _dim = Color(0x61F4F4F5); // 0.38
 const Color _orange = Color(0xFFFF6A1A);
 const Color _liveRed = Color(0xFFFF3B30);
 
-/// Pinta o pôster num [CustomPaint]. [photos] são as fotos já resolvidas por
-/// URL — o desenho é síncrono, então elas precisam chegar prontas
-/// (ver `loadMatchSharePosterPhotos`).
+/// Marca do cabeçalho: quadrada, centrada na altura das maiúsculas do
+/// wordmark (topo em 92, baseline em 138).
+const double _logoSize = 60;
+const double _logoTop = 85;
+const double _logoGap = 18;
+
+/// Imagens que o pôster precisa prontas — o desenho é síncrono, então nada
+/// pode ser carregado no meio do traço (ver `loadMatchSharePosterAssets`).
+class MatchSharePosterAssets {
+  const MatchSharePosterAssets({this.photos = const {}, this.logo});
+
+  /// Foto de cada atleta, por URL. Ausente = o círculo cai nas iniciais.
+  final Map<String, ui.Image> photos;
+
+  /// A marca do lockup do cabeçalho.
+  final ui.Image? logo;
+
+  static const empty = MatchSharePosterAssets();
+}
+
+/// Pinta o pôster num [CustomPaint].
 class MatchSharePosterPainter extends CustomPainter {
-  const MatchSharePosterPainter({required this.data, required this.photos});
+  const MatchSharePosterPainter({required this.data, required this.assets});
 
   final MatchSharePosterData data;
-  final Map<String, ui.Image> photos;
+  final MatchSharePosterAssets assets;
 
   @override
   void paint(Canvas canvas, Size size) {
-    drawMatchSharePoster(canvas, data, photos);
+    drawMatchSharePoster(canvas, data, assets);
   }
 
   @override
   bool shouldRepaint(covariant MatchSharePosterPainter oldDelegate) =>
-      !identical(oldDelegate.data, data) || !identical(oldDelegate.photos, photos);
+      !identical(oldDelegate.data, data) ||
+      !identical(oldDelegate.assets, assets);
 }
 
 /// Desenha o pôster completo em (0,0)–(1080,1920).
 void drawMatchSharePoster(
   Canvas canvas,
   MatchSharePosterData data,
-  Map<String, ui.Image> photos,
+  MatchSharePosterAssets assets,
 ) {
   final m = _metal[data.stage]!;
+  final photos = assets.photos;
 
   _drawBackdrop(
     canvas,
@@ -67,7 +87,7 @@ void drawMatchSharePoster(
     data.finished ? m.markDone : m.markPending,
     data.finished,
   );
-  _drawHeader(canvas, data.tournamentName);
+  _drawHeader(canvas, data.tournamentName, assets.logo);
 
   // selo da fase
   final badge = m.badge ?? '🏐 ${data.phaseLabel.toUpperCase()}';
@@ -577,8 +597,20 @@ double _drawWordmark(Canvas canvas, double x, double baseline, double size) {
   return x + nexaW + _measure('GO', go);
 }
 
-void _drawHeader(Canvas canvas, String? tournamentName) {
-  _drawWordmark(canvas, 72, 138, 64);
+/// Cabeçalho: marca + wordmark, alinhados à margem de 72.
+///
+/// Sem a marca (falha ao carregar o asset) o wordmark volta para a margem, em
+/// vez de deixar o buraco dela — a mesma regra vale no portal.
+void _drawHeader(Canvas canvas, String? tournamentName, ui.Image? logo) {
+  if (logo != null) {
+    canvas.drawImageRect(
+      logo,
+      Rect.fromLTWH(0, 0, logo.width.toDouble(), logo.height.toDouble()),
+      const Rect.fromLTWH(72, _logoTop, _logoSize, _logoSize),
+      Paint()..filterQuality = FilterQuality.high,
+    );
+  }
+  _drawWordmark(canvas, logo != null ? 72 + _logoSize + _logoGap : 72, 138, 64);
   if (tournamentName != null) {
     final style = _mono(500, 22, color: _dim);
     _tracked(

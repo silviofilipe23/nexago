@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import 'package:nexago_app/core/theme/app_typography.dart';
 
@@ -83,6 +84,41 @@ TextPainter _fitted(
     painter = _text(value, style(size));
   }
   return _text(value, style(size), maxWidth: maxWidth);
+}
+
+/// Altura da marca no cabeçalho e o respiro até o lettering.
+const double _markSize = 64;
+const double _markGap = 20;
+
+/// A marca "N" laranja de `assets/images/nexaGO_Logo.png`, decodificada uma vez.
+///
+/// Falhar em carregar devolve `null` e o cabeçalho cai só no lettering: a imagem compartilhada
+/// nunca deixa de sair por causa da logo.
+Future<ui.Image>? _markFuture;
+
+Future<ui.Image?> _loadBrandMark() async {
+  try {
+    _markFuture ??= rootBundle.load('assets/images/nexaGO_Logo.png').then((data) async {
+      final codec = await ui.instantiateImageCodec(
+        data.buffer.asUint8List(),
+        targetWidth: (_markSize * 3).round(),
+      );
+      return (await codec.getNextFrame()).image;
+    });
+    return await _markFuture;
+  } catch (_) {
+    _markFuture = null;
+    return null;
+  }
+}
+
+void _drawBrandMark(Canvas canvas, ui.Image mark, Rect dest) {
+  canvas.drawImageRect(
+    mark,
+    Rect.fromLTWH(0, 0, mark.width.toDouble(), mark.height.toDouble()),
+    dest,
+    Paint()..filterQuality = FilterQuality.high,
+  );
 }
 
 void _drawWordmark(Canvas canvas, Offset origin, double size) {
@@ -229,8 +265,15 @@ void _drawRow(Canvas canvas, PredictionShareRow row, double y) {
   );
 }
 
-void _drawHeader(Canvas canvas, PredictionShareData data) {
-  _drawWordmark(canvas, const Offset(_pad, 96), 64);
+void _drawHeader(Canvas canvas, PredictionShareData data, ui.Image? mark) {
+  var x = _pad;
+  if (mark != null) {
+    // Alinhada pela altura de caixa alta do lettering: encostada na base, o "N" ficaria
+    // pendurado abaixo do texto. O topo do texto de 64px fica em y=96.
+    _drawBrandMark(canvas, mark, Rect.fromLTWH(x, 104, _markSize, _markSize));
+    x += _markSize + _markGap;
+  }
+  _drawWordmark(canvas, Offset(x, 96), 64);
 
   final eyebrow = data.tournamentName != null
       ? 'PALPITES · ${data.tournamentName!.toUpperCase()}'
@@ -293,10 +336,11 @@ void _drawFooter(Canvas canvas, PredictionShareData data) {
   _drawWordmark(canvas, Offset(cx - mark.width / 2, 1832), size);
 }
 
-/// Pinta o card inteiro no [canvas], em coordenadas de 1080×1920.
-void paintPredictionShareCard(Canvas canvas, PredictionShareData data) {
+/// Pinta o card inteiro no [canvas], em coordenadas de 1080×1920. [mark] é a logo do cabeçalho;
+/// `null` desenha só o lettering.
+void paintPredictionShareCard(Canvas canvas, PredictionShareData data, {ui.Image? mark}) {
   _drawBackdrop(canvas);
-  _drawHeader(canvas, data);
+  _drawHeader(canvas, data, mark);
 
   final rows = data.top.length;
   final stackH = (rows > 0 ? rows * _rowH + (rows - 1) * _rowGap : 0) +
@@ -333,12 +377,13 @@ void _drawDashedDivider(Canvas canvas, double y) {
 
 /// Renderiza o card e devolve os bytes PNG.
 Future<ui.Image> renderPredictionShareCard(PredictionShareData data) async {
+  final mark = await _loadBrandMark();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
     const Rect.fromLTWH(0, 0, kPredictionCardWidth, kPredictionCardHeight),
   );
-  paintPredictionShareCard(canvas, data);
+  paintPredictionShareCard(canvas, data, mark: mark);
   return recorder.endRecording().toImage(
         kPredictionCardWidth.round(),
         kPredictionCardHeight.round(),

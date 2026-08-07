@@ -1,4 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:share_plus/share_plus.dart';
@@ -6,23 +7,25 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
-import '../../../domain/match_history/athlete_match_detail_models.dart';
-import 'match_detail_share_capture.dart';
-import 'match_detail_share_card.dart';
+import '../../../domain/match_history/match_share_poster_data.dart';
 import 'match_detail_section_header.dart';
+import 'match_share_poster_capture.dart';
+import 'match_share_poster_painter.dart';
 
 enum MatchDetailSharePresentation { page, sheet }
 
+/// Compartilhar a partida como imagem. A arte é a mesma do portal do atleta
+/// (ver [drawMatchSharePoster]); aqui ficam só o preview e a folha nativa.
 class MatchDetailShareSection extends StatefulWidget {
   const MatchDetailShareSection({
     super.key,
-    required this.share,
+    required this.poster,
     this.compact = false,
     this.presentation = MatchDetailSharePresentation.page,
     this.snackBarMessenger,
   });
 
-  final MatchDetailShareInfo share;
+  final MatchSharePosterData poster;
   final bool compact;
   final MatchDetailSharePresentation presentation;
   final ScaffoldMessengerState? snackBarMessenger;
@@ -33,8 +36,33 @@ class MatchDetailShareSection extends StatefulWidget {
 }
 
 class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
-  final _captureKey = GlobalKey();
+  Map<String, ui.Image> _photos = const {};
   bool _exporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPhotos();
+  }
+
+  @override
+  void didUpdateWidget(covariant MatchDetailShareSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Partida ao vivo reemite o pôster a cada ponto: só recarrega quando as
+    // fotos mudam de verdade.
+    final before = oldWidget.poster.photoUrls;
+    final now = widget.poster.photoUrls;
+    if (before.length != now.length ||
+        !now.every((url) => before.contains(url))) {
+      _loadPhotos();
+    }
+  }
+
+  Future<void> _loadPhotos() async {
+    final photos = await loadMatchSharePosterPhotos(widget.poster);
+    if (!mounted) return;
+    setState(() => _photos = photos);
+  }
 
   void _showShareMessage(String message) {
     final messenger = widget.snackBarMessenger;
@@ -51,19 +79,17 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
     if (_exporting) return;
     setState(() => _exporting = true);
 
-    final shareOrigin = matchDetailSharePositionOrigin(context);
+    final shareOrigin = matchSharePosterOrigin(context);
     final closingSheet =
         widget.presentation == MatchDetailSharePresentation.sheet;
     final sheetNavigator = closingSheet ? Navigator.of(context) : null;
 
     try {
-      await _precacheShareAvatars(context);
-      if (!mounted) return;
-      await WidgetsBinding.instance.endOfFrame;
-      await Future<void>.delayed(const Duration(milliseconds: 32));
-      if (!mounted) return;
+      final photos = _photos.isEmpty && widget.poster.photoUrls.isNotEmpty
+          ? await loadMatchSharePosterPhotos(widget.poster)
+          : _photos;
 
-      final file = await captureMatchDetailShareCardPng(_captureKey);
+      final file = await captureMatchSharePosterPng(widget.poster, photos);
       if (!mounted) return;
       if (file == null) {
         _showShareMessage('Não foi possível gerar a imagem.');
@@ -75,9 +101,9 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
         await Future<void>.delayed(const Duration(milliseconds: 280));
       }
 
-      final result = await shareMatchDetailShareCardPng(
+      final result = await shareMatchSharePosterPng(
         file,
-        variant: widget.share.variant,
+        widget.poster,
         sharePositionOrigin: shareOrigin,
       );
 
@@ -85,50 +111,29 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
         _showShareMessage('Não foi possível compartilhar.');
       }
     } catch (error, stackTrace) {
-      debugPrint('match detail share failed: $error\n$stackTrace');
+      debugPrint('match share poster failed: $error\n$stackTrace');
       _showShareMessage('Não foi possível compartilhar.');
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
 
-  Future<void> _precacheShareAvatars(BuildContext context) async {
-    final urls = <String>{
-      for (final player in [
-        ...widget.share.winnersPlayers,
-        ...widget.share.opponentsPlayers,
-      ])
-        player.avatarUrl?.trim() ?? '',
-    }..removeWhere((url) => url.isEmpty);
-
-    await Future.wait(
-      urls.map((url) async {
-        try {
-          await precacheImage(CachedNetworkImageProvider(url), context);
-        } catch (error) {
-          debugPrint('share avatar precache skipped ($url): $error');
-        }
-      }),
-    );
-  }
-
   double _previewWidth(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
-    final horizontalPad = widget.presentation == MatchDetailSharePresentation.sheet
-        ? 48.0
-        : 40.0;
+    final horizontalPad =
+        widget.presentation == MatchDetailSharePresentation.sheet ? 48.0 : 40.0;
     final maxW = widget.presentation == MatchDetailSharePresentation.sheet
-        ? 260.0
-        : 300.0;
+        ? 240.0
+        : 280.0;
     return (screenW - horizontalPad).clamp(200.0, maxW);
   }
 
   @override
   Widget build(BuildContext context) {
-    final preview = _ShareCardPreview(
-      captureKey: _captureKey,
-      share: widget.share,
-      previewWidth: _previewWidth(context),
+    final preview = MatchSharePosterPreview(
+      data: widget.poster,
+      photos: _photos,
+      width: _previewWidth(context),
     );
 
     if (widget.compact) {
@@ -138,9 +143,8 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
       );
     }
 
-    final horizontalPad = widget.presentation == MatchDetailSharePresentation.sheet
-        ? 20.0
-        : 0.0;
+    final horizontalPad =
+        widget.presentation == MatchDetailSharePresentation.sheet ? 20.0 : 0.0;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPad),
@@ -150,7 +154,7 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
         children: [
           MatchDetailSectionHeader(
             eyebrow: 'COMPARTILHAR',
-            title: shareSectionTitle(widget.share.variant),
+            title: shareSectionTitle(widget.poster),
           ),
           SizedBox(height: 20),
           Center(child: preview),
@@ -163,8 +167,9 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.black,
-                disabledBackgroundColor:
-                    AppColors.brand.withValues(alpha: 0.55),
+                disabledBackgroundColor: AppColors.brand.withValues(
+                  alpha: 0.55,
+                ),
                 disabledForegroundColor: AppColors.black.withValues(alpha: 0.6),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -198,26 +203,24 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
   }
 }
 
-/// Preview escalado; o [RepaintBoundary] mantém o artboard em [MatchDetailShareCard.designWidth].
-class _ShareCardPreview extends StatelessWidget {
-  const _ShareCardPreview({
-    required this.captureKey,
-    required this.share,
-    required this.previewWidth,
+/// Pôster escalado para caber na tela; o artboard segue em 1080×1920.
+class MatchSharePosterPreview extends StatelessWidget {
+  const MatchSharePosterPreview({
+    super.key,
+    required this.data,
+    required this.photos,
+    required this.width,
   });
 
-  final GlobalKey captureKey;
-  final MatchDetailShareInfo share;
-  final double previewWidth;
+  final MatchSharePosterData data;
+  final Map<String, ui.Image> photos;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
-    final previewHeight = previewWidth *
-        (MatchDetailShareCard.designHeight / MatchDetailShareCard.designWidth);
-
     return SizedBox(
-      width: previewWidth,
-      height: previewHeight,
+      width: width,
+      height: width * (matchSharePosterHeight / matchSharePosterWidth),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -238,10 +241,13 @@ class _ShareCardPreview extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           child: FittedBox(
             fit: BoxFit.contain,
-            alignment: Alignment.topCenter,
-            child: RepaintBoundary(
-              key: captureKey,
-              child: MatchDetailShareCard(share: share),
+            child: SizedBox(
+              width: matchSharePosterWidth,
+              height: matchSharePosterHeight,
+              child: CustomPaint(
+                painter: MatchSharePosterPainter(data: data, photos: photos),
+                isComplex: true,
+              ),
             ),
           ),
         ),
@@ -250,19 +256,15 @@ class _ShareCardPreview extends StatelessWidget {
   }
 }
 
-String shareSectionTitle(MatchDetailShareVariant variant) {
-  return switch (variant) {
-    MatchDetailShareVariant.victory => 'Mostre a vitória',
-    MatchDetailShareVariant.defeat => 'Compartilhe o resultado',
-    MatchDetailShareVariant.live => 'Está rolando',
-    MatchDetailShareVariant.scheduled => 'Convide pro jogo',
-    MatchDetailShareVariant.spectator => 'Compartilhe a partida',
-  };
+String shareSectionTitle(MatchSharePosterData poster) {
+  if (poster.finished) return 'Mostre o resultado';
+  if (poster.live) return 'Está rolando';
+  return 'Convide pro jogo';
 }
 
 void showMatchDetailShareSheet(
   BuildContext context,
-  MatchDetailShareInfo share,
+  MatchSharePosterData poster,
 ) {
   final snackBarMessenger = ScaffoldMessenger.of(context);
   showModalBottomSheet<void>(
@@ -284,12 +286,14 @@ void showMatchDetailShareSheet(
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.35,
+                ),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             MatchDetailShareSection(
-              share: share,
+              poster: poster,
               presentation: MatchDetailSharePresentation.sheet,
               snackBarMessenger: snackBarMessenger,
             ),

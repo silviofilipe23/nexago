@@ -58,10 +58,10 @@ class _AthleteMatchPlayByPlayPageState
                 PlayByPlayPageHeader(
                   subtitle: buildPlayByPlaySubtitle(detail),
                   onBack: () => context.pop(),
-                  onShare: detail.shareInfo != null
+                  onShare: detail.sharePoster != null
                       ? () => showMatchDetailShareSheet(
                           context,
-                          detail.shareInfo!,
+                          detail.sharePoster!,
                         )
                       : null,
                 ),

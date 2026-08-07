@@ -262,9 +262,13 @@
       <div class="rv-grid">
         @for (item of filteredResults(); track trackByArenaId($index, item)) {
           @if (item.result.arena.isUnclaimed) {
-            <!-- Arena pré-cadastrada: sem detalhe, sem preço, sem reserva.
-                 Só o que sabemos dela e o único caminho que existe: o WhatsApp. -->
+            <!-- Arena pré-cadastrada: mesmo desenho do card de parceira (hero,
+                 linhas e barra de ação), trocando só o que ela não tem — não há
+                 detalhe para abrir, preço nem reserva. O selo é o que diferencia. -->
             <article class="rv-card rv-card--unclaimed">
+              <div class="rv-card-hero" [style.background]="heroGradient(item.result.arena.id)">
+                <span class="rv-hero-pill">{{ sportsPillLabel(item.result.arena) }}</span>
+              </div>
               <div class="rv-card-body">
                 <div class="rv-card-name-row">
                   <span class="rv-arena-avatar">
@@ -275,21 +279,32 @@
                 <p class="rv-card-location">
                   {{ item.result.arena.city || item.result.arena.locationLabel }}{{ item.result.arena.state ? ', ' + item.result.arena.state : '' }}
                 </p>
-                <span class="rv-unclaimed-badge">AINDA NÃO RESERVA PELA NEXAGO</span>
-                @if (item.result.arena.courtTypes.length) {
-                  <p class="rv-unclaimed-sports">{{ item.result.arena.courtTypes.slice(0, 3).join(' · ') }}</p>
-                }
-                @if (contactUrl(item.result.arena); as url) {
-                  <a
-                    class="rv-btn-contact"
-                    [href]="url"
-                    target="_blank"
-                    rel="noopener"
-                    (click)="trackContactClick(item.result.arena.id)"
-                  >
-                    Entre em contato
-                  </a>
-                }
+                <div class="rv-card-rating-row">
+                  <span class="rv-unclaimed-badge">AINDA NÃO RESERVA PELA NEXAGO</span>
+                </div>
+
+                <div class="rv-card-price-row">
+                  <span class="rv-price-label">RESERVA</span>
+                  <span class="rv-price-unavailable">indisponível</span>
+                </div>
+
+                <div class="rv-card-slot-row">
+                  <div class="rv-slot-info">
+                    <span class="rv-slot-none">Fale direto com a arena</span>
+                    <span class="rv-slot-court">{{ item.result.arena.courtTypes.slice(0, 3).join(' · ') || 'Esportes de areia' }}</span>
+                  </div>
+                  @if (contactUrl(item.result.arena); as url) {
+                    <a
+                      class="rv-btn-primary rv-btn-contact"
+                      [href]="url"
+                      target="_blank"
+                      rel="noopener"
+                      (click)="trackContactClick(item.result.arena.id)"
+                    >
+                      Entre em contato
+                    </a>
+                  }
+                </div>
               </div>
             </article>
           } @else {

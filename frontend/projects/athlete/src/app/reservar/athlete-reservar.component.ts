@@ -510,6 +510,16 @@ export class AthleteReservarComponent {
   }
 
   /**
+   * Ocupa, no hero da pré-cadastrada, o lugar que na parceira é "N QUADRAS".
+   * Quantidade de quadra é coisa que só a arena parceira declara; aqui o que
+   * sabemos é o esporte.
+   */
+  protected sportsPillLabel(arena: ArenaListItem): string {
+    const first = arena.courtTypes[0];
+    return (first ?? 'AREIA').toUpperCase();
+  }
+
+  /**
    * Registra o clique em "Entre em contato". O link já é um `<a target="_blank">`,
    * então o WhatsApp abre independentemente daqui: se a function falhar, o
    * atleta não percebe. Perder a métrica é aceitável; travar o contato não é.

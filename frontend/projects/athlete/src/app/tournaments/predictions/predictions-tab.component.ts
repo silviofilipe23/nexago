@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
 import { matchIsCanceled, matchIsCompleted, matchIsLive, type TournamentMatch } from '../../data/matches-repository';
@@ -9,8 +9,8 @@ import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.com
 import { matchNumberLabelOf, timeLabelOf } from '../tournament-format';
 import { groupLabelOf, knockoutLabelOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
-import { PREDICTIONS_CARD_HEIGHT, PREDICTIONS_CARD_WIDTH, drawPredictionsShareCard } from './predictions-share-card';
-import { buildPredictionShareData, predictionShareFileName, predictionShareText, predictionShareUrl } from './predictions-share';
+import { PredictionsShareDialogComponent } from './predictions-share-dialog.component';
+import { buildPredictionShareData, predictionShareUrl } from './predictions-share';
 import {
   buildPredictionLeaderboard,
   canPredictMatch,
@@ -134,7 +134,7 @@ function saveErrorMessage(error: unknown): string {
  */
 @Component({
   selector: 'app-predictions-tab',
-  imports: [NxPageLoadingComponent],
+  imports: [NxPageLoadingComponent, PredictionsShareDialogComponent],
   templateUrl: './predictions-tab.component.html',
   styleUrl: './predictions-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -474,81 +474,29 @@ export class PredictionsTabComponent {
 
   // ── Compartilhar ─────────────────────────────────────────────
 
-  private readonly shareCanvasRef = viewChild<ElementRef<HTMLCanvasElement>>('shareCanvas');
-
-  protected readonly shareWidth = PREDICTIONS_CARD_WIDTH;
-  protected readonly shareHeight = PREDICTIONS_CARD_HEIGHT;
-  protected readonly sharing = signal(false);
-
   /** Sem ninguém no ranking não há o que compartilhar. Quem ainda não palpitou pode: o card sai
    *  só com o pódio e o convite. */
   protected readonly canShare = computed(() => this.leaderboard().length > 0);
 
-  private shareOrigin(): string {
-    return typeof location !== 'undefined' ? location.origin : 'https://atleta.nexago.com.br';
-  }
+  protected readonly shareOpen = signal(false);
 
-  protected async shareRanking(): Promise<void> {
-    const canvas = this.shareCanvasRef()?.nativeElement;
-    const tournamentId = this.store.tournamentId();
-    if (!canvas || !tournamentId || this.sharing()) return;
+  protected readonly shareUrl = computed(() => {
+    const origin = typeof location !== 'undefined' ? location.origin : 'https://atleta.nexago.com.br';
+    return predictionShareUrl(origin, this.store.tournamentId() ?? '');
+  });
 
-    this.sharing.set(true);
-    try {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        this.toast.error('Não foi possível gerar a imagem.');
-        return;
-      }
+  /** O diálogo desenha a prévia a partir daqui, e redesenha sozinho se o ranking mudar embaixo. */
+  protected readonly shareData = computed(() =>
+    buildPredictionShareData({
+      tournamentName: this.store.tournament()?.name ?? null,
+      leaderboard: this.leaderboard(),
+      nameOf: (userId) => this.profiles().get(userId)?.displayName ?? null,
+      url: this.shareUrl(),
+    }),
+  );
 
-      const tournamentName = this.store.tournament()?.name ?? null;
-      const url = predictionShareUrl(this.shareOrigin(), tournamentId);
-      const data = buildPredictionShareData({
-        tournamentName,
-        leaderboard: this.leaderboard(),
-        nameOf: (userId) => this.profiles().get(userId)?.displayName ?? null,
-        url,
-      });
-
-      await drawPredictionsShareCard(ctx, data);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
-      if (!blob) {
-        this.toast.error('Não foi possível gerar a imagem.');
-        return;
-      }
-
-      const fileName = predictionShareFileName(tournamentName);
-      const file = new File([blob], fileName, { type: 'image/png' });
-      const text = predictionShareText(data, url);
-
-      // No celular a folha nativa é quem oferece WhatsApp, Stories e o resto — por isso não há
-      // um botão por destino aqui.
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Ranking de palpites', text });
-        return;
-      }
-
-      // No desktop, compartilhar arquivo quase nunca é suportado: baixar a imagem e deixar o
-      // link na área de transferência é o equivalente mais próximo.
-      this.saveBlob(blob, fileName);
-      await navigator.clipboard?.writeText(url).catch(() => undefined);
-      this.toast.success('Imagem baixada', 'O link do ranking ficou copiado.');
-    } catch (error) {
-      // Cancelar a folha nativa dispara AbortError — não é falha, não vira toast de erro.
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      this.toast.error('Não foi possível compartilhar agora.');
-    } finally {
-      this.sharing.set(false);
-    }
-  }
-
-  private saveBlob(blob: Blob, fileName: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+  protected openShare(): void {
+    if (this.canShare()) this.shareOpen.set(true);
   }
 
   protected showSection(section: Section): void {

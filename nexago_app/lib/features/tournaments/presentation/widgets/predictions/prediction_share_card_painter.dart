@@ -68,6 +68,23 @@ TextPainter _tracked(String value, TextStyle style, {double spacing = 5}) {
   return _text(value, style.copyWith(letterSpacing: spacing));
 }
 
+/// Reduz a fonte até o texto caber em [maxWidth], parando em [min].
+TextPainter _fitted(
+  String value,
+  TextStyle Function(double size) style, {
+  required double maxWidth,
+  required double start,
+  required double min,
+}) {
+  var size = start;
+  var painter = _text(value, style(size));
+  while (size > min && painter.width > maxWidth) {
+    size -= 2;
+    painter = _text(value, style(size));
+  }
+  return _text(value, style(size), maxWidth: maxWidth);
+}
+
 void _drawWordmark(Canvas canvas, Offset origin, double size) {
   final style = AppTypography.soraRegular(
     fontSize: size,
@@ -253,10 +270,18 @@ void _drawFooter(Canvas canvas, PredictionShareData data) {
   );
   call.paint(canvas, Offset(cx - call.width / 2, 1686));
 
-  final url = _text(
+  // A URL encolhe até caber em vez de truncar: com id de torneio real (20 caracteres) ela é
+  // sempre longa, e um endereço cortado com "…" não leva ninguém a lugar nenhum.
+  final url = _fitted(
     data.urlLabel,
-    AppTypography.soraRegular(fontSize: 44, fontWeight: FontWeight.w700, color: _orange),
+    (size) => AppTypography.soraRegular(
+      fontSize: size,
+      fontWeight: FontWeight.w700,
+      color: _orange,
+    ),
     maxWidth: _rowW,
+    start: 44,
+    min: 26,
   );
   url.paint(canvas, Offset(cx - url.width / 2, 1752));
 

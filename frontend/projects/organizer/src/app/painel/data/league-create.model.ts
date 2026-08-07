@@ -144,6 +144,40 @@ export function effectiveRankingPoints(draft: LeagueCreateDraft): Record<string,
   return Object.keys(draft.rankingPointsByPlace).length > 0 ? draft.rankingPointsByPlace : DEFAULT_LEAGUE_RANKING_POINTS;
 }
 
+/** Chaves da tabela de pontos — mesmo contrato lido pela CF `league-ranking.ts`. */
+export const LEAGUE_RANKING_POINT_KEYS: readonly string[] = ['1', '2', '3', '4', 'quarters', 'groups'];
+
+export const LEAGUE_RANKING_POINT_LABEL: Record<string, string> = {
+  '1': '1º lugar',
+  '2': '2º lugar',
+  '3': '3º lugar',
+  '4': '4º lugar',
+  quarters: 'Quartas',
+  groups: 'Fase de grupos',
+};
+
+/** Mesmo clamp do app (`getPointsForPlaceFromLeagueConfig`): inteiro em 0..999999. */
+export function sanitizeRankingPointsValue(raw: unknown): number {
+  const value = Math.round(Number(raw));
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.min(value, 999999);
+}
+
+/** Tabela completa com `key` editado — a primeira edição materializa o padrão no draft. */
+export function withRankingPoint(draft: LeagueCreateDraft, key: string, raw: unknown): Record<string, number> {
+  return { ...effectiveRankingPoints(draft), [key]: sanitizeRankingPointsValue(raw) };
+}
+
+export function isCustomRankingTable(draft: LeagueCreateDraft): boolean {
+  const effective = effectiveRankingPoints(draft);
+  return LEAGUE_RANKING_POINT_KEYS.some((key) => (effective[key] ?? 0) !== DEFAULT_LEAGUE_RANKING_POINTS[key]);
+}
+
+export function reviewRankingSummary(draft: LeagueCreateDraft): string {
+  const table = isCustomRankingTable(draft) ? 'tabela personalizada' : 'tabela padrão nexaGO';
+  return `${COUNTING_MODE_LABEL[draft.countingStagesMode]} · ${table}`;
+}
+
 export function isValidLeagueForPublish(draft: LeagueCreateDraft): boolean {
   return (
     draft.name.trim().length > 0 &&

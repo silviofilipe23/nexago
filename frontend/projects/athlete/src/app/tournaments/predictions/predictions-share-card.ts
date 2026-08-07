@@ -254,16 +254,6 @@ function drawHeader(ctx: CanvasRenderingContext2D, data: PredictionShareData, ma
 }
 
 function drawFooter(ctx: CanvasRenderingContext2D, data: PredictionShareData): void {
-  ctx.font = mono(700, 26);
-  ctx.fillStyle = DIM;
-  tracked(ctx, 'DÊ O SEU PALPITE EM', CX, 1706, 8);
-
-  // A URL encolhe até caber em vez de truncar: com id de torneio real (20 caracteres) ela é
-  // sempre longa, e um endereço cortado com "…" não leva ninguém a lugar nenhum.
-  fitFont(ctx, data.urlLabel, ROW_W, 44, 26, (size) => sora(700, size));
-  ctx.fillStyle = ORANGE;
-  ctx.textAlign = 'center';
-  ctx.fillText(truncate(ctx, data.urlLabel, ROW_W), CX, 1782);
 
   const size = 40;
   ctx.font = sora(800, size);

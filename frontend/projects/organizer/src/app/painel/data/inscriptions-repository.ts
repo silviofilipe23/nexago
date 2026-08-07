@@ -64,6 +64,12 @@ export interface TournamentInscription {
   /** Uniforme de cada slot; casa com `participants[0]`/`participants[1]`. */
   uniformPlayer1: InscriptionUniformSlot;
   uniformPlayer2: InscriptionUniformSlot;
+  /** Categoria de equipe (trio+): uniforme por atleta, chaveado pelo uid. */
+  uniformByUid: Record<string, InscriptionUniformSlot>;
+  /** Tamanho do elenco da categoria de equipe (3–5); `null` = dupla clássica. */
+  teamSize: number | null;
+  /** Capitão da equipe nomeada (quem criou e convida); `null` fora de equipe. */
+  captainUid: string | null;
   /** Pedido de cancelamento aberto pelo atleta (inscrição paga), quando houver. */
   cancellationRequest: InscriptionCancellationRequest | null;
   createdAt: Date | null;
@@ -107,6 +113,9 @@ interface RawInscription {
   lgpdAcceptedUids: string[];
   uniformPlayer1: InscriptionUniformSlot;
   uniformPlayer2: InscriptionUniformSlot;
+  uniformByUid: Record<string, InscriptionUniformSlot>;
+  teamSize: number | null;
+  captainUid: string | null;
   cancellationRequest: InscriptionCancellationRequest | null;
   createdAt: Date | null;
 }
@@ -157,6 +166,31 @@ function uniformSlotFromDoc(data: Record<string, unknown>, slot: 'Player1' | 'Pl
   };
 }
 
+/** `uniformByUid` das categorias de equipe — cada entrada com o mesmo shape dos slots. */
+function uniformByUidFromDoc(data: Record<string, unknown>): Record<string, InscriptionUniformSlot> {
+  const raw = data['uniformByUid'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, InscriptionUniformSlot> = {};
+  for (const [uid, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    out[uid] = {
+      sizeTop: optionalStr(e['sizeTop']),
+      sizeShorts: optionalStr(e['sizeShorts']),
+      jerseyNumber: optionalNum(e['jerseyNumber']),
+      jerseyName: optionalStr(e['jerseyName']),
+    };
+  }
+  return out;
+}
+
+/** `teamSize` 3–5 = categoria de equipe; qualquer outra coisa é dupla (`null`). */
+function teamSizeFromDoc(data: Record<string, unknown>): number | null {
+  const raw = data['teamSize'];
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  return Number.isInteger(n) && n >= 3 && n <= 5 ? n : null;
+}
+
 function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
   return {
     id,
@@ -180,6 +214,9 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
       : [],
     uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
     uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
+    uniformByUid: uniformByUidFromDoc(data),
+    teamSize: teamSizeFromDoc(data),
+    captainUid: optionalStr(data['captainUid']),
     cancellationRequest: cancellationRequestFromDoc(data['cancellationRequest']),
     createdAt: toDate(data['createdAt']),
   };
@@ -306,6 +343,9 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       lgpdAcceptedUids: r.lgpdAcceptedUids,
       uniformPlayer1: r.uniformPlayer1,
       uniformPlayer2: r.uniformPlayer2,
+      uniformByUid: r.uniformByUid,
+      teamSize: r.teamSize,
+      captainUid: r.captainUid,
       cancellationRequest: r.cancellationRequest,
       createdAt: r.createdAt,
     };

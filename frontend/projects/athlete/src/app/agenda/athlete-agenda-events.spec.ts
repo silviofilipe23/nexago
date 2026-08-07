@@ -39,6 +39,10 @@ function makeRegistration(overrides: Partial<AthleteTournamentRegistration> = {}
     lgpdAcceptedUids: [],
     uniformPlayer1: EMPTY_UNIFORM_SLOT,
     uniformPlayer2: EMPTY_UNIFORM_SLOT,
+    teamName: null,
+    teamSize: null,
+    captainUid: null,
+    uniformByUid: {},
     cancellationRequest: null,
     ...overrides,
   };

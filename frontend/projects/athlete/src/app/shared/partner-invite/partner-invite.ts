@@ -51,8 +51,17 @@ export function buildPartnerInviteMessage(params: {
   tournamentName: string;
   categoryName: string;
   url: string;
+  /** Categoria de EQUIPE nomeada (trio+): o convite fala da equipe, não de dupla. */
+  teamName?: string | null;
 }): string {
   const greeting = params.partnerName?.trim() ? `Fala, ${params.partnerName.trim()}!` : 'Fala!';
+  const teamName = params.teamName?.trim();
+  if (teamName) {
+    return (
+      `${greeting} Bora jogar na minha equipe ${teamName} no ${params.tournamentName} (${params.categoryName})? ` +
+      `Cria tua conta no nexaGO pelo meu link que eu te mando o convite da equipe: ${params.url}`
+    );
+  }
   return (
     `${greeting} Bora formar dupla comigo no ${params.tournamentName} (${params.categoryName})? ` +
     `Cria tua conta no nexaGO pelo meu link que eu te mando o convite da dupla: ${params.url}`

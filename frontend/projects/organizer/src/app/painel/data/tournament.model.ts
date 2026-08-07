@@ -10,6 +10,8 @@ export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches
   name: string;
   maxTeams: number | null;
+  /** Tamanho do elenco em categoria de equipe (3–5); `null` = dupla clássica. */
+  teamSize: number | null;
   /** Formato salvo na categoria (`bracketFormat`: groups_knockout/single_elimination/…) e a
    *  config de grupos/sets — usados pela geração de chave (Task O11). */
   bracketFormat: string | null;

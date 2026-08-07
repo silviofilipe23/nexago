@@ -38,21 +38,35 @@ import {
   registrationCancellationBlockReason,
   shouldDeleteTeamOnCancellation,
 } from "./tournament-registration-cancellation";
+import {
+  MIN_TEAM_CATEGORY_SIZE,
+  TEAM_CATEGORY_REQUIRES_TEAM_FLOW_MESSAGE,
+  evaluateTeamJoin,
+  extractTeamMemberUids,
+  isTeamCategory,
+  isTeamRosterComplete,
+  parseGenderComposition,
+  registrationTeamSize,
+  teamJoinDenialMessage,
+} from "./tournament-team-category";
+import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster";
+import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
+import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 
-const INVITES_COLLECTION = "tournamentRegistrationInvites";
+export const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 
 // Versão do termo LGPD/uso de imagem exibido nas UIs de inscrição. O aceite é
 // opcional no payload (apps antigos não enviam); quando presente, fica
 // registrado na inscrição para o organizador consultar.
-const LGPD_TERM_VERSION = "2026-08";
+export const LGPD_TERM_VERSION = "2026-08";
 
 
 
 
 type UniformType = "none" | "top_only" | "full";
 
-type TournamentCategory = {
+export type TournamentCategory = {
   id?: string;
   categoryId?: string;
   categoryName: string;
@@ -65,7 +79,7 @@ type TournamentCategory = {
   uniformSizeOptionsShorts?: string[];
 };
 
-type UniformPayload = {
+export type UniformPayload = {
   sizeTop?: string;
   sizeShorts?: string;
   jerseyNumber?: number;
@@ -75,7 +89,7 @@ type UniformPayload = {
 const DEFAULT_TOP_SIZES = ["PP", "P", "M", "G", "GG", "XGG"];
 const DEFAULT_SHORTS_SIZES = ["PP", "P", "M", "G", "GG", "XGG"];
 
-function asTournamentCategory(
+export function asTournamentCategory(
   raw: Record<string, unknown> | null,
 ): TournamentCategory | null {
   if (!raw) return null;
@@ -87,7 +101,7 @@ function asTournamentCategory(
   } as TournamentCategory;
 }
 
-function categoryRequiresUniform(category: TournamentCategory): boolean {
+export function categoryRequiresUniform(category: TournamentCategory): boolean {
   const t = (category.uniformType ?? "none") as string;
   return t === "top_only" || t === "top" || t === "full";
 }
@@ -110,7 +124,7 @@ function shortsSizeOptions(category: TournamentCategory): string[] {
   return list.length > 0 ? list : DEFAULT_SHORTS_SIZES;
 }
 
-function parseUniformPayload(raw: unknown): UniformPayload | null {
+export function parseUniformPayload(raw: unknown): UniformPayload | null {
   if (!raw || typeof raw !== "object") return null;
   const data = raw as Record<string, unknown>;
   const sizeTop = typeof data.sizeTop === "string" ? data.sizeTop.trim() : "";
@@ -134,7 +148,7 @@ function parseUniformPayload(raw: unknown): UniformPayload | null {
   return Object.keys(payload).length > 0 ? payload : null;
 }
 
-function validateUniformPayload(
+export function validateUniformPayload(
   category: TournamentCategory,
   uniform: UniformPayload | null,
   required: boolean,
@@ -239,6 +253,21 @@ function registrationUniformPlayer2(
   uniform: UniformPayload,
 ): Record<string, string | number> {
   return registrationUniformForSlot(uniform, "Player2");
+}
+
+/**
+ * Entrada do mapa `uniformByUid` (categorias de equipe: uniforme por atleta,
+ * sem os slots fixos Player1/Player2 da dupla).
+ */
+export function uniformByUidEntry(
+  uniform: UniformPayload,
+): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  if (uniform.sizeTop) out.sizeTop = uniform.sizeTop;
+  if (uniform.sizeShorts) out.sizeShorts = uniform.sizeShorts;
+  if (uniform.jerseyNumber != null) out.jerseyNumber = uniform.jerseyNumber;
+  if (uniform.jerseyName) out.jerseyName = uniform.jerseyName;
+  return out;
 }
 
 async function loadTournamentDataForInvite(
@@ -428,6 +457,45 @@ async function markStaleInvitesAfterAccept(
   }
 }
 
+/** Elenco completo: convites pendentes restantes da inscrição viram stale. */
+async function markStaleTeamInvitesAfterRosterFull(
+  db: Firestore,
+  tournamentId: string,
+  registrationId: string,
+  acceptedInviteId: string,
+): Promise<void> {
+  const snap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("status", "==", "pending")
+    .get();
+
+  const batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    if (doc.id === acceptedInviteId) continue;
+    const data = doc.data();
+    if (String(data.attachRegistrationId ?? "").trim() !== registrationId) {
+      continue;
+    }
+    batch.update(doc.ref, {
+      status: "stale",
+      staleReason: "roster_full",
+      staleAt: FieldValue.serverTimestamp(),
+    });
+    count++;
+  }
+  if (count > 0) {
+    await batch.commit();
+    logger.info("Marked stale team invites after roster full", {
+      tournamentId,
+      registrationId,
+      acceptedInviteId,
+      count,
+    });
+  }
+}
+
 /** Cancela convites create pendentes do convidador após inscrição solo. */
 async function markStaleCreateInvitesAfterSolo(
   db: Firestore,
@@ -467,6 +535,231 @@ async function markStaleCreateInvitesAfterSolo(
       count,
     });
   }
+}
+
+/** Convite expirado não bloqueia nem reserva vaga (mesmo critério do accept). */
+function inviteExpired(invite: Record<string, unknown>, nowMs: number): boolean {
+  const expiresAt = invite.expiresAt as Timestamp | undefined;
+  return Boolean(
+    expiresAt &&
+      typeof expiresAt.toMillis === "function" &&
+      expiresAt.toMillis() < nowMs,
+  );
+}
+
+/**
+ * Convite para categoria de EQUIPE (trio/quarteto/quinteto): sempre anexado à
+ * inscrição criada pelo capitão em `createTournamentTeamRegistration`. Não há
+ * fusão de reservas solo — convidado só aceita/recusa. Convite pendente conta
+ * como vaga prometida: o capitão não convida além das vagas restantes e a
+ * composição de gênero é validada contra elenco + convites pendentes.
+ */
+async function sendTeamCategoryInvite(params: {
+  db: Firestore;
+  projectId: string;
+  tournament: Record<string, unknown>;
+  category: TournamentCategory;
+  tournamentId: string;
+  categoryId: string;
+  categoryKeys: Set<string>;
+  inviterUid: string;
+  inviterName: string;
+  inviteeUid: string;
+  inviteeName: string;
+}): Promise<{inviteId: string}> {
+  const {
+    db,
+    projectId,
+    tournament,
+    category,
+    tournamentId,
+    categoryId,
+    categoryKeys,
+    inviterUid,
+    inviterName,
+    inviteeUid,
+    inviteeName,
+  } = params;
+
+  const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
+  const snap = await inscriptionsRef
+    .where("tournamentId", "==", tournamentId)
+    .get();
+
+  let captainRegId = "";
+  let captainReg: Record<string, unknown> | null = null;
+  let inviterIsMemberOnly = false;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (!categoryKeys.has(String(data.categoryId ?? "").trim())) continue;
+    const participants = Array.isArray(data.participantUids)
+      ? (data.participantUids as unknown[]).map((p) => String(p).trim())
+      : [];
+    if (participants.includes(inviteeUid)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Este atleta já está inscrito nesta categoria.",
+      );
+    }
+    const captainUid = String(
+      data.captainUid ?? data.player1Id ?? "",
+    ).trim();
+    if (captainUid === inviterUid) {
+      captainRegId = doc.id;
+      captainReg = data;
+    } else if (participants.includes(inviterUid)) {
+      inviterIsMemberOnly = true;
+    }
+  }
+
+  if (!captainReg) {
+    throw new HttpsError(
+      "failed-precondition",
+      inviterIsMemberOnly
+        ? "Apenas o capitão convida atletas para a equipe."
+        : "Crie sua equipe nesta categoria antes de convidar atletas.",
+    );
+  }
+
+  const teamSize = registrationTeamSize(captainReg, category);
+  const teamId = String(captainReg.teamId ?? "").trim();
+  const teamSnap = teamId
+    ? await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get()
+    : null;
+  if (!teamSnap?.exists) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Equipe da inscrição não encontrada.",
+    );
+  }
+  const team = teamSnap.data()!;
+  const members = extractTeamMemberUids(team);
+  if (members.includes(inviteeUid)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Este atleta já está na sua equipe.",
+    );
+  }
+  if (isTeamRosterComplete(members.length, teamSize)) {
+    throw new HttpsError("failed-precondition", "A equipe já está completa.");
+  }
+
+  const invitesSnap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("status", "==", "pending")
+    .get();
+  const nowMs = Date.now();
+  const pendingInvites = invitesSnap.docs
+    .map((d) => d.data())
+    .filter(
+      (d) =>
+        String(d.attachRegistrationId ?? "").trim() === captainRegId &&
+        !inviteExpired(d, nowMs),
+    );
+
+  if (pendingInvites.some((d) => d.inviteeUid === inviteeUid)) {
+    throw new HttpsError(
+      "already-exists",
+      "Já existe um convite pendente para este atleta.",
+    );
+  }
+  if (members.length + pendingInvites.length >= teamSize) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Todas as vagas da equipe já estão preenchidas ou reservadas por " +
+        "convites pendentes. Cancele um convite para chamar outro atleta.",
+    );
+  }
+
+  const composition = parseGenderComposition(category, teamSize);
+  let inviteeBucket: AthleteGenderBucket | null = null;
+  if (composition) {
+    const memberBuckets = await Promise.all(
+      members.map((m) => loadUserGenderBucket(db, m)),
+    );
+    const pendingBuckets = pendingInvites.map((d) =>
+      d.inviteeGenderBucket === "M" || d.inviteeGenderBucket === "F"
+        ? (d.inviteeGenderBucket as AthleteGenderBucket)
+        : null,
+    );
+    inviteeBucket = await loadUserGenderBucket(db, inviteeUid);
+    const joinCheck = evaluateTeamJoin({
+      teamSize,
+      composition,
+      currentBuckets: [...memberBuckets, ...pendingBuckets],
+      joiningBucket: inviteeBucket,
+    });
+    if (!joinCheck.ok) {
+      throw new HttpsError(
+        "failed-precondition",
+        teamJoinDenialMessage(joinCheck.reason),
+      );
+    }
+  }
+
+  const teamName = String(
+    captainReg.teamName ?? team.teamName ?? "",
+  ).trim();
+  const expiresAt = Timestamp.fromMillis(nowMs + INVITE_TTL_MS);
+  const ref = db.collection(INVITES_COLLECTION).doc();
+  await ref.set({
+    tournamentId,
+    categoryId,
+    inviterUid,
+    inviterName,
+    inviteeUid,
+    inviteeName,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt,
+    attachRegistrationId: captainRegId,
+    attachTeamId: teamId,
+    isTeamInvite: true,
+    teamName,
+    teamSize,
+    // Gênero do convidado congelado no envio: convites pendentes consomem cota
+    // da composição e a conta precisa bater sem reler N perfis a cada envio.
+    ...(inviteeBucket ? {inviteeGenderBucket: inviteeBucket} : {}),
+  });
+
+  try {
+    const tournamentName = String(tournament.name ?? "").trim();
+    const categoryLabel = formatCategoryInviteNotificationLabel(category);
+    await deliverNotificationToUser({
+      userId: inviteeUid,
+      title: `${inviterName} convidou você para a equipe ${teamName}`,
+      body:
+        `Aceite o convite para competir na categoria ${categoryLabel} ` +
+        `do ${tournamentName}.`,
+      type: "tournament_partner_invite",
+      data: {
+        inviteId: ref.id,
+        tournamentId,
+        categoryId,
+        categoryName: categoryLabel,
+        inviterUid,
+        teamName,
+      },
+    });
+  } catch (notifyError) {
+    logger.warn("Falha ao notificar convidado da equipe", {
+      inviteId: ref.id,
+      inviteeUid,
+      notifyError,
+    });
+  }
+
+  logger.info("Tournament team invite sent", {
+    inviteId: ref.id,
+    tournamentId,
+    categoryId,
+    inviterUid,
+    inviteeUid,
+    teamId,
+  });
+
+  return {inviteId: ref.id};
 }
 
 export const sendTournamentPartnerInvite = onCall(async (request) => {
@@ -526,6 +819,25 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
+
+  // Categoria de equipe: convite anexado à inscrição do capitão, sem fusão de
+  // reservas solo. LGPD/uniforme do capitão já vivem na inscrição criada em
+  // createTournamentTeamRegistration.
+  if (isTeamCategory(category)) {
+    return await sendTeamCategoryInvite({
+      db,
+      projectId,
+      tournament,
+      category,
+      tournamentId,
+      categoryId,
+      categoryKeys,
+      inviterUid: uid,
+      inviterName,
+      inviteeUid,
+      inviteeName,
+    });
+  }
 
   const uniformRequired = categoryRequiresUniform(category);
   const inviterLgpdAccepted = request.data?.lgpdAccepted === true;
@@ -686,6 +998,16 @@ export const registerSoloTournament = onCall(async (request) => {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
 
+  // Categoria de equipe (trio+) não tem reserva solo: a vaga nasce com a equipe
+  // nomeada (createTournamentTeamRegistration). Clientes antigos recebem o
+  // direcionamento em vez de criarem uma inscrição impossível de completar.
+  if (isTeamCategory(category)) {
+    throw new HttpsError(
+      "failed-precondition",
+      TEAM_CATEGORY_REQUIRES_TEAM_FLOW_MESSAGE,
+    );
+  }
+
   await assertTeamLevelEligibility({
     db,
     tournament,
@@ -816,6 +1138,23 @@ export const cancelTournamentRegistration = onCall({
     );
   }
 
+  // Categoria de equipe: cancelar desfaz a equipe INTEIRA — só o capitão pode.
+  // Integrante que quer sair usa leaveTournamentTeamRegistration.
+  const isTeamRegistration =
+    registrationTeamSize(registration, null) >= MIN_TEAM_CATEGORY_SIZE;
+  if (isTeamRegistration) {
+    const captainUid = String(
+      team?.captainUid ?? registration.captainUid ?? registration.player1Id ?? "",
+    ).trim();
+    if (captainUid && uid !== captainUid) {
+      throw new HttpsError(
+        "permission-denied",
+        "Apenas o capitão pode cancelar a inscrição da equipe. " +
+          "Para deixar a equipe, use \"Sair da equipe\".",
+      );
+    }
+  }
+
   const tournamentId =
     (registration.tournamentId as string | undefined)?.trim() ?? "";
   const categoryId = (registration.categoryId as string | undefined)?.trim() ?? "";
@@ -901,15 +1240,20 @@ export const cancelTournamentRegistration = onCall({
   batch.delete(regRef);
   await batch.commit();
 
-  // Avisa o outro atleta da dupla depois que o cancelamento é fato.
+  // Avisa os demais atletas depois que o cancelamento é fato.
   const otherUids = athleteUids.filter((id) => id !== uid);
   if (otherUids.length > 0) {
+    const teamName = String(registration.teamName ?? "").trim();
+    const cancelBody = isTeamRegistration
+      ? `O capitão desfez a equipe${teamName ? ` ${teamName}` : ""}. ` +
+        "A inscrição foi removida."
+      : "Seu parceiro cancelou a reserva da vaga. A inscrição foi removida.";
     await Promise.all(
       otherUids.map((otherUid) =>
         deliverNotificationToUser({
           userId: otherUid,
           title: "Inscrição cancelada",
-          body: "Seu parceiro cancelou a reserva da vaga. A inscrição foi removida.",
+          body: cancelBody,
           type: "tournament_registration_cancelled",
           data: {tournamentId, url: `/torneios/${tournamentId}`},
         }).catch(() => undefined),
@@ -1031,6 +1375,154 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     const teamsRef = db.collection(artifactsTeamsPath(projectId));
     const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
     const teamsPath = artifactsTeamsPath(projectId);
+
+    // Convite de EQUIPE (trio+): entra na inscrição do capitão. Sem fusão de
+    // reservas — o elenco cresce até o teamSize e só então sai de
+    // partnerPending (o que o coloca na chave).
+    if (invite.isTeamInvite === true) {
+      const attachRegistrationId = String(
+        invite.attachRegistrationId ?? "",
+      ).trim();
+      if (!attachRegistrationId) {
+        throw new HttpsError("failed-precondition", "Convite inválido.");
+      }
+      const regRef = inscriptionsRef.doc(attachRegistrationId);
+      const regSnap = await tx.get(regRef);
+      if (!regSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "A inscrição da equipe não existe mais.",
+        );
+      }
+      const reg = regSnap.data()!;
+      const teamSize = registrationTeamSize(reg, previewCategory);
+      const teamId = String(reg.teamId ?? "").trim();
+      const teamRef = teamId ? teamsRef.doc(teamId) : null;
+      const teamSnap = teamRef ? await tx.get(teamRef) : null;
+      if (!teamRef || !teamSnap?.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Equipe da inscrição não encontrada.",
+        );
+      }
+      const team = teamSnap.data()!;
+      const members = extractTeamMemberUids(team);
+      if (members.includes(uid)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Você já está nesta equipe.",
+        );
+      }
+      if (isTeamRosterComplete(members.length, teamSize)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "A equipe já está completa.",
+        );
+      }
+
+      const categoryRegs = await loadCategoryRegistrationsTx(
+        tx,
+        inscriptionsRef,
+        teamsPath,
+        tournamentId,
+        previewCategoryKeys,
+      );
+      const alreadyInCategory = categoryRegs.some(
+        (r) =>
+          r.registrationId !== attachRegistrationId &&
+          r.participantUids.includes(uid),
+      );
+      if (alreadyInCategory) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Você já possui inscrição nesta categoria.",
+        );
+      }
+
+      // Composição de gênero revalidada contra o elenco ATUAL (a situação pode
+      // ter mudado nas 48h do convite).
+      const composition = parseGenderComposition(previewCategory, teamSize);
+      if (composition) {
+        const memberBuckets: Array<AthleteGenderBucket | null> = [];
+        for (const memberUid of members) {
+          const userSnap = await tx.get(db.doc(`users/${memberUid}`));
+          const gender = userSnap.exists ? userSnap.data()?.gender : undefined;
+          memberBuckets.push(
+            normalizeAthleteGenderBucket(
+              typeof gender === "string" ? gender : undefined,
+            ),
+          );
+        }
+        const mySnap = await tx.get(db.doc(`users/${uid}`));
+        const myGender = mySnap.exists ? mySnap.data()?.gender : undefined;
+        const joinCheck = evaluateTeamJoin({
+          teamSize,
+          composition,
+          currentBuckets: memberBuckets,
+          joiningBucket: normalizeAthleteGenderBucket(
+            typeof myGender === "string" ? myGender : undefined,
+          ),
+        });
+        if (!joinCheck.ok) {
+          throw new HttpsError(
+            "failed-precondition",
+            teamJoinDenialMessage(joinCheck.reason, "self"),
+          );
+        }
+      }
+
+      const newMemberCount = members.length + 1;
+      const rosterComplete = isTeamRosterComplete(newMemberCount, teamSize);
+
+      const teamUpdate: Record<string, unknown> = {
+        memberUids: FieldValue.arrayUnion(uid),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      // Espelho legado: os 2 primeiros membros continuam em player1/player2
+      // para leitores antigos (pôster, ranking, joins do organizador).
+      const legacyP2 =
+        typeof team.player2Id === "string" ? team.player2Id.trim() : "";
+      if (!legacyP2) teamUpdate.player2Id = uid;
+      tx.update(teamRef, teamUpdate);
+
+      const regUpdate: Record<string, unknown> = {
+        participantUids: FieldValue.arrayUnion(uid),
+        partnerPending: !rosterComplete,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      // Inscrição já paga por inteiro: quem entra não deve nada.
+      if (reg.isPaid === true) {
+        regUpdate.sharePaidUids = FieldValue.arrayUnion(uid);
+      }
+      if (inviteeUniform) {
+        regUpdate[`uniformByUid.${uid}`] = uniformByUidEntry(inviteeUniform);
+      }
+      if (inviteeLgpdAccepted) {
+        regUpdate.lgpdAcceptedUids = FieldValue.arrayUnion(uid);
+        regUpdate[`lgpdAcceptedAt.${uid}`] = FieldValue.serverTimestamp();
+        regUpdate.lgpdTermVersion = LGPD_TERM_VERSION;
+      }
+      tx.update(regRef, regUpdate);
+
+      tx.update(inviteRef, {
+        status: "accepted",
+        teamId,
+        registrationId: attachRegistrationId,
+        acceptedAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        registrationId: attachRegistrationId,
+        teamId,
+        tournamentId,
+        categoryId,
+        isTeamInvite: true,
+        rosterComplete,
+        memberCount: newMemberCount,
+        teamSize,
+        teamName: String(reg.teamName ?? team.teamName ?? "").trim(),
+      };
+    }
 
     // O plano é reavaliado aqui (não no convite): nas 48h de validade os dois
     // podem ter reservado solo, cancelado ou fechado dupla com outra pessoa.
@@ -1255,14 +1747,33 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     };
   });
 
-  await markStaleInvitesAfterAccept(
-    db,
-    result.tournamentId,
-    result.categoryId,
-    (invitePreviewData.inviterUid as string | undefined)?.trim() ?? "",
-    uid,
-    inviteId,
-  );
+  const teamResult = result as typeof result & {
+    isTeamInvite?: boolean;
+    rosterComplete?: boolean;
+    memberCount?: number;
+    teamSize?: number;
+    teamName?: string;
+  };
+
+  if (teamResult.isTeamInvite === true) {
+    if (teamResult.rosterComplete === true) {
+      await markStaleTeamInvitesAfterRosterFull(
+        db,
+        result.tournamentId,
+        result.registrationId,
+        inviteId,
+      );
+    }
+  } else {
+    await markStaleInvitesAfterAccept(
+      db,
+      result.tournamentId,
+      result.categoryId,
+      (invitePreviewData.inviterUid as string | undefined)?.trim() ?? "",
+      uid,
+      inviteId,
+    );
+  }
 
   logger.info("Tournament partner invite accepted", {inviteId, ...result});
 
@@ -1274,7 +1785,50 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   const categoryId = result.categoryId;
   const registrationId = result.registrationId;
 
-  if (inviterUid) {
+  if (teamResult.isTeamInvite === true) {
+    // Avisa o elenco (capitão incluído) sobre o novo integrante — com
+    // deep-link para o pagamento quando a equipe fecha.
+    const teamName = teamResult.teamName?.trim() || "sua equipe";
+    const rosterComplete = teamResult.rosterComplete === true;
+    const progress =
+      teamResult.memberCount && teamResult.teamSize
+        ? ` (${teamResult.memberCount}/${teamResult.teamSize})`
+        : "";
+    const url =
+      `/torneios/${tournamentId}/inscricao` +
+      `?registrationId=${encodeURIComponent(registrationId)}` +
+      `&categoryId=${encodeURIComponent(categoryId)}` +
+      (rosterComplete ? "&step=payment" : "&step=partner");
+    try {
+      const memberUids = await loadTeamMemberUids(db, projectId, result.teamId);
+      const recipients = memberUids.filter((memberUid) => memberUid !== uid);
+      await Promise.all(
+        recipients.map((memberUid) =>
+          deliverNotificationToUser({
+            userId: memberUid,
+            title: rosterComplete ? "Equipe completa!" : "Novo integrante",
+            body: rosterComplete
+              ? `${inviteeName} entrou na equipe ${teamName}. ` +
+                "Conclua o pagamento da inscrição."
+              : `${inviteeName} entrou na equipe ${teamName}${progress}.`,
+            type: "tournament_partner_invite_accepted",
+            data: {
+              inviteId,
+              tournamentId,
+              categoryId,
+              registrationId,
+              url,
+            },
+          }).catch(() => undefined),
+        ),
+      );
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar equipe do torneio", {
+        inviteId,
+        notifyError,
+      });
+    }
+  } else if (inviterUid) {
     const paymentPath =
       `/torneios/${tournamentId}/inscricao` +
       `?registrationId=${encodeURIComponent(registrationId)}` +
@@ -1417,13 +1971,17 @@ export const setRegistrationUniform = onCall(async (request) => {
     .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
     .get();
   const team = teamSnap.data() ?? {};
+  const isTeamRegistration =
+    registrationTeamSize(registration, null) >= MIN_TEAM_CATEGORY_SIZE;
   const player1Id =
     typeof team.player1Id === "string" ? team.player1Id.trim() : "";
   const player2Id =
     typeof team.player2Id === "string" ? team.player2Id.trim() : "";
   const isPlayer1 = player1Id === uid;
   const isPlayer2 = player2Id === uid;
-  if (!isPlayer1 && !isPlayer2) {
+  const isTeamMember =
+    isTeamRegistration && extractTeamMemberUids(team).includes(uid);
+  if (!isPlayer1 && !isPlayer2 && !isTeamMember) {
     throw new HttpsError(
       "permission-denied",
       "Você não é um dos atletas desta inscrição.",
@@ -1444,9 +2002,13 @@ export const setRegistrationUniform = onCall(async (request) => {
   // Valida o tamanho contra a categoria (se ela exige uniforme).
   validateUniformPayload(category, uniform, categoryRequiresUniform(category));
 
-  const update = isPlayer1
-    ? registrationUniformPlayer1(uniform)
-    : registrationUniformPlayer2(uniform);
+  // Equipe (trio+): uniforme por atleta no mapa `uniformByUid`; dupla mantém
+  // os slots legados Player1/Player2.
+  const update = isTeamRegistration
+    ? {[`uniformByUid.${uid}`]: uniformByUidEntry(uniform)}
+    : isPlayer1
+      ? registrationUniformPlayer1(uniform)
+      : registrationUniformPlayer2(uniform);
 
   await regRef.update({
     ...update,

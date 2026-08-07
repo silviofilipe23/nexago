@@ -64,6 +64,12 @@ export interface TournamentCategoryOffer {
   spotsLeft: number;
   level: string | null;
   genderType: TournamentGenderCat;
+  /** Categoria de EQUIPE nomeada (trio/quarteto/quinteto): 3–5. `null` = dupla clássica. */
+  teamSize: number | null;
+  /** Equipe sem restrição de gênero (`genderMode: 'free'`) — o `genderType` fica Mix só p/ exibição. */
+  genderFree: boolean;
+  /** Composição exata da equipe (misto): homens + mulheres = `teamSize`. `null` quando livre/dupla. */
+  genderComposition: { men: number; women: number } | null;
   bracketFormat: string;
   registrationClosed: boolean;
   isCompleted: boolean;
@@ -117,6 +123,16 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     uniformNameOnShirt = rootUniform.nameOnShirt;
   }
 
+  // Categoria de equipe (trio/quarteto/quinteto) — gravada pelo portal do organizador.
+  const teamSizeRaw = numberOf(o['teamSize']);
+  const teamSize = teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null;
+  const compositionRaw = o['genderComposition'] && typeof o['genderComposition'] === 'object' ? (o['genderComposition'] as Record<string, unknown>) : null;
+  const men = numberOf(compositionRaw?.['men']);
+  const women = numberOf(compositionRaw?.['women']);
+  const genderFree = teamSize != null && optionalStr(o['genderMode']) === 'free';
+  const genderComposition =
+    teamSize != null && !genderFree && men != null && women != null && men + women === teamSize ? { men, women } : null;
+
   return {
     id,
     categoryName: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
@@ -125,6 +141,9 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     spotsLeft: numberOf(o['spotsLeft']) ?? maxTeams,
     level: optionalStr(o['level']),
     genderType: genderCatOf(o['genderType']),
+    teamSize,
+    genderFree,
+    genderComposition,
     bracketFormat: optionalStr(o['bracketFormat']) ?? 'single elimination',
     registrationClosed: o['registrationClosed'] === true,
     isCompleted: o['isCompleted'] === true,
@@ -141,6 +160,44 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     ageMaxYears: numberOf(ageRestriction?.['maxAge']),
     ageReference: optionalStr(ageRestriction?.['reference']),
   };
+}
+
+// ── Categoria de equipe (trio/quarteto/quinteto) — helpers de exibição ────────
+
+export function isTeamCategoryOffer(category: Pick<TournamentCategoryOffer, 'teamSize'>): boolean {
+  return category.teamSize != null;
+}
+
+/** "Dupla" / "Trio" / "Quarteto" / "Quinteto" — pill de formato da categoria. */
+export function categoryFormatLabel(category: Pick<TournamentCategoryOffer, 'teamSize'>): string {
+  switch (category.teamSize) {
+    case 3:
+      return 'Trio';
+    case 4:
+      return 'Quarteto';
+    case 5:
+      return 'Quinteto';
+    default:
+      return 'Dupla';
+  }
+}
+
+/** Unidade das vagas: "duplas" ou "equipes". */
+export function categoryUnitLabel(category: Pick<TournamentCategoryOffer, 'teamSize'>): string {
+  return category.teamSize != null ? 'equipes' : 'duplas';
+}
+
+export function categoryUnitSingular(category: Pick<TournamentCategoryOffer, 'teamSize'>): string {
+  return category.teamSize != null ? 'equipe' : 'dupla';
+}
+
+/** Detalhe de gênero da equipe: "Livre" (sem restrição) ou "2H + 2M" (composição mista). */
+export function categoryGenderDetail(category: Pick<TournamentCategoryOffer, 'teamSize' | 'genderFree' | 'genderComposition'>): string | null {
+  if (category.teamSize == null) return null;
+  if (category.genderFree) return 'Livre';
+  const comp = category.genderComposition;
+  if (comp && comp.men > 0 && comp.women > 0) return `${comp.men}H + ${comp.women}M`;
+  return null;
 }
 
 /** `scheduled|open|bracketsReady|almostFull|live|completed|ended` — espelha

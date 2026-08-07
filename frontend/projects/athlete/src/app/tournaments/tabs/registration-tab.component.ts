@@ -74,18 +74,32 @@ export class RegistrationTabComponent {
   private cardOf(r: AthleteTournamentRegistration, category: TournamentCategoryOffer | null): RegistrationCard {
     const uid = this.auth.user()?.uid ?? null;
     const isPlayer1 = uid != null && (r.player1Id === uid || r.participantUids[0] === uid);
+    const isTeam = r.teamSize != null;
     const paymentState = this.paymentStateOf(r, uid);
+    // Equipe nomeada (trio+): o nome vem da própria inscrição e o uniforme é por uid.
+    const teamName =
+      r.teamName ??
+      (r.teamId ? this.store.duoNameOf(r.teamId) : isTeam ? 'Equipe a definir' : 'Dupla a definir');
+    const uniform = isTeam
+      ? (uid != null ? (r.uniformByUid[uid] ?? null) : null)
+      : isPlayer1
+        ? r.uniformPlayer1
+        : r.uniformPlayer2;
+    const paymentHint =
+      isTeam && paymentState === 'share-paid'
+        ? 'Faltam os demais atletas quitarem as cotas deles para a vaga ser confirmada.'
+        : PAYMENT_HINT[paymentState];
     return {
       id: r.id,
       categoryId: r.categoryId,
       categoryName: category?.categoryName ?? r.categoryId,
       entryFee: category ? formatBRL(category.entryFee) : '—',
-      teamName: r.teamId ? this.store.duoNameOf(r.teamId) : 'Dupla a definir',
+      teamName,
       partnerPending: r.partnerPending,
       paymentState,
       paymentLabel: PAYMENT_LABEL[paymentState],
-      paymentHint: PAYMENT_HINT[paymentState],
-      uniform: isPlayer1 ? r.uniformPlayer1 : r.uniformPlayer2,
+      paymentHint,
+      uniform,
       uniformRequired: category?.uniformType != null && category.uniformType !== 'none',
       canCancel: registrationCancellable(r),
       cancellationState: r.cancellationRequest?.status ?? 'none',

@@ -30,8 +30,13 @@
                 <div class="rg-category-info">
                   <p class="rg-category-name">{{ cat.categoryName }}</p>
                   <div class="rg-pill-row">
-                    <span class="rg-pill">{{ genderLabel(cat.genderType) }}</span>
-                    <span class="rg-pill rg-pill--muted">Dupla</span>
+                    <span class="rg-pill">{{ cat.genderFree ? 'Livre' : genderLabel(cat.genderType) }}</span>
+                    <span class="rg-pill rg-pill--muted">{{ formatLabel(cat) }}</span>
+                    @if (genderDetail(cat); as detail) {
+                      @if (detail !== 'Livre') {
+                        <span class="rg-pill rg-pill--muted">{{ detail }}</span>
+                      }
+                    }
                     @if (cat.level) {
                       <span class="rg-pill rg-pill--muted">{{ cat.level }}</span>
                     }
@@ -120,7 +125,11 @@
             </div>
 
             @if (receivedInvite(); as invite) {
-              <p class="rg-empty-inline">Convite de <strong>{{ invite.inviterName }}</strong> pra jogar nesta categoria.</p>
+              @if (invite.isTeamInvite && invite.teamName) {
+                <p class="rg-empty-inline">Convite de <strong>{{ invite.inviterName }}</strong> pra entrar na equipe <strong>{{ invite.teamName }}</strong> nesta categoria.</p>
+              } @else {
+                <p class="rg-empty-inline">Convite de <strong>{{ invite.inviterName }}</strong> pra jogar nesta categoria.</p>
+              }
 
               @if (uniformRequired() && uniform() && selectedCategory(); as cat) {
                 <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="acceptingInvite()" (valueChange)="onUniformChange($event)" />
@@ -143,20 +152,107 @@
                 </button>
               </div>
             } @else if (!registration()) {
-              <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
-              <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="registering()" />
-              <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked || !lgpdAccepted()" (click)="registerSoloForCategory()">
-                @if (registering()) {
-                  <app-nx-spinner [size]="14" tone="dark" />
+              @if (isTeamCategory()) {
+                <p class="rg-empty-inline">
+                  Categoria por equipe — {{ formatLabel(selectedCategory()!) }} de {{ teamSize() }} atletas.
+                  Dê um nome à equipe, reserve a vaga e convide os outros atletas em seguida.
+                </p>
+                <label class="rg-team-name-label" for="rg-team-name">Nome da equipe</label>
+                <input
+                  id="rg-team-name"
+                  type="text"
+                  class="rg-search-input"
+                  maxlength="40"
+                  placeholder="Ex.: Trio Calango"
+                  [value]="teamName()"
+                  (input)="teamName.set($any($event.target).value)"
+                />
+                @if (teamNameError(); as err) {
+                  <p class="rg-blocked-msg">{{ err }}</p>
                 }
-                {{ registering() ? 'Inscrevendo…' : 'Reservar minha vaga' }}
-              </button>
+                <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="registering()" />
+                <button
+                  type="button"
+                  class="rg-btn-primary"
+                  [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked || !teamNameValid() || !lgpdAccepted()"
+                  (click)="createTeamForCategory()"
+                >
+                  @if (registering()) {
+                    <app-nx-spinner [size]="14" tone="dark" />
+                  }
+                  {{ registering() ? 'Criando equipe…' : 'Criar equipe e reservar vaga' }}
+                </button>
+              } @else {
+                <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
+                <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="registering()" />
+                <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked || !lgpdAccepted()" (click)="registerSoloForCategory()">
+                  @if (registering()) {
+                    <app-nx-spinner [size]="14" tone="dark" />
+                  }
+                  {{ registering() ? 'Inscrevendo…' : 'Reservar minha vaga' }}
+                </button>
+              }
             } @else if (registration()!.partnerPending) {
-              <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+              @if (isTeamCategory()) {
+                <p class="rg-empty-inline">
+                  Equipe <strong>{{ registration()!.teamName ?? 'sem nome' }}</strong> com a vaga reservada — elenco {{ rosterCount() }}/{{ teamSize() }}.
+                  @if (isCaptain()) {
+                    Convide os atletas para completar a equipe.
+                  } @else {
+                    O capitão convida os atletas que faltam.
+                  }
+                </p>
+
+                @if (rosterMembers().length > 0) {
+                  <div class="rg-option-list">
+                    @for (member of rosterMembers(); track member.uid) {
+                      <div class="rg-option-row">
+                        <span class="rg-duo-avatars" aria-hidden="true">
+                          <span class="rg-duo-avatar">
+                            <span class="rg-duo-avatar-fallback">{{ initialsOf(member.name) }}</span>
+                            @if (member.photoUrl; as photo) {
+                              <img class="rg-duo-avatar-img" [src]="photo" alt="" loading="lazy" />
+                            }
+                          </span>
+                        </span>
+                        <span class="rg-option-copy">
+                          <span class="rg-option-title">
+                            {{ member.name }}
+                            @if (member.isMe) {
+                              <span class="rg-roster-badge rg-roster-badge--me">Você</span>
+                            }
+                            @if (member.isCaptain) {
+                              <span class="rg-roster-badge">Capitão</span>
+                            }
+                          </span>
+                          <span class="rg-option-desc">{{ member.isCaptain ? 'Criou a equipe e convida os atletas' : 'No elenco' }}</span>
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (canLeaveTeam()) {
+                  <button type="button" class="rg-btn-ghost" [disabled]="leavingTeam()" (click)="leaveTeam()">
+                    @if (leavingTeam()) {
+                      <app-nx-spinner [size]="14" />
+                    }
+                    {{ leavingTeam() ? 'Saindo…' : 'Sair da equipe' }}
+                  </button>
+                }
+              } @else {
+                <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+              }
 
               @if (myLgpdConsentMissing()) {
                 <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="invitingId() !== null" />
               }
+
+              @if (isTeamCategory() && isCaptain() && remainingInviteSlots() === 0 && sentPendingInvites().length > 0) {
+                <p class="rg-empty-inline">Todas as vagas do elenco estão reservadas por convites pendentes. Cancele um convite para chamar outro atleta.</p>
+              }
+
+              @if (!isTeamCategory() || isCaptain()) {
 
               @if (linkInviteMarker(); as marker) {
                 <div class="rg-option-row rg-option-row--link-invite">
@@ -199,13 +295,15 @@
                 </div>
               }
 
-              <input
-                type="search"
-                class="rg-search-input"
-                placeholder="Buscar atleta por nome…"
-                [value]="partnerQuery()"
-                (input)="onPartnerQueryInput($any($event.target).value)"
-              />
+              @if (remainingInviteSlots() > 0) {
+                <input
+                  type="search"
+                  class="rg-search-input"
+                  placeholder="Buscar atleta por nome…"
+                  [value]="partnerQuery()"
+                  (input)="onPartnerQueryInput($any($event.target).value)"
+                />
+              }
               @if (searchingPartner()) {
                 <p class="rg-empty-inline">Buscando…</p>
               } @else if (partnerSearchCameUpEmpty()) {
@@ -243,14 +341,17 @@
                 </div>
               }
 
-              @if (!partnerSearchCameUpEmpty() && !linkInviteMarker()) {
+              @if (!partnerSearchCameUpEmpty() && !linkInviteMarker() && remainingInviteSlots() > 0) {
                 <p class="rg-external-invite-hint">
-                  Parceiro ainda sem conta no nexaGO?
+                  {{ isTeamCategory() ? 'Atleta ainda sem conta no nexaGO?' : 'Parceiro ainda sem conta no nexaGO?' }}
                   <button type="button" class="rg-link-btn" (click)="openInviteDialog()">Convidar por link</button>
                 </p>
               }
+              }
             } @else if (!registration()!.isPaid) {
-              <p class="rg-empty-inline">Dupla completa! Falta só o pagamento pra confirmar a vaga.</p>
+              <p class="rg-empty-inline">
+                {{ isTeamCategory() ? 'Equipe completa! Falta só o pagamento pra confirmar a vaga.' : 'Dupla completa! Falta só o pagamento pra confirmar a vaga.' }}
+              </p>
               <button type="button" class="rg-btn-primary" (click)="goToPayment()">Ir para pagamento</button>
             } @else {
               <p class="rg-empty-inline">Inscrição confirmada e paga — nos vemos na quadra! 🎾</p>
@@ -274,13 +375,23 @@
               <span class="rg-summary-label">Categoria</span>
               <span class="rg-summary-value">{{ selectedCategory()?.categoryName ?? '—' }}</span>
             </div>
+            @if (registration()?.teamName; as teamName) {
+              <div class="rg-summary-row">
+                <span class="rg-summary-label">Equipe</span>
+                <span class="rg-summary-value">{{ teamName }}</span>
+              </div>
+            }
             <div class="rg-summary-row">
               <span class="rg-summary-label">Status</span>
               <span class="rg-summary-value">
                 @if (!registration()) {
                   Não inscrito
                 } @else if (registration()!.partnerPending) {
-                  {{ sentPendingInvites().length > 1 ? 'Convites enviados' : sentPendingInvites().length === 1 ? 'Convite enviado' : 'Falta parceiro' }}
+                  @if (isTeamCategory()) {
+                    Elenco {{ rosterCount() }}/{{ teamSize() }}
+                  } @else {
+                    {{ sentPendingInvites().length > 1 ? 'Convites enviados' : sentPendingInvites().length === 1 ? 'Convite enviado' : 'Falta parceiro' }}
+                  }
                 } @else if (!registration()!.isPaid) {
                   Aguardando pagamento
                 } @else {
@@ -302,7 +413,7 @@
             }
             @if (selectedCategory(); as cat) {
               <div class="rg-summary-row">
-                <span class="rg-summary-label">Inscrição (por dupla)</span>
+                <span class="rg-summary-label">Inscrição (por {{ unitSingular(cat) }})</span>
                 <span class="rg-summary-value">{{ priceLabel(cat) }}</span>
               </div>
             }
@@ -319,6 +430,7 @@
           [inviterName]="accountLabel()"
           [referralCode]="referralCode()"
           [initialPartnerName]="partnerQuery()"
+          [teamName]="registration()?.teamName ?? null"
           (closed)="closeInviteDialog()"
           (shared)="onExternalInviteShared($event)"
         />

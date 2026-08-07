@@ -135,7 +135,24 @@ export class TournamentPaymentComponent {
   private watchedRegistrationId: string | null = null;
 
   protected readonly totalPriceReais = computed(() => this.selectedCategory()?.entryFee ?? 0);
-  protected readonly amountDueReais = computed(() => (this.amountType() === 'share' ? this.totalPriceReais() / 2 : this.totalPriceReais()));
+  /** Elenco da inscrição (equipe trio+ = 3–5; dupla = 2) — divide a taxa por atleta. */
+  protected readonly teamSize = computed(
+    () => this.registration()?.teamSize ?? this.selectedCategory()?.teamSize ?? 2,
+  );
+  protected readonly isTeamRegistration = computed(() => this.teamSize() > 2);
+  /** Valor exibido antes de gerar a cobrança — a cota exata (com resto de centavos) é do
+   *  servidor; aqui é a divisão simples da taxa pelo elenco. */
+  protected readonly amountDueReais = computed(() =>
+    this.amountType() === 'share' ? this.totalPriceReais() / this.teamSize() : this.totalPriceReais(),
+  );
+  /** Copies dos botões de valor — "metade da dupla" vira "cota da equipe" no trio+. */
+  protected readonly shareHint = computed(() =>
+    this.isTeamRegistration() ? `Sua cota (1/${this.teamSize()} da equipe)` : 'Metade da inscrição da dupla',
+  );
+  protected readonly fullHint = computed(() =>
+    this.isTeamRegistration() ? 'Valor total da equipe' : 'Valor total da dupla',
+  );
+  protected readonly fullLabel = computed(() => (this.isTeamRegistration() ? 'Total da equipe' : 'Total da dupla'));
   protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
 
   /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida.

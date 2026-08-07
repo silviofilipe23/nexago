@@ -67,6 +67,8 @@ export interface InscricaoRow {
   payNote: string | null;
   /** Tooltip da pílula de pagamento — em `conferir`, explica que é declaração do atleta. */
   payTitle: string;
+  /** Categoria de equipe (trio+) com elenco incompleto: "Elenco 2/4". `null` fora disso. */
+  roster: string | null;
   /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */
   cancelPending: boolean;
   cancelReason: string;

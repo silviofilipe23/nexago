@@ -7,15 +7,17 @@ import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { athleteFunctions } from '../../data/functions';
 import { fetchMyAthleteProfile, type MyAthleteProfile } from '../../data/my-athlete-profile-repository';
-import { searchAthleteDirectory, type AthletePublicProfile } from '../../data/public-profiles-repository';
+import { fetchPublicProfilesByIds, searchAthleteDirectory, type AthletePublicProfile } from '../../data/public-profiles-repository';
 import {
   acceptPartnerInvite,
   cancelSentPartnerInvite,
+  createTeamRegistration,
   declinePartnerInvite,
   EMPTY_UNIFORM_SLOT,
   fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
   fetchMySentPendingInvites,
+  leaveTeamRegistration,
   registerSolo,
   sendPartnerInvite,
   setRegistrationUniform,
@@ -25,7 +27,15 @@ import {
   type TournamentPartnerInvite,
   type UniformInput,
 } from '../../data/tournament-registrations-repository';
-import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
+import {
+  categoryFormatLabel,
+  categoryGenderDetail,
+  categoryUnitSingular,
+  fetchCategoryEnrolledCounts,
+  fetchTournament,
+  type TournamentCategoryOffer,
+  type TournamentSummary,
+} from '../../data/tournaments-repository';
 import { evaluateCategoryEligibility, normalizeAthleteGender } from '../tournament-eligibility';
 import {
   categoryRequiresUniform,
@@ -241,6 +251,51 @@ export class TournamentRegistrationShellComponent {
   protected readonly genderLabel = genderLabelOf;
   protected readonly priceLabel = (c: TournamentCategoryOffer) => formatBRL(c.entryFee);
   protected readonly initialsOf = initialsOf;
+  protected readonly formatLabel = categoryFormatLabel;
+  protected readonly genderDetail = categoryGenderDetail;
+  protected readonly unitSingular = categoryUnitSingular;
+
+  // ── Categoria de EQUIPE (trio/quarteto/quinteto) ────────────────────────
+  protected readonly isTeamCategory = computed(() => this.selectedCategory()?.teamSize != null);
+  protected readonly teamSize = computed(() => this.selectedCategory()?.teamSize ?? 2);
+  /** Nome digitado pelo capitão antes de criar a equipe. */
+  protected readonly teamName = signal('');
+  private readonly teamNameNormalized = computed(() => this.teamName().replace(/\s+/g, ' ').trim());
+  /** Mesmas regras do backend (3–30 chars) — erro só depois de começar a digitar. */
+  protected readonly teamNameError = computed(() => {
+    const name = this.teamNameNormalized();
+    if (this.teamName().length === 0) return null;
+    if (name.length < 3) return 'O nome da equipe precisa ter pelo menos 3 caracteres.';
+    if (name.length > 30) return 'O nome da equipe pode ter no máximo 30 caracteres.';
+    return null;
+  });
+  protected readonly teamNameValid = computed(() => {
+    const name = this.teamNameNormalized();
+    return name.length >= 3 && name.length <= 30;
+  });
+  /** Sou o capitão da inscrição selecionada (quem cria e convida). */
+  protected readonly isCaptain = computed(() => {
+    const reg = this.registration();
+    const uid = this.auth.user()?.uid;
+    if (!reg || !uid) return false;
+    return (reg.captainUid ?? reg.player1Id) === uid;
+  });
+  /** Elenco com nome/foto — resolvido de `public_profiles` pelos `participantUids`. */
+  protected readonly rosterMembers = signal<{ uid: string; name: string; photoUrl: string | null; isCaptain: boolean; isMe: boolean }[]>([]);
+  protected readonly rosterCount = computed(() => this.registration()?.participantUids.length ?? 0);
+  /** Vagas ainda convidáveis: elenco + convites pendentes contam como ocupadas. */
+  protected readonly remainingInviteSlots = computed(() => {
+    if (!this.isTeamCategory()) return 1;
+    return Math.max(0, this.teamSize() - this.rosterCount() - this.sentPendingInvites().length);
+  });
+  /** Integrante (não capitão) pode sair enquanto a própria cota não foi paga. */
+  protected readonly canLeaveTeam = computed(() => {
+    const reg = this.registration();
+    const uid = this.auth.user()?.uid;
+    if (!reg || !uid || reg.teamSize == null || this.isCaptain()) return false;
+    return !reg.isPaid && !reg.sharePaidUids.includes(uid);
+  });
+  protected readonly leavingTeam = signal(false);
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -298,6 +353,17 @@ export class TournamentRegistrationShellComponent {
       this.linkInviteMarker.set(
         tournamentId && category ? readPartnerLinkInviteMarker(tournamentId, category.id) : null,
       );
+    });
+
+    // Elenco da equipe (nomes/fotos) — só em categoria de equipe com inscrição.
+    effect(() => {
+      const reg = this.registration();
+      const uid = this.auth.user()?.uid ?? null;
+      if (!reg || reg.teamSize == null) {
+        this.rosterMembers.set([]);
+        return;
+      }
+      void this.loadRoster(reg, uid);
     });
 
     // Defaults do uniforme ao trocar de categoria; quando o perfil chega depois do default,
@@ -393,6 +459,36 @@ export class TournamentRegistrationShellComponent {
       this.profile.set(await fetchMyAthleteProfile(db, uid));
     } catch {
       // Sem perfil, a elegibilidade fica permissiva — o backend segue autoritativo.
+    }
+  }
+
+  private async loadRoster(reg: AthleteTournamentRegistration, myUid: string | null): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    const captainUid = reg.captainUid ?? reg.player1Id;
+    const fallback = reg.participantUids.map((uid) => ({
+      uid,
+      name: uid === myUid ? 'Você' : 'Atleta',
+      photoUrl: null as string | null,
+      isCaptain: uid === captainUid,
+      isMe: uid === myUid,
+    }));
+    try {
+      const profiles = await fetchPublicProfilesByIds(db, reg.participantUids);
+      this.rosterMembers.set(
+        reg.participantUids.map((uid) => {
+          const profile = profiles.get(uid);
+          return {
+            uid,
+            name: profile?.displayName ?? (uid === myUid ? 'Você' : 'Atleta'),
+            photoUrl: profile?.avatarUrl ?? null,
+            isCaptain: uid === captainUid,
+            isMe: uid === myUid,
+          };
+        }),
+      );
+    } catch {
+      this.rosterMembers.set(fallback);
     }
   }
 
@@ -504,6 +600,10 @@ export class TournamentRegistrationShellComponent {
           lgpdAcceptedUids: [this.auth.user()?.uid ?? ''].filter(Boolean),
           uniformPlayer1: EMPTY_UNIFORM_SLOT,
           uniformPlayer2: EMPTY_UNIFORM_SLOT,
+          teamName: null,
+          teamSize: null,
+          captainUid: null,
+          uniformByUid: {},
         },
       ]);
       this.toasts.success('Inscrição criada', 'Falta só formar a dupla — convide seu parceiro para garantir a vaga.');
@@ -516,6 +616,103 @@ export class TournamentRegistrationShellComponent {
       );
     } finally {
       this.registering.set(false);
+    }
+  }
+
+  /** Capitão cria a EQUIPE nomeada + inscrição (categoria trio/quarteto/quinteto).
+   *  Espelha `registerSoloForCategory`, com o nome validado pelas mesmas regras do backend. */
+  protected async createTeamForCategory(): Promise<void> {
+    const category = this.selectedCategory();
+    const tournamentId = this.tournamentId();
+    if (!category || !tournamentId || this.registering()) return;
+    const status = this.categoryStatusOf(category);
+    if (status.blocked) {
+      this.toasts.warning(
+        'Categoria indisponível',
+        status.message ?? 'Você não pode se inscrever nesta categoria. Escolha outra na lista.',
+      );
+      return;
+    }
+    if (!this.teamNameValid()) {
+      this.toasts.warning('Falta o nome da equipe', 'Dê um nome de 3 a 30 caracteres para criar a equipe.');
+      return;
+    }
+    if (!this.lgpdAccepted()) {
+      this.toasts.warning(
+        'Falta aceitar o termo',
+        'Marque o aceite do termo de uso de imagem e LGPD para criar a equipe.',
+      );
+      return;
+    }
+    const teamName = this.teamNameNormalized();
+    this.registering.set(true);
+    try {
+      const result = await createTeamRegistration(athleteFunctions(), {
+        tournamentId,
+        categoryId: category.id,
+        teamName,
+        lgpdAccepted: true,
+      });
+      const uid = this.auth.user()?.uid ?? '';
+      this.myRegistrations.update((list) => [
+        ...list,
+        {
+          id: result.registrationId,
+          tournamentId,
+          categoryId: category.id,
+          teamId: result.teamId,
+          partnerPending: true,
+          isPaid: false,
+          waitlist: false,
+          cancellationRequest: null,
+          sharePaidUids: [],
+          declaredPaidAt: null,
+          paymentVerifiedByOrganizer: false,
+          player1Id: uid || null,
+          participantUids: [uid].filter(Boolean),
+          lgpdAcceptedUids: [uid].filter(Boolean),
+          uniformPlayer1: EMPTY_UNIFORM_SLOT,
+          uniformPlayer2: EMPTY_UNIFORM_SLOT,
+          teamName,
+          teamSize: category.teamSize,
+          captainUid: uid || null,
+          uniformByUid: {},
+        },
+      ]);
+      this.toasts.success(
+        'Equipe criada',
+        `${teamName} está com a vaga reservada — convide os atletas para completar o elenco.`,
+      );
+      await this.persistUniformAfterRegistration(category, result.registrationId);
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível criar a equipe',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu e nenhuma vaga foi criada.',
+        { label: 'Tentar novamente', run: () => void this.createTeamForCategory() },
+      );
+    } finally {
+      this.registering.set(false);
+    }
+  }
+
+  /** Integrante (não capitão) sai da equipe — a vaga reabre e o capitão é avisado. */
+  protected async leaveTeam(): Promise<void> {
+    const reg = this.registration();
+    if (!reg || this.leavingTeam() || !this.canLeaveTeam()) return;
+    const teamName = reg.teamName ?? 'a equipe';
+    if (!confirm(`Sair de ${teamName}? Sua vaga no elenco será liberada para outro atleta.`)) return;
+    this.leavingTeam.set(true);
+    try {
+      await leaveTeamRegistration(athleteFunctions(), reg.id);
+      this.myRegistrations.update((list) => list.filter((r) => r.id !== reg.id));
+      this.toasts.success('Você saiu da equipe', 'O capitão foi avisado e pode convidar outro atleta.');
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível sair da equipe',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+      );
+    } finally {
+      this.leavingTeam.set(false);
     }
   }
 
@@ -550,15 +747,29 @@ export class TournamentRegistrationShellComponent {
     try {
       const uid = this.auth.user()?.uid;
       const alreadyInvited = new Set(this.sentPendingInvites().map((i) => i.inviteeUid));
-      // Categoria Masculino/Feminino só aceita parceiro do mesmo gênero (Misto não filtra).
-      const categoryGender = this.selectedCategory()?.genderType ?? null;
+      const alreadyInRoster = new Set(this.registration()?.participantUids ?? []);
+      const category = this.selectedCategory();
+      // Dupla Masculino/Feminino só aceita parceiro do mesmo gênero (Misto não filtra).
+      // Equipe: livre e misto não filtram (a composição exata é conta do backend, que valida
+      // elenco + convites pendentes); só composição de gênero único filtra aqui.
+      let requiredGender: 'M' | 'F' | null = null;
+      if (category != null) {
+        if (category.teamSize != null) {
+          const comp = category.genderComposition;
+          if (comp?.women === 0) requiredGender = 'M';
+          else if (comp?.men === 0) requiredGender = 'F';
+        } else if (category.genderType !== 'Mix') {
+          requiredGender = category.genderType;
+        }
+      }
       const results = await searchAthleteDirectory(db, term);
       this.partnerResults.set(
         results.filter(
           (p) =>
             p.id !== uid &&
             !alreadyInvited.has(p.id) &&
-            (categoryGender == null || categoryGender === 'Mix' || normalizeAthleteGender(p.gender) === categoryGender),
+            !alreadyInRoster.has(p.id) &&
+            (requiredGender == null || normalizeAthleteGender(p.gender) === requiredGender),
         ),
       );
       this.lastSearchedTerm.set(term.trim());
@@ -625,7 +836,12 @@ export class TournamentRegistrationShellComponent {
         ...(inviterUniform ? { inviterUniform } : {}),
         ...(this.myLgpdConsentMissing() && this.lgpdAccepted() ? { lgpdAccepted: true } : {}),
       });
-      this.toasts.success('Convite enviado', `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`);
+      this.toasts.success(
+        'Convite enviado',
+        this.isTeamCategory()
+          ? `${candidate.displayName} precisa aceitar para entrar na equipe.`
+          : `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`,
+      );
       this.partnerResults.set([]);
       this.partnerQuery.set('');
       await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
@@ -693,7 +909,14 @@ export class TournamentRegistrationShellComponent {
     this.acceptingInvite.set(true);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform, { lgpdAccepted: true });
-      this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
+      if (invite.isTeamInvite) {
+        this.toasts.success(
+          'Você entrou na equipe',
+          `Bem-vindo à equipe ${invite.teamName ?? invite.inviterName}. Falta o pagamento para confirmar a vaga.`,
+        );
+      } else {
+        this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
+      }
       this.receivedInvite.set(null);
       const uid = this.auth.user()?.uid;
       const tournamentId = this.tournamentId();

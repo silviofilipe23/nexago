@@ -1,7 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { fetchAllLeagues } from '../../data/leagues-repository';
-import { categoryAcceptsRegistration, tournamentListingStatus, type TournamentCategoryOffer } from '../../data/tournaments-repository';
+import {
+  categoryAcceptsRegistration,
+  categoryFormatLabel,
+  categoryGenderDetail,
+  categoryUnitLabel,
+  categoryUnitSingular,
+  tournamentListingStatus,
+  type TournamentCategoryOffer,
+} from '../../data/tournaments-repository';
 import { leagueContextLabel, resolveLeagueContext } from '../tournament-league.helpers';
 import type { DiscoveryLeague } from '../tournament-discovery.models';
 import { TournamentLiveStore } from '../tournament-live.store';
@@ -139,8 +147,16 @@ export class OverviewTabComponent {
   }
 
   protected genderLabel(cat: TournamentCategoryOffer): string {
+    if (cat.genderFree) return 'Livre';
     return genderLabelOf(cat.genderType);
   }
+
+  /** "Dupla" / "Trio" / "Quarteto" / "Quinteto" — o formato real da categoria (o
+   *  `t.format` da raiz do doc é sempre "dupla" por retrocompatibilidade). */
+  protected readonly formatLabel = categoryFormatLabel;
+  protected readonly genderDetail = categoryGenderDetail;
+  protected readonly unitLabel = categoryUnitLabel;
+  protected readonly unitSingular = categoryUnitSingular;
 
   protected categorySpotsLeft(cat: TournamentCategoryOffer): number {
     const enrolled = this.store.enrolledByCategory().get(cat.id);

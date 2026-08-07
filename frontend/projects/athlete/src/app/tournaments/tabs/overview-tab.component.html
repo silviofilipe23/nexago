@@ -44,7 +44,12 @@
                       <h3 class="tdv-cat-name">{{ c.categoryName }}</h3>
                       <div class="tdv-pill-row">
                         <span class="tdv-pill tdv-pill--accent">{{ genderLabel(c) }}</span>
-                        <span class="tdv-pill">{{ t.format }}</span>
+                        <span class="tdv-pill">{{ formatLabel(c) }}</span>
+                        @if (genderDetail(c); as detail) {
+                          @if (detail !== 'Livre') {
+                            <span class="tdv-pill">{{ detail }}</span>
+                          }
+                        }
                         @if (c.level) {
                           <span class="tdv-pill">{{ c.level }}</span>
                         }
@@ -53,14 +58,14 @@
                         <span [style.width.%]="categoryFillPercent(c)"></span>
                       </div>
                       <div class="tdv-cat-foot">
-                        <span>{{ c.maxTeams - categorySpotsLeft(c) }}/{{ c.maxTeams }} duplas</span>
+                        <span>{{ c.maxTeams - categorySpotsLeft(c) }}/{{ c.maxTeams }} {{ unitLabel(c) }}</span>
                         <span class="tdv-cat-vagas">{{ categorySpotsLeft(c) }} vagas livres</span>
                       </div>
                     </div>
                     <div class="tdv-cat-side">
                       <div class="tdv-cat-price">
                         <strong>{{ priceLabel(c) }}</strong>
-                        <span>por dupla</span>
+                        <span>por {{ unitSingular(c) }}</span>
                       </div>
                       <a
                         [routerLink]="categoryCtaLink(c)"

@@ -1,7 +1,10 @@
 import {
   ARENA_AMENITIES_EMPTY,
+  NEXAGO_SALES_EMAIL,
+  NEXAGO_SALES_WHATSAPP,
   arenaContactWhatsAppUrl,
   buildArenaContactWhatsAppMessage,
+  nexagoArenaSignupContactUrl,
   defaultArenaSearchQueryFilters,
   filterAndSortArenaResults,
   type ArenaListItem,
@@ -92,6 +95,36 @@ describe('contato com arena pré-cadastrada', () => {
 
   it('sem número não gera link — o botão não deve aparecer', () => {
     expect(arenaContactWhatsAppUrl(arena({ whatsapp: null, phone: null }))).toBeNull();
+  });
+});
+
+describe('convite "Gostaria de ver sua arena aqui?"', () => {
+  it('com WhatsApp comercial configurado, abre o wa.me', () => {
+    expect(nexagoArenaSignupContactUrl('5562998539835')).toContain(
+      'https://wa.me/5562998539835?text=',
+    );
+  });
+
+  it('sem WhatsApp configurado, cai no e-mail de vendas', () => {
+    // O botão tem de continuar funcionando mesmo sem número — link wa.me
+    // quebrado seria pior que não ter botão.
+    const url = nexagoArenaSignupContactUrl('');
+    expect(url.startsWith(`mailto:${NEXAGO_SALES_EMAIL}`)).toBe(true);
+    expect(url).toContain('subject=');
+  });
+
+  it('número incompleto não vira wa.me quebrado', () => {
+    expect(nexagoArenaSignupContactUrl('98539835').startsWith('mailto:')).toBe(true);
+  });
+
+  it('a constante do web é a mesma do app Flutter', () => {
+    expect(NEXAGO_SALES_WHATSAPP).toBe('5562998539835');
+  });
+
+  it('a mensagem diz que é dono de arena querendo cadastrar', () => {
+    const url = decodeURIComponent(nexagoArenaSignupContactUrl());
+    expect(url).toContain('arena');
+    expect(url).toContain('nexaGO');
   });
 });
 

@@ -1,7 +1,7 @@
 {
   "source": "google-maps-goiania-2026-08",
   "collectedAt": "2026-08-06",
-  "note": "Levantamento de arenas de areia de Goiânia e Aparecida de Goiânia via Google Maps. Entradas sem `whatsapp` NÃO são semeadas (sem WhatsApp não existe botão de contato, que é o ponto da feature) — ficam aqui para quando alguém conseguir o número. Entradas com `active: false` também não são semeadas.",
+  "note": "Levantamento de arenas de areia de Goiânia e Aparecida de Goiânia via Google Maps. Entradas sem `whatsapp` NÃO são semeadas (sem WhatsApp não existe botão de contato, que é o ponto da feature) — ficam aqui para quando alguém conseguir o número. Entradas com `active: false` também não são semeadas. Coordenadas (latitude/longitude) colhidas do Google Maps e validadas por geocodificação reversa contra a cidade declarada.",
   "arenas": [
     {
       "slug": "arena-coligados-vila-rosa",
@@ -10,7 +10,13 @@
       "state": "GO",
       "address": "Rua Desembargador Eládio Amorim, Quadra 51",
       "whatsapp": "5562995797965",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.744491,
+      "longitude": -49.295301
     },
     {
       "slug": "arena-beach-t3",
@@ -19,7 +25,11 @@
       "state": "GO",
       "address": "Av. T-3, 2434 - Setor Bueno",
       "whatsapp": "5562982406456",
-      "courtTypes": ["Beach tennis"]
+      "courtTypes": [
+        "Beach tennis"
+      ],
+      "latitude": -16.7066893,
+      "longitude": -49.2727968
     },
     {
       "slug": "arena-botanic",
@@ -28,7 +38,12 @@
       "state": "GO",
       "address": "R. 90, 265 - Quadra F37 Lote 27",
       "whatsapp": "5562985036662",
-      "courtTypes": ["Beach tennis", "Pickleball"]
+      "courtTypes": [
+        "Beach tennis",
+        "Pickleball"
+      ],
+      "latitude": -16.6933389,
+      "longitude": -49.2521358
     },
     {
       "slug": "speed-arena-setor-sul",
@@ -37,7 +52,13 @@
       "state": "GO",
       "address": "Rua 94, 245, Qd. F-14, Lt. 31/33 - Setor Sul",
       "whatsapp": "5562983092884",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6817326,
+      "longitude": -49.2519187
     },
     {
       "slug": "speed-arena-jardim-atlantico",
@@ -46,7 +67,13 @@
       "state": "GO",
       "address": "Av. Leblon, Quadra 131 - Lote 26",
       "whatsapp": "5562983092884",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7350847,
+      "longitude": -49.2919515
     },
     {
       "slug": "narena-beach-sports",
@@ -55,7 +82,12 @@
       "state": "GO",
       "address": "R. 51, Quadra 75 - Lote 13",
       "whatsapp": "5562981908131",
-      "courtTypes": ["Vôlei de praia", "Beach tennis"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis"
+      ],
+      "latitude": -16.7951671,
+      "longitude": -49.3602828
     },
     {
       "slug": "tribo-sports-de-areia",
@@ -64,7 +96,12 @@
       "state": "GO",
       "address": "R. Alaor Mendonça, 640 - Qd. 14 Lt. 01",
       "whatsapp": "5562982829449",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7435271,
+      "longitude": -49.2849928
     },
     {
       "slug": "futbeach-centro-esportivo",
@@ -73,7 +110,13 @@
       "state": "GO",
       "address": "Av. Jorge Martins, 42-118",
       "whatsapp": "5562991000040",
-      "courtTypes": ["Vôlei de praia", "Futevôlei", "Futebol"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei",
+        "Futebol"
+      ],
+      "latitude": -16.7110504,
+      "longitude": -49.2434015
     },
     {
       "slug": "arena-viver-esportes-na-areia",
@@ -82,7 +125,12 @@
       "state": "GO",
       "address": "R. 1025, 212 - Setor Pedro Ludovico",
       "whatsapp": "5562985380182",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7122768,
+      "longitude": -49.2553212
     },
     {
       "slug": "arena-alpha-beach",
@@ -91,7 +139,13 @@
       "state": "GO",
       "address": "R. 226, Quadra 71 - Lote 50 - Setor Leste Universitário",
       "whatsapp": "5562994651454",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6749769,
+      "longitude": -49.2410514
     },
     {
       "slug": "sua-praia-esportes",
@@ -100,7 +154,13 @@
       "state": "GO",
       "address": "Av. São Carlos com R. São Judas Tadeu, Qd. 35 - Lt. 01/03",
       "whatsapp": "5562983180455",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7156907,
+      "longitude": -49.3045907
     },
     {
       "slug": "arena-top-sport",
@@ -109,7 +169,12 @@
       "state": "GO",
       "address": "Av. Santa Maria, Quadra 23 - Lote 11",
       "whatsapp": "5562982682474",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.6677212,
+      "longitude": -49.3303951
     },
     {
       "slug": "pe-na-areia",
@@ -118,7 +183,13 @@
       "state": "GO",
       "address": "Alameda Imbé, 1205-1349 - Parque Amazônia",
       "whatsapp": "5562981410149",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7275183,
+      "longitude": -49.2735868
     },
     {
       "slug": "gold-beach-arena",
@@ -127,7 +198,13 @@
       "state": "GO",
       "address": "Alameda Anicuns",
       "whatsapp": "5562984705558",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6506929,
+      "longitude": -49.281934
     },
     {
       "slug": "arena-verano",
@@ -136,7 +213,12 @@
       "state": "GO",
       "address": "R. 111 - Jardim Goiás",
       "whatsapp": "5562981110178",
-      "courtTypes": ["Beach tennis", "Vôlei de praia"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.7072005,
+      "longitude": -49.2312001
     },
     {
       "slug": "sports-beach",
@@ -145,7 +227,13 @@
       "state": "GO",
       "address": "Av. Padre Orlando de Morais, Quadra 03 - Lote 01 - Vila Rosa",
       "whatsapp": "5562982065737",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7411839,
+      "longitude": -49.2842298
     },
     {
       "slug": "territorio-sports",
@@ -154,7 +242,12 @@
       "state": "GO",
       "address": "Av. Padre Orlando de Morais",
       "whatsapp": "5562981269206",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7348605,
+      "longitude": -49.2877964
     },
     {
       "slug": "arena-serrinha",
@@ -163,7 +256,12 @@
       "state": "GO",
       "address": "R. 1106, 492-704",
       "whatsapp": "5562999800788",
-      "courtTypes": ["Vôlei de praia", "Beach tennis"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis"
+      ],
+      "latitude": -16.7253185,
+      "longitude": -49.2661815
     },
     {
       "slug": "arena-flamboyant-sports",
@@ -172,7 +270,13 @@
       "state": "GO",
       "address": "Ala dos Flamboyant, Quadra E, Lote 08",
       "whatsapp": "5562981248481",
-      "courtTypes": ["Beach tennis", "Futevôlei", "Vôlei de praia"]
+      "courtTypes": [
+        "Beach tennis",
+        "Futevôlei",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.6151537,
+      "longitude": -49.2680424
     },
     {
       "slug": "arena-trem-azul",
@@ -181,7 +285,12 @@
       "state": "GO",
       "address": "Rua F, 65 - Quadra 194 Lote 23",
       "whatsapp": "5562998037552",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7463722,
+      "longitude": -49.3101641
     },
     {
       "slug": "pequi-futevolei",
@@ -190,7 +299,12 @@
       "state": "GO",
       "address": "Av. C-10, 166-254",
       "whatsapp": "5562981135766",
-      "courtTypes": ["Futevôlei", "Vôlei de praia"]
+      "courtTypes": [
+        "Futevôlei",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.6888738,
+      "longitude": -49.2950347
     },
     {
       "slug": "rmct-beach",
@@ -199,7 +313,12 @@
       "state": "GO",
       "address": "R. C-181, 249 - Lote 6",
       "whatsapp": "5562982105927",
-      "courtTypes": ["Vôlei de praia", "Beach tennis"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis"
+      ],
+      "latitude": -16.7216895,
+      "longitude": -49.2720785
     },
     {
       "slug": "ilha-futevolei",
@@ -208,7 +327,12 @@
       "state": "GO",
       "address": "Av. Jacinto Alves de Abreu, Quadra 23 - Lote 08",
       "whatsapp": "5562999247955",
-      "courtTypes": ["Futevôlei", "Vôlei de praia"]
+      "courtTypes": [
+        "Futevôlei",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.7180399,
+      "longitude": -49.3447614
     },
     {
       "slug": "wave-esportes",
@@ -217,7 +341,13 @@
       "state": "GO",
       "address": "R. SP 2, 12",
       "whatsapp": "5562985483059",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6453336,
+      "longitude": -49.2974172
     },
     {
       "slug": "baia-alma-de-sol",
@@ -226,7 +356,13 @@
       "state": "GO",
       "address": "Av. Afonso Pena",
       "whatsapp": "5562982186200",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.707722,
+      "longitude": -49.297439
     },
     {
       "slug": "nova-praia",
@@ -235,7 +371,12 @@
       "state": "GO",
       "address": "Av. C-7 com R. C-50, Quadra 79 - Lote 07",
       "whatsapp": "5562984948286",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7012079,
+      "longitude": -49.2953622
     },
     {
       "slug": "goiania-beach-esportes-de-areia",
@@ -244,7 +385,13 @@
       "state": "GO",
       "address": "Av. Goiânia - Jardim Guanabara",
       "whatsapp": "5562993245151",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6159067,
+      "longitude": -49.2209085
     },
     {
       "slug": "arena-jotape-sports",
@@ -253,7 +400,12 @@
       "state": "GO",
       "address": "R. Maria Alice",
       "whatsapp": "5562995305252",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.6547362,
+      "longitude": -49.2441971
     },
     {
       "slug": "barra-beach-tennis",
@@ -262,7 +414,11 @@
       "state": "GO",
       "address": "R. J-35, 54 - Quadra 54, Lote 4 - Setor Jaó",
       "whatsapp": "5562985142484",
-      "courtTypes": ["Beach tennis"]
+      "courtTypes": [
+        "Beach tennis"
+      ],
+      "latitude": -16.6531246,
+      "longitude": -49.2294928
     },
     {
       "slug": "arena-independencia-goiania",
@@ -271,7 +427,13 @@
       "state": "GO",
       "address": "Avenida Independência, Quadra F2 Lote 3/4",
       "whatsapp": "5562984524896",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6636768,
+      "longitude": -49.2379321
     },
     {
       "slug": "duna-arena",
@@ -280,7 +442,13 @@
       "state": "GO",
       "address": "Av. C, 201 - Quadra A-19 Lotes 20/22",
       "whatsapp": "5562981186061",
-      "courtTypes": ["Beach tennis", "Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.6889708,
+      "longitude": -49.2361492
     },
     {
       "slug": "villa-mare-esportes-lazer",
@@ -289,7 +457,13 @@
       "state": "GO",
       "address": "R. Sete de Setembro, 72",
       "whatsapp": "5562994213033",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6502605,
+      "longitude": -49.3192178
     },
     {
       "slug": "orla-armaco",
@@ -298,7 +472,13 @@
       "state": "GO",
       "address": "R. 132, 300 - Setor Sul",
       "whatsapp": "5562985638677",
-      "courtTypes": ["Beach tennis", "Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.6925377,
+      "longitude": -49.2592513
     },
     {
       "slug": "ct-imperio-beach",
@@ -307,7 +487,12 @@
       "state": "GO",
       "address": "Av. Angélica",
       "whatsapp": "5562994767299",
-      "courtTypes": ["Beach tennis", "Vôlei de praia"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.729685,
+      "longitude": -49.2298955
     },
     {
       "slug": "arena-jardim",
@@ -316,7 +501,12 @@
       "state": "GO",
       "address": "R. 4, S/N - Quadra A8 Lote 25",
       "whatsapp": "5562996266999",
-      "courtTypes": ["Beach tennis", "Vôlei de praia"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.6949583,
+      "longitude": -49.2384981
     },
     {
       "slug": "arena-black-beach",
@@ -325,7 +515,13 @@
       "state": "GO",
       "address": "Praça Princesa Isabel, Quadra 11",
       "whatsapp": "5562985662113",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6884288,
+      "longitude": -49.3550949
     },
     {
       "slug": "tucan-beach-tennis",
@@ -334,7 +530,11 @@
       "state": "GO",
       "address": "Av. C-197, 1430",
       "whatsapp": "5562994595885",
-      "courtTypes": ["Beach tennis"]
+      "courtTypes": [
+        "Beach tennis"
+      ],
+      "latitude": -16.7045965,
+      "longitude": -49.2774397
     },
     {
       "slug": "academia-smash-tennis-center",
@@ -343,7 +543,12 @@
       "state": "GO",
       "address": "R. 6-A, Quadra 12 - Lote 12",
       "whatsapp": "5562984696604",
-      "courtTypes": ["Tênis", "Beach tennis"]
+      "courtTypes": [
+        "Tênis",
+        "Beach tennis"
+      ],
+      "latitude": -16.7291278,
+      "longitude": -49.2528762
     },
     {
       "slug": "arena-to-play-sports",
@@ -352,16 +557,28 @@
       "state": "GO",
       "address": "Rua 29-B",
       "whatsapp": "5562994525465",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7514565,
+      "longitude": -49.3364611
     },
     {
       "slug": "vegeton-beach-club",
       "name": "Vegeton Beach Club",
-      "city": "Goiânia",
+      "city": "Aparecida de Goiânia",
       "state": "GO",
-      "address": "Av. Prof. Chevalier Name Jafete, Quadra 25 - Lote 01/05",
+      "address": "Av. Prof. Chevalier Name Jafete, Quadra 25 - Lote 01/05 - Vila Mariana",
       "whatsapp": "5562981719929",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.751513,
+      "longitude": -49.2869113
     },
     {
       "slug": "prainha-esportes-na-areia",
@@ -370,7 +587,13 @@
       "state": "GO",
       "address": "Av. Paulo Alves da Costa, Quadra 12 - Lote 02",
       "whatsapp": "5562982349609",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.6538465,
+      "longitude": -49.1890662
     },
     {
       "slug": "arena-posto01",
@@ -379,7 +602,12 @@
       "state": "GO",
       "address": null,
       "whatsapp": "5562992041956",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.6101106,
+      "longitude": -49.3085306
     },
     {
       "slug": "arena-floripa",
@@ -388,7 +616,12 @@
       "state": "GO",
       "address": null,
       "whatsapp": "5562991433502",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.6827736,
+      "longitude": -49.2154742
     },
     {
       "slug": "escola-guga-tenis",
@@ -397,7 +630,10 @@
       "state": "GO",
       "address": "Rua 69, 471-419 - Jardim Goiás",
       "whatsapp": "5562981166961",
-      "courtTypes": ["Tênis", "Beach tennis"]
+      "courtTypes": [
+        "Tênis",
+        "Beach tennis"
+      ]
     },
     {
       "slug": "bueno-tennis-club",
@@ -406,7 +642,12 @@
       "state": "GO",
       "address": "Av. T-15, 138 - Setor Bueno",
       "whatsapp": "5562999071491",
-      "courtTypes": ["Tênis", "Beach tennis"]
+      "courtTypes": [
+        "Tênis",
+        "Beach tennis"
+      ],
+      "latitude": -16.7063765,
+      "longitude": -49.2753514
     },
     {
       "slug": "arena-beach-51",
@@ -415,7 +656,9 @@
       "state": "GO",
       "address": "R. T-51, 616 - Setor Bueno",
       "whatsapp": "5562981070505",
-      "courtTypes": ["Beach tennis"]
+      "courtTypes": [
+        "Beach tennis"
+      ]
     },
     {
       "slug": "arena-copacabana-beach",
@@ -424,7 +667,12 @@
       "state": "GO",
       "address": "R. C-139, 242 - Jardim América",
       "whatsapp": "5562999219900",
-      "courtTypes": ["Beach tennis", "Vôlei de praia"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.708733,
+      "longitude": -49.2752616
     },
     {
       "slug": "erre-jota",
@@ -433,7 +681,13 @@
       "state": "GO",
       "address": "Rua Cláudio Monteverdi, Quadra 40, Lotes 8 a 16 - Jardim Luz",
       "whatsapp": "5562992602420",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7468335,
+      "longitude": -49.2717899
     },
     {
       "slug": "arena-open-beach-club",
@@ -442,7 +696,13 @@
       "state": "GO",
       "address": "R. São Jorge, 170-256 - Conjunto Cruzeiro do Sul",
       "whatsapp": "5562996224588",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.749401,
+      "longitude": -49.283402
     },
     {
       "slug": "arena-buriti-beach",
@@ -451,7 +711,13 @@
       "state": "GO",
       "address": "R. H-053, 34 - Jardins Mônaco",
       "whatsapp": "5562993185199",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7631926,
+      "longitude": -49.2980861
     },
     {
       "slug": "arena-balada",
@@ -460,7 +726,13 @@
       "state": "GO",
       "address": "Av. Capyaba - Jardim Helvécia",
       "whatsapp": "5562993132393",
-      "courtTypes": ["Beach tennis", "Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7539631,
+      "longitude": -49.3277333
     },
     {
       "slug": "arena-chopp-esportes-de-areia",
@@ -469,7 +741,13 @@
       "state": "GO",
       "address": "Rua J04, Quadra 76 - Lote 07 - Mansões Paraíso",
       "whatsapp": "5562981633814",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7772129,
+      "longitude": -49.2761494
     },
     {
       "slug": "arena-w3",
@@ -478,7 +756,12 @@
       "state": "GO",
       "address": "Av. Argélia, 1466-1476 - Parque Hayala",
       "whatsapp": "5562982044145",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.8149678,
+      "longitude": -49.3081631
     },
     {
       "slug": "quintal-fit-volei-de-praia",
@@ -487,7 +770,12 @@
       "state": "GO",
       "address": "Av. Mineira, 1235-1403 - Setor dos Afonsos",
       "whatsapp": "5562981894755",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7420761,
+      "longitude": -49.2699658
     },
     {
       "slug": "arena-talasso",
@@ -496,7 +784,12 @@
       "state": "GO",
       "address": "R. 9-E, Quadra 26 - Lote 17 - Setor Garavelo Residencial Park",
       "whatsapp": "5562982006353",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7630015,
+      "longitude": -49.3406014
     },
     {
       "slug": "beach-ipanema-aparecida",
@@ -505,7 +798,12 @@
       "state": "GO",
       "address": "Av. Zoroastro Artiaga, Quadra 003, Lote 10",
       "whatsapp": "5562981510224",
-      "courtTypes": ["Beach tennis", "Vôlei de praia"]
+      "courtTypes": [
+        "Beach tennis",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.7609487,
+      "longitude": -49.2759678
     },
     {
       "slug": "nossa-praia-sports",
@@ -514,7 +812,13 @@
       "state": "GO",
       "address": "Av. Brasil",
       "whatsapp": "5562996613082",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.8297254,
+      "longitude": -49.2504715
     },
     {
       "slug": "arena-paris-beach-sports",
@@ -523,7 +827,13 @@
       "state": "GO",
       "address": "R. 4, Quadra 06 - Lote 08",
       "whatsapp": "5562992696374",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.833666,
+      "longitude": -49.2501227
     },
     {
       "slug": "tijuca-arena",
@@ -532,7 +842,12 @@
       "state": "GO",
       "address": "Rua X-26, S/N esquina com Av. Santa Rita",
       "whatsapp": "5562992990006",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.7478581,
+      "longitude": -49.2279515
     },
     {
       "slug": "arena-lago-sports",
@@ -541,7 +856,13 @@
       "state": "GO",
       "address": "Rua Dr. José Osvaldo com R. Alexandre Araújo",
       "whatsapp": "5562994794469",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7543556,
+      "longitude": -49.294094
     },
     {
       "slug": "arena-recanto-do-boy",
@@ -550,7 +871,12 @@
       "state": "GO",
       "address": "R. João Teixeira Alves, Quadra 98 - Lote 10",
       "whatsapp": "5562999711837",
-      "courtTypes": ["Futevôlei", "Vôlei de praia"]
+      "courtTypes": [
+        "Futevôlei",
+        "Vôlei de praia"
+      ],
+      "latitude": -16.7693758,
+      "longitude": -49.2875157
     },
     {
       "slug": "a10-centro-esportivo",
@@ -559,7 +885,12 @@
       "state": "GO",
       "address": "Rua 3, Quadra 25, Lote 04 - Av. Independência",
       "whatsapp": "5562985338067",
-      "courtTypes": ["Vôlei de praia", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Futevôlei"
+      ],
+      "latitude": -16.8175099,
+      "longitude": -49.2913457
     },
     {
       "slug": "beach-play-arena",
@@ -569,7 +900,13 @@
       "address": "R. Caragoatá - Setor dos Afonsos",
       "whatsapp": null,
       "skipReason": "Só telefone fixo no Google: (62) 3542-5328. Precisa de celular para o botão de contato.",
-      "courtTypes": ["Vôlei de praia", "Beach tennis", "Futevôlei"]
+      "courtTypes": [
+        "Vôlei de praia",
+        "Beach tennis",
+        "Futevôlei"
+      ],
+      "latitude": -16.7399497,
+      "longitude": -49.2700738
     },
     {
       "slug": "arena-buritis",
@@ -579,7 +916,11 @@
       "address": "R. Girassol, 61 - Jardim Imperial",
       "whatsapp": null,
       "skipReason": "Sem telefone no Google.",
-      "courtTypes": ["Vôlei de praia"]
+      "courtTypes": [
+        "Vôlei de praia"
+      ],
+      "latitude": -16.7690506,
+      "longitude": -49.2336212
     },
     {
       "slug": "praia-dos-boni",
@@ -589,7 +930,11 @@
       "address": "Av. Sucuri, Quadra 143 - Lote 08",
       "whatsapp": null,
       "skipReason": "Sem telefone no Google.",
-      "courtTypes": ["Vôlei de praia"]
+      "courtTypes": [
+        "Vôlei de praia"
+      ],
+      "latitude": -16.6385942,
+      "longitude": -49.2300955
     },
     {
       "slug": "arena-beach-place",
@@ -599,7 +944,11 @@
       "address": "Alameda Imbé, 1375 - Parque Amazônia",
       "whatsapp": null,
       "skipReason": "Sem telefone no Google.",
-      "courtTypes": ["Vôlei de praia"]
+      "courtTypes": [
+        "Vôlei de praia"
+      ],
+      "latitude": -16.7264724,
+      "longitude": -49.2750704
     },
     {
       "slug": "santos-arena-beach",
@@ -609,7 +958,9 @@
       "address": null,
       "whatsapp": null,
       "skipReason": "Sem telefone e sem endereço no Google.",
-      "courtTypes": ["Vôlei de praia"]
+      "courtTypes": [
+        "Vôlei de praia"
+      ]
     },
     {
       "slug": "volei-mania",
@@ -620,7 +971,9 @@
       "whatsapp": "5562992385880",
       "active": false,
       "skipReason": "Google marca como \"sem funcionar temporariamente\".",
-      "courtTypes": ["Vôlei de praia"]
+      "courtTypes": [
+        "Vôlei de praia"
+      ]
     }
   ]
 }

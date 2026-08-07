@@ -102,33 +102,6 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'RESERVA',
-                          style: AppTypography.mono(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                            color: colors.onSurfaceMuted,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        // Mesmo peso do preço da parceira, só apagado: a linha
-                        // pesa igual na lista sem competir com quem tem preço.
-                        Text(
-                          'indisponível',
-                          style: AppTypography.mono(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                            color: colors.onSurfaceMuted,
-                            height: 1,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
                 SizedBox(height: 12),

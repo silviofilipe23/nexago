@@ -18,6 +18,7 @@ import {
   defaultArenaSearchQueryFilters,
   defaultSportChipFromProfile,
   filterAndSortArenaResults,
+  nexagoArenaSignupContactUrl,
   sameCalendarDay,
   searchArenas,
   toggleFavoriteArena,
@@ -508,6 +509,9 @@ export class AthleteReservarComponent {
   protected contactUrl(arena: ArenaListItem): string | null {
     return arenaContactWhatsAppUrl(arena);
   }
+
+  /** Destino do "Gostaria de ver sua arena aqui?" (constante, não muda por render). */
+  protected readonly arenaSignupUrl = nexagoArenaSignupContactUrl();
 
   /**
    * Ocupa, no hero da pré-cadastrada, o lugar que na parceira é "N QUADRAS".

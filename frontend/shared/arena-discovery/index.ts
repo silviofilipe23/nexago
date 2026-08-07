@@ -2,8 +2,11 @@ export type { ArenaListItem } from './arena-list-item';
 export { arenaListItemFromFirestore, arenaListItemImageUrl } from './arena-list-item';
 
 export {
+  NEXAGO_SALES_EMAIL,
+  NEXAGO_SALES_WHATSAPP,
   arenaContactWhatsAppUrl,
   buildArenaContactWhatsAppMessage,
+  nexagoArenaSignupContactUrl,
 } from './arena-contact';
 
 export type { ArenaAmenities } from './arena-amenities';

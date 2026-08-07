@@ -10,7 +10,7 @@
     "deploy": "firebase deploy --only functions",
     "deploy:dev": "firebase use dev && firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "npm run build && node --test lib/**/*.test.js test/seed-test-data-password.test.mjs",
+    "test": "npm run build && node --test lib/**/*.test.js test/seed-test-data-password.test.mjs test/unclaimed-arenas-data.test.mjs",
     "bulk-enroll": "node scripts/bulk-enroll-league-stage.js",
     "seed-tournament": "node scripts/seed-tournament-with-enrollments.js",
     "seed-tournament-today": "node scripts/seed-tournament-today-with-enrollments.js",

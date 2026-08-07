@@ -112,7 +112,7 @@ class AthleteMatchDetailPage extends ConsumerWidget {
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
-                final share = detail?.shareInfo;
+                final share = detail?.sharePoster;
                 if (share != null) {
                   showMatchDetailShareSheet(context, share);
                 } else {
@@ -218,8 +218,8 @@ class _DetailBody extends StatelessWidget {
           onTournament: () => _onTournament(context),
           onRematch: () => showAppSnackBar(context, 'Em breve.'),
           onOpponentProfile: () => showAppSnackBar(context, 'Em breve.'),
-          onShare: detail.shareInfo != null
-              ? () => showMatchDetailShareSheet(context, detail.shareInfo!)
+          onShare: detail.sharePoster != null
+              ? () => showMatchDetailShareSheet(context, detail.sharePoster!)
               : null,
         ),
       ],
@@ -394,9 +394,9 @@ class _DetailBody extends StatelessWidget {
   }
 
   List<Widget> _shareSectionWidgets() {
-    final share = detail.shareInfo;
-    if (share == null) return const [];
-    return [SizedBox(height: 20), MatchDetailShareSection(share: share)];
+    final poster = detail.sharePoster;
+    if (poster == null) return const [];
+    return [SizedBox(height: 20), MatchDetailShareSection(poster: poster)];
   }
 
   /// H2H individual (por atleta) vs o adversário — complementa

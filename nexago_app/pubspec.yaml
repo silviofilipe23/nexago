@@ -126,3 +126,10 @@ flutter:
           weight: 700
         - asset: assets/fonts/JetBrainsMono/JetBrainsMono-ExtraBold.ttf
           weight: 800
+    # Só o pôster de compartilhamento usa Inter — é a fonte de UI do portal web
+    # (`--nx-font-ui`), e o nome da dupla adversária no pôster é desenhado nela.
+    # Arquivo instanciado em wght=600 e reduzido ao latim (50 KB no lugar de 876 KB).
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter/Inter-SemiBold.ttf
+          weight: 600

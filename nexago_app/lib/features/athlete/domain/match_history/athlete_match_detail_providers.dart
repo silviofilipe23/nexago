@@ -25,7 +25,7 @@ import 'athlete_match_detail_mapper.dart';
 import 'athlete_match_detail_models.dart';
 import 'match_detail_form_logic.dart';
 import 'match_detail_head_to_head_logic.dart';
-import 'match_detail_share_builder.dart';
+import 'match_share_poster_builder.dart';
 import 'match_detail_xp_logic.dart';
 
 /// Histórico de partidas das duas duplas, cacheado por par de teamIds.
@@ -351,8 +351,22 @@ Future<AthleteMatchDetail?> _resolveAthleteMatchDetail({
     }
   }
 
-  final share = buildMatchDetailShareInfo(detail) ?? detail.shareInfo;
-  return detail.copyWith(shareInfo: share);
+  // O selo do pôster nomeia o grupo pela posição dele entre os grupos do
+  // torneio ("Grupo A · rodada 2"), como o portal — daí a lista completa.
+  final tournamentMatches = match.poolId.trim().isEmpty
+      ? const <TournamentMatch>[]
+      : await matchRepo.getByTournamentId(match.tournamentId);
+
+  return detail.copyWith(
+    sharePoster: buildMatchSharePosterData(
+      match: match,
+      tournamentMatches: tournamentMatches,
+      tournamentName: tournamentNames[match.tournamentId],
+      categoryName: categoryLabel,
+      teams: teams,
+      profiles: profiles,
+    ),
+  );
 }
 
 String? _participantRoleLabel(CompeteHubUserRanking? ranking) {

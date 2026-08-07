@@ -16,6 +16,8 @@ ArenaListItem _arena({
   ArenaAmenities amenities = ArenaAmenities.empty,
   bool online = true,
   bool onsite = true,
+  double lat = -16.68,
+  double lng = -49.26,
 }) {
   return ArenaListItem(
     id: id,
@@ -24,8 +26,8 @@ ArenaListItem _arena({
     pricePerHourReais: isUnclaimed ? 0 : 80,
     city: 'Goiânia',
     state: 'GO',
-    latitude: -16.68,
-    longitude: -49.26,
+    latitude: lat,
+    longitude: lng,
     courtTypes: const ['Vôlei de praia'],
     amenities: amenities,
     reputationScore: reputationScore,
@@ -154,6 +156,33 @@ void main() {
       );
 
       expect(ids, isNot(contains('pre')));
+    });
+
+    test('ganha distância medida quando tem coordenada', () {
+      // ~1,2 km ao sul do usuário. Antes de as arenas terem lat/lng isto vinha
+      // nulo e o card mostrava "—".
+      final perto = _arena(id: 'pre', isUnclaimed: true, lat: -16.691);
+      final out = filterAndSortArenaResults(
+        results: [_result(perto, display: 0)],
+        filters: ArenaSearchFilters.showAll(
+          slot: ArenaSearchFilters.defaults().slot,
+        ),
+        userLocation: user,
+        favoriteIds: const {},
+      );
+      expect(out.single.kmDistance, isNotNull);
+      expect(out.single.kmDistance, greaterThan(1));
+      expect(out.single.kmDistance, lessThan(2));
+    });
+
+    test('com coordenada, passa a ser cortada pelo raio de busca', () {
+      // Consequência de ter lat/lng: antes ela escapava do filtro de raio.
+      final longe = _arena(id: 'pre', isUnclaimed: true, lat: -17.4);
+      final filters = ArenaSearchFilters.showAll(
+        slot: ArenaSearchFilters.defaults().slot,
+      ).copyWith(radiusKm: 10);
+
+      expect(idsAfterFilter([_result(longe, display: 0)], filters), isEmpty);
     });
 
     test('some quando o atleta exige reputação mínima', () {

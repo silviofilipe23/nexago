@@ -23,6 +23,7 @@ abstract final class TournamentPredictionEntryMapper {
       picks: _picks(data['picks']),
       championPick: _str(data['championPick']),
       score: _int(data['score']) ?? 0,
+      previousRank: _positiveInt(data['previousRank']),
       submittedAt: _timestamp(data['submittedAt']),
       updatedAt: _timestamp(data['updatedAt']),
     );
@@ -50,6 +51,13 @@ abstract final class TournamentPredictionEntryMapper {
     if (v is int) return v;
     if (v is num) return v.toInt();
     return null;
+  }
+
+  /// Posição é 1-based: zero ou negativo é dado corrompido, e vira "sem foto"
+  /// em vez de uma seta com valor absurdo.
+  static int? _positiveInt(dynamic v) {
+    final value = _int(v);
+    return value != null && value > 0 ? value : null;
   }
 
   static DateTime? _timestamp(dynamic value) {

@@ -17,6 +17,7 @@ class RankingListTile extends ConsumerWidget {
     required this.entry,
     this.highlight = false,
     this.onTap,
+    this.trailing,
   });
 
   /// Altura aproximada para placeholder de scroll (card flutuante).
@@ -25,6 +26,10 @@ class RankingListTile extends ConsumerWidget {
   final RankingListEntry entry;
   final bool highlight;
   final VoidCallback? onTap;
+
+  /// Conteúdo opcional depois da pontuação. Usado pelo ranking de palpites para
+  /// a variação de posição; `null` no ranking global, que não tem esse dado.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,6 +135,7 @@ class RankingListTile extends ConsumerWidget {
                   color: highlight ? AppColors.brand : context.themeColors.onSurface,
                 ),
               ),
+              if (trailing != null) ...[SizedBox(width: 8), trailing!],
             ],
           ),
         ),
@@ -143,13 +149,20 @@ class RankingUserHighlightTile extends StatelessWidget {
     super.key,
     required this.entry,
     this.onTap,
+    this.trailing,
   });
 
   final RankingListEntry entry;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return RankingListTile(entry: entry, highlight: true, onTap: onTap);
+    return RankingListTile(
+      entry: entry,
+      highlight: true,
+      onTap: onTap,
+      trailing: trailing,
+    );
   }
 }

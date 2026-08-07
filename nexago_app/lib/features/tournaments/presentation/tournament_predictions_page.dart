@@ -9,12 +9,17 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../ranking/domain/ranking_list_mapper.dart';
 import '../../ranking/presentation/widgets/ranking_list_tile.dart';
 import '../../ranking/presentation/widgets/ranking_podium.dart';
+import '../domain/predictions/prediction_share_text.dart';
 import '../domain/predictions/tournament_prediction_entry.dart';
 import '../domain/predictions/tournament_predictions_logic.dart';
 import '../domain/predictions/tournament_predictions_providers.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_match.dart';
 import 'widgets/predictions/prediction_match_pick_card.dart';
+import 'widgets/predictions/prediction_rank_delta.dart';
+import 'widgets/predictions/prediction_share_capture.dart';
+import 'widgets/predictions/predictions_campaign_card.dart';
+import 'widgets/predictions/predictions_scoring_panel.dart';
 import 'widgets/tournament_detail/tournament_detail_subpage_scaffold.dart';
 
 enum _PredictionsSection { picks, leaderboard }
@@ -38,6 +43,7 @@ class _TournamentPredictionsPageState
   final Map<String, String> _draftPicks = {};
   bool _draftInitialized = false;
   bool _submitting = false;
+  bool _sharing = false;
 
   void _seedDraftIfNeeded(TournamentPredictionEntry? entry) {
     if (_draftInitialized) return;
@@ -257,15 +263,70 @@ class _TournamentPredictionsPageState
 
     final profiles = profilesAsync.value ?? const {};
     final uid = ref.watch(firebaseAuthProvider).currentUser?.uid;
-    final rows = buildPredictionLeaderboardEntries(
+    final matches = (ref.watch(tournamentMatchCardsProvider(widget.tournamentId)).value ??
+            const [])
+        .map((c) => c.match)
+        .toList();
+
+    final rows = buildPredictionLeaderboard(
       entries,
       profiles: profiles,
+      matches: matches,
       currentUserId: uid,
     );
-    final podium = podiumEntries(rows);
-    final rest = listEntriesFromRank4(rows);
+    final deltas = {for (final row in rows) row.entry.entityId: row.delta};
+    final listEntries = rows.map((row) => row.entry).toList();
+    final podium = podiumEntries(listEntries);
+    final rest = listEntriesFromRank4(listEntries);
+
+    final myEntry =
+        ref.watch(myTournamentPredictionEntryProvider(widget.tournamentId)).value;
+    final stats = predictionStatsOf(myEntry, matches, rows);
+    final hasPlayed = (myEntry?.picks.isNotEmpty ?? false);
 
     return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  rows.length == 1
+                      ? '1 participante'
+                      : '${rows.length} participantes',
+                  style: AppTypography.mono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurfaceMuted,
+                  ).copyWith(letterSpacing: 1.4),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: _sharing ? null : () => _shareRanking(rows),
+                icon: _sharing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.black,
+                        ),
+                      )
+                    : const Icon(Icons.ios_share, size: 18),
+                label: Text(_sharing ? 'Gerando…' : 'Compartilhar'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       if (podium.isNotEmpty)
         SliverToBoxAdapter(
           child: Padding(
@@ -273,22 +334,68 @@ class _TournamentPredictionsPageState
             child: RankingPodium(entries: podium),
           ),
         ),
+      if (hasPlayed)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: PredictionsCampaignCard(stats: stats),
+          ),
+        ),
       SliverList(
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             final row = rest[index];
+            final trailing = PredictionRankDelta(delta: deltas[row.entityId]);
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: row.isCurrentUser
-                  ? RankingUserHighlightTile(entry: row)
-                  : RankingListTile(entry: row),
+                  ? RankingUserHighlightTile(entry: row, trailing: trailing)
+                  : RankingListTile(entry: row, trailing: trailing),
             );
           },
           childCount: rest.length,
         ),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: const PredictionsScoringPanel(),
+        ),
+      ),
     ];
+  }
+
+  Future<void> _shareRanking(List<PredictionLeaderboardRow> rows) async {
+    if (_sharing || rows.isEmpty) return;
+    setState(() => _sharing = true);
+    try {
+      final url = predictionShareUrl(widget.tournamentId);
+      final data = buildPredictionShareData(
+        tournamentName: ref
+            .read(tournamentDetailProvider(widget.tournamentId))
+            .valueOrNull
+            ?.name,
+        leaderboard: rows,
+        url: url,
+      );
+
+      final file = await capturePredictionSharePng(data);
+      if (!mounted) return;
+      if (file == null) {
+        _showSnack('Não foi possível gerar a imagem.');
+        return;
+      }
+
+      await sharePredictionRankingPng(
+        context,
+        file,
+        predictionShareText(data, url),
+      );
+    } catch (_) {
+      if (mounted) _showSnack('Não foi possível compartilhar agora.');
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 }
 

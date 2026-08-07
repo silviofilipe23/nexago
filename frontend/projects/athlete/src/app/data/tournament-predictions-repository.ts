@@ -20,6 +20,13 @@ export interface TournamentPredictionEntry {
   championPick: string | null;
   /** Pontos creditados pelo trigger de conclusão de partida: +1 por acerto, +3 no campeão. */
   score: number;
+  /**
+   * Posição que a pessoa ocupava ANTES da última partida pontuada — a base da seta de variação.
+   * Gravada pelo trigger (`snapshotPredictionRanks`, `functions/src/tournament-predictions.ts`)
+   * em todas as entries de uma vez. `null` até o torneio ter a primeira partida concluída, ou
+   * enquanto as functions de palpites não estiverem implantadas no ambiente.
+   */
+  previousRank: number | null;
 }
 
 function stringOf(raw: unknown): string {
@@ -43,6 +50,7 @@ function entryFromDoc(snap: QueryDocumentSnapshot): TournamentPredictionEntry {
     picks: picksOf(data['picks']),
     championPick: stringOf(data['championPick']) || null,
     score: typeof data['score'] === 'number' ? data['score'] : 0,
+    previousRank: typeof data['previousRank'] === 'number' && data['previousRank'] > 0 ? data['previousRank'] : null,
   };
 }
 

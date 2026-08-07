@@ -256,6 +256,14 @@ export class ArenaDetailComponent {
         this.loading.set(false);
         return;
       }
+      // Nenhum card leva a detalhe de arena pré-cadastrada, mas a rota aceita id
+      // pela URL (link compartilhado, histórico). Sem isso a página abriria com
+      // preço, nota e agenda zerados, parecendo arena quebrada.
+      if (arena.isUnclaimed) {
+        this.error.set('Esta arena ainda não reserva pela nexaGO.');
+        this.loading.set(false);
+        return;
+      }
       this.arena.set(arena);
 
       // Clubinho não bloqueia o resto da página (e some em silêncio se falhar).

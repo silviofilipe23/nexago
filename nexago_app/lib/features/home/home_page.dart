@@ -21,7 +21,7 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).valueOrNull;
-    final arenasAsync = ref.watch(arenasStreamProvider);
+    final arenasAsync = ref.watch(partnerArenasStreamProvider);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
 
     return AppScaffold(
@@ -69,7 +69,7 @@ class HomePage extends ConsumerWidget {
             title: 'Não foi possível carregar',
             message:
                 'Verifique sua conexão e tente de novo.\n${e.toString().replaceFirst('Exception: ', '')}',
-            onRetry: () => ref.invalidate(arenasStreamProvider),
+            onRetry: () => ref.invalidate(partnerArenasStreamProvider),
           ),
         ),
       ),

@@ -187,6 +187,18 @@ bool arenaMatchesQuery(ArenaListItem arena, String query) {
   return haystack.contains(q);
 }
 
+/// Filtros que são uma promessa da arena parceira (preço, forma de pagamento,
+/// comodidade, reputação). A pré-cadastrada não faz nenhuma dessas promessas —
+/// só temos nome, endereço, esporte e WhatsApp dela — então listá-la aqui seria
+/// afirmar algo que não sabemos. Fora esses, ela concorre normal: busca por
+/// texto, esporte e superfície funcionam com o que foi semeado.
+bool _unclaimedSurvivesFilters(ArenaSearchFilters filters) {
+  return filters.priceBand == ArenaPriceBand.any &&
+      filters.paymentMethods.isEmpty &&
+      !filters.requiredAmenities.hasAny &&
+      filters.minReputationScore <= 0;
+}
+
 List<FilteredArenaSearchResult> filterAndSortArenaResults({
   required List<ArenaSearchResult> results,
   required ArenaSearchFilters filters,
@@ -197,6 +209,9 @@ List<FilteredArenaSearchResult> filterAndSortArenaResults({
 
   for (final result in results) {
     final arena = result.arena;
+    if (arena.isUnclaimed && !_unclaimedSurvivesFilters(filters)) {
+      continue;
+    }
     if (filters.showOnlyFavorites && !favoriteIds.contains(arena.id)) {
       continue;
     }

@@ -49,6 +49,15 @@ export const routes: Routes = [
       import('./painel/arenas/panel-arenas.component').then((m) => m.PanelArenasComponent),
   },
   {
+    path: 'painel/arenas/pre-cadastro',
+    title: 'Arenas pré-cadastradas — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/arenas/panel-unclaimed-arenas.component').then(
+        (m) => m.PanelUnclaimedArenasComponent,
+      ),
+  },
+  {
     path: 'painel/torneios',
     title: 'Torneios — NexaGO Backoffice',
     canActivate: [authGuard],

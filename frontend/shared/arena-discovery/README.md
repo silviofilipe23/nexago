@@ -45,7 +45,7 @@ Use `fetchArenaDaySlotsMerged(firestore, arenaId, date)` — um fetch de slots p
 ```typescript
 import { getFirestore } from 'firebase/firestore';
 import {
-  fetchAllArenas,
+  fetchPartnerArenas,
   searchArenas,
   fetchArenaDaySlotsMerged,
   type ArenaSearchFilters,
@@ -75,7 +75,8 @@ const daySlots = await fetchArenaDaySlotsMerged(db, 'ARENA_ID', filters.date);
 
 | Flutter | Este módulo |
 |---------|-------------|
-| `ArenasRepository.watchArenas` | `fetchAllArenas` |
+| `ArenasRepository.watchPartnerArenas` | `fetchPartnerArenas` |
+| `ArenasRepository.watchArenasIncludingUnclaimed` | `fetchArenasIncludingUnclaimed` |
 | `SlotsRepository.watchSlots` | `fetchCourtDaySlots` |
 | `SlotsRepository.watchArenaDaySlotsMerged` | `fetchArenaDaySlotsMerged` |
 | `arenaSearchResultsProvider` | `searchArenas` |

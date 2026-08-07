@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getDoc, getFirestore, type Firestore } from 'firebase/firestore';
+import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import {
   ARENA_PAYMENT_FILTER_OPTIONS,
   ARENA_PRICE_BAND_OPTIONS,
@@ -10,6 +11,7 @@ import {
   DEFAULT_RADIUS_KM,
   MAX_RADIUS_KM,
   UNLIMITED_RADIUS_KM,
+  arenaContactWhatsAppUrl,
   arenaListItemImageUrl,
   bestPriceArenaIds,
   countActiveSearchFilters,
@@ -57,6 +59,15 @@ function createFirestore(): Firestore | null {
   }
   const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
   return getFirestore(app);
+}
+
+function createFunctions(): Functions | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) {
+    return null;
+  }
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFunctions(app);
 }
 
 function dateOnly(d: Date): Date {
@@ -491,6 +502,29 @@ export class AthleteReservarComponent {
 
   protected trackByArenaId(_index: number, item: { result: ArenaSearchResult }): string {
     return item.result.arena.id;
+  }
+
+  /** `null` quando a arena não tem WhatsApp utilizável — o botão nem aparece. */
+  protected contactUrl(arena: ArenaListItem): string | null {
+    return arenaContactWhatsAppUrl(arena);
+  }
+
+  /**
+   * Registra o clique em "Entre em contato". O link já é um `<a target="_blank">`,
+   * então o WhatsApp abre independentemente daqui: se a function falhar, o
+   * atleta não percebe. Perder a métrica é aceitável; travar o contato não é.
+   */
+  protected trackContactClick(arenaId: string): void {
+    const fns = createFunctions();
+    if (fns == null) {
+      return;
+    }
+    httpsCallable<{ arenaId: string; surface: string }, unknown>(
+      fns,
+      'trackArenaContactClick',
+    )({ arenaId, surface: 'web' }).catch((error: unknown) => {
+      console.warn('Falha ao registrar clique de contato da arena', arenaId, error);
+    });
   }
 
   protected readonly courtCountLabel = courtCountLabel;

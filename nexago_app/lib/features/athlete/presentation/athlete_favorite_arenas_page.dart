@@ -147,7 +147,7 @@ class _AthleteFavoriteArenasPageState
                   message: e.toString().replaceFirst('Exception: ', ''),
                   onRetry: () {
                     ref.invalidate(favoriteArenaIdsProvider);
-                    ref.invalidate(arenasStreamProvider);
+                    ref.invalidate(partnerArenasStreamProvider);
                   },
                 ),
                 data: (arenas) {

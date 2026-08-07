@@ -766,9 +766,17 @@ service cloud.firestore {
       // Só as Cloud Functions os gravam (Admin SDK ignora rules), então o
       // create do cliente tem de vir SEM eles — inclusive para admins, que não
       // têm por que assinar plano pela UI.
+      // `unclaimed` e os contadores de contato marcam arena de pré-cadastro e
+      // guardam o número que o comercial leva para a arena ("X atletas já te
+      // procuraram"). Quem se cadastra pela UI nasce parceiro e com contador
+      // zerado — semear pré-cadastro é trabalho do script (Admin SDK) e contar
+      // clique é trabalho de `trackArenaContactClick`.
       allow create: if request.auth != null &&
         (isAdmin() || isSuperAdmin() || isArena()) &&
-        !request.resource.data.keys().hasAny(['planTier', 'planStatus', 'planActiveUntil']);
+        !request.resource.data.keys().hasAny([
+          'planTier', 'planStatus', 'planActiveUntil',
+          'unclaimed', 'contactClicksTotal', 'contactAthletesCount', 'contactLastClickAt'
+        ]);
       // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
       // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
       // payoutPixKey/payoutPixKeyType/paymentReceiver definem para onde vai o
@@ -784,6 +792,10 @@ service cloud.firestore {
           request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null) &&
           request.resource.data.get('planActiveUntil', null) == resource.data.get('planActiveUntil', null) &&
           request.resource.data.get('managerUserId', '') == resource.data.get('managerUserId', '') &&
+          request.resource.data.get('unclaimed', null) == resource.data.get('unclaimed', null) &&
+          request.resource.data.get('contactClicksTotal', null) == resource.data.get('contactClicksTotal', null) &&
+          request.resource.data.get('contactAthletesCount', null) == resource.data.get('contactAthletesCount', null) &&
+          request.resource.data.get('contactLastClickAt', null) == resource.data.get('contactLastClickAt', null) &&
           (
             isArenaOwner(arenaId) || (
               request.resource.data.get('payoutPixKey', null) == resource.data.get('payoutPixKey', null) &&
@@ -798,6 +810,20 @@ service cloud.firestore {
         isAdmin() ||
         isSuperAdmin()
       );
+    }
+    // Atletas que clicaram em "Entre em contato" numa arena pré-cadastrada, um
+    // doc por atleta. Escrita SEMPRE via `trackArenaContactClick`: é a métrica
+    // que o comercial mostra para a arena, então nem o atleta nem a própria
+    // arena podem escrever aqui. Leitura só para admin (tela do backoffice) e
+    // para o dono da arena depois que ela fechar — o histórico de contatos é
+    // dela. Nenhum uid de atleta é exposto ao público.
+    match /arenas/{arenaId}/contactLeads/{athleteUserId} {
+      allow read: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        isArenaOwner(arenaId)
+      );
+      allow write: if false;
     }
     // Equipe da arena. Escrita SEMPRE via Cloud Function: criar vínculo exige
     // contar assentos e conferir plano, coisas que rules não fazem.

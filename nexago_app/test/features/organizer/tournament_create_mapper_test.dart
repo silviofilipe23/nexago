@@ -478,4 +478,121 @@ void main() {
     expect(map['listingStatus'], 'open');
     expect(map['status'], 'open');
   });
+
+  group('categoria de equipe (trio+) — roundtrip de edição', () {
+    Map<String, dynamic> docWithCategory(Map<String, dynamic> category) => {
+      'name': 'Copa dos Trios',
+      'city': 'Goiânia',
+      'locationName': 'Arena',
+      'startAt': Timestamp.fromDate(DateTime(2026, 5, 10)),
+      'endAt': Timestamp.fromDate(DateTime(2026, 5, 11)),
+      'categories': [category],
+    };
+
+    Map<String, dynamic> trioCompositionCategory() => {
+      'id': 'cat-trio',
+      'categoryName': 'Trio Misto',
+      'genderType': 'mixed',
+      'disputeType': 'trio',
+      'teamSize': 3,
+      'genderMode': 'composition',
+      'genderComposition': {'men': 2, 'women': 1},
+      'maxTeams': 8,
+      'entryFeeCents': 21000,
+    };
+
+    test('fromFirestore popula dispute trio + composição de gênero', () {
+      final parsed = TournamentCreateMapper.fromFirestore(
+        docWithCategory(trioCompositionCategory()),
+        'trio-1',
+      );
+
+      final category = parsed.draft.categories.single;
+      expect(category.dispute, TournamentCategoryDispute.trio);
+      expect(category.gender, TournamentCategoryGender.mixed);
+      expect(category.genderFree, isFalse);
+      expect(category.menCount, 2);
+      expect(category.womenCount, 1);
+    });
+
+    test('toFirestore do draft parseado preserva teamSize/genderMode/composição', () {
+      final parsed = TournamentCreateMapper.fromFirestore(
+        docWithCategory(trioCompositionCategory()),
+        'trio-1',
+      );
+
+      final map = TournamentCreateMapper.toFirestore(
+        draft: parsed.draft,
+        managerId: 'uid',
+        publish: false,
+        isUpdate: true,
+        existingListingStatus: 'open',
+      );
+
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['disputeType'], 'trio');
+      expect(category['teamSize'], 3);
+      expect(category['genderMode'], 'composition');
+      expect(category['genderComposition'], {'men': 2, 'women': 1});
+      expect(category['genderType'], 'mixed');
+    });
+
+    test('genderMode free → genderFree true e write mixed sem composição', () {
+      final parsed = TournamentCreateMapper.fromFirestore(
+        docWithCategory({
+          'id': 'cat-quarteto',
+          'categoryName': 'Quarteto Livre',
+          'genderType': 'mixed',
+          'disputeType': 'quarteto',
+          'teamSize': 4,
+          'genderMode': 'free',
+          'maxTeams': 6,
+          'entryFeeCents': 28000,
+        }),
+        'quarteto-1',
+      );
+
+      final draftCategory = parsed.draft.categories.single;
+      expect(draftCategory.dispute, TournamentCategoryDispute.quarteto);
+      expect(draftCategory.genderFree, isTrue);
+      expect(draftCategory.menCount, isNull);
+      expect(draftCategory.womenCount, isNull);
+
+      final map = TournamentCreateMapper.toFirestore(
+        draft: parsed.draft,
+        managerId: 'uid',
+        publish: false,
+        isUpdate: true,
+        existingListingStatus: 'open',
+      );
+
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['teamSize'], 4);
+      expect(category['genderMode'], 'free');
+      expect(category['genderComposition'], isNull);
+      expect(category['genderType'], 'mixed');
+    });
+
+    test('dupla não ganha genderMode mas grava teamSize 2', () {
+      final map = TournamentCreateMapper.toFirestore(
+        draft: TournamentCreateDraft(
+          name: 'Open Duplas',
+          city: 'Goiânia',
+          locationName: 'Arena',
+          startAt: DateTime(2026, 5, 10),
+          endAt: DateTime(2026, 5, 11),
+          categories: const [
+            TournamentCategoryDraft(id: 'cat-dupla', name: 'Masculino Open'),
+          ],
+        ),
+        managerId: 'uid',
+        publish: true,
+      );
+
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['teamSize'], 2);
+      expect(category.containsKey('genderMode'), isFalse);
+      expect(category.containsKey('genderComposition'), isFalse);
+    });
+  });
 }

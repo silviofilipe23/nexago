@@ -642,7 +642,10 @@ class _TournamentRegistrationPageState
     await _submitPayment();
   }
 
-  /// Inscrição solo: garante a vaga sem parceiro. Retorna true em sucesso.
+  /// Inscrição solo: garante a vaga sem parceiro. Em categoria de EQUIPE
+  /// (trio+), a vaga nasce como equipe NOMEADA — o nome é pedido aqui e a
+  /// callable é outra ([createTeamRegistration]); o resto do fluxo (pagamento,
+  /// convites) segue igual. Retorna true em sucesso.
   /// [showSnack] controla o aviso (no caminho único o pagamento vem em seguida).
   Future<bool> _registerSolo(
     TournamentDetail tournament, {
@@ -654,18 +657,34 @@ class _TournamentRegistrationPageState
       _showProfileAccessBlocked();
       return false;
     }
+    String? teamName;
+    if (cat.isTeamCategory) {
+      teamName = await _promptTeamName(cat);
+      if (teamName == null || !mounted) return false;
+    }
     if (!await _ensureLgpdConsent() || !mounted) return false;
     setState(() => _submitting = true);
     try {
-      final registrationId = await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .registerSolo(
-            tournamentId: tournament.id,
-            categoryId: cat.id,
-            // Uniforme é coletado depois (pós-inscrição), não bloqueia a vaga.
-            uniform: null,
-            lgpdAccepted: true,
-          );
+      final service = ref.read(tournamentPartnerInviteServiceProvider);
+      final String registrationId;
+      if (teamName != null) {
+        final created = await service.createTeamRegistration(
+          tournamentId: tournament.id,
+          categoryId: cat.id,
+          teamName: teamName,
+          // Uniforme é coletado depois (pós-inscrição), não bloqueia a vaga.
+          uniform: null,
+          lgpdAccepted: true,
+        );
+        registrationId = created.registrationId;
+      } else {
+        registrationId = await service.registerSolo(
+          tournamentId: tournament.id,
+          categoryId: cat.id,
+          uniform: null,
+          lgpdAccepted: true,
+        );
+      }
       if (!mounted) return false;
       setState(() {
         _registrationId = registrationId;
@@ -677,8 +696,11 @@ class _TournamentRegistrationPageState
       if (showSnack) {
         showAppSnackBar(
           context,
-          'Vaga garantida! Pague a metade ou o total — pagando o total, seu '
-          'parceiro entra sem taxa.',
+          teamName != null
+              ? 'Equipe $teamName criada! Pague sua cota e convide os '
+                    'atletas — cada um paga a própria parte.'
+              : 'Vaga garantida! Pague a metade ou o total — pagando o total, '
+                    'seu parceiro entra sem taxa.',
         );
       }
       return true;
@@ -700,6 +722,69 @@ class _TournamentRegistrationPageState
       return false;
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// Nome da equipe (categoria trio/quarteto/quinteto) — mesmas regras do
+  /// backend: 3 a 30 caracteres após colapsar espaços. Retorna null se o
+  /// atleta desistir.
+  Future<String?> _promptTeamName(TournamentCategoryOffer category) async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          String? errorText;
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: Text('Nome da equipe (${category.formatLabel})'),
+                content: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLength: 40,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    hintText: 'Ex.: ${category.formatLabel} Calango',
+                    errorText: errorText,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      final name = controller.text
+                          .replaceAll(RegExp(r'\s+'), ' ')
+                          .trim();
+                      if (name.length < 3) {
+                        setDialogState(
+                          () => errorText =
+                              'O nome precisa ter pelo menos 3 caracteres.',
+                        );
+                        return;
+                      }
+                      if (name.length > 30) {
+                        setDialogState(
+                          () => errorText =
+                              'O nome pode ter no máximo 30 caracteres.',
+                        );
+                        return;
+                      }
+                      Navigator.of(dialogContext).pop(name);
+                    },
+                    child: const Text('Criar equipe'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -1057,7 +1142,9 @@ class _TournamentRegistrationPageState
               ? 'Reservar minha vaga'
               : 'Pagar e garantir vaga',
           metaLabel: hasCategory && !isFree && !isDirect
-              ? (payFull ? 'Total da dupla' : 'Sua parte')
+              ? (payFull
+                    ? 'Total da ${quote?.unitSingular ?? 'dupla'}'
+                    : 'Sua parte')
               : null,
           totalLabel: hasCategory && !isFree && amount != null
               ? formatRegistrationMoney(amount)
@@ -1367,7 +1454,10 @@ class _TournamentRegistrationPageState
             enrollmentCountsResolved: enrollmentResolved,
           );
           final quote = _category != null
-              ? buildRegistrationQuote(entryFee: _category!.entryFee)
+              ? buildRegistrationQuote(
+                  entryFee: _category!.entryFee,
+                  teamSize: _category!.rosterSize,
+                )
               : null;
 
           final inviteAsync = inviteId.isNotEmpty
@@ -1610,9 +1700,12 @@ class _TournamentRegistrationPageState
               !tournamentUsesDirectOrganizerPayment(tournament)) ...[
             const SizedBox(height: 12),
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'share', label: Text('Minha parte')),
-                ButtonSegment(value: 'full', label: Text('Pagar a dupla')),
+              segments: [
+                const ButtonSegment(value: 'share', label: Text('Minha parte')),
+                ButtonSegment(
+                  value: 'full',
+                  label: Text('Pagar a ${quote.unitSingular}'),
+                ),
               ],
               selected: {_paymentType},
               onSelectionChanged: (selection) {
@@ -1623,7 +1716,11 @@ class _TournamentRegistrationPageState
             const SizedBox(height: 6),
             Text(
               _paymentType == 'full'
-                  ? 'Você paga o total agora; seu parceiro entra sem taxa.'
+                  ? quote.isTeamCategory
+                        ? 'Você paga o total agora; o resto da equipe entra sem taxa.'
+                        : 'Você paga o total agora; seu parceiro entra sem taxa.'
+                  : quote.isTeamCategory
+                  ? 'Você paga sua cota; cada atleta paga a dele ao entrar.'
                   : 'Você paga sua parte; o parceiro paga a dele ao entrar.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: context.themeColors.onSurfaceMuted,
@@ -1828,7 +1925,10 @@ class _TournamentRegistrationPageState
         .valueOrNull;
     final category = _category;
     final quote = category != null
-        ? buildRegistrationQuote(entryFee: category.entryFee)
+        ? buildRegistrationQuote(
+            entryFee: category.entryFee,
+            teamSize: category.rosterSize,
+          )
         : null;
     if (tournament == null || category == null || quote == null) {
       showAppSnackBar(

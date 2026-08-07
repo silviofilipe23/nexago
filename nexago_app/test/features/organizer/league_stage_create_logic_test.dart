@@ -186,6 +186,58 @@ void main() {
       expect(second.priceCents, 22000); // fallback da liga
       expect(second.bracketSystem, TournamentBracketSystem.groupsThenKnockout);
     });
+
+    test('herda gênero e disputa da liga (trio feminino não vira male/dupla)', () {
+      final categories = categoriesFromLeagueCategories([
+        {
+          'id': 'c1',
+          'categoryName': 'Trio Feminino',
+          'genderType': 'female',
+          'disputeType': 'trio',
+          'maxTeams': 8,
+        },
+      ], 22000);
+
+      final category = categories.single;
+      expect(category.gender, TournamentCategoryGender.female);
+      expect(category.dispute, TournamentCategoryDispute.trio);
+      expect(category.genderFree, isFalse);
+    });
+
+    test('herda genderMode e composição da equipe da liga', () {
+      final categories = categoriesFromLeagueCategories([
+        {
+          'id': 'livre',
+          'categoryName': 'Quarteto Livre',
+          'genderType': 'mixed',
+          'disputeType': 'quarteto',
+          'genderMode': 'free',
+          'maxTeams': 6,
+        },
+        {
+          'id': 'misto',
+          'categoryName': 'Trio Misto',
+          'genderType': 'mixed',
+          'disputeType': 'trio',
+          'genderMode': 'composition',
+          'genderComposition': {'men': 2, 'women': 1},
+          'maxTeams': 8,
+        },
+      ], 22000);
+
+      final free = categories.first;
+      expect(free.dispute, TournamentCategoryDispute.quarteto);
+      expect(free.genderFree, isTrue);
+      expect(free.menCount, isNull);
+      expect(free.womenCount, isNull);
+
+      final composition = categories.last;
+      expect(composition.dispute, TournamentCategoryDispute.trio);
+      expect(composition.gender, TournamentCategoryGender.mixed);
+      expect(composition.genderFree, isFalse);
+      expect(composition.menCount, 2);
+      expect(composition.womenCount, 1);
+    });
   });
 
   group('stagesFromLeagueData', () {

@@ -242,7 +242,15 @@ abstract final class TournamentCreateMapper {
       maxRegistrationsPerAthlete:
           (map['maxRegistrationsPerAthlete'] as num?)?.toInt() ?? 2,
       prizes: _parsePrizes(map['prizes']),
+      genderFree: (map['genderMode'] as String?) == 'free',
+      menCount: _compositionCount(map['genderComposition'], 'men'),
+      womenCount: _compositionCount(map['genderComposition'], 'women'),
     );
+  }
+
+  static int? _compositionCount(dynamic raw, String key) {
+    if (raw is! Map) return null;
+    return (raw[key] as num?)?.toInt();
   }
 
   static List<TournamentCategoryPrizeDraft> _parsePrizes(dynamic raw) {
@@ -431,8 +439,22 @@ abstract final class TournamentCreateMapper {
       'categoryName': category.name.trim().isEmpty
           ? suggestCategoryName(category)
           : category.name.trim(),
-      'genderType': genderTypeFirestoreValue(category.gender),
+      // Equipe (trio+) "livre" grava mixed para leitores legados; a semântica
+      // real (sem restrição) fica em genderMode — mesmo contrato do portal.
+      'genderType': isTeamDispute(category.dispute) && category.genderFree
+          ? 'mixed'
+          : genderTypeFirestoreValue(category.gender),
       'disputeType': category.dispute.name,
+      'teamSize': disputeTeamSize(category.dispute),
+      if (isTeamDispute(category.dispute)) ...{
+        'genderMode': category.genderFree ? 'free' : 'composition',
+        'genderComposition':
+            category.genderFree ||
+                category.menCount == null ||
+                category.womenCount == null
+            ? null
+            : {'men': category.menCount, 'women': category.womenCount},
+      },
       'ageBand': category.ageBand.name,
       'ageRestriction': _ageRestrictionToMap(category),
       'level': skillLevelLabel(category.skillLevel),

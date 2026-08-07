@@ -24,7 +24,10 @@ String partnerInvitePrizeLabel(TournamentCategoryOffer? offer) {
 /// Parcela de inscrição por atleta na dupla.
 String partnerInviteShareFeeLabel(TournamentCategoryOffer? offer) {
   if (offer == null) return r'R$ —';
-  final quote = buildRegistrationQuote(entryFee: offer.entryFee);
+  final quote = buildRegistrationQuote(
+    entryFee: offer.entryFee,
+    teamSize: offer.rosterSize,
+  );
   if (quote.shareAmount <= 0) return 'Grátis';
   return formatRegistrationMoney(quote.shareAmount);
 }

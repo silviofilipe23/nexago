@@ -127,6 +127,71 @@ class TournamentPartnerInviteService {
     }
   }
 
+  /// Categoria de EQUIPE (trio/quarteto/quinteto): o capitão cria a equipe
+  /// NOMEADA junto com a inscrição — o elenco fecha por convites
+  /// ([sendInvite]/[acceptInvite], o backend ramifica pela categoria).
+  /// Retorna `(registrationId, teamId)`.
+  Future<({String registrationId, String teamId})> createTeamRegistration({
+    required String tournamentId,
+    required String categoryId,
+    required String teamName,
+    TournamentUniformSelection? uniform,
+    bool lgpdAccepted = false,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw TournamentPartnerInviteException('Faça login para se inscrever.');
+    }
+    try {
+      final callable = _functions.httpsCallable(
+        'createTournamentTeamRegistration',
+      );
+      final payload = <String, dynamic>{
+        'tournamentId': tournamentId,
+        'categoryId': categoryId,
+        'teamName': teamName,
+      };
+      if (uniform != null) {
+        final uniformMap = uniform.toCallableMap();
+        if (uniformMap.isNotEmpty) payload['uniform'] = uniformMap;
+      }
+      if (lgpdAccepted) payload['lgpdAccepted'] = true;
+      final raw = await callable.call(payload);
+      final data = raw.data;
+      if (data is! Map) {
+        throw TournamentPartnerInviteException('Resposta inválida do servidor.');
+      }
+      final registrationId = data['registrationId'] as String?;
+      final teamId = data['teamId'] as String?;
+      if (registrationId == null || registrationId.isEmpty) {
+        throw TournamentPartnerInviteException('Inscrição não foi criada.');
+      }
+      return (registrationId: registrationId, teamId: teamId ?? '');
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível criar a equipe.',
+      );
+    }
+  }
+
+  /// Integrante (não capitão) sai da equipe enquanto a própria cota não foi
+  /// paga. A vaga reabre e o capitão é avisado.
+  Future<void> leaveTeamRegistration(String registrationId) async {
+    if (registrationId.isEmpty) {
+      throw TournamentPartnerInviteException('Inscrição inválida.');
+    }
+    try {
+      final callable = _functions.httpsCallable(
+        'leaveTournamentTeamRegistration',
+      );
+      await callable.call({'registrationId': registrationId});
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível sair da equipe.',
+      );
+    }
+  }
+
   /// Define/atualiza o uniforme do atleta na sua inscrição (pós-inscrição).
   Future<void> setRegistrationUniform({
     required String registrationId,

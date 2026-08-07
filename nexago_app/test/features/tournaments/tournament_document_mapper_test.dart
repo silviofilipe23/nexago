@@ -168,6 +168,142 @@ void main() {
     expect(d.paymentMode, TournamentPaymentMode.appPixCard);
   });
 
+  test('detailFromMap parses team category (trio) with composition', () {
+    final d = TournamentDocumentMapper.detailFromMap('team-cat', {
+      'name': 'Copa dos Trios',
+      'capacity': 8,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'id': 'cat-trio',
+          'categoryName': 'Trio Misto',
+          'entryFee': 210,
+          'maxTeams': 8,
+          'genderType': 'mixed',
+          'disputeType': 'trio',
+          'teamSize': 3,
+          'genderMode': 'composition',
+          'genderComposition': {'men': 2, 'women': 1},
+        },
+      ],
+    });
+
+    final offer = d.categoryOffers.single;
+    expect(offer.isTeamCategory, isTrue);
+    expect(offer.teamSize, 3);
+    expect(offer.rosterSize, 3);
+    expect(offer.formatLabel, 'Trio');
+    expect(offer.unitLabel, 'equipes');
+    expect(offer.genderFree, isFalse);
+    expect(offer.genderCompositionMen, 2);
+    expect(offer.genderCompositionWomen, 1);
+    expect(offer.genderDetail, '2H + 1M');
+  });
+
+  test('detailFromMap parses team category genderMode free', () {
+    final d = TournamentDocumentMapper.detailFromMap('team-free', {
+      'name': 'Copa Livre',
+      'capacity': 6,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'id': 'cat-quarteto',
+          'categoryName': 'Quarteto Livre',
+          'entryFee': 280,
+          'maxTeams': 6,
+          'genderType': 'mixed',
+          'disputeType': 'quarteto',
+          'teamSize': 4,
+          'genderMode': 'free',
+        },
+      ],
+    });
+
+    final offer = d.categoryOffers.single;
+    expect(offer.isTeamCategory, isTrue);
+    expect(offer.teamSize, 4);
+    expect(offer.formatLabel, 'Quarteto');
+    expect(offer.genderFree, isTrue);
+    expect(offer.genderDetail, 'Livre');
+  });
+
+  test('detailFromMap degrades invalid composition to null (livre)', () {
+    final d = TournamentDocumentMapper.detailFromMap('team-invalid', {
+      'name': 'Copa Bugada',
+      'capacity': 8,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'id': 'cat-trio',
+          'categoryName': 'Trio',
+          'entryFee': 210,
+          'maxTeams': 8,
+          'teamSize': 3,
+          'genderMode': 'composition',
+          // 2 + 2 != 3 → composição inválida, degrada para null.
+          'genderComposition': {'men': 2, 'women': 2},
+        },
+      ],
+    });
+
+    final offer = d.categoryOffers.single;
+    expect(offer.isTeamCategory, isTrue);
+    expect(offer.genderCompositionMen, isNull);
+    expect(offer.genderCompositionWomen, isNull);
+    expect(offer.genderDetail, isNull);
+  });
+
+  test('detailFromMap without teamSize keeps classic dupla category', () {
+    final d = TournamentDocumentMapper.detailFromMap('classic', {
+      'name': 'Open Duplas',
+      'capacity': 16,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'id': 'cat-dupla',
+          'categoryName': 'Masculino Open',
+          'entryFee': 180,
+          'maxTeams': 16,
+          'genderType': 'male',
+        },
+      ],
+    });
+
+    final offer = d.categoryOffers.single;
+    expect(offer.isTeamCategory, isFalse);
+    expect(offer.teamSize, isNull);
+    expect(offer.rosterSize, 2);
+    expect(offer.formatLabel, 'Dupla');
+    expect(offer.genderDetail, isNull);
+  });
+
+  test('detailFromMap rejects teamSize out of 3–5 range', () {
+    final d = TournamentDocumentMapper.detailFromMap('team-range', {
+      'name': 'Copa',
+      'capacity': 8,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'id': 'c2',
+          'categoryName': 'Dupla com teamSize',
+          'entryFee': 90,
+          'maxTeams': 8,
+          'teamSize': 2,
+        },
+        {
+          'id': 'c6',
+          'categoryName': 'Sexteto',
+          'entryFee': 90,
+          'maxTeams': 8,
+          'teamSize': 6,
+        },
+      ],
+    });
+
+    expect(d.categoryOffers[0].isTeamCategory, isFalse);
+    expect(d.categoryOffers[1].isTeamCategory, isFalse);
+  });
+
   test('detailFromMap falls back to tournament-level uniform flags', () {
     final d = TournamentDocumentMapper.detailFromMap('uniform-root', {
       'name': 'Open',

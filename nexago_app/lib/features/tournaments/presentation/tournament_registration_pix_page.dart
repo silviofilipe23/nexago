@@ -236,9 +236,10 @@ class _TournamentRegistrationPixPageState
     _navigatedBack = true;
     _expiryTimer?.cancel();
     if (!mounted) return;
+    // Copy neutra: vale para dupla e para equipe (trio+), onde faltam N cotas.
     showAppSnackBar(
       context,
-      'Parcela paga. Aguarde seu parceiro pagar a dele.',
+      'Parcela paga. A inscrição confirma quando todos pagarem a sua parte.',
     );
     context.pop();
   }

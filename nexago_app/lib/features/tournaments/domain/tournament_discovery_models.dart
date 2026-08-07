@@ -155,6 +155,10 @@ class TournamentCategoryOffer {
     this.uniformSizeOptionsShorts = const [],
     this.waitlistEnabled = true,
     this.qualifiersPerGroup = 2,
+    this.teamSize,
+    this.genderFree = false,
+    this.genderCompositionMen,
+    this.genderCompositionWomen,
   });
 
   /// Id da categoria no Firestore (`categories[].id`); legado usa `categoryName`.
@@ -192,6 +196,46 @@ class TournamentCategoryOffer {
 
   /// Duplas que avançam por grupo (`categories[].qualifiersPerGroup`).
   final int qualifiersPerGroup;
+
+  /// Categoria de EQUIPE nomeada (trio/quarteto/quinteto): 3–5.
+  /// `null` = dupla clássica. Gravado pelo portal do organizador.
+  final int? teamSize;
+
+  /// Equipe sem restrição de gênero (`genderMode: 'free'`) — o `genderType`
+  /// fica `mixed` só para exibição legada.
+  final bool genderFree;
+
+  /// Composição exata da equipe mista (homens + mulheres = [teamSize]).
+  final int? genderCompositionMen;
+  final int? genderCompositionWomen;
+
+  /// Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico.
+  bool get isTeamCategory => teamSize != null;
+
+  /// Elenco por inscrição: 2 na dupla, 3–5 na equipe.
+  int get rosterSize => teamSize ?? 2;
+
+  /// "Dupla" / "Trio" / "Quarteto" / "Quinteto" — pill de formato.
+  String get formatLabel => switch (teamSize) {
+    3 => 'Trio',
+    4 => 'Quarteto',
+    5 => 'Quinteto',
+    _ => 'Dupla',
+  };
+
+  /// Unidade das vagas ("duplas"/"equipes").
+  String get unitLabel => isTeamCategory ? 'equipes' : 'duplas';
+  String get unitSingular => isTeamCategory ? 'equipe' : 'dupla';
+
+  /// Detalhe de gênero da equipe: "Livre" ou "2H + 2M" (misto exato).
+  String? get genderDetail {
+    if (!isTeamCategory) return null;
+    if (genderFree) return 'Livre';
+    final men = genderCompositionMen;
+    final women = genderCompositionWomen;
+    if (men == null || women == null || men == 0 || women == 0) return null;
+    return '${men}H + ${women}M';
+  }
 }
 
 class TournamentCategoryPrize {

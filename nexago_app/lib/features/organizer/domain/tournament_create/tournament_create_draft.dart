@@ -18,7 +18,32 @@ enum TournamentVisibility { publicListing, linkOnly }
 
 enum TournamentCategoryGender { male, female, mixed }
 
-enum TournamentCategoryDispute { individual, dupla, team }
+/// `team` é legado (nunca foi oferecido na UI); os formatos de equipe reais
+/// são `trio`/`quarteto`/`quinteto` — categorias de EQUIPE nomeada, criadas
+/// pelo portal do organizador. O app precisa conhecê-los para não corromper
+/// o doc ao reeditar (parse desconhecido caía em `dupla` e regravava).
+enum TournamentCategoryDispute { individual, dupla, trio, quarteto, quinteto, team }
+
+/// Tamanho do elenco por disputa (dupla=2, trio=3…; `team` legado conta como 2).
+int disputeTeamSize(TournamentCategoryDispute dispute) {
+  switch (dispute) {
+    case TournamentCategoryDispute.individual:
+      return 1;
+    case TournamentCategoryDispute.trio:
+      return 3;
+    case TournamentCategoryDispute.quarteto:
+      return 4;
+    case TournamentCategoryDispute.quinteto:
+      return 5;
+    case TournamentCategoryDispute.dupla:
+    case TournamentCategoryDispute.team:
+      return 2;
+  }
+}
+
+/// Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico.
+bool isTeamDispute(TournamentCategoryDispute dispute) =>
+    disputeTeamSize(dispute) >= 3;
 
 enum TournamentAgeBand {
   open,
@@ -104,6 +129,9 @@ class TournamentCategoryDraft {
     this.finalBestOf5 = true,
     this.maxRegistrationsPerAthlete = 2,
     this.prizes = const [],
+    this.genderFree = false,
+    this.menCount,
+    this.womenCount,
   });
 
   final String id;
@@ -133,6 +161,15 @@ class TournamentCategoryDraft {
   final int maxRegistrationsPerAthlete;
   final List<TournamentCategoryPrizeDraft> prizes;
 
+  /// Categoria de EQUIPE (trio+) sem restrição de gênero (`genderMode: 'free'`).
+  /// O editor do app não oferece esses campos — eles existem para o roundtrip
+  /// de edição preservar o que o portal gravou.
+  final bool genderFree;
+
+  /// Composição exata da equipe mista (homens + mulheres = tamanho da equipe).
+  final int? menCount;
+  final int? womenCount;
+
   TournamentCategoryDraft copyWith({
     String? id,
     String? name,
@@ -156,6 +193,9 @@ class TournamentCategoryDraft {
     bool? finalBestOf5,
     int? maxRegistrationsPerAthlete,
     List<TournamentCategoryPrizeDraft>? prizes,
+    bool? genderFree,
+    int? menCount,
+    int? womenCount,
   }) {
     return TournamentCategoryDraft(
       id: id ?? this.id,
@@ -179,6 +219,9 @@ class TournamentCategoryDraft {
       maxRegistrationsPerAthlete:
           maxRegistrationsPerAthlete ?? this.maxRegistrationsPerAthlete,
       prizes: prizes ?? this.prizes,
+      genderFree: genderFree ?? this.genderFree,
+      menCount: menCount ?? this.menCount,
+      womenCount: womenCount ?? this.womenCount,
     );
   }
 }

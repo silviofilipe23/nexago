@@ -118,23 +118,37 @@ class TournamentRegistrationQuote {
   const TournamentRegistrationQuote({
     required this.entryFee,
     this.platformFee = kTournamentPlatformFeeBrl,
+    this.teamSize = 2,
   });
 
   final double entryFee;
   final double platformFee;
 
-  /// Valor integral da dupla (cobrado no MP com `amountType: full`).
+  /// Elenco da inscrição: 2 na dupla, 3–5 na categoria de EQUIPE (trio+).
+  final int teamSize;
+
+  /// Categoria de equipe nomeada (trio+).
+  bool get isTeamCategory => teamSize > 2;
+
+  /// Valor integral da inscrição (cobrado com `amountType: full`).
   double get displayTotal => entryFee;
 
-  /// Parcela por atleta (`amountType: share`).
-  double get shareAmount => entryFee > 0 ? entryFee / 2 : 0;
+  /// Parcela por atleta (`amountType: share`) — a taxa dividida pelo elenco.
+  /// A cota exata (com resto de centavos) é conta do servidor; aqui é o valor
+  /// exibido antes de gerar a cobrança.
+  double get shareAmount => entryFee > 0 ? entryFee / teamSize : 0;
+
+  /// "dupla" ou "equipe" — para as copies de pagamento.
+  String get unitSingular => isTeamCategory ? 'equipe' : 'dupla';
 }
 
 TournamentRegistrationQuote buildRegistrationQuote({
   required double entryFee,
   double platformFee = kTournamentPlatformFeeBrl,
+  int teamSize = 2,
 }) {
   return TournamentRegistrationQuote(
+    teamSize: teamSize < 2 ? 2 : teamSize,
     entryFee: entryFee < 0 ? 0 : entryFee,
     platformFee: platformFee,
   );
@@ -155,11 +169,11 @@ bool registrationRequiresAppPayment(
     registrationRequiresPayment(quote) &&
     !tournamentUsesDirectOrganizerPayment(tournament);
 
-/// Texto explicativo do passo de pagamento direto (valor da dupla).
+/// Texto explicativo do passo de pagamento direto (valor da dupla/equipe).
 String directOrganizerPaymentBody(TournamentRegistrationQuote quote) {
   final amount = formatRegistrationMoney(quote.displayTotal);
   return 'A inscrição deste torneio não é cobrada pelo app. '
-      'O valor de $amount por dupla é combinado e pago diretamente com o organizador.';
+      'O valor de $amount por ${quote.unitSingular} é combinado e pago diretamente com o organizador.';
 }
 
 /// Partes em negrito para [directOrganizerPaymentBody].
@@ -170,7 +184,7 @@ String directOrganizerPaymentBody(TournamentRegistrationQuote quote) {
   return (
     'A inscrição deste torneio ',
     'não é cobrada pelo app',
-    '. O valor de $amount por dupla é combinado e pago diretamente com o organizador.',
+    '. O valor de $amount por ${quote.unitSingular} é combinado e pago diretamente com o organizador.',
   );
 }
 
@@ -182,10 +196,10 @@ directOrganizerPrereserveAlertParts() => (
   '. A inscrição só é confirmada quando o organizador registrar o pagamento.',
 );
 
-/// Subtítulo do passo 2 (valor da dupla).
+/// Subtítulo do passo 2 (valor da dupla/equipe).
 String directOrganizerPaymentStep2Subtitle(TournamentRegistrationQuote quote) {
   final amount = formatRegistrationMoney(quote.displayTotal);
-  return '$amount por dupla, direto com o organizador (Pix, dinheiro ou maquininha).';
+  return '$amount por ${quote.unitSingular}, direto com o organizador (Pix, dinheiro ou maquininha).';
 }
 
 /// Valor do PIX no painel direto (parcela ou integral).
@@ -196,17 +210,22 @@ double directOrganizerPixAmount(
   return amountType == 'full' ? quote.displayTotal : quote.shareAmount;
 }
 
-/// Aviso de coordenação entre os dois atletas no pagamento direto.
+/// Aviso de coordenação entre os atletas no pagamento direto.
 String directOrganizerShareHint(
   TournamentRegistrationQuote quote,
   String amountType,
 ) {
   if (amountType == 'full') {
-    return 'Você está pagando o valor integral da dupla. '
-        'Combine com seu parceiro para ele não pagar também.';
+    return quote.isTeamCategory
+        ? 'Você está pagando o valor integral da equipe. '
+              'Combine com o elenco para ninguém pagar também.'
+        : 'Você está pagando o valor integral da dupla. '
+              'Combine com seu parceiro para ele não pagar também.';
   }
-  return 'Cada atleta paga ${formatRegistrationMoney(quote.shareAmount)}. '
-      'Confirme com seu parceiro antes de enviar o PIX.';
+  final each = formatRegistrationMoney(quote.shareAmount);
+  return quote.isTeamCategory
+      ? 'Cada atleta paga $each. Confirme com sua equipe antes de enviar o PIX.'
+      : 'Cada atleta paga $each. Confirme com seu parceiro antes de enviar o PIX.';
 }
 
 String formatRegistrationMoney(double value) => formatMoney(value);
@@ -312,10 +331,23 @@ String categoryRegistrationSubtitle(
     offer,
     inscriptionCount: inscriptionCount,
   );
-  final unit = format == TournamentFormat.dupla ? 'duplas' : 'vagas';
+  // Categoria de EQUIPE (trio+) tem unidade própria e leva o formato no texto:
+  // "Trio · Misto · 8 equipes · 5/8 inscritas".
+  final unit = offer.isTeamCategory
+      ? offer.unitLabel
+      : format == TournamentFormat.dupla
+      ? 'duplas'
+      : 'vagas';
   final spots = '$capacity $unit · $enrolled/$capacity inscritas';
-  if (gender.isNotEmpty) return '$gender · $spots';
-  return spots;
+  final parts = <String>[
+    if (offer.isTeamCategory) offer.formatLabel,
+    if (gender.isNotEmpty) gender,
+    if (offer.isTeamCategory && offer.genderDetail != null &&
+        offer.genderDetail != 'Livre')
+      offer.genderDetail!,
+    spots,
+  ];
+  return parts.join(' · ');
 }
 
 bool isCategorySelectable(
@@ -336,6 +368,20 @@ bool athleteMatchesCategoryGender(
   TournamentCategoryOffer offer,
   String? athleteGender,
 ) {
+  // Categoria de EQUIPE: "livre" aceita qualquer atleta; composição de gênero
+  // único restringe; misto exato aceita ambos (as vagas por gênero são conta
+  // do backend, validadas contra elenco + convites pendentes).
+  if (offer.isTeamCategory) {
+    if (offer.genderFree) return true;
+    final men = offer.genderCompositionMen;
+    final women = offer.genderCompositionWomen;
+    if (men != null && women != null) {
+      final athlete = athleteGender?.trim();
+      if (women == 0) return athlete == 'Masculino';
+      if (men == 0) return athlete == 'Feminino';
+      return true;
+    }
+  }
   final categoryGender = categoryGenderDisplayLabel(offer);
   if (categoryGender.isEmpty || categoryGender == 'Misto') return true;
   final athlete = athleteGender?.trim();

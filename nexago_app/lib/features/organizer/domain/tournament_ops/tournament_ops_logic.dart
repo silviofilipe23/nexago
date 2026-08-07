@@ -377,5 +377,8 @@ String _categoryGenderDisplayLabel(Map<String, dynamic> categoryMap) {
 
 String _disputeLabel(String? raw) => switch (raw?.trim().toLowerCase()) {
       'individual' => 'Individual',
+      'trio' => 'Trio',
+      'quarteto' => 'Quarteto',
+      'quinteto' => 'Quinteto',
       _ => 'Dupla',
     };

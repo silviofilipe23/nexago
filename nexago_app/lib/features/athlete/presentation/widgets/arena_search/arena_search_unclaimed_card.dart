@@ -19,11 +19,16 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
     super.key,
     required this.arena,
     required this.searchQuery,
+    required this.kmDistance,
     required this.onContact,
   });
 
   final ArenaListItem arena;
   final String searchQuery;
+
+  /// Distância até o atleta. `null` quando a arena não tem coordenada — aí sai
+  /// como "—", igual ao card de parceira sem localização.
+  final double? kmDistance;
 
   /// `null` quando a arena não tem WhatsApp utilizável — o botão some.
   final VoidCallback? onContact;
@@ -47,7 +52,13 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Hero(arenaId: arena.id, sportLabel: sportPill),
+          _Hero(
+            arenaId: arena.id,
+            sportLabel: sportPill,
+            kmLabel: kmDistance != null
+                ? '${kmDistance!.toStringAsFixed(1)} km'
+                : '—',
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Column(
@@ -181,10 +192,15 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
 /// não tem foto, entra só a cor de fundo derivada do id — e a pilha superior
 /// mostra o esporte, no lugar onde a parceira mostra a contagem de quadras.
 class _Hero extends StatelessWidget {
-  const _Hero({required this.arenaId, required this.sportLabel});
+  const _Hero({
+    required this.arenaId,
+    required this.sportLabel,
+    required this.kmLabel,
+  });
 
   final String arenaId;
   final String sportLabel;
+  final String kmLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -206,26 +222,37 @@ class _Hero extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            left: 10,
-            top: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                sportLabel,
-                style: AppTypography.mono(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
+          Positioned(left: 10, top: 10, child: _Pill(label: sportLabel)),
+          // Mesma posição da distância no card de parceira: é a informação que
+          // decide se vale a pena chamar a arena.
+          Positioned(right: 10, top: 10, child: _Pill(label: kmLabel)),
         ],
+      ),
+    );
+  }
+}
+
+/// Mesma pilha do hero do card de parceira (`_Pill` em arena_search_arena_card).
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.mono(
+          color: AppColors.white,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
       ),
     );
   }

@@ -286,6 +286,11 @@
             <article class="rv-card rv-card--unclaimed">
               <div class="rv-card-hero" [style.background]="heroGradient(item.result.arena.id)">
                 <span class="rv-hero-pill">{{ sportsPillLabel(item.result.arena) }}</span>
+                <!-- Mesma posição e formato da distância no card de parceira: é a
+                     informação que decide se vale a pena chamar a arena. -->
+                <div class="rv-hero-top-right">
+                  <span class="rv-hero-distance">{{ distanceLabel(item.kmDistance) }}</span>
+                </div>
               </div>
               <div class="rv-card-body">
                 <div class="rv-card-name-row">

@@ -10,6 +10,7 @@ import {
   type ArenaListItem,
   type ArenaSearchQueryFilters,
   type ArenaSearchResult,
+  type FilteredArenaSearchResult,
 } from '@nexago/arena-discovery';
 
 function arena(overrides: Partial<ArenaListItem> = {}): ArenaListItem {
@@ -55,16 +56,23 @@ function result(item: ArenaListItem, displayPrice = 80): ArenaSearchResult {
   };
 }
 
-function idsAfterFilter(
+function filtered(
   results: ArenaSearchResult[],
   filters: ArenaSearchQueryFilters,
-): string[] {
+): FilteredArenaSearchResult[] {
   return filterAndSortArenaResults({
     results,
     filters,
     userCoords: { latitude: -16.68, longitude: -49.26 },
     favoriteIds: new Set<string>(),
-  }).map((e) => e.result.arena.id);
+  });
+}
+
+function idsAfterFilter(
+  results: ArenaSearchResult[],
+  filters: ArenaSearchQueryFilters,
+): string[] {
+  return filtered(results, filters).map((e) => e.result.arena.id);
 }
 
 describe('contato com arena pré-cadastrada', () => {
@@ -150,6 +158,38 @@ describe('arena pré-cadastrada na busca', () => {
       [result(arena({ id: 'pre', isUnclaimed: true }), 0)],
       filters,
     );
+    expect(ids).toEqual([]);
+  });
+
+  it('ganha distância medida quando tem coordenada', () => {
+    // ~1,2 km ao sul do usuário. Antes de as arenas terem lat/lng isto vinha
+    // null e o card mostrava "—".
+    const perto = arena({ id: 'pre', isUnclaimed: true, lat: -16.691, lng: -49.26 });
+    const [primeiro] = filtered(
+      [result(perto, 0)],
+      defaultArenaSearchQueryFilters(),
+    );
+    expect(primeiro.kmDistance).not.toBeNull();
+    expect(primeiro.kmDistance!).toBeGreaterThan(1);
+    expect(primeiro.kmDistance!).toBeLessThan(2);
+  });
+
+  it('sem coordenada a distância fica nula — o card mostra "—"', () => {
+    const semCoord = arena({ id: 'pre', isUnclaimed: true, lat: null, lng: null });
+    const [primeiro] = filtered(
+      [result(semCoord, 0)],
+      defaultArenaSearchQueryFilters(),
+    );
+    expect(primeiro.kmDistance).toBeNull();
+  });
+
+  it('com coordenada, passa a ser cortada pelo raio de busca', () => {
+    // Consequência de ter lat/lng: antes ela escapava do filtro de raio.
+    const longe = arena({ id: 'pre', isUnclaimed: true, lat: -17.4, lng: -49.26 });
+    const ids = idsAfterFilter([result(longe, 0)], {
+      ...defaultArenaSearchQueryFilters(),
+      radiusKm: 10,
+    });
     expect(ids).toEqual([]);
   });
 

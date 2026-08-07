@@ -477,6 +477,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                           child: ArenaSearchUnclaimedCard(
                             arena: result.arena,
                             searchQuery: _filters.query,
+                            kmDistance: item.kmDistance,
                             onContact: contactUrl == null
                                 ? null
                                 : () => _contactUnclaimedArena(

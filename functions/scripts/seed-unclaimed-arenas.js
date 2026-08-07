@@ -80,7 +80,24 @@ function buildPayload(entry, source) {
   if (typeof entry.address === "string" && entry.address.trim().length > 0) {
     payload.address = entry.address.trim();
   }
+  // `latitude`/`longitude` são os nomes que AS DUAS superfícies leem
+  // (ArenaListItem no Flutter e readLatLng no shared TS). Sem eles a arena
+  // escapa do filtro de raio e da ordenação por distância — aparece na busca
+  // mas nunca é medida.
+  if (isValidLatLng(entry.latitude, entry.longitude)) {
+    payload.latitude = entry.latitude;
+    payload.longitude = entry.longitude;
+  }
   return payload;
+}
+
+/** Caixa da região metropolitana de Goiânia — recusa coordenada de outra praça. */
+function isValidLatLng(lat, lng) {
+  return (
+    typeof lat === "number" && typeof lng === "number" &&
+    Number.isFinite(lat) && Number.isFinite(lng) &&
+    lat >= -16.95 && lat <= -16.55 && lng >= -49.5 && lng <= -49.1
+  );
 }
 
 async function run() {

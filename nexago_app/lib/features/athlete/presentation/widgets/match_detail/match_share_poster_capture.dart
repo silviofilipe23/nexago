@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../auth/widgets/auth_form_widgets.dart' show kNexagoLogoAsset;
 import '../../../domain/match_history/match_share_poster_data.dart';
 import 'match_share_poster_painter.dart';
 
@@ -30,16 +31,17 @@ Future<MatchSharePosterAssets> loadMatchSharePosterAssets(
 }
 
 /// A marca do lockup. Decodificada uma vez por processo: é o mesmo asset em
-/// todo pôster, e o tamanho de desenho (60 pt) não muda.
-Future<ui.Image?> loadMatchSharePosterLogo() {
-  return _logo ??= _decodeLogo();
+/// todo pôster, e o tamanho de desenho (60 pt) não muda. Só o sucesso é
+/// guardado — falha não vira estado permanente.
+Future<ui.Image?> loadMatchSharePosterLogo() async {
+  return _logo ??= await _decodeLogo();
 }
 
-Future<ui.Image?>? _logo;
+ui.Image? _logo;
 
 Future<ui.Image?> _decodeLogo() async {
   try {
-    final data = await rootBundle.load('assets/images/nexaGO_Logo.png');
+    final data = await rootBundle.load(kNexagoLogoAsset);
     final codec = await ui.instantiateImageCodec(
       data.buffer.asUint8List(),
       targetWidth: 128,

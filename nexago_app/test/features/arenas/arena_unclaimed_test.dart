@@ -89,22 +89,36 @@ void main() {
   });
 
   group('buildNexagoArenaSignupContactUrl', () {
-    test('sem WhatsApp comercial configurado, cai no e-mail de vendas', () {
-      // Enquanto `kNexagoSalesWhatsApp` estiver vazio o botão tem de continuar
-      // funcionando — link `wa.me` quebrado seria pior que não ter botão.
-      final url = buildNexagoArenaSignupContactUrl();
-      if (kNexagoSalesWhatsApp.isEmpty) {
-        expect(url, startsWith('mailto:$kNexagoSalesEmail'));
-        expect(url, contains('subject='));
-      } else {
-        expect(url, startsWith('https://wa.me/'));
-      }
+    test('com WhatsApp comercial configurado, abre o wa.me', () {
+      expect(
+        buildNexagoArenaSignupContactUrl(whatsapp: '5562998539835'),
+        startsWith('https://wa.me/5562998539835?text='),
+      );
+    });
+
+    test('sem WhatsApp configurado, cai no e-mail de vendas', () {
+      // O botão tem de continuar funcionando mesmo sem número — link `wa.me`
+      // quebrado seria pior que não ter botão.
+      final url = buildNexagoArenaSignupContactUrl(whatsapp: '');
+      expect(url, startsWith('mailto:$kNexagoSalesEmail'));
+      expect(url, contains('subject='));
+    });
+
+    test('número incompleto não vira wa.me quebrado', () {
+      expect(
+        buildNexagoArenaSignupContactUrl(whatsapp: '998539835'),
+        startsWith('mailto:'),
+      );
     });
 
     test('a mensagem diz que é dono de arena querendo cadastrar', () {
       final url = Uri.decodeFull(buildNexagoArenaSignupContactUrl());
       expect(url, contains('arena'));
       expect(url, contains('nexaGO'));
+    });
+
+    test('a constante do app é a mesma do web', () {
+      expect(kNexagoSalesWhatsApp, '5562998539835');
     });
   });
 

@@ -26,7 +26,7 @@ export function buildArenaContactWhatsAppMessage(arenaName: string): string {
  * aqui?" nas duas superfícies web. Enquanto estiver vazio o botão cai no e-mail
  * comercial — nunca gera um `wa.me` quebrado.
  */
-export const NEXAGO_SALES_WHATSAPP = '';
+export const NEXAGO_SALES_WHATSAPP = '5562998539835';
 
 /** Canal de vendas já usado na tela de planos do portal da arena. */
 export const NEXAGO_SALES_EMAIL = 'contato@nexago.com.br';
@@ -38,9 +38,14 @@ const SALES_MESSAGE =
 /**
  * Destino do "Gostaria de ver sua arena aqui?": WhatsApp comercial quando
  * configurado, e-mail de vendas caso contrário.
+ *
+ * `whatsapp` existe só para o teste conseguir exercitar os dois ramos — a
+ * aplicação sempre chama sem argumento.
  */
-export function nexagoArenaSignupContactUrl(): string {
-  const digits = normalizeWhatsAppDigits(NEXAGO_SALES_WHATSAPP);
+export function nexagoArenaSignupContactUrl(
+  whatsapp: string = NEXAGO_SALES_WHATSAPP,
+): string {
+  const digits = normalizeWhatsAppDigits(whatsapp);
   if (digits) {
     return `https://wa.me/${digits}?text=${encodeURIComponent(SALES_MESSAGE)}`;
   }

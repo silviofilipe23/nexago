@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/nexa_floating_header.dart';
@@ -14,6 +15,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../arenas/data/arena_contact_service.dart';
 import '../../arenas/domain/arena_search_filter_logic.dart';
 import '../../arenas/domain/arena_search_providers.dart';
 import '../../arenas/domain/slots_page_logic.dart';
@@ -24,6 +26,7 @@ import '../domain/athlete_shell_providers.dart';
 import '../domain/favorites_providers.dart';
 import 'favorite_success_page.dart';
 import 'widgets/arena_search/arena_search_arena_card.dart';
+import 'widgets/arena_search/arena_search_unclaimed_card.dart';
 import 'widgets/arena_search/arena_search_bar.dart';
 import 'widgets/arena_search/arena_search_date_time_row.dart';
 import 'widgets/arena_search/arena_search_filters_sheet.dart';
@@ -220,6 +223,29 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     );
   }
 
+  /// Abre o WhatsApp da arena pré-cadastrada e registra o clique.
+  ///
+  /// O WhatsApp é a prioridade: o registro roda em paralelo e engole o próprio
+  /// erro, porque perder a métrica é aceitável e travar o atleta não é.
+  Future<void> _contactUnclaimedArena({
+    required String arenaId,
+    required String whatsAppUrl,
+  }) async {
+    unawaited(ArenaContactService().trackContactClick(arenaId));
+
+    final opened = await launchUrl(
+      Uri.parse(whatsAppUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o WhatsApp.',
+        isError: true,
+      );
+    }
+  }
+
   Future<void> _toggleFavorite({
     required String? userId,
     required String arenaId,
@@ -404,6 +430,27 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                     itemBuilder: (context, index) {
                       final item = items[index];
                       final result = item.result;
+
+                      // Arena pré-cadastrada não tem reserva, favorito nem
+                      // preço: card próprio, com o único caminho que existe.
+                      if (result.arena.isUnclaimed) {
+                        final contactUrl =
+                            ArenaContactService.whatsAppUrlFor(result.arena);
+                        return staggeredFadeSlide(
+                          index: index,
+                          child: ArenaSearchUnclaimedCard(
+                            arena: result.arena,
+                            searchQuery: _filters.query,
+                            onContact: contactUrl == null
+                                ? null
+                                : () => _contactUnclaimedArena(
+                                      arenaId: result.arena.id,
+                                      whatsAppUrl: contactUrl,
+                                    ),
+                          ),
+                        );
+                      }
+
                       final isFavorite = _favoriteOverrides[result.arena.id] ??
                           favoriteIdsSet.contains(result.arena.id);
 

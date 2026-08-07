@@ -45,7 +45,10 @@ class ArenaSearchResult {
 final arenaSearchResultsProvider = FutureProvider.autoDispose
     .family<List<ArenaSearchResult>, ArenaSearchSlotFilters>(
   (ref, slotFilters) async {
-    final arenas = await ref.watch(arenasStreamProvider.future);
+    // Única leitura que inclui pré-cadastro: a busca é onde a arena não
+    // parceira existe para ser descoberta e receber o clique de contato.
+    final arenas =
+        await ref.watch(arenasIncludingUnclaimedStreamProvider.future);
     final results = await Future.wait(
       arenas.map((arena) => buildArenaSearchResult(ref, slotFilters, arena)),
     );
@@ -78,6 +81,19 @@ Future<ArenaSearchResult> buildArenaSearchResult(
   ArenaSearchSlotFilters filters,
   ArenaListItem arena,
 ) async {
+  // Pré-cadastrada não tem quadra nem slot: assinar `courtsStreamProvider` seria
+  // um listener por arena à toa em cada busca. Sai sem disponibilidade e sem preço.
+  if (arena.isUnclaimed) {
+    return ArenaSearchResult(
+      arena: arena,
+      selectedSlot: null,
+      courtName: null,
+      isExactMatch: false,
+      minutesDistance: null,
+      displayPricePerHourReais: 0,
+    );
+  }
+
   final courts = await ref.watch(courtsStreamProvider(arena.id).future);
   final minCourtPrice = CourtPricing.minHourlyPriceAmongCourts(courts);
   final displayPrice = minCourtPrice ?? arena.pricePerHourReais;
@@ -190,9 +206,15 @@ bool preferArenaSlotSignedDelta(int candidate, int? current) {
   return false;
 }
 
+/// Pré-cadastrada nunca disputa lugar com parceira: não dá para reservar nela.
+int _arenaSearchRank(ArenaSearchResult r) {
+  if (r.arena.isUnclaimed) return 3;
+  return r.isExactMatch ? 0 : (r.hasAvailability ? 1 : 2);
+}
+
 int compareArenaSearchResults(ArenaSearchResult a, ArenaSearchResult b) {
-  final aRank = a.isExactMatch ? 0 : (a.hasAvailability ? 1 : 2);
-  final bRank = b.isExactMatch ? 0 : (b.hasAvailability ? 1 : 2);
+  final aRank = _arenaSearchRank(a);
+  final bRank = _arenaSearchRank(b);
   if (aRank != bRank) return aRank.compareTo(bRank);
 
   final aDist = a.minutesDistance ?? 99999;
@@ -240,7 +262,7 @@ final myBookingsNearbyTodayProvider =
     requestedTime: TimeOfDay(hour: now.hour, minute: now.minute),
   );
   final userLocation = await ref.watch(userLocationProvider.future);
-  final arenas = await ref.watch(arenasStreamProvider.future);
+  final arenas = await ref.watch(partnerArenasStreamProvider.future);
   final nearbyItems = filterArenasByProximity(
     arenas: arenas,
     user: userLocation,

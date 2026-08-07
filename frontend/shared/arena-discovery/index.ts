@@ -1,6 +1,11 @@
 export type { ArenaListItem } from './arena-list-item';
 export { arenaListItemFromFirestore, arenaListItemImageUrl } from './arena-list-item';
 
+export {
+  arenaContactWhatsAppUrl,
+  buildArenaContactWhatsAppMessage,
+} from './arena-contact';
+
 export type { ArenaAmenities } from './arena-amenities';
 export {
   ARENA_AMENITIES_EMPTY,
@@ -22,7 +27,13 @@ export {
 export type { SlotsQuery } from './slots-query';
 export { slotsQueryDateKey, readArenaFallbackPricePerHour } from './slots-query';
 
-export { fetchAllArenas, fetchArenaById, fetchCourts, type ArenaCourtDoc } from './arenas-repository';
+export {
+  fetchPartnerArenas,
+  fetchArenasIncludingUnclaimed,
+  fetchArenaById,
+  fetchCourts,
+  type ArenaCourtDoc,
+} from './arenas-repository';
 export {
   fetchCourtDaySlots,
   fetchArenaDaySlotsMerged,

@@ -22,7 +22,7 @@ List<ArenaListItem> mergeFavoriteArenas({
 final favoriteArenasProvider =
     Provider.autoDispose<AsyncValue<List<ArenaListItem>>>((ref) {
   final idsAsync = ref.watch(favoriteArenaIdsProvider);
-  final arenasAsync = ref.watch(arenasStreamProvider);
+  final arenasAsync = ref.watch(partnerArenasStreamProvider);
 
   if (idsAsync.isLoading || arenasAsync.isLoading) {
     return const AsyncValue.loading();

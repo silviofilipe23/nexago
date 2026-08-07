@@ -15,6 +15,12 @@ interface PanelNavItem {
 const NAV_ITEMS: PanelNavItem[] = [
   { id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
   { id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
+  {
+    id: 'arenas-pre-cadastro',
+    label: 'Pré-cadastradas',
+    icon: 'arena',
+    route: '/painel/arenas/pre-cadastro',
+  },
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
   { id: 'organizadores', label: 'Organizadores', icon: 'id-badge', route: '/painel/organizadores' },
   { id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
@@ -346,6 +352,10 @@ export class PanelShellComponent {
   protected readonly profileActive = computed(() => this.currentPath().startsWith('/painel/perfil'));
   protected readonly activeId = computed(() => {
     const path = this.currentPath();
+    // Antes de '/painel/arenas': o prefixo do pré-cadastro é mais específico.
+    if (path.startsWith('/painel/arenas/pre-cadastro')) {
+      return 'arenas-pre-cadastro';
+    }
     if (path.startsWith('/painel/arenas')) {
       return 'arenas';
     }

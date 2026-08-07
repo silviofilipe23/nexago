@@ -315,6 +315,8 @@ export {
 
 export {saveLinkPageProfile, trackLinkPageEvent} from "./link-pages";
 
+export {trackArenaContactClick} from "./arena-contact-leads";
+
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
 export {

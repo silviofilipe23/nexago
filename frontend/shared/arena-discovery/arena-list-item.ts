@@ -28,6 +28,16 @@ export interface ArenaListItem {
   onlinePaymentEnabled: boolean;
   onsitePaymentEnabled: boolean;
   amenities: ArenaAmenities;
+  /** Telefone de contato (`phone`, `phoneNumber`… no Firestore). */
+  phone: string | null;
+  /** WhatsApp em E.164 (`whatsapp`, `whatsApp`…). Paridade com o modelo Dart. */
+  whatsapp: string | null;
+  /**
+   * Arena de pré-cadastro: existe na busca para o atleta achar e chamar no
+   * WhatsApp, mas não é parceira — não tem quadra, preço nem reserva.
+   * Ausência do campo = parceira, então as arenas de hoje seguem iguais.
+   */
+  isUnclaimed: boolean;
 }
 
 export function arenaListItemFromFirestore(
@@ -102,7 +112,20 @@ export function arenaListItemFromFirestore(
     onlinePaymentEnabled: data['onlinePaymentEnabled'] !== false,
     onsitePaymentEnabled: data['onsitePaymentEnabled'] !== false,
     amenities: amenitiesFromFirestore(data['amenities']),
+    phone: readFirstString(data, ['phone', 'phoneNumber', 'telefone', 'mobile']),
+    whatsapp: readFirstString(data, ['whatsapp', 'whatsApp', 'whatsappNumber']),
+    isUnclaimed: data['unclaimed'] === true,
   };
+}
+
+function readFirstString(data: DocumentData, keys: readonly string[]): string | null {
+  for (const key of keys) {
+    const v = data[key];
+    if (typeof v === 'string' && v.trim().length > 0) {
+      return v.trim();
+    }
+  }
+  return null;
 }
 
 function readStringArray(raw: unknown): string[] {

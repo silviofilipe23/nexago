@@ -1,7 +1,7 @@
 import type { Firestore } from 'firebase/firestore';
 
 import type { ArenaListItem } from './arena-list-item';
-import { fetchAllArenas, fetchCourts } from './arenas-repository';
+import { fetchArenasIncludingUnclaimed, fetchCourts } from './arenas-repository';
 import { minHourlyPriceAmongCourtDocs } from './court-pricing';
 import { fetchCourtDaySlots } from './slots-repository';
 import { arenaSlotIsAvailable, timeToMinutes, type ArenaSlot } from './arena-slot';
@@ -53,9 +53,17 @@ function preferSignedDelta(candidate: number, current: number | null): boolean {
   return false;
 }
 
+/** Pré-cadastrada nunca disputa lugar com parceira: não dá para reservar nela. */
+function searchRank(r: ArenaSearchResult): number {
+  if (r.arena.isUnclaimed) {
+    return 3;
+  }
+  return r.isExactMatch ? 0 : r.hasAvailability ? 1 : 2;
+}
+
 export function compareSearchResults(a: ArenaSearchResult, b: ArenaSearchResult): number {
-  const aRank = a.isExactMatch ? 0 : a.hasAvailability ? 1 : 2;
-  const bRank = b.isExactMatch ? 0 : b.hasAvailability ? 1 : 2;
+  const aRank = searchRank(a);
+  const bRank = searchRank(b);
   if (aRank !== bRank) {
     return aRank - bRank;
   }
@@ -73,6 +81,13 @@ async function buildArenaSearchResult(
   arena: ArenaListItem,
 ): Promise<ArenaSearchResult> {
   const dateOnly = new Date(filters.date.getFullYear(), filters.date.getMonth(), filters.date.getDate());
+
+  // Pré-cadastrada não tem quadra nem slot: buscar seria uma leitura por arena
+  // à toa em cada busca. Sai como resultado sem disponibilidade e sem preço.
+  if (arena.isUnclaimed) {
+    return emptyResult(arena, 0, false, 0);
+  }
+
   const courts = await fetchCourts(db, arena.id);
   const minCourtPrice = minHourlyPriceAmongCourtDocs(courts);
   const displayPrice = minCourtPrice ?? arena.pricePerHourReais;
@@ -168,7 +183,7 @@ export async function searchArenas(
   db: Firestore,
   filters: ArenaSearchFilters,
 ): Promise<ArenaSearchResult[]> {
-  const arenas = await fetchAllArenas(db);
+  const arenas = await fetchArenasIncludingUnclaimed(db);
   const results = await Promise.all(
     arenas.map((arena) => buildArenaSearchResult(db, filters, arena)),
   );

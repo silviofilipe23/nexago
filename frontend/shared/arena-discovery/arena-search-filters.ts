@@ -1,4 +1,9 @@
-import { ARENA_AMENITIES_EMPTY, amenitiesMatchesRequirements, type ArenaAmenities } from './arena-amenities';
+import {
+  ARENA_AMENITIES_EMPTY,
+  amenitiesHasAny,
+  amenitiesMatchesRequirements,
+  type ArenaAmenities,
+} from './arena-amenities';
 import type { ArenaListItem } from './arena-list-item';
 import type { ArenaSearchResult } from './arena-search';
 import { compareSearchResults } from './arena-search';
@@ -148,6 +153,21 @@ export function arenaMatchesPaymentMethods(
   return false;
 }
 
+/**
+ * Filtros que são uma promessa da arena parceira (preço, forma de pagamento,
+ * comodidade, reputação). A pré-cadastrada não faz nenhuma dessas promessas —
+ * só temos nome, endereço, esporte e WhatsApp dela — então listá-la aqui seria
+ * afirmar algo que não sabemos. Paridade com `_unclaimedSurvivesFilters` (Flutter).
+ */
+function unclaimedSurvivesFilters(filters: ArenaSearchQueryFilters): boolean {
+  return (
+    filters.priceBand === 'any' &&
+    filters.paymentMethods.size === 0 &&
+    !amenitiesHasAny(filters.amenities) &&
+    filters.minReputationScore <= 0
+  );
+}
+
 export function filterAndSortArenaResults(params: {
   results: readonly ArenaSearchResult[];
   filters: ArenaSearchQueryFilters;
@@ -159,6 +179,9 @@ export function filterAndSortArenaResults(params: {
 
   for (const result of results) {
     const arena = result.arena;
+    if (arena.isUnclaimed && !unclaimedSurvivesFilters(filters)) {
+      continue;
+    }
     if (filters.showOnlyFavorites && !favoriteIds.has(arena.id)) {
       continue;
     }

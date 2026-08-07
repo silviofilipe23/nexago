@@ -53,6 +53,7 @@ class ArenaListItem {
     this.reputationScore = 0,
     this.reviewResponseRate = 0,
     this.amenities = ArenaAmenities.empty,
+    this.isUnclaimed = false,
   });
 
   final String id;
@@ -96,6 +97,12 @@ class ArenaListItem {
   final int reputationScore;
   final double reviewResponseRate;
   final ArenaAmenities amenities;
+
+  /// Arena de pré-cadastro (`unclaimed` no Firestore): aparece na busca para o
+  /// atleta descobrir e chamar no WhatsApp, mas não é parceira — não tem quadra,
+  /// preço nem reserva. Ausência do campo = parceira, então as arenas de hoje
+  /// seguem iguais.
+  final bool isUnclaimed;
 
   /// Compatibilidade com código legado.
   String get imageUrl => coverUrl ?? kDefaultImageUrl;
@@ -292,6 +299,7 @@ class ArenaListItem {
       reputationScore: reputationScore,
       reviewResponseRate: reviewResponseRate,
       amenities: amenities,
+      isUnclaimed: data['unclaimed'] == true,
     );
   }
 }

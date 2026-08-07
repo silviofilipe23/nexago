@@ -8,11 +8,31 @@ import {
 
 import { arenaListItemFromFirestore, type ArenaListItem } from './arena-list-item';
 
-export async function fetchAllArenas(db: Firestore): Promise<ArenaListItem[]> {
+async function fetchArenas(db: Firestore): Promise<ArenaListItem[]> {
   const snap = await getDocs(collection(db, 'arenas'));
   const items = snap.docs.map((d) => arenaListItemFromFirestore(d));
   items.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
   return items;
+}
+
+/**
+ * Arenas parceiras — as que têm quadra, preço e reserva de verdade.
+ *
+ * É o leitor padrão: qualquer tela que ofereça reservar, favoritar, avaliar ou
+ * marcar jogo tem de usar este. Arena de pré-cadastro (`unclaimed`) não tem
+ * dono nem quadra, e oferecê-la nesses fluxos leva o atleta para uma tela vazia.
+ */
+export async function fetchPartnerArenas(db: Firestore): Promise<ArenaListItem[]> {
+  const items = await fetchArenas(db);
+  return items.filter((a) => !a.isUnclaimed);
+}
+
+/**
+ * Parceiras + pré-cadastradas. Só a busca do atleta usa: é lá que o
+ * pré-cadastro existe para ser descoberto e receber o clique de contato.
+ */
+export async function fetchArenasIncludingUnclaimed(db: Firestore): Promise<ArenaListItem[]> {
+  return fetchArenas(db);
 }
 
 export async function fetchArenaById(

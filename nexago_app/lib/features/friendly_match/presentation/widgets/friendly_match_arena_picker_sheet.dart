@@ -33,7 +33,7 @@ class _ArenaPickerBodyState extends ConsumerState<_ArenaPickerBody> {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final theme = Theme.of(context);
-    final arenasAsync = ref.watch(arenasStreamProvider);
+    final arenasAsync = ref.watch(partnerArenasStreamProvider);
 
     return SafeArea(
       child: Padding(

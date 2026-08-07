@@ -65,6 +65,23 @@ class ArenaDetailPage extends ConsumerWidget {
             ),
           );
         }
+        // Nenhum card leva ao detalhe de arena pré-cadastrada, mas a rota aceita
+        // id por deep link. Sem isso a página abriria com preço, nota e agenda
+        // zerados, parecendo arena quebrada.
+        if (arena.isUnclaimed) {
+          return Scaffold(
+            backgroundColor: context.themeColors.canvas,
+            body: AppEmptyView(
+              icon: Icons.storefront_outlined,
+              title: 'Ainda não reserva pela nexaGO',
+              subtitle:
+                  'Esta arena está na busca para você encontrar e falar com ela, '
+                  'mas ainda não aceita reserva pelo app.',
+              actionLabel: 'Voltar',
+              onAction: () => context.pop(),
+            ),
+          );
+        }
         return FadeSlideIn(
           child: _ArenaDetailBody(
             arena: arena,

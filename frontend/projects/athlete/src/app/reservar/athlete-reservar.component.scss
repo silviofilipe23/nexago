@@ -893,3 +893,59 @@
     animation: none;
   }
 }
+
+/* Arena pré-cadastrada: card deliberadamente mais quieto que o da parceira.
+   Sem hero, sem preço e sem nota — não temos nada disso, e campo zerado só
+   pareceria arena ruim. Também não é clicável: não existe detalhe para abrir. */
+.rv-card--unclaimed {
+  cursor: default;
+  border-style: dashed;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--nx-line);
+    transform: none;
+  }
+}
+
+.rv-unclaimed-badge {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 3px 7px;
+  border-radius: var(--nx-r-1);
+  background: var(--nx-surface-1);
+  color: var(--nx-text-dim);
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.rv-unclaimed-sports {
+  margin: 8px 0 0;
+  color: var(--nx-text-dim);
+  font-size: 12px;
+}
+
+.rv-btn-contact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-orange-500);
+  background: transparent;
+  color: var(--nx-orange-500);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+  }
+}

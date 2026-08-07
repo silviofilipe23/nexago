@@ -261,6 +261,38 @@
     } @else {
       <div class="rv-grid">
         @for (item of filteredResults(); track trackByArenaId($index, item)) {
+          @if (item.result.arena.isUnclaimed) {
+            <!-- Arena pré-cadastrada: sem detalhe, sem preço, sem reserva.
+                 Só o que sabemos dela e o único caminho que existe: o WhatsApp. -->
+            <article class="rv-card rv-card--unclaimed">
+              <div class="rv-card-body">
+                <div class="rv-card-name-row">
+                  <span class="rv-arena-avatar">
+                    <span class="rv-arena-avatar-fallback" aria-hidden="true">{{ arenaInitials(item.result.arena.name) }}</span>
+                  </span>
+                  <h3 class="rv-card-name">{{ item.result.arena.name }}</h3>
+                </div>
+                <p class="rv-card-location">
+                  {{ item.result.arena.city || item.result.arena.locationLabel }}{{ item.result.arena.state ? ', ' + item.result.arena.state : '' }}
+                </p>
+                <span class="rv-unclaimed-badge">AINDA NÃO RESERVA PELA NEXAGO</span>
+                @if (item.result.arena.courtTypes.length) {
+                  <p class="rv-unclaimed-sports">{{ item.result.arena.courtTypes.slice(0, 3).join(' · ') }}</p>
+                }
+                @if (contactUrl(item.result.arena); as url) {
+                  <a
+                    class="rv-btn-contact"
+                    [href]="url"
+                    target="_blank"
+                    rel="noopener"
+                    (click)="trackContactClick(item.result.arena.id)"
+                  >
+                    Entre em contato
+                  </a>
+                }
+              </div>
+            </article>
+          } @else {
           <article
             class="rv-card"
             [routerLink]="['/reservar', item.result.arena.id]"
@@ -367,6 +399,7 @@
               </div>
             </div>
           </article>
+          }
         }
       </div>
     }

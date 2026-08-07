@@ -62,14 +62,28 @@ function firstName(value: string | null): string | null {
   return trimmed.split(/\s+/)[0] ?? null;
 }
 
+const EMPTY_SLOT: RegistrationUniformSlot = {
+  sizeTop: null,
+  sizeShorts: null,
+  jerseyNumber: null,
+  jerseyName: null,
+};
+
 /** Slot do atleta no doc da inscrição. Três caminhos do backend criam a inscrição de jeitos
  *  diferentes: `registerSoloTournament` grava `player1Id`; aceitar convite anexando ao solo faz
  *  `arrayUnion` (convidado no índice 1); aceitar convite SEM solo prévio grava
- *  `participantUids: [inviter, convidado]` e nenhum `player1Id`. Daí o fallback pelo índice. */
+ *  `participantUids: [inviter, convidado]` e nenhum `player1Id`. Daí o fallback pelo índice.
+ *  Categoria de EQUIPE (trio+) não tem slots fixos: o uniforme mora em `uniformByUid.{uid}`. */
 export function uniformSlotForUid(
-  registration: Pick<AthleteTournamentRegistration, 'player1Id' | 'participantUids' | 'uniformPlayer1' | 'uniformPlayer2'>,
+  registration: Pick<
+    AthleteTournamentRegistration,
+    'player1Id' | 'participantUids' | 'uniformPlayer1' | 'uniformPlayer2' | 'teamSize' | 'uniformByUid'
+  >,
   uid: string,
 ): RegistrationUniformSlot {
+  if (registration.teamSize != null) {
+    return registration.uniformByUid[uid] ?? EMPTY_SLOT;
+  }
   if (registration.player1Id === uid) return registration.uniformPlayer1;
   if (registration.participantUids[0] === uid) return registration.uniformPlayer1;
   return registration.uniformPlayer2;
@@ -92,6 +106,13 @@ function partnerCaption(
   myName: string,
   partnerName: string | null,
 ): string {
+  // Equipe nomeada (trio+): a trilha conta o elenco, não "o parceiro".
+  if (registration.teamSize != null) {
+    if (registration.partnerPending) {
+      return `Elenco ${registration.participantUids.length}/${registration.teamSize}`;
+    }
+    return registration.teamName ?? 'Equipe completa';
+  }
   if (registration.partnerPending) return 'Falta parceiro';
   const mine = firstName(myName);
   const theirs = firstName(partnerName);
@@ -110,6 +131,9 @@ function paymentCaption(
   if (registration.sharePaidUids.includes(myUid)) return 'Sua parte paga';
   if (tournament.paymentMode === 'directWithOrganizer') return 'Direto com o organizador';
   if (category.entryFee <= 0) return 'Gratuito';
+  // Equipe (trio+): a taxa é da equipe e cada atleta paga a própria cota.
+  const teamSize = registration.teamSize ?? 2;
+  if (teamSize > 2) return `Sua cota · ${formatBRL(category.entryFee / teamSize)}`;
   return `Sua metade · ${formatBRL(category.entryFee / 2)}`;
 }
 
@@ -124,6 +148,7 @@ interface StepDraft {
 const PENDING_LABELS: Readonly<Record<string, string>> = {
   Uniforme: 'Falta escolher o uniforme',
   Dupla: 'Falta fechar a dupla',
+  Equipe: 'Falta completar a equipe',
   Pagamento: 'Falta o pagamento',
 };
 
@@ -140,7 +165,11 @@ export function buildRegistrationProgress(input: RegistrationProgressInput): Reg
     ...(categoryRequiresUniform(category)
       ? [{ label: 'Uniforme', caption: uniformDone ? 'Salvo' : 'Pendente', done: uniformDone }]
       : []),
-    { label: 'Dupla', caption: partnerCaption(registration, myName, partnerName), done: partnerDone },
+    {
+      label: registration.teamSize != null ? 'Equipe' : 'Dupla',
+      caption: partnerCaption(registration, myName, partnerName),
+      done: partnerDone,
+    },
     {
       label: 'Pagamento',
       caption: paymentCaption(registration, tournament, category, myUid),

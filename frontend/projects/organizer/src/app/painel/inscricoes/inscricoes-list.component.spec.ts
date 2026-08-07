@@ -16,6 +16,7 @@ function row(over: Partial<InscricaoRow> = {}): InscricaoRow {
     pay: 'pago',
     payNote: null,
     payTitle: '',
+    roster: null,
     cancelPending: false,
     cancelReason: '',
     lgpd: 'aceito',

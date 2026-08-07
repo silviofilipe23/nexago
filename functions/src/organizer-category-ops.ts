@@ -404,7 +404,8 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
           .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
           .get();
         const team = teamSnap.data() ?? {};
-        for (const id of [team.player1Id, team.player2Id]) {
+        const memberUids = Array.isArray(team.memberUids) ? team.memberUids : [];
+        for (const id of [...memberUids, team.player1Id, team.player2Id]) {
           if (typeof id === "string" && id.trim()) reservedUids.add(id.trim());
         }
       } else {

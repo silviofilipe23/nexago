@@ -38,6 +38,8 @@ export class InvitePartnerDialogComponent {
   /** Código de indicação (UID) — pode faltar em modo dev sem auth real. */
   readonly referralCode = input<string>('');
   readonly initialPartnerName = input<string>('');
+  /** Nome da equipe (categoria trio/quarteto/quinteto) — muda o texto do convite. */
+  readonly teamName = input<string | null>(null);
 
   readonly closed = output<void>();
   /** Emitido quando o convite saiu (WhatsApp aberto ou link copiado). */
@@ -71,6 +73,7 @@ export class InvitePartnerDialogComponent {
         tournamentName: this.tournamentName(),
         categoryName: this.categoryName(),
         url: this.inviteUrl(),
+        teamName: this.teamName(),
       }),
     ),
   );

@@ -155,10 +155,16 @@ export function uniformRowsFromInscriptions(params: {
     const config = inscription.categoryId ? configById.get(inscription.categoryId) : undefined;
     if (!config?.requiresUniform) continue;
 
+    // Equipe nomeada (trio+): uniforme por atleta em `uniformByUid`; a "dupla" da linha
+    // secundária vira o nome da equipe. Dupla clássica mantém os slots Player1/Player2.
+    const isTeam = inscription.teamSize != null;
     const slots = [inscription.uniformPlayer1, inscription.uniformPlayer2];
-    inscription.participants.slice(0, 2).forEach((participant, index) => {
+    const maxAthletes = isTeam ? inscription.teamSize! : 2;
+    inscription.participants.slice(0, maxAthletes).forEach((participant, index) => {
       const partner = inscription.participants[index === 0 ? 1 : 0];
-      const uniform = slots[index] ?? EMPTY_INSCRIPTION_UNIFORM;
+      const uniform = isTeam
+        ? inscription.uniformByUid[participant.uid] ?? EMPTY_INSCRIPTION_UNIFORM
+        : slots[index] ?? EMPTY_INSCRIPTION_UNIFORM;
       rows.push({
         key: `${inscription.id}:${index + 1}`,
         registrationId: inscription.id,
@@ -167,7 +173,11 @@ export function uniformRowsFromInscriptions(params: {
         photoUrl: participant.photoUrl,
         categoryId: config.categoryId,
         categoryLabel: config.name,
-        partnerLabel: partner ? `c/ ${shortDisplayName(partner.name)}` : 'aguardando parceiro',
+        partnerLabel: isTeam
+          ? inscription.teamName
+          : partner
+            ? `c/ ${shortDisplayName(partner.name)}`
+            : 'aguardando parceiro',
         sizeTop: uniform.sizeTop,
         sizeShorts: uniform.sizeShorts,
         jerseyNumber: uniform.jerseyNumber,

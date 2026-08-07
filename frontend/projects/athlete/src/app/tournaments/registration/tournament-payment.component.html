@@ -40,7 +40,7 @@
                 <section class="tp-card">
                   <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
                   <p class="tp-defer-note">
-                    O organizador confirmou o recebimento — sua dupla está garantida na categoria. Nos vemos na quadra!
+                    O organizador confirmou o recebimento — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!
                   </p>
                   <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
                 </section>
@@ -49,7 +49,7 @@
                 <section class="tp-card">
                   <h2 class="tp-card-title">Pagamento informado ⏳</h2>
                   <p class="tp-defer-note">
-                    Vocês dois informaram o pagamento e a vaga da dupla está garantida. O organizador foi avisado e vai
+                    {{ isTeamRegistration() ? 'Todos os atletas informaram o pagamento e a vaga da equipe está garantida.' : 'Vocês dois informaram o pagamento e a vaga da dupla está garantida.' }} O organizador foi avisado e vai
                     conferir o recebimento para confirmar a inscrição.
                   </p>
                   <p class="tp-defer-note">Guarde o comprovante do Pix até a confirmação sair.</p>
@@ -60,8 +60,7 @@
                 <section class="tp-card">
                   <h2 class="tp-card-title">Sua parte foi informada ✔</h2>
                   <p class="tp-defer-note">
-                    Agora é com seu parceiro — a inscrição fecha quando ele informar o pagamento dele, e aí o
-                    organizador confere o recebimento dos dois.
+                    {{ isTeamRegistration() ? 'Agora é com os demais atletas — a inscrição fecha quando todos informarem o pagamento, e aí o organizador confere o recebimento.' : 'Agora é com seu parceiro — a inscrição fecha quando ele informar o pagamento dele, e aí o organizador confere o recebimento dos dois.' }}
                   </p>
                   <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
                 </section>
@@ -81,8 +80,8 @@
                         (click)="setAmountType('share')"
                       >
                         <span class="tp-amount-btn-title">Minha parte</span>
-                        <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / 2) }}</span>
-                        <span class="tp-amount-btn-hint">Metade da inscrição da dupla</span>
+                        <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / teamSize()) }}</span>
+                        <span class="tp-amount-btn-hint">{{ shareHint() }}</span>
                       </button>
                       <button
                         type="button"
@@ -92,13 +91,13 @@
                       >
                         <span class="tp-amount-btn-title">Integral</span>
                         <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais()) }}</span>
-                        <span class="tp-amount-btn-hint">Valor total da dupla</span>
+                        <span class="tp-amount-btn-hint">{{ fullHint() }}</span>
                       </button>
                     </div>
                   </div>
 
                   <div class="tp-due-box">
-                    <span class="tp-due-label">{{ amountType() === 'full' ? 'Total da dupla' : 'Sua parcela' }}</span>
+                    <span class="tp-due-label">{{ amountType() === 'full' ? fullLabel() : 'Sua parcela' }}</span>
                     <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
                   </div>
 
@@ -168,7 +167,7 @@
           } @else if (registration()!.isPaid) {
             <section class="tp-card">
               <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
-              <p class="tp-defer-note">Pagamento confirmado — sua dupla está garantida na categoria. Nos vemos na quadra!</p>
+              <p class="tp-defer-note">Pagamento confirmado — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!</p>
               <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
             </section>
           } @else if (totalPriceReais() === 0) {
@@ -185,7 +184,7 @@
           } @else if (mySharePaid()) {
             <section class="tp-card">
               <h2 class="tp-card-title">Sua parcela está paga ✔</h2>
-              <p class="tp-defer-note">Agora é com seu parceiro — a inscrição confirma sozinha assim que a parte dele cair.</p>
+              <p class="tp-defer-note">{{ isTeamRegistration() ? 'Agora é com os demais atletas — a inscrição confirma sozinha assim que todas as cotas caírem.' : 'Agora é com seu parceiro — a inscrição confirma sozinha assim que a parte dele cair.' }}</p>
               <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
             </section>
           } @else {
@@ -203,8 +202,8 @@
                     (click)="setAmountType('share')"
                   >
                     <span class="tp-amount-btn-title">Minha parte</span>
-                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / 2) }}</span>
-                    <span class="tp-amount-btn-hint">Metade da inscrição da dupla</span>
+                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / teamSize()) }}</span>
+                    <span class="tp-amount-btn-hint">{{ shareHint() }}</span>
                   </button>
                   <button
                     type="button"
@@ -215,13 +214,13 @@
                   >
                     <span class="tp-amount-btn-title">Integral</span>
                     <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais()) }}</span>
-                    <span class="tp-amount-btn-hint">Valor total da dupla</span>
+                    <span class="tp-amount-btn-hint">{{ fullHint() }}</span>
                   </button>
                 </div>
               </div>
 
               <div class="tp-due-box">
-                <span class="tp-due-label">{{ amountType() === 'full' ? 'Total da dupla' : 'Sua parcela' }}</span>
+                <span class="tp-due-label">{{ amountType() === 'full' ? fullLabel() : 'Sua parcela' }}</span>
                 <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
               </div>
 

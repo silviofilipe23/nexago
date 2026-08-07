@@ -77,10 +77,12 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
   const o = raw as Record<string, unknown>;
   const id = optionalStr(o['id']) ?? optionalStr(o['categoryId']);
   if (!id) return null;
+  const teamSizeRaw = numberOf(o['teamSize']);
   return {
     id,
     name: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
     maxTeams: numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']),
+    teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
     bracketFormat: optionalStr(o['bracketFormat']),
     teamsPerGroup: numberOf(o['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: numberOf(o['qualifiersPerGroup']) ?? 2,

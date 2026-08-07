@@ -730,3 +730,36 @@
 .rg-uniform-error {
   margin-bottom: 14px;
 }
+
+// ── Categoria de equipe (trio/quarteto/quinteto) ─────────────────────────────
+.rg-team-name-label {
+  display: block;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nx-text-mute);
+  margin: 14px 0 6px;
+}
+
+// Badges do elenco ("Você" / "Capitão") na linha do atleta.
+.rg-roster-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--nx-font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nx-text-mute);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  vertical-align: middle;
+}
+
+.rg-roster-badge--me {
+  color: var(--nx-orange-500, #ff6a1a);
+  border-color: currentColor;
+  background: transparent;
+}

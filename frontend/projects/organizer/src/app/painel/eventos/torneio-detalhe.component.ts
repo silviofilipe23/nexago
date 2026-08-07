@@ -29,6 +29,8 @@ interface CategoriaRow {
   pagas: number;
   pend: number;
   full: boolean;
+  /** "duplas" ou "equipes" (categoria trio/quarteto/quinteto). */
+  unit: string;
   /** Chave já sorteada (categoria com jogos) — regerar apagaria resultados. */
   hasMatches: boolean;
 }
@@ -125,14 +127,14 @@ interface CategoriaRow {
                 @if (c.total != null) {
                   <div class="og-torneio-cat-progress">
                     <div class="row">
-                      <span class="frac">{{ c.taken }}<em>/{{ c.total }} duplas</em></span>
+                      <span class="frac">{{ c.taken }}<em>/{{ c.total }} {{ c.unit }}</em></span>
                       <span class="pct" [style.color]="c.full ? 'var(--nx-win)' : 'var(--nx-orange-500)'">{{ pct(c) }}%</span>
                     </div>
                     <div class="og-progress" [class.win]="c.full"><span [style.width.%]="pct(c)"></span></div>
                   </div>
                 } @else {
                   <div class="og-torneio-cat-progress">
-                    <div class="row"><span class="frac">{{ c.taken }}<em> duplas inscritas</em></span></div>
+                    <div class="row"><span class="frac">{{ c.taken }}<em> {{ c.unit }} inscritas</em></span></div>
                   </div>
                 }
                 <div class="og-torneio-cat-footer">
@@ -457,6 +459,7 @@ export class TorneioDetalheComponent {
         pagas,
         pend: rows.length - pagas,
         full: c.maxTeams != null && rows.length >= c.maxTeams,
+        unit: c.teamSize != null ? 'equipes' : 'duplas',
         hasMatches: withMatches.has(c.id),
       };
     });

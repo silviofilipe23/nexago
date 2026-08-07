@@ -11,21 +11,28 @@ import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {
-  computeTeamGenderLabel,
   computeTournamentShareAmountReais,
-  normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
   resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {
+  MIN_TEAM_CATEGORY_SIZE,
+  registrationTeamSize,
+} from "./tournament-team-category";
+import {
+  loadTeamMemberUids,
+  setTeamGenderWhenRegistrationPaid,
+} from "./tournament-team-roster";
+import {
+  findCategory,
   loadTournamentData,
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
 import {TOURNAMENT_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
-import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -49,75 +56,6 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
 
 
 
-
-async function loadTeamAthleteUids(
-  db: Firestore,
-  projectId: string,
-  teamId: string,
-): Promise<string[]> {
-  if (!teamId) return [];
-  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
-  if (!teamSnap.exists) return [];
-  const data = teamSnap.data() ?? {};
-  return [data.player1Id, data.player2Id]
-    .map((id) => (typeof id === "string" ? id.trim() : ""))
-    .filter((id, idx, arr) => id.length > 0 && arr.indexOf(id) === idx);
-}
-
-async function loadUserGenderBucket(
-  db: Firestore,
-  uid: string,
-): Promise<ReturnType<typeof normalizeAthleteGenderBucket>> {
-  if (!uid) return null;
-  const snap = await db.doc(`users/${uid}`).get();
-  if (!snap.exists) return null;
-  const gender = snap.data()?.gender;
-  return normalizeAthleteGenderBucket(
-    typeof gender === "string" ? gender : undefined,
-  );
-}
-
-/** Define `gender` no documento da equipe quando a inscrição fica 100% paga. */
-async function setTeamGenderWhenRegistrationPaid(
-  db: Firestore,
-  projectId: string,
-  teamId: string,
-): Promise<void> {
-  if (!teamId) return;
-
-  const teamRef = db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`);
-  const teamSnap = await teamRef.get();
-  if (!teamSnap.exists) {
-    logger.warn(`Team ${teamId} não encontrado para definir gender`);
-    return;
-  }
-
-  const data = teamSnap.data() ?? {};
-  const player1Id = typeof data.player1Id === "string" ? data.player1Id.trim() : "";
-  const player2Id = typeof data.player2Id === "string" ? data.player2Id.trim() : "";
-  if (!player1Id || !player2Id) return;
-
-  const [g1, g2] = await Promise.all([
-    loadUserGenderBucket(db, player1Id),
-    loadUserGenderBucket(db, player2Id),
-  ]);
-  const teamGender = computeTeamGenderLabel(g1, g2);
-  if (!teamGender) {
-    logger.warn(
-      `Team ${teamId}: não foi possível calcular gender (p1=${String(g1)} p2=${String(g2)})`,
-    );
-    return;
-  }
-
-  await teamRef.set(
-    {
-      gender: teamGender,
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    {merge: true},
-  );
-  logger.info(`Team ${teamId}: gender=${teamGender}`);
-}
 
 export async function processTournamentRegistrationAsaasNotification(
   db: Firestore,
@@ -175,7 +113,16 @@ export async function processTournamentRegistrationAsaasNotification(
   const entryFee = tournament ? resolveCategoryEntryFee(tournament, categoryId) : 0;
   const organizerId = typeof tournament?.managerId === "string" ?
     tournament.managerId.trim() : "";
-  const expectedShare = computeTournamentShareAmountReais(entryFee);
+  // Categoria de equipe: cota dinâmica (restante ÷ pagadores que faltam) — o
+  // aviso de divergência da metade fixa e o crédito por parcela não se aplicam.
+  const regTeamSize = registrationTeamSize(
+    regData,
+    tournament ? findCategory(tournament, categoryId) : null,
+  );
+  const isTeamRegistration = regTeamSize >= MIN_TEAM_CATEGORY_SIZE;
+  const expectedShare = isTeamRegistration
+    ? 0
+    : computeTournamentShareAmountReais(entryFee);
 
   if (ASAAS_PAID_STATUSES.has(status)) {
     const paidOnline = roundMoney(Number(payment.value) || 0);
@@ -211,12 +158,15 @@ export async function processTournamentRegistrationAsaasNotification(
       return;
     }
 
-    // Credita o valor real (parcela ou dupla inteira) e decide a confirmação.
+    // Credita o valor real (parcela ou taxa inteira) e decide a confirmação.
+    // Em categoria de equipe a parcela creditada é o valor efetivamente pago
+    // (a cota varia conforme quem já pagou), limitado ao que falta.
     const currentPaid = Number(regData.paidAmount) || 0;
     const credit = resolveTournamentRegistrationCredit({
       entryFee,
       amountType,
       currentPaidAmount: currentPaid,
+      ...(isTeamRegistration ? {shareCreditReais: paidOnline} : {}),
     });
     const newPaidAmount = credit.newPaidAmount;
     const wasPaidBefore = regData.isPaid === true;
@@ -296,14 +246,16 @@ export async function processTournamentRegistrationAsaasNotification(
         `/torneios/${tournamentId}/inscricao/sucesso?registrationId=${registrationId}` +
         `&tournamentName=${encodedTournamentName}&categoryName=${encodedCategoryName}`;
 
-      const athleteUids = await loadTeamAthleteUids(db, projectId, teamId);
+      const athleteUids = await loadTeamMemberUids(db, projectId, teamId);
       const recipients = athleteUids.filter((uid) => uid !== payerUid);
       await Promise.all(
         recipients.map((uid) =>
           deliverNotificationToUser({
             userId: uid,
             title: "Inscricao confirmada",
-            body: "Sua dupla concluiu o pagamento. Toque para ver o comprovante.",
+            body: isTeamRegistration
+              ? "Sua equipe concluiu o pagamento. Toque para ver o comprovante."
+              : "Sua dupla concluiu o pagamento. Toque para ver o comprovante.",
             type: "tournament_registration_confirmed",
             data: {
               tournamentId,

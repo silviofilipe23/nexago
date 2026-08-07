@@ -24,6 +24,10 @@ import {
   setRegistrationUniform,
 } from "./tournament-partner-invite";
 import {
+  createTournamentTeamRegistration,
+  leaveTournamentTeamRegistration,
+} from "./tournament-team-registration";
+import {
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
   confirmFreeTournamentRegistration,
@@ -156,6 +160,8 @@ export {
   cancelTournamentRegistration,
   registerSoloTournament,
   setRegistrationUniform,
+  createTournamentTeamRegistration,
+  leaveTournamentTeamRegistration,
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
   confirmFreeTournamentRegistration,

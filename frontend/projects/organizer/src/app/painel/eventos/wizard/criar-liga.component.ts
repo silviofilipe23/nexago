@@ -21,16 +21,23 @@ import {
 import {
   AGE_BAND_LABEL,
   BRACKET_SYSTEM_SHORT_LABEL,
+  DISPUTE_LABEL,
+  DISPUTE_OPTIONS,
   GENDER_LABEL,
   SKILL_LEVEL_LABEL,
   SPORT_LABEL,
   type AgeBand,
+  type CategoryDispute,
   type CategoryGender,
   type SkillLevel,
   type TournamentCategoryDraft,
   type TournamentSport,
   categoryTags,
+  categoryTeamSize,
+  categoryUnitLabel,
   emptyCategoryDraft,
+  isTeamDispute,
+  normalizeCategoryComposition,
   skillLevelOptionsForSport,
   suggestCategoryName,
 } from '../../data/tournament-create.model';
@@ -153,9 +160,23 @@ function inputToDate(v: string): Date | null {
                 <input class="og-input-el" [value]="cat().name" (input)="patchCat({ name: $any($event.target).value })" [placeholder]="suggestCategoryName(cat())" />
               </og-form-field>
               <div class="og-field-grid" style="margin-top:16px">
-                <og-form-field label="Gênero">
-                  <og-select-chips [options]="genderOptions" [active]="genderLabel[cat().gender]" (changed)="setCatGender($event)" />
+                <og-form-field label="Disputa">
+                  <og-select-chips [options]="disputeOptions" [active]="disputeLabel[cat().dispute]" (changed)="setCatDispute($event)" />
                 </og-form-field>
+                <og-form-field label="Gênero">
+                  <og-select-chips [options]="catGenderOptions()" [active]="catGenderActive()" (changed)="setCatGender($event)" />
+                </og-form-field>
+              </div>
+              @if (catIsTeam() && cat().gender === 'mixed' && !cat().genderFree) {
+                <div class="og-field-grid" style="margin-top:16px">
+                  <og-stepper-static label="Homens por equipe" [value]="'' + cat().menCount" (bump)="bumpCatMen($event)" />
+                  <og-stepper-static label="Mulheres por equipe" [value]="'' + cat().womenCount" (bump)="bumpCatMen(-$event)" />
+                </div>
+                <p class="og-wizard-hint">Cada equipe terá exatamente {{ cat().menCount }} homem{{ cat().menCount > 1 ? 's' : '' }} e {{ cat().womenCount }} mulher{{ cat().womenCount > 1 ? 'es' : '' }}.</p>
+              } @else if (catIsTeam() && cat().genderFree) {
+                <p class="og-wizard-hint">Sem restrição de gênero — qualquer composição de {{ catTeamSize() }} atletas.</p>
+              }
+              <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="Faixa etária">
                   <og-select-chips [options]="ageBandOptions" [active]="ageBandLabel[cat().ageBand]" (changed)="setCatAgeBand($event)" />
                 </og-form-field>
@@ -166,7 +187,7 @@ function inputToDate(v: string): Date | null {
                 </og-form-field>
               </div>
               <div class="og-field-grid" style="margin-top:16px">
-                <og-stepper-static label="Vagas por etapa" [value]="'' + cat().spots" suffix="duplas" (bump)="bumpCatSpots($event)" />
+                <og-stepper-static label="Vagas por etapa" [value]="'' + cat().spots" [suffix]="catUnit()" (bump)="bumpCatSpots($event)" />
                 <og-form-field label="Preço por etapa (R$)">
                   <input class="og-input-el" type="number" min="0" step="10" [value]="cat().priceCents / 100" (input)="patchCat({ priceCents: toCents($any($event.target).value) })" />
                 </og-form-field>
@@ -280,7 +301,7 @@ function inputToDate(v: string): Date | null {
                       <og-category-card
                         [name]="c.name.trim() || suggestCategoryName(c)"
                         [tags]="tagsOf(c)"
-                        [vagas]="c.spots + ' duplas'"
+                        [vagas]="c.spots + ' ' + unitOf(c)"
                         [price]="brl(c.priceCents)"
                         [format]="bracketShortLabel[c.bracketSystem]"
                         [removable]="true"
@@ -449,6 +470,20 @@ export class CriarLigaComponent {
   protected readonly stepLabels = STEP_LABELS;
   protected readonly suggestCategoryName = suggestCategoryName;
   protected readonly tagsOf = categoryTags;
+  protected readonly unitOf = categoryUnitLabel;
+  protected readonly disputeLabel = DISPUTE_LABEL;
+  protected readonly disputeOptions = DISPUTE_OPTIONS.map((d) => DISPUTE_LABEL[d]);
+
+  // ── Categoria de equipe (trio/quarteto/quinteto) ──
+  protected readonly catIsTeam = computed(() => isTeamDispute(this.cat().dispute));
+  protected readonly catTeamSize = computed(() => categoryTeamSize(this.cat()));
+  protected readonly catUnit = computed(() => categoryUnitLabel(this.cat()));
+  protected readonly catGenderOptions = computed(() =>
+    this.catIsTeam() ? [...Object.values(GENDER_LABEL), 'Livre'] : Object.values(GENDER_LABEL),
+  );
+  protected readonly catGenderActive = computed(() =>
+    this.catIsTeam() && this.cat().genderFree ? 'Livre' : GENDER_LABEL[this.cat().gender],
+  );
 
   protected readonly skillOptions = computed(() => skillLevelOptionsForSport(this.draft().sport).map((s) => SKILL_LEVEL_LABEL[s]));
 
@@ -525,8 +560,31 @@ export class CriarLigaComponent {
   }
 
   protected setCatGender(label: string): void {
+    if (label === 'Livre') {
+      // Livre só existe em equipe: sem restrição, exibido como misto nos leitores legados.
+      this.cat.update((c) => normalizeCategoryComposition({ ...c, gender: 'mixed', genderFree: true }));
+      return;
+    }
     const gender = (Object.keys(GENDER_LABEL) as CategoryGender[]).find((g) => GENDER_LABEL[g] === label);
-    if (gender) this.patchCat({ gender });
+    if (gender) this.cat.update((c) => normalizeCategoryComposition({ ...c, gender, genderFree: false }));
+  }
+
+  protected setCatDispute(label: string): void {
+    const dispute = (Object.keys(DISPUTE_LABEL) as CategoryDispute[]).find((d) => DISPUTE_LABEL[d] === label);
+    if (!dispute) return;
+    this.cat.update((c) => {
+      const genderFree = isTeamDispute(dispute) ? c.genderFree : false;
+      return normalizeCategoryComposition({ ...c, dispute, genderFree });
+    });
+  }
+
+  /** Homens/mulheres por equipe são vasos comunicantes: soma travada no tamanho. */
+  protected bumpCatMen(delta: number): void {
+    this.cat.update((c) => {
+      const size = categoryTeamSize(c);
+      const men = Math.min(Math.max(c.menCount + delta, 1), size - 1);
+      return { ...c, menCount: men, womenCount: size - men };
+    });
   }
 
   protected setCatAgeBand(label: string): void {
@@ -540,7 +598,9 @@ export class CriarLigaComponent {
   }
 
   protected bumpCatSpots(delta: number): void {
-    this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * 2, 2), 64) });
+    // Dupla anda de 2 em 2 (comportamento histórico); equipe de 1 em 1.
+    const step = this.catIsTeam() ? 1 : 2;
+    this.patchCat({ spots: Math.min(Math.max(this.cat().spots + delta * step, 2), 64) });
   }
 
   protected bumpPlanned(delta: number): void {

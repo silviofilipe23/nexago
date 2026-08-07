@@ -54,7 +54,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       } @else {
         <div class="og-kpi-row">
           <div class="og-card og-card-pad-sm" style="flex:1">
-            <div class="og-kpi-label">Duplas</div>
+            <div class="og-kpi-label">{{ unitLabel() }}</div>
             <div class="og-kpi-value sm">{{ inscriptions().length }}/{{ category()!.maxTeams ?? '—' }}</div>
           </div>
           <div class="og-card og-card-pad-sm" style="flex:1">
@@ -78,7 +78,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 
                 <div class="og-categoria-avatars-container">
                 <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
-                <span class="og-categoria-avatars" [style.width.px]="athletesOf(i).length > 1 ? 52 : 52">
+                <span class="og-categoria-avatars" [style.width.px]="52 + (athletesOf(i).length - 1) * 36">
                   @for (p of athletesOf(i); track $index; let ai = $index) {
                     <og-avatar
                       zoomable
@@ -96,6 +96,9 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                   <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 100) }}</div>
                   <div class="og-categoria-meta">{{ levelsLine(i) }}</div>
                 </span></div>
+                @if (rosterProgress(i); as roster) {
+                  <og-pill tone="yellow" title="Elenco incompleto — a equipe só entra na chave completa">{{ roster }}</og-pill>
+                }
                 <og-pill tone="dim" [title]="scoreHint(i)">{{ scoreLabel(i) }}</og-pill>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
               </div>
@@ -238,11 +241,15 @@ export class CategoriaDetalheComponent {
     return map[raw] ?? raw;
   });
 
+  /** "Duplas" ou "Equipes" (trio+) — segue o `teamSize` da categoria. */
+  protected readonly unitLabel = computed(() => (this.category()?.teamSize != null ? 'Equipes' : 'Duplas'));
+
   protected readonly headerSubtitle = computed(() => {
     const cat = this.category();
     if (!cat) return '';
     const taken = this.inscriptions().length;
-    if (cat.maxTeams == null) return `${cat.name} · ${taken} duplas`;
+    const unit = this.unitLabel().toLowerCase();
+    if (cat.maxTeams == null) return `${cat.name} · ${taken} ${unit}`;
     const hint = taken >= cat.maxTeams ? 'lotado' : 'aguardando inscrições';
     return `${cat.name} · ${taken}/${cat.maxTeams} · ${hint}`;
   });
@@ -285,17 +292,23 @@ export class CategoriaDetalheComponent {
     return String(n).padStart(2, '0');
   }
 
-  /** Até 2 atletas pra stack de avatares (solo = 1; sem participantes = fallback no nome da dupla). */
   /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */
   protected athleteMeta(i: TournamentInscription): string {
     return [this.category()?.name, i.teamName].filter(Boolean).join(' · ');
   }
 
+  /** Stack de avatares — todos os atletas do elenco (dupla = 2, equipe = até 5). */
   protected athletesOf(i: TournamentInscription): { name: string; photoUrl: string | null }[] {
     if (i.participants.length > 0) {
-      return i.participants.slice(0, 2).map((p) => ({ name: p.name, photoUrl: p.photoUrl }));
+      return i.participants.slice(0, 5).map((p) => ({ name: p.name, photoUrl: p.photoUrl }));
     }
     return [{ name: i.teamName, photoUrl: null }];
+  }
+
+  /** "Elenco 2/4" enquanto a equipe (trio+) não fecha; dupla mantém o comportamento antigo. */
+  protected rosterProgress(i: TournamentInscription): string | null {
+    if (i.teamSize == null || !i.partnerPending) return null;
+    return `Elenco ${i.participants.length}/${i.teamSize}`;
   }
 
   /** Selo de força da dupla: soma dos níveis (2–10) e, quando o esporte tem engine de rating

@@ -9,7 +9,8 @@ export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
 export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
 export type TournamentVisibility = 'publicListing' | 'linkOnly';
 export type CategoryGender = 'male' | 'female' | 'mixed';
-export type CategoryDispute = 'individual' | 'dupla' | 'team';
+/** `team` é legado (nunca foi oferecido na UI); os formatos de equipe reais são trio/quarteto/quinteto. */
+export type CategoryDispute = 'individual' | 'dupla' | 'trio' | 'quarteto' | 'quinteto' | 'team';
 export type AgeBand =
   | 'open'
   | 'sub13'
@@ -39,6 +40,11 @@ export interface TournamentCategoryDraft {
   name: string;
   gender: CategoryGender;
   dispute: CategoryDispute;
+  /** Equipe (trio+) sem restrição de gênero — o `gender` fica `mixed` só para exibição legada. */
+  genderFree: boolean;
+  /** Composição exata (equipe mista): homens + mulheres = tamanho da equipe. */
+  menCount: number;
+  womenCount: number;
   ageBand: AgeBand;
   skillLevel: SkillLevel;
   ageReference: AgeReference;
@@ -99,6 +105,9 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     name: '',
     gender: 'male',
     dispute: 'dupla',
+    genderFree: false,
+    menCount: 2,
+    womenCount: 1,
     ageBand: 'open',
     skillLevel: 'open',
     ageReference: 'tournamentStart',
@@ -200,6 +209,85 @@ export const BEST_OF_LABEL: Record<TournamentBestOf, string> = {
 export const GENDER_LABEL: Record<CategoryGender, string> = { male: 'Masculino', female: 'Feminino', mixed: 'Misto' };
 export const GENDER_SHORT: Record<CategoryGender, string> = { male: 'Masc', female: 'Fem', mixed: 'Misto' };
 
+// ── Disputa / equipes (trio · quarteto · quinteto) ────────────────────────────
+
+export const DISPUTE_LABEL: Record<CategoryDispute, string> = {
+  individual: 'Individual',
+  dupla: 'Dupla',
+  trio: 'Trio',
+  quarteto: 'Quarteto',
+  quinteto: 'Quinteto',
+  team: 'Equipe',
+};
+
+export const DISPUTE_TEAM_SIZE: Record<CategoryDispute, number> = {
+  individual: 1,
+  dupla: 2,
+  trio: 3,
+  quarteto: 4,
+  quinteto: 5,
+  team: 2,
+};
+
+/** Formatos oferecidos no builder (individual/`team` legado ficam de fora). */
+export const DISPUTE_OPTIONS: readonly CategoryDispute[] = ['dupla', 'trio', 'quarteto', 'quinteto'];
+
+/** Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico. */
+export function isTeamDispute(dispute: CategoryDispute): boolean {
+  return DISPUTE_TEAM_SIZE[dispute] >= 3;
+}
+
+export function categoryTeamSize(category: TournamentCategoryDraft): number {
+  return DISPUTE_TEAM_SIZE[category.dispute] ?? 2;
+}
+
+/** Unidade das vagas ("16 duplas" / "8 equipes"). */
+export function categoryUnitLabel(category: TournamentCategoryDraft): string {
+  if (category.dispute === 'individual') return 'atletas';
+  return isTeamDispute(category.dispute) ? 'equipes' : 'duplas';
+}
+
+export function categoryUnitSingular(category: TournamentCategoryDraft): string {
+  if (category.dispute === 'individual') return 'atleta';
+  return isTeamDispute(category.dispute) ? 'equipe' : 'dupla';
+}
+
+/** Composição exata gravada no doc, ou `null` (dupla ou equipe livre). */
+export function categoryGenderComposition(category: TournamentCategoryDraft): { men: number; women: number } | null {
+  if (!isTeamDispute(category.dispute) || category.genderFree) return null;
+  const size = categoryTeamSize(category);
+  if (category.gender === 'male') return { men: size, women: 0 };
+  if (category.gender === 'female') return { men: 0, women: size };
+  return { men: category.menCount, women: category.womenCount };
+}
+
+/** "2H + 2M" — rótulo curto da composição mista. */
+export function genderCompositionShort(category: TournamentCategoryDraft): string | null {
+  const comp = categoryGenderComposition(category);
+  if (!comp || comp.men === 0 || comp.women === 0) return null;
+  return `${comp.men}H + ${comp.women}M`;
+}
+
+/** Rebalanceia a composição ao trocar disputa/gênero: soma sempre = tamanho, misto com ≥1 de cada. */
+export function normalizeCategoryComposition(category: TournamentCategoryDraft): TournamentCategoryDraft {
+  if (!isTeamDispute(category.dispute)) return category;
+  const size = categoryTeamSize(category);
+  if (category.gender === 'male' && !category.genderFree) return { ...category, menCount: size, womenCount: 0 };
+  if (category.gender === 'female' && !category.genderFree) return { ...category, menCount: 0, womenCount: size };
+  const men = Math.min(Math.max(category.menCount, 1), size - 1);
+  return { ...category, menCount: men, womenCount: size - men };
+}
+
+/** Misto exato precisa de ≥1 homem e ≥1 mulher somando o tamanho da equipe. */
+export function categoryCompositionValid(category: TournamentCategoryDraft): boolean {
+  if (!isTeamDispute(category.dispute) || category.genderFree || category.gender !== 'mixed') return true;
+  return (
+    category.menCount >= 1 &&
+    category.womenCount >= 1 &&
+    category.menCount + category.womenCount === categoryTeamSize(category)
+  );
+}
+
 export const AGE_BAND_LABEL: Record<AgeBand, string> = {
   open: 'Livre',
   sub13: 'Sub-13',
@@ -269,14 +357,23 @@ export function bracketSystemFromRaw(raw: string): TournamentBracketSystem | nul
 }
 
 export function suggestCategoryName(category: TournamentCategoryDraft): string {
-  const parts = [GENDER_LABEL[category.gender]];
+  const parts: string[] = [];
+  if (isTeamDispute(category.dispute)) {
+    parts.push(DISPUTE_LABEL[category.dispute]);
+    parts.push(category.genderFree ? 'Livre' : GENDER_LABEL[category.gender]);
+  } else {
+    parts.push(GENDER_LABEL[category.gender]);
+  }
   if (category.ageBand !== 'open') parts.push(AGE_BAND_LABEL[category.ageBand]);
   if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   return parts.join(' ').trim();
 }
 
 export function categoryTags(category: TournamentCategoryDraft): string[] {
-  const tags = [GENDER_SHORT[category.gender], 'Dupla'];
+  const genderTag = isTeamDispute(category.dispute) && category.genderFree
+    ? 'Livre'
+    : (genderCompositionShort(category) ?? GENDER_SHORT[category.gender]);
+  const tags = [genderTag, DISPUTE_LABEL[category.dispute]];
   if (category.ageBand !== 'open') tags.push(AGE_BAND_LABEL[category.ageBand]);
   if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   return tags;
@@ -337,7 +434,7 @@ export function canContinueFromStep(draft: TournamentCreateDraft, step: Tourname
         draft.courtsCount > 0
       );
     case 'categories':
-      return draft.categories.length > 0;
+      return draft.categories.length > 0 && draft.categories.every(categoryCompositionValid);
     case 'registration':
       return draft.registrationOpensAt != null && draft.registrationClosesAt != null && registrationWindowError(draft) == null && organizerPixComplete(draft);
     case 'rules':

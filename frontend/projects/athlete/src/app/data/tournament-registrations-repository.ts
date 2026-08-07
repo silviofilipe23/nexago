@@ -59,6 +59,14 @@ export interface AthleteTournamentRegistration {
   lgpdAcceptedUids: string[];
   uniformPlayer1: RegistrationUniformSlot;
   uniformPlayer2: RegistrationUniformSlot;
+  /** Categoria de EQUIPE nomeada (trio+): nome dado pelo capitão. `null` = dupla. */
+  teamName: string | null;
+  /** Tamanho do elenco (3–5) em categoria de equipe; `null` = dupla clássica. */
+  teamSize: number | null;
+  /** Capitão da equipe (quem criou a inscrição e convida os demais). */
+  captainUid: string | null;
+  /** Uniforme por atleta nas categorias de equipe (`uniformByUid.{uid}`). */
+  uniformByUid: Record<string, RegistrationUniformSlot>;
 }
 
 export const EMPTY_UNIFORM_SLOT: RegistrationUniformSlot = {
@@ -98,7 +106,26 @@ function cancellationRequestFromDoc(v: unknown): RegistrationCancellationRequest
   };
 }
 
+/** `uniformByUid` das categorias de equipe — cada entrada com o shape dos slots. */
+function uniformByUidFromDoc(data: Record<string, unknown>): Record<string, RegistrationUniformSlot> {
+  const raw = data['uniformByUid'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, RegistrationUniformSlot> = {};
+  for (const [uid, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    out[uid] = {
+      sizeTop: optionalStr(e['sizeTop']),
+      sizeShorts: optionalStr(e['sizeShorts']),
+      jerseyNumber: optionalNum(e['jerseyNumber']),
+      jerseyName: optionalStr(e['jerseyName']),
+    };
+  }
+  return out;
+}
+
 function registrationFromDoc(id: string, data: Record<string, unknown>): AthleteTournamentRegistration {
+  const teamSizeRaw = optionalNum(data['teamSize']);
   return {
     id,
     tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
@@ -116,6 +143,10 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     lgpdAcceptedUids: stringList(data['lgpdAcceptedUids']),
     uniformPlayer1: uniformSlotFromDoc(data, 'Player1'),
     uniformPlayer2: uniformSlotFromDoc(data, 'Player2'),
+    teamName: optionalStr(data['teamName']),
+    teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
+    captainUid: optionalStr(data['captainUid']),
+    uniformByUid: uniformByUidFromDoc(data),
   };
 }
 
@@ -144,6 +175,10 @@ export interface TournamentPartnerInvite {
   inviterName: string;
   createdAt: Date | null;
   expiresAt: Date | null;
+  /** Convite para EQUIPE nomeada (trio+) — traz o nome e o tamanho do elenco. */
+  isTeamInvite: boolean;
+  teamName: string | null;
+  teamSize: number | null;
 }
 
 /** Convites pendentes recebidos, já filtrando os expirados (o Firestore não faz isso sozinho —
@@ -156,6 +191,7 @@ export async function fetchMyPendingPartnerInvites(db: Firestore, uid: string): 
   return snap.docs
     .map((d) => {
       const data = d.data() as Record<string, unknown>;
+      const teamSize = optionalNum(data['teamSize']);
       return {
         id: d.id,
         tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
@@ -164,6 +200,9 @@ export async function fetchMyPendingPartnerInvites(db: Firestore, uid: string): 
         inviterName: optionalStr(data['inviterName']) ?? 'Atleta',
         createdAt: toDate(data['createdAt']),
         expiresAt: toDate(data['expiresAt']),
+        isTeamInvite: data['isTeamInvite'] === true,
+        teamName: optionalStr(data['teamName']),
+        teamSize: teamSize != null && teamSize >= 3 && teamSize <= 5 ? teamSize : null,
       };
     })
     .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
@@ -305,6 +344,41 @@ export async function registerSolo(
       ...(opts?.lgpdAccepted ? { lgpdAccepted: true } : {}),
     });
     return result.data;
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** Cria a EQUIPE nomeada + inscrição do capitão numa categoria de equipe
+ *  (trio/quarteto/quinteto). O elenco fecha por convites
+ *  (`sendPartnerInvite`/`acceptPartnerInvite`, mesmo callable da dupla — o
+ *  backend ramifica pela categoria). */
+export async function createTeamRegistration(
+  functions: Functions,
+  params: { tournamentId: string; categoryId: string; teamName: string; uniform?: UniformInput; lgpdAccepted?: boolean },
+): Promise<{ registrationId: string; teamId: string }> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, { registrationId: string; teamId: string }>(
+      functions,
+      'createTournamentTeamRegistration',
+    )({
+      tournamentId: params.tournamentId,
+      categoryId: params.categoryId,
+      teamName: params.teamName,
+      ...(params.uniform ? { uniform: params.uniform } : {}),
+      ...(params.lgpdAccepted ? { lgpdAccepted: true } : {}),
+    });
+    return result.data;
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** Integrante (não capitão) sai da equipe enquanto a própria cota não foi paga.
+ *  A vaga reabre e o capitão é avisado para convidar outro atleta. */
+export async function leaveTeamRegistration(functions: Functions, registrationId: string): Promise<void> {
+  try {
+    await httpsCallable(functions, 'leaveTournamentTeamRegistration')({ registrationId });
   } catch (err) {
     throw mapCallableError(err);
   }

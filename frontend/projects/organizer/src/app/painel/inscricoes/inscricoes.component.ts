@@ -321,13 +321,15 @@ export class InscricoesComponent {
             : insc.paymentStatus === 'waitlist'
               ? 'espera'
               : 'pendente';
-        const total = insc.participants.length;
+        // Em categoria de equipe a conta é sobre o elenco COMPLETO (teamSize), não sobre quem
+        // já entrou — "1 de 4 pagaram" com 2 confirmados no elenco conta a história certa.
+        const total = insc.teamSize ?? insc.participants.length;
         const partial = pay !== 'conferir' && total > 1 && insc.sharePaidCount > 0 && insc.sharePaidCount < total;
         const categoria = (insc.categoryId && categoryNames.get(insc.categoryId)) || '—';
         return {
           id: insc.id,
           name: insc.teamName,
-          athletes: athletes.slice(0, 2),
+          athletes: athletes.slice(0, 5),
           categoriaId: insc.categoryId,
           categoria,
           pay,
@@ -339,6 +341,10 @@ export class InscricoesComponent {
             ? `${insc.sharePaidCount} de ${total} ${direct ? 'declararam' : 'pagaram'}`
             : pay === 'conferir'
               ? 'Declarado pelos atletas'
+              : null,
+          roster:
+            insc.teamSize != null && insc.partnerPending
+              ? `Elenco ${insc.participants.length}/${insc.teamSize}`
               : null,
           cancelPending: insc.cancellationRequest?.status === 'pending',
           cancelReason: insc.cancellationRequest?.reason ?? '',

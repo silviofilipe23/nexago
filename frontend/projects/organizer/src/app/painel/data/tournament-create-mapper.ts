@@ -5,6 +5,7 @@ import { organizerStorage } from './storage';
 import { generateKeywords } from './search-keywords';
 import {
   BRACKET_FORMAT_FIRESTORE,
+  DISPUTE_TEAM_SIZE,
   SKILL_LEVEL_LABEL,
   type AgeBand,
   type AgeReference,
@@ -20,7 +21,9 @@ import {
   type TournamentSport,
   type TournamentVisibility,
   bracketSystemFromRaw,
+  categoryGenderComposition,
   defaultCourtsFromCount,
+  isTeamDispute,
   suggestCategoryName,
   totalSpots,
 } from './tournament-create.model';
@@ -58,11 +61,22 @@ function ageRestrictionToMap(category: TournamentCategoryDraft): Record<string, 
 }
 
 function categoryToMap(category: TournamentCategoryDraft, draft: TournamentCreateDraft): Record<string, unknown> {
+  const isTeam = isTeamDispute(category.dispute);
+  const composition = categoryGenderComposition(category);
   return {
     id: category.id,
     categoryName: category.name.trim() || suggestCategoryName(category),
-    genderType: category.gender,
+    // Equipe "livre" grava mixed para leitores legados exibirem algo coerente;
+    // a semântica real (sem restrição) fica em genderMode.
+    genderType: isTeam && category.genderFree ? 'mixed' : category.gender,
     disputeType: category.dispute,
+    teamSize: DISPUTE_TEAM_SIZE[category.dispute] ?? 2,
+    ...(isTeam
+      ? {
+          genderMode: category.genderFree ? 'free' : 'composition',
+          genderComposition: composition,
+        }
+      : {}),
     ageBand: category.ageBand,
     ageRestriction: ageRestrictionToMap(category),
     level: SKILL_LEVEL_LABEL[category.skillLevel],
@@ -194,8 +208,13 @@ function parseGender(raw: unknown): CategoryGender {
   return 'male';
 }
 
-function parseDispute(raw: unknown): CategoryDispute {
-  return raw === 'individual' || raw === 'team' ? raw : 'dupla';
+function parseDispute(raw: unknown, teamSize: number | null): CategoryDispute {
+  if (raw === 'individual' || raw === 'team' || raw === 'trio' || raw === 'quarteto' || raw === 'quinteto') return raw;
+  // Doc com teamSize mas sem disputeType conhecido (escrito por outra superfície).
+  if (teamSize === 3) return 'trio';
+  if (teamSize === 4) return 'quarteto';
+  if (teamSize === 5) return 'quinteto';
+  return 'dupla';
 }
 
 function parseAgeBand(raw: unknown): AgeBand {
@@ -252,11 +271,24 @@ function categoryFromMap(map: Record<string, unknown>): TournamentCategoryDraft 
   if (!id) return null;
   const entryFeeCents = num(map['entryFeeCents']) ?? Math.round((num(map['entryFee']) ?? 0) * 100);
   const bracketRaw = str(map['bracketFormat']);
+  const dispute = parseDispute(map['disputeType'] ?? map['dispute'], num(map['teamSize']));
+  const teamSize = DISPUTE_TEAM_SIZE[dispute] ?? 2;
+  const gender = parseGender(map['genderType'] ?? map['gender']);
+  const genderFree = isTeamDispute(dispute) && str(map['genderMode']) === 'free';
+  const compRaw = map['genderComposition'];
+  const comp = compRaw && typeof compRaw === 'object' ? (compRaw as Record<string, unknown>) : null;
+  // Composição gravada vence; sem ela, deriva do gênero (misto rebalanceia 50/50).
+  const fallbackMen = gender === 'male' ? teamSize : gender === 'female' ? 0 : Math.max(1, Math.floor(teamSize / 2));
+  const menCount = num(comp?.['men']) ?? fallbackMen;
+  const womenCount = num(comp?.['women']) ?? teamSize - menCount;
   return {
     id,
     name: str(map['categoryName']) || str(map['name']),
-    gender: parseGender(map['genderType'] ?? map['gender']),
-    dispute: parseDispute(map['disputeType'] ?? map['dispute']),
+    gender,
+    dispute,
+    genderFree,
+    menCount,
+    womenCount,
     ageBand: parseAgeBand(map['ageBand']),
     skillLevel: parseSkillLevel(map['level']),
     ageReference: parseAgeReference(map['ageRestriction']),

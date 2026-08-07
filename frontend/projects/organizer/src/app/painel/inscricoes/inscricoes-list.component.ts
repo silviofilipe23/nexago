@@ -28,7 +28,7 @@ import {
   template: `
     <div class="og-insc-head" role="presentation">
       <span></span>
-      <span>Atleta / dupla</span>
+      <span>Atleta / equipe</span>
       <span class="col-cat">Categoria</span>
       <span class="col-date">Inscrita em</span>
       <span>Pagamento</span>
@@ -65,8 +65,13 @@ import {
 
                 <span class="og-insc-who">
                   <span class="og-insc-name" [title]="r.name">{{ r.name }}</span>
-                  @if (r.cancelPending || r.lgpd !== 'aceito') {
+                  @if (r.cancelPending || r.lgpd !== 'aceito' || r.roster) {
                     <span class="og-insc-flags">
+                      @if (r.roster; as roster) {
+                        <span class="og-insc-flag" title="Elenco incompleto — a equipe só entra na chave completa">
+                          <og-icon name="users" [size]="12" />{{ roster }}
+                        </span>
+                      }
                       @if (r.cancelPending) {
                         <span class="og-insc-flag danger">
                           <og-icon name="flag" [size]="12" />Cancelamento pedido

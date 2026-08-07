@@ -3,11 +3,14 @@ import { organizerFirestore } from './firestore';
 import { generateKeywords } from './search-keywords';
 import {
   BRACKET_FORMAT_FIRESTORE,
+  DISPUTE_TEAM_SIZE,
   SKILL_LEVEL_LABEL,
   type TournamentCategoryDraft,
   type TournamentPaymentMode,
   type TournamentSport,
+  categoryGenderComposition,
   defaultCourtsFromCount,
+  isTeamDispute,
   suggestCategoryName,
 } from './tournament-create.model';
 
@@ -164,11 +167,20 @@ function formatDateRange(start: Date, end: Date): string {
 
 /** Categoria de liga — igual à de torneio, mas sem premiação/uniforme (ver `LeagueCreateMapper._categoryToMap`). */
 function leagueCategoryToMap(category: TournamentCategoryDraft): Record<string, unknown> {
+  const isTeam = isTeamDispute(category.dispute);
   return {
     id: category.id,
     categoryName: category.name.trim() || suggestCategoryName(category),
-    genderType: category.gender,
+    // Mesmo contrato do torneio: equipe "livre" grava mixed para leitores legados.
+    genderType: isTeam && category.genderFree ? 'mixed' : category.gender,
     disputeType: category.dispute,
+    teamSize: DISPUTE_TEAM_SIZE[category.dispute] ?? 2,
+    ...(isTeam
+      ? {
+          genderMode: category.genderFree ? 'free' : 'composition',
+          genderComposition: categoryGenderComposition(category),
+        }
+      : {}),
     ageBand: category.ageBand,
     level: SKILL_LEVEL_LABEL[category.skillLevel],
     maxTeams: category.spots,

@@ -69,20 +69,32 @@ export function canChargeTournamentFull(params: {
 }
 
 /**
- * Crédito a aplicar e se a dupla fica confirmada após um pagamento.
+ * Crédito a aplicar e se a inscrição fica confirmada após um pagamento.
  * 'full' topa o valor até a taxa cheia e confirma a inscrição;
- * 'share' credita uma parcela.
+ * 'share' credita uma parcela — metade da taxa (dupla) ou, quando
+ * `shareCreditReais` é informado (categoria de equipe, cota dinâmica), o valor
+ * realmente pago, limitado ao que falta.
  */
 export function resolveTournamentRegistrationCredit(params: {
   entryFee: number;
   amountType: TournamentChargeAmountType;
   currentPaidAmount: number;
+  shareCreditReais?: number;
 }): {credit: number; newPaidAmount: number; isPaid: boolean} {
   const entryFee = Math.max(0, Number(params.entryFee) || 0);
   const current = Math.max(0, Number(params.currentPaidAmount) || 0);
+  const shareCredit =
+    params.shareCreditReais != null && Number.isFinite(params.shareCreditReais)
+      ? roundMoney(
+          Math.min(
+            Math.max(0, params.shareCreditReais),
+            Math.max(0, entryFee - current),
+          ),
+        )
+      : computeTournamentShareAmountReais(entryFee);
   const credit = params.amountType === "full" ?
     roundMoney(Math.max(0, entryFee - current)) :
-    computeTournamentShareAmountReais(entryFee);
+    shareCredit;
   const newPaidAmount = roundMoney(current + credit);
   const isPaid = entryFee > 0 && newPaidAmount >= entryFee - 0.01;
   return {credit, newPaidAmount, isPaid};
@@ -90,8 +102,8 @@ export function resolveTournamentRegistrationCredit(params: {
 
 /**
  * uids dos atletas da inscrição. Usa o time quando existir (dupla / solo
- * legado); senão deriva da própria inscrição (solo novo, sem equipe ainda):
- * `player1Id` + `participantUids`.
+ * legado / equipe nomeada com `memberUids`); senão deriva da própria inscrição
+ * (solo novo, sem equipe ainda): `player1Id` + `participantUids`.
  */
 export function registrationAthleteUids(
   registration: Record<string, unknown>,
@@ -99,7 +111,8 @@ export function registrationAthleteUids(
 ): string[] {
   const out = new Set<string>();
   if (team) {
-    for (const id of [team.player1Id, team.player2Id]) {
+    const memberUids = Array.isArray(team.memberUids) ? team.memberUids : [];
+    for (const id of [...memberUids, team.player1Id, team.player2Id]) {
       if (typeof id === "string" && id.trim()) out.add(id.trim());
     }
     return [...out];
@@ -123,15 +136,20 @@ export function sharePaidUidsFromRegistration(
   return raw.filter((id): id is string => typeof id === "string" && id.trim().length > 0);
 }
 
-/** Inscrição gratuita: dupla confirmada quando os dois atletas constam em sharePaidUids. */
+/**
+ * Inscrição gratuita: confirmada quando o elenco está completo (`expectedSize`
+ * atletas — dupla por padrão, 3–5 em categoria de equipe) e todos constam em
+ * `sharePaidUids`.
+ */
 export function isFreeRegistrationFullyConfirmed(
   teamUids: string[],
   sharePaidUids: string[],
+  expectedSize: number = TEAM_SIZE,
 ): boolean {
   const uniqueTeamUids = teamUids
     .map((id) => id.trim())
     .filter((id, idx, arr) => id.length > 0 && arr.indexOf(id) === idx);
-  if (uniqueTeamUids.length < TEAM_SIZE) return false;
+  if (uniqueTeamUids.length < Math.max(TEAM_SIZE, expectedSize)) return false;
   return uniqueTeamUids.every((uid) => sharePaidUids.includes(uid));
 }
 

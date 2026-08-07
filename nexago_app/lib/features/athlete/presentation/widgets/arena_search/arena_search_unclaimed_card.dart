@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_typography.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
 import '../../../../arenas/domain/nearby_arenas_logic.dart';
 import 'arena_search_highlight.dart';
 
 /// Card de arena pré-cadastrada na busca.
 ///
-/// Deliberadamente mais enxuto que o card de arena parceira: sem preço, sem
-/// nota, sem favoritar e sem "Reservar". Tudo isso são promessas da arena
-/// parceira, e a pré-cadastrada não faz nenhuma — mostrar campo zerado só
-/// pareceria arena ruim. O que sobra é o que sabemos de verdade (nome, cidade,
-/// esportes) e o único caminho possível: falar com ela.
+/// Segue o mesmo desenho do card de arena parceira ([ArenaSearchArenaCard]) —
+/// hero, bloco de nome, linha de preço e barra de ação nos mesmos lugares —
+/// para não destoar da lista. Muda só o que ela realmente não tem: não é
+/// tocável (não existe detalhe para abrir), não dá para favoritar e o lugar do
+/// preço diz que não há reserva, em vez de exibir R$ 0 e parecer arena grátis.
 class ArenaSearchUnclaimedCard extends StatelessWidget {
   const ArenaSearchUnclaimedCard({
     super.key,
@@ -36,108 +36,222 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
     final location =
         '${place.city}${place.state.isNotEmpty ? ', ${place.state}' : ''}';
     final sports = arena.courtTypes.take(3).join(' · ');
+    final sportPill =
+        (arena.courtTypes.isNotEmpty ? arena.courtTypes.first : 'Areia')
+            .toUpperCase();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.onSurfaceMuted.withValues(alpha: 0.2)),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+    return Material(
+      color: colors.surfaceCard,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: arenaSearchTintColor(arena.id),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.place_outlined,
-                  size: 20,
-                  color: AppColors.white,
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Column(
+          _Hero(arenaId: arena.id, sportLabel: sportPill),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text.rich(
-                      buildArenaSearchHighlightedName(
-                        context,
-                        arena.name,
-                        searchQuery,
-                        baseStyle: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colors.onSurface,
-                        ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text.rich(
+                            buildArenaSearchHighlightedName(
+                              context,
+                              arena.name,
+                              searchQuery,
+                              baseStyle: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: colors.onSurface,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            location,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceMuted,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.surfaceRaised,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'AINDA NÃO RESERVA PELA NEXAGO',
+                              style: AppTypography.mono(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.4,
+                                color: colors.onSurfaceMuted,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      location,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceMuted,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'RESERVA',
+                          style: AppTypography.mono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                            color: colors.onSurfaceMuted,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        // Mesmo peso do preço da parceira, só apagado: a linha
+                        // pesa igual na lista sem competir com quem tem preço.
+                        Text(
+                          'indisponível',
+                          style: AppTypography.mono(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: colors.onSurfaceMuted,
+                            height: 1,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-            ],
+                SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceRaised,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.chat_rounded,
+                          color: AppColors.brand,
+                          size: 20,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Fale direto com a arena',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: colors.onSurfaceMuted,
+                              ),
+                            ),
+                            Text(
+                              sports.isEmpty ? 'Esportes de areia' : sports,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      if (onContact != null)
+                        FilledButton(
+                          onPressed: onContact,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: AppColors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          child: Text(
+                            'Entre em contato',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
+        ],
+      ),
+    );
+  }
+}
+
+/// Mesma altura e gradiente do hero da parceira. Como a arena pré-cadastrada
+/// não tem foto, entra só a cor de fundo derivada do id — e a pilha superior
+/// mostra o esporte, no lugar onde a parceira mostra a contagem de quadras.
+class _Hero extends StatelessWidget {
+  const _Hero({required this.arenaId, required this.sportLabel});
+
+  final String arenaId;
+  final String sportLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 140,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(color: arenaSearchTintColor(arenaId)),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.05),
+                  Colors.black.withValues(alpha: 0.45),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 10,
+            top: 10,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: colors.surfaceRaised,
-                borderRadius: BorderRadius.circular(6),
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                'AINDA NÃO RESERVA PELA NEXAGO',
+                sportLabel,
                 style: AppTypography.mono(
-                  fontSize: 10,
+                  color: AppColors.white,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                  color: colors.onSurfaceMuted,
+                  fontSize: 12,
                 ),
               ),
             ),
           ),
-          if (sports.isNotEmpty) ...[
-            SizedBox(height: 8),
-            Text(
-              sports,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceMuted,
-              ),
-            ),
-          ],
-          if (onContact != null) ...[
-            SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onContact,
-              icon: Icon(Icons.chat_rounded, size: 18),
-              label: Text(
-                'Entre em contato',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.brand,
-                side: BorderSide(color: AppColors.brand),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ],
         ],
       ),
     );

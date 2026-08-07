@@ -385,10 +385,11 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                   ),
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    // Sem nenhuma arena na região, o dono que estiver olhando é
-                    // o lead mais quente que existe: é literalmente o vazio que
-                    // ele preencheria. Não oferecemos o convite quando só os
-                    // filtros esconderam as arenas — ali há arena de sobra.
+                    // Tela vazia é onde um dono de arena mais provavelmente se
+                    // reconhece — o vazio é literalmente o que ele preencheria.
+                    // Vale nos dois casos: quando não há arena nenhuma e quando
+                    // os filtros esconderam as que existem. As ações de filtro
+                    // ficam no banner acima, então o convite não compete com elas.
                     child: AppEmptyView(
                       icon: rawCount > 0
                           ? Icons.tune_rounded
@@ -398,14 +399,12 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                           : 'Nenhuma arena encontrada',
                       subtitle: rawCount > 0
                           ? 'Temos $rawCount arena${rawCount == 1 ? '' : 's'} na base, '
-                              'mas nenhuma passou nos filtros atuais.'
+                              'mas nenhuma passou nos filtros atuais. '
+                              'Tem uma arena por aqui?'
                           : 'Ajuste filtros, data ou horário para ver mais opções. '
-                              'Se você tem uma arena por aqui, cadastre e apareça '
-                              'para os atletas.',
-                      actionLabel:
-                          rawCount > 0 ? null : 'Quero cadastrar minha arena',
-                      onAction:
-                          rawCount > 0 ? null : _openArenaSignupContact,
+                              'Tem uma arena por aqui?',
+                      actionLabel: 'Quero cadastrar minha arena',
+                      onAction: _openArenaSignupContact,
                     ),
                   ),
                 ],

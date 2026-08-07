@@ -385,6 +385,10 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                   ),
                   SliverFillRemaining(
                     hasScrollBody: false,
+                    // Sem nenhuma arena na região, o dono que estiver olhando é
+                    // o lead mais quente que existe: é literalmente o vazio que
+                    // ele preencheria. Não oferecemos o convite quando só os
+                    // filtros esconderam as arenas — ali há arena de sobra.
                     child: AppEmptyView(
                       icon: rawCount > 0
                           ? Icons.tune_rounded
@@ -395,7 +399,13 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                       subtitle: rawCount > 0
                           ? 'Temos $rawCount arena${rawCount == 1 ? '' : 's'} na base, '
                               'mas nenhuma passou nos filtros atuais.'
-                          : 'Ajuste filtros, data ou horário para ver mais opções.',
+                          : 'Ajuste filtros, data ou horário para ver mais opções. '
+                              'Se você tem uma arena por aqui, cadastre e apareça '
+                              'para os atletas.',
+                      actionLabel:
+                          rawCount > 0 ? null : 'Quero cadastrar minha arena',
+                      onAction:
+                          rawCount > 0 ? null : _openArenaSignupContact,
                     ),
                   ),
                 ],

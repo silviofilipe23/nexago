@@ -256,6 +256,16 @@
         <div class="rv-state-card">
           <p class="rv-state-title">Nenhuma arena encontrada</p>
           <p class="rv-state-sub">Ajuste filtros, data ou horário para ver mais opções.</p>
+          <!-- Sem nenhuma arena na região, o dono que estiver olhando é o lead
+               mais quente que existe: é literalmente o vazio que ele preencheria.
+               Não entra no estado de "filtros ocultaram as arenas", onde há
+               arena de sobra e o convite só atrapalharia. -->
+          <div class="rv-state-cta">
+            <p class="rv-state-sub">Tem uma arena por aqui?</p>
+            <a class="rv-btn-primary rv-btn-cta" [href]="arenaSignupUrl" target="_blank" rel="noopener">
+              Quero cadastrar minha arena
+            </a>
+          </div>
         </div>
       }
     } @else {

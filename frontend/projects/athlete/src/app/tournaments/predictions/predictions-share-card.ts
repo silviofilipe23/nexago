@@ -71,6 +71,23 @@ function tracked(
   ctx.textAlign = prev;
 }
 
+/** Reduz a fonte até o texto caber. Deixa `ctx.font` ajustada. */
+function fitFont(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  start: number,
+  min: number,
+  font: (size: number) => string,
+): void {
+  let size = start;
+  ctx.font = font(size);
+  while (size > min && ctx.measureText(text).width > maxWidth) {
+    size -= 2;
+    ctx.font = font(size);
+  }
+}
+
 function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) return text;
   let result = text;
@@ -211,7 +228,9 @@ function drawFooter(ctx: CanvasRenderingContext2D, data: PredictionShareData): v
   ctx.fillStyle = DIM;
   tracked(ctx, 'DÊ O SEU PALPITE EM', CX, 1706, 8);
 
-  ctx.font = sora(700, 44);
+  // A URL encolhe até caber em vez de truncar: com id de torneio real (20 caracteres) ela é
+  // sempre longa, e um endereço cortado com "…" não leva ninguém a lugar nenhum.
+  fitFont(ctx, data.urlLabel, ROW_W, 44, 26, (size) => sora(700, size));
   ctx.fillStyle = ORANGE;
   ctx.textAlign = 'center';
   ctx.fillText(truncate(ctx, data.urlLabel, ROW_W), CX, 1782);
@@ -227,7 +246,7 @@ function drawFooter(ctx: CanvasRenderingContext2D, data: PredictionShareData): v
  * o primeiro traço sai na fonte de fallback e o card fica com outra cara.
  */
 export async function drawPredictionsShareCard(ctx: CanvasRenderingContext2D, data: PredictionShareData): Promise<void> {
-  const fontSpecs = [sora(800, 88), sora(800, 56), sora(800, 44), sora(700, 48), sora(700, 44), mono(700, 26), mono(500, 30), mono(500, 24)];
+  const fontSpecs = [sora(800, 88), sora(800, 64), sora(800, 52), sora(700, 52), sora(700, 44), sora(700, 30), mono(700, 26), mono(500, 30), mono(500, 22)];
   await Promise.all(fontSpecs.map((f) => document.fonts.load(f).catch(() => []))).catch(() => {});
 
   ctx.clearRect(0, 0, W, H);

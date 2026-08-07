@@ -626,17 +626,6 @@
   }
 }
 
-// A prancheta do card 1080×1920: precisa estar no DOM para o canvas pintar, mas nunca é vista.
-// `display: none` não serve — o canvas não renderiza e o toBlob sai em branco.
-.pp-share-canvas {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-  left: -9999px;
-}
-
 // ── Pódio ────────────────────────────────────────────────────────────────────
 .pp-podium {
   display: grid;

@@ -3,6 +3,65 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
+/// Ponto pulsante do "ao vivo" (porte de `nx-live-pulse` do portal). Para de
+/// pulsar com "reduzir movimento" ligado no sistema.
+class TournamentMatchCardLiveDot extends StatefulWidget {
+  const TournamentMatchCardLiveDot({
+    super.key,
+    this.color = AppColors.live,
+    this.size = 6,
+  });
+
+  final Color color;
+  final double size;
+
+  @override
+  State<TournamentMatchCardLiveDot> createState() =>
+      _TournamentMatchCardLiveDotState();
+}
+
+class _TournamentMatchCardLiveDotState extends State<TournamentMatchCardLiveDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.stop();
+      _controller.value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+    );
+
+    return FadeTransition(
+      opacity: Tween<double>(
+        begin: 1,
+        end: 0.35,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+      child: dot,
+    );
+  }
+}
+
 /// Badge pill «AO VIVO» para partidas em andamento.
 class TournamentMatchLiveBadge extends StatelessWidget {
   const TournamentMatchLiveBadge({super.key});

@@ -29,7 +29,7 @@ MatchSharePosterData buildMatchSharePosterData({
   final (setWinsA, setWinsB) = matchSharePosterSetWins(match);
   final live = TournamentMatchStatus.isInProgress(match.status);
   final finished = TournamentMatchStatus.isCompleted(match.status);
-  final bestOf = _bestOf(match);
+  final bestOf = matchBestOf(match);
   final winnerId = match.winnerId?.trim() ?? '';
 
   return MatchSharePosterData(
@@ -53,8 +53,8 @@ MatchSharePosterData buildMatchSharePosterData({
     ),
     winner: finished && winnerId.isNotEmpty
         ? (winnerId == match.teamAId.trim()
-              ? MatchSharePosterSide.teamA
-              : MatchSharePosterSide.teamB)
+            ? MatchSharePosterSide.teamA
+            : MatchSharePosterSide.teamB)
         : null,
     sets: [
       for (final set in matchSharePosterClosedSets(match))
@@ -69,26 +69,11 @@ MatchSharePosterData buildMatchSharePosterData({
 }
 
 // --- Placar -----------------------------------------------------------------
-// Espelho de `matchSetWins` / `matchClosedSets` / `matchLiveCurrentSet`
-// (`data/matches-repository.ts`), que por sua vez espelham as regras de set do
-// app. Os três precisam ler o placar da mesma forma, senão o mesmo jogo sai com
-// números diferentes nas duas telas.
-
-const _defaultBestOf = 3;
-const _defaultSetPoints = 21;
-const _tiebreakSetPoints = 15;
-const _minAdvantage = 2;
-
-int _bestOf(TournamentMatch match) =>
-    match.bestOf > 0 ? match.bestOf : _defaultBestOf;
-
-bool _setIsWon(TournamentMatchSet set, int index, int bestOf) {
-  final target = bestOf == 3 && index == 2
-      ? _tiebreakSetPoints
-      : _defaultSetPoints;
-  return (set.a >= target && set.a - set.b >= _minAdvantage) ||
-      (set.b >= target && set.b - set.a >= _minAdvantage);
-}
+// A leitura do placar (sets fechados, set em andamento) vive em
+// `tournament_match_display.dart`, espelhando `matchClosedSets` /
+// `matchLiveCurrentSet` de `data/matches-repository.ts`: o card da chave, o
+// detalhe e o pôster precisam ler o mesmo jogo da mesma forma, senão o mesmo
+// jogo sai com números diferentes em cada tela.
 
 /// Sets ganhos por lado. Ao vivo, o set em andamento (que a mesa mantém dentro
 /// de `sets[]`) não conta; encerrada, todo set vale.
@@ -106,47 +91,12 @@ bool _setIsWon(TournamentMatchSet set, int index, int bestOf) {
 }
 
 /// Sets fechados, já normalizados (`sets[]` ou o formato legado `resultA/B`).
-List<TournamentMatchSet> matchSharePosterClosedSets(TournamentMatch match) {
-  final sets = setsForMatch(match);
-  if (!TournamentMatchStatus.isInProgress(match.status)) return sets;
-  final bestOf = _bestOf(match);
-  return [
-    for (var i = 0; i < sets.length; i++)
-      if (_setIsWon(sets[i], i, bestOf)) sets[i],
-  ];
-}
-
-/// Pontos do set em andamento, unificando os dois escritores: a mesa ponto a
-/// ponto (set corrente dentro de `sets[]`) e o placar agregado (`liveScore`).
-/// A mesa tem prioridade; `null` fora do ao vivo ou entre sets.
-({int setNumber, int a, int b})? _liveCurrentSet(TournamentMatch match) {
-  if (!TournamentMatchStatus.isInProgress(match.status)) return null;
-  final bestOf = _bestOf(match);
-  final sets = setsForMatch(match);
-  if (sets.isNotEmpty) {
-    final index = (match.currentSetIndex ?? sets.length - 1).clamp(
-      0,
-      bestOf - 1,
-    );
-    if (index < sets.length && !_setIsWon(sets[index], index, bestOf)) {
-      return (
-        setNumber: matchSharePosterClosedSets(match).length + 1,
-        a: sets[index].a,
-        b: sets[index].b,
-      );
-    }
-  }
-  final live = match.liveScore;
-  if (live == null) return null;
-  final setNumber = sets.isNotEmpty
-      ? matchSharePosterClosedSets(match).length + 1
-      : live.setsA + live.setsB + 1;
-  return (setNumber: setNumber, a: live.currentGamesA, b: live.currentGamesB);
-}
+List<TournamentMatchSet> matchSharePosterClosedSets(TournamentMatch match) =>
+    matchClosedSets(match);
 
 /// "1–0 · 2º set 14-11".
 String? _liveScoreLine(TournamentMatch match) {
-  final current = _liveCurrentSet(match);
+  final current = matchLiveCurrentSet(match);
   if (current == null) return null;
   final (a, b) = matchSharePosterSetWins(match);
   return '$a–$b · ${current.setNumber}º set ${current.a}-${current.b}';
@@ -165,13 +115,12 @@ String _phaseLabel(TournamentMatch match, List<TournamentMatch> matches) {
 /// A letra vem da posição do grupo entre os grupos do torneio, ordenados —
 /// é o que o portal mostra, e não o id cru do pool.
 String _groupLabel(String poolId, List<TournamentMatch> matches) {
-  final pools =
-      matches
-          .map((m) => m.poolId.trim())
-          .where((id) => id.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
+  final pools = matches
+      .map((m) => m.poolId.trim())
+      .where((id) => id.isNotEmpty)
+      .toSet()
+      .toList()
+    ..sort();
   final index = pools.indexOf(poolId.trim());
   return index >= 0 ? 'Grupo ${String.fromCharCode(65 + index)}' : 'Grupo';
 }
@@ -184,13 +133,12 @@ int _roundDisplayNumber(
   String poolId,
   int round,
 ) {
-  final rounds =
-      matches
-          .where((m) => m.poolId.trim() == poolId.trim())
-          .map((m) => m.round)
-          .toSet()
-          .toList()
-        ..sort();
+  final rounds = matches
+      .where((m) => m.poolId.trim() == poolId.trim())
+      .map((m) => m.round)
+      .toSet()
+      .toList()
+    ..sort();
   final index = rounds.indexOf(round);
   return index >= 0 ? index + 1 : round + 1;
 }
@@ -246,9 +194,8 @@ String? _dateLine(TournamentMatch match) {
 /// "Sáb 02/08".
 String _dayLabel(DateTime time) {
   final raw = DateFormat('EEE', 'pt_BR').format(time).replaceAll('.', '');
-  final weekday = raw.isEmpty
-      ? ''
-      : '${raw[0].toUpperCase()}${raw.substring(1)}';
+  final weekday =
+      raw.isEmpty ? '' : '${raw[0].toUpperCase()}${raw.substring(1)}';
   return '$weekday ${DateFormat('dd/MM', 'pt_BR').format(time)}'.trim();
 }
 

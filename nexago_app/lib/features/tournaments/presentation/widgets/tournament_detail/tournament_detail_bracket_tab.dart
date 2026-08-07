@@ -219,10 +219,7 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                   for (final match in group.matches)
                     TournamentMatchCard(
                       viewModel: cardsById[match.id]!,
-                      isAthleteMatch: isAthleteMatchForHighlight(
-                        match,
-                        athleteTeamIds,
-                      ),
+                      athleteTeamIds: athleteTeamIds,
                       onTap: () => _openMatchDetail(context, match.id),
                     ),
                 ],
@@ -255,10 +252,7 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                   for (final match in group.matches)
                     TournamentMatchCard(
                       viewModel: cardsById[match.id]!,
-                      isAthleteMatch: isAthleteMatchForHighlight(
-                        match,
-                        athleteTeamIds,
-                      ),
+                      athleteTeamIds: athleteTeamIds,
                       onTap: () => _openMatchDetail(context, match.id),
                     ),
                 ],

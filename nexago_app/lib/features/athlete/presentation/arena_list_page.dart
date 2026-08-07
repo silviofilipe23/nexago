@@ -16,6 +16,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/data/arena_contact_service.dart';
+import '../../arenas/domain/arena_contact_message.dart';
 import '../../arenas/domain/arena_search_filter_logic.dart';
 import '../../arenas/domain/arena_search_providers.dart';
 import '../../arenas/domain/slots_page_logic.dart';
@@ -26,6 +27,7 @@ import '../domain/athlete_shell_providers.dart';
 import '../domain/favorites_providers.dart';
 import 'favorite_success_page.dart';
 import 'widgets/arena_search/arena_search_arena_card.dart';
+import 'widgets/arena_search/arena_search_signup_cta_card.dart';
 import 'widgets/arena_search/arena_search_unclaimed_card.dart';
 import 'widgets/arena_search/arena_search_bar.dart';
 import 'widgets/arena_search/arena_search_date_time_row.dart';
@@ -221,6 +223,21 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
       profileCity: profile?.city ?? '',
       profileState: profile?.state ?? '',
     );
+  }
+
+  /// Abre o canal comercial da nexaGO para quem quer cadastrar a própria arena.
+  Future<void> _openArenaSignupContact() async {
+    final opened = await launchUrl(
+      Uri.parse(buildNexagoArenaSignupContactUrl()),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o contato.',
+        isError: true,
+      );
+    }
   }
 
   /// Abre o WhatsApp da arena pré-cadastrada e registra o clique.
@@ -425,9 +442,19 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                   sliver: SliverList.separated(
-                    itemCount: items.length,
+                    // +1: o convite ao dono de arena fecha a lista.
+                    itemCount: items.length + 1,
                     separatorBuilder: (_, __) => SizedBox(height: 16),
                     itemBuilder: (context, index) {
+                      if (index == items.length) {
+                        return staggeredFadeSlide(
+                          index: index,
+                          child: ArenaSearchSignupCtaCard(
+                            onTap: _openArenaSignupContact,
+                          ),
+                        );
+                      }
+
                       final item = items[index];
                       final result = item.result;
 

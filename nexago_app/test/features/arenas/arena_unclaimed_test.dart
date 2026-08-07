@@ -88,6 +88,26 @@ void main() {
     });
   });
 
+  group('buildNexagoArenaSignupContactUrl', () {
+    test('sem WhatsApp comercial configurado, cai no e-mail de vendas', () {
+      // Enquanto `kNexagoSalesWhatsApp` estiver vazio o botão tem de continuar
+      // funcionando — link `wa.me` quebrado seria pior que não ter botão.
+      final url = buildNexagoArenaSignupContactUrl();
+      if (kNexagoSalesWhatsApp.isEmpty) {
+        expect(url, startsWith('mailto:$kNexagoSalesEmail'));
+        expect(url, contains('subject='));
+      } else {
+        expect(url, startsWith('https://wa.me/'));
+      }
+    });
+
+    test('a mensagem diz que é dono de arena querendo cadastrar', () {
+      final url = Uri.decodeFull(buildNexagoArenaSignupContactUrl());
+      expect(url, contains('arena'));
+      expect(url, contains('nexaGO'));
+    });
+  });
+
   group('ArenaListItem.isUnclaimed', () {
     test('ausência do campo mantém a arena como parceira', () {
       expect(_arena(id: 'a').isUnclaimed, isFalse);

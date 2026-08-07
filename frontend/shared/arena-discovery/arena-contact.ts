@@ -19,6 +19,36 @@ export function buildArenaContactWhatsAppMessage(arenaName: string): string {
   );
 }
 
+/**
+ * WhatsApp comercial da nexaGO, em E.164 (ex.: `5562999999999`).
+ *
+ * ÚNICO lugar a preencher: é daqui que sai o botão "Gostaria de ver sua arena
+ * aqui?" nas duas superfícies web. Enquanto estiver vazio o botão cai no e-mail
+ * comercial — nunca gera um `wa.me` quebrado.
+ */
+export const NEXAGO_SALES_WHATSAPP = '';
+
+/** Canal de vendas já usado na tela de planos do portal da arena. */
+export const NEXAGO_SALES_EMAIL = 'contato@nexago.com.br';
+
+const SALES_SUBJECT = 'Quero cadastrar minha arena na nexaGO';
+const SALES_MESSAGE =
+  'Olá! Tenho uma arena e gostaria de cadastrá-la na nexaGO para aparecer para os atletas.';
+
+/**
+ * Destino do "Gostaria de ver sua arena aqui?": WhatsApp comercial quando
+ * configurado, e-mail de vendas caso contrário.
+ */
+export function nexagoArenaSignupContactUrl(): string {
+  const digits = normalizeWhatsAppDigits(NEXAGO_SALES_WHATSAPP);
+  if (digits) {
+    return `https://wa.me/${digits}?text=${encodeURIComponent(SALES_MESSAGE)}`;
+  }
+  return `mailto:${NEXAGO_SALES_EMAIL}?subject=${encodeURIComponent(
+    SALES_SUBJECT,
+  )}&body=${encodeURIComponent(SALES_MESSAGE)}`;
+}
+
 /** Paridade com `_normalizeWhatsAppDigits` (Flutter). */
 function normalizeWhatsAppDigits(raw: string | null | undefined): string | null {
   if (!raw) {

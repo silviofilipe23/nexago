@@ -283,10 +283,10 @@
                   <span class="rv-unclaimed-badge">AINDA NÃO RESERVA PELA NEXAGO</span>
                 </div>
 
-                <div class="rv-card-price-row">
-                  <span class="rv-price-label">RESERVA</span>
-                  <span class="rv-price-unavailable">indisponível</span>
-                </div>
+                <!-- Linha do preço fica vazia: a arena não tem preço, e qualquer
+                     número ou rótulo aqui seria invenção. Mantida só para o card
+                     ter a mesma altura do da parceira e a grade não desalinhar. -->
+                <div class="rv-card-price-row rv-card-price-row--empty" aria-hidden="true"></div>
 
                 <div class="rv-card-slot-row">
                   <div class="rv-slot-info">
@@ -416,6 +416,20 @@
           </article>
           }
         }
+
+        <!-- Fecha a lista: quem rolou até aqui viu as arenas da região, que é o
+             momento em que um dono pensa "cadê a minha". -->
+        <article class="rv-card rv-card--cta">
+          <div class="rv-card-body rv-cta-body">
+            <h3 class="rv-cta-title">Gostaria de ver sua arena aqui?</h3>
+            <p class="rv-cta-sub">
+              Cadastre sua arena na nexaGO e receba atletas procurando quadra na sua região.
+            </p>
+            <a class="rv-btn-primary rv-btn-cta" [href]="arenaSignupUrl" target="_blank" rel="noopener">
+              Quero cadastrar minha arena
+            </a>
+          </div>
+        </article>
       </div>
     }
   </div>

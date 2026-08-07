@@ -1,7 +1,10 @@
 import {
   ARENA_AMENITIES_EMPTY,
+  NEXAGO_SALES_EMAIL,
+  NEXAGO_SALES_WHATSAPP,
   arenaContactWhatsAppUrl,
   buildArenaContactWhatsAppMessage,
+  nexagoArenaSignupContactUrl,
   defaultArenaSearchQueryFilters,
   filterAndSortArenaResults,
   type ArenaListItem,
@@ -92,6 +95,26 @@ describe('contato com arena pré-cadastrada', () => {
 
   it('sem número não gera link — o botão não deve aparecer', () => {
     expect(arenaContactWhatsAppUrl(arena({ whatsapp: null, phone: null }))).toBeNull();
+  });
+});
+
+describe('convite "Gostaria de ver sua arena aqui?"', () => {
+  it('sem WhatsApp comercial configurado, cai no e-mail de vendas', () => {
+    // Enquanto NEXAGO_SALES_WHATSAPP estiver vazio o botão tem de continuar
+    // funcionando — link wa.me quebrado seria pior que não ter botão.
+    const url = nexagoArenaSignupContactUrl();
+    if (NEXAGO_SALES_WHATSAPP.length === 0) {
+      expect(url.startsWith(`mailto:${NEXAGO_SALES_EMAIL}`)).toBe(true);
+      expect(url).toContain('subject=');
+    } else {
+      expect(url.startsWith('https://wa.me/')).toBe(true);
+    }
+  });
+
+  it('a mensagem diz que é dono de arena querendo cadastrar', () => {
+    const url = decodeURIComponent(nexagoArenaSignupContactUrl());
+    expect(url).toContain('arena');
+    expect(url).toContain('nexaGO');
   });
 });
 

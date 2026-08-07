@@ -925,17 +925,64 @@
   white-space: nowrap;
 }
 
-/* Mesma tipografia do preço da parceira (`.rv-price-value`), só apagada — a
-   linha tem de pesar igual na grade, sem competir com quem tem preço real. */
-.rv-price-unavailable {
-  font-family: var(--nx-font-display);
-  font-weight: 800;
-  font-size: 17px;
-  font-style: normal;
-  color: var(--nx-text-dim);
+/* Reserva a altura que o preço ocupa no card da parceira (rótulo de 8.5px +
+   valor de 17px + o padding-top da linha), para os dois cards fecharem na mesma
+   altura mesmo sem nada escrito aqui. */
+.rv-card-price-row--empty {
+  height: 25px;
 }
 
 a.rv-btn-contact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Convite pro dono de arena, no fim da lista. Ocupa uma célula da grade como
+   qualquer card, mas sem hero e com o laranja da marca na borda — sinaliza que
+   é a plataforma falando, não mais uma arena. */
+.rv-card--cta {
+  cursor: default;
+  border-color: rgba(255, 106, 26, 0.35);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 106, 26, 0.08),
+    var(--nx-surface-0) 60%
+  );
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(255, 106, 26, 0.55);
+    transform: none;
+  }
+}
+
+.rv-cta-body {
+  justify-content: center;
+  gap: 8px;
+  min-height: 190px;
+}
+
+.rv-cta-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.rv-cta-sub {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+}
+
+a.rv-btn-cta {
+  align-self: flex-start;
+  margin-top: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

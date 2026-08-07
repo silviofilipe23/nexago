@@ -65,7 +65,8 @@ String matchScheduleFooterLabelPt(TournamentMatch match) {
   if (time == null) {
     return court.isEmpty ? 'Sem horário' : '$court · sem horário';
   }
-  final weekdayRaw = DateFormat('EEE', 'pt_BR').format(time).replaceAll('.', '');
+  final weekdayRaw =
+      DateFormat('EEE', 'pt_BR').format(time).replaceAll('.', '');
   final weekday = weekdayRaw.isEmpty
       ? ''
       : '${weekdayRaw[0].toUpperCase()}${weekdayRaw.substring(1)}';
@@ -89,6 +90,86 @@ String matchMetaLabelForCard(TournamentMatch match) {
 List<TournamentMatchSet> setsForMatch(TournamentMatch match) {
   if (match.sets.isNotEmpty) return match.sets;
   return parseSetsFromResultStrings(match.resultA, match.resultB);
+}
+
+// --- Leitura do set em andamento --------------------------------------------
+// Espelho de `matchClosedSets` / `matchLiveCurrentSet` / `displaySetsOf` do
+// portal (`data/matches-repository.ts`, `tournament-live.selectors.ts`). Vive
+// aqui, e não em cada tela, porque o card da chave, o pôster e o detalhe da
+// partida precisam ler o mesmo jogo com os mesmos números.
+
+const _defaultBestOf = 3;
+const _defaultSetPoints = 21;
+const _tiebreakSetPoints = 15;
+const _minSetAdvantage = 2;
+
+int matchBestOf(TournamentMatch match) =>
+    match.bestOf > 0 ? match.bestOf : _defaultBestOf;
+
+/// Set já decidido pela regra de pontos (21, ou 15 no tiebreak do melhor de 3).
+bool matchSetIsWon(TournamentMatchSet set, int index, int bestOf) {
+  final target =
+      bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
+  return (set.a >= target && set.a - set.b >= _minSetAdvantage) ||
+      (set.b >= target && set.b - set.a >= _minSetAdvantage);
+}
+
+/// Sets fechados, já normalizados (`sets[]` ou o formato legado `resultA/B`).
+/// Ao vivo, o set em andamento (que a mesa mantém dentro de `sets[]`) fica de
+/// fora; encerrada, todo set vale.
+List<TournamentMatchSet> matchClosedSets(TournamentMatch match) {
+  final sets = setsForMatch(match);
+  if (!TournamentMatchStatus.isInProgress(match.status)) return sets;
+  final bestOf = matchBestOf(match);
+  return [
+    for (var i = 0; i < sets.length; i++)
+      if (matchSetIsWon(sets[i], i, bestOf)) sets[i],
+  ];
+}
+
+/// Pontos do set em andamento, unificando os dois escritores: a mesa ponto a
+/// ponto (set corrente dentro de `sets[]`) e o placar agregado (`liveScore`).
+/// A mesa tem prioridade; `null` fora do ao vivo ou entre sets.
+({int setNumber, int a, int b})? matchLiveCurrentSet(TournamentMatch match) {
+  if (!TournamentMatchStatus.isInProgress(match.status)) return null;
+  final bestOf = matchBestOf(match);
+  final sets = setsForMatch(match);
+  if (sets.isNotEmpty) {
+    final index = (match.currentSetIndex ?? sets.length - 1).clamp(
+      0,
+      bestOf - 1,
+    );
+    if (index < sets.length && !matchSetIsWon(sets[index], index, bestOf)) {
+      return (
+        setNumber: matchClosedSets(match).length + 1,
+        a: sets[index].a,
+        b: sets[index].b,
+      );
+    }
+  }
+  final live = match.liveScore;
+  if (live == null) return null;
+  final setNumber = sets.isNotEmpty
+      ? matchClosedSets(match).length + 1
+      : live.setsA + live.setsB + 1;
+  return (setNumber: setNumber, a: live.currentGamesA, b: live.currentGamesB);
+}
+
+/// Parciais a exibir em pílula no rodapé do card: os sets fechados mais o set
+/// em andamento, quando já tem ponto marcado. Slots 0-0 nunca jogados (vitória
+/// por 2-0 num melhor de 3) ficam de fora.
+List<({int a, int b, bool inProgress})> matchDisplaySets(
+  TournamentMatch match,
+) {
+  final sets = <({int a, int b, bool inProgress})>[
+    for (final set in matchClosedSets(match))
+      if (set.a + set.b > 0) (a: set.a, b: set.b, inProgress: false),
+  ];
+  final live = matchLiveCurrentSet(match);
+  if (live != null && (live.a > 0 || live.b > 0)) {
+    sets.add((a: live.a, b: live.b, inProgress: true));
+  }
+  return sets;
 }
 
 /// Sets efetivamente disputados — omite slots 0-0 não jogados (ex.: vitória 2-0).
@@ -127,14 +208,10 @@ List<TournamentMatchSet> parseSetsFromResultStrings(
   String resultA,
   String resultB,
 ) {
-  final aParts = resultA
-      .split(',')
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty);
-  final bParts = resultB
-      .split(',')
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty);
+  final aParts =
+      resultA.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+  final bParts =
+      resultB.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
   final aList = aParts.toList();
   final bList = bParts.toList();
   if (aList.isEmpty && bList.isEmpty) return const [];
@@ -219,17 +296,13 @@ String setsSummaryForAthleteTeam({
 }) {
   final sets = setsForMatch(match);
   if (sets.length <= 1) return '';
-  return sets
-      .asMap()
-      .entries
-      .map((e) {
-        final s = e.value;
-        final isTeamA = match.teamAId.trim() == athleteTeamId.trim();
-        final ours = isTeamA ? s.a : s.b;
-        final theirs = isTeamA ? s.b : s.a;
-        return 'Set ${e.key + 1}: $ours-$theirs';
-      })
-      .join(' · ');
+  return sets.asMap().entries.map((e) {
+    final s = e.value;
+    final isTeamA = match.teamAId.trim() == athleteTeamId.trim();
+    final ours = isTeamA ? s.a : s.b;
+    final theirs = isTeamA ? s.b : s.a;
+    return 'Set ${e.key + 1}: $ours-$theirs';
+  }).join(' · ');
 }
 
 String matchCardScoreLabel(TournamentMatch match) {

@@ -6,41 +6,48 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/match_win_probability_providers.dart';
+import '../../domain/tournament_match_card_row.dart';
 import '../../domain/tournament_match_card_view_model.dart';
 import '../../domain/tournament_match_display.dart';
-import '../../domain/tournament_match_status.dart';
-import '../../domain/tournament_match_live_score.dart';
+import 'tournament_match_card_premium_skin.dart';
 import 'tournament_match_live_badge.dart';
 
+/// Card de partida no desenho da Copa VH, o mesmo do portal do atleta
+/// (`category-matches.component`): linha mono no topo (nº do jogo + contexto à
+/// esquerda, selo de estado à direita), uma linha por dupla com o par de
+/// avatares sobrepostos e o placar à direita, e as parciais em pílulas no
+/// rodapé. Final e 3º lugar ganham o tratamento ouro/bronze.
+///
+/// As duas superfícies são desenhos à mão que geram o mesmo card: mexeu aqui,
+/// replica no portal (e vice-versa), senão as telas divergem em silêncio.
 class TournamentMatchCard extends ConsumerWidget {
   const TournamentMatchCard({
     super.key,
     required this.viewModel,
-    this.isAthleteMatch = false,
+    this.athleteTeamIds = const {},
     this.onTap,
   });
 
   final TournamentMatchCardViewModel viewModel;
-  final bool isAthleteMatch;
+
+  /// Equipes do atleta logado no torneio — marcam o card e o lado dele.
+  final Set<String> athleteTeamIds;
+
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final match = viewModel.match;
-    final isLive = match.isInProgress;
-    final isFinalized = match.isCompleted;
-    final counts = setsWonCountForMatch(match);
-    final hasScore = matchHasScoreData(match);
-    final teamAWon = isMatchTeamWinner(match, isTeamA: true);
-    final teamBWon = isMatchTeamWinner(match, isTeamA: false);
-    final timeLabel = matchTimeLabelForCard(match);
-    final metaLabel = matchMetaLabelForCard(match);
+    final row = buildTournamentMatchRow(
+      viewModel: viewModel,
+      athleteTeamIds: athleteTeamIds,
+    );
 
     // Probabilidade de vitória pré-partida: só busca quando faz sentido
     // (partida agendada, ainda sem placar) — nunca para partidas ao vivo ou
     // finalizadas, que já mostram o placar real.
-    final showWinProbability =
-        !hasScore && TournamentMatchStatus.isScheduled(match.status);
+    final showWinProbability = row.state == TournamentMatchRowState.scheduled &&
+        !matchHasScoreData(match);
     final winProbability = showWinProbability
         ? ref
             .watch(
@@ -52,260 +59,314 @@ class TournamentMatchCard extends ConsumerWidget {
             )
             .valueOrNull
         : null;
-    final teamAProbabilityLabel = winProbability != null
-        ? '${(winProbability * 100).round().clamp(1, 99)}%'
+    final teamAProbability = winProbability != null
+        ? (winProbability * 100).round().clamp(1, 99)
         : null;
-    final teamBProbabilityLabel = winProbability != null
-        ? '${(100 - (winProbability * 100).round().clamp(1, 99))}%'
-        : null;
-    final borderColor = isLive
-        ? AppColors.brand.withValues(alpha: 0.55)
-        : isAthleteMatch
-        ? AppColors.brand.withValues(alpha: 0.85)
-        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
-    final borderWidth = isAthleteMatch && !isLive ? 2.0 : 1.0;
-    final backgroundColor = isAthleteMatch && !isLive
-        ? AppColors.brand.withValues(alpha: 0.06)
-        : context.themeColors.surfaceRaised;
 
-    final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    return TournamentMatchCardSkin(
+      stage: row.stage,
+      isLive: row.state == TournamentMatchRowState.live,
+      isMine: row.isMine,
+      onTap: onTap,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (metaLabel.isNotEmpty ||
-              timeLabel.isNotEmpty ||
-              isLive ||
-              isFinalized) ...[
-            Row(
-              children: [
-                if (metaLabel.isNotEmpty)
-                  Expanded(
-                    child: Text(
-                      metaLabel,
-                      style: AppTypography.mono(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: context.themeColors.onSurfaceMuted,
-                        letterSpacing: 0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  )
-                else
-                  Spacer(),
-                if (isLive)
-                  const TournamentMatchLiveBadge()
-                else if (isFinalized)
-                  const TournamentMatchFinalizedBadge()
-                else if (timeLabel.isNotEmpty)
-                  Text(
-                    timeLabel,
-                    style: AppTypography.mono(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: context.themeColors.onSurfaceMuted,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(height: 6),
-          ],
-          if (isLive && match.liveScore != null) ...[
-            _LiveScoreLine(liveScore: match.liveScore!),
-            SizedBox(height: 6),
-          ],
+          _Head(row: row),
+          const SizedBox(height: 12),
           _TeamRow(
-            team: viewModel.teamA,
-            setsWon: counts.$1,
-            hasScore: hasScore,
-            isWinner: teamAWon,
-            partialsLabel: setPartialsLabelForTeam(match: match, isTeamA: true),
-            probabilityLabel: teamAProbabilityLabel,
-          ),
-          Divider(
-            height: 17,
-            thickness: 1,
-            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+            side: row.sideA,
+            probabilityLabel:
+                teamAProbability != null ? '$teamAProbability%' : null,
           ),
           _TeamRow(
-            team: viewModel.teamB,
-            setsWon: counts.$2,
-            hasScore: hasScore,
-            isWinner: teamBWon,
-            partialsLabel: setPartialsLabelForTeam(
-              match: match,
-              isTeamA: false,
-            ),
-            probabilityLabel: teamBProbabilityLabel,
+            side: row.sideB,
+            probabilityLabel:
+                teamAProbability != null ? '${100 - teamAProbability}%' : null,
           ),
+          if (row.pills.isNotEmpty) _Pills(pills: row.pills),
         ],
       ),
     );
-
-    final card = Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: borderWidth),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? content
-          : Material(
-              color: Colors.transparent,
-              child: InkWell(onTap: onTap, child: content),
-            ),
-    );
-
-    return card;
   }
 }
 
-/// Placar parcial do set em andamento — só aparece com o badge "AO VIVO".
-class _LiveScoreLine extends StatelessWidget {
-  const _LiveScoreLine({required this.liveScore});
+/// Nº do jogo + contexto à esquerda, selo de estado à direita. O nº abre a
+/// linha e não encolhe: é por ele que o organizador chama o jogo na quadra,
+/// então o resto do contexto trunca antes dele.
+class _Head extends StatelessWidget {
+  const _Head({required this.row});
 
-  final MatchLiveScore liveScore;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      'Set em andamento · ${liveScore.currentGamesA}×${liveScore.currentGamesB}',
-      style: AppTypography.mono(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        color: AppColors.live,
-        letterSpacing: 0.3,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-}
-
-class _TeamRow extends StatelessWidget {
-  const _TeamRow({
-    required this.team,
-    required this.setsWon,
-    required this.hasScore,
-    required this.isWinner,
-    required this.partialsLabel,
-    this.probabilityLabel,
-  });
-
-  final TournamentMatchCardTeamViewModel team;
-  final int setsWon;
-  final bool hasScore;
-  final bool isWinner;
-  final String partialsLabel;
-
-  /// Probabilidade de vitória pré-partida ("62%"), badge discreto exibido
-  /// no lugar do placar enquanto a partida não tem placar real. `null`
-  /// quando não há dado suficiente (regra dura: nunca mostrar sem dado).
-  final String? probabilityLabel;
+  final TournamentMatchRow row;
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isWinner
-        ? context.themeColors.onSurface
-        : context.themeColors.onSurfaceMuted;
-    final fontWeight = isWinner ? FontWeight.w700 : FontWeight.w400;
-    final scoreLabel = hasScore ? '$setsWon' : '—';
-    final partialsColor = isWinner
-        ? context.themeColors.onSurface.withValues(alpha: 0.72)
-        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.85);
+    final colors = context.themeColors;
+    final isLive = row.state == TournamentMatchRowState.live;
+    final accent = switch (row.stage) {
+      TournamentMatchRowStage.grandFinal => kMatchCardGold,
+      TournamentMatchRowStage.thirdPlace => kMatchCardBronze,
+      null => isLive ? AppColors.brand : null,
+    };
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _AvatarStack(players: team.players),
-        SizedBox(width: 10),
+        if (row.number.isNotEmpty) ...[
+          Text(
+            row.number,
+            style: AppTypography.mono(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: accent ?? colors.onSurfaceMuted,
+              letterSpacing: 0.66,
+            ),
+          ),
+          const SizedBox(width: 7),
+        ],
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                team.displayName,
-                style: AppTypography.soraRegular(
-                  fontSize: 12,
-                  fontWeight: fontWeight,
-                  color: textColor,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (partialsLabel.isNotEmpty) ...[
-                SizedBox(height: 2),
-                Text(
-                  partialsLabel,
-                  style: AppTypography.mono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: partialsColor,
-                    letterSpacing: 0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
+          child: Text(
+            row.head.toUpperCase(),
+            style: AppTypography.mono(
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+              color: accent ?? colors.onSurfaceMuted.withValues(alpha: 0.85),
+              letterSpacing: 1.32,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        SizedBox(width: 8),
-        if (!hasScore && probabilityLabel != null)
-          Text(
-            probabilityLabel!,
-            style: AppTypography.mono(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.2,
-            ),
-          )
-        else
-          Text(
-            scoreLabel,
-            style: AppTypography.soraRegular(
-              fontSize: 15,
-              fontWeight: fontWeight,
-              color: textColor,
-            ),
-          ),
+        const SizedBox(width: 8),
+        _StateChip(row: row),
       ],
     );
   }
 }
 
-class _AvatarStack extends StatelessWidget {
-  const _AvatarStack({required this.players});
+/// Selo de estado. O tom nunca é a única informação: cada estado carrega o
+/// próprio texto, então quem não distingue as cores não perde nada.
+class _StateChip extends StatelessWidget {
+  const _StateChip({required this.row});
 
-  final List<TournamentMatchCardPlayerViewModel> players;
-
-  static const _size = 40.0;
+  final TournamentMatchRow row;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: _size,
-      width: 64,
-      child: Stack(
-        clipBehavior: Clip.none,
+    final colors = context.themeColors;
+    final isLive = row.state == TournamentMatchRowState.live;
+
+    // Agendada/a definir na final e no 3º lugar viram selo metálico cheio: é o
+    // jogo que decide o torneio, o âmbar genérico não dá conta.
+    final metal = switch (row.stage) {
+      TournamentMatchRowStage.grandFinal
+          when row.state == TournamentMatchRowState.scheduled ||
+              row.state == TournamentMatchRowState.tbd =>
+        (
+          gradient: const [Color(0xFFFFE9A8), kMatchCardGold],
+          text: const Color(0xFF241A00),
+        ),
+      TournamentMatchRowStage.thirdPlace
+          when row.state == TournamentMatchRowState.scheduled ||
+              row.state == TournamentMatchRowState.tbd =>
+        (
+          gradient: const [Color(0xFFF3C9A8), kMatchCardBronze],
+          text: const Color(0xFF2A1608),
+        ),
+      _ => null,
+    };
+
+    final (background, border, foreground) = switch (row.state) {
+      TournamentMatchRowState.live => (
+          AppColors.live,
+          Colors.transparent,
+          AppColors.white,
+        ),
+      TournamentMatchRowState.done => (
+          AppColors.win.withValues(alpha: 0.16),
+          AppColors.win.withValues(alpha: 0.3),
+          AppColors.win,
+        ),
+      TournamentMatchRowState.scheduled || TournamentMatchRowState.tbd => (
+          AppColors.pending.withValues(alpha: 0.12),
+          AppColors.pending.withValues(alpha: 0.3),
+          AppColors.pending,
+        ),
+      TournamentMatchRowState.canceled => (
+          Colors.transparent,
+          colors.onSurfaceMuted.withValues(alpha: 0.3),
+          colors.onSurfaceMuted,
+        ),
+    };
+
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: metal == null ? background : null,
+        gradient: metal != null
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: metal.gradient,
+                stops: const [0, 0.65],
+              )
+            : null,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: metal != null ? Colors.transparent : border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (players.isNotEmpty)
-            Positioned(left: 0, child: _AvatarCircle(player: players.first)),
-          if (players.length > 1)
-            Positioned(left: 24, child: _AvatarCircle(player: players[1])),
-          if (players.isEmpty)
-            Positioned(
-              left: 0,
-              child: _AvatarCircle(
-                player: TournamentMatchCardPlayerViewModel(
-                  initials: '?',
-                  avatarColor: Color(0xFF5B8DEF),
+          if (isLive) ...[
+            const TournamentMatchCardLiveDot(color: AppColors.white),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            row.stateLabel.toUpperCase(),
+            style: AppTypography.soraRegular(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: metal?.text ?? foreground,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamRow extends StatelessWidget {
+  const _TeamRow({required this.side, this.probabilityLabel});
+
+  final TournamentMatchRowSide side;
+
+  /// Probabilidade de vitória pré-partida ("62%"), exibida no lugar do traço
+  /// enquanto a partida não tem placar. `null` quando não há dado suficiente
+  /// (regra dura: nunca mostrar sem dado).
+  final String? probabilityLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final isIdle = side.score == '—';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          _DuoAvatars(players: side.players),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: side.name,
+                children: [
+                  if (side.mine)
+                    TextSpan(
+                      text: ' · você',
+                      style: TextStyle(color: AppColors.brandHover),
+                    ),
+                ],
+              ),
+              style: AppTypography.soraRegular(
+                fontSize: 14,
+                fontWeight: side.mine
+                    ? FontWeight.w700
+                    : side.lost || side.tbd
+                        ? FontWeight.w500
+                        : FontWeight.w600,
+                color: side.tbd
+                    ? colors.onSurfaceMuted.withValues(alpha: 0.85)
+                    : side.lost
+                        ? colors.onSurfaceMuted
+                        : colors.onSurface,
+              ).copyWith(
+                fontStyle: side.tbd ? FontStyle.italic : FontStyle.normal,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (isIdle && probabilityLabel != null)
+            Text(
+              probabilityLabel!,
+              style: AppTypography.mono(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurfaceMuted,
+                letterSpacing: 0.2,
+              ),
+            )
+          else
+            Text(
+              side.score,
+              style: AppTypography.mono(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: side.won
+                    ? AppColors.win
+                    : side.lost
+                        ? colors.onSurfaceMuted
+                        : side.leading
+                            ? AppColors.brand
+                            : isIdle
+                                ? colors.onSurface.withValues(alpha: 0.35)
+                                : colors.onSurface,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Parciais de cada set (`21·15`), com o set em andamento contornado.
+class _Pills extends StatelessWidget {
+  const _Pills({required this.pills});
+
+  final List<TournamentMatchRowPill> pills;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+        ),
+      ),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final pill in pills)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: pill.current
+                    ? Colors.transparent
+                    : AppColors.win.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+                border:
+                    pill.current ? Border.all(color: AppColors.brand) : null,
+              ),
+              child: Text(
+                pill.label,
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: pill.current ? AppColors.brand : AppColors.win,
                 ),
               ),
             ),
@@ -315,25 +376,71 @@ class _AvatarStack extends StatelessWidget {
   }
 }
 
-class _AvatarCircle extends StatelessWidget {
-  const _AvatarCircle({required this.player});
+/// Par de avatares sobrepostos que identifica a dupla — mesmo desenho do portal
+/// (`duo-avatars`): gradiente laranja→rosa no primeiro atleta, verde no
+/// segundo, iniciais brancas e aro do fundo separando as fotos.
+class _DuoAvatars extends StatelessWidget {
+  const _DuoAvatars({required this.players});
 
-  final TournamentMatchCardPlayerViewModel player;
+  final List<TournamentMatchCardPlayerViewModel> players;
 
-  static const _size = 40.0;
+  static const _size = 28.0;
+  static const _overlap = _size * 0.3;
 
   @override
   Widget build(BuildContext context) {
-    final url = player.avatarUrl?.trim();
+    final count = players.isEmpty ? 1 : players.length;
+
+    return SizedBox(
+      width: count > 1 ? _size * 2 - _overlap : _size,
+      height: _size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            child: _Avatar(player: players.firstOrNull, index: 0),
+          ),
+          if (players.length > 1)
+            Positioned(
+              left: _size - _overlap,
+              child: _Avatar(player: players[1], index: 1),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.player, required this.index});
+
+  final TournamentMatchCardPlayerViewModel? player;
+  final int index;
+
+  static const _size = 28.0;
+
+  static const _gradients = [
+    [Color(0xFFFF6A1A), Color(0xFFC2185B)],
+    [Color(0xFF2BD17E), Color(0xFF1E7A4D)],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final url = player?.avatarUrl?.trim();
     final hasPhoto = url != null && url.isNotEmpty;
 
     return Container(
       width: _size,
       height: _size,
       decoration: BoxDecoration(
-        color: hasPhoto ? null : player.avatarColor,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _gradients[index % _gradients.length],
+        ),
         shape: BoxShape.circle,
-        border: Border.all(color: context.themeColors.canvas, width: 2),
+        border: Border.all(color: context.themeColors.canvas, width: 1.5),
       ),
       child: ClipOval(
         child: hasPhoto
@@ -342,26 +449,23 @@ class _AvatarCircle extends StatelessWidget {
                 width: _size,
                 height: _size,
                 fit: BoxFit.cover,
-                placeholder: (_, __) => _initialsFallback(),
-                errorWidget: (_, __, ___) => _initialsFallback(),
+                placeholder: (_, _) => _initials(),
+                errorWidget: (_, _, _) => _initials(),
               )
-            : _initialsFallback(),
+            : _initials(),
       ),
     );
   }
 
-  Widget _initialsFallback() {
-    return Container(
-      width: _size,
-      height: _size,
-      alignment: Alignment.center,
-      color: player.avatarColor,
+  Widget _initials() {
+    return Center(
       child: Text(
-        player.initials,
+        player?.initials ?? '?',
         style: AppTypography.soraRegular(
-          fontSize: 13,
+          fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppColors.white,
+          letterSpacing: 0.2,
         ),
       ),
     );

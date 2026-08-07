@@ -46,7 +46,7 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
 }
 
 function entry(partial: Partial<TournamentPredictionEntry> & Pick<TournamentPredictionEntry, 'userId'>): TournamentPredictionEntry {
-  return { picks: {}, championPick: null, score: 0, ...partial };
+  return { picks: {}, championPick: null, score: 0, previousRank: null, ...partial };
 }
 
 describe('canPredictMatch / isPredictionLocked', () => {
@@ -165,6 +165,39 @@ describe('buildPredictionLeaderboard', () => {
     );
     expect(rows.map((r) => r.userId)).toEqual(['muitos', 'poucos']);
   });
+
+  // O app ordena com `compareTo` do Dart, que é por code unit. Se aqui fosse `localeCompare`,
+  // 'B1' e 'a1' trocariam de lugar e as duas superfícies mostrariam posições diferentes — num
+  // número que agora vai estampado na imagem compartilhada.
+  it('desempata por id em code unit, e não por locale', () => {
+    const rows = buildPredictionLeaderboard([entry({ userId: 'a1', score: 5 }), entry({ userId: 'B1', score: 5 })], null);
+    expect(rows.map((r) => r.userId)).toEqual(['B1', 'a1']);
+    expect('B1'.localeCompare('a1')).toBeGreaterThan(0);
+  });
+
+  it('conta acertos por linha só sobre partidas concluídas', () => {
+    const matches = [
+      match({ id: 'm1', status: 'Completed', winnerId: 'A' }),
+      match({ id: 'm2', status: 'Completed', winnerId: 'B' }),
+      match({ id: 'm3' }),
+    ];
+    const rows = buildPredictionLeaderboard([entry({ userId: 'u1', picks: { m1: 'A', m2: 'A', m3: 'A' } })], null, matches);
+    expect(rows[0]).toEqual(jasmine.objectContaining({ hits: 1, picksCount: 3 }));
+  });
+
+  it('deriva a variação comparando previousRank com a posição calculada aqui', () => {
+    const rows = buildPredictionLeaderboard(
+      [entry({ userId: 'subiu', score: 9, previousRank: 4 }), entry({ userId: 'caiu', score: 1, previousRank: 1 })],
+      null,
+    );
+    expect(rows.find((r) => r.userId === 'subiu')?.delta).toBe(3);
+    expect(rows.find((r) => r.userId === 'caiu')?.delta).toBe(-1);
+  });
+
+  it('sem foto do servidor não inventa variação', () => {
+    const rows = buildPredictionLeaderboard([entry({ userId: 'u1', score: 2 })], null);
+    expect(rows[0]?.delta).toBeNull();
+  });
 });
 
 describe('predictionStatsOf', () => {
@@ -177,11 +210,11 @@ describe('predictionStatsOf', () => {
     const mine = entry({ userId: 'eu', score: 1, picks: { m1: 'A', m2: 'A', m3: 'B' } });
     const stats = predictionStatsOf(mine, matches, buildPredictionLeaderboard([mine, entry({ userId: 'outro', score: 4 })], 'eu'));
 
-    expect(stats).toEqual({ points: 1, hits: 1, decided: 2, pending: 1, rank: 2, totalPlayers: 2 });
+    expect(stats).toEqual({ points: 1, hits: 1, decided: 2, pending: 1, rank: 2, totalPlayers: 2, delta: null });
   });
 
   it('zera tudo para quem ainda não palpitou', () => {
     const stats = predictionStatsOf(null, [match({ id: 'm1' })], []);
-    expect(stats).toEqual({ points: 0, hits: 0, decided: 0, pending: 0, rank: null, totalPlayers: 0 });
+    expect(stats).toEqual({ points: 0, hits: 0, decided: 0, pending: 0, rank: null, totalPlayers: 0, delta: null });
   });
 });

@@ -116,26 +116,66 @@ export interface PredictionLeaderboardRow {
   score: number;
   /** Quantos palpites a pessoa enviou — separa quem acertou muito de quem palpitou muito. */
   picksCount: number;
+  /** Palpites que bateram com o vencedor real. Só conta partidas já concluídas. */
+  hits: number;
+  /**
+   * Quantas posições a pessoa subiu (positivo) ou caiu (negativo) desde a última partida
+   * pontuada. `null` quando o servidor ainda não fotografou nenhuma posição.
+   */
+  delta: number | null;
   isMe: boolean;
 }
 
-/** Ranking dos palpiteiros: maior pontuação primeiro, posições sequenciais (1, 2, 3…) como no
- *  ranking de atletas. Desempate por número de palpites e depois por id, pra ordem não dançar
- *  entre dois carregamentos com a mesma pontuação. */
+/**
+ * Ordem canônica do ranking: maior pontuação primeiro, desempate por número de palpites e
+ * depois por id, pra ordem não dançar entre dois carregamentos com a mesma pontuação.
+ *
+ * O desempate por id compara code units em vez de `localeCompare`: `localeCompare` é sensível a
+ * locale e ordena 'a' antes de 'B', enquanto o `compareTo` do Dart (app) faz o contrário. Com
+ * uids do Firebase, que misturam maiúsculas e minúsculas, as duas superfícies mostrariam
+ * posições diferentes no empate — e agora essa posição vai estampada numa imagem compartilhada.
+ * O mesmo comparador vive em `comparePredictionRanking`
+ * (`functions/src/tournament-predictions.ts`) e em `buildPredictionLeaderboardEntries`
+ * (`tournament_predictions_logic.dart`); os três precisam concordar.
+ */
+function comparePredictionRanking(a: TournamentPredictionEntry, b: TournamentPredictionEntry): number {
+  if (b.score !== a.score) return b.score - a.score;
+  const picksDiff = Object.keys(b.picks).length - Object.keys(a.picks).length;
+  if (picksDiff !== 0) return picksDiff;
+  if (a.userId === b.userId) return 0;
+  return a.userId < b.userId ? -1 : 1;
+}
+
+/** Ranking dos palpiteiros, com posições sequenciais (1, 2, 3…) como no ranking de atletas.
+ *  `matches` só é necessário para contar acertos por linha; sem ele, `hits` fica em 0. */
 export function buildPredictionLeaderboard(
   entries: readonly TournamentPredictionEntry[],
   currentUserId: string | null,
+  matches: readonly TournamentMatch[] = [],
 ): PredictionLeaderboardRow[] {
   const me = currentUserId?.trim() ?? '';
+  const winners = new Map<string, string>();
+  for (const m of matches) {
+    const winner = m.winnerId?.trim();
+    if (matchIsCompleted(m) && winner) winners.set(m.id, winner);
+  }
+
   return [...entries]
-    .sort((a, b) => b.score - a.score || Object.keys(b.picks).length - Object.keys(a.picks).length || a.userId.localeCompare(b.userId))
-    .map((entry, index) => ({
-      rank: index + 1,
-      userId: entry.userId,
-      score: entry.score,
-      picksCount: Object.keys(entry.picks).length,
-      isMe: me.length > 0 && entry.userId === me,
-    }));
+    .sort(comparePredictionRanking)
+    .map((entry, index) => {
+      const rank = index + 1;
+      return {
+        rank,
+        userId: entry.userId,
+        score: entry.score,
+        picksCount: Object.keys(entry.picks).length,
+        hits: Object.entries(entry.picks).filter(([matchId, teamId]) => winners.get(matchId) === teamId).length,
+        // A posição comparada é a que ESTE cliente calculou, não uma que veio do servidor: assim
+        // o número exibido e a seta ao lado nunca se contradizem.
+        delta: entry.previousRank == null ? null : entry.previousRank - rank,
+        isMe: me.length > 0 && entry.userId === me,
+      };
+    });
 }
 
 export interface PredictionStats {
@@ -147,6 +187,8 @@ export interface PredictionStats {
   pending: number;
   rank: number | null;
   totalPlayers: number;
+  /** Posições ganhas (positivo) ou perdidas desde a última partida pontuada. `null` sem foto. */
+  delta: number | null;
 }
 
 /** O retrato do atleta no topo da aba. Tudo derivado do que já está carregado — nenhum campo
@@ -159,12 +201,14 @@ export function predictionStatsOf(
   const picks = entry?.picks ?? {};
   const picked = matches.filter((m) => picks[m.id]);
   const results = picked.map((m) => predictionResultOf(m, picks));
+  const myRow = leaderboard.find((row) => row.isMe) ?? null;
   return {
     points: entry?.score ?? 0,
     hits: results.filter((r) => r === 'hit').length,
     decided: results.filter((r) => r != null).length,
     pending: results.filter((r) => r == null).length,
-    rank: leaderboard.find((row) => row.isMe)?.rank ?? null,
+    rank: myRow?.rank ?? null,
     totalPlayers: leaderboard.length,
+    delta: myRow?.delta ?? null,
   };
 }

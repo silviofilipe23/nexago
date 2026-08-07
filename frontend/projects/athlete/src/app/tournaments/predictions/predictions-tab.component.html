@@ -189,25 +189,117 @@
         @if (leaderRows().length === 0) {
           <p class="pp-empty">Ninguém palpitou neste torneio ainda. Comece você.</p>
         } @else {
-          <ol class="pp-rank">
-            @for (row of leaderRows(); track row.rank) {
-              <li class="pp-rank-row" [class.pp-rank-row--me]="row.isMe" [attr.data-medal]="row.rank <= 3 ? row.rank : null">
-                <span class="pp-rank-pos">{{ row.rank }}º</span>
-                <span class="pp-rank-avatar" aria-hidden="true">
-                  @if (row.photo) {
-                    <img [src]="row.photo" alt="" loading="lazy" />
+          <div class="pp-rank-head">
+            <p class="pp-rank-count">{{ leaderRows().length === 1 ? '1 participante' : leaderRows().length + ' participantes' }}</p>
+            @if (canShare()) {
+              <button type="button" class="pp-share" (click)="shareRanking()" [disabled]="sharing()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                  <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+                </svg>
+                {{ sharing() ? 'Gerando imagem…' : 'Compartilhar ranking' }}
+              </button>
+            }
+          </div>
+
+          @if (podium().length > 0) {
+            <ol class="pp-podium" aria-label="Pódio do ranking">
+              @for (row of podium(); track row.rank) {
+                <li class="pp-podium-slot" [attr.data-medal]="row.rank" [class.pp-podium-slot--me]="row.isMe">
+                  <span class="pp-podium-badge" aria-hidden="true">{{ row.rank }}</span>
+                  <span class="pp-podium-avatar" aria-hidden="true">
+                    @if (row.photo) {
+                      <img [src]="row.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ row.initials }}
+                    }
+                  </span>
+                  <span class="pp-podium-name">{{ row.rank }}º · {{ row.name }}@if (row.isMe) {<span class="pp-you"> · você</span>}</span>
+                  <span class="pp-podium-score">{{ row.score }}<span class="pp-rank-unit">pts</span></span>
+                </li>
+              }
+            </ol>
+          }
+
+          @if (campaign(); as me) {
+            <section class="pp-campaign" aria-label="Sua campanha nos palpites">
+              <span class="pp-campaign-kicker">Sua campanha</span>
+              <div class="pp-campaign-id">
+                @if (me.rank !== null) {
+                  <span class="pp-campaign-rank">#{{ me.rank }}</span>
+                }
+                <span class="pp-campaign-avatar" aria-hidden="true">
+                  @if (me.photo) {
+                    <img [src]="me.photo" alt="" loading="lazy" />
                   } @else {
-                    {{ row.initials }}
+                    {{ me.initials }}
                   }
                 </span>
-                <span class="pp-rank-id">
-                  <span class="pp-rank-name">{{ row.name }}@if (row.isMe) {<span class="pp-you"> · você</span>}</span>
-                  <span class="pp-rank-detail">{{ row.detail }}</span>
+                <span class="pp-campaign-who">
+                  <span class="pp-campaign-name">{{ me.name }}</span>
+                  <span class="pp-campaign-line">
+                    {{ me.points }} {{ me.points === 1 ? 'ponto' : 'pontos' }}@if (deltaLabel(me.delta); as move) {<span class="pp-campaign-move" [class.pp-campaign-move--down]="(me.delta ?? 0) < 0"> · {{ move }}</span>}
+                  </span>
                 </span>
-                <span class="pp-rank-score">{{ row.score }}<span class="pp-rank-unit">pts</span></span>
-              </li>
-            }
-          </ol>
+              </div>
+              <div class="pp-campaign-stats">
+                <p class="pp-stat">
+                  <b class="pp-stat-value">{{ me.hits }}<span class="pp-stat-of">/{{ me.decided }}</span></b>
+                  <span class="pp-stat-label">acertos</span>
+                </p>
+                <p class="pp-stat">
+                  <b class="pp-stat-value">{{ me.pending }}</b>
+                  <span class="pp-stat-label">em jogo</span>
+                </p>
+                @if (me.rank !== null) {
+                  <p class="pp-stat">
+                    <b class="pp-stat-value">{{ me.rank }}º</b>
+                    <span class="pp-stat-label">de {{ me.totalPlayers }}</span>
+                  </p>
+                }
+              </div>
+            </section>
+          }
+
+          @if (listRows().length > 0) {
+            <ol class="pp-rank">
+              @for (row of listRows(); track row.rank) {
+                <li class="pp-rank-row" [class.pp-rank-row--me]="row.isMe" [attr.data-medal]="row.rank <= 3 ? row.rank : null">
+                  <span class="pp-rank-pos">{{ row.rank }}º</span>
+                  <span class="pp-rank-avatar" aria-hidden="true">
+                    @if (row.photo) {
+                      <img [src]="row.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ row.initials }}
+                    }
+                  </span>
+                  <span class="pp-rank-id">
+                    <span class="pp-rank-name">{{ row.name }}@if (row.isMe) {<span class="pp-you"> · você</span>}</span>
+                    <span class="pp-rank-detail">{{ row.detail }}</span>
+                  </span>
+                  <span class="pp-rank-score">{{ row.score }}<span class="pp-rank-unit">pts</span></span>
+                  @if (deltaLabel(row.delta); as move) {
+                    <span class="pp-rank-move" [class.pp-rank-move--down]="(row.delta ?? 0) < 0" [attr.aria-label]="move">
+                      <span aria-hidden="true">{{ (row.delta ?? 0) > 0 ? '↑' : '↓' }}{{ abs(row.delta) }}</span>
+                    </span>
+                  } @else {
+                    <span class="pp-rank-move pp-rank-move--flat" aria-hidden="true">—</span>
+                  }
+                </li>
+              }
+            </ol>
+          }
+
+          <section class="pp-howto" aria-label="Como pontuar">
+            <h3 class="pp-howto-title">Como pontuar</h3>
+            <ul class="pp-howto-list">
+              <li><b>Vencedor certo</b><span>+1 ponto por jogo</span></li>
+              <li><b>Campeão do torneio</b><span>+3 pontos extras — o palpite da final vale 4</span></li>
+            </ul>
+          </section>
+
+          <!-- Fora da tela: é a prancheta do card compartilhado, nunca conteúdo visível. -->
+          <canvas #shareCanvas class="pp-share-canvas" [width]="shareWidth" [height]="shareHeight" aria-hidden="true"></canvas>
         }
       </div>
     }

@@ -208,6 +208,7 @@ export const submitBracketPrediction = onCall(async (request) => {
 export interface PredictionScoringEntry {
   picks?: Record<string, unknown>;
   championPick?: unknown;
+  score?: unknown;
 }
 
 /** +1 quando o palpite dessa partida bate com o vencedor real. */
@@ -323,6 +324,97 @@ export async function awardBracketPredictionCredit(
   });
 }
 
+// ────────────────────── foto das posições (variação) ──────────────────────
+
+export interface PredictionRankingEntry {
+  userId: string;
+  score: number;
+  picksCount: number;
+}
+
+/**
+ * Ordem canônica do ranking de palpites: maior pontuação primeiro, desempate
+ * por número de palpites enviados (separa quem acertou muito de quem palpitou
+ * muito) e depois por id.
+ *
+ * Este comparador existe em TRÊS lugares e os três precisam concordar:
+ *  - aqui;
+ *  - `buildPredictionLeaderboard`, portal do atleta
+ *    (`frontend/projects/athlete/src/app/tournaments/predictions/predictions.selectors.ts`);
+ *  - `buildPredictionLeaderboardEntries`, app
+ *    (`nexago_app/lib/features/tournaments/domain/predictions/tournament_predictions_logic.dart`).
+ *
+ * Se divergirem, a posição gravada aqui não bate com a que o cliente calcula e
+ * a variação exibida vira ruído. Por isso o desempate por id compara code
+ * units (`<`/`>`) em vez de `localeCompare`: `localeCompare` é sensível a
+ * locale e ordena 'a' antes de 'B', enquanto o `compareTo` do Dart é por code
+ * unit — com uids do Firebase Auth, que misturam maiúsculas e minúsculas, os
+ * dois discordariam.
+ */
+export function comparePredictionRanking(
+  a: PredictionRankingEntry,
+  b: PredictionRankingEntry,
+): number {
+  if (b.score !== a.score) return b.score - a.score;
+  if (b.picksCount !== a.picksCount) return b.picksCount - a.picksCount;
+  if (a.userId === b.userId) return 0;
+  return a.userId < b.userId ? -1 : 1;
+}
+
+/** Posições 1..N na ordem canônica, indexadas por userId. */
+export function rankPredictionEntries(
+  entries: readonly PredictionRankingEntry[],
+): Map<string, number> {
+  return new Map(
+    [...entries]
+      .sort(comparePredictionRanking)
+      .map((entry, index) => [entry.userId, index + 1]),
+  );
+}
+
+/** Um lote do Firestore aceita 500 operações; 450 deixa folga. */
+export const RANK_SNAPSHOT_BATCH_SIZE = 450;
+
+/**
+ * Grava em TODAS as entries a posição que elas tinham antes da rodada que
+ * acabou de pontuar — é o que o cliente usa para desenhar "subiu 3 posições".
+ *
+ * Escreve em todas, não só em quem pontuou: quem não acertou nada também muda
+ * de posição quando os outros sobem.
+ *
+ * Só `previousRank` é persistido. A posição ATUAL não precisa ser guardada:
+ * ela é recalculada do zero na próxima rodada, a partir das pontuações lidas
+ * naquele momento, e o cliente exibe a posição que ele mesmo calcula. Guardar
+ * as duas criaria um segundo campo para manter sincronizado, sem ganho algum.
+ */
+export async function snapshotPredictionRanks(
+  db: Firestore,
+  params: {tournamentId: string; entries: readonly PredictionRankingEntry[]},
+): Promise<void> {
+  const tournamentId = params.tournamentId.trim();
+  if (!tournamentId || params.entries.length === 0) return;
+
+  const ranks = rankPredictionEntries(params.entries);
+
+  for (let i = 0; i < params.entries.length; i += RANK_SNAPSHOT_BATCH_SIZE) {
+    const chunk = params.entries.slice(i, i + RANK_SNAPSHOT_BATCH_SIZE);
+    const batch = db.batch();
+    chunk.forEach((entry) => {
+      const rank = ranks.get(entry.userId);
+      if (rank === undefined) return;
+      batch.set(
+        db.doc(bracketPredictionEntryPath(tournamentId, entry.userId)),
+        {
+          previousRank: rank,
+          rankUpdatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
+    await batch.commit();
+  }
+}
+
 export async function processBracketPredictionScoring(params: {
   db: Firestore;
   matchId: string;
@@ -338,6 +430,17 @@ export async function processBracketPredictionScoring(params: {
     .collection(`tournamentPredictions/${tournamentId}/entries`)
     .get();
   if (entriesSnap.empty) return;
+
+  // Montado ANTES dos créditos abaixo: é exatamente a foto do ranking como
+  // estava antes desta partida ser pontuada.
+  const rankingBefore: PredictionRankingEntry[] = entriesSnap.docs.map((doc) => {
+    const data = doc.data() as PredictionScoringEntry;
+    return {
+      userId: doc.id,
+      score: typeof data.score === "number" && Number.isFinite(data.score) ? data.score : 0,
+      picksCount: Object.keys(data.picks ?? {}).length,
+    };
+  });
 
   let credited = 0;
   await Promise.all(
@@ -370,10 +473,25 @@ export async function processBracketPredictionScoring(params: {
     }),
   );
 
+  // `credited === 0` significa que NENHUMA pontuação mudou — ou ninguém
+  // acertou, ou é uma reentrega do trigger e todos os créditos caíram na
+  // idempotência de `gamification_events`. Refotografar aqui gravaria a
+  // posição atual como "anterior" e apagaria em silêncio as setas de variação
+  // da rodada que valeu. Só refotografa quando algo de fato mudou.
   if (credited > 0) {
     logger.info(
       `bracketPredictions: ${credited} palpite(s) pontuado(s) na partida ${params.matchId}`,
     );
+    try {
+      await snapshotPredictionRanks(params.db, {tournamentId, entries: rankingBefore});
+    } catch (error) {
+      // Os pontos já foram creditados — o que importa está gravado. A variação
+      // é cosmética e se recompõe na próxima partida concluída.
+      logger.error(
+        `bracketPredictions: falha ao fotografar posições do torneio ${tournamentId}`,
+        error,
+      );
+    }
   }
 }
 

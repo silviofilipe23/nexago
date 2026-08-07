@@ -12,6 +12,7 @@ class TournamentPredictionEntry {
     this.picks = const {},
     this.championPick,
     this.score = 0,
+    this.previousRank,
     this.submittedAt,
     this.updatedAt,
   });
@@ -20,6 +21,13 @@ class TournamentPredictionEntry {
   final Map<String, String> picks;
   final String? championPick;
   final int score;
+
+  /// Posição ocupada ANTES da última partida pontuada — a base da seta de
+  /// variação no ranking. Gravada em todas as entries de uma vez pelo trigger
+  /// (`snapshotPredictionRanks`, `functions/src/tournament-predictions.ts`).
+  /// `null` até o torneio ter a primeira partida concluída, ou enquanto as
+  /// functions de palpites não estiverem implantadas no ambiente.
+  final int? previousRank;
   final DateTime? submittedAt;
   final DateTime? updatedAt;
 

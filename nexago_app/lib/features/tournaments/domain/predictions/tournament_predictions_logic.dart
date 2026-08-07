@@ -99,45 +99,204 @@ bool? predictionWasCorrectForMatch(
   return pick.trim() == winner;
 }
 
-/// Ranking dos palpiteiros (maior `score` primeiro) — mesma convenção de
-/// `assignRanks` em `features/ranking/domain/ranking_logic.dart` (posições
-/// sequenciais 1, 2, 3…, sem empate compartilhado).
-List<RankingListEntry> buildPredictionLeaderboardEntries(
+/// Ordem canônica do ranking de palpites: maior pontuação primeiro, desempate
+/// por número de palpites enviados e depois por id.
+///
+/// Este comparador existe em TRÊS lugares e os três precisam concordar:
+///  - aqui;
+///  - `comparePredictionRanking` (`functions/src/tournament-predictions.ts`),
+///    que o usa para gravar a posição anterior de cada participante;
+///  - `buildPredictionLeaderboard` no portal do atleta
+///    (`predictions.selectors.ts`).
+///
+/// Até agosto de 2026 este arquivo ordenava SÓ por `score`, então em empate o
+/// app e a web mostravam posições diferentes. Passou a importar quando essa
+/// posição virou conteúdo de imagem compartilhada — e quando o servidor passou
+/// a calcular a variação com base nesta mesma ordem.
+int comparePredictionEntries(
+  TournamentPredictionEntry a,
+  TournamentPredictionEntry b,
+) {
+  final byScore = b.score.compareTo(a.score);
+  if (byScore != 0) return byScore;
+  final byPicks = b.picks.length.compareTo(a.picks.length);
+  if (byPicks != 0) return byPicks;
+  // `compareTo` de String é por code unit — o mesmo critério dos outros dois
+  // lugares, que evitam `localeCompare` justamente para bater com este.
+  return a.userId.compareTo(b.userId);
+}
+
+/// Uma linha do ranking de palpites: a entrada pronta para os widgets de
+/// ranking já existentes, mais o que só existe aqui (acertos e variação).
+class PredictionLeaderboardRow {
+  const PredictionLeaderboardRow({
+    required this.entry,
+    required this.hits,
+    required this.delta,
+  });
+
+  final RankingListEntry entry;
+
+  /// Palpites que bateram com o vencedor real, entre as partidas concluídas.
+  final int hits;
+
+  /// Posições ganhas (positivo) ou perdidas desde a última partida pontuada.
+  /// `null` quando o servidor ainda não fotografou nenhuma posição.
+  final int? delta;
+}
+
+/// Ranking dos palpiteiros — posições sequenciais (1, 2, 3…), mesma convenção
+/// de `assignRanks` em `features/ranking/domain/ranking_logic.dart`.
+///
+/// [matches] só é necessário para contar acertos; sem ele, `hits` fica em 0.
+List<PredictionLeaderboardRow> buildPredictionLeaderboard(
   List<TournamentPredictionEntry> entries, {
   required Map<String, AppUserProfile?> profiles,
+  List<TournamentMatch> matches = const [],
   String? currentUserId,
 }) {
-  final sorted = [...entries]..sort((a, b) => b.score.compareTo(a.score));
+  final sorted = [...entries]..sort(comparePredictionEntries);
   final me = currentUserId?.trim();
+
+  final winners = <String, String>{};
+  for (final match in matches) {
+    final winner = match.winnerId?.trim();
+    if (match.isCompleted && winner != null && winner.isNotEmpty) {
+      winners[match.id] = winner;
+    }
+  }
 
   return [
     for (var i = 0; i < sorted.length; i++)
-      _toRankingListEntry(
+      _toRow(
         sorted[i],
         rank: i + 1,
         profile: profiles[sorted[i].userId],
         isCurrentUser: me != null && me.isNotEmpty && sorted[i].userId == me,
+        winners: winners,
       ),
   ];
 }
 
-RankingListEntry _toRankingListEntry(
+/// Compatível com quem só precisa das linhas prontas para os widgets de
+/// ranking (pódio, tiles).
+List<RankingListEntry> buildPredictionLeaderboardEntries(
+  List<TournamentPredictionEntry> entries, {
+  required Map<String, AppUserProfile?> profiles,
+  List<TournamentMatch> matches = const [],
+  String? currentUserId,
+}) {
+  return buildPredictionLeaderboard(
+    entries,
+    profiles: profiles,
+    matches: matches,
+    currentUserId: currentUserId,
+  ).map((row) => row.entry).toList();
+}
+
+PredictionLeaderboardRow _toRow(
   TournamentPredictionEntry entry, {
   required int rank,
   required AppUserProfile? profile,
   required bool isCurrentUser,
+  required Map<String, String> winners,
 }) {
-  final acertos = entry.picks.length;
-  return RankingListEntry(
-    rank: rank,
-    points: entry.score,
-    tournamentsCount: 0,
-    displayName: rankingDisplayName(profile, entry.userId),
-    subtitle: acertos == 1 ? '1 palpite enviado' : '$acertos palpites enviados',
-    isCurrentUser: isCurrentUser,
-    entityId: entry.userId,
-    initials: rankingInitials(profile, entry.userId),
-    avatarColor: rankingAvatarColor(entry.userId),
-    avatarUrl: rankingAvatarUrl(profile),
+  final palpites = entry.picks.length;
+  var hits = 0;
+  entry.picks.forEach((matchId, teamId) {
+    if (winners[matchId] == teamId) hits++;
+  });
+
+  final previous = entry.previousRank;
+  return PredictionLeaderboardRow(
+    hits: hits,
+    // A posição comparada é a calculada AQUI, não uma que veio do servidor:
+    // assim o número exibido e a seta ao lado nunca se contradizem.
+    delta: previous == null ? null : previous - rank,
+    entry: RankingListEntry(
+      rank: rank,
+      points: entry.score,
+      tournamentsCount: 0,
+      displayName: rankingDisplayName(profile, entry.userId),
+      subtitle: '${hits == 1 ? '1 acerto' : '$hits acertos'} · '
+          '${palpites == 1 ? '1 palpite' : '$palpites palpites'}',
+      isCurrentUser: isCurrentUser,
+      entityId: entry.userId,
+      initials: rankingInitials(profile, entry.userId),
+      avatarColor: rankingAvatarColor(entry.userId),
+      avatarUrl: rankingAvatarUrl(profile),
+    ),
   );
+}
+
+/// Retrato do próprio atleta na disputa — o "Sua campanha" da tela.
+class PredictionStats {
+  const PredictionStats({
+    required this.points,
+    required this.hits,
+    required this.decided,
+    required this.pending,
+    required this.rank,
+    required this.totalPlayers,
+    required this.delta,
+  });
+
+  final int points;
+  final int hits;
+
+  /// Palpites cuja partida já terminou — o denominador honesto do
+  /// aproveitamento. Dizer "2 de 9" com 7 jogos por vir seria mentira.
+  final int decided;
+  final int pending;
+  final int? rank;
+  final int totalPlayers;
+  final int? delta;
+}
+
+PredictionStats predictionStatsOf(
+  TournamentPredictionEntry? entry,
+  List<TournamentMatch> matches,
+  List<PredictionLeaderboardRow> leaderboard,
+) {
+  final picks = entry?.picks ?? const <String, String>{};
+  var hits = 0;
+  var decided = 0;
+  var pending = 0;
+
+  for (final match in matches) {
+    if (!picks.containsKey(match.id)) continue;
+    final correct = predictionWasCorrectForMatch(match, entry);
+    if (correct == null) {
+      pending++;
+    } else {
+      decided++;
+      if (correct) hits++;
+    }
+  }
+
+  PredictionLeaderboardRow? mine;
+  for (final row in leaderboard) {
+    if (row.entry.isCurrentUser) {
+      mine = row;
+      break;
+    }
+  }
+
+  return PredictionStats(
+    points: entry?.score ?? 0,
+    hits: hits,
+    decided: decided,
+    pending: pending,
+    rank: mine?.entry.rank,
+    totalPlayers: leaderboard.length,
+    delta: mine?.delta,
+  );
+}
+
+/// "subiu 3 posições" / "caiu 2 posições". `null` quando não há foto do
+/// servidor ou não houve movimento — nesse caso não há o que dizer.
+String? predictionDeltaLabel(int? delta) {
+  if (delta == null || delta == 0) return null;
+  final n = delta.abs();
+  return '${delta > 0 ? 'subiu' : 'caiu'} $n ${n == 1 ? 'posição' : 'posições'}';
 }

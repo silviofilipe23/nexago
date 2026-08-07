@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
 import { matchIsCanceled, matchIsCompleted, matchIsLive, type TournamentMatch } from '../../data/matches-repository';
@@ -9,6 +9,8 @@ import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.com
 import { matchNumberLabelOf, timeLabelOf } from '../tournament-format';
 import { groupLabelOf, knockoutLabelOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
+import { PREDICTIONS_CARD_HEIGHT, PREDICTIONS_CARD_WIDTH, drawPredictionsShareCard } from './predictions-share-card';
+import { buildPredictionShareData, predictionShareFileName, predictionShareText, predictionShareUrl } from './predictions-share';
 import {
   buildPredictionLeaderboard,
   canPredictMatch,
@@ -71,7 +73,23 @@ export interface LeaderRowView {
   photo: string | null;
   score: number;
   detail: string;
+  /** "subiu 3" / "caiu 2" / null. Vem do `previousRank` gravado pelo trigger de pontuação. */
+  delta: number | null;
   isMe: boolean;
+}
+
+/** O retrato do próprio atleta no topo do ranking — o "Sua campanha" do protótipo. */
+export interface CampaignView {
+  rank: number | null;
+  totalPlayers: number;
+  name: string;
+  initials: string;
+  photo: string | null;
+  points: number;
+  delta: number | null;
+  hits: number;
+  decided: number;
+  pending: number;
 }
 
 const STATE_LABEL: Record<CardState, string> = {
@@ -189,7 +207,7 @@ export class PredictionsTabComponent {
 
   private readonly matches = computed(() => predictableMatches(this.store.matches()));
 
-  protected readonly leaderboard = computed(() => buildPredictionLeaderboard(this.entries(), this.uid()));
+  protected readonly leaderboard = computed(() => buildPredictionLeaderboard(this.entries(), this.uid(), this.matches()));
 
   protected readonly stats = computed(() => predictionStatsOf(this.myEntry(), this.matches(), this.leaderboard()));
 
@@ -364,6 +382,8 @@ export class PredictionsTabComponent {
         picks: { ...(existing?.picks ?? {}), [matchId]: teamId },
         championPick: isChampion ? teamId : (existing?.championPick ?? null),
         score: existing?.score ?? 0,
+        // Palpitar não muda posição — só o trigger de pontuação refotografa o ranking.
+        previousRank: existing?.previousRank ?? null,
       };
       return existing ? list.map((e) => (e.userId === uid ? merged : e)) : [...list, merged];
     });
@@ -390,21 +410,146 @@ export class PredictionsTabComponent {
 
   // ── Ranking ──────────────────────────────────────────────────
 
+  private nameOf(userId: string): string {
+    return this.profiles().get(userId)?.displayName?.trim() || 'Atleta';
+  }
+
   protected readonly leaderRows = computed<LeaderRowView[]>(() => {
     const profiles = this.profiles();
     return this.leaderboard().map((row) => {
-      const name = profiles.get(row.userId)?.displayName?.trim() || 'Atleta';
+      const name = this.nameOf(row.userId);
+      const hits = row.hits === 1 ? '1 acerto' : `${row.hits} acertos`;
+      const picks = row.picksCount === 1 ? '1 palpite' : `${row.picksCount} palpites`;
       return {
         rank: row.rank,
         name,
         initials: initialsOf(name),
         photo: profiles.get(row.userId)?.avatarUrl ?? null,
         score: row.score,
-        detail: row.picksCount === 1 ? '1 palpite' : `${row.picksCount} palpites`,
+        detail: `${hits} · ${picks}`,
+        delta: row.delta,
         isMe: row.isMe,
       };
     });
   });
+
+  /** O pódio do protótipo. Só aparece com três colocados: com um ou dois, um pódio meio vazio
+   *  chama mais atenção para o que falta do que para quem está lá. */
+  protected readonly podium = computed(() => (this.leaderRows().length >= 3 ? this.leaderRows().slice(0, 3) : []));
+
+  /** A lista começa depois do pódio — ou do zero, quando não há pódio. */
+  protected readonly listRows = computed(() => (this.podium().length > 0 ? this.leaderRows().slice(3) : this.leaderRows()));
+
+  protected readonly campaign = computed<CampaignView | null>(() => {
+    const uid = this.uid();
+    if (!uid || !this.hasPlayed()) return null;
+    const stats = this.stats();
+    const name = this.nameOf(uid);
+    return {
+      rank: stats.rank,
+      totalPlayers: stats.totalPlayers,
+      name,
+      initials: initialsOf(name),
+      photo: this.profiles().get(uid)?.avatarUrl ?? null,
+      points: stats.points,
+      delta: stats.delta,
+      hits: stats.hits,
+      decided: stats.decided,
+      pending: stats.pending,
+    };
+  });
+
+  /** "subiu 3 posições" / "caiu 2 posições". `null` some da tela — sem foto do servidor, ou sem
+   *  movimento, não há o que dizer. */
+  protected abs(delta: number | null): number {
+    return Math.abs(delta ?? 0);
+  }
+
+  protected deltaLabel(delta: number | null): string | null {
+    if (delta == null || delta === 0) return null;
+    const n = Math.abs(delta);
+    const posicoes = n === 1 ? 'posição' : 'posições';
+    return `${delta > 0 ? 'subiu' : 'caiu'} ${n} ${posicoes}`;
+  }
+
+  // ── Compartilhar ─────────────────────────────────────────────
+
+  private readonly shareCanvasRef = viewChild<ElementRef<HTMLCanvasElement>>('shareCanvas');
+
+  protected readonly shareWidth = PREDICTIONS_CARD_WIDTH;
+  protected readonly shareHeight = PREDICTIONS_CARD_HEIGHT;
+  protected readonly sharing = signal(false);
+
+  /** Sem ninguém no ranking não há o que compartilhar. Quem ainda não palpitou pode: o card sai
+   *  só com o pódio e o convite. */
+  protected readonly canShare = computed(() => this.leaderboard().length > 0);
+
+  private shareOrigin(): string {
+    return typeof location !== 'undefined' ? location.origin : 'https://atleta.nexago.com.br';
+  }
+
+  protected async shareRanking(): Promise<void> {
+    const canvas = this.shareCanvasRef()?.nativeElement;
+    const tournamentId = this.store.tournamentId();
+    if (!canvas || !tournamentId || this.sharing()) return;
+
+    this.sharing.set(true);
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        this.toast.error('Não foi possível gerar a imagem.');
+        return;
+      }
+
+      const tournamentName = this.store.tournament()?.name ?? null;
+      const url = predictionShareUrl(this.shareOrigin(), tournamentId);
+      const data = buildPredictionShareData({
+        tournamentName,
+        leaderboard: this.leaderboard(),
+        nameOf: (userId) => this.profiles().get(userId)?.displayName ?? null,
+        url,
+      });
+
+      await drawPredictionsShareCard(ctx, data);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+      if (!blob) {
+        this.toast.error('Não foi possível gerar a imagem.');
+        return;
+      }
+
+      const fileName = predictionShareFileName(tournamentName);
+      const file = new File([blob], fileName, { type: 'image/png' });
+      const text = predictionShareText(data, url);
+
+      // No celular a folha nativa é quem oferece WhatsApp, Stories e o resto — por isso não há
+      // um botão por destino aqui.
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Ranking de palpites', text });
+        return;
+      }
+
+      // No desktop, compartilhar arquivo quase nunca é suportado: baixar a imagem e deixar o
+      // link na área de transferência é o equivalente mais próximo.
+      this.saveBlob(blob, fileName);
+      await navigator.clipboard?.writeText(url).catch(() => undefined);
+      this.toast.success('Imagem baixada', 'O link do ranking ficou copiado.');
+    } catch (error) {
+      // Cancelar a folha nativa dispara AbortError — não é falha, não vira toast de erro.
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      this.toast.error('Não foi possível compartilhar agora.');
+    } finally {
+      this.sharing.set(false);
+    }
+  }
+
+  private saveBlob(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   protected showSection(section: Section): void {
     this.section.set(section);

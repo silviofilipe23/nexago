@@ -184,4 +184,138 @@ void main() {
       expect(rows.firstWhere((r) => r.entityId == 'u2').isCurrentUser, isFalse);
     });
   });
+
+  group('comparePredictionEntries', () {
+    test('desempata por número de palpites quando a pontuação empata', () {
+      final rows = buildPredictionLeaderboard(
+        [
+          const TournamentPredictionEntry(
+            userId: 'poucos',
+            score: 5,
+            picks: {'m1': 'a'},
+          ),
+          const TournamentPredictionEntry(
+            userId: 'muitos',
+            score: 5,
+            picks: {'m1': 'a', 'm2': 'b'},
+          ),
+        ],
+        profiles: const {},
+      );
+
+      expect(rows.map((r) => r.entry.entityId), ['muitos', 'poucos']);
+    });
+
+    // O portal do atleta desempata com `<`/`>` sobre a string, que é code unit,
+    // justamente para bater com o `compareTo` do Dart. Se algum dos dois virar
+    // comparação sensível a locale, esta ordem muda e as duas superfícies passam
+    // a mostrar posições diferentes na mesma imagem compartilhada.
+    test('desempata por id em code unit: maiúscula antes de minúscula', () {
+      final rows = buildPredictionLeaderboard(
+        [
+          const TournamentPredictionEntry(userId: 'a1', score: 5),
+          const TournamentPredictionEntry(userId: 'B1', score: 5),
+        ],
+        profiles: const {},
+      );
+
+      expect(rows.map((r) => r.entry.entityId), ['B1', 'a1']);
+    });
+  });
+
+  group('variação de posição', () {
+    test('deriva o delta comparando previousRank com a posição calculada', () {
+      final rows = buildPredictionLeaderboard(
+        [
+          const TournamentPredictionEntry(userId: 'subiu', score: 9, previousRank: 4),
+          const TournamentPredictionEntry(userId: 'caiu', score: 1, previousRank: 1),
+        ],
+        profiles: const {},
+      );
+
+      expect(rows.firstWhere((r) => r.entry.entityId == 'subiu').delta, 3);
+      expect(rows.firstWhere((r) => r.entry.entityId == 'caiu').delta, -1);
+    });
+
+    test('sem foto do servidor não inventa variação', () {
+      final rows = buildPredictionLeaderboard(
+        [const TournamentPredictionEntry(userId: 'u1', score: 2)],
+        profiles: const {},
+      );
+      expect(rows.single.delta, isNull);
+    });
+
+    test('predictionDeltaLabel some quando não houve movimento', () {
+      expect(predictionDeltaLabel(null), isNull);
+      expect(predictionDeltaLabel(0), isNull);
+      expect(predictionDeltaLabel(1), 'subiu 1 posição');
+      expect(predictionDeltaLabel(3), 'subiu 3 posições');
+      expect(predictionDeltaLabel(-2), 'caiu 2 posições');
+    });
+  });
+
+  group('acertos por linha', () {
+    test('conta só palpites de partidas já concluídas', () {
+      final matches = [
+        _match(id: 'm1', status: TournamentMatchStatus.completed, winnerId: 'team-a'),
+        _match(id: 'm2', status: TournamentMatchStatus.completed, winnerId: 'team-b'),
+        _match(id: 'm3'),
+      ];
+      final rows = buildPredictionLeaderboard(
+        [
+          const TournamentPredictionEntry(
+            userId: 'u1',
+            picks: {'m1': 'team-a', 'm2': 'team-a', 'm3': 'team-a'},
+          ),
+        ],
+        profiles: const {},
+        matches: matches,
+      );
+
+      expect(rows.single.hits, 1);
+      expect(rows.single.entry.subtitle, '1 acerto · 3 palpites');
+    });
+  });
+
+  group('predictionStatsOf', () {
+    test('separa acertos de palpites em jogo e informa a posição', () {
+      final matches = [
+        _match(id: 'm1', status: TournamentMatchStatus.completed, winnerId: 'team-a'),
+        _match(id: 'm2', status: TournamentMatchStatus.completed, winnerId: 'team-b'),
+        _match(id: 'm3'),
+      ];
+      const mine = TournamentPredictionEntry(
+        userId: 'eu',
+        score: 1,
+        picks: {'m1': 'team-a', 'm2': 'team-a', 'm3': 'team-b'},
+      );
+      final leaderboard = buildPredictionLeaderboard(
+        [mine, const TournamentPredictionEntry(userId: 'outro', score: 4)],
+        profiles: const {},
+        matches: matches,
+        currentUserId: 'eu',
+      );
+
+      final stats = predictionStatsOf(mine, matches, leaderboard);
+
+      expect(stats.points, 1);
+      expect(stats.hits, 1);
+      // Denominador é o que já foi decidido — não o total palpitado.
+      expect(stats.decided, 2);
+      expect(stats.pending, 1);
+      expect(stats.rank, 2);
+      expect(stats.totalPlayers, 2);
+    });
+
+    test('zera tudo para quem ainda não palpitou', () {
+      final stats = predictionStatsOf(null, [_match()], const []);
+      expect(stats.points, 0);
+      expect(stats.hits, 0);
+      expect(stats.decided, 0);
+      expect(stats.pending, 0);
+      expect(stats.rank, isNull);
+      expect(stats.totalPlayers, 0);
+      expect(stats.delta, isNull);
+    });
+  });
 }

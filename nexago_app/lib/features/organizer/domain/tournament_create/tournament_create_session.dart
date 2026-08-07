@@ -226,6 +226,10 @@ Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
   'finalBestOf5': category.finalBestOf5,
   'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
   'prizes': category.prizes.map(_prizeToJson).toList(),
+  // Campos de categoria de EQUIPE (trio+) — preservados no rascunho local.
+  'genderFree': category.genderFree,
+  if (category.menCount != null) 'menCount': category.menCount,
+  if (category.womenCount != null) 'womenCount': category.womenCount,
 };
 
 Map<String, dynamic> _prizeToJson(TournamentCategoryPrizeDraft prize) => {
@@ -329,6 +333,9 @@ TournamentCategoryDraft? _categoryFromJson(
       maxRegistrationsPerAthlete:
           json['maxRegistrationsPerAthlete'] as int? ?? 2,
       prizes: _prizesFromJson(json['prizes']),
+      genderFree: json['genderFree'] as bool? ?? false,
+      menCount: json['menCount'] as int?,
+      womenCount: json['womenCount'] as int?,
     );
   } catch (_) {
     return null;

@@ -209,11 +209,21 @@ List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
     final price = (map['entryFeeCents'] as num?)?.toInt() ?? defaultPriceCents;
     final bracketRaw = map['bracketFormat'] as String?;
 
+    final composition = map['genderComposition'];
     return LeagueStageCategoryDraft(
       categoryId: id,
       name: name,
       enabled: true,
       spots: spots,
+      // Gênero e disputa herdados da liga: sem eles a etapa regravava a
+      // categoria como "male/dupla" — corrompendo trio/quarteto/quinteto
+      // (e o gênero de qualquer categoria) criados no portal.
+      gender: _parseStageGender(map['genderType'] as String?),
+      dispute: _parseStageDispute(map['disputeType'] as String?),
+      genderFree: (map['genderMode'] as String?) == 'free',
+      menCount: composition is Map ? (composition['men'] as num?)?.toInt() : null,
+      womenCount:
+          composition is Map ? (composition['women'] as num?)?.toInt() : null,
       priceCents: price,
       bracketSystem: bracketRaw != null && bracketRaw.isNotEmpty
           ? _parseBracketFormat(bracketRaw)
@@ -224,6 +234,19 @@ List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
       finalBestOf5: map['finalBestOf5'] as bool? ?? true,
     );
   }).whereType<LeagueStageCategoryDraft>().toList();
+}
+
+TournamentCategoryGender _parseStageGender(String? raw) => switch (raw) {
+  'female' || 'fem' || 'feminino' => TournamentCategoryGender.female,
+  'mixed' || 'misto' => TournamentCategoryGender.mixed,
+  _ => TournamentCategoryGender.male,
+};
+
+TournamentCategoryDispute _parseStageDispute(String? raw) {
+  for (final value in TournamentCategoryDispute.values) {
+    if (value.name == raw) return value;
+  }
+  return TournamentCategoryDispute.dupla;
 }
 
 List<LeagueStageDraft> stagesFromLeagueData(List<dynamic>? stagesRaw) {

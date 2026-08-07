@@ -92,7 +92,10 @@ String tournamentDetailEntrySummary(TournamentDetail detail) {
 /// Valor da linha "Inscrição" na seção O torneio.
 String tournamentDetailInscriptionInfoValue(TournamentDetail detail) {
   if (detail.priceValue <= 0) return 'A confirmar';
-  return 'A partir de ${detail.priceLabel} / dupla';
+  // Torneio com categoria de equipe (trio+): "/ dupla" mentiria — o preço é
+  // por inscrição, seja dupla ou equipe.
+  final hasTeamCategory = detail.categoryOffers.any((c) => c.isTeamCategory);
+  return 'A partir de ${detail.priceLabel} / ${hasTeamCategory ? 'inscrição' : 'dupla'}';
 }
 
 TournamentDetailStats tournamentDetailStats(
@@ -456,11 +459,15 @@ String categoryGenderDisplayLabelFromTag(String tag) {
     'MASCULINO' => 'Masculino',
     'FEMININO' => 'Feminino',
     'MISTO' => 'Misto',
+    'LIVRE' => 'Livre',
     _ => '',
   };
 }
 
 String tournamentCategoryGenderTag(TournamentCategoryOffer offer) {
+  // Equipe (trio+) sem restrição de gênero: o doc grava mixed por retrocompat,
+  // mas a tag certa é LIVRE.
+  if (offer.genderFree) return 'LIVRE';
   final fromField = genderTagFromText(offer.genderType);
   if (fromField != null) return fromField;
   final fromName = genderTagFromText(offer.name);

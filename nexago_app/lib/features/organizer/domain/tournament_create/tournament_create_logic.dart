@@ -148,12 +148,22 @@ String categoryGenderShort(TournamentCategoryGender gender) => switch (gender) {
   TournamentCategoryGender.mixed => 'Misto',
 };
 
-/// Por enquanto o wizard suporta apenas categorias de dupla.
+/// O wizard do app só CRIA categorias de dupla; trio/quarteto/quinteto nascem
+/// no portal do organizador e aqui são apenas preservadas/exibidas.
 const supportedCategoryDisputes = [TournamentCategoryDispute.dupla];
 
-String categoryDisputeLabel(TournamentCategoryDispute dispute) => 'Dupla';
+String categoryDisputeLabel(TournamentCategoryDispute dispute) =>
+    switch (dispute) {
+      TournamentCategoryDispute.individual => 'Individual',
+      TournamentCategoryDispute.dupla => 'Dupla',
+      TournamentCategoryDispute.trio => 'Trio',
+      TournamentCategoryDispute.quarteto => 'Quarteto',
+      TournamentCategoryDispute.quinteto => 'Quinteto',
+      TournamentCategoryDispute.team => 'Equipe',
+    };
 
-String categoryDisputeShort(TournamentCategoryDispute dispute) => 'Dupla';
+String categoryDisputeShort(TournamentCategoryDispute dispute) =>
+    categoryDisputeLabel(dispute);
 
 String ageBandLabel(TournamentAgeBand band) => switch (band) {
   TournamentAgeBand.open => 'Livre',
@@ -208,6 +218,9 @@ String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
   final unit = switch (dispute) {
     TournamentCategoryDispute.individual => spots == 1 ? 'atleta' : 'atletas',
     TournamentCategoryDispute.dupla => spots == 1 ? 'dupla' : 'duplas',
+    TournamentCategoryDispute.trio ||
+    TournamentCategoryDispute.quarteto ||
+    TournamentCategoryDispute.quinteto ||
     TournamentCategoryDispute.team => spots == 1 ? 'equipe' : 'equipes',
   };
   return '$spots $unit';
@@ -215,7 +228,13 @@ String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
 
 String suggestCategoryName(TournamentCategoryDraft category) {
   final parts = <String>[
-    categoryGenderLabel(category.gender),
+    // Equipe (trio+): o formato lidera o nome, e "Livre" substitui o gênero
+    // (mesma sugestão do portal — "Trio Misto Sub-17").
+    if (isTeamDispute(category.dispute)) categoryDisputeLabel(category.dispute),
+    if (isTeamDispute(category.dispute) && category.genderFree)
+      'Livre'
+    else
+      categoryGenderLabel(category.gender),
     if (category.ageBand != TournamentAgeBand.open)
       ageBandLabel(category.ageBand),
     if (category.skillLevel != TournamentSkillLevel.open)

@@ -13,6 +13,46 @@ void main() {
       );
       expect(suggestCategoryName(category), 'Masculino');
     });
+
+    test('equipe (trio+) prefixa o formato no nome', () {
+      const trioMisto = TournamentCategoryDraft(
+        id: '1',
+        dispute: TournamentCategoryDispute.trio,
+        gender: TournamentCategoryGender.mixed,
+      );
+      expect(suggestCategoryName(trioMisto), startsWith('Trio'));
+      expect(suggestCategoryName(trioMisto), 'Trio Misto');
+    });
+
+    test('equipe genderFree usa Livre no lugar do gênero', () {
+      const quartetoLivre = TournamentCategoryDraft(
+        id: '1',
+        dispute: TournamentCategoryDispute.quarteto,
+        genderFree: true,
+      );
+      expect(suggestCategoryName(quartetoLivre), contains('Livre'));
+      expect(suggestCategoryName(quartetoLivre), 'Quarteto Livre');
+    });
+  });
+
+  group('labels de disputa de equipe', () {
+    test('categoryDisputeLabel mapeia trio/quarteto/quinteto', () {
+      expect(categoryDisputeLabel(TournamentCategoryDispute.trio), 'Trio');
+      expect(
+        categoryDisputeLabel(TournamentCategoryDispute.quarteto),
+        'Quarteto',
+      );
+      expect(
+        categoryDisputeLabel(TournamentCategoryDispute.quinteto),
+        'Quinteto',
+      );
+    });
+
+    test('spotsUnitLabel usa equipe(s) para trio+', () {
+      expect(spotsUnitLabel(TournamentCategoryDispute.trio, 8), '8 equipes');
+      expect(spotsUnitLabel(TournamentCategoryDispute.quinteto, 1), '1 equipe');
+      expect(spotsUnitLabel(TournamentCategoryDispute.dupla, 8), '8 duplas');
+    });
   });
 
   group('canContinueFromStep', () {

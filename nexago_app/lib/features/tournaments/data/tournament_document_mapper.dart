@@ -217,6 +217,29 @@ abstract final class TournamentDocumentMapper {
         uniformNameOnShirt = tournamentUniformNameOnShirt;
       }
 
+      // Categoria de EQUIPE (trio/quarteto/quinteto) gravada pelo portal:
+      // teamSize 3–5, genderMode free/composition e a composição exata.
+      final teamSizeRaw = _int(map['teamSize']);
+      final teamSize =
+          teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5
+          ? teamSizeRaw
+          : null;
+      final genderFree =
+          teamSize != null && _str(map['genderMode']) == 'free';
+      final compositionRaw = map['genderComposition'];
+      final compositionMen = compositionRaw is Map
+          ? _int(compositionRaw['men'])
+          : null;
+      final compositionWomen = compositionRaw is Map
+          ? _int(compositionRaw['women'])
+          : null;
+      final compositionValid =
+          teamSize != null &&
+          !genderFree &&
+          compositionMen != null &&
+          compositionWomen != null &&
+          compositionMen + compositionWomen == teamSize;
+
       offers.add(
         TournamentCategoryOffer(
           id: offerId,
@@ -245,6 +268,10 @@ abstract final class TournamentDocumentMapper {
           waitlistEnabled: tournamentWaitlistEnabled,
           qualifiersPerGroup:
               (_int(map['qualifiersPerGroup']) ?? 2).clamp(1, 99),
+          teamSize: teamSize,
+          genderFree: genderFree,
+          genderCompositionMen: compositionValid ? compositionMen : null,
+          genderCompositionWomen: compositionValid ? compositionWomen : null,
         ),
       );
     }

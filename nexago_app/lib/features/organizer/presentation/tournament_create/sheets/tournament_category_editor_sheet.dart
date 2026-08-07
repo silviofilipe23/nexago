@@ -78,10 +78,10 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
     final name = _nameController.text.trim().isEmpty
         ? suggestCategoryName(_category)
         : _nameController.text.trim();
-    final saved = _category.copyWith(
-      name: name,
-      dispute: TournamentCategoryDispute.dupla,
-    );
+    // A disputa carregada é preservada: o editor do app não oferece o seletor,
+    // mas uma categoria trio/quarteto/quinteto criada no portal não pode ser
+    // rebaixada para dupla ao reeditar qualquer outro campo.
+    final saved = _category.copyWith(name: name);
     final notifier = ref.read(tournamentCreateWizardProvider.notifier);
     if (widget.existing != null) {
       notifier.updateCategory(saved);

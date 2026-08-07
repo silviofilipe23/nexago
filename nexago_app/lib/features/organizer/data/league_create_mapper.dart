@@ -215,8 +215,20 @@ abstract final class LeagueCreateMapper {
       'categoryName': category.name.trim().isEmpty
           ? suggestCategoryName(category)
           : category.name.trim(),
-      'genderType': genderTypeFirestoreValue(category.gender),
+      'genderType': isTeamDispute(category.dispute) && category.genderFree
+          ? 'mixed'
+          : genderTypeFirestoreValue(category.gender),
       'disputeType': category.dispute.name,
+      'teamSize': disputeTeamSize(category.dispute),
+      if (isTeamDispute(category.dispute)) ...{
+        'genderMode': category.genderFree ? 'free' : 'composition',
+        'genderComposition':
+            category.genderFree ||
+                category.menCount == null ||
+                category.womenCount == null
+            ? null
+            : {'men': category.menCount, 'women': category.womenCount},
+      },
       'ageBand': category.ageBand.name,
       'level': skillLevelLabel(category.skillLevel),
       'maxTeams': category.spots,
@@ -286,7 +298,15 @@ abstract final class LeagueCreateMapper {
       maxRegistrationsPerAthlete:
           (map['maxRegistrationsPerAthlete'] as num?)?.toInt() ?? 2,
       prizes: _parsePrizes(map['prizes']),
+      genderFree: (map['genderMode'] as String?) == 'free',
+      menCount: _compositionCount(map['genderComposition'], 'men'),
+      womenCount: _compositionCount(map['genderComposition'], 'women'),
     );
+  }
+
+  static int? _compositionCount(dynamic raw, String key) {
+    if (raw is! Map) return null;
+    return (raw[key] as num?)?.toInt();
   }
 
   static TournamentBestOf _parseBestOf(String? raw) {

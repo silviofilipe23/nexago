@@ -29,6 +29,9 @@ class LeagueStageCategoryDraft {
     this.qualifiersPerGroup = 2,
     this.bestOf = TournamentBestOf.bestOf3,
     this.finalBestOf5 = true,
+    this.genderFree = false,
+    this.menCount,
+    this.womenCount,
   });
 
   final String categoryId;
@@ -46,6 +49,12 @@ class LeagueStageCategoryDraft {
   final TournamentBestOf bestOf;
   final bool finalBestOf5;
 
+  /// Campos de categoria de EQUIPE (trio+) herdados da liga — o app não os
+  /// edita, só preserva o que o portal gravou.
+  final bool genderFree;
+  final int? menCount;
+  final int? womenCount;
+
   LeagueStageCategoryDraft copyWith({
     String? categoryId,
     String? name,
@@ -61,6 +70,9 @@ class LeagueStageCategoryDraft {
     int? qualifiersPerGroup,
     TournamentBestOf? bestOf,
     bool? finalBestOf5,
+    bool? genderFree,
+    int? menCount,
+    int? womenCount,
   }) {
     return LeagueStageCategoryDraft(
       categoryId: categoryId ?? this.categoryId,
@@ -77,6 +89,9 @@ class LeagueStageCategoryDraft {
       qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
       bestOf: bestOf ?? this.bestOf,
       finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
+      genderFree: genderFree ?? this.genderFree,
+      menCount: menCount ?? this.menCount,
+      womenCount: womenCount ?? this.womenCount,
     );
   }
 }

@@ -36,6 +36,33 @@ void main() {
       expect(quote.displayTotal, 0);
       expect(quote.shareAmount, 0);
     });
+
+    test('trio divide a taxa pelo elenco de 3', () {
+      final quote = buildRegistrationQuote(entryFee: 100, teamSize: 3);
+
+      expect(quote.teamSize, 3);
+      expect(quote.isTeamCategory, isTrue);
+      expect(quote.unitSingular, 'equipe');
+      expect(quote.shareAmount, closeTo(33.33, 0.01));
+    });
+
+    test('teamSize padrão 2 divide ao meio', () {
+      final quote = buildRegistrationQuote(entryFee: 100);
+
+      expect(quote.teamSize, 2);
+      expect(quote.isTeamCategory, isFalse);
+      expect(quote.unitSingular, 'dupla');
+      expect(quote.shareAmount, 50);
+    });
+
+    test('teamSize menor que 2 é clampado para 2', () {
+      expect(buildRegistrationQuote(entryFee: 100, teamSize: 1).teamSize, 2);
+      expect(buildRegistrationQuote(entryFee: 100, teamSize: 0).teamSize, 2);
+      expect(
+        buildRegistrationQuote(entryFee: 100, teamSize: 1).shareAmount,
+        50,
+      );
+    });
   });
 
   group('registrationRequiresPayment', () {
@@ -268,6 +295,43 @@ void main() {
       );
 
       expect(categoryGenderDisplayLabel(offer), 'Misto');
+    });
+
+    test('trio prefixa o formato e usa equipes na unidade', () {
+      const offer = TournamentCategoryOffer(
+        id: 'trio',
+        name: 'Trio Misto',
+        entryFee: 210,
+        maxTeams: 8,
+        spotsLeft: 3,
+        genderType: 'mixed',
+        teamSize: 3,
+        genderCompositionMen: 2,
+        genderCompositionWomen: 1,
+      );
+
+      final subtitle = categoryRegistrationSubtitle(offer);
+      expect(subtitle, contains('Trio'));
+      expect(subtitle, contains('8 equipes'));
+      expect(subtitle, 'Trio · Misto · 2H + 1M · 8 equipes · 5/8 inscritas');
+    });
+
+    test('equipe livre mostra Livre e omite composição', () {
+      const offer = TournamentCategoryOffer(
+        id: 'quarteto',
+        name: 'Quarteto Livre',
+        entryFee: 280,
+        maxTeams: 6,
+        spotsLeft: 6,
+        genderType: 'mixed',
+        teamSize: 4,
+        genderFree: true,
+      );
+
+      expect(
+        categoryRegistrationSubtitle(offer),
+        'Quarteto · Livre · 6 equipes · 0/6 inscritas',
+      );
     });
   });
 
@@ -702,6 +766,67 @@ void main() {
       expect(athleteMatchesCategoryGender(masc, 'Masculino'), isTrue);
       expect(athleteMatchesCategoryGender(masc, 'Feminino'), isFalse);
       expect(athleteMatchesCategoryGender(masc, null), isFalse);
+    });
+
+    test('equipe livre aceita qualquer atleta, inclusive sem gênero', () {
+      const free = TournamentCategoryOffer(
+        id: 'trio-livre',
+        name: 'Trio Livre',
+        entryFee: 210,
+        genderType: 'mixed',
+        teamSize: 3,
+        genderFree: true,
+      );
+
+      expect(athleteMatchesCategoryGender(free, 'Feminino'), isTrue);
+      expect(athleteMatchesCategoryGender(free, 'Masculino'), isTrue);
+      expect(athleteMatchesCategoryGender(free, null), isTrue);
+    });
+
+    test('composição 3H+0M só aceita Masculino', () {
+      const menOnly = TournamentCategoryOffer(
+        id: 'trio-masc',
+        name: 'Trio Masculino',
+        entryFee: 210,
+        genderType: 'mixed',
+        teamSize: 3,
+        genderCompositionMen: 3,
+        genderCompositionWomen: 0,
+      );
+
+      expect(athleteMatchesCategoryGender(menOnly, 'Masculino'), isTrue);
+      expect(athleteMatchesCategoryGender(menOnly, 'Feminino'), isFalse);
+      expect(athleteMatchesCategoryGender(menOnly, null), isFalse);
+    });
+
+    test('composição 0H+4M só aceita Feminino', () {
+      const womenOnly = TournamentCategoryOffer(
+        id: 'quarteto-fem',
+        name: 'Quarteto Feminino',
+        entryFee: 280,
+        genderType: 'mixed',
+        teamSize: 4,
+        genderCompositionMen: 0,
+        genderCompositionWomen: 4,
+      );
+
+      expect(athleteMatchesCategoryGender(womenOnly, 'Feminino'), isTrue);
+      expect(athleteMatchesCategoryGender(womenOnly, 'Masculino'), isFalse);
+    });
+
+    test('composição mista exata 2H+2M aceita ambos', () {
+      const mixedExact = TournamentCategoryOffer(
+        id: 'quarteto-misto',
+        name: 'Quarteto Misto',
+        entryFee: 280,
+        genderType: 'mixed',
+        teamSize: 4,
+        genderCompositionMen: 2,
+        genderCompositionWomen: 2,
+      );
+
+      expect(athleteMatchesCategoryGender(mixedExact, 'Masculino'), isTrue);
+      expect(athleteMatchesCategoryGender(mixedExact, 'Feminino'), isTrue);
     });
   });
 

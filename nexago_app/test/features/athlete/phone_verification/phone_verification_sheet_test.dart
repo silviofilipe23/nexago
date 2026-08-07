@@ -100,7 +100,7 @@ void main() {
     final service = _FakeService();
     final results = await pumpSheet(tester, service);
 
-    expect(find.text('Verificar WhatsApp'), findsOneWidget);
+    expect(find.text('Verificar Número'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '(62) 99999-9999');
     await tester.pump();
@@ -230,6 +230,6 @@ void main() {
       find.text('Limite de envios de SMS atingido. Tente novamente mais tarde.'),
       findsOneWidget,
     );
-    expect(find.text('Verificar WhatsApp'), findsOneWidget);
+    expect(find.text('Verificar Número'), findsOneWidget);
   });
 }

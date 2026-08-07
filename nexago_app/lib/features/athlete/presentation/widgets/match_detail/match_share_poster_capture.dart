@@ -4,25 +4,52 @@ import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../domain/match_history/match_share_poster_data.dart';
 import 'match_share_poster_painter.dart';
 
-/// Resolve as fotos dos atletas em [ui.Image] — o painter é síncrono, então
+/// Resolve as imagens do pôster em [ui.Image] — o painter é síncrono, então
 /// elas precisam estar prontas antes do primeiro traço. Foto que não carrega
 /// (ou demora demais) fica de fora e o círculo cai nas iniciais: a arte nunca
 /// quebra por causa de um avatar, mesma decisão do portal.
-Future<Map<String, ui.Image>> loadMatchSharePosterPhotos(
+Future<MatchSharePosterAssets> loadMatchSharePosterAssets(
   MatchSharePosterData data,
 ) async {
   final loaded = await Future.wait(
     data.photoUrls.map((url) async => (url: url, image: await _loadImage(url))),
   );
-  return {
-    for (final entry in loaded)
-      if (entry.image != null) entry.url: entry.image!,
-  };
+  return MatchSharePosterAssets(
+    photos: {
+      for (final entry in loaded)
+        if (entry.image != null) entry.url: entry.image!,
+    },
+    logo: await loadMatchSharePosterLogo(),
+  );
+}
+
+/// A marca do lockup. Decodificada uma vez por processo: é o mesmo asset em
+/// todo pôster, e o tamanho de desenho (60 pt) não muda.
+Future<ui.Image?> loadMatchSharePosterLogo() {
+  return _logo ??= _decodeLogo();
+}
+
+Future<ui.Image?>? _logo;
+
+Future<ui.Image?> _decodeLogo() async {
+  try {
+    final data = await rootBundle.load('assets/images/nexaGO_Logo.png');
+    final codec = await ui.instantiateImageCodec(
+      data.buffer.asUint8List(),
+      targetWidth: 128,
+    );
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  } catch (error) {
+    debugPrint('share poster logo skipped: $error');
+    return null;
+  }
 }
 
 Future<ui.Image?> _loadImage(String url) {
@@ -59,7 +86,7 @@ Future<ui.Image?> _loadImage(String url) {
 /// 1080×1920 reais, independentemente do tamanho do preview em tela.
 Future<File?> captureMatchSharePosterPng(
   MatchSharePosterData data,
-  Map<String, ui.Image> photos,
+  MatchSharePosterAssets assets,
 ) async {
   final recorder = ui.PictureRecorder();
   drawMatchSharePoster(
@@ -68,7 +95,7 @@ Future<File?> captureMatchSharePosterPng(
       const Rect.fromLTWH(0, 0, matchSharePosterWidth, matchSharePosterHeight),
     ),
     data,
-    photos,
+    assets,
   );
 
   final picture = recorder.endRecording();

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/match_share_poster_data.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/match_detail/match_share_poster_capture.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/match_detail/match_share_poster_painter.dart';
 
 /// O pôster é desenhado à mão em canvas, então o que dá errado aqui é traço:
@@ -18,6 +19,30 @@ void main() {
       'assets/fonts/JetBrainsMono/JetBrainsMono-ExtraBold.ttf',
     ]);
     await _loadFont('Inter', ['assets/fonts/Inter/Inter-SemiBold.ttf']);
+    _assets = MatchSharePosterAssets(logo: await loadMatchSharePosterLogo());
+  });
+
+  test('a marca do cabeçalho carrega do bundle', () {
+    expect(_assets.logo, isNotNull);
+  });
+
+  test('o cabeçalho desenha a marca à esquerda do wordmark', () async {
+    // A marca ocupa (72,85)–(132,145); x=78 pega a haste esquerda dela, que é
+    // laranja cheia. No meio do glifo o pixel seria a diagonal vazada.
+    final mark = _pixelAt(await _pixels(_data(finished: true)), 78, 115);
+    expect(mark.r, greaterThan(200), reason: 'laranja da marca na margem');
+    expect(mark.g, inInclusiveRange(60, 160));
+
+    // Sem a marca o wordmark volta pra margem: arte diferente, sem buraco.
+    final withoutLogo = await _pixels(
+      _data(finished: true),
+      assets: MatchSharePosterAssets.empty,
+    );
+    final withLogo = await _pixels(_data(finished: true));
+    expect(
+      withoutLogo.buffer.asUint8List(),
+      isNot(withLogo.buffer.asUint8List()),
+    );
   });
 
   for (final stage in MatchSharePosterStage.values) {
@@ -134,7 +159,10 @@ MatchSharePosterData _data({
   );
 }
 
-Future<ui.Image> _render(MatchSharePosterData data) async {
+Future<ui.Image> _render(
+  MatchSharePosterData data, {
+  MatchSharePosterAssets? assets,
+}) async {
   final recorder = ui.PictureRecorder();
   drawMatchSharePoster(
     ui.Canvas(
@@ -147,7 +175,7 @@ Future<ui.Image> _render(MatchSharePosterData data) async {
       ),
     ),
     data,
-    const {},
+    assets ?? _assets,
   );
   return recorder.endRecording().toImage(
     matchSharePosterWidth.toInt(),
@@ -155,8 +183,11 @@ Future<ui.Image> _render(MatchSharePosterData data) async {
   );
 }
 
-Future<ByteData> _pixels(MatchSharePosterData data) async {
-  final image = await _render(data);
+Future<ByteData> _pixels(
+  MatchSharePosterData data, {
+  MatchSharePosterAssets? assets,
+}) async {
+  final image = await _render(data, assets: assets);
   final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
   return bytes!;
 }
@@ -170,6 +201,8 @@ Future<ByteData> _pixels(MatchSharePosterData data) async {
     a: pixels.getUint8(offset + 3),
   );
 }
+
+MatchSharePosterAssets _assets = MatchSharePosterAssets.empty;
 
 Future<void> _loadFont(String family, List<String> assets) async {
   final loader = FontLoader(family);

@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:share_plus/share_plus.dart';
@@ -36,13 +34,13 @@ class MatchDetailShareSection extends StatefulWidget {
 }
 
 class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
-  Map<String, ui.Image> _photos = const {};
+  MatchSharePosterAssets _assets = MatchSharePosterAssets.empty;
   bool _exporting = false;
 
   @override
   void initState() {
     super.initState();
-    _loadPhotos();
+    _loadAssets();
   }
 
   @override
@@ -54,14 +52,14 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
     final now = widget.poster.photoUrls;
     if (before.length != now.length ||
         !now.every((url) => before.contains(url))) {
-      _loadPhotos();
+      _loadAssets();
     }
   }
 
-  Future<void> _loadPhotos() async {
-    final photos = await loadMatchSharePosterPhotos(widget.poster);
+  Future<void> _loadAssets() async {
+    final assets = await loadMatchSharePosterAssets(widget.poster);
     if (!mounted) return;
-    setState(() => _photos = photos);
+    setState(() => _assets = assets);
   }
 
   void _showShareMessage(String message) {
@@ -85,11 +83,13 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
     final sheetNavigator = closingSheet ? Navigator.of(context) : null;
 
     try {
-      final photos = _photos.isEmpty && widget.poster.photoUrls.isNotEmpty
-          ? await loadMatchSharePosterPhotos(widget.poster)
-          : _photos;
+      // Sem os assets prontos (share antes do preview terminar de carregar)
+      // resolve na hora, para o PNG nunca sair sem foto nem sem marca.
+      final assets = _assets.logo == null
+          ? await loadMatchSharePosterAssets(widget.poster)
+          : _assets;
 
-      final file = await captureMatchSharePosterPng(widget.poster, photos);
+      final file = await captureMatchSharePosterPng(widget.poster, assets);
       if (!mounted) return;
       if (file == null) {
         _showShareMessage('Não foi possível gerar a imagem.');
@@ -132,7 +132,7 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
   Widget build(BuildContext context) {
     final preview = MatchSharePosterPreview(
       data: widget.poster,
-      photos: _photos,
+      assets: _assets,
       width: _previewWidth(context),
     );
 
@@ -208,12 +208,12 @@ class MatchSharePosterPreview extends StatelessWidget {
   const MatchSharePosterPreview({
     super.key,
     required this.data,
-    required this.photos,
+    required this.assets,
     required this.width,
   });
 
   final MatchSharePosterData data;
-  final Map<String, ui.Image> photos;
+  final MatchSharePosterAssets assets;
   final double width;
 
   @override
@@ -245,7 +245,7 @@ class MatchSharePosterPreview extends StatelessWidget {
               width: matchSharePosterWidth,
               height: matchSharePosterHeight,
               child: CustomPaint(
-                painter: MatchSharePosterPainter(data: data, photos: photos),
+                painter: MatchSharePosterPainter(data: data, assets: assets),
                 isComplex: true,
               ),
             ),

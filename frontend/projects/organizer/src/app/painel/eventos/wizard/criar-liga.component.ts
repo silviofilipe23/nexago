@@ -9,14 +9,19 @@ import {
 } from '../../data/organizer-settings.model';
 import {
   COUNTING_MODE_LABEL,
-  DEFAULT_LEAGUE_RANKING_POINTS,
+  LEAGUE_RANKING_POINT_KEYS,
+  LEAGUE_RANKING_POINT_LABEL,
   type LeagueCountingStagesMode,
   type LeagueCreateDraft,
   type LeagueStageDraft,
+  effectiveRankingPoints,
   emptyLeagueDraft,
   emptyStageDraft,
+  isCustomRankingTable,
   isValidLeagueForPublish,
   publishLeague,
+  reviewRankingSummary,
+  withRankingPoint,
 } from '../../data/league-create.model';
 import {
   AGE_BAND_LABEL,
@@ -46,7 +51,6 @@ import { OgCardComponent } from '../../ui/card.component';
 import { OgCategoryCardComponent } from '../../ui/category-card.component';
 import { OgFormFieldComponent } from '../../ui/form-field.component';
 import { OgIconComponent } from '../../ui/icon.component';
-import { OgPointsTableComponent } from '../../ui/points-table.component';
 import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgSelectChipsComponent } from '../../ui/select-chips.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
@@ -68,15 +72,6 @@ const SUBTITLES = [
   'Como os pontos somam e quem chega à decisão.',
   'Adicione as etapas agora ou ao longo do ano.',
   'Publique para abrir o circuito. Etapas podem ser adicionadas depois.',
-];
-
-const RANKING_POINTS_ROWS: [string, number][] = [
-  ['1º lugar', DEFAULT_LEAGUE_RANKING_POINTS['1']!],
-  ['2º lugar', DEFAULT_LEAGUE_RANKING_POINTS['2']!],
-  ['3º lugar', DEFAULT_LEAGUE_RANKING_POINTS['3']!],
-  ['4º lugar', DEFAULT_LEAGUE_RANKING_POINTS['4']!],
-  ['Quartas', DEFAULT_LEAGUE_RANKING_POINTS['quarters']!],
-  ['Fase de grupos', DEFAULT_LEAGUE_RANKING_POINTS['groups']!],
 ];
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -112,7 +107,6 @@ function inputToDate(v: string): Date | null {
     OgCategoryCardComponent,
     OgAddTileComponent,
     OgReviewRowComponent,
-    OgPointsTableComponent,
     OgIconComponent,
   ],
   template: `
@@ -330,8 +324,17 @@ function inputToDate(v: string): Date | null {
                     }
                   </div>
                 </og-card>
-                <og-card kicker="Pontuação" title="Tabela por colocação (padrão nexaGO)">
-                  <og-points-table [pts]="rankingPointsRows" />
+                <og-card kicker="Pontuação" title="Tabela por colocação">
+                  <div class="og-field-grid">
+                    @for (key of pointKeys; track key) {
+                      <og-form-field [label]="pointLabel[key] + ' (pts)'">
+                        <input class="og-input-el" type="number" min="0" step="10" [value]="pointsOf(key)" (input)="setPoints(key, $any($event.target).value)" />
+                      </og-form-field>
+                    }
+                  </div>
+                  @if (isCustomTable()) {
+                    <button type="button" class="og-ghost-btn" style="margin-top:14px" (click)="resetPoints()">Restaurar padrão nexaGO</button>
+                  }
                 </og-card>
                 <og-card kicker="Grande Final" title="Classificação">
                   <og-stepper-static label="Vagas na Grande Final" [value]="'' + draft().grandFinalSpots" suffix="duplas" (bump)="bumpGrandFinalSpots($event)" />
@@ -372,7 +375,7 @@ function inputToDate(v: string): Date | null {
                   <og-review-row label="Esporte" [value]="sportLabel[draft().sport]" />
                   <og-review-row label="Temporada" [value]="reviewSeason()" />
                   <og-review-row label="Categorias" [value]="draft().categories.length + ' categorias'" />
-                  <og-review-row label="Ranking" [value]="countingLabel[draft().countingStagesMode]" />
+                  <og-review-row label="Ranking" [value]="reviewRanking()" />
                   <og-review-row label="Grande Final" [value]="draft().grandFinalEnabled ? draft().grandFinalSpots + ' vagas' : 'Sem grande final'" />
                   <og-review-row label="Etapas" [value]="reviewStages()" />
                 </og-card>
@@ -466,7 +469,9 @@ export class CriarLigaComponent {
   protected readonly sportOptions = Object.values(SPORT_LABEL);
   protected readonly genderOptions = Object.values(GENDER_LABEL);
   protected readonly ageBandOptions = Object.values(AGE_BAND_LABEL);
-  protected readonly rankingPointsRows = RANKING_POINTS_ROWS;
+  protected readonly pointKeys = LEAGUE_RANKING_POINT_KEYS;
+  protected readonly pointLabel = LEAGUE_RANKING_POINT_LABEL;
+  protected readonly isCustomTable = computed(() => isCustomRankingTable(this.draft()));
   protected readonly stepLabels = STEP_LABELS;
   protected readonly suggestCategoryName = suggestCategoryName;
   protected readonly tagsOf = categoryTags;
@@ -527,6 +532,22 @@ export class CriarLigaComponent {
 
   protected patchStage(partial: Partial<LeagueStageDraft>): void {
     this.stage.update((s) => ({ ...s, ...partial }));
+  }
+
+  protected pointsOf(key: string): number {
+    return effectiveRankingPoints(this.draft())[key] ?? 0;
+  }
+
+  protected setPoints(key: string, raw: string): void {
+    this.patch({ rankingPointsByPlace: withRankingPoint(this.draft(), key, raw) });
+  }
+
+  protected resetPoints(): void {
+    this.patch({ rankingPointsByPlace: {} });
+  }
+
+  protected reviewRanking(): string {
+    return reviewRankingSummary(this.draft());
   }
 
   protected readonly citiesForState = computed(() => this.brLocations.citiesFor(this.draft().state));

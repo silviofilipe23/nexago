@@ -97,6 +97,25 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return `${result}…`;
 }
 
+/**
+ * A marca "N" laranja de `public/brand/logo.png`. É do mesmo domínio, então não suja o canvas
+ * (o `toBlob` continua funcionando) — diferente de foto de atleta, que vem do Storage.
+ *
+ * Falhar em carregar resolve `null` e o cabeçalho cai só no lettering: a imagem compartilhada
+ * nunca deixa de sair por causa da logo.
+ */
+let logoPromise: Promise<HTMLImageElement | null> | null = null;
+
+function loadBrandMark(): Promise<HTMLImageElement | null> {
+  logoPromise ??= new Promise<HTMLImageElement | null>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = '/brand/logo.png';
+  });
+  return logoPromise;
+}
+
 function drawWordmark(ctx: CanvasRenderingContext2D, x: number, baseline: number, size: number): number {
   ctx.font = sora(800, size);
   ctx.textAlign = 'left';
@@ -202,8 +221,19 @@ function drawRow(ctx: CanvasRenderingContext2D, row: PredictionShareRow, y: numb
   ctx.textAlign = 'left';
 }
 
-function drawHeader(ctx: CanvasRenderingContext2D, data: PredictionShareData): void {
-  drawWordmark(ctx, PAD, 150, 64);
+/** Altura da marca no cabeçalho e o respiro até o lettering. */
+const MARK_SIZE = 64;
+const MARK_GAP = 20;
+
+function drawHeader(ctx: CanvasRenderingContext2D, data: PredictionShareData, mark: HTMLImageElement | null): void {
+  let x = PAD;
+  if (mark) {
+    // Alinhada pela altura de caixa alta do lettering, não pela linha de base: encostada na
+    // base o "N" ficaria pendurado abaixo do texto.
+    ctx.drawImage(mark, x, 150 - MARK_SIZE + 8, MARK_SIZE, MARK_SIZE);
+    x += MARK_SIZE + MARK_GAP;
+  }
+  drawWordmark(ctx, x, 150, 64);
 
   const eyebrow = data.tournamentName ? `PALPITES · ${data.tournamentName.toUpperCase()}` : 'PALPITES';
   ctx.font = mono(500, 24);
@@ -247,11 +277,14 @@ function drawFooter(ctx: CanvasRenderingContext2D, data: PredictionShareData): v
  */
 export async function drawPredictionsShareCard(ctx: CanvasRenderingContext2D, data: PredictionShareData): Promise<void> {
   const fontSpecs = [sora(800, 88), sora(800, 64), sora(800, 52), sora(700, 52), sora(700, 44), sora(700, 30), mono(700, 26), mono(500, 30), mono(500, 22)];
-  await Promise.all(fontSpecs.map((f) => document.fonts.load(f).catch(() => []))).catch(() => {});
+  const [, mark] = await Promise.all([
+    Promise.all(fontSpecs.map((f) => document.fonts.load(f).catch(() => []))).catch(() => {}),
+    loadBrandMark(),
+  ]);
 
   ctx.clearRect(0, 0, W, H);
   drawBackdrop(ctx);
-  drawHeader(ctx, data);
+  drawHeader(ctx, data, mark);
 
   const rows = data.top.length;
   const stackH =

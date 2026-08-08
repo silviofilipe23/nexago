@@ -70,4 +70,24 @@ void main() {
     expect(find.text('nada aqui'), findsOneWidget);
     expect(find.text('lista'), findsNothing);
   });
+
+  testWidgets('reload mantém dados na tela', (tester) async {
+    await tester.pumpWidget(wrap(NexaAsyncView<int>(
+      value: const AsyncValue.data(7)
+          .copyWithPrevious(const AsyncValue.data(7), isRefresh: false),
+      data: (v) => Text('valor $v'),
+    )));
+    expect(find.text('valor 7'), findsOneWidget);
+    expect(find.byType(NexaSkeleton), findsNothing);
+  });
+
+  testWidgets('refresh mantém dados na tela', (tester) async {
+    await tester.pumpWidget(wrap(NexaAsyncView<int>(
+      value: const AsyncValue.data(7)
+          .copyWithPrevious(const AsyncValue.data(7), isRefresh: true),
+      data: (v) => Text('valor $v'),
+    )));
+    expect(find.text('valor 7'), findsOneWidget);
+    expect(find.byType(NexaSkeleton), findsNothing);
+  });
 }

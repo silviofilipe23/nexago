@@ -18,6 +18,8 @@ class NexaAsyncView<T> extends StatelessWidget {
     this.loadingMessage,
     this.errorTitle = 'Algo deu errado',
     this.errorMessage = 'Não foi possível carregar. Tente novamente.',
+    this.skipLoadingOnReload = true,
+    this.skipLoadingOnRefresh = true,
   });
 
   final AsyncValue<T> value;
@@ -29,6 +31,12 @@ class NexaAsyncView<T> extends StatelessWidget {
   final String? loadingMessage;
   final String errorTitle;
   final String errorMessage;
+
+  /// Durante reload/refresh mantém o conteúdo anterior na tela em vez de voltar ao skeleton.
+  final bool skipLoadingOnReload;
+
+  /// Durante reload/refresh mantém o conteúdo anterior na tela em vez de voltar ao skeleton.
+  final bool skipLoadingOnRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +59,8 @@ class NexaAsyncView<T> extends StatelessWidget {
         }
         return AppInlineErrorView(error: error);
       },
+      skipLoadingOnReload: skipLoadingOnReload,
+      skipLoadingOnRefresh: skipLoadingOnRefresh,
     );
   }
 }

@@ -94,7 +94,12 @@ class TournamentDetailHero extends StatelessWidget {
                                 if (stageLabel.isNotEmpty)
                                   NexaStatusChip(
                                     label: stageLabel,
-                                    color: context.themeColors.onSurfaceMuted,
+                                    color: hasCover
+                                        ? Colors.white.withValues(alpha: 0.92)
+                                        : context.themeColors.onSurfaceMuted,
+                                    background: hasCover
+                                        ? Colors.black.withValues(alpha: 0.42)
+                                        : null,
                                     showDot: false,
                                   ),
                               ],

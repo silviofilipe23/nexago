@@ -12,11 +12,17 @@ class NexaStatusChip extends StatelessWidget {
     required this.label,
     this.color,
     this.showDot = true,
+    this.background,
   });
 
   final String label;
   final Color? color;
   final bool showDot;
+
+  /// Fundo customizado (ex.: chip sobre capa/foto, onde o tint padrão em
+  /// 14% de alpha não garante contraste). `null` mantém o padrão
+  /// `accent.withValues(alpha: 0.14)`.
+  final Color? background;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +32,7 @@ class NexaStatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.14),
+        color: background ?? accent.withValues(alpha: 0.14),
         borderRadius: AppRadii.pillAll,
       ),
       child: Row(
@@ -36,8 +42,7 @@ class NexaStatusChip extends StatelessWidget {
             Container(
               width: 6,
               height: 6,
-              decoration:
-                  BoxDecoration(color: accent, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
             ),
             const SizedBox(width: AppSpacing.xs + 2),
           ],

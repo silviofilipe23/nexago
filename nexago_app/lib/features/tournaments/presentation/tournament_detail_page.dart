@@ -74,12 +74,13 @@ class TournamentDetailPage extends ConsumerWidget {
             ),
           ),
           emptyWhen: (t) => t == null,
-          empty: AppErrorView(
+          empty: AppEmptyView(
+            icon: Icons.emoji_events_outlined,
             title: 'Torneio não encontrado',
-            message:
+            subtitle:
                 'O torneio pode ter sido removido ou o link está desatualizado.',
-            onRetry: () =>
-                ref.invalidate(tournamentDetailProvider(tournamentId)),
+            actionLabel: 'Voltar',
+            onAction: () => _handleTournamentDetailBack(context),
           ),
           data: (value) {
             final tournament = value!;

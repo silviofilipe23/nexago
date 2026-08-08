@@ -17,6 +17,20 @@ void main() {
     expect(text.style?.color, AppColors.win);
   });
 
+  testWidgets('NexaStatusChip usa o background customizado quando informado',
+      (tester) async {
+    final customBackground = Colors.black.withValues(alpha: 0.42);
+    await tester.pumpWidget(wrap(NexaStatusChip(
+      label: 'Fase de grupos',
+      color: Colors.white,
+      showDot: false,
+      background: customBackground,
+    )));
+    final container = tester.widget<Container>(find.byType(Container));
+    final decoration = container.decoration as BoxDecoration;
+    expect(decoration.color, customBackground);
+  });
+
   testWidgets('NexaMetaChip mostra ícone e label', (tester) async {
     await tester.pumpWidget(wrap(const NexaMetaChip(
       icon: Icons.calendar_today_rounded,

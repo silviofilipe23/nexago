@@ -36,4 +36,37 @@ void main() {
     await tester.tap(find.byType(NexaIconSquareButton));
     expect(tapped, isTrue);
   });
+
+  testWidgets('NexaIconSquareButton usa a borda sutil por padrão',
+      (tester) async {
+    await tester.pumpWidget(wrap(NexaIconSquareButton(
+      icon: Icons.close_rounded,
+      onTap: () {},
+    )));
+    final shape = tester
+        .widget<Material>(find.descendant(
+          of: find.byType(NexaIconSquareButton),
+          matching: find.byType(Material),
+        ))
+        .shape;
+    expect(shape, isA<RoundedRectangleBorder>());
+    expect((shape! as RoundedRectangleBorder).side, isNot(BorderSide.none));
+  });
+
+  testWidgets('NexaIconSquareButton propaga o side para o shape do Material',
+      (tester) async {
+    await tester.pumpWidget(wrap(NexaIconSquareButton(
+      icon: Icons.close_rounded,
+      onTap: () {},
+      side: BorderSide.none,
+    )));
+    final shape = tester
+        .widget<Material>(find.descendant(
+          of: find.byType(NexaIconSquareButton),
+          matching: find.byType(Material),
+        ))
+        .shape;
+    expect(shape, isA<RoundedRectangleBorder>());
+    expect((shape! as RoundedRectangleBorder).side, BorderSide.none);
+  });
 }

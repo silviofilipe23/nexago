@@ -257,14 +257,16 @@ class _TournamentRegistrationSuccessViewState
                                 borderRadius: AppRadii.lgAll,
                               ),
                             ),
-                            // Sem cor fixa: o tema já pinta o conteúdo de
-                            // preto no ativo e apaga no desabilitado.
                             icon: _sharing
                                 ? const SizedBox(
                                     width: 22,
                                     height: 22,
+                                    // O indicador não herda o foreground do
+                                    // botão: sem cor fixa cairia no primary
+                                    // (laranja sobre laranja).
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.5,
+                                      color: AppColors.black,
                                     ),
                                   )
                                 : Icon(Icons.ios_share_rounded, size: 22),
@@ -411,6 +413,9 @@ class _RegistrationSuccessAppBar extends StatelessWidget
           child: NexaIconSquareButton(
             icon: Icons.close_rounded,
             onTap: onClose,
+            // Sem borda: o quadrado do BookingPixAppBar não tem, e as duas
+            // toolbars precisam ficar idênticas.
+            side: BorderSide.none,
           ),
         ),
       ),

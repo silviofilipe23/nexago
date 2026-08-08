@@ -14,6 +14,7 @@ class NexaIconSquareButton extends StatelessWidget {
     this.tooltip,
     this.iconColor,
     this.background,
+    this.side,
   });
 
   final IconData icon;
@@ -26,6 +27,11 @@ class NexaIconSquareButton extends StatelessWidget {
   /// o padrão `surfaceRaised`.
   final Color? background;
 
+  /// Borda customizada. `null` mantém o padrão [AppBorders.subtleSide];
+  /// use [BorderSide.none] para casar com toolbars que desenham o quadrado
+  /// sem borda.
+  final BorderSide? side;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
@@ -33,7 +39,7 @@ class NexaIconSquareButton extends StatelessWidget {
       color: background ?? colors.surfaceRaised,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadii.mdAll,
-        side: AppBorders.subtleSide(colors),
+        side: side ?? AppBorders.subtleSide(colors),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

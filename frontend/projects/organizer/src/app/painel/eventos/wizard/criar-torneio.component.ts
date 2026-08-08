@@ -486,7 +486,7 @@ function inputToDatetime(v: string): Date | null {
                   }
                 </og-card>
                 <og-card kicker="Ranking NexaGO" title="Pontuação">
-                  <og-toggle-row title="Vale pontos no ranking" desc="Resultados contam para o ranking oficial da categoria." [on]="draft().rankingEnabled" (toggled)="patch({ rankingEnabled: $event })" />
+                  <og-toggle-row title="Vale pontos no ranking" desc="Resultados contam para o ranking oficial. Categorias com menos de 10 duplas pagas não pontuam (desafio)." [on]="draft().rankingEnabled" (toggled)="patch({ rankingEnabled: $event })" />
                 </og-card>
               }
               @case ('review') {

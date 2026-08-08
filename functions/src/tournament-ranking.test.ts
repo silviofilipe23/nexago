@@ -7,6 +7,7 @@ import {
   athleteRankingsPath,
   finalPlaceForAward,
   globalPointsForAward,
+  isGlobalRankingEligible,
   teamRankingsPath,
   tournamentCategoryResultsPath,
   tryAwardGlobalRankingForMatch,
@@ -76,11 +77,26 @@ describe("upsertRankingResult", () => {
 
 // ─── Fluxo completo com Firestore fake ───────────────────────────────────────
 
-function seededDb(): FakeFirestore {
+function seededDb(opts: {paidTeams?: number} = {}): FakeFirestore {
+  const paidTeams = opts.paidTeams ?? 10;
   const db = new FakeFirestore();
   db.seedDoc("tournaments/T1", {sport: "beachVolleyball"});
   db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
   db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
+  // A final em `matches` marca tA/tB como times de mata-mata (o bucket "groups"
+  // não pode engolir o pódio); as inscrições pagas dão o tamanho da categoria
+  // pro gate de elegibilidade.
+  db.seedDoc(`artifacts/${PROJECT}/public/data/matches/m-final`, finalMatch());
+  const teamIds = ["tA", "tB"];
+  for (let i = 1; i <= Math.max(0, paidTeams - 2); i++) teamIds.push(`tG${i}`);
+  teamIds.slice(0, paidTeams).forEach((teamId, index) => {
+    db.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i${index}`, {
+      tournamentId: "T1",
+      categoryId: "C1",
+      teamId,
+      isPaid: true,
+    });
+  });
   return db;
 }
 
@@ -196,5 +212,62 @@ describe("tryAwardGlobalRankingForMatch", () => {
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
     )!;
     assert.equal(champion.pointsEarned, 200);
+  });
+});
+
+describe("isGlobalRankingEligible", () => {
+  it("etapa de liga é sempre elegível, mesmo pequena e com toggle off", () => {
+    assert.equal(
+      isGlobalRankingEligible({isLeagueStage: true, rankingEnabled: false, paidTeamsCount: 2}),
+      true,
+    );
+  });
+
+  it("toggle desligado bloqueia mesmo categoria cheia", () => {
+    assert.equal(
+      isGlobalRankingEligible({isLeagueStage: false, rankingEnabled: false, paidTeamsCount: 16}),
+      false,
+    );
+  });
+
+  it("menos de 10 duplas pagas é desafio: bloqueia", () => {
+    assert.equal(
+      isGlobalRankingEligible({isLeagueStage: false, rankingEnabled: true, paidTeamsCount: 9}),
+      false,
+    );
+  });
+
+  it("10+ pagas com toggle ligado pontua", () => {
+    assert.equal(
+      isGlobalRankingEligible({isLeagueStage: false, rankingEnabled: true, paidTeamsCount: 10}),
+      true,
+    );
+  });
+});
+
+describe("gate de desafios no fluxo de premiação", () => {
+  it("categoria com 9 duplas pagas não escreve nada (desafio)", async () => {
+    const db = seededDb({paidTeams: 9});
+    const result = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(result.awarded, false);
+    assert.equal(db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`), undefined);
+    assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`), undefined);
+  });
+
+  it("rankingEnabled: false não pontua mesmo com 10 pagas", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {sport: "beachVolleyball", rankingEnabled: false});
+    const result = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(result.awarded, false);
+    assert.equal(db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`), undefined);
+  });
+
+  it("etapa de liga pontua mesmo com 2 duplas", async () => {
+    const db = seededDb({paidTeams: 2});
+    db.seedDoc("tournaments/T1", {sport: "beachVolleyball", leagueId: "L1"});
+    const result = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(result.awarded, true);
+    const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!;
+    assert.equal(champion.finalPlace, 1);
   });
 });

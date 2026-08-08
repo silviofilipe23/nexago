@@ -9,6 +9,8 @@ import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/search/search_keywords.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_theme_colors.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../domain/tournament_discovery_helpers.dart';
@@ -239,12 +241,12 @@ class _TournamentDiscoveryListPageState
                         filtered,
                         searchQuery,
                       );
-                final sortedTournaments = sortDiscoveryTournamentsByDateProximity(
+                final sortedTournaments =
+                    sortDiscoveryTournamentsByDateProximity(
                   filteredByQuery,
                 );
-                final leagueSource = useKeywordLeagueResults
-                    ? keywordLeagues
-                    : allLeagues;
+                final leagueSource =
+                    useKeywordLeagueResults ? keywordLeagues : allLeagues;
                 final leagues = visibleLeaguesForTournaments(
                   leagues: leagueSource,
                   filteredTournaments: sortedTournaments,
@@ -373,8 +375,7 @@ class _TournamentDiscoveryListPageState
 
                                 final row = visibleRows[index];
                                 return switch (row.kind) {
-                                  _DiscoveryListRowKind.sectionTitle =>
-                                    Padding(
+                                  _DiscoveryListRowKind.sectionTitle => Padding(
                                       padding: EdgeInsets.only(
                                         top: index == 0 ? 0 : 14,
                                         bottom: 10,
@@ -383,8 +384,7 @@ class _TournamentDiscoveryListPageState
                                         title: row.sectionTitle!,
                                       ),
                                     ),
-                                  _DiscoveryListRowKind.league =>
-                                    Padding(
+                                  _DiscoveryListRowKind.league => Padding(
                                       padding:
                                           const EdgeInsets.only(bottom: 10),
                                       child: LeagueDiscoveryCard(
@@ -409,14 +409,13 @@ class _TournamentDiscoveryListPageState
                                         ),
                                       ),
                                     ),
-                                  _DiscoveryListRowKind.tournament =>
-                                    Padding(
+                                  _DiscoveryListRowKind.tournament => Padding(
                                       padding:
                                           const EdgeInsets.only(bottom: 10),
                                       child: TournamentDiscoveryCard(
                                         tournament: row.tournament!,
-                                        registration:
-                                            regsByTournament[row.tournament!.id],
+                                        registration: regsByTournament[
+                                            row.tournament!.id],
                                         onTap: () => context.pushNamed(
                                           AppRouteNames.tournamentDetail,
                                           pathParameters: {
@@ -433,9 +432,10 @@ class _TournamentDiscoveryListPageState
                                       child: Text(
                                         'Nenhum torneio encontrado com esses filtros.',
                                         textAlign: TextAlign.center,
-                                        style:
-                                            theme.textTheme.bodyMedium?.copyWith(
-                                          color: AppColors.onSurfaceMuted,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                          color: context
+                                              .themeColors.onSurfaceMuted,
                                         ),
                                       ),
                                     ),
@@ -532,10 +532,10 @@ class DiscoveryListSectionTitle extends StatelessWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: AppColors.onSurface,
-        letterSpacing: -0.3,
-      ),
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+            letterSpacing: -0.3,
+          ),
     );
   }
 }
@@ -567,14 +567,14 @@ class DiscoveryListHeader extends StatelessWidget {
             IconButton(
               onPressed: onBack,
               icon: Icon(Icons.arrow_back_rounded),
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
             Expanded(
               child: Text(
                 'Explorar',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -591,29 +591,29 @@ class DiscoveryListHeader extends StatelessWidget {
             controller: controller,
             focusNode: focusNode,
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               fontWeight: FontWeight.w700,
             ),
             decoration: InputDecoration(
               hintText: 'Buscar torneios e ligas…',
               hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
               filled: true,
-              fillColor: AppColors.surfaceRaised,
+              fillColor: context.themeColors.surfaceRaised,
               prefixIcon: Icon(
                 Icons.search_rounded,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
               suffixIcon: IconButton(
                 onPressed: () => controller.clear(),
                 icon: Icon(
                   Icons.close_rounded,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadii.mdAll,
                 borderSide: BorderSide.none,
               ),
             ),
@@ -637,15 +637,15 @@ class DiscoveryListIconSquare extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceRaised,
-      borderRadius: BorderRadius.circular(12),
+      color: context.themeColors.surfaceRaised,
+      borderRadius: AppRadii.mdAll,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadii.mdAll,
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, color: AppColors.onSurface),
+          child: Icon(icon, color: context.themeColors.onSurface),
         ),
       ),
     );
@@ -708,26 +708,27 @@ class DiscoveryListSegmented extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(_outerRadius),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.22),
         ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(4),
         child: Row(
           children: [
-            _segment(DiscoveryListSegment.all, 'Tudo'),
-            _segment(DiscoveryListSegment.tournaments, 'Torneios'),
-            _segment(DiscoveryListSegment.leagues, 'Ligas'),
+            _segment(context, DiscoveryListSegment.all, 'Tudo'),
+            _segment(context, DiscoveryListSegment.tournaments, 'Torneios'),
+            _segment(context, DiscoveryListSegment.leagues, 'Ligas'),
           ],
         ),
       ),
     );
   }
 
-  Widget _segment(DiscoveryListSegment segment, String label) {
+  Widget _segment(
+      BuildContext context, DiscoveryListSegment segment, String label) {
     final selected = value == segment;
     return Expanded(
       child: Material(
@@ -747,7 +748,9 @@ class DiscoveryListSegmented extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: selected ? AppColors.black : AppColors.onSurfaceMuted,
+                color: selected
+                    ? AppColors.black
+                    : context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w800,
                 fontSize: 14,
               ),
@@ -780,7 +783,7 @@ class DiscoveryListStatTile extends StatelessWidget {
     return DecoratedBox(
       decoration: ArenaDashboardTokens.cardDecoration(
         context,
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -796,7 +799,7 @@ class DiscoveryListStatTile extends StatelessWidget {
                   value,
                   style: AppTypography.soraRegular(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     fontSize: 15,
                     height: 1,
                   ),
@@ -811,7 +814,7 @@ class DiscoveryListStatTile extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 10,
                 height: 1.2,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -854,7 +857,7 @@ class DiscoveryListFilterChips extends StatelessWidget {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => onCategoryChanged(f),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: AppRadii.pillAll,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -862,13 +865,15 @@ class DiscoveryListFilterChips extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: selected
-                            ? AppColors.surfaceCard
-                            : AppColors.surfaceRaised,
-                        borderRadius: BorderRadius.circular(20),
+                            ? context.themeColors.surfaceCard
+                            : context.themeColors.surfaceRaised,
+                        borderRadius: AppRadii.pillAll,
                         border: Border.all(
                           color: selected
-                              ? AppColors.onSurfaceMuted.withValues(alpha: 0.45)
-                              : AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                              ? context.themeColors.onSurfaceMuted
+                                  .withValues(alpha: 0.45)
+                              : context.themeColors.onSurfaceMuted
+                                  .withValues(alpha: 0.2),
                         ),
                       ),
                       child: Text(
@@ -876,8 +881,8 @@ class DiscoveryListFilterChips extends StatelessWidget {
                         style: theme.textTheme.labelLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: selected
-                              ? AppColors.onSurface
-                              : AppColors.onSurfaceMuted,
+                              ? context.themeColors.onSurface
+                              : context.themeColors.onSurfaceMuted,
                         ),
                       ),
                     ),
@@ -892,7 +897,7 @@ class DiscoveryListFilterChips extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: () => onOpenOnlyChanged(!openOnly),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: AppRadii.smAll,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
@@ -904,12 +909,12 @@ class DiscoveryListFilterChips extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: openOnly
                             ? AppColors.brand
-                            : AppColors.surfaceRaised,
-                        borderRadius: BorderRadius.circular(6),
+                            : context.themeColors.surfaceRaised,
+                        borderRadius: AppRadii.smAll,
                         border: Border.all(
                           color: openOnly
                               ? AppColors.brand
-                              : AppColors.onSurfaceMuted.withValues(
+                              : context.themeColors.onSurfaceMuted.withValues(
                                   alpha: 0.35,
                                 ),
                           width: 1.5,
@@ -929,7 +934,7 @@ class DiscoveryListFilterChips extends StatelessWidget {
                     child: Text(
                       'Só com inscrição aberta',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

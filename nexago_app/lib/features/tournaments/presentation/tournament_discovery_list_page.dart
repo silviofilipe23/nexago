@@ -372,14 +372,21 @@ class _TournamentDiscoveryListPageState
                       ),
                     )
                   else if (rows.isEmpty)
-                    const SliverFillRemaining(
+                    SliverFillRemaining(
                       hasScrollBody: false,
-                      child: AppEmptyView(
-                        icon: Icons.emoji_events_outlined,
-                        title: 'Nenhum torneio encontrado',
-                        subtitle:
-                            'Nenhum torneio encontrado com esses filtros.',
-                      ),
+                      child: _segment == DiscoveryListSegment.leagues
+                          ? const AppEmptyView(
+                              icon: Icons.flag_outlined,
+                              title: 'Nenhuma liga encontrada',
+                              subtitle:
+                                  'Nenhuma liga encontrada com esses filtros.',
+                            )
+                          : const AppEmptyView(
+                              icon: Icons.emoji_events_outlined,
+                              title: 'Nenhum torneio encontrado',
+                              subtitle:
+                                  'Nenhum torneio encontrado com esses filtros.',
+                            ),
                     )
                   else
                     SliverPadding(

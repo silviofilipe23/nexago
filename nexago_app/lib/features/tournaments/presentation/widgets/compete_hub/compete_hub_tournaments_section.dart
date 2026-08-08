@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
+import '../../../../../core/theme/app_radii.dart';
+import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/ui/nexa_skeleton.dart';
 import '../../../domain/compete_hub_providers.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../competition_carousel/competition_carousel_strip.dart';
@@ -72,9 +75,8 @@ class CompeteHubTournamentsSection extends ConsumerWidget {
                   title: tournament.name,
                   subtitle: tournament.city,
                   sortDate: tournament.startDate,
-                  imageUrl: imageUrl != null && imageUrl.isNotEmpty
-                      ? imageUrl
-                      : null,
+                  imageUrl:
+                      imageUrl != null && imageUrl.isNotEmpty ? imageUrl : null,
                   onTap: () => context.pushNamed(
                     AppRouteNames.tournamentDetail,
                     pathParameters: {'tournamentId': tournament.id},
@@ -89,46 +91,40 @@ class CompeteHubTournamentsSection extends ConsumerWidget {
   }
 }
 
-class _CompeteHubTournamentsSectionSkeleton extends StatefulWidget {
+class _CompeteHubTournamentsSectionSkeleton extends StatelessWidget {
   const _CompeteHubTournamentsSectionSkeleton();
 
   @override
-  State<_CompeteHubTournamentsSectionSkeleton> createState() =>
-      _CompeteHubTournamentsSectionSkeletonState();
+  Widget build(BuildContext context) {
+    return CompetitionCarouselStrip(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 3,
+      itemBuilder: (_, __) => const _TournamentTileSkeleton(),
+    );
+  }
 }
 
-class _CompeteHubTournamentsSectionSkeletonState
-    extends State<_CompeteHubTournamentsSectionSkeleton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
+/// Mesma silhueta de `CompetitionCarouselTile`: capa + título + subtítulo.
+class _TournamentTileSkeleton extends StatelessWidget {
+  const _TournamentTileSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (context, _) {
-        final t = Curves.easeInOut.transform(_pulse.value);
-        return CompetitionCarouselStrip(
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: 3,
-          itemBuilder: (_, __) => CompetitionCarouselTileSkeleton(pulse: t),
-        );
-      },
+    return const SizedBox(
+      width: competitionCarouselTileWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NexaSkeleton(
+            height: competitionCarouselImageHeight,
+            radius: AppRadii.lgAll,
+          ),
+          SizedBox(height: AppSpacing.sm),
+          NexaSkeleton(width: 140, height: 14),
+          SizedBox(height: 6),
+          NexaSkeleton(width: 88, height: 11),
+        ],
+      ),
     );
   }
 }

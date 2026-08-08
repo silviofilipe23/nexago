@@ -7,6 +7,7 @@ import '../../../core/auth/active_role_providers.dart';
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
+import '../../../core/theme/app_spacing.dart';
 import '../../arena/domain/arena_access_provider.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
@@ -89,46 +90,39 @@ class TournamentDiscoveryPage extends ConsumerWidget {
               SliverPadding(
                 padding: EdgeInsets.only(bottom: bottomClearance),
                 sliver: SliverList.list(
+                  // Contrato de padding desta lista: o pai aplica
+                  // AppSpacing.screenH (via ArenaDashboardTokens.horizontalPadding)
+                  // em seções de largura fixa (banner, convites, equipes);
+                  // carrosséis full-bleed (torneios, atletas) aplicam o
+                  // próprio padding horizontal internamente.
                   children: [
-                  if (!access.canAccess)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
+                    if (!access.canAccess)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: ArenaDashboardTokens.horizontalPadding,
+                        ),
+                        child: TournamentAccessBanner(
+                          onboardingCompleted: access.onboardingCompleted,
+                          blockMessage: access.blockMessage,
+                          missingStepTitles: access.missingStepTitles,
+                        ),
+                      ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
                         horizontal: ArenaDashboardTokens.horizontalPadding,
                       ),
-                      child: TournamentAccessBanner(
-                        onboardingCompleted: access.onboardingCompleted,
-                        blockMessage: access.blockMessage,
-                        missingStepTitles: access.missingStepTitles,
+                      child: PendingTournamentInviterInvitesSection(),
+                    ),
+                    const CompeteHubTournamentsSection(),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    const CompeteHubAthletesSection(),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ArenaDashboardTokens.horizontalPadding,
                       ),
+                      child: CompeteHubTeamsSection(),
                     ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: ArenaDashboardTokens.horizontalPadding,
-                    ),
-                    child: PendingTournamentInviterInvitesSection(),
-                  ),
-                  // const SizedBox(height: 16),
-                  // CompeteHubPlayMatchBanner(
-                  //   onTap: () => showAppSnackBar(context, 'Em breve.'),
-                  // ),
-                  // const SizedBox(height: 24),
-                  const CompeteHubTournamentsSection(),
-                  const SizedBox(height: 8),
-                  // const Padding(
-                  //   padding: EdgeInsets.symmetric(
-                  //     horizontal: ArenaDashboardTokens.horizontalPadding,
-                  //   ),
-                  //   child: CompeteHubRankingSection(),
-                  // ),
-                  const SizedBox(height: 8),
-                  const CompeteHubAthletesSection(),
-                  const SizedBox(height: 8),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: ArenaDashboardTokens.horizontalPadding,
-                    ),
-                    child: CompeteHubTeamsSection(),
-                  ),
                   ],
                 ),
               ),

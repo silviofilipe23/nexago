@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/layout/app_scaffold.dart';
 import '../../core/router/routes.dart';
-import '../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_status_views.dart';
 import '../../core/ui/fade_slide_in.dart';
@@ -135,7 +134,7 @@ class _FadeInArenaListState extends State<_FadeInArenaList>
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.4,
-                      color: AppColors.black,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                   if (widget.userEmail != null) ...[

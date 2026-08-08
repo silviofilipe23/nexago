@@ -441,7 +441,7 @@ Expected: FAIL (`displayL` não definido).
       bodyMedium: material.bodyMedium?.merge(AppTypography.bodyM),
       bodySmall: material.bodySmall?.merge(AppTypography.bodyS),
       labelLarge: material.labelLarge?.merge(AppTypography.labelL),
-      labelMedium: material.labelMedium?.merge(AppTypography.labelS),
+      labelSmall: material.labelSmall?.merge(AppTypography.labelS),
     );
 
     return base.apply(

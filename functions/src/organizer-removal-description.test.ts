@@ -4,6 +4,7 @@ import {
   MAX_REMOVAL_DESCRIPTION_LENGTH,
   MIN_REMOVAL_DESCRIPTION_LENGTH,
   buildRemovalNotificationBody,
+  formatPhoneForReading,
   parseRemovalDescription,
 } from "./organizer-removal-description";
 
@@ -110,5 +111,64 @@ describe("buildRemovalNotificationBody", () => {
       }),
       /R\$ 89,90 /,
     );
+  });
+
+  it("com telefone do organizador, diz com quem falar", () => {
+    assert.equal(
+      buildRemovalNotificationBody({
+        description: VALID,
+        wasPaid: false,
+        refundAmount: 0,
+        organizerPhone: "5511988887777",
+      }),
+      `${VALID} Fale com o organizador: (11) 98888-7777.`,
+    );
+  });
+
+  it("paga com telefone: motivo, reembolso e contato nessa ordem", () => {
+    assert.equal(
+      buildRemovalNotificationBody({
+        description: VALID,
+        wasPaid: true,
+        refundAmount: 180,
+        organizerPhone: "5511988887777",
+      }),
+      `${VALID} Reembolso de R$ 180,00 será tratado pelo organizador. ` +
+        "Fale com o organizador: (11) 98888-7777.",
+    );
+  });
+
+  it("organizador sem telefone cadastrado não deixa frase pela metade", () => {
+    assert.equal(
+      buildRemovalNotificationBody({
+        description: VALID,
+        wasPaid: false,
+        refundAmount: 0,
+        organizerPhone: "",
+      }),
+      VALID,
+    );
+  });
+});
+
+describe("formatPhoneForReading", () => {
+  it("celular com DDI vira o formato que o atleta lê", () => {
+    assert.equal(formatPhoneForReading("5511988887777"), "(11) 98888-7777");
+  });
+
+  it("fixo de 8 dígitos também", () => {
+    assert.equal(formatPhoneForReading("551133334444"), "(11) 3333-4444");
+  });
+
+  it("sem DDI funciona igual", () => {
+    assert.equal(formatPhoneForReading("11988887777"), "(11) 98888-7777");
+  });
+
+  it("número que não dá pra formatar volta como veio", () => {
+    assert.equal(formatPhoneForReading("12345"), "12345");
+  });
+
+  it("vazio continua vazio", () => {
+    assert.equal(formatPhoneForReading(""), "");
   });
 });

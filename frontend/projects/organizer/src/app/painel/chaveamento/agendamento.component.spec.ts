@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { AgendamentoComponent } from './agendamento.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 import type { TournamentMatch } from '../data/matches-repository';
@@ -203,6 +203,55 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
 
     expect(host().textContent).toContain('Fila de partidas');
     expect(host().textContent).not.toContain('Gerar grade do dia');
+  });
+
+  /** Simula uma resposta COMPLETA do servidor sem passar pela callable: slots
+   *  preenchidos e o loading desligado, senão o Aplicar fica travado pelo
+   *  spinner e o teste não mede o que quer medir. */
+  function setSlots(slots: Array<{ matchId: string; courtId: string; start: string; end: string }>): void {
+    const cmp = fixture.componentInstance as unknown as {
+      autoSlotsSignal: WritableSignal<unknown[]>;
+      autoLoading: WritableSignal<boolean>;
+    };
+    cmp.autoSlotsSignal.set(slots);
+    cmp.autoLoading.set(false);
+    fixture.detectChanges();
+  }
+
+  const slotOn = (courtId: string) => ({
+    matchId: 'm1',
+    courtId,
+    start: `${DAY}T08:00:00-03:00`,
+    end: `${DAY}T08:30:00-03:00`,
+  });
+
+  it('denuncia e bloqueia Aplicar quando o servidor devolve quadra desmarcada', () => {
+    openPanel();
+    host().querySelector<HTMLInputElement>('.og-auto-checks input')!.click(); // desmarca Q1
+    fixture.detectChanges();
+
+    // Servidor antigo ignora courtIds e agenda na Q1 mesmo assim.
+    setSlots([slotOn('Q1')]);
+
+    expect(host().textContent).toContain('O servidor ignorou a seleção de quadras');
+    const apply = Array.from(host().querySelectorAll<HTMLButtonElement>('.og-auto-actions button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Aplicar',
+    )!;
+    expect(apply.disabled).toBeTrue();
+  });
+
+  it('não denuncia nada quando o servidor respeita a seleção', () => {
+    openPanel();
+    host().querySelector<HTMLInputElement>('.og-auto-checks input')!.click(); // desmarca Q1
+    fixture.detectChanges();
+
+    setSlots([slotOn('Q2')]);
+
+    expect(host().textContent).not.toContain('O servidor ignorou a seleção de quadras');
+    const apply = Array.from(host().querySelectorAll<HTMLButtonElement>('.og-auto-actions button')).find(
+      (b) => (b.textContent ?? '').trim() === 'Aplicar',
+    )!;
+    expect(apply.disabled).toBeFalse();
   });
 
   it('mostra na grade o que já está agendado em outra categoria, apagado', () => {

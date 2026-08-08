@@ -179,9 +179,7 @@ export interface AutoScheduleResult {
   [key: string]: unknown;
 }
 
-/** `courtIds` vazio = todas as quadras; `categoryId` vazio = torneio inteiro
- *  (ambos omitidos da chamada, que é o que o app Flutter faz hoje). */
-export function autoScheduleTournamentDay(params: {
+export interface AutoScheduleParams {
   tournamentId: string;
   dayKey: string;
   preview?: boolean;
@@ -190,10 +188,16 @@ export function autoScheduleTournamentDay(params: {
   dayStart?: string;
   courtIds?: readonly string[];
   categoryId?: string | null;
-}): Promise<AutoScheduleResult> {
+}
+
+/** Payload da callable, isolado da chamada pra ser testável — é o contrato com
+ *  `autoScheduleTournamentDay` em functions/src/organizer-match-ops.ts.
+ *  `courtIds` vazio = todas as quadras; `categoryId` vazio = torneio inteiro
+ *  (ambos omitidos, que é o que o app Flutter manda hoje). */
+export function autoSchedulePayload(params: AutoScheduleParams): Record<string, unknown> {
   const courtIds = (params.courtIds ?? []).map((id) => id.trim()).filter(Boolean);
   const categoryId = params.categoryId?.trim() ?? '';
-  return call('autoScheduleTournamentDay', {
+  return {
     tournamentId: params.tournamentId.trim(),
     dayKey: params.dayKey.trim(),
     preview: params.preview ?? true,
@@ -202,7 +206,11 @@ export function autoScheduleTournamentDay(params: {
     ...(params.dayStart?.trim() ? { dayStart: params.dayStart.trim() } : {}),
     ...(courtIds.length > 0 ? { courtIds } : {}),
     ...(categoryId ? { categoryId } : {}),
-  });
+  };
+}
+
+export function autoScheduleTournamentDay(params: AutoScheduleParams): Promise<AutoScheduleResult> {
+  return call('autoScheduleTournamentDay', autoSchedulePayload(params));
 }
 
 // ── Torneio (organizer-category-ops.ts / escrita direta permitida ao manager) ─

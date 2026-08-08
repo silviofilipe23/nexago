@@ -225,11 +225,17 @@ interface AgendaBloco {
             </div>
 
             <div class="og-auto-footer">
+              @if (autoCourtsIgnored()) {
+                <p class="og-auto-warn">
+                  O servidor ignorou a seleção de quadras e distribuiu em todas — as Cloud Functions
+                  ainda não têm essa atualização. Aplicar está bloqueado até o deploy.
+                </p>
+              }
               <p class="og-auto-summary">{{ autoSummary() }}</p>
               <div class="og-auto-actions">
                 <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="closeAuto()">Cancelar</button>
                 <button type="button" class="og-ghost-btn" [disabled]="busy() || autoLoading() || autoCourtIds().length === 0" (click)="recalcAuto()">Recalcular</button>
-                <button type="button" class="og-mini-btn" [disabled]="busy() || autoLoading() || autoSlots().length === 0" (click)="applyAuto()">Aplicar</button>
+                <button type="button" class="og-mini-btn" [disabled]="busy() || autoLoading() || autoCourtsIgnored() || autoSlots().length === 0" (click)="applyAuto()">Aplicar</button>
               </div>
             </div>
           </og-card>
@@ -615,9 +621,10 @@ interface AgendaBloco {
       cursor: pointer;
     }
     .og-auto-warn {
-      margin: 0;
+      margin: 0 0 8px;
       font-family: var(--nx-font-ui);
       font-size: 11.5px;
+      line-height: 1.5;
       color: var(--nx-pending);
     }
     .og-auto-footer {
@@ -779,6 +786,16 @@ export class AgendamentoComponent {
     const endMin = this.endMin();
     const dayKey = this.selectedDayKey();
     return this.autoSlots().filter((s) => minutesFromDayStart(new Date(s.start), dayKey) >= endMin).length;
+  });
+
+  /** O servidor devolveu partida em quadra que o organizador desmarcou — só
+   *  acontece contra uma versão das functions anterior ao parâmetro `courtIds`,
+   *  que ignora a seleção e agenda em todas as quadras. Sem esse guard a tela
+   *  desenha a prévia errada como se estivesse certa. */
+  protected readonly autoCourtsIgnored = computed(() => {
+    const selected = new Set(this.autoCourtIds());
+    if (selected.size === 0) return false;
+    return this.autoSlots().some((slot) => !selected.has(slot.courtId));
   });
 
   protected readonly autoSummary = computed(() => {

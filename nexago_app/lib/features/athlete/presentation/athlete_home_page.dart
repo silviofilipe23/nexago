@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/ui/nexa_async_view.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_home_featured_logic.dart';
 import '../domain/athlete_display_name.dart';
@@ -19,11 +22,9 @@ import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
 import 'widgets/athlete_home/athlete_home_header.dart';
 import 'widgets/athlete_home/athlete_home_next_booking_card.dart';
-import 'widgets/athlete_home/athlete_home_quick_actions.dart';
 import 'daily_mission_navigation.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
-import '../../friendly_match/presentation/widgets/friendly_match_summary_card.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 
 /// Aba Início do atleta (protótipo 01 — Hoje).
@@ -43,14 +44,30 @@ class AthleteHomePage extends ConsumerWidget {
       bottom: false,
       child: ColoredBox(
         color: context.themeColors.canvas,
-        child: summaryAsync.when(
-          loading: () => Padding(
-            padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
+        child: NexaAsyncView(
+          value: summaryAsync,
+          onRetry: () => ref.invalidate(gamificationSummaryProvider),
+          skeleton: Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              MediaQuery.paddingOf(context).top,
+              AppSpacing.screenH,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                SizedBox(height: AppSpacing.lg),
+                NexaSkeleton(width: 160, height: 20),
+                SizedBox(height: AppSpacing.lg),
+                NexaSkeleton(height: 148, radius: AppRadii.lgAll),
+                SizedBox(height: AppSpacing.sectionGap),
+                NexaSkeleton(width: 200, height: 16),
+                SizedBox(height: AppSpacing.md),
+                NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+              ],
             ),
           ),
-          error: (_, __) => _ErrorState(),
           data: (summary) {
             final bookings = bookingsAsync.valueOrNull ?? [];
             final registrations = registrationsAsync.valueOrNull ?? [];
@@ -76,7 +93,7 @@ class AthleteHomePage extends ConsumerWidget {
               slivers: [
                 NexaFloatingHeaderSliver(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: athleteHomeHorizontalPadding,
+                    horizontal: AppSpacing.screenH,
                   ),
                   child: AthleteHomeHeader(
                     displayName: name,
@@ -101,10 +118,10 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
-                      SizedBox(height: 8),
+                      SizedBox(height: AppSpacing.lg),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: athleteHomeHorizontalPadding,
+                          horizontal: AppSpacing.screenH,
                         ),
                         child: AthleteHomeFeaturedCard(
                           featured: featured,
@@ -129,59 +146,26 @@ class AthleteHomePage extends ConsumerWidget {
                           },
                         ),
                       ),
-                      // SizedBox(height: 8),
-                      // AthleteHomeQuickActions(
-                      //   actions: [
-                      //     AthleteHomeQuickAction(
-                      //       icon: Icons.add_rounded,
-                      //       label: 'Reservar',
-                      //       onTap: () => _goToTab(ref, athleteShellReservarTabIndex),
-                      //       highlighted: true,
-                      //     ),
-                      //     AthleteHomeQuickAction(
-                      //       icon: Icons.person_add_outlined,
-                      //       label: 'Convidar',
-                      //       onTap: () => openInviteFromHome(context, ref),
-                      //     ),
-                      //     AthleteHomeQuickAction(
-                      //       icon: Icons.emoji_events_outlined,
-                      //       label: 'Torneios',
-                      //       onTap: () => _goToTab(ref, athleteShellCompeteTabIndex),
-                      //     ),
-                      //     // AthleteHomeQuickAction(
-                      //     //   icon: Icons.sports_tennis_rounded,
-                      //     //   label: 'Play Match',
-                      //     //   onTap: () => showAppSnackBar(context, 'Em breve.'),
-                      //     // ),
-                      //   ],
-                      // ),
-                      SizedBox(height: 8),
-                      // Bora Jogar — card vivo; some quando o recurso está
-                      // desligado no appConfig.
-                      // const FriendlyMatchSummaryCard(
-                      //   margin: EdgeInsets.symmetric(
-                      //     horizontal: athleteHomeHorizontalPadding,
-                      //   ),
-                      // ),
+                      SizedBox(height: AppSpacing.sectionGap),
                       const Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: athleteHomeHorizontalPadding,
+                          horizontal: AppSpacing.screenH,
                         ),
                         child: PendingTournamentInviterInvitesSection(),
                       ),
-                      SizedBox(height: 8),
+                      SizedBox(height: AppSpacing.sectionGap),
                       const AthleteHomeCompetitionsSection(),
-                      SizedBox(height: 8),
+                      SizedBox(height: AppSpacing.sectionGap),
                       const Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: athleteHomeHorizontalPadding,
+                          horizontal: AppSpacing.screenH,
                         ),
                         child: MyTournamentsHomeSection(),
                       ),
-                      SizedBox(height: 8),
+                      SizedBox(height: AppSpacing.sectionGap),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: athleteHomeHorizontalPadding,
+                          horizontal: AppSpacing.screenH,
                         ),
                         child: AthleteHomeDailyMissionsSection(
                           missions: missionsAsync.valueOrNull,
@@ -191,17 +175,6 @@ class AthleteHomePage extends ConsumerWidget {
                               navigateForDailyMission(context, ref, mission),
                         ),
                       ),
-                      // SizedBox(height: 24),
-                      // AthleteHomeSlotsSection(
-                      //   slots: mockAthleteHomeSlots(),
-                      //   onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
-                      // ),
-                      // SizedBox(height: 24),
-                      // AthleteHomePlaysWithSection(
-                      //   partners: mockAthleteHomePlayPartners(),
-                      //   onInvite: () => showAppSnackBar(context, 'Em breve.'),
-                      //   onPartnerAction: (_) => showAppSnackBar(context, 'Em breve.'),
-                      // ),
                     ],
                   ),
                 ),
@@ -215,24 +188,5 @@ class AthleteHomePage extends ConsumerWidget {
 
   void _goToTab(WidgetRef ref, int index) {
     ref.read(athleteShellTabIndexProvider.notifier).state = index;
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'Não foi possível carregar sua evolução.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: context.themeColors.onSurfaceMuted,
-          ),
-        ),
-      ),
-    );
   }
 }

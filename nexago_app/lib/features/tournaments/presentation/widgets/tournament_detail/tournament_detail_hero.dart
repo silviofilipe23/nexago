@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:nexago_app/core/ui/nexa_chips.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -35,9 +37,8 @@ class TournamentDetailHero extends StatelessWidget {
     final stageLabel = tournamentStageEyebrow(tournament);
     final dateLabel = tournamentDetailCompactDate(tournament);
     final city = tournament.city.trim();
-    final locationText = city.isEmpty
-        ? tournament.location
-        : '${tournament.location} · $city';
+    final locationText =
+        city.isEmpty ? tournament.location : '${tournament.location} · $city';
     final urgencyBanner = tournamentRecentlyOpenedBanner(tournament, stats);
     final coverUrl = tournament.imageUrl?.trim();
     final hasCover = coverUrl != null && coverUrl.isNotEmpty;
@@ -85,11 +86,16 @@ class TournamentDetailHero extends StatelessWidget {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                _StatusBadge(label: statusLabel),
+                                NexaStatusChip(
+                                  label: statusLabel,
+                                  color: AppColors.win,
+                                  showDot: false,
+                                ),
                                 if (stageLabel.isNotEmpty)
-                                  _StageBadge(
+                                  NexaStatusChip(
                                     label: stageLabel,
-                                    onCover: hasCover,
+                                    color: context.themeColors.onSurfaceMuted,
+                                    showDot: false,
                                   ),
                               ],
                             ),
@@ -98,7 +104,9 @@ class TournamentDetailHero extends StatelessWidget {
                               tournament.name,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.headlineSmall
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.w900,
                                     color: hasCover
@@ -177,11 +185,12 @@ class _HeroCoverBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canvas = context.themeColors.canvas;
+    final hasCover = imageUrl != null;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (imageUrl != null)
+        if (hasCover)
           CachedNetworkImage(
             imageUrl: imageUrl!,
             fit: BoxFit.cover,
@@ -206,6 +215,27 @@ class _HeroCoverBackground extends StatelessWidget {
             ),
           ),
         ),
+        // Scrim adicional no topo: garante contraste da toolbar translúcida
+        // sobre capas claras, independente do gradiente de leitura de baixo.
+        if (hasCover)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: 96,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.45),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -238,67 +268,6 @@ class _CoverPlaceholder extends StatelessWidget {
           color: featured
               ? AppColors.brand.withValues(alpha: 0.55)
               : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.black.withValues(alpha: 0.42),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.win.withValues(alpha: 0.55)),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.soraRegular(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: AppColors.win,
-        ),
-      ),
-    );
-  }
-}
-
-class _StageBadge extends StatelessWidget {
-  const _StageBadge({required this.label, required this.onCover});
-
-  final String label;
-  final bool onCover;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: onCover
-            ? AppColors.black.withValues(alpha: 0.42)
-            : context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: onCover
-              ? Colors.white.withValues(alpha: 0.22)
-              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.soraRegular(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: onCover
-              ? Colors.white.withValues(alpha: 0.88)
-              : context.themeColors.onSurfaceMuted,
         ),
       ),
     );
@@ -355,7 +324,7 @@ class _PrizeFeeCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadii.lgAll,
         border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
       ),
       clipBehavior: Clip.antiAlias,
@@ -369,7 +338,7 @@ class _PrizeFeeCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: context.themeColors.surfaceCard,
                   borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(14),
+                    left: Radius.circular(AppRadii.lg),
                   ),
                 ),
                 child: Padding(
@@ -480,7 +449,7 @@ class _SpotsCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadii.lgAll,
         border: Border.all(color: AppColors.brand.withValues(alpha: 0.2)),
       ),
       child: Column(
@@ -511,7 +480,7 @@ class _SpotsCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: AppRadii.smAll,
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
@@ -527,7 +496,7 @@ class _SpotsCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.brand.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: AppRadii.mdAll,
                 border: Border.all(
                   color: AppColors.brand.withValues(alpha: 0.25),
                 ),

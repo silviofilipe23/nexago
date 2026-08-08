@@ -13,6 +13,7 @@ class NexaIconSquareButton extends StatelessWidget {
     this.size = 40,
     this.tooltip,
     this.iconColor,
+    this.background,
   });
 
   final IconData icon;
@@ -21,11 +22,15 @@ class NexaIconSquareButton extends StatelessWidget {
   final String? tooltip;
   final Color? iconColor;
 
+  /// Fundo customizado (ex.: translúcido escuro sobre capa). `null` mantém
+  /// o padrão `surfaceRaised`.
+  final Color? background;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final button = Material(
-      color: colors.surfaceRaised,
+      color: background ?? colors.surfaceRaised,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadii.mdAll,
         side: AppBorders.subtleSide(colors),

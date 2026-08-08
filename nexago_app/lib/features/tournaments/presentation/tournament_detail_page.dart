@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/ui/nexa_async_view.dart';
+import 'package:nexago_app/core/ui/nexa_icon_square_button.dart';
 import 'package:nexago_app/core/ui/nexa_share.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/app_status_views.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../domain/tournament_detail_logic.dart';
@@ -44,24 +49,40 @@ class TournamentDetailPage extends ConsumerWidget {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: tournamentAsync.when(
-          loading: () => Padding(
-            padding: EdgeInsets.only(top: topInset),
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
+        child: NexaAsyncView<TournamentDetail?>(
+          value: tournamentAsync,
+          onRetry: () => ref.invalidate(tournamentDetailProvider(tournamentId)),
+          errorTitle: 'Não foi possível carregar',
+          errorMessage: 'Não foi possível carregar o torneio.',
+          skeleton: Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              topInset,
+              AppSpacing.screenH,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [
+                SizedBox(height: AppSpacing.lg),
+                NexaSkeleton(height: 220, radius: AppRadii.lgAll),
+                SizedBox(height: AppSpacing.lg),
+                NexaSkeleton(height: 84, radius: AppRadii.lgAll),
+                SizedBox(height: AppSpacing.md),
+                NexaSkeleton(height: 84, radius: AppRadii.lgAll),
+              ],
             ),
           ),
-          error: (e, _) => _ErrorBody(
-            message: 'Não foi possível carregar o torneio.\n$e',
-            onBack: () => _handleTournamentDetailBack(context),
+          emptyWhen: (t) => t == null,
+          empty: AppErrorView(
+            title: 'Torneio não encontrado',
+            message:
+                'O torneio pode ter sido removido ou o link está desatualizado.',
+            onRetry: () =>
+                ref.invalidate(tournamentDetailProvider(tournamentId)),
           ),
-          data: (tournament) {
-            if (tournament == null) {
-              return _ErrorBody(
-                message: 'Torneio não encontrado.',
-                onBack: () => _handleTournamentDetailBack(context),
-              );
-            }
+          data: (value) {
+            final tournament = value!;
 
             WidgetsBinding.instance.addPostFrameCallback((_) {
               tryAwardExploreTournamentMission(
@@ -92,8 +113,7 @@ class TournamentDetailPage extends ConsumerWidget {
             final waitlistAsync = ref.watch(
               tournamentUserWaitlistByCategoryProvider(tournamentId),
             );
-            final registrationsByCategory =
-                registrationsAsync.valueOrNull ??
+            final registrationsByCategory = registrationsAsync.valueOrNull ??
                 const <String, UserCategoryRegistration>{};
             final waitlistByCategory =
                 waitlistAsync.valueOrNull ?? const <String, bool>{};
@@ -207,9 +227,7 @@ class _TournamentDetailContentState
                   stats: widget.stats,
                   topInset: topInset,
                   toolbar: _TournamentDetailToolbar(
-                    iconColor: hasCover
-                        ? Colors.white
-                        : context.themeColors.onSurface,
+                    hasCover: hasCover,
                     onBack: () => _handleTournamentDetailBack(context),
                     onBookmark: () {
                       showAppSnackBar(context, 'Favoritos em breve.');
@@ -261,81 +279,50 @@ class _TournamentDetailContentState
 
 class _TournamentDetailToolbar extends StatelessWidget {
   const _TournamentDetailToolbar({
-    required this.iconColor,
+    required this.hasCover,
     required this.onBack,
     required this.onBookmark,
     required this.onShare,
   });
 
-  final Color iconColor;
+  final bool hasCover;
   final VoidCallback onBack;
   final VoidCallback onBookmark;
   final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
+    final background = hasCover ? Colors.black.withValues(alpha: 0.35) : null;
+    final iconColor = hasCover ? Colors.white : null;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xs,
+        AppSpacing.xs,
+        AppSpacing.xs,
+        0,
+      ),
       child: Row(
         children: [
-          IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: iconColor),
-            onPressed: onBack,
+          NexaIconSquareButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: onBack,
+            background: background,
+            iconColor: iconColor,
           ),
           const Spacer(),
-          IconButton(
-            icon: Icon(Icons.bookmark_border_rounded, color: iconColor),
-            onPressed: onBookmark,
+          NexaIconSquareButton(
+            icon: Icons.bookmark_border_rounded,
+            onTap: onBookmark,
+            background: background,
+            iconColor: iconColor,
           ),
-          IconButton(
-            icon: Icon(Icons.ios_share_rounded, color: iconColor),
-            onPressed: onShare,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({required this.message, required this.onBack});
-
-  final String message;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final topInset = MediaQuery.paddingOf(context).top;
-
-    return SafeArea(
-      top: false,
-      bottom: false,
-      child: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.only(top: topInset),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: onBack,
-                icon: Icon(Icons.arrow_back_rounded),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.live,
-                  ),
-                ),
-              ),
-            ),
+          const SizedBox(width: AppSpacing.sm),
+          NexaIconSquareButton(
+            icon: Icons.ios_share_rounded,
+            onTap: onShare,
+            background: background,
+            iconColor: iconColor,
           ),
         ],
       ),

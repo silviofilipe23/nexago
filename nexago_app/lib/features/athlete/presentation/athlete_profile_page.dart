@@ -6,8 +6,11 @@ import 'package:nexago_app/core/ui/nexa_share.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/router/navigation_helpers.dart';
-import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/ui/nexa_async_view.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
@@ -74,10 +77,18 @@ class AthleteProfilePage extends ConsumerWidget {
 
     Widget bodyContent() {
       if (user == null) return bodyNotSignedIn(context);
-      return profileAsync.when(
+      return NexaAsyncView<AthleteProfile?>(
+        value: profileAsync,
+        skeleton: const _AthleteProfileLoadingSkeleton(),
+        errorTitle: 'Não foi possível carregar o perfil',
+        onRetry: () => ref.invalidate(athleteProfileProvider),
         data: (doc) {
           final profile = doc ?? AthleteProfile.draft(user);
-          return bookingsAsync.when(
+          return NexaAsyncView<List<MyBookingItem>>(
+            value: bookingsAsync,
+            skeleton: const _AthleteProfileLoadingSkeleton(),
+            errorTitle: 'Não foi possível carregar reservas',
+            onRetry: () => ref.invalidate(myBookingsStreamProvider),
             data: (bookings) => _AthleteProfileBody(
               embedded: embedded,
               profile: profile,
@@ -93,38 +104,8 @@ class AthleteProfilePage extends ConsumerWidget {
               onOpenSettings: () =>
                   context.pushNamed(AppRouteNames.athleteSettings),
             ),
-            loading: () => Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
-            ),
-            error: (e, _) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Não foi possível carregar reservas.\n$e',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.live,
-                      ),
-                ),
-              ),
-            ),
           );
         },
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Não foi possível carregar o perfil.\n$e',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.live,
-                  ),
-            ),
-          ),
-        ),
       );
     }
 
@@ -247,5 +228,71 @@ int _countCompletedBookings(List<MyBookingItem> bookings) {
     final s = b.rawStatus.trim().toLowerCase();
     return s != 'canceled' && s != 'cancelled';
   }).length;
+}
+
+/// Skeleton de loading do perfil: avatar + linhas de nome + grid 2×2.
+class _AthleteProfileLoadingSkeleton extends StatelessWidget {
+  const _AthleteProfileLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          AppSpacing.xxl,
+          AppSpacing.screenH,
+          AppSpacing.screenH,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const NexaSkeleton.circle(size: 84),
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      SizedBox(height: AppSpacing.xs),
+                      NexaSkeleton(width: 160, height: 20),
+                      SizedBox(height: AppSpacing.sm),
+                      NexaSkeleton(width: 110, height: 14),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sectionGap),
+            Row(
+              children: [
+                Expanded(
+                  child: NexaSkeleton(height: 72, radius: AppRadii.mdAll),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: NexaSkeleton(height: 72, radius: AppRadii.mdAll),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: NexaSkeleton(height: 72, radius: AppRadii.mdAll),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: NexaSkeleton(height: 72, radius: AppRadii.mdAll),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 

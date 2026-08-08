@@ -42,6 +42,22 @@ export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
 /** Nº de melhores resultados que contam por ano (paridade com `bestNResults`). */
 export const BEST_N_RESULTS_PER_YEAR = 5;
 
+/** Menos de 10 duplas pagas = desafio: não pontua no ranking global. */
+export const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
+
+/** Etapa de liga é isenta; torneio avulso exige toggle ligado e categoria cheia. */
+export function isGlobalRankingEligible(params: {
+  isLeagueStage: boolean;
+  rankingEnabled: boolean;
+  paidTeamsCount: number;
+}): boolean {
+  if (params.isLeagueStage) return true;
+  return (
+    params.rankingEnabled &&
+    params.paidTeamsCount >= MIN_TEAMS_FOR_GLOBAL_RANKING
+  );
+}
+
 export function tournamentCategoryResultsPath(projectId: string): string {
   return `${artifactsPublicDataBase(projectId)}/tournamentCategoryResults`;
 }
@@ -294,7 +310,10 @@ export async function tryAwardGlobalRankingForMatch(
 
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   if (!tournamentSnap.exists) return {awarded: false, teamsUpdated: 0};
-  const rankingWeight = Number(tournamentSnap.data()?.rankingWeight ?? 1);
+  const tournament = tournamentSnap.data() ?? {};
+  const rankingWeight = Number(tournament.rankingWeight ?? 1);
+  const isLeagueStage = String(tournament.leagueId ?? "").trim().length > 0;
+  const rankingEnabled = tournament.rankingEnabled !== false;
 
   const completedAt = parseMatchPlayedAt(match);
   const year = completedAt.getFullYear();
@@ -306,6 +325,32 @@ export async function tryAwardGlobalRankingForMatch(
     categoryId,
   );
   const placements = resolveLeaguePlacementsFromMatch(match, bracketContext);
+  const shouldAwardGroupsBucket = isNonGroupCompletedMatch(match);
+  if (placements.length === 0 && !shouldAwardGroupsBucket) {
+    return {awarded: false, teamsUpdated: 0};
+  }
+
+  // Gate de desafio: avaliado a cada premiação, com a mesma contagem de pagas
+  // que o bucket "groups" usa (query única, reaproveitada abaixo).
+  const paidTeamIds = await loadPaidTeamIds(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
+  if (
+    !isGlobalRankingEligible({
+      isLeagueStage,
+      rankingEnabled,
+      paidTeamsCount: paidTeamIds.size,
+    })
+  ) {
+    logger.info(
+      `globalRanking: ${tournamentId}/${categoryId} inelegível ` +
+        `(liga=${isLeagueStage}, rankingEnabled=${rankingEnabled}, pagas=${paidTeamIds.size})`,
+    );
+    return {awarded: false, teamsUpdated: 0};
+  }
 
   const baseParams = {tournamentId, categoryId, rankingWeight, year, completedAt};
   let teamsUpdated = 0;
@@ -317,11 +362,13 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
   // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
-  if (isNonGroupCompletedMatch(match)) {
-    const [paidTeamIds, knockoutTeamIds] = await Promise.all([
-      loadPaidTeamIds(db, projectId, tournamentId, categoryId),
-      loadKnockoutTeamIds(db, projectId, tournamentId, categoryId),
-    ]);
+  if (shouldAwardGroupsBucket) {
+    const knockoutTeamIds = await loadKnockoutTeamIds(
+      db,
+      projectId,
+      tournamentId,
+      categoryId,
+    );
     for (const teamId of paidTeamIds) {
       if (knockoutTeamIds.has(teamId)) continue;
       const awarded = await awardGlobalPlacement(db, projectId, {

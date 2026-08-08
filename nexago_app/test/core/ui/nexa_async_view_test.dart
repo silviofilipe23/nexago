@@ -73,20 +73,24 @@ void main() {
 
   testWidgets('reload mantém dados na tela', (tester) async {
     await tester.pumpWidget(wrap(NexaAsyncView<int>(
-      value: const AsyncValue.data(7)
+      value: const AsyncValue<int>.loading()
           .copyWithPrevious(const AsyncValue.data(7), isRefresh: false),
+      skeleton: const NexaSkeleton(height: 40),
       data: (v) => Text('valor $v'),
     )));
+    await tester.pump(Duration.zero);
     expect(find.text('valor 7'), findsOneWidget);
     expect(find.byType(NexaSkeleton), findsNothing);
   });
 
   testWidgets('refresh mantém dados na tela', (tester) async {
     await tester.pumpWidget(wrap(NexaAsyncView<int>(
-      value: const AsyncValue.data(7)
+      value: const AsyncValue<int>.loading()
           .copyWithPrevious(const AsyncValue.data(7), isRefresh: true),
+      skeleton: const NexaSkeleton(height: 40),
       data: (v) => Text('valor $v'),
     )));
+    await tester.pump(Duration.zero);
     expect(find.text('valor 7'), findsOneWidget);
     expect(find.byType(NexaSkeleton), findsNothing);
   });

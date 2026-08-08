@@ -99,11 +99,13 @@ interface GrupoReal {
         grid-template-columns: 1fr;
       }
     }
+    /* 20px é o recuo das listas do painel (og-table-head/og-table-body); aqui era 18px e
+       ficava 2px fora do prumo do kicker/título do card. */
     .og-grupos-head,
     .og-grupos-subhead {
       display: flex;
       gap: 10px;
-      padding: 12px 18px;
+      padding: 12px 20px;
       border-bottom: 1px solid var(--nx-line);
       font-family: var(--nx-font-mono);
       font-size: 9px;
@@ -129,7 +131,7 @@ interface GrupoReal {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 18px;
+      padding: 10px 20px;
       border-bottom: 1px solid var(--nx-line);
     }
     .og-grupos-row:last-child {

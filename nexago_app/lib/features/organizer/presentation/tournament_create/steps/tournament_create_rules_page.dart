@@ -192,7 +192,9 @@ class _TournamentCreateRulesPageState
           OrganizerToggleSettingRow(
             icon: Icons.emoji_events_outlined,
             title: 'Vale pontos no ranking',
-            subtitle: 'Resultados contam para o ranking oficial da categoria.',
+            subtitle:
+                'Resultados contam para o ranking oficial. Categorias com '
+                'menos de 10 duplas pagas não pontuam (desafio).',
             value: draft.rankingEnabled,
             onChanged: (value) => ref
                 .read(tournamentCreateWizardProvider.notifier)

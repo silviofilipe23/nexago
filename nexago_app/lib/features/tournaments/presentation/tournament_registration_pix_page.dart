@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
@@ -266,7 +268,12 @@ class _TournamentRegistrationPixPageState
         backgroundColor: context.themeColors.canvas,
         appBar: BookingPixAppBar(onBack: _onBack),
         body: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            AppSpacing.lg,
+            AppSpacing.screenH,
+            AppSpacing.xxl,
+          ),
           children: [
             TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
@@ -290,7 +297,12 @@ class _TournamentRegistrationPixPageState
               children: [
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      AppSpacing.lg,
+                      AppSpacing.screenH,
+                      AppSpacing.xxl,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -403,11 +415,11 @@ class _PixErrorCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadii.lgAll,
         border: Border.all(color: AppColors.live.withValues(alpha: 0.35)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           children: [
             Text(
@@ -415,13 +427,9 @@ class _PixErrorCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(color: context.themeColors.onSurface),
             ),
-            SizedBox(height: 12),
+            SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: onRetry,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: AppColors.black,
-              ),
               child: Text('Tentar novamente'),
             ),
           ],

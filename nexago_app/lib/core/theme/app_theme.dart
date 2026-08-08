@@ -91,8 +91,7 @@ abstract final class AppTheme {
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: isDark ? AppColors.surfaceSheet : AppColors.white,
-        selectedItemColor:
-            isDark ? AppColors.onSurface : AppColors.brand,
+        selectedItemColor: isDark ? AppColors.onSurface : AppColors.brand,
         unselectedItemColor: AppColors.onSurfaceMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
@@ -129,9 +128,21 @@ abstract final class AppTheme {
 
   static TextTheme _textTheme(Brightness brightness, ColorScheme colorScheme) {
     final typography = Typography.material2021();
-    final base = brightness == Brightness.dark
-        ? typography.white
-        : typography.black;
+    final material =
+        brightness == Brightness.dark ? typography.white : typography.black;
+
+    // Merge da escala nomeada sobre a base Material: mesmos tamanhos,
+    // pesos/tracking/altura da marca. display/headline seguem Material.
+    final base = material.copyWith(
+      titleLarge: material.titleLarge?.merge(AppTypography.titleL),
+      titleMedium: material.titleMedium?.merge(AppTypography.titleM),
+      titleSmall: material.titleSmall?.merge(AppTypography.titleS),
+      bodyLarge: material.bodyLarge?.merge(AppTypography.bodyL),
+      bodyMedium: material.bodyMedium?.merge(AppTypography.bodyM),
+      bodySmall: material.bodySmall?.merge(AppTypography.bodyS),
+      labelLarge: material.labelLarge?.merge(AppTypography.labelL),
+      labelMedium: material.labelMedium?.merge(AppTypography.labelS),
+    );
 
     return base.apply(
       fontFamily: AppTypography.fontFamily,

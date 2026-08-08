@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
@@ -11,14 +10,21 @@ import '../../../core/search/search_keywords.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_theme_colors.dart';
+import '../../../core/ui/app_status_views.dart';
+import '../../../core/ui/nexa_async_view.dart';
+import '../../../core/ui/nexa_section_header.dart';
+import '../../../core/ui/nexa_segmented_control.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_hub_logic.dart';
 import '../domain/tournament_discovery_hub_providers.dart';
-import '../domain/tournament_discovery_labels.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
+import 'widgets/discovery_list/discovery_list_filter_chips.dart';
+import 'widgets/discovery_list/discovery_list_header.dart';
+import 'widgets/discovery_list/discovery_list_stats_row.dart';
 import 'widgets/league_discovery_card.dart';
 import 'widgets/tournament_discovery_card.dart';
 
@@ -175,280 +181,302 @@ class _TournamentDiscoveryListPageState
       body: SafeArea(
         top: false,
         bottom: false,
-        child: tournamentsAsync.when(
-          loading: () =>
-              Center(child: CircularProgressIndicator(color: AppColors.brand)),
-          error: (e, _) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Não foi possível carregar torneios.\n$e',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.live,
-                ),
-              ),
+        child: NexaAsyncView<List<DiscoveryTournament>>(
+          value: tournamentsAsync,
+          skeleton: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              _horizontalPadding,
+              24,
+              _horizontalPadding,
+              24,
+            ),
+            child: const Column(
+              children: [
+                NexaSkeleton(height: 210, radius: AppRadii.lgAll),
+                SizedBox(height: 10),
+                NexaSkeleton(height: 210, radius: AppRadii.lgAll),
+                SizedBox(height: 10),
+                NexaSkeleton(height: 210, radius: AppRadii.lgAll),
+              ],
             ),
           ),
+          onRetry: () {
+            ref.invalidate(discoveryTournamentsProvider);
+            ref.invalidate(discoveryLeaguesProvider);
+          },
           data: (allTournaments) {
-            return leaguesAsync.when(
-              loading: () => Center(
-                child: CircularProgressIndicator(color: AppColors.brand),
-              ),
-              error: (e, _) => Center(
-                child: Text(
-                  'Não foi possível carregar ligas.\n$e',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.live,
-                  ),
+            final allLeagues = leaguesAsync.valueOrNull ?? const [];
+            final leaguesFailed =
+                leaguesAsync.hasError && !leaguesAsync.hasValue;
+            final keywordTournaments = keywordSearchAsync?.valueOrNull;
+            final useKeywordTournamentResults = useKeywordSearch &&
+                keywordSearchAsync != null &&
+                !keywordSearchAsync.hasError &&
+                keywordTournaments != null &&
+                keywordTournaments.isNotEmpty;
+
+            final keywordLeagues = leagueKeywordSearchAsync?.valueOrNull;
+            final useKeywordLeagueResults = useKeywordSearch &&
+                leagueKeywordSearchAsync != null &&
+                !leagueKeywordSearchAsync.hasError &&
+                keywordLeagues != null &&
+                keywordLeagues.isNotEmpty;
+
+            final keywordSearchLoading = useKeywordSearch &&
+                ((keywordSearchAsync?.isLoading == true &&
+                        !keywordSearchAsync!.hasValue) ||
+                    (leagueKeywordSearchAsync?.isLoading == true &&
+                        !leagueKeywordSearchAsync!.hasValue)) &&
+                !useKeywordTournamentResults &&
+                !useKeywordLeagueResults;
+
+            final tournamentPool = useKeywordTournamentResults
+                ? keywordTournaments
+                : allTournaments;
+
+            final filtered = filterDiscoveryTournaments(
+              tournaments: tournamentPool,
+              category: _category,
+              openOnly: _openOnly,
+            );
+            final filteredByQuery = useKeywordTournamentResults
+                ? filtered
+                : filterTournamentsByQuery(
+                    filtered,
+                    searchQuery,
+                  );
+            final sortedTournaments = sortDiscoveryTournamentsByDateProximity(
+              filteredByQuery,
+            );
+            final leagueSource =
+                useKeywordLeagueResults ? keywordLeagues : allLeagues;
+            final leagues = visibleLeaguesForTournaments(
+              leagues: leagueSource,
+              filteredTournaments: sortedTournaments,
+            );
+            final leaguesByQuery = sortDiscoveryLeaguesByDateProximity(
+              useKeywordLeagueResults
+                  ? leagues
+                  : filterLeaguesByQuery(leagues, searchQuery),
+              sortedTournaments,
+            );
+            final standalone = standaloneTournaments(
+              leagues: allLeagues,
+              filteredTournaments: sortedTournaments,
+            );
+            final filteredIds = sortedTournaments.map((t) => t.id).toSet();
+            final tournamentsToShow = _segment == DiscoveryListSegment.all
+                ? standalone
+                : sortedTournaments;
+            final rows = _buildRows(
+              leaguesByQuery: leaguesByQuery,
+              tournamentsToShow: tournamentsToShow,
+              tournamentsEmpty: tournamentsToShow.isEmpty,
+            );
+            final visibleRows = rows.take(_visibleLimit).toList();
+            final hasMoreRows = rows.length > visibleRows.length;
+
+            return RefreshIndicator(
+              color: AppColors.brand,
+              onRefresh: _refresh,
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-              ),
-              data: (allLeagues) {
-                final keywordTournaments = keywordSearchAsync?.valueOrNull;
-                final useKeywordTournamentResults = useKeywordSearch &&
-                    keywordSearchAsync != null &&
-                    !keywordSearchAsync.hasError &&
-                    keywordTournaments != null &&
-                    keywordTournaments.isNotEmpty;
-
-                final keywordLeagues = leagueKeywordSearchAsync?.valueOrNull;
-                final useKeywordLeagueResults = useKeywordSearch &&
-                    leagueKeywordSearchAsync != null &&
-                    !leagueKeywordSearchAsync.hasError &&
-                    keywordLeagues != null &&
-                    keywordLeagues.isNotEmpty;
-
-                final keywordSearchLoading = useKeywordSearch &&
-                    ((keywordSearchAsync?.isLoading == true &&
-                            !keywordSearchAsync!.hasValue) ||
-                        (leagueKeywordSearchAsync?.isLoading == true &&
-                            !leagueKeywordSearchAsync!.hasValue)) &&
-                    !useKeywordTournamentResults &&
-                    !useKeywordLeagueResults;
-
-                final tournamentPool = useKeywordTournamentResults
-                    ? keywordTournaments
-                    : allTournaments;
-
-                final filtered = filterDiscoveryTournaments(
-                  tournaments: tournamentPool,
-                  category: _category,
-                  openOnly: _openOnly,
-                );
-                final filteredByQuery = useKeywordTournamentResults
-                    ? filtered
-                    : filterTournamentsByQuery(
-                        filtered,
-                        searchQuery,
-                      );
-                final sortedTournaments =
-                    sortDiscoveryTournamentsByDateProximity(
-                  filteredByQuery,
-                );
-                final leagueSource =
-                    useKeywordLeagueResults ? keywordLeagues : allLeagues;
-                final leagues = visibleLeaguesForTournaments(
-                  leagues: leagueSource,
-                  filteredTournaments: sortedTournaments,
-                );
-                final leaguesByQuery = sortDiscoveryLeaguesByDateProximity(
-                  useKeywordLeagueResults
-                      ? leagues
-                      : filterLeaguesByQuery(leagues, searchQuery),
-                  sortedTournaments,
-                );
-                final standalone = standaloneTournaments(
-                  leagues: allLeagues,
-                  filteredTournaments: sortedTournaments,
-                );
-                final filteredIds = sortedTournaments.map((t) => t.id).toSet();
-                final tournamentsToShow = _segment == DiscoveryListSegment.all
-                    ? standalone
-                    : sortedTournaments;
-                final rows = _buildRows(
-                  leaguesByQuery: leaguesByQuery,
-                  tournamentsToShow: tournamentsToShow,
-                  tournamentsEmpty: tournamentsToShow.isEmpty,
-                );
-                final visibleRows = rows.take(_visibleLimit).toList();
-                final hasMoreRows = rows.length > visibleRows.length;
-
-                return RefreshIndicator(
-                  color: AppColors.brand,
-                  onRefresh: _refresh,
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: BouncingScrollPhysics(),
+                slivers: [
+                  NexaFloatingHeaderSliver(
+                    padding: const EdgeInsets.fromLTRB(
+                      _horizontalPadding,
+                      0,
+                      _horizontalPadding,
+                      12,
                     ),
-                    slivers: [
-                      NexaFloatingHeaderSliver(
-                        padding: const EdgeInsets.fromLTRB(
-                          _horizontalPadding,
-                          0,
-                          _horizontalPadding,
-                          12,
+                    topGap: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DiscoveryListHeader(
+                          searching: _searching,
+                          controller: _searchController,
+                          focusNode: _searchFocus,
+                          onBack: () => _handleDiscoveryListBack(context),
+                          onToggleSearch: () {
+                            setState(() => _searching = !_searching);
+                            if (!_searching) {
+                              _searchController.clear();
+                              _searchFocus.unfocus();
+                              _resetVisibleLimit();
+                            } else {
+                              _searchFocus.requestFocus();
+                            }
+                          },
                         ),
-                        topGap: 4,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            DiscoveryListHeader(
-                              searching: _searching,
-                              controller: _searchController,
-                              focusNode: _searchFocus,
-                              onBack: () => _handleDiscoveryListBack(context),
-                              onToggleSearch: () {
-                                setState(() => _searching = !_searching);
-                                if (!_searching) {
-                                  _searchController.clear();
-                                  _searchFocus.unfocus();
-                                  _resetVisibleLimit();
-                                } else {
-                                  _searchFocus.requestFocus();
-                                }
-                              },
+                        const SizedBox(height: 10),
+                        DiscoveryListStatsRow(stats: stats),
+                        const SizedBox(height: 10),
+                        NexaSegmentedControl<DiscoveryListSegment>(
+                          segments: const [
+                            NexaSegment(
+                              value: DiscoveryListSegment.all,
+                              label: 'Tudo',
                             ),
-                            const SizedBox(height: 10),
-                            DiscoveryListStatsRow(stats: stats),
-                            const SizedBox(height: 10),
-                            DiscoveryListSegmented(
-                              value: _segment,
-                              onChanged: (s) => setState(() {
-                                _segment = s;
-                                _resetVisibleLimit();
-                              }),
+                            NexaSegment(
+                              value: DiscoveryListSegment.tournaments,
+                              label: 'Torneios',
                             ),
-                            const SizedBox(height: 14),
-                            DiscoveryListFilterChips(
-                              category: _category,
-                              openOnly: _openOnly,
-                              onCategoryChanged: (v) => setState(() {
-                                _category = v;
-                                _resetVisibleLimit();
-                              }),
-                              onOpenOnlyChanged: (v) => setState(() {
-                                _openOnly = v;
-                                _resetVisibleLimit();
-                              }),
+                            NexaSegment(
+                              value: DiscoveryListSegment.leagues,
+                              label: 'Ligas',
                             ),
                           ],
+                          selected: _segment,
+                          onChanged: (s) => setState(() {
+                            _segment = s;
+                            _resetVisibleLimit();
+                          }),
+                        ),
+                        const SizedBox(height: 14),
+                        DiscoveryListFilterChips(
+                          category: _category,
+                          openOnly: _openOnly,
+                          onCategoryChanged: (v) => setState(() {
+                            _category = v;
+                            _resetVisibleLimit();
+                          }),
+                          onOpenOnlyChanged: (v) => setState(() {
+                            _openOnly = v;
+                            _resetVisibleLimit();
+                          }),
+                        ),
+                        if (leaguesFailed &&
+                            _segment != DiscoveryListSegment.tournaments) ...[
+                          const SizedBox(height: 10),
+                          AppInlineErrorView(
+                            message: 'Não foi possível carregar ligas.',
+                            error: leaguesAsync.error,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (keywordSearchLoading)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.brand,
+                          ),
                         ),
                       ),
-                      if (keywordSearchLoading)
-                        const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.brand,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(
-                            _horizontalPadding,
-                            8,
-                            _horizontalPadding,
-                            24,
-                          ),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                if (index == visibleRows.length) {
-                                  if (hasMoreRows) {
-                                    return const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 16),
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          color: AppColors.brand,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                  return const SizedBox(height: 8);
-                                }
+                    )
+                  else if (rows.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: AppEmptyView(
+                        icon: Icons.emoji_events_outlined,
+                        title: 'Nenhum torneio encontrado',
+                        subtitle:
+                            'Nenhum torneio encontrado com esses filtros.',
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        _horizontalPadding,
+                        8,
+                        _horizontalPadding,
+                        24,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index == visibleRows.length) {
+                              if (hasMoreRows) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColors.brand,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox(height: 8);
+                            }
 
-                                final row = visibleRows[index];
-                                return switch (row.kind) {
-                                  _DiscoveryListRowKind.sectionTitle => Padding(
-                                      padding: EdgeInsets.only(
-                                        top: index == 0 ? 0 : 14,
-                                        bottom: 10,
-                                      ),
-                                      child: DiscoveryListSectionTitle(
-                                        title: row.sectionTitle!,
-                                      ),
+                            final row = visibleRows[index];
+                            return switch (row.kind) {
+                              _DiscoveryListRowKind.sectionTitle => Padding(
+                                  padding: EdgeInsets.only(
+                                    top: index == 0 ? 0 : 14,
+                                    bottom: 10,
+                                  ),
+                                  child: NexaSectionHeader(
+                                    title: row.sectionTitle!,
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              _DiscoveryListRowKind.league => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: LeagueDiscoveryCard(
+                                    league: row.league!,
+                                    tournamentCount: leagueTournamentCount(
+                                      row.league!,
+                                      filteredIds,
                                     ),
-                                  _DiscoveryListRowKind.league => Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: LeagueDiscoveryCard(
-                                        league: row.league!,
-                                        tournamentCount: leagueTournamentCount(
-                                          row.league!,
-                                          filteredIds,
-                                        ),
-                                        enrolled: leagueHasRegistration(
-                                          league: row.league!,
-                                          regs: myRegs.valueOrNull ?? const [],
-                                        ),
-                                        open: leagueHasOpenTournaments(
-                                          league: row.league!,
-                                          tournaments: sortedTournaments,
-                                        ),
-                                        onTap: () => context.pushNamed(
-                                          AppRouteNames.leagueDetail,
-                                          pathParameters: {
-                                            'leagueId': row.league!.id,
-                                          },
-                                        ),
-                                      ),
+                                    enrolled: leagueHasRegistration(
+                                      league: row.league!,
+                                      regs: myRegs.valueOrNull ?? const [],
                                     ),
-                                  _DiscoveryListRowKind.tournament => Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 10),
-                                      child: TournamentDiscoveryCard(
-                                        tournament: row.tournament!,
-                                        registration: regsByTournament[
-                                            row.tournament!.id],
-                                        onTap: () => context.pushNamed(
-                                          AppRouteNames.tournamentDetail,
-                                          pathParameters: {
-                                            'tournamentId': row.tournament!.id,
-                                          },
-                                        ),
-                                      ),
+                                    open: leagueHasOpenTournaments(
+                                      league: row.league!,
+                                      tournaments: sortedTournaments,
                                     ),
-                                  _DiscoveryListRowKind.emptyTournaments =>
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 24,
-                                      ),
-                                      child: Text(
-                                        'Nenhum torneio encontrado com esses filtros.',
-                                        textAlign: TextAlign.center,
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                          color: context
-                                              .themeColors.onSurfaceMuted,
-                                        ),
-                                      ),
+                                    onTap: () => context.pushNamed(
+                                      AppRouteNames.leagueDetail,
+                                      pathParameters: {
+                                        'leagueId': row.league!.id,
+                                      },
                                     ),
-                                };
-                              },
-                              childCount: visibleRows.length + 1,
-                            ),
-                          ),
+                                  ),
+                                ),
+                              _DiscoveryListRowKind.tournament => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: TournamentDiscoveryCard(
+                                    tournament: row.tournament!,
+                                    registration:
+                                        regsByTournament[row.tournament!.id],
+                                    onTap: () => context.pushNamed(
+                                      AppRouteNames.tournamentDetail,
+                                      pathParameters: {
+                                        'tournamentId': row.tournament!.id,
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              _DiscoveryListRowKind.emptyTournaments => Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 24,
+                                  ),
+                                  child: Text(
+                                    'Nenhum torneio encontrado com esses filtros.',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: context.themeColors.onSurfaceMuted,
+                                    ),
+                                  ),
+                                ),
+                            };
+                          },
+                          childCount: visibleRows.length + 1,
                         ),
-                    ],
-                  ),
-                );
-              },
+                      ),
+                    ),
+                ],
+              ),
             );
           },
         ),
@@ -520,431 +548,4 @@ bool leagueHasOpenTournaments({
     if (t.status == TournamentListingStatus.open) return true;
   }
   return false;
-}
-
-class DiscoveryListSectionTitle extends StatelessWidget {
-  const DiscoveryListSectionTitle({super.key, required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-            letterSpacing: -0.3,
-          ),
-    );
-  }
-}
-
-class DiscoveryListHeader extends StatelessWidget {
-  const DiscoveryListHeader({
-    super.key,
-    required this.searching,
-    required this.controller,
-    required this.focusNode,
-    required this.onBack,
-    required this.onToggleSearch,
-  });
-
-  final bool searching;
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final VoidCallback onBack;
-  final VoidCallback onToggleSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            IconButton(
-              onPressed: onBack,
-              icon: Icon(Icons.arrow_back_rounded),
-              color: context.themeColors.onSurface,
-            ),
-            Expanded(
-              child: Text(
-                'Explorar',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: context.themeColors.onSurface,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            DiscoveryListIconSquare(
-              icon: Icons.search_rounded,
-              onTap: onToggleSearch,
-            ),
-          ],
-        ),
-        if (searching) ...[
-          SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            focusNode: focusNode,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: context.themeColors.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Buscar torneios e ligas…',
-              hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-              ),
-              filled: true,
-              fillColor: context.themeColors.surfaceRaised,
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: context.themeColors.onSurfaceMuted,
-              ),
-              suffixIcon: IconButton(
-                onPressed: () => controller.clear(),
-                icon: Icon(
-                  Icons.close_rounded,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: AppRadii.mdAll,
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class DiscoveryListIconSquare extends StatelessWidget {
-  const DiscoveryListIconSquare({
-    super.key,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceRaised,
-      borderRadius: AppRadii.mdAll,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppRadii.mdAll,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, color: context.themeColors.onSurface),
-        ),
-      ),
-    );
-  }
-}
-
-class DiscoveryListStatsRow extends StatelessWidget {
-  const DiscoveryListStatsRow({super.key, required this.stats});
-
-  final TournamentHubStats stats;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: DiscoveryListStatTile(
-            label: 'Inscritos',
-            value: '${stats.subscriptions}',
-            icon: Icons.emoji_events_outlined,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: DiscoveryListStatTile(
-            label: 'Ao vivo',
-            value: '${stats.liveNow}',
-            icon: Icons.sensors_rounded,
-            accent: AppColors.live,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: DiscoveryListStatTile(
-            label: 'Abertos',
-            value: '${stats.openRegistrations}',
-            icon: Icons.person_add_outlined,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class DiscoveryListSegmented extends StatelessWidget {
-  const DiscoveryListSegmented({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final DiscoveryListSegment value;
-  final ValueChanged<DiscoveryListSegment> onChanged;
-
-  static const _outerRadius = 28.0;
-  static const _innerRadius = 22.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(_outerRadius),
-        border: Border.all(
-          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.22),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Row(
-          children: [
-            _segment(context, DiscoveryListSegment.all, 'Tudo'),
-            _segment(context, DiscoveryListSegment.tournaments, 'Torneios'),
-            _segment(context, DiscoveryListSegment.leagues, 'Ligas'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _segment(
-      BuildContext context, DiscoveryListSegment segment, String label) {
-    final selected = value == segment;
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onChanged(segment),
-          borderRadius: BorderRadius.circular(_innerRadius),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.brand : Colors.transparent,
-              borderRadius: BorderRadius.circular(_innerRadius),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected
-                    ? AppColors.black
-                    : context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class DiscoveryListStatTile extends StatelessWidget {
-  const DiscoveryListStatTile({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.accent,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color? accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = accent ?? AppColors.brand;
-
-    return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        context,
-        color: context.themeColors.surfaceCard,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 13, color: color),
-                const SizedBox(width: 4),
-                Text(
-                  value,
-                  style: AppTypography.soraRegular(
-                    fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                    fontSize: 15,
-                    height: 1,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.soraRegular(
-                fontSize: 10,
-                height: 1.2,
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class DiscoveryListFilterChips extends StatelessWidget {
-  const DiscoveryListFilterChips({
-    super.key,
-    required this.category,
-    required this.openOnly,
-    required this.onCategoryChanged,
-    required this.onOpenOnlyChanged,
-  });
-
-  final TournamentDiscoveryCategoryFilter category;
-  final bool openOnly;
-  final ValueChanged<TournamentDiscoveryCategoryFilter> onCategoryChanged;
-  final ValueChanged<bool> onOpenOnlyChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: TournamentDiscoveryCategoryFilter.values.map((f) {
-              final selected = category == f;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => onCategoryChanged(f),
-                    borderRadius: AppRadii.pillAll,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? context.themeColors.surfaceCard
-                            : context.themeColors.surfaceRaised,
-                        borderRadius: AppRadii.pillAll,
-                        border: Border.all(
-                          color: selected
-                              ? context.themeColors.onSurfaceMuted
-                                  .withValues(alpha: 0.45)
-                              : context.themeColors.onSurfaceMuted
-                                  .withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        tournamentDiscoveryCategoryFilterLabel(f),
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: selected
-                              ? context.themeColors.onSurface
-                              : context.themeColors.onSurfaceMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        SizedBox(height: 12),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => onOpenOnlyChanged(!openOnly),
-            borderRadius: AppRadii.smAll,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: openOnly
-                            ? AppColors.brand
-                            : context.themeColors.surfaceRaised,
-                        borderRadius: AppRadii.smAll,
-                        border: Border.all(
-                          color: openOnly
-                              ? AppColors.brand
-                              : context.themeColors.onSurfaceMuted.withValues(
-                                  alpha: 0.35,
-                                ),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: openOnly
-                          ? Icon(
-                              Icons.check_rounded,
-                              size: 16,
-                              color: AppColors.black,
-                            )
-                          : null,
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Só com inscrição aberta',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: context.themeColors.onSurfaceMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }

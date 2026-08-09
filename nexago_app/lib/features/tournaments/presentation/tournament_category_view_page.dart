@@ -175,6 +175,7 @@ class _TournamentCategoryViewPageState
                       tournament: tournament,
                       categoryId: _categoryId,
                       filter: _filter,
+                      showCategoryChips: false,
                       onCategorySelected: (id) =>
                           setState(() => _categoryId = id),
                       onFilterChanged: (f) => setState(() => _filter = f),
@@ -183,6 +184,7 @@ class _TournamentCategoryViewPageState
                       tournament: tournament,
                       categoryId: _categoryId,
                       filter: _filter,
+                      showCategoryChips: false,
                       onCategorySelected: (id) =>
                           setState(() => _categoryId = id),
                       onFilterChanged: (f) => setState(() => _filter = f),

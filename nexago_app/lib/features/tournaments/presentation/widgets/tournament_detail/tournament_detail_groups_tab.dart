@@ -25,7 +25,12 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
     required this.filter,
     required this.onCategorySelected,
     required this.onFilterChanged,
+    this.showCategoryChips = true,
   });
+
+  /// `false` dentro da casca da categoria — lá a cascata manda voltar por
+  /// "Todas as categorias", sem trocar de categoria pelos chips.
+  final bool showCategoryChips;
 
   final TournamentDetail tournament;
   final String categoryId;
@@ -118,11 +123,12 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
         return tournamentDetailTabSliversFromChildren(
           padding: const EdgeInsets.only(bottom: 32),
           children: [
-            TournamentDetailCategoryChips(
-              offers: offers,
-              selectedId: categoryId,
-              onSelected: onCategorySelected,
-            ),
+            if (showCategoryChips)
+              TournamentDetailCategoryChips(
+                offers: offers,
+                selectedId: categoryId,
+                onSelected: onCategorySelected,
+              ),
             if (isRegistered)
               TournamentMatchesFilterToggle(
                 value: filter,

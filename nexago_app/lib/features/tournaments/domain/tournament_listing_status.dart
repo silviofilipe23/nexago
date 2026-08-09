@@ -56,6 +56,15 @@ bool canRegisterForTournament(TournamentListingStatus status) {
       status == TournamentListingStatus.almostFull;
 }
 
+/// Torneio cancelado pelo organizador (`listingStatus` bruto, EN/PT).
+bool isCancelledListing(String? listingStatusRaw) {
+  final n = normalizeListingStatusRaw(listingStatusRaw ?? '');
+  return n == 'cancelled' ||
+      n == 'canceled' ||
+      n == 'cancelado' ||
+      n == 'cancelada';
+}
+
 /// `listingStatus` bruto indica inscrições encerradas pelo organizador.
 bool isRegistrationListingClosed(String? listingStatusRaw) {
   final n = normalizeListingStatusRaw(listingStatusRaw ?? '');

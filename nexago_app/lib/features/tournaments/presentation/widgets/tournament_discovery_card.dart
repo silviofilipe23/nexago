@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radii.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/tournament_discovery_labels.dart';
 import '../../domain/tournament_discovery_models.dart';
@@ -383,13 +384,11 @@ class _TournamentCardFooter extends StatelessWidget {
             color: emphasizeCta
                 ? AppColors.brand
                 : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: AppRadii.mdAll,
           ),
           child: Text(
             ctaLabel,
-            style: AppTypography.soraRegular(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+            style: AppTypography.labelL.copyWith(
               color: emphasizeCta
                   ? AppColors.black
                   : context.themeColors.onSurfaceMuted,

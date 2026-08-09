@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
-import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/ui/nexa_skeleton.dart';
 import '../../../domain/compete_hub_providers.dart';
 import 'compete_hub_section_header.dart';
 import 'compete_hub_team_preview_row.dart';
@@ -68,12 +69,51 @@ class CompeteHubTeamsSection extends ConsumerWidget {
 class _TeamsLoading extends StatelessWidget {
   const _TeamsLoading();
 
+  static const _rowCount = 3;
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 280,
-      child: Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.themeColors.surfaceRaised),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < _rowCount; i++) ...[
+            if (i > 0) const SizedBox(height: 2),
+            const _TeamRowSkeleton(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamRowSkeleton extends StatelessWidget {
+  const _TeamRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Row(
+        children: [
+          const NexaSkeleton.circle(size: 40),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                NexaSkeleton(width: 140, height: 14),
+                SizedBox(height: 6),
+                NexaSkeleton(width: 90, height: 10),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

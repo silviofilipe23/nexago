@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../arenas/domain/my_booking_item.dart';
@@ -22,6 +23,7 @@ import '../sand_rank/widgets/sand_rank_avatar_frame.dart';
 import '../sand_rank/widgets/sand_rank_emblem.dart';
 import 'athlete_profile_avatar.dart';
 import 'athlete_profile_ranking_section.dart';
+import 'athlete_profile_section_header.dart';
 import 'athlete_profile_skeleton.dart';
 import 'match_history/athlete_profile_history_section.dart';
 
@@ -164,7 +166,7 @@ class AthleteProfileMainView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (showCompleteCard) ...[
-                        SizedBox(height: 16),
+                        SizedBox(height: AppSpacing.lg),
                         _CompleteProfileCard(
                           percent: completion.percent,
                           stepsDone: completion.completedCount,
@@ -173,7 +175,7 @@ class AthleteProfileMainView extends StatelessWidget {
                           onTap: onCompleteProfile,
                         ),
                       ],
-                      SizedBox(height: 16),
+                      SizedBox(height: AppSpacing.lg),
                       _XpLevelSection(
                         level: displayLevel,
                         xpCurrent: xpInLevel,
@@ -181,12 +183,12 @@ class AthleteProfileMainView extends StatelessWidget {
                         progress: xpProgress,
                       ),
                       if (!readOnly) ...[
-                        SizedBox(height: 14),
+                        SizedBox(height: AppSpacing.md),
                         const AthleteProfileRankingSection(),
                       ],
-                      SizedBox(height: 14),
+                      SizedBox(height: AppSpacing.md),
                       const _AthleteProfileStatsSection(),
-                      SizedBox(height: 14),
+                      SizedBox(height: AppSpacing.md),
                       if (nextBooking != null)
                         _NextBookingCard(
                           booking: nextBooking!,
@@ -197,14 +199,15 @@ class AthleteProfileMainView extends StatelessWidget {
                           readOnly: readOnly,
                           onTap: onOpenAgenda,
                         ),
-                      SizedBox(height: 20),
-                      _SectionHeader(
+                      SizedBox(height: AppSpacing.sectionGap),
+                      AthleteProfileSectionHeader(
                         title: 'Conquistas',
                         trailing:
                             '${achievementsState?.unlockedCount ?? badges.length} DE ${achievementsState?.totalCount ?? AchievementCatalog.totalCount}',
                         onTrailingTap: onOpenAchievements,
+                        trailingBrand: true,
                       ),
-                      SizedBox(height: 10),
+                      SizedBox(height: AppSpacing.sm),
                       _AchievementsStrip(
                         items: _achievementStripItems(
                           achievementsState,
@@ -213,18 +216,18 @@ class AthleteProfileMainView extends StatelessWidget {
                         onTap: onOpenAchievements,
                       ),
                       if (!readOnly && onOpenMatchHistory != null) ...[
-                        SizedBox(height: 20),
+                        SizedBox(height: AppSpacing.sectionGap),
                         AthleteProfileHistorySection(
                           onViewAll: onOpenMatchHistory!,
                         ),
                       ],
-                      SizedBox(height: 20),
-                      const _SectionHeader(title: 'Joga com'),
-                      SizedBox(height: 10),
+                      SizedBox(height: AppSpacing.sectionGap),
+                      const AthleteProfileSectionHeader(title: 'Joga com'),
+                      SizedBox(height: AppSpacing.sm),
                       _AthleteProfilePlaysWithSection(
                         onOpenPartner: onOpenPartner,
                       ),
-                      SizedBox(height: 8),
+                      SizedBox(height: AppSpacing.sm),
                     ],
                   ),
                 ),
@@ -1442,68 +1445,6 @@ class _StatusPill extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    this.trailing,
-    this.onTrailingTap,
-  });
-
-  final String title;
-  final String? trailing;
-  final VoidCallback? onTrailingTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hasTrailing = trailing != null && onTrailingTap != null;
-
-    return Row(
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-          ),
-        ),
-        if (hasTrailing) ...[
-          const Spacer(),
-          TextButton(
-            onPressed: onTrailingTap,
-            style: TextButton.styleFrom(
-              foregroundColor: title == 'Conquistas'
-                  ? AppColors.brand
-                  : context.themeColors.onSurfaceMuted,
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${trailing!} ',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: title == 'Conquistas'
-                      ? AppColors.brand
-                      : context.themeColors.onSurfaceMuted,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

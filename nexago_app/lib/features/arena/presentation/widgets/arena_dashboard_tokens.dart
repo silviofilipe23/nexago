@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'package:nexago_app/core/theme/app_radii.dart';
+import 'package:nexago_app/core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Constantes visuais compartilhadas do painel arena.
 abstract final class ArenaDashboardTokens {
   ArenaDashboardTokens._();
 
-  static const double horizontalPadding = 20;
-  static const double sectionGap = 28;
-  static const double cardRadius = 16;
-  static const double chipRadius = 999;
+  static const double horizontalPadding = AppSpacing.screenH;
+  static const double sectionGap = AppSpacing.sectionGap;
+  static const double cardRadius = AppRadii.lg;
+  static const double chipRadius = AppRadii.pill;
 
   /// Altura da tab bar do shell arena (`NexaBottomNavBar.height`).
   static const double shellBottomNavHeight = 100;

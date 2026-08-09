@@ -5,11 +5,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
+import '../../../core/ui/nexa_async_view.dart';
+import '../../../core/ui/nexa_section_header.dart';
+import '../../../core/ui/nexa_segmented_control.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/data/payment_service.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/payment_providers.dart';
@@ -1394,28 +1400,34 @@ class _TournamentRegistrationPageState
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      body: tournamentAsync.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: AppColors.brand)),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Não foi possível carregar o torneio.\n$e',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.live),
-            ),
-          ),
+      body: NexaAsyncView<TournamentDetail?>(
+        value: tournamentAsync,
+        onRetry: () =>
+            ref.invalidate(tournamentDetailProvider(widget.tournamentId)),
+        errorTitle: 'Não foi possível carregar',
+        errorMessage: 'Não foi possível carregar o torneio.',
+        skeleton: _buildStepSkeleton(context),
+        emptyWhen: (value) => value == null,
+        empty: AppEmptyView(
+          icon: Icons.emoji_events_outlined,
+          title: 'Torneio não encontrado',
+          subtitle:
+              'O torneio pode ter sido removido ou o link está desatualizado.',
+          actionLabel: 'Voltar',
+          onAction: _exitRegistration,
         ),
-        data: (tournament) {
-          if (tournament == null) {
-            return Center(child: Text('Torneio não encontrado.'));
-          }
+        data: (value) {
+          final tournament = value!;
 
           final categories = tournament.categoryOffers;
           if (categories.isEmpty) {
-            return Center(
-              child: Text('Nenhuma categoria disponível para inscrição.'),
+            return AppEmptyView(
+              icon: Icons.category_outlined,
+              title: 'Nenhuma categoria disponível',
+              subtitle:
+                  'Nenhuma categoria deste torneio está aberta para inscrição.',
+              actionLabel: 'Voltar',
+              onAction: _exitRegistration,
             );
           }
 
@@ -1530,22 +1542,15 @@ class _TournamentRegistrationPageState
               Expanded(
                 child: ListView(
                   clipBehavior: Clip.none,
+                  // Horizontal fica zerado porque o hero é full-bleed; todo o
+                  // resto do conteúdo usa um único padding de tela abaixo.
                   padding: EdgeInsets.fromLTRB(
                     0,
-                    showHeroSection ? 0 : 8,
+                    showHeroSection ? 0 : AppSpacing.sm,
                     0,
-                    24,
+                    AppSpacing.xxl,
                   ),
                   children: [
-                    if (!access.canAccess)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                        child: TournamentAccessBanner(
-                          onboardingCompleted: access.onboardingCompleted,
-                          blockMessage: access.blockMessage,
-                          missingStepTitles: access.missingStepTitles,
-                        ),
-                      ),
                     if (showHeroSection) ...[
                       TournamentRegistrationHeroCard(
                         tournament: tournament,
@@ -1558,32 +1563,42 @@ class _TournamentRegistrationPageState
                           title: registrationHeaderTitle(_step),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.lg),
                     ],
-                    if (access.canAccess)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: _buildStepContent(
-                            tournament: tournament,
-                            categories: categories,
-                            enrollmentByCategoryId: enrollment,
-                            enrollmentCountsResolved: enrollmentResolved,
-                            registeredCategoryIds: registeredCategoryIds,
-                            quote: quote,
-                            athleteName: athlete.name,
-                            athleteInitials: athlete.initials,
-                            athleteAvatarUrl: athlete.avatarUrl,
-                            partner: partner,
-                            inviteAccepted: inviteAccepted,
-                            invite: invite,
-                            registrationSnap: registrationSnap,
-                            progressLabel: progressLabel,
-                            isFullyPaid: isFullyPaid,
-                          ),
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenH,
                       ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!access.canAccess)
+                            TournamentAccessBanner(
+                              onboardingCompleted: access.onboardingCompleted,
+                              blockMessage: access.blockMessage,
+                              missingStepTitles: access.missingStepTitles,
+                            ),
+                          if (access.canAccess)
+                            ..._buildStepContent(
+                              tournament: tournament,
+                              categories: categories,
+                              enrollmentByCategoryId: enrollment,
+                              enrollmentCountsResolved: enrollmentResolved,
+                              registeredCategoryIds: registeredCategoryIds,
+                              quote: quote,
+                              athleteName: athlete.name,
+                              athleteInitials: athlete.initials,
+                              athleteAvatarUrl: athlete.avatarUrl,
+                              partner: partner,
+                              inviteAccepted: inviteAccepted,
+                              invite: invite,
+                              registrationSnap: registrationSnap,
+                              progressLabel: progressLabel,
+                              isFullyPaid: isFullyPaid,
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1612,6 +1627,62 @@ class _TournamentRegistrationPageState
     );
   }
 
+  /// Vazio dos passos que dependem de uma categoria escolhida — sempre com
+  /// saída (o voltar do passo), nunca um beco sem ação.
+  Widget _missingCategoryEmpty() {
+    return AppEmptyView(
+      icon: Icons.category_outlined,
+      title: 'Escolha uma categoria',
+      subtitle: 'Selecione uma categoria para continuar.',
+      actionLabel: 'Voltar',
+      onAction: _handleBack,
+    );
+  }
+
+  /// Silhueta do passo atual enquanto o torneio carrega — o layout final já é
+  /// conhecido, então nada de spinner.
+  Widget _buildStepSkeleton(BuildContext context) {
+    final showHero = registrationStepShowsHero(_step);
+    final topInset = MediaQuery.paddingOf(context).top;
+    final isCategoryStep = _step == TournamentRegistrationStep.category;
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        0,
+        showHero ? 0 : AppSpacing.sm,
+        0,
+        AppSpacing.xxl,
+      ),
+      children: [
+        if (showHero) ...[
+          NexaSkeleton(height: topInset + 248, radius: BorderRadius.zero),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const NexaSkeleton(width: 168, height: 18),
+              const SizedBox(height: AppSpacing.lg),
+              if (isCategoryStep) ...[
+                const NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+                const SizedBox(height: AppSpacing.md),
+                const NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+                const SizedBox(height: AppSpacing.md),
+                const NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+              ] else ...[
+                const NexaSkeleton(height: 220, radius: AppRadii.lgAll),
+                const SizedBox(height: AppSpacing.md),
+                const NexaSkeleton(height: 120, radius: AppRadii.lgAll),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   List<Widget> _buildStepContent({
     required TournamentDetail tournament,
     required List<TournamentCategoryOffer> categories,
@@ -1637,14 +1708,11 @@ class _TournamentRegistrationPageState
           tournamentSport: tournament.sport,
         );
         return [
-          Text(
-            'Escolha a categoria',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: context.themeColors.onSurface,
-            ),
+          const NexaSectionHeader(
+            title: 'Escolha a categoria',
+            padding: EdgeInsets.zero,
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           for (final cat in categories) ...[
             Builder(
               builder: (context) {
@@ -1698,20 +1766,17 @@ class _TournamentRegistrationPageState
               registrationRequiresPayment(quote) &&
               _canPayFull &&
               !tournamentUsesDirectOrganizerPayment(tournament)) ...[
-            const SizedBox(height: 12),
-            SegmentedButton<String>(
+            const SizedBox(height: AppSpacing.md),
+            NexaSegmentedControl<String>(
               segments: [
-                const ButtonSegment(value: 'share', label: Text('Minha parte')),
-                ButtonSegment(
+                const NexaSegment(value: 'share', label: 'Minha parte'),
+                NexaSegment(
                   value: 'full',
-                  label: Text('Pagar a ${quote.unitSingular}'),
+                  label: 'Pagar a ${quote.unitSingular}',
                 ),
               ],
-              selected: {_paymentType},
-              onSelectionChanged: (selection) {
-                if (selection.isEmpty) return;
-                setState(() => _paymentType = selection.first);
-              },
+              selected: _paymentType,
+              onChanged: (value) => setState(() => _paymentType = value),
             ),
             const SizedBox(height: 6),
             Text(
@@ -1732,7 +1797,7 @@ class _TournamentRegistrationPageState
       case TournamentRegistrationStep.uniform:
         final uniformCategory = _category;
         if (uniformCategory == null) {
-          return const [Text('Selecione uma categoria para continuar.')];
+          return [_missingCategoryEmpty()];
         }
         return [
           TournamentRegistrationUniformStep(
@@ -1746,7 +1811,7 @@ class _TournamentRegistrationPageState
       case TournamentRegistrationStep.partner:
         final category = _category;
         if (category == null) {
-          return const [Text('Selecione uma categoria para continuar.')];
+          return [_missingCategoryEmpty()];
         }
         return [
           TournamentRegistrationPartnerStep(
@@ -1768,7 +1833,15 @@ class _TournamentRegistrationPageState
         ];
       case TournamentRegistrationStep.waiting:
         if (partner == null) {
-          return const [Text('Selecione um parceiro para continuar.')];
+          return [
+            AppEmptyView(
+              icon: Icons.person_search_outlined,
+              title: 'Nenhum parceiro selecionado',
+              subtitle: 'Selecione um parceiro para continuar.',
+              actionLabel: 'Voltar',
+              onAction: _handleBack,
+            ),
+          ];
         }
         final inviteLink = _inviteId != null
             ? '/torneios-convite/${_inviteId!}'
@@ -1821,11 +1894,17 @@ class _TournamentRegistrationPageState
       case TournamentRegistrationStep.payment:
         final category = _category;
         if (category == null || quote == null) {
-          return const [Text('Selecione uma categoria para continuar.')];
+          return [_missingCategoryEmpty()];
         }
         if (_registrationId == null || _registrationId!.isEmpty) {
-          return const [
-            Text('Aguarde o parceiro aceitar o convite para pagar.'),
+          return [
+            AppEmptyView(
+              icon: Icons.hourglass_empty_rounded,
+              title: 'Aguardando o parceiro',
+              subtitle: 'Aguarde o parceiro aceitar o convite para pagar.',
+              actionLabel: 'Voltar',
+              onAction: _handleBack,
+            ),
           ];
         }
         final isDirectOrganizer =

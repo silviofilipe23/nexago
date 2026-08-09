@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../../core/theme/app_typography.dart';
+import '../../../../core/ui/nexa_segmented_control.dart';
 import '../../domain/ranking_list_models.dart';
 
+/// Alterna entre ranking de equipes e de atletas.
+///
+/// Delega a apresentação para [NexaSegmentedControl] — mantém esta API
+/// própria (mode/onChanged) porque é assim que a tela de ranking a chama.
 class RankingModeSegment extends StatelessWidget {
   const RankingModeSegment({
     super.key,
@@ -17,68 +19,13 @@ class RankingModeSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: context.themeColors.surfaceRaised),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _SegmentButton(
-              label: 'Equipes',
-              selected: mode == RankingListMode.teams,
-              onTap: () => onChanged(RankingListMode.teams),
-            ),
-          ),
-          Expanded(
-            child: _SegmentButton(
-              label: 'Atletas',
-              selected: mode == RankingListMode.athletes,
-              onTap: () => onChanged(RankingListMode.athletes),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SegmentButton extends StatelessWidget {
-  const _SegmentButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.brand : Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTypography.soraRegular(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: selected ? Colors.black : context.themeColors.onSurfaceMuted,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return NexaSegmentedControl<RankingListMode>(
+      segments: const [
+        NexaSegment(value: RankingListMode.teams, label: 'Equipes'),
+        NexaSegment(value: RankingListMode.athletes, label: 'Atletas'),
+      ],
+      selected: mode,
+      onChanged: onChanged,
     );
   }
 }

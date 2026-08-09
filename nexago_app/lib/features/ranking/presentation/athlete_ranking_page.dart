@@ -4,7 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/ui/app_status_views.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../domain/ranking_list_mapper.dart';
 import '../domain/ranking_list_models.dart';
@@ -172,11 +177,10 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
       ),
       body: entriesAsync.when(
         loading: () => const _RankingLoadingSection(),
-        error: (_, __) => Center(
-          child: Text(
-            'Não foi possível carregar o ranking.',
-            style: TextStyle(color: context.themeColors.onSurfaceMuted),
-          ),
+        error: (_, __) => AppErrorView(
+          title: 'Não foi possível carregar',
+          message: 'Não foi possível carregar o ranking.',
+          onRetry: () => ref.invalidate(rankingListEntriesProvider),
         ),
         data: (entries) {
           final visible = filterRankingEntriesBySearch(entries, _searchQuery);
@@ -254,15 +258,14 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                     if (visible.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Text(
-                          _searchQuery.isNotEmpty
+                        child: AppEmptyView(
+                          icon: Icons.leaderboard_outlined,
+                          title: 'Nenhum resultado encontrado',
+                          subtitle: _searchQuery.isNotEmpty
                               ? 'Nenhum resultado para "$_searchQuery".'
                               : filter.mode == RankingListMode.teams
                                   ? 'Nenhuma dupla no ranking para este filtro.'
                                   : 'Nenhum atleta no ranking para este filtro.',
-                          style: TextStyle(
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
                         ),
                       )
                     else if (isSearching)
@@ -288,22 +291,16 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                       _floatingFooterBottomGap,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+                      borderRadius: AppRadii.lgAll,
+                      boxShadow: AppShadows.floating(context.themeColors),
                     ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: RankingUserHighlightTile(
-                      entry: userEntry,
-                      onTap: _profileTap(userEntry, filter.mode),
+                    child: ClipRRect(
+                      borderRadius: AppRadii.lgAll,
+                      child: RankingUserHighlightTile(
+                        entry: userEntry,
+                        onTap: _profileTap(userEntry, filter.mode),
+                      ),
                     ),
-                  ),
                   ),
                 ),
             ],
@@ -389,24 +386,50 @@ class _RankingLoadingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        ArenaDashboardTokens.horizontalPadding,
+        12,
+        ArenaDashboardTokens.horizontalPadding,
+        AppSpacing.sectionGap,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _PodiumSlotSkeleton(circleSize: 56)),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(child: _PodiumSlotSkeleton(circleSize: 72)),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(child: _PodiumSlotSkeleton(circleSize: 56)),
+            ],
+          ),
+          SizedBox(height: AppSpacing.xxl),
+          for (var i = 0; i < 4; i++) ...[
+            if (i > 0) SizedBox(height: AppSpacing.sm),
+            NexaSkeleton(height: 64, radius: AppRadii.lgAll),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PodiumSlotSkeleton extends StatelessWidget {
+  const _PodiumSlotSkeleton({required this.circleSize});
+
+  final double circleSize;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
-        SizedBox(
-          height: 180,
-          child: Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          ),
-        ),
-        for (var i = 0; i < 4; i++) ...[
-          SizedBox(height: 8),
-          Container(
-            height: 64,
-            decoration: BoxDecoration(
-              color: context.themeColors.surfaceCard,
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ],
+        NexaSkeleton.circle(size: circleSize),
+        SizedBox(height: AppSpacing.sm),
+        NexaSkeleton(width: circleSize * 0.8, height: 10),
+        SizedBox(height: AppSpacing.xs),
+        NexaSkeleton(width: circleSize * 0.5, height: 14),
       ],
     );
   }

@@ -10,12 +10,17 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/layout/nexa_app_bar.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/nexa_icon_square_button.dart';
 import '../../../core/ui/nexa_share.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../data/tournament_inscriptions_repository.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -26,6 +31,11 @@ import '../domain/tournament_registration_share_phrases.dart';
 import '../domain/tournament_registration_success_args.dart';
 import 'widgets/tournament_registration/tournament_registration_share_card.dart';
 
+/// Ainda sem valor e sem erro — vale a silhueta. Com erro, renderiza o que
+/// houver em vez de travar no skeleton.
+bool _stillLoading(AsyncValue<Object?> value) =>
+    value.valueOrNull == null && !value.hasError;
+
 class TournamentRegistrationSuccessPage extends ConsumerWidget {
   const TournamentRegistrationSuccessPage({super.key, required this.args});
 
@@ -33,20 +43,25 @@ class TournamentRegistrationSuccessPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tournament = ref
-        .watch(tournamentDetailProvider(args.tournamentId))
-        .valueOrNull;
+    final tournamentAsync = ref.watch(
+      tournamentDetailProvider(args.tournamentId),
+    );
+    final tournament = tournamentAsync.valueOrNull;
     final receiptAsync = ref.watch(
       tournamentRegistrationReceiptProvider(args.registrationId),
     );
     final receipt = receiptAsync.valueOrNull;
-    final enrollment =
-        ref
-            .watch(
-              tournamentCategoryEnrollmentCountsProvider(args.tournamentId),
-            )
-            .valueOrNull ??
-        const <String, int>{};
+    final enrollmentAsync = ref.watch(
+      tournamentCategoryEnrollmentCountsProvider(args.tournamentId),
+    );
+    final enrollment = enrollmentAsync.valueOrNull ?? const <String, int>{};
+
+    // Sem comprovante/torneio/vagas o card sairia com '—' no lugar dos nomes
+    // e da vaga: enquanto carrega, mostra a silhueta do card. Em erro o card
+    // sai como der — skeleton eterno prenderia o atleta sem compartilhar.
+    final contentLoading = _stillLoading(tournamentAsync) ||
+        _stillLoading(receiptAsync) ||
+        _stillLoading(enrollmentAsync);
 
     TournamentCategoryOffer? offer;
     if (tournament != null) {
@@ -83,6 +98,7 @@ class TournamentRegistrationSuccessPage extends ConsumerWidget {
     return _TournamentRegistrationSuccessView(
       args: args,
       tournament: tournament,
+      contentLoading: contentLoading,
       receiptCode: receiptCode,
       slotLabel: slotLabel,
       player1: player1,
@@ -100,6 +116,7 @@ class _TournamentRegistrationSuccessView extends ConsumerStatefulWidget {
   const _TournamentRegistrationSuccessView({
     required this.args,
     required this.tournament,
+    required this.contentLoading,
     required this.receiptCode,
     required this.slotLabel,
     required this.player1,
@@ -113,6 +130,9 @@ class _TournamentRegistrationSuccessView extends ConsumerStatefulWidget {
 
   final TournamentRegistrationSuccessArgs args;
   final TournamentDetail? tournament;
+
+  /// Comprovante/torneio/vagas ainda carregando — o card sai como skeleton.
+  final bool contentLoading;
   final String receiptCode;
   final String slotLabel;
   final String player1;
@@ -148,6 +168,10 @@ class _TournamentRegistrationSuccessViewState
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
+      appBar: _RegistrationSuccessAppBar(
+        receiptCode: widget.receiptCode,
+        onClose: () => _onClose(context),
+      ),
       body: Stack(
         children: [
           Positioned(
@@ -169,122 +193,88 @@ class _TournamentRegistrationSuccessViewState
             ),
           ),
           SafeArea(
+            top: false,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-                  child: Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Text(
-                          widget.receiptCode,
-                          style: AppTypography.mono(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: context.themeColors.onSurfaceMuted,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'Confirmado',
-                          textAlign: TextAlign.center,
-                          style: AppTypography.soraRegular(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _onClose(context),
-                        icon: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: context.themeColors.surfaceRaised,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: context.themeColors.onSurfaceMuted.withValues(
-                                alpha: 0.2,
-                              ),
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 20,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                    child: RepaintBoundary(
-                      key: _shareCardKey,
-                      child: TournamentRegistrationShareCard(
-                        headlineLine1: _sharePhrase.line1,
-                        headlineLine2: _sharePhrase.line2,
-                        tournamentName: args.tournamentName,
-                        dateLabel: widget.dateLabel,
-                        categoryName: args.categoryName,
-                        slotLabel: widget.slotLabel,
-                        player1Name: widget.player1,
-                        player2Name: widget.player2,
-                        player1AvatarUrl: widget.player1AvatarUrl,
-                        player2AvatarUrl: widget.player2AvatarUrl,
-                        locationLine: widget.locationLine,
-                        footerLabel: widget.footerLabel,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      AppSpacing.md,
+                      AppSpacing.screenH,
+                      AppSpacing.lg,
                     ),
+                    child: widget.contentLoading
+                        ? const NexaSkeleton(
+                            height: 420,
+                            radius: AppRadii.xlAll,
+                          )
+                        : RepaintBoundary(
+                            key: _shareCardKey,
+                            child: TournamentRegistrationShareCard(
+                              headlineLine1: _sharePhrase.line1,
+                              headlineLine2: _sharePhrase.line2,
+                              tournamentName: args.tournamentName,
+                              dateLabel: widget.dateLabel,
+                              categoryName: args.categoryName,
+                              slotLabel: widget.slotLabel,
+                              player1Name: widget.player1,
+                              player2Name: widget.player2,
+                              player1AvatarUrl: widget.player1AvatarUrl,
+                              player2AvatarUrl: widget.player2AvatarUrl,
+                              locationLine: widget.locationLine,
+                              footerLabel: widget.footerLabel,
+                            ),
+                          ),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenH,
+                    0,
+                    AppSpacing.screenH,
+                    AppSpacing.xl,
+                  ),
                   child: Row(
                     children: [
-                      _CalendarIconButton(onTap: () => _openCalendar(context)),
+                      NexaIconSquareButton(
+                        size: 54,
+                        icon: Icons.calendar_month_outlined,
+                        tooltip: 'Adicionar ao calendário',
+                        onTap: () => _openCalendar(context),
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: SizedBox(
                           height: 54,
                           child: FilledButton.icon(
-                            onPressed: _sharing
+                            onPressed: _sharing || widget.contentLoading
                                 ? null
                                 : () => _shareToStory(context),
                             style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: AppColors.black,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: AppRadii.lgAll,
                               ),
                             ),
                             icon: _sharing
-                                ? SizedBox(
+                                ? const SizedBox(
                                     width: 22,
                                     height: 22,
+                                    // O indicador não herda o foreground do
+                                    // botão: sem cor fixa cairia no primary
+                                    // (laranja sobre laranja).
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.5,
                                       color: AppColors.black,
                                     ),
                                   )
-                                : Icon(
-                                    Icons.ios_share_rounded,
-                                    size: 22,
-                                    color: AppColors.black,
-                                  ),
+                                : Icon(Icons.ios_share_rounded, size: 22),
                             label: Text(
                               'Compartilhar no story',
                               style: AppTypography.soraRegular(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.black,
                               ),
                             ),
                           ),
@@ -393,35 +383,62 @@ class _TournamentRegistrationSuccessViewState
   }
 }
 
-class _CalendarIconButton extends StatelessWidget {
-  const _CalendarIconButton({required this.onTap});
+/// Toolbar do sucesso — mesmo desenho da toolbar do PIX (quadrado de 40 à
+/// esquerda + título centralizado), com o código do comprovante à direita.
+class _RegistrationSuccessAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const _RegistrationSuccessAppBar({
+    required this.receiptCode,
+    required this.onClose,
+  });
 
-  final VoidCallback onTap;
+  final String receiptCode;
+  final VoidCallback onClose;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceRaised,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Icon(
-            Icons.calendar_month_outlined,
-            color: context.themeColors.onSurface,
-            size: 22,
+    final theme = Theme.of(context);
+
+    return NexaAppBar(
+      backgroundColor: context.themeColors.canvas,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: AppSpacing.md),
+        child: Center(
+          child: NexaIconSquareButton(
+            icon: Icons.close_rounded,
+            onTap: onClose,
+            // Sem borda: o quadrado do BookingPixAppBar não tem, e as duas
+            // toolbars precisam ficar idênticas.
+            side: BorderSide.none,
           ),
         ),
       ),
+      title: Text(
+        'Confirmado',
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: context.themeColors.onSurface,
+        ),
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.screenH),
+          child: Center(
+            child: Text(
+              receiptCode,
+              style: AppTypography.monoMeta.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

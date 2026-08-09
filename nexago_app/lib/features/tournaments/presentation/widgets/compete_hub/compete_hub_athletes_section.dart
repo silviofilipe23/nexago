@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../../../core/ui/nexa_skeleton.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/compete_hub_models.dart';
 import '../../../domain/compete_hub_providers.dart';
@@ -74,34 +76,15 @@ class _AthleteChipSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
     return SizedBox(
       width: _hubAthleteChipWidth,
       child: Column(
         children: [
-          Container(
-            width: _hubAthleteAvatarSize,
-            height: _hubAthleteAvatarSize,
-            decoration: BoxDecoration(color: muted, shape: BoxShape.circle),
-          ),
-          SizedBox(height: 8),
-          Container(
-            width: 48,
-            height: 10,
-            decoration: BoxDecoration(
-              color: muted,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          SizedBox(height: 6),
-          Container(
-            width: 36,
-            height: 8,
-            decoration: BoxDecoration(
-              color: muted,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
+          const NexaSkeleton.circle(size: _hubAthleteAvatarSize),
+          const SizedBox(height: AppSpacing.sm),
+          const NexaSkeleton(width: 48, height: 10),
+          const SizedBox(height: 6),
+          const NexaSkeleton(width: 36, height: 8),
         ],
       ),
     );

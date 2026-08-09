@@ -45,6 +45,39 @@ TournamentDetailTab defaultTournamentDetailTab(
       : TournamentDetailTab.visaoGeral;
 }
 
+/// Sub-visões da categoria — o segmentado que substitui abas Partidas/Chaves
+/// (porte de `categoryViewsOf` do portal): "Grupos" só existe em categoria
+/// com fase de grupos; "Partidas" só depois que o organizador publica os
+/// jogos; "Chave" fica sempre — é onde a mensagem de "ainda não sorteada"
+/// aparece.
+enum TournamentCategoryView {
+  partidas('Partidas'),
+  grupos('Grupos'),
+  chave('Chave');
+
+  const TournamentCategoryView(this.label);
+
+  final String label;
+}
+
+List<TournamentCategoryView> visibleCategoryViews({
+  required bool hasMatches,
+  required bool hasGroups,
+}) {
+  return [
+    if (hasMatches) TournamentCategoryView.partidas,
+    if (hasGroups) TournamentCategoryView.grupos,
+    TournamentCategoryView.chave,
+  ];
+}
+
+/// Sub-visão de entrada: os jogos quando existem, senão a chave.
+TournamentCategoryView defaultCategoryView(
+  List<TournamentCategoryView> views,
+) {
+  return views.isNotEmpty ? views.first : TournamentCategoryView.chave;
+}
+
 /// Existe ao menos um confronto definido? Antes disso não há em quem palpitar.
 bool tournamentHasDefinedMatchups(List<TournamentMatch> matches) {
   return matches.any((m) => m.teamAId.isNotEmpty && m.teamBId.isNotEmpty);

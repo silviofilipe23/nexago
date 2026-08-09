@@ -161,6 +161,87 @@ void main() {
     });
   });
 
+  group('visibleCategoryViews', () {
+    test('Chave é o esqueleto fixo: única visão quando tudo é false', () {
+      final views = visibleCategoryViews(
+        hasMatches: false,
+        hasGroups: false,
+      );
+
+      expect(views, [TournamentCategoryView.chave]);
+    });
+
+    test('Partidas entra quando há jogos publicados', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: false,
+      );
+
+      expect(views, [
+        TournamentCategoryView.partidas,
+        TournamentCategoryView.chave,
+      ]);
+    });
+
+    test('Grupos entra quando a categoria tem fase de grupos', () {
+      final views = visibleCategoryViews(
+        hasMatches: false,
+        hasGroups: true,
+      );
+
+      expect(views, [
+        TournamentCategoryView.grupos,
+        TournamentCategoryView.chave,
+      ]);
+    });
+
+    test('ordem completa com tudo true', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: true,
+      );
+
+      expect(views, [
+        TournamentCategoryView.partidas,
+        TournamentCategoryView.grupos,
+        TournamentCategoryView.chave,
+      ]);
+    });
+  });
+
+  group('defaultCategoryView', () {
+    test('cai nas Partidas quando elas estão presentes', () {
+      final views = visibleCategoryViews(
+        hasMatches: true,
+        hasGroups: true,
+      );
+
+      expect(defaultCategoryView(views), TournamentCategoryView.partidas);
+    });
+
+    test('cai nos Grupos quando só há Grupos e Chave', () {
+      final views = visibleCategoryViews(
+        hasMatches: false,
+        hasGroups: true,
+      );
+
+      expect(defaultCategoryView(views), TournamentCategoryView.grupos);
+    });
+
+    test('cai na Chave quando ela é a única visão', () {
+      final views = visibleCategoryViews(
+        hasMatches: false,
+        hasGroups: false,
+      );
+
+      expect(defaultCategoryView(views), TournamentCategoryView.chave);
+    });
+
+    test('lista vazia cai na Chave por segurança', () {
+      expect(defaultCategoryView(const []), TournamentCategoryView.chave);
+    });
+  });
+
   group('tournamentHasDefinedMatchups', () {
     test('false quando nenhuma partida tem os dois times definidos', () {
       final matches = [

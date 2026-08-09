@@ -45,6 +45,9 @@ class _TournamentCategoryViewPageState
   late String _categoryId = widget.categoryId;
   TournamentMatchesFilter _filter = TournamentMatchesFilter.all;
 
+  /// Fase selecionada nos chips da Chave (`null` = tudo).
+  String? _bracketRound;
+
   void _openMatchDetail(String matchId) {
     final id = matchId.trim();
     if (id.isEmpty) return;
@@ -185,6 +188,9 @@ class _TournamentCategoryViewPageState
                       categoryId: _categoryId,
                       filter: _filter,
                       showCategoryChips: false,
+                      selectedRound: _bracketRound,
+                      onRoundChanged: (round) =>
+                          setState(() => _bracketRound = round),
                       onCategorySelected: (id) =>
                           setState(() => _categoryId = id),
                       onFilterChanged: (f) => setState(() => _filter = f),

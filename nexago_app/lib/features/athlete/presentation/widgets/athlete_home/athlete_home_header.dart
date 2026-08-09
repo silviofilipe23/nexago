@@ -98,16 +98,21 @@ class AthleteHomeHeader extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 2),
-              Text(
-                '${_greetingByHour(now)}, $firstName.',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: context.themeColors.onSurface,
-                  fontSize: 20,
-                  letterSpacing: -0.3,
+              // FittedBox: "Boa tarde, Nome." encolhe em vez de virar "Sil…"
+              // quando a pill de XP e o sino apertam a linha.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_greetingByHour(now)}, $firstName.',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: context.themeColors.onSurface,
+                    fontSize: 20,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

@@ -75,7 +75,8 @@ class CompeteHubRankingRow extends StatelessWidget {
               ),
               if (entry.tournamentsCount > 0)
                 Text(
-                  '${entry.tournamentsCount} etapas',
+                  '${entry.tournamentsCount} '
+                  'etapa${entry.tournamentsCount == 1 ? '' : 's'}',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,

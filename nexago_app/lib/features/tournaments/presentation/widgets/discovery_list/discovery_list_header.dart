@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_radii.dart';
+import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/nexa_icon_square_button.dart';
 
@@ -36,13 +37,31 @@ class DiscoveryListHeader extends StatelessWidget {
               color: context.themeColors.onSurface,
             ),
             Expanded(
-              child: Text(
-                'Explorar',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: context.themeColors.onSurface,
-                  letterSpacing: -0.5,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Torneios e ligas',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: context.themeColors.onSurface,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Subtítulo mono do portal ("abertos pra você").
+                  Text(
+                    'ABERTOS PRA VOCÊ',
+                    style: AppTypography.eyebrow.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
               ),
             ),
             NexaIconSquareButton(

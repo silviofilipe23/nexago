@@ -44,12 +44,38 @@ List<DiscoveryTournament> filterDiscoveryTournaments({
   required List<DiscoveryTournament> tournaments,
   required TournamentDiscoveryCategoryFilter category,
   required bool openOnly,
+  TournamentFormat? format,
+  DateTime? dateFrom,
+  double? priceMax,
 }) {
   return tournaments.where((t) {
     if (!tournamentMatchesCategoryFilter(t, category)) return false;
     if (!tournamentMatchesOpenFilter(t, openOnly)) return false;
+    if (format != null && t.format != format) return false;
+    // Mesma semântica do portal web: começa antes de `dateFrom` sai;
+    // acima do teto de preço sai (gratuito passa sempre).
+    if (dateFrom != null && t.startDate.isBefore(dateFrom)) return false;
+    if (priceMax != null && t.priceValue > priceMax) return false;
     return true;
   }).toList();
+}
+
+/// Quantos filtros não-default estão ativos — o número do badge do botão
+/// "Mais filtros" (paridade com `activeFilterCount` do portal web).
+int discoveryActiveFilterCount({
+  required TournamentDiscoveryCategoryFilter category,
+  required bool openOnly,
+  TournamentFormat? format,
+  DateTime? dateFrom,
+  double? priceMax,
+}) {
+  var count = 0;
+  if (category != TournamentDiscoveryCategoryFilter.all) count++;
+  if (format != null) count++;
+  if (dateFrom != null) count++;
+  if (priceMax != null) count++;
+  if (openOnly) count++;
+  return count;
 }
 
 List<DiscoveryLeague> visibleLeaguesForTournaments({

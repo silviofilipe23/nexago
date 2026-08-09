@@ -22,7 +22,9 @@ import '../domain/tournament_discovery_hub_logic.dart';
 import '../domain/tournament_discovery_hub_providers.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
-import 'widgets/discovery_list/discovery_list_filter_chips.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import 'widgets/discovery_list/discovery_list_filters_panel.dart';
 import 'widgets/discovery_list/discovery_list_header.dart';
 import 'widgets/discovery_list/discovery_list_stats_row.dart';
 import 'widgets/league_discovery_card.dart';
@@ -61,6 +63,11 @@ class _TournamentDiscoveryListPageState
   TournamentDiscoveryCategoryFilter _category =
       TournamentDiscoveryCategoryFilter.all;
   bool _openOnly = false;
+  TournamentFormat? _format;
+  DateTime? _dateFrom;
+  double? _priceMax;
+  bool _showFilters = false;
+  late final TextEditingController _priceController = TextEditingController();
   late bool _searching = widget.initialSearchOpen;
   late final TextEditingController _searchController = TextEditingController(
     text: widget.initialQuery,
@@ -90,7 +97,29 @@ class _TournamentDiscoveryListPageState
     _searchController.dispose();
     _searchFocus.dispose();
     _scrollController.dispose();
+    _priceController.dispose();
     super.dispose();
+  }
+
+  /// Aceita vírgula como separador decimal; vazio/inválido limpa o teto.
+  void _onPriceMaxChanged(String raw) {
+    final parsed = double.tryParse(raw.trim().replaceAll(',', '.'));
+    setState(() {
+      _priceMax = parsed != null && parsed > 0 ? parsed : null;
+      _resetVisibleLimit();
+    });
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _category = TournamentDiscoveryCategoryFilter.all;
+      _format = null;
+      _dateFrom = null;
+      _priceMax = null;
+      _openOnly = false;
+      _priceController.clear();
+      _resetVisibleLimit();
+    });
   }
 
   void _resetVisibleLimit() {
@@ -238,6 +267,9 @@ class _TournamentDiscoveryListPageState
               tournaments: tournamentPool,
               category: _category,
               openOnly: _openOnly,
+              format: _format,
+              dateFrom: _dateFrom,
+              priceMax: _priceMax,
             );
             final filteredByQuery = useKeywordTournamentResults
                 ? filtered
@@ -313,8 +345,8 @@ class _TournamentDiscoveryListPageState
                           },
                         ),
                         const SizedBox(height: 10),
-                        DiscoveryListStatsRow(stats: stats),
-                        const SizedBox(height: 10),
+                        // Ordem da toolbar do portal: abas → pills de stats →
+                        // "Mais filtros" com badge de ativos.
                         NexaSegmentedControl<DiscoveryListSegment>(
                           segments: const [
                             NexaSegment(
@@ -336,19 +368,57 @@ class _TournamentDiscoveryListPageState
                             _resetVisibleLimit();
                           }),
                         ),
-                        const SizedBox(height: 14),
-                        DiscoveryListFilterChips(
-                          category: _category,
-                          openOnly: _openOnly,
-                          onCategoryChanged: (v) => setState(() {
-                            _category = v;
-                            _resetVisibleLimit();
-                          }),
-                          onOpenOnlyChanged: (v) => setState(() {
-                            _openOnly = v;
-                            _resetVisibleLimit();
-                          }),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: DiscoveryListStatsRow(stats: stats),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            _MoreFiltersButton(
+                              active: _showFilters,
+                              count: discoveryActiveFilterCount(
+                                category: _category,
+                                openOnly: _openOnly,
+                                format: _format,
+                                dateFrom: _dateFrom,
+                                priceMax: _priceMax,
+                              ),
+                              onTap: () => setState(
+                                () => _showFilters = !_showFilters,
+                              ),
+                            ),
+                          ],
                         ),
+                        if (_showFilters) ...[
+                          const SizedBox(height: 12),
+                          DiscoveryListFiltersPanel(
+                            category: _category,
+                            format: _format,
+                            dateFrom: _dateFrom,
+                            priceMaxController: _priceController,
+                            openOnly: _openOnly,
+                            onCategoryChanged: (v) => setState(() {
+                              _category = v;
+                              _resetVisibleLimit();
+                            }),
+                            onFormatChanged: (v) => setState(() {
+                              _format = v;
+                              _resetVisibleLimit();
+                            }),
+                            onDateFromChanged: (v) => setState(() {
+                              _dateFrom = v;
+                              _resetVisibleLimit();
+                            }),
+                            onPriceMaxChanged: _onPriceMaxChanged,
+                            onOpenOnlyChanged: (v) => setState(() {
+                              _openOnly = v;
+                              _resetVisibleLimit();
+                            }),
+                            onReset: _resetFilters,
+                          ),
+                        ],
                         if (leaguesFailed &&
                             _segment != DiscoveryListSegment.tournaments) ...[
                           const SizedBox(height: 10),
@@ -486,6 +556,79 @@ class _TournamentDiscoveryListPageState
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Botão "Mais filtros" da toolbar (paridade com o portal): abre o painel
+/// colapsável e mostra o número de filtros ativos.
+class _MoreFiltersButton extends StatelessWidget {
+  const _MoreFiltersButton({
+    required this.active,
+    required this.count,
+    required this.onTap,
+  });
+
+  final bool active;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final accent = active || count > 0 ? AppColors.brand : colors.onSurfaceMuted;
+
+    return Material(
+      color: active
+          ? AppColors.brand.withValues(alpha: 0.12)
+          : colors.surfaceRaised,
+      borderRadius: AppRadii.pillAll,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm + 1,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: AppRadii.pillAll,
+            border: Border.all(color: accent.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.tune_rounded, size: 15, color: accent),
+              const SizedBox(width: AppSpacing.xs + 2),
+              Text(
+                'Filtros',
+                style: AppTypography.labelS.copyWith(color: accent),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: AppSpacing.xs + 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: AppColors.brand,
+                    borderRadius: AppRadii.pillAll,
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppTypography.mono(
+                      fontSize: 10,
+                      color: AppColors.black,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

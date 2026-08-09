@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
+
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -151,10 +154,22 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
                 isComplete: isPhaseComplete,
                 qualifiersPerGroup: qualifiersPerGroup,
               ),
+              // Cascata Torneio → Categoria → Grupo: o card abre a visão do
+              // grupo (classificação + partidas dele).
               for (final group in standingsGroups)
-                TournamentPoolStandingsCard(
-                  group: group,
-                  qualifiersPerGroup: qualifiersPerGroup,
+                GestureDetector(
+                  onTap: () => context.pushNamed(
+                    AppRouteNames.tournamentGroupView,
+                    pathParameters: {
+                      'tournamentId': tournament.id,
+                      'categoryId': categoryId,
+                      'poolId': group.poolId,
+                    },
+                  ),
+                  child: TournamentPoolStandingsCard(
+                    group: group,
+                    qualifiersPerGroup: qualifiersPerGroup,
+                  ),
                 ),
               TournamentGroupStandingsFooter(
                 qualifiersPerGroup: qualifiersPerGroup,

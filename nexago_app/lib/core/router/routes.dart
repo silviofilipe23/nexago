@@ -391,6 +391,11 @@ abstract final class AppRoutes {
   static const String tournamentCategoryView =
       '/torneios/:tournamentId/categorias/:categoryId';
 
+  /// Visão do grupo (cascata Torneio → Categoria → Grupo):
+  /// `/torneios/:tournamentId/categorias/:categoryId/grupos/:poolId`
+  static const String tournamentGroupView =
+      '/torneios/:tournamentId/categorias/:categoryId/grupos/:poolId';
+
   /// Chave do torneio: `/torneios/:tournamentId/chave`
   static const String tournamentBracket = '/torneios/:tournamentId/chave';
 
@@ -630,6 +635,7 @@ abstract final class AppRouteNames {
   static const String tournamentDetail = 'tournamentDetail';
   static const String tournamentCategories = 'tournamentCategories';
   static const String tournamentCategoryView = 'tournamentCategoryView';
+  static const String tournamentGroupView = 'tournamentGroupView';
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';
   static const String tournamentPrizes = 'tournamentPrizes';

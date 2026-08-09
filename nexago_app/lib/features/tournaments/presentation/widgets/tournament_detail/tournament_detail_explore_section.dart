@@ -46,15 +46,7 @@ class TournamentDetailExploreSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ExploreCard(
-            icon: Icons.grid_view_rounded,
-            title: 'Categorias',
-            subtitle: tournamentExploreCategoriesSubtitle(stats),
-            onTap: () => context.pushNamed(
-              AppRouteNames.tournamentCategories,
-              pathParameters: {'tournamentId': tournamentId},
-            ),
-          ),
+          // Categorias saiu daqui: agora é aba própria do detalhe.
           if (showBracket)
             ExploreCard(
               icon: Icons.account_tree_outlined,

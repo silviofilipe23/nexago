@@ -598,13 +598,18 @@ List<BracketLayoutEdge> _buildAdvanceEdges(
   final edges = <BracketLayoutEdge>[];
   for (final m in matches) {
     final type = m.matchType.trim().toLowerCase();
-    if (type != 'wb' && type != 'lb') continue;
     final dest = m.winnerAdvanceMatchNumber;
     if (dest == null) continue;
     final target = byNumber[dest];
-    if (target == null || target.matchType.trim().toLowerCase() != type) {
-      continue;
-    }
+    if (target == null) continue;
+    final targetType = target.matchType.trim().toLowerCase();
+    // DE: só dentro da mesma chave (WB→WB, LB→LB) — linha entrando na Final
+    // cruzaria os tracks. Eliminatória simples (modelo do portal): as
+    // rodadas ligam entre si E entram na Final.
+    final sameTrack = (type == 'wb' || type == 'lb') && targetType == type;
+    final knockoutFlow = type == 'knockout' &&
+        (targetType == 'knockout' || targetType == 'final');
+    if (!sameTrack && !knockoutFlow) continue;
     if (!nodeByMatchNumber.containsKey(m.matchNumber) ||
         !nodeByMatchNumber.containsKey(dest)) {
       continue;

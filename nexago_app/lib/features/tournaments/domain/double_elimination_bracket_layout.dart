@@ -85,15 +85,20 @@ class DoubleEliminationBracketLayout {
   }
 }
 
-/// Cabeçalho de coluna no formato do protótipo (`WB · RODADA 1`).
-String bracketColumnHeaderLabel(TournamentMatch match) {
-  final type = match.matchType.trim().toUpperCase();
+/// Cabeçalho de coluna no formato do portal web: WB/LB por rodada e as
+/// fases eliminatórias pelo TAMANHO da rodada inteira ("Quartas de final",
+/// "Semifinais") — rotular por uma partida só rebaixava tudo pra
+/// "Eliminatórias".
+String bracketColumnHeaderLabel(List<TournamentMatch> columnMatches) {
+  if (columnMatches.isEmpty) return '';
+  final first = columnMatches.first;
+  final type = first.matchType.trim().toUpperCase();
   if (type == 'WB' || type == 'LB') {
-    return '$type · RODADA ${match.round}';
+    return '$type · RODADA ${first.round}';
   }
   if (type == 'FINAL') return 'FINAL';
   if (type == 'THIRD PLACE') return '3º LUGAR';
-  return bracketRoundGroupLabel([match]).toUpperCase();
+  return bracketRoundGroupLabel(columnMatches).toUpperCase();
 }
 
 /// Monta a chave interativa com a SEQUÊNCIA DE LIGAÇÕES das plantas
@@ -493,7 +498,7 @@ void _applyColumn({
   columns.add(
     BracketLayoutColumn(
       key: key,
-      label: bracketColumnHeaderLabel(columnMatches.first),
+      label: bracketColumnHeaderLabel(columnMatches),
       matchIds: [for (final m in columnMatches) m.id],
       headerPosition: Offset(x, trackTop),
     ),

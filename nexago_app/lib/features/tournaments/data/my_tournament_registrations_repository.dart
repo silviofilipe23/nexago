@@ -7,6 +7,9 @@ import '../../../core/auth/auth_providers.dart';
 import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
+import '../domain/tournament_listing_status.dart';
+import '../domain/tournament_payment_mode.dart';
+import '../domain/tournament_uniform_selection.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_document_mapper.dart';
 
@@ -104,6 +107,7 @@ class MyTournamentRegistrationsRepository {
       final listingRaw = tournament?.listingStatusRaw;
       final sharePaidUids = _sharePaidUidsFromData(data);
       final athleteHasReserved = sharePaidUids.contains(uid);
+      final teamSizeRaw = data['teamSize'];
 
       results.add(
         MyTournamentRegistration(
@@ -128,6 +132,21 @@ class MyTournamentRegistrationsRepository {
           athleteHasReserved: athleteHasReserved,
           partnerPending: data['partnerPending'] == true,
           hasPartialPayment: sharePaidUids.isNotEmpty,
+          participantUids: _stringListFromData(data['participantUids']),
+          player1Id: (data['player1Id'] as String?)?.trim().isNotEmpty == true
+              ? (data['player1Id'] as String).trim()
+              : null,
+          teamSize: teamSizeRaw is num ? teamSizeRaw.toInt() : null,
+          teamName: (data['teamName'] as String?)?.trim().isNotEmpty == true
+              ? (data['teamName'] as String).trim()
+              : null,
+          uniformPlayer1: _uniformFromData(data['uniformPlayer1']),
+          uniformPlayer2: _uniformFromData(data['uniformPlayer2']),
+          uniformByUid: _uniformByUidFromData(data['uniformByUid']),
+          category: _resolveCategory(tournament, categoryId),
+          paymentMode:
+              tournament?.paymentMode ?? TournamentPaymentMode.appPixCard,
+          tournamentIsCancelled: isCancelledListing(listingRaw),
         ),
       );
     }
@@ -136,13 +155,59 @@ class MyTournamentRegistrationsRepository {
   }
 
   static List<String> _sharePaidUidsFromData(Map<String, dynamic> data) {
-    final raw = data['sharePaidUids'];
+    return _stringListFromData(data['sharePaidUids']);
+  }
+
+  static List<String> _stringListFromData(dynamic raw) {
     if (raw is! List) return const [];
     return raw
         .whereType<String>()
         .map((id) => id.trim())
         .where((id) => id.isNotEmpty)
         .toList();
+  }
+
+  /// Slot de uniforme no formato do doc (`{sizeTop, sizeShorts, jerseyNumber,
+  /// jerseyName}`); `null` quando o campo não existe ou não é um mapa.
+  static TournamentUniformSelection? _uniformFromData(dynamic raw) {
+    if (raw is! Map) return null;
+    final number = raw['jerseyNumber'];
+    return TournamentUniformSelection(
+      sizeTop: (raw['sizeTop'] as String?)?.trim(),
+      sizeShorts: (raw['sizeShorts'] as String?)?.trim(),
+      jerseyNumber: number is num ? number.toInt() : null,
+      jerseyName: (raw['jerseyName'] as String?)?.trim(),
+    );
+  }
+
+  static Map<String, TournamentUniformSelection> _uniformByUidFromData(
+    dynamic raw,
+  ) {
+    if (raw is! Map) return const {};
+    final result = <String, TournamentUniformSelection>{};
+    for (final entry in raw.entries) {
+      final uid = entry.key;
+      if (uid is! String || uid.trim().isEmpty) continue;
+      final slot = _uniformFromData(entry.value);
+      if (slot != null) result[uid.trim()] = slot;
+    }
+    return result;
+  }
+
+  /// `categories[].id` primeiro; doc legado guarda o nome no `categoryId`.
+  static TournamentCategoryOffer? _resolveCategory(
+    TournamentDetail? tournament,
+    String categoryId,
+  ) {
+    final offers = tournament?.categoryOffers;
+    if (offers == null || categoryId.trim().isEmpty) return null;
+    for (final offer in offers) {
+      if (offer.id == categoryId) return offer;
+    }
+    for (final offer in offers) {
+      if (offer.name == categoryId) return offer;
+    }
+    return null;
   }
 
   static String? _tournamentLocationLine(TournamentDetail? tournament) {

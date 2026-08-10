@@ -28,9 +28,17 @@ enum _PredictionsSection { picks, leaderboard }
 /// partida `Scheduled` do torneio (e o campeão, via a partida final) e
 /// acompanha o leaderboard de quem mais acerta.
 class TournamentPredictionsPage extends ConsumerStatefulWidget {
-  const TournamentPredictionsPage({super.key, required this.tournamentId});
+  const TournamentPredictionsPage({
+    super.key,
+    required this.tournamentId,
+    this.embedded = false,
+  });
 
   final String tournamentId;
+
+  /// `true` quando renderizada como aba do detalhe do torneio — sem o
+  /// scaffold próprio (a casca já tem cabeçalho e abas).
+  final bool embedded;
 
   @override
   ConsumerState<TournamentPredictionsPage> createState() =>
@@ -99,24 +107,26 @@ class _TournamentPredictionsPageState
 
   @override
   Widget build(BuildContext context) {
-    return TournamentDetailSubpageScaffold(
-      title: 'Palpites',
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-            child: _SectionToggle(
-              section: _section,
-              onChanged: (s) => setState(() => _section = s),
-            ),
+    final slivers = [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, widget.embedded ? 14 : 0, 20, 14),
+          child: _SectionToggle(
+            section: _section,
+            onChanged: (s) => setState(() => _section = s),
           ),
         ),
-        if (_section == _PredictionsSection.picks)
-          ..._buildPicksSlivers()
-        else
-          ..._buildLeaderboardSlivers(),
-      ],
-    );
+      ),
+      if (_section == _PredictionsSection.picks)
+        ..._buildPicksSlivers()
+      else
+        ..._buildLeaderboardSlivers(),
+    ];
+
+    if (widget.embedded) {
+      return CustomScrollView(slivers: slivers);
+    }
+    return TournamentDetailSubpageScaffold(title: 'Palpites', slivers: slivers);
   }
 
   List<Widget> _buildPicksSlivers() {

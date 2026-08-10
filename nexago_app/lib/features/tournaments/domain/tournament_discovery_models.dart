@@ -1,5 +1,7 @@
 /// Modelos de descoberta de ligas e torneios (paridade com athlete web).
 import 'league_ranking_models.dart';
+import 'tournament_payment_mode.dart';
+import 'tournament_uniform_selection.dart';
 
 enum TournamentGenderCat { m, f, mix }
 
@@ -283,6 +285,16 @@ class MyTournamentRegistration {
     this.athleteHasReserved = false,
     this.partnerPending = false,
     this.hasPartialPayment = false,
+    this.participantUids = const [],
+    this.player1Id,
+    this.teamSize,
+    this.teamName,
+    this.uniformPlayer1,
+    this.uniformPlayer2,
+    this.uniformByUid = const {},
+    this.category,
+    this.paymentMode = TournamentPaymentMode.appPixCard,
+    this.tournamentIsCancelled = false,
   });
 
   final String registrationId;
@@ -307,4 +319,27 @@ class MyTournamentRegistration {
   /// Alguém da dupla já pagou uma parcela (`sharePaidUids` não vazio) —
   /// cancelamento pelo atleta fica bloqueado (exigiria estorno).
   final bool hasPartialPayment;
+
+  /// Elenco da inscrição. Pode vir vazio em doc legado (`registerSolo` antigo
+  /// grava só `player1Id`; o convidado entra por `arrayUnion` depois).
+  final List<String> participantUids;
+  final String? player1Id;
+
+  /// Categoria de equipe nomeada (trio+): 3–5. `null` = dupla clássica.
+  final int? teamSize;
+  final String? teamName;
+
+  /// Uniformes por slot (dupla) ou por uid (equipe trio+) — mesmo formato do
+  /// doc da inscrição. `null`/vazio = atleta ainda não escolheu.
+  final TournamentUniformSelection? uniformPlayer1;
+  final TournamentUniformSelection? uniformPlayer2;
+  final Map<String, TournamentUniformSelection> uniformByUid;
+
+  /// Categoria resolvida no torneio (`categories[].id`, legado por nome) —
+  /// `null` quando o torneio não resolve ou a categoria sumiu do doc.
+  final TournamentCategoryOffer? category;
+  final TournamentPaymentMode paymentMode;
+
+  /// Torneio cancelado pelo organizador (`listingStatus` bruto).
+  final bool tournamentIsCancelled;
 }

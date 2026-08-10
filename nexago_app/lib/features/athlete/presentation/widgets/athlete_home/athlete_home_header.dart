@@ -41,14 +41,28 @@ class AthleteHomeHeader extends StatelessWidget {
   /// Moldura equipada (`sandRankCosmetics.frameId`) — anel ao redor do avatar.
   final String? sandRankFrameId;
 
+  /// "Bom dia/Boa tarde/Boa noite" — mesmo corte de hora do painel web.
+  static String _greetingByHour(DateTime now) {
+    if (now.hour < 12) return 'Bom dia';
+    if (now.hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  /// "SÁB · 09 AGO 2026 · GMT-3" — formato da linha de data do painel web.
+  static String _dateLine(DateTime now) {
+    final base = DateFormat('EEE · dd MMM yyyy', 'pt_BR')
+        .format(now)
+        .toUpperCase()
+        .replaceAll('.', '');
+    final gmt = now.timeZoneOffset.inHours;
+    return '$base · GMT${gmt >= 0 ? '+' : ''}$gmt';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final now = DateTime.now();
-    final dateLine = DateFormat(
-      'EEE · d MMM · HH:mm',
-      'pt_BR',
-    ).format(now).toUpperCase().replaceAll('.', '');
+    final dateLine = _dateLine(now);
     final firstName = _firstName(displayName);
     final initials = athleteInitialsFromName(displayName);
     final xpCurrent = summary.xpInCurrentLevel;
@@ -84,13 +98,20 @@ class AthleteHomeHeader extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 2),
-              Text(
-                'Olá, $firstName',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: context.themeColors.onSurface,
-                  fontSize: 20,
-                  letterSpacing: -0.3,
+              // FittedBox: "Boa tarde, Nome." encolhe em vez de virar "Sil…"
+              // quando a pill de XP e o sino apertam a linha.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_greetingByHour(now)}, $firstName.',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: context.themeColors.onSurface,
+                    fontSize: 20,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1,
                 ),
               ),
             ],

@@ -4,220 +4,241 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
+import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/ui/nexa_card.dart';
+import '../../../../../core/ui/nexa_skeleton.dart';
 import '../../../domain/community/community_feed_providers.dart';
 
-/// Seção "Últimas da comunidade" — feed automático (torneios abertos,
-/// campeões). Renderiza nada enquanto o feed está vazio.
+/// Máximo de categorias campeãs listadas por item (paridade com o portal:
+/// o resto vira "+N categorias").
+const _championsPreviewLimit = 3;
+
+/// Feed da Comunidade no padrão do painel web: linhas com badge de ícone por
+/// tipo (inscrições abertas / campeões / aviso), hora relativa e detalhe dos
+/// campeões. Feed automático (Cloud Function, sem UGC).
 class CommunityFeedSection extends ConsumerWidget {
   const CommunityFeedSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final feedAsync = ref.watch(communityFeedProvider);
+
+    if (feedAsync.isLoading && !feedAsync.hasValue) {
+      return const Column(
+        children: [
+          NexaSkeleton(height: 74, radius: AppRadii.lgAll),
+          SizedBox(height: 10),
+          NexaSkeleton(height: 74, radius: AppRadii.lgAll),
+        ],
+      );
+    }
+
     final items = feedAsync.valueOrNull ?? const [];
-    if (items.isEmpty) return const SizedBox.shrink();
+    if (items.isEmpty) return const _CommunityFeedEmpty();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 28),
-        Text(
-          'Últimas da comunidade',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
-        ),
-        const SizedBox(height: 12),
-        for (final item in items) ...[
-          _CommunityFeedCard(item: item),
-          const SizedBox(height: 10),
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          _CommunityFeedRow(item: items[i]),
         ],
       ],
     );
   }
 }
 
-class _CommunityFeedCard extends StatelessWidget {
-  const _CommunityFeedCard({required this.item});
+class _CommunityFeedEmpty extends StatelessWidget {
+  const _CommunityFeedEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.xxl + 2,
+        horizontal: AppSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: AppRadii.lgAll,
+        border: Border.all(color: colors.outline.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        'Sem novidades por enquanto — aberturas de inscrição e campeões de '
+        'torneios aparecem aqui automaticamente.',
+        textAlign: TextAlign.center,
+        style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+      ),
+    );
+  }
+}
+
+class _CommunityFeedRow extends StatelessWidget {
+  const _CommunityFeedRow({required this.item});
 
   final CommunityFeedItem item;
 
-  static String _formatDate(DateTime date) {
-    final dd = date.day.toString().padLeft(2, '0');
-    final mm = date.month.toString().padLeft(2, '0');
-    return '$dd/$mm';
+  static ({IconData icon, Color color}) _badgeOf(CommunityFeedItem item) {
+    return switch (item.type) {
+      CommunityFeedType.tournamentChampions => (
+          icon: Icons.emoji_events_outlined,
+          color: AppColors.pending,
+        ),
+      CommunityFeedType.organizerAnnouncement => (
+          icon: Icons.campaign_rounded,
+          color: AppColors.pending,
+        ),
+      _ => (icon: Icons.calendar_month_outlined, color: AppColors.brand),
+    };
+  }
+
+  static String _messageOf(CommunityFeedItem item) {
+    switch (item.type) {
+      case CommunityFeedType.tournamentOpen:
+        final cats = item.categoriesCount > 0
+            ? '${item.categoriesCount} '
+                'categoria${item.categoriesCount == 1 ? '' : 's'}'
+            : 'inscrições abertas';
+        final place = item.city.isNotEmpty ? item.city : item.locationName;
+        return 'Inscrições abertas · $cats'
+            '${place.isNotEmpty ? ' — $place' : ''}';
+      case CommunityFeedType.tournamentChampions:
+        return 'Torneio encerrado — confira os campeões:';
+      case CommunityFeedType.organizerAnnouncement:
+      case CommunityFeedType.unknown:
+        return '';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isChampions = item.type == CommunityFeedType.tournamentChampions;
+    final colors = context.themeColors;
+    final badge = _badgeOf(item);
+    final message = _messageOf(item);
     final isAnnouncement =
         item.type == CommunityFeedType.organizerAnnouncement;
-    final badge = isChampions
-        ? 'CAMPEÕES'
-        : isAnnouncement
-            ? 'AVISO DO ORGANIZADOR'
-            : 'INSCRIÇÕES ABERTAS';
-    final icon = isChampions
-        ? Icons.emoji_events_rounded
-        : Icons.campaign_rounded;
-    final accentColor = isAnnouncement ? Colors.amber : AppColors.brand;
-    final subtitleParts = [
-      if (item.city.isNotEmpty) item.city,
-      if (item.startAt != null) _formatDate(item.startAt!),
-      if (!isChampions && !isAnnouncement && item.categoriesCount > 0)
-        '${item.categoriesCount} categorias',
-    ];
+    final champions = item.type == CommunityFeedType.tournamentChampions
+        ? item.champions
+        : const <CommunityFeedChampion>[];
 
-    return Material(
-      color: context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: () => context.pushNamed(
-          AppRouteNames.tournamentDetail,
-          pathParameters: {'tournamentId': item.tournamentId},
-        ),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: context.themeColors.surfaceRaised),
+    return NexaCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      onTap: item.tournamentId.isEmpty
+          ? null
+          : () => context.pushNamed(
+                AppRouteNames.tournamentDetail,
+                pathParameters: {'tournamentId': item.tournamentId},
+              ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: badge.color.withValues(alpha: 0.13),
+              borderRadius: AppRadii.mdAll,
+            ),
+            child: Icon(badge.icon, size: 18, color: badge.color),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(icon, size: 18, color: accentColor),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          badge,
-                          style: AppTypography.mono(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: accentColor,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item.tournamentName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (item.createdAt != null)
-                    Text(
-                      communityFeedRelativeTime(item.createdAt!),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: context.themeColors.onSurfaceMuted,
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.tournamentName,
+                        style: AppTypography.titleS
+                            .copyWith(color: colors.onSurface),
                       ),
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                    if (item.createdAt != null)
+                      Text(
+                        communityFeedRelativeTime(item.createdAt!),
+                        style: AppTypography.monoMeta
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                  ],
+                ),
+                if (message.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    message,
+                    style: AppTypography.bodyS
+                        .copyWith(color: colors.onSurfaceMuted),
+                  ),
                 ],
-              ),
-              if (subtitleParts.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  subtitleParts.join(' · '),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-                ),
-              ],
-              if (isAnnouncement && item.message.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: accentColor.withValues(alpha: 0.3),
+                // Aviso do organizador é tipo só do app (o portal não tem) —
+                // a caixa destacada preserva a leitura de "recado oficial".
+                if (isAnnouncement && item.message.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm + 2),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.sm + 2),
+                    decoration: BoxDecoration(
+                      color: badge.color.withValues(alpha: 0.10),
+                      borderRadius: AppRadii.smAll,
+                      border: Border.all(
+                        color: badge.color.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      item.message,
+                      style: AppTypography.bodyS.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    item.message,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.4,
-                      fontWeight: FontWeight.w600,
-                      color: context.themeColors.onSurface,
-                    ),
-                  ),
-                ),
-              ],
-              if (isChampions && item.champions.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                for (final champion in item.champions)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.workspace_premium_rounded,
-                          size: 15,
-                          color: AppColors.brand,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                if (champion.categoryName.isNotEmpty)
-                                  TextSpan(
-                                    text: '${champion.categoryName} · ',
-                                    style: TextStyle(
-                                      color:
-                                          context.themeColors.onSurfaceMuted,
-                                    ),
-                                  ),
-                                TextSpan(
-                                  text: champion.playersLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: context.themeColors.onSurface,
-                                  ),
+                ],
+                if (champions.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  for (final champion
+                      in champions.take(_championsPreviewLimit))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            if (champion.categoryName.isNotEmpty)
+                              TextSpan(
+                                text: '${champion.categoryName}: ',
+                                style: AppTypography.bodyS.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.onSurface,
                                 ),
-                              ],
+                              ),
+                            TextSpan(
+                              text: champion.playersLabel,
+                              style: AppTypography.bodyS
+                                  .copyWith(color: colors.onSurfaceMuted),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
+                          ],
                         ),
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
+                  if (champions.length > _championsPreviewLimit)
+                    Text(
+                      '+${champions.length - _championsPreviewLimit} categorias',
+                      style: AppTypography.bodyS
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

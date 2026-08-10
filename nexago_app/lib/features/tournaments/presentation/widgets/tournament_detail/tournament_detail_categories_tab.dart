@@ -43,7 +43,17 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
       itemCount: offers.length,
       itemBuilder: (context, index) {
         final offer = offers[index];
-        return TournamentDetailCategoryCard(
+        // Card inteiro abre a visão da categoria (Partidas/Grupos/Chave),
+        // como no portal; os botões internos continuam ganhando o toque.
+        return GestureDetector(
+          onTap: () => context.pushNamed(
+            AppRouteNames.tournamentCategoryView,
+            pathParameters: {
+              'tournamentId': tournament.id,
+              'categoryId': offer.id,
+            },
+          ),
+          child: TournamentDetailCategoryCard(
           offer: offer,
           tournamentId: tournament.id,
           tournamentName: tournament.name,
@@ -66,6 +76,7 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
               queryParameters: {'categoryId': offer.id},
             );
           },
+          ),
         );
       },
     );

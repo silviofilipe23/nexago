@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
+import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Header da aba Competir no shell do atleta (rola com o conteúdo).
@@ -10,17 +11,10 @@ class CompeteHubHeader extends StatelessWidget {
 
   final List<Widget> trailingActions;
 
-  void _openDiscoveryList(
-    BuildContext context, {
-    bool searchOpen = false,
-    String query = '',
-  }) {
-    final params = <String, String>{};
-    if (searchOpen) params['search'] = '1';
-    if (query.isNotEmpty) params['q'] = query;
+  void _openDiscoveryList(BuildContext context, {bool searchOpen = false}) {
     context.pushNamed(
       AppRouteNames.tournamentDiscoveryList,
-      queryParameters: params,
+      queryParameters: {if (searchOpen) 'search': '1'},
     );
   }
 
@@ -32,23 +26,31 @@ class CompeteHubHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            'Competir',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: context.themeColors.onSurface,
-              letterSpacing: -0.5,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Competir',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: context.themeColors.onSurface,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 3),
+              // Subtítulo mono do painel web ("torneios, ranking, equipes…").
+              Text(
+                'TORNEIOS, RANKING, EQUIPES E ATLETAS',
+                style: AppTypography.eyebrow.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ],
           ),
         ),
         CompeteHubAppBarIconButton(
           icon: Icons.search_rounded,
           onTap: () => _openDiscoveryList(context, searchOpen: true),
-        ),
-        const SizedBox(width: 8),
-        CompeteHubAppBarIconButton(
-          icon: Icons.tune_rounded,
-          onTap: () => _openDiscoveryList(context),
         ),
         ...trailingActions,
       ],

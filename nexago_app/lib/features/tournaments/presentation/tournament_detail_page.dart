@@ -8,8 +8,10 @@ import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
@@ -20,10 +22,15 @@ import '../domain/tournament_detail_model.dart';
 import '../data/tournament_inscriptions_repository.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
+import '../domain/tournament_detail_tabs_logic.dart';
+import '../domain/tournament_matches_logic.dart';
+import 'tournament_predictions_page.dart';
 import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
-import 'widgets/tournament_detail/tournament_detail_category_pick_section.dart';
+import 'widgets/tournament_detail/tournament_detail_categories_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
 import 'widgets/tournament_detail/tournament_detail_hero.dart';
+import 'widgets/tournament_detail/tournament_detail_my_registration_tab.dart';
+import 'widgets/tournament_detail/tournament_detail_today_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_tournament_info_section.dart';
 
 void _handleTournamentDetailBack(BuildContext context) {
@@ -190,6 +197,9 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
 
 class _TournamentDetailContentState
     extends ConsumerState<_TournamentDetailContent> {
+  /// Aba escolhida pelo atleta; `null` = seguir a default (jogo hoje → Hoje).
+  TournamentDetailTab? _selected;
+
   Future<void> _shareTournament(String name) async {
     await nexaShareText(context, 'Confira o torneio $name no NexaGO!');
   }
@@ -212,61 +222,100 @@ class _TournamentDetailContentState
     final showBottomBar =
         canRegister && widget.registrationResolved && !isAthleteRegistered;
     final topInset = MediaQuery.paddingOf(context).top;
-    final hasCover = widget.tournament.imageUrl?.trim().isNotEmpty == true;
     final spotsSubtitle =
         '${tournamentSpotsRemainingLabel(widget.stats)} · garante já';
+    final now = DateTime.now();
+
+    final matches = ref
+            .watch(tournamentMatchCardsProvider(widget.tournament.id))
+            .valueOrNull
+            ?.map((c) => c.match)
+            .toList() ??
+        const [];
+    final teamIdsByCategory = ref
+            .watch(
+              tournamentUserTeamIdsByCategoryProvider(widget.tournament.id),
+            )
+            .valueOrNull ??
+        const <String, String>{};
+    final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
+    final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
+    final live = liveTournamentMatches(matches);
+    final hasMyMatchToday =
+        myTournamentDayTimeline(matches, athleteTeamIds, now).isNotEmpty ||
+            live.isNotEmpty;
+
+    final tabs = visibleTournamentDetailTabs(
+      hasMyMatchToday: hasMyMatchToday,
+      isRegistered: isRegistered,
+      hasDefinedMatchups: tournamentHasDefinedMatchups(matches),
+    );
+    final selected = _selected != null && tabs.contains(_selected)
+        ? _selected!
+        : defaultTournamentDetailTab(tabs);
+    final isToday = tournamentIsEventToday(widget.tournament, now);
+    final showCta = showBottomBar &&
+        (selected == TournamentDetailTab.visaoGeral ||
+            selected == TournamentDetailTab.categorias);
 
     return Column(
       children: [
-        Expanded(
-          child: CustomScrollView(
-            clipBehavior: Clip.none,
-            slivers: [
-              SliverToBoxAdapter(
-                child: TournamentDetailHero(
-                  tournament: widget.tournament,
-                  stats: widget.stats,
-                  topInset: topInset,
-                  toolbar: _TournamentDetailToolbar(
-                    hasCover: hasCover,
-                    onBack: () => _handleTournamentDetailBack(context),
-                    onBookmark: () {
-                      showAppSnackBar(context, 'Favoritos em breve.');
-                    },
-                    onShare: () => _shareTournament(widget.tournament.name),
-                  ),
-                ),
+        SizedBox(height: topInset + AppSpacing.xs),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+          child: Row(
+            children: [
+              NexaIconSquareButton(
+                icon: Icons.arrow_back_rounded,
+                onTap: () => _handleTournamentDetailBack(context),
               ),
-              SliverToBoxAdapter(
-                child: TournamentDetailExploreSection(
-                  tournament: widget.tournament,
-                  stats: widget.stats,
-                ),
+              const Spacer(),
+              NexaIconSquareButton(
+                icon: Icons.ios_share_rounded,
+                onTap: () => _shareTournament(widget.tournament.name),
               ),
-              // SliverToBoxAdapter(
-              //   child: TournamentDetailCategoryPickSection(
-              //     tournament: widget.tournament,
-              //     stats: widget.stats,
-              //     enrollmentByCategoryId: widget.enrollmentByCategoryId,
-              //     enrollmentCountsResolved: widget.enrollmentCountsResolved,
-              //     canAccessTournaments: widget.canAccessTournaments,
-              //     onRegisterBlocked: widget.onRegisterBlocked,
-              //     registrationsByCategoryId: widget.registrationsByCategoryId,
-              //     registrationResolved: widget.registrationResolved,
-              //   ),
-              // ),
-              // SliverToBoxAdapter(
-              //   child: TournamentDetailTournamentInfoSection(
-              //     tournament: widget.tournament,
-              //     organizerName: widget.organizerName,
-              //     stats: widget.stats,
-              //   ),
-              // ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
             ],
           ),
         ),
-        if (showBottomBar)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            AppSpacing.sm,
+            AppSpacing.screenH,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                isToday
+                    ? '${widget.tournament.name} — hoje'
+                    : widget.tournament.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.titleL
+                    .copyWith(color: context.themeColors.onSurface),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                tournamentDetailHeroMeta(widget.tournament, now),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.monoMeta
+                    .copyWith(color: context.themeColors.onSurfaceMuted),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _TournamentDetailTabBar(
+          tabs: tabs,
+          selected: selected,
+          liveDot: live.isNotEmpty,
+          onChanged: (tab) => setState(() => _selected = tab),
+        ),
+        Expanded(child: _buildTabContent(selected, athleteTeamIds, tabs)),
+        if (showCta)
           TournamentDetailBottomBar(
             enabled: true,
             priceLabel: widget.tournament.priceLabel,
@@ -276,56 +325,151 @@ class _TournamentDetailContentState
       ],
     );
   }
+
+  Widget _buildTabContent(
+    TournamentDetailTab tab,
+    Set<String> athleteTeamIds,
+    List<TournamentDetailTab> tabs,
+  ) {
+    switch (tab) {
+      case TournamentDetailTab.visaoGeral:
+        return CustomScrollView(
+          clipBehavior: Clip.none,
+          slivers: [
+            SliverToBoxAdapter(
+              child: TournamentDetailHero(
+                tournament: widget.tournament,
+                stats: widget.stats,
+                topInset: 0,
+                toolbar: const SizedBox.shrink(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: TournamentDetailExploreSection(
+                tournament: widget.tournament,
+                stats: widget.stats,
+                palpitesEnabled:
+                    tabs.contains(TournamentDetailTab.palpites),
+                onOpenCategorias: () => setState(
+                  () => _selected = TournamentDetailTab.categorias,
+                ),
+                onOpenPalpites: () => setState(
+                  () => _selected = TournamentDetailTab.palpites,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: TournamentDetailTournamentInfoSection(
+                tournament: widget.tournament,
+                organizerName: widget.organizerName,
+                stats: widget.stats,
+              ),
+            ),
+            const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
+          ],
+        );
+      case TournamentDetailTab.hoje:
+        return TournamentDetailTodayTab(
+          tournamentId: widget.tournament.id,
+          athleteTeamIds: athleteTeamIds,
+        );
+      case TournamentDetailTab.categorias:
+        return TournamentDetailCategoriesTab(
+          tournament: widget.tournament,
+          enrollmentByCategoryId: widget.enrollmentByCategoryId,
+          enrollmentCountsResolved: widget.enrollmentCountsResolved,
+          registrationsByCategoryId: widget.registrationsByCategoryId,
+          waitlistByCategoryId: widget.waitlistByCategoryId,
+          canAccessTournaments: widget.canAccessTournaments,
+          onRegisterBlocked: widget.onRegisterBlocked,
+        );
+      case TournamentDetailTab.minhaInscricao:
+        return TournamentDetailMyRegistrationTab(
+          tournamentId: widget.tournament.id,
+        );
+      case TournamentDetailTab.palpites:
+        return TournamentPredictionsPage(
+          tournamentId: widget.tournament.id,
+          embedded: true,
+        );
+    }
+  }
 }
 
-class _TournamentDetailToolbar extends StatelessWidget {
-  const _TournamentDetailToolbar({
-    required this.hasCover,
-    required this.onBack,
-    required this.onBookmark,
-    required this.onShare,
+/// Barra de abas do detalhe (estilo do portal): rolável, sublinhado na ativa
+/// e ponto laranja no "Hoje" quando há partida em quadra.
+class _TournamentDetailTabBar extends StatelessWidget {
+  const _TournamentDetailTabBar({
+    required this.tabs,
+    required this.selected,
+    required this.liveDot,
+    required this.onChanged,
   });
 
-  final bool hasCover;
-  final VoidCallback onBack;
-  final VoidCallback onBookmark;
-  final VoidCallback onShare;
+  final List<TournamentDetailTab> tabs;
+  final TournamentDetailTab selected;
+  final bool liveDot;
+  final ValueChanged<TournamentDetailTab> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final background = hasCover ? Colors.black.withValues(alpha: 0.35) : null;
-    final iconColor = hasCover ? Colors.white : null;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xs,
-        AppSpacing.xs,
-        AppSpacing.xs,
-        0,
+    final colors = context.themeColors;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: colors.outline.withValues(alpha: 0.25)),
+        ),
       ),
-      child: Row(
-        children: [
-          NexaIconSquareButton(
-            icon: Icons.arrow_back_rounded,
-            onTap: onBack,
-            background: background,
-            iconColor: iconColor,
-          ),
-          const Spacer(),
-          NexaIconSquareButton(
-            icon: Icons.bookmark_border_rounded,
-            onTap: onBookmark,
-            background: background,
-            iconColor: iconColor,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          NexaIconSquareButton(
-            icon: Icons.ios_share_rounded,
-            onTap: onShare,
-            background: background,
-            iconColor: iconColor,
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Row(
+          children: [
+            for (final tab in tabs)
+              InkWell(
+                onTap: () => onChanged(tab),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: tab == selected
+                            ? AppColors.brand
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        tab.label,
+                        style: AppTypography.labelL.copyWith(
+                          color: tab == selected
+                              ? colors.onSurface
+                              : colors.onSurfaceMuted,
+                        ),
+                      ),
+                      if (tab == TournamentDetailTab.hoje && liveDot) ...[
+                        const SizedBox(width: 5),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: AppColors.brand,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

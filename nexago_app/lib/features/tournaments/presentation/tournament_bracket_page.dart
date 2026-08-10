@@ -25,6 +25,9 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
   TournamentMatchesFilter _filter = TournamentMatchesFilter.all;
   bool _initializedCategoryFromRoute = false;
 
+  /// Fase selecionada nos chips da Chave (`null` = tudo).
+  String? _round;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -88,7 +91,12 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
             tournament: tournament,
             categoryId: categoryId,
             filter: _filter,
-            onCategorySelected: (id) => setState(() => _categoryId = id),
+            selectedRound: _round,
+            onRoundChanged: (round) => setState(() => _round = round),
+            onCategorySelected: (id) => setState(() {
+              _categoryId = id;
+              _round = null;
+            }),
             onFilterChanged: (filter) => setState(() => _filter = filter),
           ).buildSlivers(context, ref),
         );

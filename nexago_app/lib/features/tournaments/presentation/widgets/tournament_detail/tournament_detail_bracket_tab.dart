@@ -26,7 +26,22 @@ class TournamentDetailBracketTab extends ConsumerWidget {
     required this.filter,
     required this.onCategorySelected,
     required this.onFilterChanged,
+    this.showCategoryChips = true,
+    this.selectedRound,
+    this.onRoundChanged,
   });
+
+  /// `false` dentro da casca da categoria — lá a cascata manda voltar por
+  /// "Todas as categorias", sem trocar de categoria pelos chips.
+  final bool showCategoryChips;
+
+  /// Fase selecionada nos chips de navegação (`null` = tudo;
+  /// [groupsRoundKey] = só a fase de grupos; senão um `roundLabel`).
+  final String? selectedRound;
+  final ValueChanged<String?>? onRoundChanged;
+
+  /// Valor sentinela do chip "Grupos" — não colide com roundLabel real.
+  static const groupsRoundKey = '__grupos__';
 
   final TournamentDetail tournament;
   final String categoryId;
@@ -110,17 +125,42 @@ class TournamentDetailBracketTab extends ConsumerWidget {
         final showInteractiveBracket = selectedOffer != null &&
             isDoubleEliminationBracketFormat(selectedOffer.bracketFormat) &&
             bracket.isNotEmpty;
+        // Navegação por fase: filtra o que renderiza. Fase que sumiu do
+        // filtro atual (ex.: troca de categoria) volta pra "Tudo".
+        final roundLabels = [
+          for (final g in knockoutGroups) g.roundLabel,
+        ];
+        final round = selectedRound != null &&
+                (selectedRound == groupsRoundKey && showPools ||
+                    roundLabels.contains(selectedRound))
+            ? selectedRound
+            : null;
+        final visiblePools = round == null || round == groupsRoundKey
+            ? poolGroups
+            : const <TournamentMatchPoolGroup>[];
+        final visibleKnockout = round == null
+            ? knockoutGroups
+            : round == groupsRoundKey
+                ? const <TournamentMatchRoundGroup>[]
+                : [
+                    for (final g in knockoutGroups)
+                      if (g.roundLabel == round) g,
+                  ];
+        final showPhaseChips = onRoundChanged != null &&
+            (showPools ? 1 : 0) + roundLabels.length > 1;
+
         final hasKnockoutContent = knockoutGroups.isNotEmpty;
         final isEmpty = !showPools && !hasKnockoutContent;
 
         return tournamentDetailTabSliversFromChildren(
           padding: const EdgeInsets.only(bottom: 32),
           children: [
-            TournamentDetailCategoryChips(
-              offers: offers,
-              selectedId: categoryId,
-              onSelected: onCategorySelected,
-            ),
+            if (showCategoryChips)
+              TournamentDetailCategoryChips(
+                offers: offers,
+                selectedId: categoryId,
+                onSelected: onCategorySelected,
+              ),
             if (showInteractiveBracket)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -192,7 +232,14 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                 ),
               )
             else ...[
-              if (showPools) ...[
+              if (showPhaseChips)
+                BracketPhaseChips(
+                  showGroups: showPools,
+                  roundLabels: roundLabels,
+                  selected: round,
+                  onChanged: onRoundChanged!,
+                ),
+              if (visiblePools.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                   child: Text(
@@ -204,7 +251,7 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                     ),
                   ),
                 ),
-                for (final group in poolGroups) ...[
+                for (final group in visiblePools) ...[
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                     child: Text(
@@ -224,8 +271,8 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                     ),
                 ],
               ],
-              if (hasKnockoutContent) ...[
-                if (showPools)
+              if (visibleKnockout.isNotEmpty) ...[
+                if (visiblePools.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                     child: Text(
@@ -237,7 +284,7 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                       ),
                     ),
                   ),
-                for (final group in knockoutGroups) ...[
+                for (final group in visibleKnockout) ...[
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                     child: Text(
@@ -267,5 +314,69 @@ class TournamentDetailBracketTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return CustomScrollView(slivers: buildSlivers(context, ref));
+  }
+}
+
+/// Chips de navegação por fase da chave: Tudo · Grupos · 16avos → Oitavas →
+/// Quartas → Semi → Final (rótulos reais das rodadas publicadas).
+class BracketPhaseChips extends StatelessWidget {
+  const BracketPhaseChips({
+    required this.showGroups,
+    required this.roundLabels,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final bool showGroups;
+  final List<String> roundLabels;
+  final String? selected;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    Widget chip(String label, String? value) {
+      final active = selected == value;
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Material(
+          color: active ? AppColors.brand : colors.surfaceRaised,
+          borderRadius: BorderRadius.circular(999),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => onChanged(value),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 7,
+              ),
+              child: Text(
+                label.toUpperCase(),
+                style: AppTypography.mono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: active ? AppColors.black : colors.onSurfaceMuted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+      child: Row(
+        children: [
+          chip('Tudo', null),
+          if (showGroups)
+            chip('Grupos', TournamentDetailBracketTab.groupsRoundKey),
+          for (final label in roundLabels) chip(label, label),
+        ],
+      ),
+    );
   }
 }

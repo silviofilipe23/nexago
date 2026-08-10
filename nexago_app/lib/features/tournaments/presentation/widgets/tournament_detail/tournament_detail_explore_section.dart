@@ -1,36 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/explore_card.dart';
 
-import '../../../../../core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
-import '../../../domain/tournament_discovery_providers.dart';
 
-class TournamentDetailExploreSection extends ConsumerWidget {
+/// Seção "Explorar o torneio" da Visão geral — só as portas de entrada que
+/// não têm lugar melhor: Categorias e Palpites (as duas viram a aba
+/// correspondente; chave e grupos vivem DENTRO da categoria).
+class TournamentDetailExploreSection extends StatelessWidget {
   const TournamentDetailExploreSection({
     super.key,
     required this.tournament,
     required this.stats,
+    required this.onOpenCategorias,
+    required this.onOpenPalpites,
+    this.palpitesEnabled = false,
   });
 
   final TournamentDetail tournament;
   final TournamentDetailStats stats;
+  final VoidCallback onOpenCategorias;
+  final VoidCallback onOpenPalpites;
+
+  /// Palpites só abrem quando existe confronto definido (mesma regra da aba).
+  final bool palpitesEnabled;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final showGroups = tournamentShouldShowGroupsTab(tournament);
-    final showBracket = ref
-        .watch(tournamentMatchesProvider(tournament.id))
-        .maybeWhen(
-          data: tournamentShouldShowBracketExploreCard,
-          orElse: () => false,
-        );
-    final tournamentId = tournament.id;
-
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       child: Column(
@@ -46,42 +44,20 @@ class TournamentDetailExploreSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Categorias saiu daqui: agora é aba própria do detalhe.
-          if (showBracket)
-            ExploreCard(
-              icon: Icons.account_tree_outlined,
-              title: 'Chaves e Jogos',
-              subtitle: tournamentExploreBracketSubtitle(tournament),
-              onTap: () => context.pushNamed(
-                AppRouteNames.tournamentBracket,
-                pathParameters: {'tournamentId': tournamentId},
-              ),
-            ),
-          if (showGroups)
-            ExploreCard(
-              icon: Icons.groups_outlined,
-              title: 'Grupos',
-              subtitle: tournamentExploreBracketSubtitle(tournament),
-              onTap: () => context.pushNamed(
-                AppRouteNames.tournamentGroups,
-                pathParameters: {'tournamentId': tournamentId},
-              ),
-            ),
           ExploreCard(
-            icon: Icons.emoji_events_outlined,
-            title: 'Premiações',
-            subtitle: tournamentExplorePrizesSubtitle(stats),
-            onTap: () => context.pushNamed(
-              AppRouteNames.tournamentPrizes,
-              pathParameters: {'tournamentId': tournamentId},
-            ),
+            icon: Icons.grid_view_rounded,
+            title: 'Categorias',
+            subtitle: tournamentExploreCategoriesSubtitle(stats),
+            onTap: onOpenCategorias,
           ),
           ExploreCard(
-            icon: Icons.leaderboard_outlined,
-            title: 'Pódio',
-            subtitle: 'Definido após o torneio',
-            enabled: false,
-            onTap: () {},
+            icon: Icons.emoji_events_outlined,
+            title: 'Palpites',
+            subtitle: palpitesEnabled
+                ? 'Dê seus palpites e dispute o ranking da torcida'
+                : 'Abrem quando os confrontos forem definidos',
+            enabled: palpitesEnabled,
+            onTap: onOpenPalpites,
           ),
         ],
       ),

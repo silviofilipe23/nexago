@@ -314,7 +314,7 @@ class _TournamentDetailContentState
           liveDot: live.isNotEmpty,
           onChanged: (tab) => setState(() => _selected = tab),
         ),
-        Expanded(child: _buildTabContent(selected, athleteTeamIds)),
+        Expanded(child: _buildTabContent(selected, athleteTeamIds, tabs)),
         if (showCta)
           TournamentDetailBottomBar(
             enabled: true,
@@ -329,6 +329,7 @@ class _TournamentDetailContentState
   Widget _buildTabContent(
     TournamentDetailTab tab,
     Set<String> athleteTeamIds,
+    List<TournamentDetailTab> tabs,
   ) {
     switch (tab) {
       case TournamentDetailTab.visaoGeral:
@@ -347,6 +348,14 @@ class _TournamentDetailContentState
               child: TournamentDetailExploreSection(
                 tournament: widget.tournament,
                 stats: widget.stats,
+                palpitesEnabled:
+                    tabs.contains(TournamentDetailTab.palpites),
+                onOpenCategorias: () => setState(
+                  () => _selected = TournamentDetailTab.categorias,
+                ),
+                onOpenPalpites: () => setState(
+                  () => _selected = TournamentDetailTab.palpites,
+                ),
               ),
             ),
             SliverToBoxAdapter(

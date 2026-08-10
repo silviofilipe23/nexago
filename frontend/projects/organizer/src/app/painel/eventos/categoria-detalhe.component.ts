@@ -25,6 +25,10 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
   selector: 'og-categoria-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
+  host: {
+    /** Largura do slot = maior elenco da lista (1–5); nomes ficam alinhados sem reservar 5 à toa. */
+    '[style.--cat-avatar-n]': 'maxAvatarStack()',
+  },
   template: `
     <og-page-header title="Equipes" [subtitle]="headerSubtitle()">
       <!-- Edição da categoria = wizard do torneio em modo edição, já no passo "Categorias" e com
@@ -75,27 +79,26 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           <div class="og-table-body" style="padding:4px 20px">
             @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
               <div class="og-row og-categoria-row" [class.last]="last">
-                
-                <div class="og-categoria-avatars-container">
                 <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
-                <span class="og-categoria-avatars" [style.width.px]="52 + (athletesOf(i).length - 1) * 36">
-                  @for (p of athletesOf(i); track $index; let ai = $index) {
-                    <og-avatar
-                      zoomable
-                      [initials]="initialsOf(p.name)"
-                      [personName]="p.name"
-                      [meta]="athleteMeta(i)"
-                      [photoUrl]="p.photoUrl"
-                      [size]="52"
-                      [style.margin-left.px]="ai ? -16 : 0"
-                      [style.z-index]="2 - ai"
-                    />
-                  }
+                <span class="og-categoria-who">
+                  <span class="og-categoria-avatars">
+                    @for (p of athletesOf(i); track $index; let ai = $index; let n = $count) {
+                      <og-avatar
+                        zoomable
+                        [initials]="initialsOf(p.name)"
+                        [personName]="p.name"
+                        [meta]="athleteMeta(i)"
+                        [photoUrl]="p.photoUrl"
+                        [size]="52"
+                        [style.z-index]="n - ai"
+                      />
+                    }
+                  </span>
+                  <span class="og-categoria-copy">
+                    <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 100) }}</div>
+                    <div class="og-categoria-meta">{{ levelsLine(i) }}</div>
+                  </span>
                 </span>
-                <span style="flex:1;min-width:0">
-                  <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 100) }}</div>
-                  <div class="og-categoria-meta">{{ levelsLine(i) }}</div>
-                </span></div>
                 @if (rosterProgress(i); as roster) {
                   <og-pill tone="yellow" title="Elenco incompleto — a equipe só entra na chave completa">{{ roster }}</og-pill>
                 }
@@ -111,6 +114,15 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
     </div>
   `,
   styles: `
+    :host {
+      /* Slot dinâmico: 52px + (n−1)×36px, n = maior elenco visível (cap 5). */
+      --cat-avatar: 52px;
+      --cat-avatar-step: 36px;
+      --cat-avatar-n: 1;
+      --cat-avatars-col: calc(
+        var(--cat-avatar) + (var(--cat-avatar-n) - 1) * var(--cat-avatar-step)
+      );
+    }
     .og-categoria-seed {
       width: 30px;
       height: 30px;
@@ -128,41 +140,53 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
     .og-categoria-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 20px;
+      gap: 14px;
       flex: none;
       width: auto;
-      // height: 34px;
     }
-    .og-categoria-avatars-container {
+    .og-categoria-who {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 50px;
-      flex: none;
-      width: auto;
-      // height: 34px;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
     }
     .og-categoria-avatars {
       display: flex;
       align-items: center;
+      width: var(--cat-avatars-col);
+      min-width: var(--cat-avatars-col);
       flex: none;
-      height: 34px;
+      height: var(--cat-avatar);
     }
     .og-categoria-avatars .og-avatar {
+      flex-shrink: 0;
       box-shadow: 0 0 0 2px var(--nx-surface-0);
+    }
+    .og-categoria-avatars .og-avatar + .og-avatar {
+      margin-left: -16px;
+    }
+    .og-categoria-copy {
+      flex: 1;
+      min-width: 0;
     }
     .og-categoria-name {
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 13.5px;
       color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .og-categoria-meta {
       font-family: var(--nx-font-ui);
       font-size: 11.5px;
       color: var(--nx-text-dim);
       margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .og-empty {
       font-family: var(--nx-font-ui);
@@ -226,6 +250,16 @@ export class CategoriaDetalheComponent {
   protected readonly eligibleCount = computed(() => countBracketEligible(this.inscriptions()));
 
   protected readonly canDrawBracket = computed(() => this.eligibleCount() >= MIN_TEAMS_FOR_BRACKET);
+
+  /** Maior stack de avatares na lista — define a largura comum do slot (nomes alinhados). */
+  protected readonly maxAvatarStack = computed(() => {
+    let max = 1;
+    for (const i of this.inscriptions()) {
+      const n = i.participants.length > 0 ? Math.min(5, i.participants.length) : 1;
+      if (n > max) max = n;
+    }
+    return max;
+  });
 
   /** Rótulo do formato salvo na categoria (`bracketFormat`) — mesmo vocabulário curto do app. */
   protected readonly formatLabel = computed(() => {

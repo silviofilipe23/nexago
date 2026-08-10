@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { initialsOf } from '../data/mock-data';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -15,8 +15,8 @@ import {
  *
  *  Cabeçalho e linha compartilham UM grid (`--insc-cols`), que é o que conserta o desalinhamento
  *  do layout antigo: lá cada célula tinha `flex`/`width` inline repetidos nos dois lugares, e a
- *  coluna de avatares (que só existe na linha, com largura variável entre solo e dupla) empurrava
- *  tudo — as colunas nem batiam com o cabeçalho, nem entre linhas.
+ *  coluna de avatares (largura fixa p/ até 5, alinhamento estável entre linhas) empurrava tudo —
+ *  as colunas nem batiam com o cabeçalho, nem entre linhas.
  *
  *  Estados que exigem decisão do organizador (dinheiro declarado sem conferência, pedido de
  *  cancelamento) ganham um filete colorido na borda da linha. É o único adorno da tela, e é
@@ -25,6 +25,10 @@ import {
   selector: 'og-inscricoes-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent],
+  host: {
+    /** Slot = maior elenco das linhas (1–5); nomes alinhados sem reservar 5 sempre. */
+    '[style.--insc-avatar-n]': 'maxAvatarStack()',
+  },
   template: `
     <div class="og-insc-head" role="presentation">
       <span></span>
@@ -57,7 +61,6 @@ import {
                       [meta]="athleteMeta(r)"
                       [photoUrl]="a.photoUrl"
                       [size]="36"
-                      [style.margin-left.px]="i ? -12 : 0"
                       [style.z-index]="r.athletes.length - i"
                     />
                   }
@@ -232,8 +235,15 @@ import {
       overflow: hidden;
       /* Referência das container queries lá embaixo. */
       container-type: inline-size;
-      /* avatares · dupla · categoria · data · pagamento · gaveta */
-      --insc-cols: 60px minmax(0, 1.7fr) minmax(0, 1fr) 84px 150px 34px;
+      /* Coluna de avatares: largura = maior elenco da lista (1–5). */
+      --insc-avatar: 36px;
+      --insc-avatar-step: 24px; /* size − overlap (−12px) */
+      --insc-avatar-n: 1;
+      --insc-avatars-col: calc(
+        var(--insc-avatar) + (var(--insc-avatar-n) - 1) * var(--insc-avatar-step)
+      );
+      /* avatares · equipe · categoria · data · pagamento · gaveta */
+      --insc-cols: var(--insc-avatars-col) minmax(0, 1.7fr) minmax(0, 1fr) 84px 150px 34px;
       --insc-gap: 14px;
       --insc-inset: 20px;
     }
@@ -309,13 +319,22 @@ import {
       padding: 11px 0;
     }
 
+    /* Slot fixo (até 5); 1–4 só ocupam a esquerda — o nome não “pula”. */
     .og-insc-avatars {
       display: flex;
       align-items: center;
+      width: var(--insc-avatars-col);
+      min-width: var(--insc-avatars-col);
+      flex-shrink: 0;
     }
 
     .og-insc-avatars .og-avatar {
+      flex-shrink: 0;
       box-shadow: 0 0 0 2px var(--nx-surface-0);
+    }
+
+    .og-insc-avatars .og-avatar + .og-avatar {
+      margin-left: -12px;
     }
 
     .og-insc-who {
@@ -645,7 +664,7 @@ import {
     @container (max-width: 900px) {
       .og-insc-head,
       .og-insc-main {
-        grid-template-columns: 60px minmax(0, 1.7fr) minmax(0, 1fr) 150px 34px;
+        grid-template-columns: var(--insc-avatars-col) minmax(0, 1.7fr) minmax(0, 1fr) 150px 34px;
       }
 
       .col-date {
@@ -660,7 +679,7 @@ import {
     @container (max-width: 720px) {
       .og-insc-head,
       .og-insc-main {
-        grid-template-columns: 60px minmax(0, 1fr) 150px 34px;
+        grid-template-columns: var(--insc-avatars-col) minmax(0, 1fr) 150px 34px;
       }
 
       .col-cat {
@@ -692,6 +711,16 @@ export class OgInscricoesListComponent {
   protected readonly payTone = PAY_TONE;
   protected readonly payLabel = PAY_LABEL;
   protected readonly initialsOf = initialsOf;
+
+  /** Maior stack de avatares nas linhas — largura comum do slot (nomes alinhados). */
+  protected readonly maxAvatarStack = computed(() => {
+    let max = 1;
+    for (const r of this.rows()) {
+      const n = Math.min(5, Math.max(1, r.athletes.length));
+      if (n > max) max = n;
+    }
+    return max;
+  });
 
   /** Resposta opcional ao atleta; uma só porque só uma gaveta abre por vez. */
   protected readonly note = signal('');

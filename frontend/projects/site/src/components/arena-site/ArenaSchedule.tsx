@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { WEEKDAYS, type WeekSchedule, type Weekday } from '@/lib/firestore/arena-site-data';
+import { WEEKDAYS, type WeekSchedule, type Weekday } from '@/lib/firestore/arena-schedule';
 import styles from './arena-site.module.css';
 
 export const WEEKDAY_LABEL: Record<Weekday, string> = {

@@ -62,6 +62,12 @@
       "port": 4399
     },
     {
+      "name": "site-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "frontend/projects/site/out", "-l", "3998"],
+      "port": 3998
+    },
+    {
       "name": "athlete-live",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

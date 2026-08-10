@@ -1,5 +1,5 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebase';
+import { app } from '@/lib/firebase-app';
 
 /**
  * Registra visita na página de links ou clique num link.

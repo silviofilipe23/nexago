@@ -1,5 +1,5 @@
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore/lite';
+import { liteDb } from '@/lib/firebase-lite';
 
 /**
  * Escritas públicas do site (waitlist/leads) direto do client SDK.
@@ -7,6 +7,11 @@ import { db } from '@/lib/firebase';
  * Existiam como Route Handlers, mas eram só um proxy: já usavam o client SDK
  * (chave não é secreta) e a validação real sempre foi das `firestore.rules`.
  * Sem servidor Node (export estático), a escrita sai daqui em vez de `/api/*`.
+ *
+ * Usa o SDK **lite**: só é chamado de client components (Waitlist/LeadForm/ContactForm),
+ * e o SDK completo arrastava o transporte WebChannel para o bundle de toda visita —
+ * peso que só faz sentido para listeners em tempo real, que estas escritas não usam.
+ * As `firestore.rules` valem igual nas duas variantes.
  */
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -20,7 +25,7 @@ export async function submitWaitlist(email: string): Promise<{ ok: true } | { ok
   }
 
   try {
-    await addDoc(collection(db, 'waitlist'), {
+    await addDoc(collection(liteDb, 'waitlist'), {
       email: trimmed.toLowerCase(),
       source: 'site',
       createdAt: serverTimestamp(),
@@ -68,7 +73,7 @@ export async function submitLead(input: LeadInput): Promise<{ ok: true } | { ok:
   }
 
   try {
-    await addDoc(collection(db, 'leads'), {
+    await addDoc(collection(liteDb, 'leads'), {
       name,
       email: email.toLowerCase(),
       phone,

@@ -11,6 +11,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { WEEKDAYS, type DaySchedule, type WeekSchedule } from './arena-schedule';
 
 /**
  * Dados ao vivo das seções automáticas do mini-site (`/s/{slug}`). Tudo aqui é
@@ -91,16 +92,10 @@ export async function getArenaPublicInfo(arenaId: string): Promise<ArenaPublicIn
 
 // ── Horários ─────────────────────────────────────────────
 
-export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
-export type Weekday = (typeof WEEKDAYS)[number];
-
-export interface DaySchedule {
-  closed: boolean;
-  open: string;
-  close: string;
-}
-
-export type WeekSchedule = Record<Weekday, DaySchedule>;
+// A forma do horário vive em `arena-schedule.ts` (sem Firebase) para os client components
+// poderem importar `WEEKDAYS` sem arrastar o SDK completo. Reexportado por retrocompat.
+export { WEEKDAYS };
+export type { Weekday, DaySchedule, WeekSchedule } from './arena-schedule';
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : '';

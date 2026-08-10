@@ -8,7 +8,6 @@ import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -24,13 +23,9 @@ import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
 import '../domain/tournament_detail_tabs_logic.dart';
 import '../domain/tournament_matches_logic.dart';
-import 'tournament_predictions_page.dart';
 import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
-import 'widgets/tournament_detail/tournament_detail_categories_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
 import 'widgets/tournament_detail/tournament_detail_hero.dart';
-import 'widgets/tournament_detail/tournament_detail_my_registration_tab.dart';
-import 'widgets/tournament_detail/tournament_detail_today_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_tournament_info_section.dart';
 
 void _handleTournamentDetailBack(BuildContext context) {
@@ -197,8 +192,6 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
 
 class _TournamentDetailContentState
     extends ConsumerState<_TournamentDetailContent> {
-  /// Aba escolhida pelo atleta; `null` = seguir a default (jogo hoje → Hoje).
-  TournamentDetailTab? _selected;
 
   Future<void> _shareTournament(String name) async {
     await nexaShareText(context, 'Confira o torneio $name no NexaGO!');
@@ -245,18 +238,7 @@ class _TournamentDetailContentState
         myTournamentDayTimeline(matches, athleteTeamIds, now).isNotEmpty ||
             live.isNotEmpty;
 
-    final tabs = visibleTournamentDetailTabs(
-      hasMyMatchToday: hasMyMatchToday,
-      isRegistered: isRegistered,
-      hasDefinedMatchups: tournamentHasDefinedMatchups(matches),
-    );
-    final selected = _selected != null && tabs.contains(_selected)
-        ? _selected!
-        : defaultTournamentDetailTab(tabs);
     final isToday = tournamentIsEventToday(widget.tournament, now);
-    final showCta = showBottomBar &&
-        (selected == TournamentDetailTab.visaoGeral ||
-            selected == TournamentDetailTab.categorias);
 
     return Column(
       children: [
@@ -308,14 +290,56 @@ class _TournamentDetailContentState
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        _TournamentDetailTabBar(
-          tabs: tabs,
-          selected: selected,
-          liveDot: live.isNotEmpty,
-          onChanged: (tab) => setState(() => _selected = tab),
+        Expanded(
+          child: CustomScrollView(
+            clipBehavior: Clip.none,
+            slivers: [
+              SliverToBoxAdapter(
+                child: TournamentDetailHero(
+                  tournament: widget.tournament,
+                  stats: widget.stats,
+                  topInset: 0,
+                  toolbar: const SizedBox.shrink(),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: TournamentDetailExploreSection(
+                  tournament: widget.tournament,
+                  stats: widget.stats,
+                  showHoje: hasMyMatchToday,
+                  liveNow: live.isNotEmpty,
+                  showMinhaInscricao: isRegistered,
+                  palpitesEnabled: tournamentHasDefinedMatchups(matches),
+                  onOpenHoje: () => context.pushNamed(
+                    AppRouteNames.tournamentToday,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
+                  onOpenCategorias: () => context.pushNamed(
+                    AppRouteNames.tournamentCategories,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
+                  onOpenMinhaInscricao: () => context.pushNamed(
+                    AppRouteNames.tournamentMyRegistration,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
+                  onOpenPalpites: () => context.pushNamed(
+                    AppRouteNames.tournamentPredictions,
+                    pathParameters: {'tournamentId': widget.tournament.id},
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: TournamentDetailTournamentInfoSection(
+                  tournament: widget.tournament,
+                  organizerName: widget.organizerName,
+                  stats: widget.stats,
+                ),
+              ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
+            ],
+          ),
         ),
-        Expanded(child: _buildTabContent(selected, athleteTeamIds, tabs)),
-        if (showCta)
+        if (showBottomBar)
           TournamentDetailBottomBar(
             enabled: true,
             priceLabel: widget.tournament.priceLabel,
@@ -326,151 +350,4 @@ class _TournamentDetailContentState
     );
   }
 
-  Widget _buildTabContent(
-    TournamentDetailTab tab,
-    Set<String> athleteTeamIds,
-    List<TournamentDetailTab> tabs,
-  ) {
-    switch (tab) {
-      case TournamentDetailTab.visaoGeral:
-        return CustomScrollView(
-          clipBehavior: Clip.none,
-          slivers: [
-            SliverToBoxAdapter(
-              child: TournamentDetailHero(
-                tournament: widget.tournament,
-                stats: widget.stats,
-                topInset: 0,
-                toolbar: const SizedBox.shrink(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: TournamentDetailExploreSection(
-                tournament: widget.tournament,
-                stats: widget.stats,
-                palpitesEnabled:
-                    tabs.contains(TournamentDetailTab.palpites),
-                onOpenCategorias: () => setState(
-                  () => _selected = TournamentDetailTab.categorias,
-                ),
-                onOpenPalpites: () => setState(
-                  () => _selected = TournamentDetailTab.palpites,
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: TournamentDetailTournamentInfoSection(
-                tournament: widget.tournament,
-                organizerName: widget.organizerName,
-                stats: widget.stats,
-              ),
-            ),
-            const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
-          ],
-        );
-      case TournamentDetailTab.hoje:
-        return TournamentDetailTodayTab(
-          tournamentId: widget.tournament.id,
-          athleteTeamIds: athleteTeamIds,
-        );
-      case TournamentDetailTab.categorias:
-        return TournamentDetailCategoriesTab(
-          tournament: widget.tournament,
-          enrollmentByCategoryId: widget.enrollmentByCategoryId,
-          enrollmentCountsResolved: widget.enrollmentCountsResolved,
-          registrationsByCategoryId: widget.registrationsByCategoryId,
-          waitlistByCategoryId: widget.waitlistByCategoryId,
-          canAccessTournaments: widget.canAccessTournaments,
-          onRegisterBlocked: widget.onRegisterBlocked,
-        );
-      case TournamentDetailTab.minhaInscricao:
-        return TournamentDetailMyRegistrationTab(
-          tournamentId: widget.tournament.id,
-        );
-      case TournamentDetailTab.palpites:
-        return TournamentPredictionsPage(
-          tournamentId: widget.tournament.id,
-          embedded: true,
-        );
-    }
-  }
-}
-
-/// Barra de abas do detalhe (estilo do portal): rolável, sublinhado na ativa
-/// e ponto laranja no "Hoje" quando há partida em quadra.
-class _TournamentDetailTabBar extends StatelessWidget {
-  const _TournamentDetailTabBar({
-    required this.tabs,
-    required this.selected,
-    required this.liveDot,
-    required this.onChanged,
-  });
-
-  final List<TournamentDetailTab> tabs;
-  final TournamentDetailTab selected;
-  final bool liveDot;
-  final ValueChanged<TournamentDetailTab> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: colors.outline.withValues(alpha: 0.25)),
-        ),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        child: Row(
-          children: [
-            for (final tab in tabs)
-              InkWell(
-                onTap: () => onChanged(tab),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.md,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: tab == selected
-                            ? AppColors.brand
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        tab.label,
-                        style: AppTypography.labelL.copyWith(
-                          color: tab == selected
-                              ? colors.onSurface
-                              : colors.onSurfaceMuted,
-                        ),
-                      ),
-                      if (tab == TournamentDetailTab.hoje && liveDot) ...[
-                        const SizedBox(width: 5),
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: AppColors.brand,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 }

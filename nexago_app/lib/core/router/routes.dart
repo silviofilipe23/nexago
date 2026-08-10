@@ -386,6 +386,13 @@ abstract final class AppRoutes {
   static const String tournamentCategories =
       '/torneios/:tournamentId/categorias';
 
+  /// "Hoje" do torneio: `/torneios/:tournamentId/hoje`
+  static const String tournamentToday = '/torneios/:tournamentId/hoje';
+
+  /// "Minha inscrição": `/torneios/:tournamentId/minha-inscricao`
+  static const String tournamentMyRegistration =
+      '/torneios/:tournamentId/minha-inscricao';
+
   /// Visão da categoria (Partidas/Grupos/Chave):
   /// `/torneios/:tournamentId/categorias/:categoryId`
   static const String tournamentCategoryView =
@@ -636,6 +643,8 @@ abstract final class AppRouteNames {
   static const String tournamentCategories = 'tournamentCategories';
   static const String tournamentCategoryView = 'tournamentCategoryView';
   static const String tournamentGroupView = 'tournamentGroupView';
+  static const String tournamentToday = 'tournamentToday';
+  static const String tournamentMyRegistration = 'tournamentMyRegistration';
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';
   static const String tournamentPrizes = 'tournamentPrizes';

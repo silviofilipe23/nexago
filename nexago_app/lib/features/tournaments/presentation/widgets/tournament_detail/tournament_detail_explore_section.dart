@@ -6,9 +6,10 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 
-/// Seção "Explorar o torneio" da Visão geral — só as portas de entrada que
-/// não têm lugar melhor: Categorias e Palpites (as duas viram a aba
-/// correspondente; chave e grupos vivem DENTRO da categoria).
+/// Seção "Explorar o torneio" da Visão geral — a navegação do detalhe vive
+/// aqui (sem barra de abas): Hoje e Minha inscrição entram só quando têm
+/// conteúdo real, como as abas adaptativas do portal; chave e grupos vivem
+/// DENTRO da categoria.
 class TournamentDetailExploreSection extends StatelessWidget {
   const TournamentDetailExploreSection({
     super.key,
@@ -16,6 +17,11 @@ class TournamentDetailExploreSection extends StatelessWidget {
     required this.stats,
     required this.onOpenCategorias,
     required this.onOpenPalpites,
+    required this.onOpenHoje,
+    required this.onOpenMinhaInscricao,
+    this.showHoje = false,
+    this.liveNow = false,
+    this.showMinhaInscricao = false,
     this.palpitesEnabled = false,
   });
 
@@ -23,8 +29,17 @@ class TournamentDetailExploreSection extends StatelessWidget {
   final TournamentDetailStats stats;
   final VoidCallback onOpenCategorias;
   final VoidCallback onOpenPalpites;
+  final VoidCallback onOpenHoje;
+  final VoidCallback onOpenMinhaInscricao;
 
-  /// Palpites só abrem quando existe confronto definido (mesma regra da aba).
+  /// "Hoje" só com partida do atleta no dia (ou jogo em quadra agora).
+  final bool showHoje;
+  final bool liveNow;
+
+  /// "Minha inscrição" só pra quem está inscrito.
+  final bool showMinhaInscricao;
+
+  /// Palpites só abrem quando existe confronto definido.
   final bool palpitesEnabled;
 
   @override
@@ -44,12 +59,28 @@ class TournamentDetailExploreSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
+          if (showHoje)
+            ExploreCard(
+              icon: Icons.sensors_rounded,
+              title: 'Hoje',
+              subtitle: liveNow
+                  ? 'Tem jogo em quadra agora'
+                  : 'Seu dia no torneio, em ordem de horário',
+              onTap: onOpenHoje,
+            ),
           ExploreCard(
             icon: Icons.grid_view_rounded,
             title: 'Categorias',
             subtitle: tournamentExploreCategoriesSubtitle(stats),
             onTap: onOpenCategorias,
           ),
+          if (showMinhaInscricao)
+            ExploreCard(
+              icon: Icons.verified_outlined,
+              title: 'Minha inscrição',
+              subtitle: 'Acompanhe os passos e o status da sua vaga',
+              onTap: onOpenMinhaInscricao,
+            ),
           ExploreCard(
             icon: Icons.emoji_events_outlined,
             title: 'Palpites',

@@ -172,6 +172,8 @@ import '../../features/tournaments/presentation/tournament_detail_page.dart';
 import '../../features/tournaments/presentation/tournament_categories_page.dart';
 import '../../features/tournaments/presentation/tournament_category_view_page.dart';
 import '../../features/tournaments/presentation/tournament_group_view_page.dart';
+import '../../features/tournaments/presentation/tournament_my_registration_page.dart';
+import '../../features/tournaments/presentation/tournament_today_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
@@ -1146,6 +1148,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ],
               ),
             ],
+          ),
+          GoRoute(
+            path: 'hoje',
+            name: AppRouteNames.tournamentToday,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentTodayPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'minha-inscricao',
+            name: AppRouteNames.tournamentMyRegistration,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentMyRegistrationPage(tournamentId: id);
+            },
           ),
           GoRoute(
             path: 'chave',

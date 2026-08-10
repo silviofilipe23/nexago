@@ -14,6 +14,7 @@ import {
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import { NxBlockingDialogComponent, NxToastService } from '../../shared/feedback';
 import { TournamentLiveStore } from '../tournament-live.store';
+import { registrationRosterView } from './registration-roster-cta';
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,7 +28,14 @@ export interface RegistrationCard {
   categoryId: string;
   entryFee: string;
   teamName: string;
-  partnerPending: boolean;
+  /** "Equipe" (trio+) ou "Dupla" — rótulo do fato no card. */
+  teamLabel: string;
+  /** "Elenco 2/4" / "convite pendente" enquanto o elenco está aberto. */
+  rosterFlag: string | null;
+  /** CTA que leva ao shell de inscrição pra convidar; `null` = sem CTA. */
+  inviteLabel: string | null;
+  /** Integrante (não capitão) de equipe incompleta: quem convida é o capitão. */
+  captainOnlyHint: string | null;
   paymentState: RegistrationPaymentState;
   paymentLabel: string;
   paymentHint: string;
@@ -89,13 +97,17 @@ export class RegistrationTabComponent {
       isTeam && paymentState === 'share-paid'
         ? 'Faltam os demais atletas quitarem as cotas deles para a vaga ser confirmada.'
         : PAYMENT_HINT[paymentState];
+    const roster = registrationRosterView(r, uid);
     return {
       id: r.id,
       categoryId: r.categoryId,
       categoryName: category?.categoryName ?? r.categoryId,
       entryFee: category ? formatBRL(category.entryFee) : '—',
       teamName,
-      partnerPending: r.partnerPending,
+      teamLabel: roster.teamLabel,
+      rosterFlag: roster.rosterFlag,
+      inviteLabel: roster.inviteLabel,
+      captainOnlyHint: roster.captainOnlyHint,
       paymentState,
       paymentLabel: PAYMENT_LABEL[paymentState],
       paymentHint,

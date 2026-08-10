@@ -13,11 +13,11 @@
 
       <dl class="reg-facts">
         <div class="reg-fact">
-          <dt>Dupla</dt>
+          <dt>{{ card.teamLabel }}</dt>
           <dd>
             {{ card.teamName }}
-            @if (card.partnerPending) {
-              <span class="reg-flag">convite pendente</span>
+            @if (card.rosterFlag; as flag) {
+              <span class="reg-flag">{{ flag }}</span>
             }
           </dd>
         </div>
@@ -32,6 +32,16 @@
           </div>
         }
       </dl>
+
+      @if (card.captainOnlyHint; as hint) {
+        <p class="reg-roster-hint">{{ hint }}</p>
+      }
+
+      @if (card.inviteLabel; as label) {
+        <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta reg-cta--invite">
+          {{ label }}
+        </a>
+      }
 
       @if (card.paymentState === 'pending' || card.paymentState === 'share-paid') {
         <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao', 'pagamento']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta">

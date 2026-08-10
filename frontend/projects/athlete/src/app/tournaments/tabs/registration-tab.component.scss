@@ -109,6 +109,28 @@
   }
 }
 
+/* Convidar atletas/parceiro convive com o CTA laranja de pagamento no mesmo card —
+   outline pra não disputar com ele. */
+.reg-cta--invite {
+  margin-right: var(--nx-s-3);
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  color: var(--nx-text);
+
+  &:hover,
+  &:focus-visible {
+    background: var(--nx-surface-2);
+    border-color: var(--nx-orange-500);
+  }
+}
+
+.reg-roster-hint {
+  margin: var(--nx-s-3) 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+}
+
 .reg-cancel {
   display: inline-flex;
   align-items: center;

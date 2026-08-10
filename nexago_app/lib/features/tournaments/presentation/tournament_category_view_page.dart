@@ -11,13 +11,18 @@ import 'package:nexago_app/core/ui/nexa_async_view.dart';
 import 'package:nexago_app/core/ui/nexa_icon_square_button.dart';
 import 'package:nexago_app/core/ui/nexa_segmented_control.dart';
 import '../../../core/ui/app_status_views.dart';
+import '../data/tournament_inscriptions_repository.dart';
+import '../domain/double_elimination_bracket_layout.dart';
 import '../domain/tournament_detail_model.dart';
+import '../domain/tournament_match.dart';
 import '../domain/tournament_match_card_view_model.dart';
+import '../domain/tournament_matches_logic.dart';
+import 'widgets/bracket/double_elimination_bracket_canvas.dart';
+import 'widgets/tournament_detail/tournament_matches_filter_toggle.dart';
 import '../domain/tournament_detail_tabs_logic.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_bracket_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_groups_tab.dart';
-import 'widgets/tournament_detail/tournament_matches_filter_toggle.dart';
 import 'widgets/tournament_match_card.dart';
 
 /// Casca da categoria (paridade com o portal web): "Todas as categorias" pra
@@ -47,6 +52,72 @@ class _TournamentCategoryViewPageState
 
   /// Fase selecionada nos chips da Chave (`null` = tudo).
   String? _bracketRound;
+
+  /// Partidas com os mesmos filtros da lista da Chave: Todas/Minhas +
+  /// chips de fase (Grupos e rodadas do mata-mata).
+  Widget _buildMatchesView({
+    required List<TournamentMatchCardViewModel> categoryCards,
+    required List<TournamentMatch> allMatches,
+    required Set<String> athleteTeamIds,
+    required bool isRegistered,
+  }) {
+    final pool = poolMatchesForCategory(allMatches, _categoryId);
+    final bracket = bracketMatchesForCategory(allMatches, _categoryId);
+    final knockoutGroups = groupBracketMatchesByRound(bracket);
+    final roundLabels = [for (final g in knockoutGroups) g.roundLabel];
+    final showGroupsChip = pool.isNotEmpty;
+    const groupsKey = TournamentDetailBracketTab.groupsRoundKey;
+    final round = _bracketRound != null &&
+            (_bracketRound == groupsKey && showGroupsChip ||
+                roundLabels.contains(_bracketRound))
+        ? _bracketRound
+        : null;
+
+    final allowedIds = <String>{
+      if (round == null)
+        for (final c in categoryCards) c.match.id
+      else if (round == groupsKey)
+        for (final m in pool) m.id
+      else
+        for (final g in knockoutGroups)
+          if (g.roundLabel == round)
+            for (final m in g.matches) m.id,
+    };
+    var cards = [
+      for (final c in categoryCards)
+        if (allowedIds.contains(c.match.id)) c,
+    ];
+    if (_filter == TournamentMatchesFilter.mine) {
+      cards = [
+        for (final c in cards)
+          if (athleteTeamIds.contains(c.match.teamAId) ||
+              athleteTeamIds.contains(c.match.teamBId))
+            c,
+      ];
+    }
+
+    return _MatchesView(
+      cards: cards,
+      onMatchTap: _openMatchDetail,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isRegistered)
+            TournamentMatchesFilterToggle(
+              value: _filter,
+              onChanged: (f) => setState(() => _filter = f),
+            ),
+          if (showGroupsChip || roundLabels.length > 1)
+            BracketPhaseChips(
+              showGroups: showGroupsChip,
+              roundLabels: roundLabels,
+              selected: round,
+              onChanged: (r) => setState(() => _bracketRound = r),
+            ),
+        ],
+      ),
+    );
+  }
 
   void _openMatchDetail(String matchId) {
     final id = matchId.trim();
@@ -95,6 +166,28 @@ class _TournamentCategoryViewPageState
           final categoryCards = matches
               .where((c) => c.match.categoryId == _categoryId)
               .toList();
+          final allMatches = [for (final c in matches) c.match];
+          final cardsById = {for (final c in matches) c.match.id: c};
+          final teamIdsByCategory = ref
+                  .watch(
+                    tournamentUserTeamIdsByCategoryProvider(tournament.id),
+                  )
+                  .valueOrNull ??
+              const <String, String>{};
+          final athleteTeamIds =
+              athleteTeamIdsForHighlight(teamIdsByCategory);
+          final registrations = ref
+                  .watch(
+                    tournamentUserRegistrationsByCategoryProvider(
+                      tournament.id,
+                    ),
+                  )
+                  .valueOrNull ??
+              const <String, UserCategoryRegistration>{};
+          final isRegistered =
+              athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
+          final bracketMatches =
+              bracketMatchesForCategory(allMatches, _categoryId);
           final views = visibleCategoryViews(
             hasMatches: categoryCards.isNotEmpty,
             hasGroups: categoryCards.any((c) => c.match.isGroupMatch),
@@ -170,9 +263,11 @@ class _TournamentCategoryViewPageState
               ),
               Expanded(
                 child: switch (selected) {
-                  TournamentCategoryView.partidas => _MatchesView(
-                      cards: categoryCards,
-                      onMatchTap: _openMatchDetail,
+                  TournamentCategoryView.partidas => _buildMatchesView(
+                      categoryCards: categoryCards,
+                      allMatches: allMatches,
+                      athleteTeamIds: athleteTeamIds,
+                      isRegistered: isRegistered,
                     ),
                   TournamentCategoryView.grupos => TournamentDetailGroupsTab(
                       tournament: tournament,
@@ -183,18 +278,27 @@ class _TournamentCategoryViewPageState
                           setState(() => _categoryId = id),
                       onFilterChanged: (f) => setState(() => _filter = f),
                     ),
-                  TournamentCategoryView.chave => TournamentDetailBracketTab(
-                      tournament: tournament,
-                      categoryId: _categoryId,
-                      filter: _filter,
-                      showCategoryChips: false,
-                      selectedRound: _bracketRound,
-                      onRoundChanged: (round) =>
-                          setState(() => _bracketRound = round),
-                      onCategorySelected: (id) =>
-                          setState(() => _categoryId = id),
-                      onFilterChanged: (f) => setState(() => _filter = f),
-                    ),
+                  // Chave = bracket navegável: canvas com chips de fase e
+                  // arrasto livre (a lista com filtros vive em Partidas).
+                  TournamentCategoryView.chave => bracketMatches.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xxl),
+                          child: Text(
+                            'A chave aparece aqui assim que o organizador '
+                            'sortear o mata-mata.',
+                            textAlign: TextAlign.center,
+                            style: AppTypography.bodyM
+                                .copyWith(color: colors.onSurfaceMuted),
+                          ),
+                        )
+                      : DoubleEliminationBracketCanvas(
+                          layout: buildDoubleEliminationBracketLayout(
+                            bracketMatches,
+                          ),
+                          cardsById: cardsById,
+                          athleteTeamIds: athleteTeamIds,
+                          onMatchTap: _openMatchDetail,
+                        ),
                 },
               ),
             ],
@@ -208,10 +312,17 @@ class _TournamentCategoryViewPageState
 /// Visão "Partidas": os jogos da categoria em ordem cronológica, com o
 /// toggle Todas/Minhas do app.
 class _MatchesView extends ConsumerWidget {
-  const _MatchesView({required this.cards, required this.onMatchTap});
+  const _MatchesView({
+    required this.cards,
+    required this.onMatchTap,
+    this.header,
+  });
 
   final List<TournamentMatchCardViewModel> cards;
   final ValueChanged<String> onMatchTap;
+
+  /// Filtros (Todas/Minhas + chips de fase) — rolam junto com a lista.
+  final Widget? header;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -228,27 +339,35 @@ class _MatchesView extends ConsumerWidget {
       });
 
     if (sorted.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Text(
-          'As partidas aparecem aqui quando o organizador publicar os jogos.',
-          textAlign: TextAlign.center,
-          style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
-        ),
+      return ListView(
+        children: [
+          if (header != null) header!,
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.xxl),
+            child: Text(
+              'As partidas aparecem aqui quando o organizador publicar os '
+              'jogos.',
+              textAlign: TextAlign.center,
+              style:
+                  AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+            ),
+          ),
+        ],
       );
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        AppSpacing.xs,
-        AppSpacing.screenH,
-        AppSpacing.xxl,
-      ),
+      padding: const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.xxl),
       children: [
+        if (header != null) header!,
         for (final card in sorted)
           Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm + 2),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              0,
+              AppSpacing.screenH,
+              AppSpacing.sm + 2,
+            ),
             child: TournamentMatchCard(
               viewModel: card,
               onTap: () => onMatchTap(card.match.id),

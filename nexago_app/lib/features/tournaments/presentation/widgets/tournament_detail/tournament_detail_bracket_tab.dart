@@ -233,7 +233,7 @@ class TournamentDetailBracketTab extends ConsumerWidget {
               )
             else ...[
               if (showPhaseChips)
-                _BracketPhaseChips(
+                BracketPhaseChips(
                   showGroups: showPools,
                   roundLabels: roundLabels,
                   selected: round,
@@ -319,8 +319,8 @@ class TournamentDetailBracketTab extends ConsumerWidget {
 
 /// Chips de navegação por fase da chave: Tudo · Grupos · 16avos → Oitavas →
 /// Quartas → Semi → Final (rótulos reais das rodadas publicadas).
-class _BracketPhaseChips extends StatelessWidget {
-  const _BracketPhaseChips({
+class BracketPhaseChips extends StatelessWidget {
+  const BracketPhaseChips({
     required this.showGroups,
     required this.roundLabels,
     required this.selected,

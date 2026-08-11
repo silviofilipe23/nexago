@@ -114,8 +114,19 @@ defaultServiceIdClub       // serviço usado na emissão automática de clubinho
 mode                       // always | on_demand | off
 status                     // draft | testing | active | error
 statusMessage              // motivo quando status = error
+authorizationAcceptedAt    // aceite do termo, ver abaixo
+authorizationAcceptedByUid
+authorizationTermVersion
 updatedAt
 ```
+
+**Autorização para emitir em nome de terceiro.** A conta no emissor é da
+nexaGO, e cada arena entra como uma empresa dentro dela — modelo padrão de
+software house. O certificado da arena autentica, mas não substitui
+consentimento: o wizard exige aceite expresso, registrado com autor, data e
+versão do termo, antes de aceitar o certificado. Sem aceite, `status` não sai de
+`draft`. Versionar o termo importa porque, quando o texto mudar, é preciso saber
+quem aceitou qual.
 
 `services[]`: `{ id, codigoMunicipal, descricao, aliquotaIss }`. Catálogo em vez
 de código único porque locação de quadra e aula particular caem em itens
@@ -274,9 +285,10 @@ Job diário avisa 30, 15 e 7 dias antes de `certificateExpiresAt`. No vencimento
 ### Portal da arena (Angular, `frontend/projects/arena/src/app/painel/`)
 
 - **`painel/fiscal/`** — wizard: consulta as exigências do município no emissor e
-  monta o formulário só com os campos daquela cidade, recebe certificado ou
-  login da prefeitura, cadastra o catálogo de serviços, emite nota de teste e só
-  então ativa. `status` da config sempre visível, com "preciso de ajuda" ao lado.
+  monta o formulário só com os campos daquela cidade, colhe o aceite do termo de
+  autorização, recebe certificado ou login da prefeitura, cadastra o catálogo de
+  serviços, emite nota de teste e só então ativa. `status` da config sempre
+  visível, com "preciso de ajuda" ao lado.
 - **Aba Notas fiscais** dentro do financeiro existente (`painel/finance/`): lista
   com filtro de período e status, PDF e XML, reemitir, toggle sempre / sob
   demanda / desligado, e botão **Nova nota** para a avulsa.
@@ -339,13 +351,34 @@ por rejeição em sequência, e as telas de backoffice.
 
 ## Custo
 
-Focus NFe: R$109/mês com 200 documentos, R$0,65 por documento adicional. Uma
-arena movimentada com "emitir sempre" ligado passa de 500 notas/mês, o que dá
-cerca de R$325/mês nela sozinha.
+Tabela da Focus NFe (agosto/2026):
 
-Isso precisa de dono antes do lançamento: ou entra no preço do plano Pro e
-Parceiro, ou é repassado à arena, ou se negocia volume com o emissor. O toggle
-sob demanda existe em parte por causa disso.
+| Plano | Mensal | CNPJs | Notas incluídas | Nota adicional |
+|---|---|---|---|---|
+| Solo | R$89,90 | 1 | 100 | R$0,10 |
+| Start | R$113,90 | 3 (+R$37,90 por CNPJ) | 100 **por CNPJ** | R$0,10 |
+| Growth | R$548,00 | ilimitados | 4.000 (bolo da conta) | R$0,12 |
+
+O Solo não serve: um CNPJ só. A entrada é o **Start**, que cobre três arenas.
+
+Projeção:
+
+- piloto de 3 arenas × 300 notas/mês → R$173,90
+- 5 arenas × 300 → R$289,70
+- 20 arenas × 300 → R$788, ou **R$39 por arena**
+
+O ponto de virada Start → Growth depende do volume, porque a franquia do Start é
+por CNPJ e a do Growth é um bolo único: ~14 arenas se cada uma emite 100
+notas/mês, ~10 se emite 300, ~7 se emite 500. Regra prática: **migrar por volta
+de 10 arenas**.
+
+A R$39 por arena o custo cabe dentro do preço do plano Pro e Parceiro, e deixa
+de ser argumento contra o modo "emitir sempre". O toggle continua existindo pela
+razão fiscal — emitir tudo significa ISS sobre 100% do declarado, e essa é uma
+decisão da arena.
+
+**Não habilitar "Recebimento de NFe/CTe/NFSe Nacional"**: na Focus, nota
+*recebida* também consome unidade do pacote.
 
 ## Riscos
 

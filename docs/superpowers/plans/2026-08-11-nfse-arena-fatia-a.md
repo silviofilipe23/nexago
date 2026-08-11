@@ -1896,6 +1896,8 @@ const input = {
   defaultServiceIdBooking: "s1",
   certificadoBase64: "BASE64_SECRETO",
   senhaCertificado: "senha123",
+  authorizationAccepted: true,
+  authorizationTermVersion: "v1",
 };
 
 describe("saveArenaFiscalConfigCore", () => {
@@ -1929,6 +1931,33 @@ describe("saveArenaFiscalConfigCore", () => {
     const serialized = JSON.stringify(fake.store.get("arenas/arena1/fiscal/config"));
     assert.equal(serialized.includes("BASE64_SECRETO"), false);
     assert.equal(serialized.includes("senha123"), false);
+  });
+
+  it("registra o aceite do termo com autor e versão", async () => {
+    const fake = new FakeFirestore();
+    seedArena(fake);
+    await saveArenaFiscalConfigCore(db(fake), new FakeIssuer(), async () => {}, input);
+
+    const config = fake.store.get("arenas/arena1/fiscal/config");
+    assert.equal(config?.authorizationAcceptedByUid, "manager1");
+    assert.equal(config?.authorizationTermVersion, "v1");
+    assert.ok(config?.authorizationAcceptedAt);
+  });
+
+  it("recusa salvar sem aceite do termo — não se emite nota por terceiro sem autorização", async () => {
+    const fake = new FakeFirestore();
+    seedArena(fake);
+    await assert.rejects(
+      () =>
+        saveArenaFiscalConfigCore(
+          db(fake),
+          new FakeIssuer(),
+          async () => {},
+          {...input, authorizationAccepted: false},
+        ),
+      /invalid-argument|AUTHORIZATION/,
+    );
+    assert.equal(fake.store.get("arenas/arena1/fiscal/config"), undefined);
   });
 
   it("recusa quem não é gestor da arena", async () => {
@@ -2044,6 +2073,9 @@ export interface SaveFiscalConfigInput {
   defaultServiceIdClub?: string;
   certificadoBase64?: string;
   senhaCertificado?: string;
+  /** Aceite do termo que autoriza a nexaGO a emitir em nome da arena. */
+  authorizationAccepted: boolean;
+  authorizationTermVersion: string;
 }
 
 export function issuerTokenSecretName(arenaId: string): string {
@@ -2083,6 +2115,12 @@ export async function saveArenaFiscalConfigCore(
   input: SaveFiscalConfigInput,
 ): Promise<void> {
   await assertManagesArena(db, input.arenaId, input.callerUid);
+  if (!input.authorizationAccepted || !input.authorizationTermVersion) {
+    throw new HttpsError(
+      "invalid-argument",
+      "AUTHORIZATION_REQUIRED: aceite o termo que autoriza a emissão em nome da arena.",
+    );
+  }
   assertDefaultServicesExist(input);
 
   const registered = await issuer.registerIssuer({
@@ -2117,6 +2155,9 @@ export async function saveArenaFiscalConfigCore(
       status: "testing",
       mode: "off",
       statusMessage: null,
+      authorizationAcceptedAt: FieldValue.serverTimestamp(),
+      authorizationAcceptedByUid: input.callerUid,
+      authorizationTermVersion: input.authorizationTermVersion,
       updatedAt: FieldValue.serverTimestamp(),
     },
     {merge: true},
@@ -2509,12 +2550,13 @@ cd frontend && npx ng test arena --watch=false --include='**/fiscal.model.spec.t
 
 - [ ] **Step 5: Implementar `panel-fiscal.component.ts`**
 
-Componente standalone com signals, no padrão de `panel-finance.component.ts`. Quatro passos no wizard, um por vez:
+Componente standalone com signals, no padrão de `panel-finance.component.ts`. Cinco passos, um por vez:
 
 1. Dados da empresa — CNPJ, razão social, inscrição municipal, regime, endereço fiscal com código IBGE.
 2. Catálogo de serviços — pelo menos um; marcar o padrão de reserva e o de clubinho.
-3. Credenciais — upload do certificado A1 e senha. Deixe explícito na tela que a nexaGO não guarda o arquivo.
-4. Nota de teste — emite contra a homologação; só com sucesso a config vira `active` e o toggle de modo é liberado.
+3. **Termo de autorização** — a arena autoriza expressamente a nexaGO a emitir NFS-e em nome dela, usando o certificado dela. Checkbox obrigatório, com o texto do termo visível na tela (não atrás de link) e a versão do termo em constante no código (`FISCAL_TERM_VERSION = 'v1'`). Sem marcar, o botão de avançar fica desabilitado — e o backend recusa de novo, porque validação de cliente não é garantia.
+4. Credenciais — upload do certificado A1 e senha. Deixe explícito na tela que a nexaGO não guarda o arquivo: ele vai para o emissor.
+5. Nota de teste — emite contra a homologação; só com sucesso a config vira `active` e o toggle de modo é liberado.
 
 O `status` da config aparece fixo no topo, com o botão "Preciso de ajuda" ao lado.
 
@@ -2734,4 +2776,9 @@ Não faz parte deste plano, e não deve ser puxado para dentro dele:
 
 - **Fatia B:** baixa manual de pagamento no local, nota avulsa com `fiscalCustomers`, modo sob demanda com pedido do atleta no app e no portal.
 - **Fatia C:** cancelamento e estorno, alertas de certificado vencendo, config em erro por rejeição em sequência, telas de backoffice.
+- **Contratação da Focus:** a conta é da nexaGO e cada arena entra como empresa
+  dentro dela. O plano de entrada é o **Start** (R$113,90, 3 CNPJs, 100 notas por
+  CNPJ, R$0,10 a adicional), que cobre o piloto; migra para o **Growth** (R$548,
+  CNPJs ilimitados, 4.000 notas) por volta de 10 arenas. Não habilitar
+  "Recebimento de NFe/CTe/NFSe Nacional": nota recebida também consome o pacote.
 - **Deploy:** nada aqui é deployado. Quando for, a ordem é `firestore:indexes` → `firestore:rules` → functions, e os secrets (`FOCUS_ACCOUNT_TOKEN`, `FOCUS_ENV`, `FISCAL_WEBHOOK_TOKEN`) precisam existir antes.

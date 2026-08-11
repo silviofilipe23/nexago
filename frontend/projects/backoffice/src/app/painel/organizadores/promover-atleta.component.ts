@@ -17,10 +17,12 @@ import { IconComponent } from '../ui/icon.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
 import { StepCardComponent } from '../ui/step-card.component';
+import { COMMISSION_OPTIONS } from './organizadores.data';
 import {
   ORGANIZER_ROLE,
   OrganizersRepository,
   type BackofficeUser,
+  type OrganizerRegistration,
 } from './data/organizers.repository';
 import { OrganizerRoleForm } from './role-form.state';
 import { roleLabels, subjectFromUser, userDisplayName } from './role-subject';
@@ -32,7 +34,8 @@ const MIN_TERM = 2;
 
 const SELECT_NOTE = 'Selecione uma conta para continuar.';
 const ASSIGN_NOTE =
-  'Só a role é gravada (claims + users/{uid}.roles), igual ao script grant-user-role. As etapas 2–5 ainda não são salvas.';
+  'Grava a role (claims + users/{uid}.roles, igual ao script grant-user-role) e o cadastro do passo 2. ' +
+  'Verificação e permissões seguem sem backend próprio.';
 
 type SearchState =
   | { kind: 'idle' }
@@ -46,6 +49,8 @@ interface AssignResult {
   name: string;
   roles: readonly string[];
   alreadyHad: boolean;
+  /** Mensagem quando a role foi atribuída mas o cadastro não gravou. */
+  registrationError: string | null;
 }
 
 /** Tela "Promover atleta a organizador": busca a conta real e atribui a role de organizador. */
@@ -95,6 +100,25 @@ interface AssignResult {
               A mudança vale a partir de um token novo: o usuário precisa sair e entrar de novo no app
               (o token em cache dura até ~1 h).
             </p>
+
+            @if (result.registrationError) {
+              <div class="bo-alert done-alert">
+                <bo-icon name="alert" [size]="16" />
+                <span>
+                  A role foi atribuída, mas o cadastro do passo 2 não foi salvo:
+                  {{ result.registrationError }}
+                </span>
+              </div>
+              <button
+                type="button"
+                class="bo-mini-btn bo-mini-btn-primary"
+                [disabled]="assigning()"
+                (click)="retryRegistration()"
+              >
+                {{ assigning() ? 'Salvando…' : 'Tentar salvar o cadastro de novo' }}
+              </button>
+            }
+
             <div class="done-actions">
               <button type="button" class="bo-mini-btn bo-mini-btn-primary" (click)="reset()">
                 <bo-icon name="plus" [size]="14" />
@@ -148,9 +172,10 @@ interface AssignResult {
                               <button
                                 type="button"
                                 class="bo-mini-btn bo-mini-btn-primary"
+                                [disabled]="loadingAccount() !== null"
                                 (click)="select(user)"
                               >
-                                Selecionar
+                                {{ loadingAccount() === user.uid ? 'Carregando…' : 'Selecionar' }}
                               </button>
                             </bo-person-row>
                           </div>
@@ -172,7 +197,6 @@ interface AssignResult {
                 [form]="form"
                 [subject]="subject()"
                 [accountMeta]="selectedMeta()"
-                [draft]="true"
                 (swap)="reset()"
               />
             </div>
@@ -191,7 +215,7 @@ interface AssignResult {
                     Atribuindo…
                   } @else {
                     <bo-icon name="id-badge" [size]="17" />
-                    Atribuir role de organizador
+                    Atribuir role e salvar cadastro
                   }
                 </button>
                 <a class="bo-cta-ghost link" routerLink="/painel/organizadores">Cancelar</a>
@@ -320,6 +344,11 @@ interface AssignResult {
       color: var(--nx-text-dim) !important;
     }
 
+    .done-alert {
+      margin: 20px 0 12px;
+      text-align: left;
+    }
+
     .done-actions {
       display: flex;
       justify-content: center;
@@ -348,13 +377,15 @@ export class PromoverAtletaComponent {
 
   protected readonly query = signal('');
   protected readonly selected = signal<BackofficeUser | null>(null);
+  protected readonly registration = signal<OrganizerRegistration | null>(null);
+  protected readonly loadingAccount = signal<string | null>(null);
   protected readonly assigning = signal(false);
   protected readonly assignError = signal<string | null>(null);
   protected readonly assigned = signal<AssignResult | null>(null);
 
   protected readonly subject = computed(() => {
     const user = this.selected();
-    return user ? subjectFromUser(user, null) : null;
+    return user ? subjectFromUser(user, this.registration()) : null;
   });
 
   protected readonly form = new OrganizerRoleForm(this.subject);
@@ -423,13 +454,29 @@ export class PromoverAtletaComponent {
     return roleLabels(roles) || '—';
   }
 
-  protected select(user: BackofficeUser): void {
+  /**
+   * Carrega o cadastro ANTES de selecionar: os campos do passo 2 são
+   * `linkedSignal` do subject, então selecionar primeiro e preencher depois
+   * faria o formulário aparecer vazio e saltar — e apagaria o que o admin
+   * tivesse digitado nesse intervalo.
+   */
+  protected async select(user: BackofficeUser): Promise<void> {
     this.assignError.set(null);
+    this.loadingAccount.set(user.uid);
+    const registration = await this.repository.loadRegistration(user.uid);
+    if (this.loadingAccount() !== user.uid) {
+      return; // outra conta foi escolhida no meio do caminho
+    }
+    this.loadingAccount.set(null);
+    this.registration.set(registration);
     this.selected.set(user);
+    this.applyTerms(registration);
   }
 
   protected reset(): void {
     this.selected.set(null);
+    this.registration.set(null);
+    this.loadingAccount.set(null);
     this.assigned.set(null);
     this.assignError.set(null);
     this.query.set('');
@@ -444,15 +491,66 @@ export class PromoverAtletaComponent {
     this.assignError.set(null);
     try {
       const result = await this.repository.grantOrganizerRole(user.uid);
+      // A role já valeu daqui pra frente. Se o cadastro falhar, a tela diz
+      // exatamente isso e oferece repetir só a parte que faltou — refazer a
+      // promoção inteira não desfaria nada.
+      const registrationError = await this.persistRegistration(user.uid);
       this.assigned.set({
         name: userDisplayName(user),
         roles: result.roles,
         alreadyHad: result.alreadyHad,
+        registrationError,
       });
     } catch (err) {
       this.assignError.set(callableErrorMessage(err));
     } finally {
       this.assigning.set(false);
+    }
+  }
+
+  /** Repete só a gravação do cadastro, depois de a role já ter sido atribuída. */
+  protected async retryRegistration(): Promise<void> {
+    const user = this.selected();
+    const result = this.assigned();
+    if (!user || !result || this.assigning()) {
+      return;
+    }
+    this.assigning.set(true);
+    const registrationError = await this.persistRegistration(user.uid);
+    this.assigned.set({ ...result, registrationError });
+    this.assigning.set(false);
+  }
+
+  /** `null` = gravou; string = mensagem do erro. */
+  private async persistRegistration(uid: string): Promise<string | null> {
+    const { profile, terms } = this.form.registration();
+    try {
+      await this.repository.saveRegistration(uid, profile, terms);
+      return null;
+    } catch (err) {
+      return callableErrorMessage(err);
+    }
+  }
+
+  /** Condições comerciais já gravadas voltam para os selects do passo 4. */
+  private applyTerms(registration: OrganizerRegistration): void {
+    this.form.payoutPixKey.set(registration.payoutPixKey);
+    const terms = registration.terms;
+    if (!terms) {
+      return;
+    }
+    const commission = COMMISSION_OPTIONS.find((o) => o.percent === terms.commissionPercent);
+    if (commission) {
+      this.form.commission.set(commission);
+    }
+    if (terms.payoutSchedule) {
+      this.form.payout.set(terms.payoutSchedule);
+    }
+    if (terms.tournamentLimit) {
+      this.form.limit.set(terms.tournamentLimit);
+    }
+    if (terms.permissions.length > 0) {
+      this.form.permissions.set(terms.permissions);
     }
   }
 

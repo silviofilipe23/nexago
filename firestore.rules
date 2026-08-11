@@ -941,6 +941,25 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    // Cadastro administrativo do organizador (documento, tipo de conta e
+    // condições comerciais), gravado pelo backoffice via
+    // `saveOrganizerRegistration`. Fica fora de `users/{uid}` porque aquele doc
+    // é legível por qualquer autenticado quando a conta também é atleta, e aqui
+    // há PII (CPF/CNPJ).
+    //
+    // O dono lê o próprio cadastro (para ver a comissão que negociou), mas não
+    // escreve: `commissionPercent` é descontado de dinheiro real na confirmação
+    // do pagamento — deixá-lo editável pelo próprio organizador seria permitir
+    // que ele zerasse a taxa da plataforma.
+    match /organizers/{organizerId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        request.auth.uid == organizerId
+      );
+      allow create, update, delete: if false;
+    }
+
     match /organizerWallets/{organizerId} {
       // Carteira do organizador (id = uid). Escrita só pelas Cloud Functions.
       allow read: if request.auth != null && (

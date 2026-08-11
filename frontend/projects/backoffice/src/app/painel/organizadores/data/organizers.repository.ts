@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { httpsCallable, type HttpsCallableResult } from 'firebase/functions';
 import { backofficeDb, backofficeFunctions } from '../../data/firebase';
 
@@ -36,6 +36,34 @@ export interface GrantRoleResult {
   alreadyHad: boolean;
 }
 
+/** Perfil público do organizador — `users/{uid}.organizerProfile`. */
+export interface OrganizerProfileInput {
+  orgName: string;
+  contactEmail: string;
+  contactPhone: string;
+  city: string;
+  /** Sigla da UF. */
+  state: string;
+}
+
+/** Cadastro sensível e condições comerciais — `organizers/{uid}`, admin-only. */
+export interface OrganizerTermsInput {
+  accountType: string;
+  document: string;
+  commissionPercent: number;
+  payoutSchedule: string;
+  tournamentLimit: string;
+  permissions: string[];
+}
+
+/** Cadastro já existente da conta, para pré-preencher o formulário. */
+export interface OrganizerRegistration {
+  profile: OrganizerProfileInput;
+  terms: OrganizerTermsInput | null;
+  /** `organizerWallets/{uid}.payoutPixKey`; `''` = não configurada. */
+  payoutPixKey: string;
+}
+
 export const ORGANIZER_ROLE = 'organizer';
 
 function str(value: unknown): string | null {
@@ -66,10 +94,15 @@ function toBackofficeUser(raw: unknown): BackofficeUser | null {
   };
 }
 
-/** "Goiânia · GO" a partir dos campos soltos do doc. */
+/**
+ * "Goiânia · GO". `organizerProfile` primeiro (é o que a promoção grava e o que
+ * o organizador edita no painel dele); os campos soltos são o cadastro de
+ * atleta, usados só enquanto não existe perfil de organizador.
+ */
 function cityLabel(data: Record<string, unknown>): string | null {
-  const city = str(data['city']);
-  const state = str(data['state']);
+  const profile = (data['organizerProfile'] ?? {}) as Record<string, unknown>;
+  const city = str(profile['city']) ?? str(data['city']);
+  const state = str(profile['state']) ?? str(data['state']);
   if (city && state) {
     return `${city} · ${state}`;
   }
@@ -133,6 +166,70 @@ export class OrganizersRepository {
         since: extra?.since ?? null,
       };
     });
+  }
+
+  /**
+   * Cadastro atual da conta para pré-preencher o formulário. Cada leitura é
+   * opcional: doc inexistente ou negado vira campo vazio, nunca erro de tela —
+   * o admin ainda consegue preencher tudo à mão.
+   */
+  async loadRegistration(uid: string): Promise<OrganizerRegistration> {
+    const [user, terms, wallet] = await Promise.all([
+      this.readDoc(`users/${uid}`),
+      this.readDoc(`organizers/${uid}`),
+      this.readDoc(`organizerWallets/${uid}`),
+    ]);
+
+    const profile = (user?.['organizerProfile'] ?? {}) as Record<string, unknown>;
+    return {
+      profile: {
+        orgName: str(profile['orgName']) ?? '',
+        contactEmail: str(profile['contactEmail']) ?? str(user?.['email']) ?? '',
+        contactPhone: str(profile['contactPhone']) ?? str(user?.['phone']) ?? '',
+        // Sem organizerProfile ainda, a cidade do atleta é o melhor palpite:
+        // são os mesmos campos soltos que a listagem já lê.
+        city: str(profile['city']) ?? str(user?.['city']) ?? '',
+        state: str(profile['state']) ?? str(user?.['state']) ?? '',
+      },
+      terms: terms
+        ? {
+            accountType: str(terms['accountType']) ?? '',
+            document: str(terms['document']) ?? '',
+            commissionPercent:
+              typeof terms['commissionPercent'] === 'number' ? terms['commissionPercent'] : NaN,
+            payoutSchedule: str(terms['payoutSchedule']) ?? '',
+            tournamentLimit: str(terms['tournamentLimit']) ?? '',
+            permissions: stringList(terms['permissions']),
+          }
+        : null,
+      payoutPixKey: str(wallet?.['payoutPixKey']) ?? '',
+    };
+  }
+
+  /**
+   * Grava o passo 2. Server-side por necessidade: update de `users/{uid}` por
+   * terceiro exige `isSuperAdmin()` nas rules, e `organizers/{uid}` é
+   * write-only por Cloud Function.
+   */
+  async saveRegistration(
+    uid: string,
+    profile: OrganizerProfileInput,
+    terms: OrganizerTermsInput,
+  ): Promise<void> {
+    const callable = httpsCallable<Record<string, unknown>, unknown>(
+      backofficeFunctions(),
+      'saveOrganizerRegistration',
+    );
+    await callable({ uid, profile, terms });
+  }
+
+  private async readDoc(path: string): Promise<Record<string, unknown> | null> {
+    try {
+      const snap = await getDoc(doc(backofficeDb(), path));
+      return snap.exists() ? (snap.data() as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Atribui a role de organizador preservando os papéis existentes. */

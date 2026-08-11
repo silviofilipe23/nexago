@@ -31,7 +31,7 @@ import {
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
-import {TOURNAMENT_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
+import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
@@ -211,12 +211,16 @@ export async function processTournamentRegistrationAsaasNotification(
     // (o processedRef acima já protege contra reprocessamento).
     if (organizerId) {
       try {
+        // Comissão negociada no cadastro do organizador; sem cadastro (ou com
+        // valor fora da faixa) cai nos 8% padrão.
+        const organizerSnap = await db.doc(`organizers/${organizerId}`).get();
+        const feePercent = resolveOrganizerTournamentFeePercent(organizerSnap.data());
         await creditOrganizerWalletFromRegistration(db, organizerId, {
           registrationId,
           payerUid,
           paymentId,
           grossReais: paidOnline,
-          platformFeeReais: computePlatformFeeReais(paidOnline, TOURNAMENT_FEE_PERCENT),
+          platformFeeReais: computePlatformFeeReais(paidOnline, feePercent),
         });
       } catch (walletErr) {
         logger.error(

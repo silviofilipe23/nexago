@@ -4,7 +4,7 @@ import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
-import { findAthlete, findRequest, type Athlete } from './organizadores.data';
+import { cityStateLabel, findAthlete, findRequest, type Athlete } from './organizadores.data';
 import { OrganizerRoleForm } from './role-form.state';
 import { subjectFromAthlete } from './role-subject';
 import { RoleRailComponent } from './ui/role-rail.component';
@@ -52,7 +52,7 @@ const DEMO_NOTE =
               <bo-role-steps
                 [form]="form"
                 [subject]="subject()"
-                [accountMeta]="selected.city + ' · ' + selected.matches + ' partidas'"
+                [accountMeta]="accountMeta(selected)"
                 [swappable]="false"
                 [draft]="true"
               />
@@ -137,4 +137,8 @@ export class AnalisarSolicitacaoComponent {
 
   protected readonly form = new OrganizerRoleForm(this.subject);
   protected readonly note = DEMO_NOTE;
+
+  protected accountMeta(athlete: Athlete): string {
+    return `${cityStateLabel(athlete.city, athlete.state)} · ${athlete.matches} partidas`;
+  }
 }

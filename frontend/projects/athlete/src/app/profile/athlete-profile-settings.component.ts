@@ -30,7 +30,7 @@ import {
   type ReferralRegistrationRejection,
 } from '../data/athlete-referral-repository';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
-import { BrLocationsService } from '../shared/br-locations/br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
 import {
   isAllowedAvatarFile,
   prepareAvatarJpeg,

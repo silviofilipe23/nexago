@@ -64,7 +64,7 @@ import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../../ui/toggle-row.component';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 import { NxPageLoadingComponent } from '../../../shared/loading/nx-page-loading.component';
-import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
 
 type SubView = 'categoria' | 'premio' | null;
 

@@ -1,6 +1,13 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { BrLocationsService } from './br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
+
+/**
+ * O serviço vive em `frontend/shared/br-locations` (lib `@nexago/br-locations`),
+ * mas o spec mora aqui: o builder do karma só descobre specs sob o `src/` do
+ * projeto — `include` no tsconfig.spec.json não alcança `frontend/shared/`.
+ * O organizer é o consumidor de referência da lib.
+ */
 
 describe('BrLocationsService', () => {
   beforeEach(() => {

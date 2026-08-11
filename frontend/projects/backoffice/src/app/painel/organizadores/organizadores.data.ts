@@ -20,6 +20,8 @@ export interface Athlete {
   name: string;
   elo: string;
   city: string;
+  /** Sigla da UF (`'PB'`). */
+  state: string;
   matches: number;
   since: string;
   /** Marca sugerida para o perfil de organizador (vazio = usa o nome do atleta). */
@@ -81,7 +83,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'gustavo-brito',
     name: 'Gustavo Brito',
     elo: 'Ouro II',
-    city: 'João Pessoa · PB',
+    city: 'João Pessoa',
+    state: 'PB',
     matches: 84,
     since: '03/24',
     brand: 'Circuito Paraibano BT',
@@ -96,7 +99,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'gustavo-martins',
     name: 'Gustavo Martins',
     elo: 'Prata II',
-    city: 'Natal · RN',
+    city: 'Natal',
+    state: 'RN',
     matches: 31,
     since: '01/25',
     brand: '',
@@ -111,7 +115,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'gustavo-rocha',
     name: 'Gustavo Rocha',
     elo: 'Bronze I',
-    city: 'Recife · PE',
+    city: 'Recife',
+    state: 'PE',
     matches: 12,
     since: '06/26',
     brand: '',
@@ -126,7 +131,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'gustava-almeida',
     name: 'Gustava Almeida',
     elo: 'Ouro I',
-    city: 'Fortaleza · CE',
+    city: 'Fortaleza',
+    state: 'CE',
     matches: 112,
     since: '09/23',
     brand: 'Almeida Beach Experience',
@@ -141,7 +147,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'renata-alves',
     name: 'Renata Alves',
     elo: 'Prata I',
-    city: 'Maceió · AL',
+    city: 'Maceió',
+    state: 'AL',
     matches: 47,
     since: '11/24',
     brand: 'Arena Jatiúca Torneios',
@@ -156,7 +163,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'felipe-cardoso',
     name: 'Felipe Cardoso',
     elo: 'Ouro III',
-    city: 'Campinas · SP',
+    city: 'Campinas',
+    state: 'SP',
     matches: 93,
     since: '05/23',
     brand: 'Cardoso Beach Academy',
@@ -171,7 +179,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'mariana-ohana',
     name: 'Mariana Ohana',
     elo: 'Bronze I',
-    city: 'Belém · PA',
+    city: 'Belém',
+    state: 'PA',
     matches: 18,
     since: '02/26',
     brand: 'Circuito Paraense',
@@ -186,7 +195,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'diego-santana',
     name: 'Diego Santana',
     elo: 'Prata III',
-    city: 'Caxias do Sul · RS',
+    city: 'Caxias do Sul',
+    state: 'RS',
     matches: 62,
     since: '07/24',
     brand: 'Copa Serrana',
@@ -201,7 +211,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'bruno-tavares',
     name: 'Bruno Tavares',
     elo: 'Prata I',
-    city: 'Florianópolis · SC',
+    city: 'Florianópolis',
+    state: 'SC',
     matches: 55,
     since: '10/24',
     brand: 'Norte da Ilha Beach',
@@ -216,7 +227,8 @@ export const ATHLETES: readonly Athlete[] = [
     id: 'fernanda-lima',
     name: 'Fernanda Lima',
     elo: 'Ouro I',
-    city: 'Recife · PE',
+    city: 'Recife',
+    state: 'PE',
     matches: 128,
     since: '04/23',
     brand: '',
@@ -311,28 +323,25 @@ export const DEFAULT_PERMISSIONS: readonly string[] = [
   'broadcast',
 ];
 
-export const CITY_OPTIONS: readonly string[] = [
-  'João Pessoa · PB',
-  'Natal · RN',
-  'Recife · PE',
-  'Maceió · AL',
-  'Fortaleza · CE',
-  'Salvador · BA',
-  'Belém · PA',
-  'Campinas · SP',
-  'São Paulo · SP',
-  'Caxias do Sul · RS',
-];
-
 export const ACCOUNT_TYPE_OPTIONS: readonly AccountType[] = [
   'Pessoa física (CPF)',
   'Pessoa jurídica (CNPJ)',
 ];
 
-export const COMMISSION_OPTIONS: readonly string[] = [
-  '8% por inscrição (padrão)',
-  '6% por inscrição (parceiro)',
-  '5% por inscrição (liga oficial)',
+export interface CommissionOption {
+  /** Percentual gravado em `organizers/{uid}.commissionPercent` e aplicado na cobrança. */
+  percent: number;
+  label: string;
+}
+
+/**
+ * O primeiro item é o padrão da plataforma e espelha `TOURNAMENT_FEE_PERCENT`
+ * (functions/src/platform-fees.ts) — mudou lá, muda aqui.
+ */
+export const COMMISSION_OPTIONS: readonly CommissionOption[] = [
+  { percent: 8, label: '8% por inscrição (padrão)' },
+  { percent: 6, label: '6% por inscrição (parceiro)' },
+  { percent: 5, label: '5% por inscrição (liga oficial)' },
 ];
 
 export const PAYOUT_OPTIONS: readonly string[] = [
@@ -346,6 +355,14 @@ export const LIMIT_OPTIONS: readonly string[] = [
   'R$ 30.000 em inscrições (intermediário)',
   'Sem limite (parceiro)',
 ];
+
+/**
+ * `'Goiânia · GO'` para exibição. Cidade e UF são gravadas separadas; a junção
+ * existe só na leitura (resumo, tabela, cabeçalho) — nunca no que é persistido.
+ */
+export function cityStateLabel(city: string, state: string): string {
+  return [city.trim(), state.trim()].filter(Boolean).join(' · ');
+}
 
 export function findAthlete(id: string): Athlete | undefined {
   return ATHLETES.find((a) => a.id === id);

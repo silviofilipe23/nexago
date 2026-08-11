@@ -996,6 +996,23 @@ button {
   color: var(--nx-text);
 }
 
+/* Valor de leitura na altura de um campo: mesma caixa do input, sem afordância
+   de edição (fundo rebaixado, sem borda de foco/hover). */
+.bo-readonly {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 13px;
+  background: var(--nx-surface-0);
+  border: 1px dashed var(--nx-line);
+  border-radius: var(--nx-r-2);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
 .bo-back-btn {
   width: 36px;
   height: 36px;

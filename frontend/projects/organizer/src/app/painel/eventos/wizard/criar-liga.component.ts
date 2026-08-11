@@ -55,7 +55,7 @@ import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgSelectChipsComponent } from '../../ui/select-chips.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../../ui/toggle-row.component';
-import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;

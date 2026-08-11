@@ -1,4 +1,4 @@
-import type { BackofficeUser } from './data/organizers.repository';
+import type { BackofficeUser, OrganizerRegistration } from './data/organizers.repository';
 import type { Athlete } from './organizadores.data';
 import type { RoleFormSubject } from './role-form.state';
 
@@ -25,21 +25,32 @@ export function subjectFromAthlete(athlete: Athlete): RoleFormSubject {
 }
 
 /**
- * Usuário real do Auth → conta do formulário. Só preenche o que existe hoje
- * (nome, e-mail, cidade); documento e verificação não têm backend, então ficam
- * vazios em vez de inventar dado.
+ * Usuário real do Auth → conta do formulário, pré-preenchida com o cadastro que
+ * a conta já tem. `registration` é `null` enquanto a leitura não voltou (ou se
+ * ela falhou): aí só o que vem do Auth aparece, e o admin preenche o resto.
+ *
+ * Verificação segue vazia: o fluxo de checagens do organizador não existe no
+ * backend, e inventar item aqui seria mentir sobre o estado da conta.
  */
-export function subjectFromUser(user: BackofficeUser, city: string | null): RoleFormSubject {
+export function subjectFromUser(
+  user: BackofficeUser,
+  registration: OrganizerRegistration | null,
+): RoleFormSubject {
+  const profile = registration?.profile;
+  const terms = registration?.terms;
   return {
     name: userDisplayName(user),
     badge: roleLabels(user.roles),
-    brand: '',
-    city: city ?? '',
-    accountType: 'Pessoa física (CPF)',
-    document: '',
+    brand: profile?.orgName ?? '',
+    city: profile?.city ?? '',
+    state: profile?.state ?? '',
+    accountType: terms?.accountType === 'Pessoa jurídica (CNPJ)'
+      ? 'Pessoa jurídica (CNPJ)'
+      : 'Pessoa física (CPF)',
+    document: terms?.document ?? '',
     documentStatus: '',
-    email: user.email ?? '',
-    whatsapp: '',
+    email: profile?.contactEmail || (user.email ?? ''),
+    whatsapp: profile?.contactPhone ?? '',
     verification: [],
   };
 }

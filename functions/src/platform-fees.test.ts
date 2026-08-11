@@ -4,7 +4,10 @@ import {
   TOURNAMENT_FEE_PERCENT,
   CLUB_FEE_PERCENT,
   FEE_FLOOR_REAIS,
+  MAX_COMMISSION_PERCENT,
   computePlatformFeeReais,
+  isValidCommissionPercent,
+  resolveOrganizerTournamentFeePercent,
 } from "./platform-fees";
 
 describe("platform-fees.computePlatformFeeReais", () => {
@@ -46,5 +49,55 @@ describe("platform-fees.computePlatformFeeReais", () => {
   it("floorReais omitido mantém o piso padrão (retrocompatível)", () => {
     assert.equal(computePlatformFeeReais(15, CLUB_FEE_PERCENT), FEE_FLOOR_REAIS);
     assert.equal(computePlatformFeeReais(15, CLUB_FEE_PERCENT, {}), FEE_FLOOR_REAIS);
+  });
+});
+
+describe("platform-fees.resolveOrganizerTournamentFeePercent", () => {
+  it("usa a comissão negociada no cadastro do organizador", () => {
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: 6}), 6);
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: 5}), 5);
+  });
+
+  it("aceita comissão zero (isenção negociada)", () => {
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: 0}), 0);
+  });
+
+  it("organizador sem cadastro mantém o padrão de hoje", () => {
+    assert.equal(resolveOrganizerTournamentFeePercent(null), TOURNAMENT_FEE_PERCENT);
+    assert.equal(resolveOrganizerTournamentFeePercent(undefined), TOURNAMENT_FEE_PERCENT);
+    assert.equal(resolveOrganizerTournamentFeePercent({}), TOURNAMENT_FEE_PERCENT);
+  });
+
+  it("valor corrompido ou fora da faixa cai no padrão, nunca no lixo", () => {
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: -1}), TOURNAMENT_FEE_PERCENT);
+    assert.equal(
+      resolveOrganizerTournamentFeePercent({commissionPercent: MAX_COMMISSION_PERCENT + 1}),
+      TOURNAMENT_FEE_PERCENT,
+    );
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: "6"}), TOURNAMENT_FEE_PERCENT);
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: NaN}), TOURNAMENT_FEE_PERCENT);
+    assert.equal(resolveOrganizerTournamentFeePercent({commissionPercent: null}), TOURNAMENT_FEE_PERCENT);
+  });
+
+  it("a comissão resolvida entra no cálculo da taxa", () => {
+    // 6% de 200 = 12, contra 16 do padrão de 8%.
+    const percent = resolveOrganizerTournamentFeePercent({commissionPercent: 6});
+    assert.equal(computePlatformFeeReais(200, percent), 12);
+  });
+});
+
+describe("platform-fees.isValidCommissionPercent", () => {
+  it("aceita a faixa 0–20", () => {
+    assert.equal(isValidCommissionPercent(0), true);
+    assert.equal(isValidCommissionPercent(8), true);
+    assert.equal(isValidCommissionPercent(MAX_COMMISSION_PERCENT), true);
+  });
+
+  it("recusa fora da faixa e não-números", () => {
+    assert.equal(isValidCommissionPercent(-0.1), false);
+    assert.equal(isValidCommissionPercent(MAX_COMMISSION_PERCENT + 0.1), false);
+    assert.equal(isValidCommissionPercent(Infinity), false);
+    assert.equal(isValidCommissionPercent("8"), false);
+    assert.equal(isValidCommissionPercent(undefined), false);
   });
 });

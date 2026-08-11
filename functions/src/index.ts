@@ -246,6 +246,8 @@ export {
   setUserRoles,
 } from "./user-role-ops";
 
+export {saveOrganizerRegistration} from "./organizer-registration";
+
 
 export {
   createOrganizer,

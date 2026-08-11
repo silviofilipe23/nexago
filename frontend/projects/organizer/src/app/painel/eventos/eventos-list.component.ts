@@ -171,7 +171,10 @@ interface EventoCard {
                 <p class="og-empty">Nenhum torneio encontrado.</p>
               }
             } @else {
-              <p class="og-empty">Nenhum torneio ou liga ainda — crie pelo app nexaGO</p>
+              <p class="og-empty">
+                Nenhum torneio ou liga ainda —
+                <a class="og-link-btn" routerLink="/painel/novo-evento">crie seu primeiro evento</a>
+              </p>
             }
           }
         </div>

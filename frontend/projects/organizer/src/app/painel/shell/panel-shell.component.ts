@@ -279,7 +279,15 @@ export class PanelShellComponent {
     }
     return [
       { label: 'Início', icon: 'home', link: '/painel/inicio' },
-      { label: 'Meus eventos', icon: 'trophy', link: '/painel/eventos', matchPrefixes: ['/painel/eventos', '/painel/ligas', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'] },
+      { label: 'Meus eventos', icon: 'trophy', link: '/painel/eventos', matchPrefixes: ['/painel/eventos', '/painel/ligas'] },
+      // Os três wizards acendem "Criar evento", não "Meus eventos": chega-se neles por aqui,
+      // e enquanto se cria alguma coisa é este o ramo em que se está.
+      {
+        label: 'Criar evento',
+        icon: 'plus',
+        link: '/painel/novo-evento',
+        matchPrefixes: ['/painel/novo-evento', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'],
+      },
       { label: 'Financeiro', icon: 'cash', link: '/painel/financeiro' },
       { label: 'Telão', icon: 'tv', link: '/painel/telao' },
       { label: 'Links', icon: 'share', link: '/painel/links' },

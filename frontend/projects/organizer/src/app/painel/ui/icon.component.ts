@@ -28,7 +28,8 @@ export type OgIconName =
   | 'team'
   | 'tv'
   | 'shirt'
-  | 'flame';
+  | 'flame'
+  | 'menu';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -127,6 +128,9 @@ export type OgIconName =
         }
         @case ('flame') {
           <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+        }
+        @case ('menu') {
+          <path d="M4 7h16M4 12h16M4 17h16" />
         }
         @case ('share') {
           <circle cx="18" cy="5" r="2.7" /><circle cx="6" cy="12" r="2.7" /><circle cx="18" cy="19" r="2.7" />

@@ -190,9 +190,11 @@ interface EventoCard {
     </div>
   `,
   styles: `
+    /* Três colunas fixas viravam cartões de ~170px num tablet em retrato. Com auto-fit
+       a contagem sai da largura real: 3 no desktop, 2 no iPad retrato, 1 no mais estreito. */
     .og-eventos-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
     }
     .og-plataforma-bar {

@@ -1,4 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -23,6 +35,10 @@ const SECTION_LABEL = { global: 'Geral', liga: 'Liga', torneio: 'Torneio', categ
 const CONTEXT_ICON = { liga: 'flag', torneio: 'trophy', categoria: 'bracket' } as const;
 
 const CONTEXT_KICKER = { liga: 'Liga', torneio: 'Torneio', categoria: 'Categoria' } as const;
+
+/** Abaixo desta largura a sidebar não cabe ao lado do conteúdo e vira gaveta.
+ *  Espelha o `@media (max-width: 1023.98px)` do styles.scss — os dois andam juntos. */
+const COMPACT_QUERY = '(max-width: 1023.98px)';
 
 /**
  * `managerId` do torneio aberto quando ele é de OUTRA pessoa e quem olha é super
@@ -67,11 +83,22 @@ function initialsOfName(name: string): string {
   imports: [RouterLink, RouterOutlet, OgIconComponent, OgAvatarComponent, OgPersonPhotoComponent],
   host: {
     class: 'og-shell',
+    '[class.drawer-open]': 'drawerOpen()',
     '(document:click)': 'userMenuOpen.set(false)',
-    '(document:keydown.escape)': 'userMenuOpen.set(false)',
+    '(document:keydown.escape)': 'onEscape()',
   },
   template: `
-    <nav class="og-sidebar">
+    <nav id="og-sidebar" class="og-sidebar" [attr.inert]="compact() && !drawerOpen() ? '' : null">
+      <button
+        #drawerClose
+        type="button"
+        class="og-drawer-close"
+        aria-label="Fechar menu"
+        (click)="closeDrawer()"
+      >
+        <og-icon name="close" [size]="18" [strokeWidth]="2" />
+      </button>
+
       <a class="og-sidebar-brand" routerLink="/painel/inicio">
         <img class="og-sidebar-mark" src="/brand/logo.png" alt="" width="32" height="32" />
         <span>
@@ -152,7 +179,42 @@ function initialsOfName(name: string): string {
       </div>
     </nav>
 
-    <div class="og-main">
+    @if (drawerOpen()) {
+      <button type="button" class="og-scrim" aria-label="Fechar menu" (click)="closeDrawer()"></button>
+    }
+
+    <div class="og-main" [attr.inert]="compact() && drawerOpen() ? '' : null">
+      <!-- Só abaixo de 1024px (o CSS acende). Carrega o contexto da cascata porque no
+           desktop ele mora dentro do <nav>, e sumiria junto com a sidebar recolhida. -->
+      <header class="og-topbar">
+        <button
+          #burger
+          type="button"
+          class="og-topbar-burger"
+          aria-label="Abrir menu"
+          aria-controls="og-sidebar"
+          [attr.aria-expanded]="drawerOpen()"
+          (click)="openDrawer($event)"
+        >
+          <og-icon name="menu" [size]="20" [strokeWidth]="2" />
+        </button>
+
+        @if (ctx.level() === 'global') {
+          <span class="og-topbar-brand">
+            <img src="/brand/logo.png" alt="" width="26" height="26" />
+            <span class="og-topbar-title">nexa<em>GO</em></span>
+          </span>
+        } @else {
+          <a class="og-topbar-back" [routerLink]="backLink()" [attr.aria-label]="'Voltar para ' + backLabel()">
+            <og-icon name="back" [size]="18" [strokeWidth]="2" />
+          </a>
+          <span class="og-topbar-body">
+            <span class="og-topbar-kicker">{{ contextKicker() }}</span>
+            <span class="og-topbar-title">{{ contextName() }}</span>
+          </span>
+        }
+      </header>
+
       @if (supportBanner(); as owner) {
         <div class="og-support-banner" role="status">
           <og-icon name="alert" [size]="16" [strokeWidth]="2" />
@@ -191,6 +253,8 @@ function initialsOfName(name: string): string {
 export class PanelShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly ctx = inject(PanelContextService);
 
   protected readonly url = toSignal(
@@ -203,6 +267,14 @@ export class PanelShellComponent {
   );
 
   protected readonly sectionLabel = computed(() => SECTION_LABEL[this.ctx.level()]);
+
+  // ── Moldura de tablet: a sidebar vira gaveta ────────────────
+  /** `true` abaixo de 1024px, onde a sidebar sai do fluxo e vira gaveta. */
+  protected readonly compact = signal(false);
+  protected readonly drawerOpen = signal(false);
+
+  private readonly drawerClose = viewChild<ElementRef<HTMLButtonElement>>('drawerClose');
+  private readonly burger = viewChild<ElementRef<HTMLButtonElement>>('burger');
 
   /** Nome do dono do torneio aberto — resolvido só quando a faixa de suporte precisa dele. */
   private readonly ownerName = signal<string | null>(null);
@@ -225,6 +297,24 @@ export class PanelShellComponent {
   );
 
   constructor() {
+    const mq = window.matchMedia(COMPACT_QUERY);
+    this.compact.set(mq.matches);
+    const onCompactChange = (e: MediaQueryListEvent) => {
+      this.compact.set(e.matches);
+      // Girar o tablet pra paisagem com a gaveta aberta deixaria o conteúdo `inert`
+      // atrás de uma sidebar que voltou a ser fixa: painel inteiro travado, sem
+      // nada visível explicando por quê.
+      if (!e.matches) this.drawerOpen.set(false);
+    };
+    mq.addEventListener('change', onCompactChange);
+    this.destroyRef.onDestroy(() => mq.removeEventListener('change', onCompactChange));
+
+    // Navegou, fecha — na gaveta todo item de menu leva pra outra tela.
+    effect(() => {
+      this.url();
+      this.drawerOpen.set(false);
+    });
+
     effect(() => {
       const managerId = this.foreignTournamentOwnerId();
       if (!managerId) {
@@ -367,6 +457,32 @@ export class PanelShellComponent {
   protected toggleUserMenu(event: Event): void {
     event.stopPropagation();
     this.userMenuOpen.update((open) => !open);
+  }
+
+  protected openDrawer(event: Event): void {
+    event.stopPropagation();
+    this.drawerOpen.set(true);
+    // O foco precisa esperar o `inert` sair da gaveta: dentro de subárvore inerte
+    // o `focus()` é ignorado em silêncio, e o teclado ficaria preso no conteúdo.
+    this.focusAfterRender(() => this.drawerClose()?.nativeElement);
+  }
+
+  protected closeDrawer(): void {
+    if (!this.drawerOpen()) return;
+    this.drawerOpen.set(false);
+    // Mesmo motivo ao contrário: o hambúrguer está dentro do `.og-main`, que só
+    // deixa de ser inerte no render seguinte.
+    this.focusAfterRender(() => this.burger()?.nativeElement);
+  }
+
+  /** Esc fecha o que estiver aberto — menu do usuário e gaveta. */
+  protected onEscape(): void {
+    this.userMenuOpen.set(false);
+    this.closeDrawer();
+  }
+
+  private focusAfterRender(target: () => HTMLElement | undefined): void {
+    afterNextRender(() => target()?.focus(), { injector: this.injector });
   }
 
   protected async signOut(): Promise<void> {

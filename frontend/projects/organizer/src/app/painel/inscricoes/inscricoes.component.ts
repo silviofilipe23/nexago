@@ -146,6 +146,9 @@ interface PendingConfirm {
       align-items: center;
       gap: 9px;
       width: 268px;
+      /* Os 268px são a largura desejada, não uma exigência: no cabeçalho estreito de
+         tablet a busca encolhe junto com as outras ações em vez de empurrar a linha. */
+      max-width: 100%;
       height: 38px;
       padding: 0 12px;
       background: var(--nx-surface-0);
@@ -153,6 +156,12 @@ interface PendingConfirm {
       border-radius: var(--nx-r-2);
       color: var(--nx-text-dim);
       transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+
+    @media (pointer: coarse) {
+      .og-insc-search {
+        height: 44px;
+      }
     }
 
     .og-insc-search:focus-within {

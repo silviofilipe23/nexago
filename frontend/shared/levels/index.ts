@@ -56,6 +56,25 @@ export const ATHLETE_SPORT_CODES: readonly string[] = [
   'OUTROS',
 ];
 
+const SPORT_LABELS: Record<string, string> = {
+  VOLEI_PRAIA: 'Vôlei de praia',
+  VOLEI_QUADRA: 'Vôlei de quadra',
+  BEACH_TENNIS: 'Beach tennis',
+  FUTEVOLEI: 'Futevôlei',
+  FUTEBOL: 'Futebol',
+  BASQUETE: 'Basquete',
+  TENIS: 'Tênis',
+  CORRIDA: 'Corrida',
+  OUTROS: 'Outros',
+};
+
+/** Código de esporte do perfil → rótulo em PT; devolve o próprio código quando
+ *  desconhecido (nunca vazio). */
+export function athleteSportLabel(code: string | null | undefined): string {
+  const key = code?.trim().toUpperCase() ?? '';
+  return SPORT_LABELS[key] ?? key;
+}
+
 /** Código/label de nível → label de exibição (legados sem sufixo inclusos —
  *  seguem aparecendo no fallback de nível global de docs antigos). */
 const LEVEL_LABELS: Record<string, string> = {

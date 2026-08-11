@@ -20,6 +20,7 @@ import { IconComponent } from './icon.component';
   template: `
     <dialog
       #dialog
+      [class.wide]="size() === 'md'"
       (cancel)="onEscape($event)"
       (keydown.escape)="dismiss()"
       (click)="onBackdropClick($event)"
@@ -38,31 +39,35 @@ import { IconComponent } from './icon.component';
             <span>{{ error() }}</span>
           </div>
         }
+      </div>
 
-        <div class="actions">
-          <button type="button" class="bo-mini-btn" [disabled]="busy()" (click)="dismiss()">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            class="bo-mini-btn"
-            [class.bo-mini-btn-primary]="tone() === 'primary'"
-            [class.danger]="tone() === 'danger'"
-            [disabled]="busy() || confirmDisabled()"
-            (click)="confirmed.emit()"
-          >
-            @if (busy()) {
-              <span class="bo-spinner small" aria-hidden="true"></span>
-            }
-            {{ confirmLabel() }}
-          </button>
-        </div>
+      <!-- Fora do .inner: com conteúdo alto, o corpo rola e os botões ficam. -->
+      <div class="actions">
+        <button type="button" class="bo-mini-btn" [disabled]="busy()" (click)="dismiss()">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="bo-mini-btn"
+          [class.bo-mini-btn-primary]="tone() === 'primary'"
+          [class.danger]="tone() === 'danger'"
+          [disabled]="busy() || confirmDisabled()"
+          (click)="confirmed.emit()"
+        >
+          @if (busy()) {
+            <span class="bo-spinner small" aria-hidden="true"></span>
+          }
+          {{ confirmLabel() }}
+        </button>
       </div>
     </dialog>
   `,
   styles: `
     dialog {
       width: min(440px, calc(100vw - 32px));
+      /* Conteúdo alto (formulário + histórico) rola dentro do diálogo em vez
+         de estourar a viewport em telas baixas. */
+      max-height: min(640px, calc(100vh - 48px));
       padding: 0;
       border: 1px solid var(--nx-line-strong);
       border-radius: var(--nx-r-4);
@@ -70,12 +75,24 @@ import { IconComponent } from './icon.component';
       color: var(--nx-text);
     }
 
+    dialog.wide {
+      width: min(560px, calc(100vw - 32px));
+    }
+
     dialog::backdrop {
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(2px);
     }
 
+    dialog[open] {
+      display: flex;
+      flex-direction: column;
+    }
+
     .inner {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
       padding: 22px;
       display: flex;
       flex-direction: column;
@@ -101,7 +118,7 @@ import { IconComponent } from './icon.component';
       display: flex;
       justify-content: flex-end;
       gap: 8px;
-      margin-top: 4px;
+      padding: 4px 22px 22px;
     }
 
     .bo-mini-btn.danger {
@@ -129,6 +146,8 @@ export class ConfirmDialogComponent {
   readonly description = input('');
   readonly confirmLabel = input('Confirmar');
   readonly tone = input<'primary' | 'danger'>('primary');
+  /** `md` para conteúdo com formulário; `sm` (padrão) para só confirmar. */
+  readonly size = input<'sm' | 'md'>('sm');
   readonly busy = input(false);
   readonly confirmDisabled = input(false);
   readonly error = input<string | null>(null);

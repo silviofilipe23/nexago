@@ -13,8 +13,10 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { isPushSupported, pushPermissionStatus, subscribeToPush } from '@nexago/push-notifications';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { organizerFirestore } from '../data/firestore';
 import { listOrganizerNames } from '../data/tournaments-repository';
 import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -22,6 +24,9 @@ import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { OgPersonPhotoComponent } from '../ui/person-photo.component';
 import { OgBellComponent } from './og-bell.component';
 import { PanelContextService } from './panel-context.service';
+
+/** Só pergunta uma vez por navegador — negou ou aceitou, não insiste de novo a cada login. */
+const PUSH_PROMPT_KEY = 'nexago-organizer-push-prompted';
 
 interface OgNavEntry {
   label: string;
@@ -291,6 +296,10 @@ export class PanelShellComponent {
   /** Nome do dono do torneio aberto — resolvido só quando a faixa de suporte precisa dele. */
   private readonly ownerName = signal<string | null>(null);
 
+  /** Guarda de reentrância do prompt de push — a `localStorage` já cobre entre sessões, isto
+   *  cobre o efeito rodando de novo dentro da mesma. */
+  private pushPrompted = false;
+
   /** Dono do torneio quando um super admin abre torneio alheio; `null` no caso normal.
    *  Fica no shell (e não em cada tela) porque vale pra todo o nível torneio/categoria:
    *  chave, inscrições, placar e financeiro herdam o aviso. */
@@ -340,6 +349,22 @@ export class PanelShellComponent {
         }
       });
     });
+
+    effect(() => {
+      const uid = this.auth.user()?.uid;
+      if (uid) void this.maybePromptPush(uid);
+    });
+  }
+
+  /** Pede notificação do navegador uma única vez por navegador — quieto se recusar ou se o
+   *  navegador não suportar (Safari fora de PWA instalada). Configurações tem o toggle manual
+   *  pra quem recusou sem querer ou quer desligar depois. */
+  private async maybePromptPush(uid: string): Promise<void> {
+    if (this.pushPrompted || !isPushSupported() || localStorage.getItem(PUSH_PROMPT_KEY)) return;
+    this.pushPrompted = true;
+    localStorage.setItem(PUSH_PROMPT_KEY, '1');
+    if (pushPermissionStatus() !== 'default') return;
+    await subscribeToPush(organizerFirestore(), uid);
   }
 
   protected readonly nav = computed<OgNavEntry[]>(() => {

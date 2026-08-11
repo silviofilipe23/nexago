@@ -20,6 +20,7 @@ import { tournamentUsesUniform } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { OgPersonPhotoComponent } from '../ui/person-photo.component';
+import { OgBellComponent } from './og-bell.component';
 import { PanelContextService } from './panel-context.service';
 
 interface OgNavEntry {
@@ -80,7 +81,7 @@ function initialsOfName(name: string): string {
 @Component({
   selector: 'og-panel-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterOutlet, OgIconComponent, OgAvatarComponent, OgPersonPhotoComponent],
+  imports: [RouterLink, RouterOutlet, OgIconComponent, OgAvatarComponent, OgPersonPhotoComponent, OgBellComponent],
   host: {
     class: 'og-shell',
     '[class.drawer-open]': 'drawerOpen()',
@@ -150,6 +151,10 @@ function initialsOfName(name: string): string {
         }
       </div>
 
+      <div class="og-sidebar-bell-row">
+        <og-bell />
+      </div>
+
       <div class="og-sidebar-user">
         @if (userMenuOpen()) {
           <div class="og-user-menu" role="menu" (click)="$event.stopPropagation()">
@@ -213,6 +218,7 @@ function initialsOfName(name: string): string {
             <span class="og-topbar-title">{{ contextName() }}</span>
           </span>
         }
+        <og-bell />
       </header>
 
       @if (supportBanner(); as owner) {
@@ -231,6 +237,12 @@ function initialsOfName(name: string): string {
     <og-person-photo />
   `,
   styles: `
+    .og-sidebar-bell-row {
+      display: flex;
+      justify-content: flex-end;
+      padding: 0 2px;
+    }
+
     .og-support-banner {
       display: flex;
       align-items: center;

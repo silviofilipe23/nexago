@@ -63,6 +63,14 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
       },
       {
+        path: 'notificacoes',
+        title: 'Notificações — NexaGO Organizador',
+        loadComponent: () =>
+          import('./painel/notificacoes/organizer-notifications.component').then(
+            (m) => m.OrganizerNotificationsComponent,
+          ),
+      },
+      {
         path: 'novo-evento',
         title: 'Novo evento — NexaGO Organizador',
         loadComponent: () => import('./painel/eventos/novo-evento.component').then((m) => m.NovoEventoComponent),

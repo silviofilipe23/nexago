@@ -38,44 +38,50 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
       } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chaves ainda não geradas</div>
       } @else {
-        <og-card pad="0" flex="1">
-          <div class="og-table-head">
-            <span style="width:40px">Nº</span>
-            <span style="width:76px">Quando</span>
-            <span style="flex:1">Partida</span>
-            <span style="width:110px;text-align:center">Placar</span>
-            <span style="width:90px">Quadra</span>
-            <span style="width:100px">Status</span>
-            <span style="width:170px"></span>
+        <og-card pad="0" flex="1" class="og-jogos-card">
+          <div class="og-table-head og-jogos-grid">
+            <span class="col-num">Nº</span>
+            <span>Quando</span>
+            <span>Partida</span>
+            <span class="col-score">Placar</span>
+            <span class="col-court">Quadra</span>
+            <span>Status</span>
+            <span></span>
           </div>
           <div class="og-table-body">
             @for (j of jogos(); track j.match.id) {
-              <div class="og-row">
-                <span class="og-jogos-number" style="width:40px">#{{ j.match.matchNumber }}</span>
-                <span style="width:76px;display:flex;flex-direction:column;gap:1px">
+              <div class="og-row og-jogos-grid">
+                <span class="og-jogos-number col-num">#{{ j.match.matchNumber }}</span>
+                <span class="og-jogos-when">
                   <span class="og-jogos-time">{{ j.time }}</span>
                   @if (j.day) {
                     <span class="og-jogos-day">{{ j.day }}</span>
                   }
                 </span>
-                <span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
-                  <span style="display:flex;align-items:center;gap:8px">
+                <span class="og-jogos-match">
+                  <span class="og-jogos-teams">
                     <span class="og-jogos-team" [title]="j.match.team1Label">{{ truncate(j.match.team1Label, 20) }}</span>
                     <span class="og-jogos-vs">vs</span>
                     <span class="og-jogos-team" [title]="j.match.team2Label">{{ truncate(j.match.team2Label, 20) }}</span>
                   </span>
-                  <span class="og-jogos-meta">{{ j.meta }}</span>
+                  <!-- Linha de apoio: recebe o que as colunas soltarem quando o card aperta,
+                       pra o dado descer em vez de sumir da tela (padrão da lista de inscrições).
+                       Cada pedaço nasce oculto e só acende no @container que derruba a coluna. -->
+                  <span class="og-jogos-meta">
+                    <span class="m-num">#{{ j.match.matchNumber }} · </span>{{ j.meta }}<span class="m-court"> · quadra {{ j.match.court ?? '—' }}</span
+                    ><span class="m-score"> · {{ j.match.score ?? 'Não jogado' }}</span>
+                  </span>
                 </span>
-                <span style="width:110px;text-align:center" class="og-jogos-score">{{ j.match.score ?? 'Não jogado' }}</span>
-                <span style="width:90px" class="og-jogos-quadra">{{ j.match.court ?? '—' }}</span>
-                <span style="width:100px;display:flex;align-items:center;gap:6px">
+                <span class="og-jogos-score col-score">{{ j.match.score ?? 'Não jogado' }}</span>
+                <span class="og-jogos-quadra col-court">{{ j.match.court ?? '—' }}</span>
+                <span class="og-jogos-status">
                   @if (j.status === 'in_progress') {
                     <span class="og-dot og-dot-red og-dot-pulse"></span>
                   }
                   <og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill>
                 </span>
                 @if (canOpenScore(j.match)) {
-                  <span style="width:170px;display:flex;align-items:center;gap:8px;justify-content:flex-end">
+                  <span class="og-jogos-actions">
                     @if (j.status === 'in_progress') {
                       <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'ao-vivo', j.match.id]">Ao vivo</a>
                     } @else if (j.status === 'scheduled') {
@@ -84,7 +90,9 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
                     <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]">{{ j.status === 'scheduled' ? 'Lançar placar' : 'Placar' }}</a>
                   </span>
                 } @else {
-                  <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Aguardando as duas equipes">Aguardando</span>
+                  <span class="og-jogos-actions">
+                    <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Aguardando as duas equipes">Aguardando</span>
+                  </span>
                 }
               </div>
             } @empty {
@@ -96,6 +104,109 @@ const JOGO_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendado', 
     </div>
   `,
   styles: `
+    /* Cabeçalho e linha declaram as colunas no MESMO lugar (a variável), senão saem
+       do prumo assim que uma delas muda — o erro que a antiga tabela em flex tinha,
+       com as larguras repetidas inline nos dois. */
+    .og-jogos-card {
+      container-type: inline-size;
+    }
+
+    .og-jogos-grid {
+      display: grid;
+      grid-template-columns: var(--jogos-cols);
+      gap: 14px;
+      align-items: center;
+      --jogos-cols: 40px 76px minmax(0, 1fr) 110px 90px 100px 170px;
+    }
+
+    .col-score {
+      text-align: center;
+    }
+
+    .og-jogos-when {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .og-jogos-match {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .og-jogos-teams {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .og-jogos-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .og-jogos-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .og-jogos-meta .m-num,
+    .og-jogos-meta .m-court,
+    .og-jogos-meta .m-score {
+      display: none;
+    }
+
+    /* Ordem de queda pelo que decide a operação em quadra: quadra e nº são
+       referência, placar se lê no card do confronto, mas HORÁRIO, quem joga,
+       status e o botão de ação ficam até o fim. */
+    @container (max-width: 900px) {
+      .og-jogos-grid {
+        --jogos-cols: 40px 76px minmax(0, 1fr) 110px 100px 170px;
+      }
+
+      .col-court {
+        display: none;
+      }
+
+      .og-jogos-meta .m-court {
+        display: inline;
+      }
+    }
+
+    @container (max-width: 760px) {
+      .og-jogos-grid {
+        --jogos-cols: 76px minmax(0, 1fr) 110px 100px 154px;
+      }
+
+      .col-num {
+        display: none;
+      }
+
+      .og-jogos-meta .m-num {
+        display: inline;
+      }
+    }
+
+    @container (max-width: 620px) {
+      .og-jogos-grid {
+        --jogos-cols: 76px minmax(0, 1fr) 100px 154px;
+      }
+
+      .col-score {
+        display: none;
+      }
+
+      .og-jogos-meta .m-score {
+        display: inline;
+      }
+    }
+
     .og-jogos-number {
       font-family: var(--nx-font-mono);
       font-weight: 700;

@@ -75,7 +75,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           </div>
         </div>
 
-        <div class="og-card og-card-pad-0" style="flex:1;min-height:0">
+        <div class="og-card og-card-pad-0 og-categoria-card" style="flex:1;min-height:0">
           <div class="og-table-body" style="padding:4px 20px">
             @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
               <div class="og-row og-categoria-row" [class.last]="last">
@@ -137,6 +137,9 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       font-size: 12px;
       color: var(--nx-text-dim);
     }
+    .og-categoria-card {
+      container-type: inline-size;
+    }
     .og-categoria-row {
       display: flex;
       align-items: center;
@@ -150,6 +153,19 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       gap: 12px;
       flex: 1;
       min-width: 0;
+    }
+    /* Nos avatares de trio/quarteto/quinteto a coluna de fotos já é larga; somada às três
+       pills, o nome da equipe seria espremido a nada num tablet em retrato. Dando uma base
+       mínima ao bloco do nome, quem cede e desce pra segunda linha são as pills — o nome,
+       que é o que se procura na lista, fica inteiro. */
+    @container (max-width: 620px) {
+      .og-categoria-row {
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+      .og-categoria-who {
+        flex: 1 1 220px;
+      }
     }
     .og-categoria-avatars {
       display: flex;

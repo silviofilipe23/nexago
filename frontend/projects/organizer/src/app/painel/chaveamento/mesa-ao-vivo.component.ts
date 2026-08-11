@@ -478,6 +478,17 @@ interface FeedRowView {
         min-width: 52px;
       }
     }
+
+    /* iPad na quadra: "ponto" é o toque mais repetido do evento inteiro e o mais
+       caro de errar. Cresce por ponteiro grosso, e não por largura, porque o
+       tablet deitado tem 1180px — pela régua da janela seria desktop. */
+    @media (pointer: coarse) {
+      .og-mesa-point {
+        min-height: 132px;
+        justify-content: center;
+        padding: 20px 12px;
+      }
+    }
   `,
 })
 export class MesaAoVivoComponent {

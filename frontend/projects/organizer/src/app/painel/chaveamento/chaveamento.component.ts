@@ -86,7 +86,7 @@ function setsWonOf(score: string): [number, number] {
       <button type="button" class="og-mini-btn og-mini-btn-primary"><og-icon name="download" [size]="14" />Exportar</button>
     </og-page-header>
 
-    <div class="og-content" style="overflow:auto">
+    <div class="og-content og-bracket-scroll">
       <ng-template #cardBody let-m>
         <div class="og-bracket-match-head">
           <span class="og-bracket-match-num">{{ metaLabel(m) }}</span>
@@ -167,6 +167,19 @@ function setsWonOf(score: string): [number, number] {
         </div>
       }
     </div>
+  `,
+  styles: `
+    /* A chave é um canvas de largura fixa (a árvore não reflui — os conectores SVG
+       são desenhados em coordenadas absolutas), então no tablet ela se navega por
+       arrasto mesmo. O que precisa de cuidado é o encadeamento: sem
+       \`overscroll-behavior\`, chegar na borda da chave passa o arrasto adiante e o
+       iOS rola a página (ou dispara o "voltar" do gesto de borda) no meio do pan. */
+    .og-bracket-scroll {
+      overflow: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-x pan-y;
+      -webkit-overflow-scrolling: touch;
+    }
   `,
 })
 export class ChaveamentoComponent {

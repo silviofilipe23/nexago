@@ -88,16 +88,15 @@ interface GrupoReal {
     </div>
   `,
   styles: `
+    /* auto-fit em vez de duas colunas com media query: a régua passa a ser a largura
+       disponível de verdade, que aqui muda por dois motivos independentes (a janela e a
+       sidebar que vira gaveta abaixo de 1024px). Com o breakpoint de janela, um tablet em
+       retrato de 1000px — sem sidebar, 1000px livres — cairia pra coluna única à toa. */
     .og-grupos-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
       gap: 16px;
       align-items: start;
-    }
-    @media (max-width: 900px) {
-      .og-grupos-grid {
-        grid-template-columns: 1fr;
-      }
     }
     /* 20px é o recuo das listas do painel (og-table-head/og-table-body); aqui era 18px e
        ficava 2px fora do prumo do kicker/título do card. */

@@ -992,6 +992,292 @@ button {
   min-width: 0;
 }
 
+/* ── Painel: moldura de tablet ──────────────────────────────────
+   O portal trata "tablet" como DOIS eixos independentes, porque um só erraria
+   metade dos casos:
+
+   • LARGURA (1024px) decide o layout. Acima dela cabem a sidebar de 236px e o
+     conteúdo — é toda paisagem de iPad (1133–1366) e o iPad Pro 13" em retrato
+     (1032). Abaixo, a sidebar vira gaveta e devolve os 236px ao conteúdo: num
+     iPad Air em retrato são 584px úteis em vez de 348px.
+
+   • PONTEIRO (`pointer: coarse`, mais abaixo) decide o tamanho do alvo. Vale no
+     iPad Pro em paisagem, que pela largura é desktop mas é dedo; e poupa o
+     desktop de mouse de botões inchados.
+
+   A gaveta some sozinha ao cruzar 1024px — mas o shell também zera o
+   `drawerOpen` no matchMedia, senão girar o tablet com a gaveta aberta deixaria
+   o conteúdo `inert` atrás de uma sidebar que voltou a ser fixa. */
+@keyframes og-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Topbar: só existe abaixo de 1024px — a media query no fim desta seção é que a
+   acende, e é por isso que estas regras base vêm ANTES dela (mesma especificidade:
+   quem vier depois ganha). Carrega o contexto da cascata porque no desktop ele vive
+   dentro do `<nav>`, e com a sidebar recolhida "voltar" e o nome do torneio
+   sumiriam junto com ela. */
+.og-topbar {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+}
+
+.og-topbar-burger {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  margin-left: -6px;
+  border: none;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  color: var(--nx-text);
+  cursor: pointer;
+}
+
+.og-topbar-burger:active {
+  background: var(--nx-surface-2);
+}
+
+.og-topbar-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.og-topbar-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.og-topbar-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.og-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.og-topbar-brand img {
+  flex: none;
+  object-fit: contain;
+}
+
+.og-topbar-title em {
+  font-style: normal;
+  color: var(--nx-orange-500);
+}
+
+/* Voltar da cascata na topbar — alvo próprio de 44px, entre o hambúrguer e o
+   título, na mesma ordem em que aparecem na sidebar (menu → voltar → onde estou). */
+.og-topbar-back {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--nx-r-2);
+  color: var(--nx-text-mute);
+  text-decoration: none;
+}
+
+.og-topbar-back:active {
+  background: var(--nx-surface-2);
+}
+
+/* Botão de fechar dentro da gaveta: é ele que recebe o foco ao abrir, então
+   precisa existir de verdade (não só o scrim, que é clique sem teclado). */
+.og-drawer-close {
+  display: none;
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: none;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  color: var(--nx-text-mute);
+  cursor: pointer;
+}
+
+/* Aqui a moldura troca: a sidebar sai do fluxo e vira gaveta, a topbar acende e o
+   conteúdo herda os 236px que eram dela. Precisa vir DEPOIS das regras base acima. */
+@media (max-width: 1023.98px) {
+  .og-shell {
+    grid-template-columns: 1fr;
+    /* Altura exata (não `min-height`): a topbar fica presa no topo e quem rola é o
+       `.og-content`, como no desktop. */
+    height: 100dvh;
+  }
+
+  .og-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    width: 280px;
+    max-width: 86vw;
+    transform: translateX(-100%);
+    transition: transform var(--nx-d-base) var(--nx-ease-out);
+    /* Sem isto o iOS ignora o `overflow-y: auto` da sidebar dentro da gaveta. */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .og-shell.drawer-open .og-sidebar {
+    transform: none;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+  }
+
+  .og-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    border: none;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    animation: og-scrim-in var(--nx-d-fast) var(--nx-ease-out);
+  }
+
+  .og-topbar {
+    display: flex;
+  }
+
+  .og-drawer-close {
+    display: grid;
+  }
+
+  /* Abre espaço pro botão de fechar não montar em cima da marca. */
+  .og-sidebar-brand {
+    padding-right: 44px;
+  }
+}
+
+/* ── Painel: alvos de toque ─────────────────────────────────────
+   Eixo do ponteiro, não da largura. Os botões do painel nascem com 32px, abaixo
+   dos 44px da HIG da Apple e dos 48dp do Material — no mouse são confortáveis,
+   no dedo são um erro de toque a cada punhado de linhas. */
+@media (pointer: coarse) {
+  .og-mini-btn,
+  .og-ghost-btn {
+    height: 44px;
+    padding: 0 16px;
+  }
+
+  .og-nav-item {
+    height: 48px;
+  }
+
+  .og-chip {
+    height: 40px;
+    padding: 0 16px;
+  }
+
+  .og-user-menu-item {
+    height: 44px;
+  }
+
+  .og-side-back {
+    min-height: 44px;
+  }
+
+  /* O tap highlight do sistema (lampejo cinza no iOS, azul no Android) briga com o
+     realce próprio dos componentes — mas só dá pra desligar entregando um `:active` no
+     lugar. Os controles do painel só têm `:hover`, e hover no dedo é o estado grudado que
+     fica aceso depois do toque: sem isto, tocar um botão não daria retorno nenhum. */
+  a,
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Cuidado com o `:not(.active)`: neste CSS `.active` é "item selecionado" (laranja) e
+     `:active` é "sendo pressionado" — mesma especificidade, então sem a exclusão o cinza
+     do toque apagaria o laranja do chip/nav selecionado justamente enquanto o dedo está nele. */
+  .og-mini-btn:active:not(:disabled),
+  .og-ghost-btn:active:not(:disabled),
+  .og-chip:active:not(.active),
+  .og-nav-item:active:not(.active),
+  .og-user-menu-item:active,
+  .og-side-back:active {
+    background: var(--nx-surface-2);
+  }
+
+  .og-mini-btn-primary:active:not(:disabled) {
+    background: var(--nx-orange-600);
+  }
+}
+
+/* ── Painel: densidade em tela estreita ─────────────────────── */
+
+@media (max-width: 1023.98px) {
+  /* O cabeçalho é a peça que mais estoura na horizontal: título, subtítulo e migalhas
+     nascem `nowrap` e as ações são `flex: none`, então nada cede e a PÁGINA INTEIRA passa
+     a rolar de lado (medido: 1004px de conteúdo numa tela de 744px). Aqui ele deixa de ser
+     uma linha rígida e vira duas quando precisa. */
+  .og-page-header {
+    padding: 14px 20px;
+    gap: 12px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  /* Sai porque é repetição: "Copa Verão · categoria Feminino B" é exatamente o que a
+     topbar mostra dois centímetros acima. */
+  .og-page-header-subtitle {
+    display: none;
+  }
+
+  .og-page-header-title {
+    white-space: normal;
+  }
+
+  /* As migalhas ficam (são o atalho pros níveis acima, que a topbar não dá — ela só
+     volta um), mas encolhem em vez de empurrar. */
+  .og-page-header-crumbs {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .og-page-header-crumbs a {
+    max-width: 130px;
+  }
+
+  .og-page-header-actions {
+    flex-wrap: wrap;
+  }
+
+  .og-content {
+    padding: 16px 20px 24px;
+  }
+}
+
 /* ── Painel: cabeçalho de página ────────────────────────────── */
 
 .og-page-header {
@@ -1502,7 +1788,9 @@ button {
   display: flex;
   justify-content: center;
 
-  @media (max-width: 768px) {
+  /* Alinhado ao corte de tablet: era 768px, mas quem some abaixo de 1024 é a sidebar —
+     é ali que o wizard passa a ter a tela inteira e não precisa mais dos 32px de folga. */
+  @media (max-width: 1023.98px) {
     padding: 16px;
   }
 }

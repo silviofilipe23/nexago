@@ -278,9 +278,10 @@ interface CategoriaRow {
       color: var(--nx-text);
       margin-top: 3px;
     }
+    /* Ver og-eventos-grid: a contagem de colunas sai da largura real, não de um número fixo. */
     .og-torneio-cats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
     }
     .og-torneio-cat {

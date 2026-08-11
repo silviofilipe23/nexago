@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { athleteSportLabel, levelDisplayLabel } from '@nexago/levels';
 import { callableErrorMessage } from '../data/callable-error';
 import type { BackofficeUser } from '../organizadores/data/organizers.repository';
 import { roleLabels, userDisplayName } from '../organizadores/role-subject';
@@ -10,7 +11,12 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
-import { AthletesRepository } from './data/athletes.repository';
+import { AthleteLevelDialogComponent } from './athlete-level-dialog.component';
+import {
+  AthletesRepository,
+  type AthleteLevelChange,
+  type AthleteLevelSummary,
+} from './data/athletes.repository';
 
 type LoadState = 'loading' | 'ok' | 'error';
 
@@ -32,6 +38,7 @@ interface ProDecision {
     IconComponent,
     FieldComponent,
     ConfirmDialogComponent,
+    AthleteLevelDialogComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -88,59 +95,73 @@ interface ProDecision {
             </div>
             <button type="button" class="bo-mini-btn retry" (click)="reload()">Tentar de novo</button>
           } @else {
-            <div class="table-head">
-              <span>Pessoa</span>
-              <span>Papéis</span>
-              <span>PRO</span>
-              <span>E-mail</span>
-              <span>Status</span>
-              <span></span>
-            </div>
+            <div class="table-scroll">
+              <div class="table-head">
+                <span>Pessoa</span>
+                <span>Papéis</span>
+                <span>Nível</span>
+                <span>PRO</span>
+                <span>E-mail</span>
+                <span>Status</span>
+                <span></span>
+              </div>
 
-            <div>
-              @for (row of rows(); track row.uid) {
-                <div class="table-row">
-                  <div class="cell-who">
-                    <div class="who-name">{{ name(row) }}</div>
-                    <div class="who-id">{{ row.email || row.uid }}</div>
+              <div>
+                @for (row of rows(); track row.uid) {
+                  <div class="table-row">
+                    <div class="cell-who">
+                      <div class="who-name">{{ name(row) }}</div>
+                      <div class="who-id">{{ row.email || row.uid }}</div>
+                    </div>
+                    <div class="cell-roles">{{ roles(row) }}</div>
+                    <div class="cell-level">
+                      @if (levelOf(row); as summary) {
+                        <bo-pill tone="dim">{{ levelLabel(summary.level) }}</bo-pill>
+                        <span class="who-id">{{ sportLabel(summary.sportCode) }}</span>
+                      } @else {
+                        <span class="cell-dim">—</span>
+                      }
+                    </div>
+                    <div>
+                      @if (isPro(row)) {
+                        <bo-pill tone="green">PRO</bo-pill>
+                      } @else {
+                        <span class="cell-dim">—</span>
+                      }
+                    </div>
+                    <div>
+                      <bo-pill [tone]="row.emailVerified ? 'green' : 'yellow'">
+                        {{ row.emailVerified ? 'Verificado' : 'Pendente' }}
+                      </bo-pill>
+                    </div>
+                    <div>
+                      <bo-pill [tone]="row.disabled ? 'red' : 'green'">
+                        {{ row.disabled ? 'Desativada' : 'Ativa' }}
+                      </bo-pill>
+                    </div>
+                    <div class="cell-actions">
+                      <button type="button" class="bo-ghost-btn" (click)="askLevel(row)">
+                        Trocar nível
+                      </button>
+                      <button type="button" class="bo-ghost-btn" (click)="askPro(row, !isPro(row))">
+                        {{ isPro(row) ? 'Remover PRO' : 'Tornar PRO' }}
+                      </button>
+                    </div>
                   </div>
-                  <div class="cell-roles">{{ roles(row) }}</div>
-                  <div>
-                    @if (isPro(row)) {
-                      <bo-pill tone="green">PRO</bo-pill>
-                    } @else {
-                      <span class="cell-dim">—</span>
-                    }
-                  </div>
-                  <div>
-                    <bo-pill [tone]="row.emailVerified ? 'green' : 'yellow'">
-                      {{ row.emailVerified ? 'Verificado' : 'Pendente' }}
-                    </bo-pill>
-                  </div>
-                  <div>
-                    <bo-pill [tone]="row.disabled ? 'red' : 'green'">
-                      {{ row.disabled ? 'Desativada' : 'Ativa' }}
-                    </bo-pill>
-                  </div>
-                  <div class="right">
-                    <button type="button" class="bo-ghost-btn" (click)="askPro(row, !isPro(row))">
-                      {{ isPro(row) ? 'Remover PRO' : 'Tornar PRO' }}
-                    </button>
-                  </div>
-                </div>
-              } @empty {
-                @if (state() === 'loading') {
-                  <p class="status">Carregando contas…</p>
-                } @else {
-                  <p class="status">
-                    @if (term()) {
-                      Nenhuma conta encontrada para “{{ term() }}”.
-                    } @else {
-                      Nenhuma conta neste projeto.
-                    }
-                  </p>
+                } @empty {
+                  @if (state() === 'loading') {
+                    <p class="status">Carregando contas…</p>
+                  } @else {
+                    <p class="status">
+                      @if (term()) {
+                        Nenhuma conta encontrada para “{{ term() }}”.
+                      } @else {
+                        Nenhuma conta neste projeto.
+                      }
+                    </p>
+                  }
                 }
-              }
+              </div>
             </div>
 
             @if (nextPageToken()) {
@@ -156,6 +177,14 @@ interface ProDecision {
           }
         </bo-panel-card>
       </div>
+
+      @if (levelTarget(); as target) {
+        <bo-athlete-level-dialog
+          [user]="target"
+          (changed)="onLevelChanged(target, $event)"
+          (dismissed)="levelTarget.set(null)"
+        />
+      }
 
       @if (proTarget(); as target) {
         <bo-confirm-dialog
@@ -244,10 +273,19 @@ interface ProDecision {
       margin-top: 14px;
     }
 
+    /* Com a coluna de nível a tabela não cabe em telas estreitas: rola dentro
+       do card em vez de empurrar a página inteira. */
+    .table-scroll {
+      overflow-x: auto;
+    }
+
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 2fr 1.3fr 70px 110px 110px 130px;
+      /* Larguras fixas coladas no conteúdo real (pill mais larga = "Intermediário 2",
+         a 123px) para sobrar espaço aos textos livres de pessoa e papéis. */
+      grid-template-columns: 1.5fr 1.2fr 124px 56px 92px 92px 224px;
+      min-width: 900px;
       gap: 10px;
       align-items: center;
     }
@@ -275,8 +313,24 @@ interface ProDecision {
       border-bottom: none;
     }
 
-    .right {
-      text-align: right;
+    .cell-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    /* Sem isso os dois botões encolhem e quebram o rótulo em duas linhas. */
+    .cell-actions .bo-ghost-btn {
+      flex: none;
+      white-space: nowrap;
+    }
+
+    .cell-level {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 3px;
     }
 
     .cell-who {
@@ -332,9 +386,11 @@ export class PanelAtletasComponent {
   protected readonly rows = signal<readonly BackofficeUser[]>([]);
   protected readonly nextPageToken = signal<string | null>(null);
   protected readonly pro = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly levels = signal<ReadonlyMap<string, AthleteLevelSummary>>(new Map());
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
 
+  protected readonly levelTarget = signal<BackofficeUser | null>(null);
   protected readonly proTarget = signal<ProDecision | null>(null);
   protected readonly expiry = signal('');
   protected readonly submitting = signal(false);
@@ -374,6 +430,20 @@ export class PanelAtletasComponent {
     return this.pro().has(row.uid);
   }
 
+  /** `null` quando não há nível para mostrar — a coluna fica com o traço. */
+  protected levelOf(row: BackofficeUser): AthleteLevelSummary | null {
+    const summary = this.levels().get(row.uid);
+    return summary?.level ? summary : null;
+  }
+
+  protected levelLabel(raw: string | null): string {
+    return levelDisplayLabel(raw);
+  }
+
+  protected sportLabel(code: string | null): string {
+    return code ? athleteSportLabel(code) : '';
+  }
+
   protected roles(row: BackofficeUser): string {
     return roleLabels(row.roles) || '—';
   }
@@ -387,6 +457,7 @@ export class PanelAtletasComponent {
     this.state.set('loading');
     this.rows.set([]);
     this.nextPageToken.set(null);
+    this.levels.set(new Map());
     try {
       const [page, pro] = await Promise.all([
         this.repository.listUsers(this.term(), null),
@@ -396,6 +467,7 @@ export class PanelAtletasComponent {
       this.nextPageToken.set(page.nextPageToken);
       this.pro.set(pro);
       this.state.set('ok');
+      void this.loadLevels(page.rows);
     } catch (err) {
       this.errorMessage.set(callableErrorMessage(err));
       this.state.set('error');
@@ -413,6 +485,7 @@ export class PanelAtletasComponent {
       this.rows.update((current) => [...current, ...page.rows]);
       this.nextPageToken.set(page.nextPageToken);
       this.state.set('ok');
+      void this.loadLevels(page.rows);
     } catch (err) {
       this.errorMessage.set(callableErrorMessage(err));
       this.state.set('error');
@@ -428,11 +501,57 @@ export class PanelAtletasComponent {
     }
   }
 
+  /**
+   * Nível também é coluna opcional: preenche depois que a lista já apareceu e,
+   * se falhar, fica vazia. O botão de troca segue funcionando (o diálogo lê o
+   * doc canônico por conta própria).
+   */
+  private async loadLevels(rows: readonly BackofficeUser[]): Promise<void> {
+    if (rows.length === 0) {
+      return;
+    }
+    try {
+      const page = await this.repository.levelSummaries(rows.map((row) => row.uid));
+      this.levels.update((current) => new Map([...current, ...page]));
+    } catch {
+      // Coluna vazia — sem alarde na tela.
+    }
+  }
+
   protected proDescription({ user, isPro }: ProDecision): string {
     const who = this.name(user);
     return isPro
       ? `${who} passa a ter os recursos PRO no app. Vale a partir de um token novo — sair e entrar de novo.`
       : `${who} perde os recursos PRO. A assinatura em si não é cancelada aqui — isso é feito no provedor de pagamento.`;
+  }
+
+  protected askLevel(user: BackofficeUser): void {
+    this.feedback.set(null);
+    this.levelTarget.set(user);
+  }
+
+  /**
+   * A coluna é atualizada com a resposta do callable, não relendo o espelho:
+   * `public_profiles` leva alguns segundos para refletir a escrita.
+   */
+  protected onLevelChanged(user: BackofficeUser, change: AthleteLevelChange): void {
+    this.levelTarget.set(null);
+    const summary = this.levels().get(user.uid);
+    // Só mexe na coluna quando o esporte alterado é o que ela mostra (ou
+    // quando ainda não havia nada lá).
+    if (!summary?.sportCode || summary.sportCode === change.sportCode) {
+      this.levels.update((current) => {
+        const next = new Map(current);
+        next.set(user.uid, { sportCode: change.sportCode, level: change.toLevel });
+        return next;
+      });
+    }
+    this.feedback.set(
+      change.applied ?
+        `${this.name(user)} agora é ${levelDisplayLabel(change.toLevel)} no ` +
+          `${athleteSportLabel(change.sportCode)}.` :
+        `${this.name(user)} já estava nesse nível — nada mudou.`,
+    );
   }
 
   protected askPro(user: BackofficeUser, isPro: boolean): void {

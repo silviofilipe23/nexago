@@ -256,6 +256,8 @@ export {
   setAthletePro,
 } from "./user-account-ops";
 
+export {getAthleteLevelState, setAthleteLevel} from "./athlete-level-admin";
+
 
 
 

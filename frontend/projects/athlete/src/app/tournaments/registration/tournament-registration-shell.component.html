@@ -88,10 +88,14 @@
               <div class="rg-step-title">
                 <span class="rg-step-num">2</span>
                 <h2>Uniforme</h2>
-                @if (uniformSaved()) {
-                  <span class="rg-uniform-status rg-uniform-status--ok">Salvo</span>
-                } @else if (registration()) {
-                  <span class="rg-uniform-status">Pendente</span>
+                @if (registration()) {
+                  @if (savingUniform()) {
+                    <span class="rg-uniform-status">Salvando…</span>
+                  } @else if (uniformSaved()) {
+                    <span class="rg-uniform-status rg-uniform-status--ok">Salvo</span>
+                  } @else if (!uniformSaveFailed()) {
+                    <span class="rg-uniform-status">Pendente</span>
+                  }
                 }
               </div>
 
@@ -103,15 +107,20 @@
                 />
               }
 
-              <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="savingUniform()" (valueChange)="onUniformChange($event)" />
+              @if (uniformSaveFailed()) {
+                <app-nx-inline-message
+                  class="rg-uniform-error"
+                  heading="Não foi possível salvar o uniforme"
+                  body="Sua escolha continua aqui na tela — só não chegou na inscrição."
+                  actionLabel="Tentar novamente"
+                  (action)="retryUniformSave()"
+                />
+              }
+
+              <app-uniform-form [category]="cat" [value]="uniform()!" (valueChange)="onUniformChange($event)" />
 
               @if (registration()) {
-                <button type="button" class="rg-btn-ghost rg-btn-save-uniform" [disabled]="savingUniform() || uniformSaved()" (click)="saveUniform()">
-                  @if (savingUniform()) {
-                    <app-nx-spinner [size]="14" />
-                  }
-                  {{ savingUniform() ? 'Salvando…' : uniformSaved() ? 'Uniforme salvo' : 'Salvar uniforme' }}
-                </button>
+                <p class="rg-uniform-note">Sua escolha é salva sozinha — não precisa confirmar.</p>
               } @else {
                 <p class="rg-uniform-note">Seu uniforme é enviado junto com a reserva da vaga.</p>
               }

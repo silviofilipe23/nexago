@@ -55,7 +55,9 @@ import {
   type PartnerLinkInviteMarker,
 } from '../../shared/partner-invite/partner-invite';
 import { LgpdConsentBoxComponent } from '../../shared/lgpd/lgpd-consent-box.component';
+import { uniformSlotForUid } from '../../painel/registration-progress';
 import { InvitePartnerDialogComponent } from './invite-partner-dialog.component';
+import { UniformAutoSaver, type UniformAutoSaveState } from './uniform-autosave';
 import { UniformFormComponent } from './uniform-form.component';
 
 function titleCase(input: string): string {
@@ -177,9 +179,18 @@ export class TournamentRegistrationShellComponent {
   protected readonly registering = signal(false);
 
   protected readonly uniform = signal<UniformSelection | null>(null);
-  protected readonly savingUniform = signal(false);
-  protected readonly uniformSaved = signal(false);
+  /** Estado da gravação automática — é o que o selo do card mostra. */
+  protected readonly uniformSaveState = signal<UniformAutoSaveState>('idle');
+  protected readonly uniformSaved = computed(() => this.uniformSaveState() === 'saved');
+  protected readonly savingUniform = computed(() => this.uniformSaveState() === 'saving');
+  protected readonly uniformSaveFailed = computed(() => this.uniformSaveState() === 'failed');
   private uniformCategoryId: string | null = null;
+  private uniformHydratedRegistrationId: string | null = null;
+  /** Sem botão: a escolha grava sozinha. Ver `uniform-autosave.ts`. */
+  private readonly uniformSaver = new UniformAutoSaver({
+    save: (value) => this.writeUniform(value),
+    onStateChange: (state) => this.uniformSaveState.set(state),
+  });
 
   protected readonly uniformRequired = computed(() => {
     const category = this.selectedCategory();
@@ -300,6 +311,7 @@ export class TournamentRegistrationShellComponent {
   constructor() {
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.searchDebounceHandle);
+      this.uniformSaver.dispose();
     });
 
     effect(() => {
@@ -374,14 +386,14 @@ export class TournamentRegistrationShellComponent {
       if (!category || !categoryRequiresUniform(category)) {
         this.uniformCategoryId = null;
         this.uniform.set(null);
-        this.uniformSaved.set(false);
+        this.uniformSaver.reset();
         return;
       }
       const fullName = profile?.fullName ?? this.accountLabel();
       const nickname = profile?.nickname ?? null;
       if (this.uniformCategoryId !== category.id) {
         this.uniformCategoryId = category.id;
-        this.uniformSaved.set(false);
+        this.uniformSaver.reset();
         this.uniform.set(defaultUniformSelectionForCategory(category, fullName, nickname));
         return;
       }
@@ -390,6 +402,36 @@ export class TournamentRegistrationShellComponent {
         const name = defaultJerseyNameForAthlete(fullName, nickname);
         if (name) this.uniform.set({ ...current, jerseyName: name });
       }
+    });
+
+    // O que JÁ está gravado na inscrição manda na tela. Sem isso o card mostraria
+    // os padrões (M/10/sobrenome) mesmo pra quem escolheu GG pelo app — e o
+    // auto-save apagaria a escolha real na primeira mexida.
+    effect(() => {
+      const category = this.selectedCategory();
+      const reg = this.registration();
+      const uid = this.auth.user()?.uid ?? null;
+      if (!category || !categoryRequiresUniform(category) || !reg || !uid) {
+        this.uniformHydratedRegistrationId = null;
+        return;
+      }
+      if (this.uniformHydratedRegistrationId === reg.id) return;
+      this.uniformHydratedRegistrationId = reg.id;
+      const stored: UniformSelection = { ...uniformSlotForUid(reg, uid) };
+      untracked(() => {
+        if (isUniformSelectionComplete(category, stored)) {
+          this.uniform.set(stored);
+          this.uniformSaver.markSaved(stored);
+          return;
+        }
+        // Inscrição sem uniforme nenhum (o app não coleta na hora da vaga):
+        // os padrões da tela viram a escolha assim que o atleta abre. Melhor um
+        // tamanho editável no pedido do organizador do que uma linha em branco.
+        const current = this.uniform();
+        if (current && isUniformSelectionComplete(category, current)) {
+          this.uniformSaver.saveNow(current);
+        }
+      });
     });
   }
 
@@ -527,36 +569,33 @@ export class TournamentRegistrationShellComponent {
     this.showCategoryPicker.update((v) => !v);
   }
 
+  /** Escolheu → grava sozinho. Antes da vaga existir não há onde gravar: aí o
+   *  uniforme viaja junto da reserva (`persistUniformAfterRegistration`) ou do
+   *  convite (`inviterUniform`/`inviteeUniform`). */
   protected onUniformChange(next: UniformSelection): void {
     this.uniform.set(next);
-    this.uniformSaved.set(false);
-  }
-
-  protected async saveUniform(): Promise<void> {
+    if (!this.registration()) return;
     const category = this.selectedCategory();
-    const reg = this.registration();
-    const selection = this.uniform();
-    if (!category || !reg || !selection || this.savingUniform()) return;
-    const error = validateUniformSelection(category, selection);
-    if (error) {
-      this.uniformError.set(error);
+    if (!category) return;
+    if (!isUniformSelectionComplete(category, next)) {
+      // Meia escolha não vira gravação — e nem vira erro enquanto o atleta
+      // ainda está decidindo; o selo só volta pra "Pendente".
+      this.uniformSaver.cancelPending();
       return;
     }
     this.uniformError.set(null);
-    this.savingUniform.set(true);
-    try {
-      await setRegistrationUniform(athleteFunctions(), reg.id, toUniformInput(selection));
-      this.uniformSaved.set(true);
-      this.toasts.success('Uniforme salvo', 'Sua escolha já está registrada na inscrição.');
-    } catch (err) {
-      this.toasts.error(
-        'Não foi possível salvar o uniforme',
-        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Sua escolha continua aqui.',
-        { label: 'Tentar novamente', run: () => void this.saveUniform() },
-      );
-    } finally {
-      this.savingUniform.set(false);
-    }
+    this.uniformSaver.schedule(next);
+  }
+
+  protected retryUniformSave(): void {
+    this.uniformSaver.retry();
+  }
+
+  /** Gravação de verdade por trás do auto-save. */
+  private async writeUniform(selection: UniformSelection): Promise<void> {
+    const reg = this.registration();
+    if (!reg) throw new TournamentRegistrationError('Sua inscrição ainda não foi criada.');
+    await setRegistrationUniform(athleteFunctions(), reg.id, toUniformInput(selection));
   }
 
   protected async registerSoloForCategory(): Promise<void> {
@@ -607,7 +646,7 @@ export class TournamentRegistrationShellComponent {
         },
       ]);
       this.toasts.success('Inscrição criada', 'Falta só formar a dupla — convide seu parceiro para garantir a vaga.');
-      await this.persistUniformAfterRegistration(category, result.registrationId);
+      this.persistUniformAfterRegistration(category);
     } catch (err) {
       this.toasts.error(
         'Não foi possível concluir a inscrição',
@@ -683,7 +722,7 @@ export class TournamentRegistrationShellComponent {
         'Equipe criada',
         `${teamName} está com a vaga reservada — convide os atletas para completar o elenco.`,
       );
-      await this.persistUniformAfterRegistration(category, result.registrationId);
+      this.persistUniformAfterRegistration(category);
     } catch (err) {
       this.toasts.error(
         'Não foi possível criar a equipe',
@@ -717,17 +756,12 @@ export class TournamentRegistrationShellComponent {
   }
 
   /** Mesmo par de chamadas do app (solo com `uniform: null` + `setRegistrationUniform`), sem
-   *  clique extra quando a seleção já está completa. Falha aqui não desfaz a vaga — o cartão
-   *  de uniforme continua oferecendo "Salvar uniforme". */
-  private async persistUniformAfterRegistration(category: TournamentCategoryOffer, registrationId: string): Promise<void> {
+   *  clique extra. Falha aqui não desfaz a vaga — o cartão de uniforme acusa e oferece
+   *  "Tentar novamente", em vez de engolir o erro como antes. */
+  private persistUniformAfterRegistration(category: TournamentCategoryOffer): void {
     const selection = this.uniform();
     if (!categoryRequiresUniform(category) || !selection || !isUniformSelectionComplete(category, selection)) return;
-    try {
-      await setRegistrationUniform(athleteFunctions(), registrationId, toUniformInput(selection));
-      this.uniformSaved.set(true);
-    } catch {
-      // Sem notice: a vaga já foi criada; o atleta salva pelo botão do cartão.
-    }
+    this.uniformSaver.saveNow(selection);
   }
 
   protected onPartnerQueryInput(value: string): void {

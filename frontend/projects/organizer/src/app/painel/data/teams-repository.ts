@@ -18,14 +18,26 @@ export interface OrganizerTeamPlayers {
   isLookingForPartner: boolean;
 }
 
-async function chunkedByIds<T>(db: Firestore, path: string[], ids: readonly string[], pick: (data: Record<string, unknown>) => T): Promise<Map<string, T>> {
+/** Limite de ids por `where(documentId(), 'in', …)` no Firestore. */
+const IN_LIMIT = 10;
+
+/** Ids únicos e não vazios, em lotes do tamanho que o `in` aceita. */
+export function chunkIds(ids: readonly string[], size = IN_LIMIT): string[][] {
   const unique = [...new Set(ids.filter((id) => id.length > 0))];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += size) chunks.push(unique.slice(i, i + size));
+  return chunks;
+}
+
+async function chunkedByIds<T>(db: Firestore, path: string[], ids: readonly string[], pick: (data: Record<string, unknown>) => T): Promise<Map<string, T>> {
   const result = new Map<string, T>();
-  if (unique.length === 0) return result;
+  const chunks = chunkIds(ids);
+  if (chunks.length === 0) return result;
   const col = collection(db, path[0]!, ...path.slice(1));
-  for (let i = 0; i < unique.length; i += 10) {
-    const chunk = unique.slice(i, i + 10);
-    const snap = await getDocs(query(col, where(documentId(), 'in', chunk)));
+  // Os lotes são independentes: em série cada um esperava a latência do anterior, e um torneio
+  // de 100 duplas (200 atletas) enfileirava 20 idas ao servidor só pra resolver nomes.
+  const snaps = await Promise.all(chunks.map((chunk) => getDocs(query(col, where(documentId(), 'in', chunk)))));
+  for (const snap of snaps) {
     for (const d of snap.docs) result.set(d.id, pick(d.data() as Record<string, unknown>));
   }
   return result;
@@ -68,12 +80,14 @@ export async function fetchTeamsByIds(
   }));
 }
 
-export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
-  const teams = await fetchTeamsByIds(db, projectId, teamIds);
-
-  const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
-  const profileNames = await fetchProfileNames(db, playerIds);
-
+/** Rótulo de cada dupla a partir de times e nomes JÁ carregados — sem I/O, pra quem já tem os
+ *  dois mapas em mãos não pagar uma segunda passada em `teams`/`public_profiles`.
+ *  `profileNames` só traz quem tem nome: uid ausente = perfil sem nome, e o time sem nenhum
+ *  nome fica fora do mapa pra quem chama decidir o fallback. */
+export function teamNamesFrom(
+  teams: ReadonlyMap<string, OrganizerTeamPlayers>,
+  profileNames: ReadonlyMap<string, string>,
+): Map<string, string> {
   const result = new Map<string, string>();
   for (const [teamId, team] of teams) {
     if (team.teamName) {
@@ -91,4 +105,11 @@ export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: 
     else if (p2) result.set(teamId, p2);
   }
   return result;
+}
+
+/** Rótulo das duplas buscando times e perfis do zero — para quem só tem os `teamId` na mão. */
+export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
+  const teams = await fetchTeamsByIds(db, projectId, teamIds);
+  const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+  return teamNamesFrom(teams, await fetchProfileNames(db, playerIds));
 }

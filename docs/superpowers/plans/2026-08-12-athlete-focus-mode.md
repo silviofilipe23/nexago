@@ -406,16 +406,17 @@ import type { DuoPlayer } from '../tournament-live.store';
 export interface FocusViewContext {
   matches: readonly TournamentMatch[];
   myTeamIds: ReadonlySet<string>;
-  // `now` NÃO entra aqui de propósito. O relógio do store tica a cada 1s com partida ao vivo;
-  // pendurá-lo no contexto compartilhado colocaria classificação, cenários e "ao vivo" para
-  // recalcular uma vez por segundo — `lossesOf` varre todas as partidas por linha da tabela.
-  // Quem precisa do relógio é só `nextMatchViewOf`, e ele o recebe por parâmetro.
+  // O contexto só carrega o que é ESTÁVEL entre ticks do relógio. Tudo que deriva de `now` —
+  // o próprio `now` e `dayTimeline` — entra por parâmetro na função que precisa dele.
+  // O relógio do store tica a cada 1s com partida ao vivo, e `myDayTimeline` devolve um array
+  // novo a cada chamada; pendurar qualquer um dos dois aqui invalida o contexto inteiro por
+  // referência e faz classificação, cenários e "ao vivo" recalcularem uma vez por segundo —
+  // `lossesOf` varre todas as partidas por linha da tabela.
   duoNameOf(teamId: string, fallback?: string | null): string;
   duoPlayersOf(teamId: string): [DuoPlayer, DuoPlayer];
   isMyTeam(teamId: string): boolean;
   standingsOf(poolId: string): readonly GroupStanding[];
   nextMatch: TournamentMatch | null;
-  dayTimeline: readonly TournamentMatch[];
 }
 ```
 
@@ -435,7 +436,6 @@ export function focusViewContextOf(store: TournamentLiveStore): FocusViewContext
     isMyTeam: (teamId) => store.isMyTeam(teamId),
     standingsOf: (poolId) => store.standingsOf(poolId),
     nextMatch: store.nextMatch(),
-    dayTimeline: store.dayTimeline(),
   };
 }
 ```
@@ -444,16 +444,16 @@ Em seguida mova, SEM alterar a lógica:
 
 - as interfaces `DuoView`, `NextMatchView`, `TimelineState`, `TimelineEntry`, `LiveRowView`, `QualificationNote` (linhas 30–80 de `today-tab.component.ts`) e a função `numberChipOf` (linhas 86–89);
 - os métodos privados `duoViewOf`, `standingLineOf`, `lossesOf`, `mySetLine`, `phaseLabelOf`, `kickerOf`, `noteOf` — cada um vira função exportada ou interna recebendo `ctx` como primeiro parâmetro no lugar de `this.store`;
-- os `computed` `nextMatch`, `timeline` e `liveNow` — viram `nextMatchViewOf(ctx, now)`, `timelineOf(ctx)` e `liveRowsOf(ctx, categoryId)`;
+- os `computed` `nextMatch`, `timeline` e `liveNow` — viram `nextMatchViewOf(ctx, now)`, `timelineOf(ctx, dayTimeline)` e `liveRowsOf(ctx, categoryId)`;
 - os `computed` `standings` e `qualificationNote` — viram `standingsViewOf(ctx, poolId, qualifiersPerGroup, myTeamId)` e `qualificationNoteOf(ctx, poolId, category, myTeamId)`. Eles vêm para cá agora, e não na Task 9, para que a seção Grupo os importe em vez de recuperar o componente apagado com `git show`.
 
-A tradução é mecânica: `this.store.matches()` → `ctx.matches`, `this.store.now()` → `ctx.now`, `this.store.duoNameOf(a, b)` → `ctx.duoNameOf(a, b)`, `this.store.nextMatch()` → `ctx.nextMatch`, `this.store.dayTimeline()` → `ctx.dayTimeline`, `this.store.standingsOf(p)` → `ctx.standingsOf(p)`. Exporte `standingLineOf` e `lossesOf` — a Task 9 usa as duas.
+A tradução é mecânica: `this.store.matches()` → `ctx.matches`, `this.store.now()` → o parâmetro `now`, `this.store.duoNameOf(a, b)` → `ctx.duoNameOf(a, b)`, `this.store.nextMatch()` → `ctx.nextMatch`, `this.store.dayTimeline()` → o parâmetro `dayTimeline`, `this.store.standingsOf(p)` → `ctx.standingsOf(p)`. Exporte `standingLineOf` e `lossesOf` — a Task 9 usa as duas.
 
 Assinaturas exatas a produzir:
 
 ```ts
 export function nextMatchViewOf(ctx: FocusViewContext, now: Date): NextMatchView | null;
-export function timelineOf(ctx: FocusViewContext): TimelineEntry[];
+export function timelineOf(ctx: FocusViewContext, dayTimeline: readonly TournamentMatch[]): TimelineEntry[];
 export function liveRowsOf(ctx: FocusViewContext, categoryId: string | null): LiveRowView[];
 export function standingLineOf(ctx: FocusViewContext, teamId: string, poolId: string): string | null;
 export function lossesOf(ctx: FocusViewContext, poolId: string, teamId: string): number;
@@ -482,7 +482,6 @@ function ctxOf(partial: Partial<FocusViewContext> & Pick<FocusViewContext, 'matc
     isMyTeam: (teamId) => teamId === 'teamMine',
     standingsOf: (): GroupStanding[] => [],
     nextMatch: null,
-    dayTimeline: [],
     ...partial,
   };
 }
@@ -520,14 +519,14 @@ describe('timelineOf', () => {
       sets: [{ a: 21, b: 15 }, { a: 21, b: 12 }],
       scheduleTime: new Date('2026-08-29T12:00:00Z'),
     });
-    const [entry] = timelineOf(ctxOf({ matches: [done], dayTimeline: [done] }));
+    const [entry] = timelineOf(ctxOf({ matches: [done] }), [done]);
     expect(entry?.state).toBe('done');
     expect(entry?.outcome).toBe('win');
   });
 
   it('marca como "next" a partida que é a próxima do atleta', () => {
     const upcoming = match({ id: 'm2', teamAId: 'teamMine', teamBId: 'teamRival', scheduleTime: new Date('2026-08-29T15:00:00Z') });
-    const [entry] = timelineOf(ctxOf({ matches: [upcoming], dayTimeline: [upcoming], nextMatch: upcoming }));
+    const [entry] = timelineOf(ctxOf({ matches: [upcoming], nextMatch: upcoming }), [upcoming]);
     expect(entry?.state).toBe('next');
   });
 });
@@ -549,7 +548,7 @@ Em `today-tab.component.ts`, apague as interfaces e métodos privados que foram 
 private readonly ctx = computed(() => focusViewContextOf(this.store));
 
 protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx(), this.store.now()));
-protected readonly timeline = computed(() => timelineOf(this.ctx()));
+protected readonly timeline = computed(() => timelineOf(this.ctx(), this.store.dayTimeline()));
 protected readonly liveNow = computed(() => liveRowsOf(this.ctx(), this.store.focusCategoryId()));
 protected readonly standings = computed(() =>
   standingsViewOf(this.ctx(), this.store.focusPoolId() ?? '', this.store.focusCategory()?.qualifiersPerGroup ?? 2, this.store.myTeamIdInFocus()),
@@ -1276,7 +1275,7 @@ export class FocusNowComponent {
   private readonly ctx = computed(() => focusViewContextOf(this.store));
 
   protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx(), this.store.now()));
-  protected readonly timeline = computed(() => timelineOf(this.ctx()));
+  protected readonly timeline = computed(() => timelineOf(this.ctx(), this.store.dayTimeline()));
 
   /**
    * `callMatchToCourt` grava `queueStatus: 'on_court'` E `status: inProgress` na MESMA escrita,

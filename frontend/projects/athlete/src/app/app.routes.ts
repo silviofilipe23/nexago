@@ -255,22 +255,28 @@ export const routes: Routes = [
         ],
       },
       {
+        // Link antigo da aba Hoje, aposentada: o dia do atleta em jogo agora vive no Modo Focus.
+        // Fica AQUI, irmã de `focus` — filha direta de `torneios/:id`, que é componentless — e
+        // não aninhada dentro da casca de abas (como a aba Hoje vivia antes). Duas armadilhas
+        // do router descartaram as alternativas mais óbvias, as duas confirmadas com um teste
+        // isolado via `RouterTestingHarness` antes de escrever esta rota:
+        // 1) `redirectTo: '../focus/agora'` (relativo): o router NÃO resolve `..` como "suba um
+        //    nível" — trata como segmento literal a casar contra as rotas IRMÃS do próprio nível
+        //    de `hoje`, nunca casa, e a navegação falha com NG04002.
+        // 2) Deixar `hoje` aninhada dentro do `path: ''` da casca de abas (como estava) e usar a
+        //    forma de função só troca o sintoma: o `parentRoute` ali É a própria casca de abas,
+        //    que TEM `loadComponent` — não é componentless — então a herança `emptyOnly` de
+        //    params não repassa o `id` do avô, e `params['id']` chega `undefined` na função.
+        // Resolvido subindo `hoje` para o nível de `focus`: herda `id` de `torneios/:id`
+        // (componentless) como `partida/:matchId` e `focus` já herdam.
+        path: 'hoje',
+        pathMatch: 'full',
+        redirectTo: ({ params }) => `/torneios/${params['id']}/focus/agora`,
+      },
+      {
         path: '',
         loadComponent: () => import('./tournaments/tournament-shell.component').then((m) => m.TournamentShellComponent),
         children: [
-          {
-            // Link antigo da aba Hoje, aposentada: o dia do atleta em jogo agora vive no Modo
-            // Focus. Forma de função (absoluta), não a relativa `'../focus/agora'`: essa rota
-            // está aninhada um nível a mais no config (dentro do path vazio desta casca) do que
-            // `focus`, que é filho direto de `torneios/:id` — e o router resolve `redirectTo`
-            // relativo tratando `..` como segmento literal a casar contra as ROTAS IRMÃS deste
-            // mesmo nível, não como "suba um nível", então ele nunca casa e a navegação falha
-            // com NG04002. Confirmado com um teste isolado via `RouterTestingHarness` antes de
-            // escrever esta rota. Mesmo padrão de `legacyCategoryRedirect`, só que absoluto.
-            path: 'hoje',
-            pathMatch: 'full',
-            redirectTo: ({ params }) => `/torneios/${params['id']}/focus/agora`,
-          },
           {
             path: 'categorias',
             loadComponent: () => import('./tournaments/category/category-list.component').then((m) => m.CategoryListComponent),

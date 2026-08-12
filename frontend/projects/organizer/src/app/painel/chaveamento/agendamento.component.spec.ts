@@ -380,3 +380,62 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     expect(blocks.length).toBe(1);
   });
 });
+
+/** A media query de tablet/celular e a regra base de `.og-agenda` têm a MESMA
+ *  especificidade — quem vier por último no arquivo vence. Com a base depois da
+ *  media query o `height:70dvh` era descartado em toda largura, a grade esticava
+ *  pro conteúdo inteiro e a rolagem interna das horas vazava pro documento. */
+describe('AgendamentoComponent — altura da grade por largura', () => {
+  const WRAPPER_H = 300;
+  let ngContentAttr: string;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AgendamentoComponent],
+      providers: [provideZonelessChangeDetection(), { provide: ChaveamentoContextService, useValue: new CtxStub() }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AgendamentoComponent);
+    fixture.detectChanges();
+    // O seletor compilado é `.og-agenda[_ngcontent-xxx]`; sem esse atributo o
+    // elemento de teste não casa com nenhuma regra do componente.
+    const agenda = (fixture.nativeElement as HTMLElement).querySelector('.og-agenda')!;
+    ngContentAttr = Array.from(agenda.attributes)
+      .map((a) => a.name)
+      .find((name) => name.startsWith('_ngcontent'))!;
+    expect(ngContentAttr).toBeDefined();
+  });
+
+  /** Mede `.og-agenda` numa viewport de tamanho controlado. O iframe é o único
+   *  jeito de escolher a largura que a media query enxerga — a janela do Karma
+   *  não é ajustável. O wrapper de altura fixa dá base pro `height:100%` da
+   *  regra base, então os dois caminhos rendem números distintos. */
+  function agendaHeightAt(width: number, height: number): number {
+    const frame = document.createElement('iframe');
+    frame.width = String(width);
+    frame.height = String(height);
+    // A borda padrão de 2px do iframe sai da viewport de dentro e desalinharia o dvh.
+    frame.style.border = '0';
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument!;
+    for (const style of Array.from(document.querySelectorAll('style'))) {
+      doc.head.appendChild(doc.importNode(style, true));
+    }
+    doc.body.innerHTML =
+      `<div style="margin:0;height:${WRAPPER_H}px"><div class="og-agenda" ${ngContentAttr}></div></div>`;
+    const measured = doc.querySelector('.og-agenda')!.getBoundingClientRect().height;
+    frame.remove();
+    return Math.round(measured);
+  }
+
+  it('dá altura própria à grade no celular (70dvh)', () => {
+    expect(agendaHeightAt(375, 812)).toBe(Math.round(812 * 0.7));
+  });
+
+  it('dá altura própria à grade no tablet em retrato (70dvh)', () => {
+    expect(agendaHeightAt(768, 1024)).toBe(Math.round(1024 * 0.7));
+  });
+
+  it('no desktop mantém a grade dividindo a altura da coluna (100%)', () => {
+    expect(agendaHeightAt(1280, 800)).toBe(WRAPPER_H);
+  });
+});

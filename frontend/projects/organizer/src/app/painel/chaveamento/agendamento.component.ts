@@ -347,8 +347,9 @@ interface AgendaBloco {
     /* Tablet: a coluna lateral de 300px comeria metade da grade num iPad em
        retrato (584px úteis). Empilha, e a grade — que é o trabalho da tela —
        fica com a largura inteira; a fila de partidas desce e rola com a página.
-       Precisa vir DEPOIS das regras base acima: mesma especificidade, e declarado antes
-       o bloco era descartado inteiro (o 70dvh saía como 3239px na medição). */
+       Precisa vir DEPOIS das regras base acima: mesma especificidade, quem estiver por
+       último no arquivo vence. Declarado antes, o bloco era descartado inteiro — o 70dvh
+       saía como 3239px na medição. */
     @media (max-width: 1023.98px) {
       .og-agenda-layout {
         grid-template-columns: 1fr;

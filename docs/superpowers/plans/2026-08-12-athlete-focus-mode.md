@@ -363,10 +363,13 @@ Esta task não muda comportamento nenhum. Ela move a lógica de `today-tab.compo
 - Produces:
   - `FocusViewContext` — o contrato que os componentes montam a partir do store.
   - `DuoView`, `NextMatchView`, `TimelineEntry`, `TimelineState`, `LiveRowView` (movidos de `today-tab.component.ts`, mesmos campos).
+  - `focusViewContextOf(store: TournamentLiveStore): FocusViewContext` — a fábrica. Três consumidores montam este contexto (`today-tab` nesta task, as seções Agora e Grupo depois); copiar o literal em cada um seria triplicar lógica.
   - `nextMatchViewOf(ctx: FocusViewContext): NextMatchView | null`
   - `timelineOf(ctx: FocusViewContext): TimelineEntry[]`
   - `liveRowsOf(ctx: FocusViewContext, categoryId: string | null): LiveRowView[]`
   - `standingLineOf(ctx: FocusViewContext, teamId: string, poolId: string): string | null`
+  - `standingsViewOf(ctx, poolId, qualifiersPerGroup, myTeamId): StandingRow[]` com `StandingRow { rank: number; name: string; isMe: boolean; wins: number; losses: number; sets: string; points: number; qualifies: boolean }`
+  - `qualificationNoteOf(ctx, poolId, category, myTeamId): QualificationNote | null` com `QualificationNote { tone: 'win' | 'neutral'; text: string }`
 
 - [ ] **Step 1: Escrever o contrato e mover as funções**
 
@@ -394,11 +397,34 @@ export interface FocusViewContext {
 }
 ```
 
+Logo abaixo, a fábrica — é ela que impede a triplicação do literal nos três consumidores:
+
+```ts
+import type { DuoPlayer, TournamentLiveStore } from '../tournament-live.store';
+
+/** Fotografia do store para as funções de view. `import type` de propósito: nada aqui depende
+ *  do store em tempo de execução, então não há ciclo. */
+export function focusViewContextOf(store: TournamentLiveStore): FocusViewContext {
+  return {
+    matches: store.matches(),
+    myTeamIds: store.myTeamIds(),
+    now: store.now(),
+    duoNameOf: (teamId, fallback) => store.duoNameOf(teamId, fallback ?? null),
+    duoPlayersOf: (teamId) => store.duoPlayersOf(teamId),
+    isMyTeam: (teamId) => store.isMyTeam(teamId),
+    standingsOf: (poolId) => store.standingsOf(poolId),
+    nextMatch: store.nextMatch(),
+    dayTimeline: store.dayTimeline(),
+  };
+}
+```
+
 Em seguida mova, SEM alterar a lógica:
 
-- as interfaces `DuoView`, `NextMatchView`, `TimelineState`, `TimelineEntry`, `LiveRowView` (linhas 30–75 de `today-tab.component.ts`) e a função `numberChipOf` (linhas 86–89);
+- as interfaces `DuoView`, `NextMatchView`, `TimelineState`, `TimelineEntry`, `LiveRowView`, `QualificationNote` (linhas 30–80 de `today-tab.component.ts`) e a função `numberChipOf` (linhas 86–89);
 - os métodos privados `duoViewOf`, `standingLineOf`, `lossesOf`, `mySetLine`, `phaseLabelOf`, `kickerOf`, `noteOf` — cada um vira função exportada ou interna recebendo `ctx` como primeiro parâmetro no lugar de `this.store`;
-- os `computed` `nextMatch`, `timeline` e `liveNow` — viram `nextMatchViewOf(ctx)`, `timelineOf(ctx)` e `liveRowsOf(ctx, categoryId)`.
+- os `computed` `nextMatch`, `timeline` e `liveNow` — viram `nextMatchViewOf(ctx)`, `timelineOf(ctx)` e `liveRowsOf(ctx, categoryId)`;
+- os `computed` `standings` e `qualificationNote` — viram `standingsViewOf(ctx, poolId, qualifiersPerGroup, myTeamId)` e `qualificationNoteOf(ctx, poolId, category, myTeamId)`. Eles vêm para cá agora, e não na Task 9, para que a seção Grupo os importe em vez de recuperar o componente apagado com `git show`.
 
 A tradução é mecânica: `this.store.matches()` → `ctx.matches`, `this.store.now()` → `ctx.now`, `this.store.duoNameOf(a, b)` → `ctx.duoNameOf(a, b)`, `this.store.nextMatch()` → `ctx.nextMatch`, `this.store.dayTimeline()` → `ctx.dayTimeline`, `this.store.standingsOf(p)` → `ctx.standingsOf(p)`. Exporte `standingLineOf` e `lossesOf` — a Task 9 usa as duas.
 
@@ -495,27 +521,23 @@ Esperado: FALHA — `focus-views` ainda não exporta o que o teste importa, ou o
 
 - [ ] **Step 4: Fazer o `today-tab` consumir as funções puras**
 
-Em `today-tab.component.ts`, apague as interfaces e métodos privados que foram movidos, importe de `../focus/focus-views`, e monte o contexto num `computed`:
+Em `today-tab.component.ts`, apague as interfaces e métodos privados que foram movidos, importe de `../focus/focus-views`, e use a fábrica:
 
 ```ts
-private readonly ctx = computed<FocusViewContext>(() => ({
-  matches: this.store.matches(),
-  myTeamIds: this.store.myTeamIds(),
-  now: this.store.now(),
-  duoNameOf: (teamId, fallback) => this.store.duoNameOf(teamId, fallback ?? null),
-  duoPlayersOf: (teamId) => this.store.duoPlayersOf(teamId),
-  isMyTeam: (teamId) => this.store.isMyTeam(teamId),
-  standingsOf: (poolId) => this.store.standingsOf(poolId),
-  nextMatch: this.store.nextMatch(),
-  dayTimeline: this.store.dayTimeline(),
-}));
+private readonly ctx = computed(() => focusViewContextOf(this.store));
 
 protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx()));
 protected readonly timeline = computed(() => timelineOf(this.ctx()));
 protected readonly liveNow = computed(() => liveRowsOf(this.ctx(), this.store.focusCategoryId()));
+protected readonly standings = computed(() =>
+  standingsViewOf(this.ctx(), this.store.focusPoolId() ?? '', this.store.focusCategory()?.qualifiersPerGroup ?? 2, this.store.myTeamIdInFocus()),
+);
+protected readonly qualificationNote = computed(() =>
+  qualificationNoteOf(this.ctx(), this.store.focusPoolId() ?? '', this.store.focusCategory(), this.store.myTeamIdInFocus()),
+);
 ```
 
-Reexporte os tipos que o template usa, se necessário. Os `computed` `standings`, `standingsTitle`, `standingsKicker`, `qualificationNote`, `categoryLine`, `announcements` e `mapsUrl` FICAM no componente por enquanto — a Task 9 os leva para a seção Grupo.
+Reexporte os tipos que o template usa, se necessário. Os `computed` `standingsTitle`, `standingsKicker`, `categoryLine`, `announcements` e `mapsUrl` FICAM no componente — são rótulos de uma linha, e a Task 9 os reescreve no lugar novo em vez de importá-los.
 
 - [ ] **Step 5: Rodar e confirmar que passa**
 
@@ -1229,17 +1251,7 @@ export class FocusNowComponent {
    *  recolhe o alerta, e o rótulo ("Ok, estou indo") diz exatamente isso. */
   private readonly acknowledged = signal<string | null>(null);
 
-  private readonly ctx = computed<FocusViewContext>(() => ({
-    matches: this.store.matches(),
-    myTeamIds: this.store.myTeamIds(),
-    now: this.store.now(),
-    duoNameOf: (teamId, fallback) => this.store.duoNameOf(teamId, fallback ?? null),
-    duoPlayersOf: (teamId) => this.store.duoPlayersOf(teamId),
-    isMyTeam: (teamId) => this.store.isMyTeam(teamId),
-    standingsOf: (poolId) => this.store.standingsOf(poolId),
-    nextMatch: this.store.nextMatch(),
-    dayTimeline: this.store.dayTimeline(),
-  }));
+  private readonly ctx = computed(() => focusViewContextOf(this.store));
 
   protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx()));
   protected readonly timeline = computed(() => timelineOf(this.ctx()));
@@ -1425,11 +1437,28 @@ git add frontend/projects/athlete/src/app/tournaments/focus/journey/ && git comm
 - Create: `frontend/projects/athlete/src/app/tournaments/focus/group/focus-group.component.{html,scss}`
 
 **Interfaces:**
-- Consumes: `roundScenariosOf` (Task 4); `liveRowsOf`, `standingLineOf`, `lossesOf` (Task 3); `groupLabelOf`, `qualificationOf` de `tournament-live.selectors`.
+- Consumes: `roundScenariosOf` (Task 4); `focusViewContextOf`, `liveRowsOf`, `standingsViewOf`, `qualificationNoteOf` (Task 3); `groupLabelOf`, `knockoutLabelOf` de `tournament-live.selectors`.
 
-- [ ] **Step 1: Migrar a classificação e ligar os cenários**
+- [ ] **Step 1: Ligar a classificação e os cenários**
 
-Mova para cá os `computed` `standings`, `standingsTitle`, `standingsKicker` e `qualificationNote` que ficaram em `today-tab.component.ts` na Task 3 (recupere o arquivo com `git show` se já foi apagado). Adicione:
+`standingsViewOf` e `qualificationNoteOf` já vivem em `focus-views.ts` desde a Task 3 — importe as duas, não recupere nada de componente apagado. Monte o contexto com a fábrica e adicione o resto:
+
+```ts
+private readonly ctx = computed(() => focusViewContextOf(this.store));
+
+protected readonly standings = computed(() =>
+  standingsViewOf(this.ctx(), this.store.focusPoolId() ?? '', this.store.focusCategory()?.qualifiersPerGroup ?? 2, this.store.myTeamIdInFocus()),
+);
+
+protected readonly qualificationNote = computed(() =>
+  qualificationNoteOf(this.ctx(), this.store.focusPoolId() ?? '', this.store.focusCategory(), this.store.myTeamIdInFocus()),
+);
+
+protected readonly standingsTitle = computed(() => {
+  const poolId = this.store.focusPoolId();
+  return poolId ? `${groupLabelOf(poolId, this.store.matches())} · classificação parcial` : null;
+});
+```
 
 ```ts
 protected readonly scenarios = computed(() => {
@@ -1439,8 +1468,6 @@ protected readonly scenarios = computed(() => {
   if (!poolId || !myMatch || myMatch.poolId !== poolId) return [];
   return roundScenariosOf(this.store.matches(), poolId, this.store.myTeamIdInFocus(), myMatch.id, qualifiers);
 });
-
-protected readonly liveNow = computed(() => liveRowsOf(this.ctx(), this.store.focusCategoryId()));
 
 /** Cruzamento declarado pela chave — fato, não previsão. Só existe quando o slot do mata-mata
  *  traz a descrição ("2º do Grupo A"). */
@@ -1454,6 +1481,8 @@ protected readonly crossing = computed(() => {
     .map((m) => ({ label: knockoutLabelOf(m), a: m.teamADescription!, b: m.teamBDescription! }));
 });
 
+protected readonly liveNow = computed(() => liveRowsOf(this.ctx(), this.store.focusCategoryId()));
+
 protected readonly where = computed(() => {
   const t = this.store.tournament();
   return {
@@ -1464,7 +1493,7 @@ protected readonly where = computed(() => {
 });
 ```
 
-Monte o mesmo `ctx` da Task 7 (mesmo bloco, copiado — os dois componentes leem o mesmo store).
+Importe `focusViewContextOf`, `liveRowsOf`, `standingsViewOf` e `qualificationNoteOf` de `../focus-views`, e `groupLabelOf`/`knockoutLabelOf` de `../../tournament-live.selectors`.
 
 - [ ] **Step 2: Montar o template**
 

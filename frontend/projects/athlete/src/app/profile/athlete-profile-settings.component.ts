@@ -1,6 +1,6 @@
 import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, updateProfile } from 'firebase/auth';
 import {
@@ -153,6 +153,7 @@ export class AthleteProfileSettingsComponent {
   protected readonly auth = inject(AuthService);
   protected readonly gamification = inject(AthleteGamificationService);
   protected readonly brLocations = inject(BrLocationsService);
+  private readonly router = inject(Router);
   private readonly firestore = createFirestore();
 
   protected readonly isEditing = signal(false);
@@ -166,6 +167,11 @@ export class AthleteProfileSettingsComponent {
   protected readonly passwordResetSent = signal(false);
   protected readonly resetError = signal<string | null>(null);
   protected readonly changingPhone = signal(false);
+  // Sair da conta pede confirmação em dois passos: no mobile a sidebar some (com o botão
+  // de logout dela), então este card é o único caminho — e um toque errado derruba a
+  // sessão. Mesma convenção do "Sair da lista" do Clubinho.
+  protected readonly logoutConfirming = signal(false);
+  protected readonly signingOut = signal(false);
   protected readonly cityOptions = signal<string[]>([]);
   protected readonly uploadingAvatar = signal(false);
   protected readonly avatarUploadError = signal<string | null>(null);
@@ -765,6 +771,24 @@ export class AthleteProfileSettingsComponent {
       this.resetError.set('Não foi possível enviar o e-mail agora.');
     } finally {
       this.sendingReset.set(false);
+    }
+  }
+
+  protected startLogout(): void {
+    this.logoutConfirming.set(true);
+  }
+
+  protected cancelLogout(): void {
+    this.logoutConfirming.set(false);
+  }
+
+  protected async confirmLogout(): Promise<void> {
+    this.signingOut.set(true);
+    try {
+      await this.auth.signOutUser();
+      await this.router.navigateByUrl('/');
+    } finally {
+      this.signingOut.set(false);
     }
   }
 

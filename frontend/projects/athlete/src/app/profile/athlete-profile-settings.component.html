@@ -382,6 +382,51 @@
               <p class="at-profile-copy-feedback">{{ err }}</p>
             }
           </section>
+
+          <!-- Conta: no mobile a sidebar (e o "Sair da conta" dela) some, então este é o
+               único caminho de logout do portal. Fica visível no desktop também porque é
+               a casa das ações de conta. -->
+          <section class="at-card">
+            <div class="at-card-head">
+              <span class="at-card-title">Conta</span>
+            </div>
+            <div class="at-profile-security-row">
+              <div>
+                <strong>Sessão</strong>
+                <p>
+                  @if (accountEmail(); as email) {
+                    Conectado como {{ email }}
+                  } @else {
+                    Você está conectado neste dispositivo.
+                  }
+                </p>
+              </div>
+              @if (!logoutConfirming()) {
+                <button type="button" class="at-mini-btn" (click)="startLogout()">Sair da conta</button>
+              }
+            </div>
+            @if (logoutConfirming()) {
+              <div class="at-profile-logout-confirm">
+                <p>Sair agora encerra sua sessão neste dispositivo.</p>
+                <div class="at-profile-logout-actions">
+                  <button type="button" class="at-mini-btn" [disabled]="signingOut()" (click)="cancelLogout()">
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    class="at-mini-btn at-mini-btn--danger"
+                    [disabled]="signingOut()"
+                    (click)="confirmLogout()"
+                  >
+                    @if (signingOut()) {
+                      <app-nx-spinner [size]="12" />
+                    }
+                    {{ signingOut() ? 'Saindo...' : 'Sair agora' }}
+                  </button>
+                </div>
+              </div>
+            }
+          </section>
         </div>
       </div>
 

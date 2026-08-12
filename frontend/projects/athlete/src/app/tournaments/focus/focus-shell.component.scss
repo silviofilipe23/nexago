@@ -17,10 +17,10 @@
   min-height: 0;
 }
 
+// Sem `position: sticky` de propósito: `.focus` não rola (só `.focus__content` rola, por
+// dentro), então o header já fica fixo no lugar por ser um item de flex column fora do
+// container com scroll — `sticky` aqui não faria nada além de custar uma camada de composição.
 .focus__header {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   display: flex;
   align-items: center;
   gap: var(--nx-s-3);
@@ -206,8 +206,10 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  // Largura da barra fixa no rodapé (mobile): sem isso o fim do conteúdo fica encoberto.
-  padding: var(--nx-s-5) var(--nx-s-5) calc(56px + var(--nx-s-5) + env(safe-area-inset-bottom, 0));
+  // Altura da barra fixa no rodapé (mobile): sem isso o fim do conteúdo fica encoberto por ela.
+  // `0px`, não `0`: dentro de um `calc()`, somar um número puro a um `<length>` é erro de tipo e
+  // invalida a propriedade shorthand inteira em engines que não resolvem o `env()`.
+  padding: var(--nx-s-5) var(--nx-s-5) calc(56px + var(--nx-s-5) + env(safe-area-inset-bottom, 0px));
 
   @media (min-width: 1024px) {
     padding: var(--nx-s-5);

@@ -154,7 +154,7 @@ export class TournamentLiveStore {
     }),
   );
 
-  readonly defaultTab = computed(() => defaultTabOf(this.visibleTabs()));
+  readonly defaultTab = computed(() => defaultTabOf());
 
   /** Ligado quando o atleta pede a lista de categorias ("Todas as categorias"). Enquanto for
    *  falso, quem está inscrito é levado direto para a própria categoria — sem o sinal, o atalho

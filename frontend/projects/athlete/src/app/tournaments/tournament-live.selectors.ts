@@ -322,6 +322,6 @@ export function defaultCategoryViewOf(views: readonly CategoryViewId[]): Categor
 
 /** Aba de entrada: sempre a visão geral — quem tem jogo hoje é levado ao Modo Focus, não a
  *  uma aba destas. */
-export function defaultTabOf(_tabs: readonly TournamentTabId[]): TournamentTabId {
+export function defaultTabOf(): TournamentTabId {
   return 'visao-geral';
 }

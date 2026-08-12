@@ -1088,11 +1088,13 @@ import { FocusDayService } from './focus-day.service';
 
 export type FocusSectionId = 'agora' | 'trajetoria' | 'grupo' | 'chave';
 
+/** Uma seção NÃO pode entrar aqui antes de a rota dela existir. O router faz backtracking até o
+ *  `path: '**'` da raiz, que redireciona para `/painel` — a aba sem rota expulsa o atleta do modo
+ *  imersivo em silêncio, sem erro no console. `chave` entra na Task 10, junto com a rota. */
 const SECTIONS: readonly { id: FocusSectionId; label: string }[] = [
   { id: 'agora', label: 'Agora' },
   { id: 'trajetoria', label: 'Trajetória' },
   { id: 'grupo', label: 'Grupo' },
-  { id: 'chave', label: 'Chave' },
 ];
 
 const CLOCK = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
@@ -1138,15 +1140,16 @@ export class FocusShellComponent {
 
   protected readonly hasLive = computed(() => this.store.liveInTournament().length > 0);
 
-  /** "DIA 2 DE 3" — só quando o torneio declara início E fim. Sem as duas datas o trecho some,
-   *  em vez de afirmar que hoje é o dia 1. */
+  /** "DIA 2 DE 3" — some quando o torneio não declara início E fim, ou ocupa um dia só.
+   *
+   *  Usa o helper COMPARTILHADO com a casca de abas, não uma segunda conta. Contar dias por
+   *  diferença de timestamp cru arredonda pela HORA e não pela virada do dia: um torneio que
+   *  começa sábado 08:00 vira "Dia 2" às 21:00 do próprio sábado — justamente o horário em que
+   *  o atleta está no Focus. O helper normaliza as duas pontas com `startOfDay` antes de subtrair. */
   protected readonly dayLine = computed<string | null>(() => {
     const t = this.store.tournament();
-    if (!t?.startAt || !t?.endAt) return null;
-    const total = Math.round((t.endAt.getTime() - t.startAt.getTime()) / DAY_MS) + 1;
-    const current = Math.round((this.store.now().getTime() - t.startAt.getTime()) / DAY_MS) + 1;
-    if (total < 1 || current < 1 || current > total) return null;
-    return `Dia ${current} de ${total}`;
+    const day = eventDayOf(t?.startAt ?? null, t?.endAt ?? null, this.store.now());
+    return day ? `Dia ${day.current} de ${day.total}` : null;
   });
 
   protected readonly headerMeta = computed(() =>
@@ -1617,7 +1620,11 @@ private readonly categoryId = computed(() => this.categoryIdInput() ?? this.rout
 
 Importe `input` de `@angular/core`. Nenhuma outra linha muda: `category`, `categoryMatches` e o resto já leem `this.categoryId()`.
 
-- [ ] **Step 2: Criar o wrapper que alimenta o input**
+- [ ] **Step 2: Devolver a seção Chave à navegação**
+
+A Task 6 deixou `chave` FORA de `SECTIONS` em `focus-shell.component.ts` de propósito: aba sem rota faz o router cair no `**` da raiz e expulsar o atleta para `/painel`, em silêncio. Agora que a rota vai existir, acrescente `{ id: 'chave', label: 'Chave' }` ao fim de `SECTIONS` e a `'chave'` em `FocusSectionId` — **no mesmo commit** que adiciona a rota, nunca antes.
+
+- [ ] **Step 3: Criar o wrapper que alimenta o input**
 
 A rota não pode apontar direto para `CategoryBracketComponent`: rota não passa input, e sem input ele voltaria a ler a categoria de uma rota que no Focus não tem `:categoriaId`. Crie o wrapper `frontend/projects/athlete/src/app/tournaments/focus/bracket/focus-bracket.component.ts`:
 

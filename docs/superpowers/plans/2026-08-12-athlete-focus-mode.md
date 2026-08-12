@@ -1325,9 +1325,14 @@ export type NowState = 'called' | 'live' | 'next' | 'idle';
 export class FocusNowComponent {
   protected readonly store = inject(TournamentLiveStore);
 
-  /** Reconhecimento LOCAL da chamada. Não existe callable para avisar a mesa — o botão só
-   *  recolhe o alerta, e o rótulo ("Ok, estou indo") diz exatamente isso. */
-  private readonly acknowledged = signal<string | null>(null);
+  /** Reconhecimento da chamada. Não existe callable para avisar a mesa — o botão só recolhe o
+   *  alerta, e o rótulo ("Ok, estou indo") diz exatamente isso.
+   *
+   *  O estado vive no `TournamentLiveStore`, NÃO num signal deste componente: as seções do Focus
+   *  são rotas irmãs, então o Angular destrói e recria este componente a cada troca de seção. E
+   *  `queueStatus` nunca volta de `'on_court'` — `submitMatchResult` não o toca —, então a
+   *  condição de "chamado" continua verdadeira a partida inteira. Com o estado local, reconhecer
+   *  e dar uma passada na Trajetória ressuscitava o alerta vermelho no meio do jogo. */
 
   private readonly ctx = computed(() => focusViewContextOf(this.store));
 
@@ -1343,7 +1348,7 @@ export class FocusNowComponent {
   protected readonly state = computed<NowState>(() => {
     const m = this.store.nextMatch();
     if (!m) return 'idle';
-    if (m.queueStatus === 'on_court' && this.acknowledged() !== m.id) return 'called';
+    if (m.queueStatus === 'on_court' && this.store.acknowledgedCallMatchId() !== m.id) return 'called';
     if (matchIsLive(m)) return 'live';
     return 'next';
   });
@@ -1376,8 +1381,7 @@ export class FocusNowComponent {
   });
 
   protected acknowledge(): void {
-    const id = this.store.nextMatch()?.id ?? null;
-    this.acknowledged.set(id);
+    this.store.acknowledgeCall(this.store.nextMatch()?.id ?? null);
   }
 }
 ```
@@ -1402,7 +1406,7 @@ export class FocusNowComponent {
   }
   @case ('live') { <!-- placar ao vivo + link pro detalhe --> }
   @case ('next') { <!-- contagem regressiva, check-in, card VS, pílulas, CTA mapsLabel() --> }
-  @case ('idle') { <!-- fim de dia: "Nenhuma partida sua pendente hoje." --> }
+  @case ('idle') { <!-- "Você não tem mais partidas pendentes neste torneio." — `nextMatch()` varre o torneio inteiro, não só hoje --> }
 }
 ```
 

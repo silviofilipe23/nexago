@@ -56,6 +56,7 @@ import {
   registrationTeamSize,
   teamJoinDenialMessage,
 } from "./tournament-team-category";
+import {resolveUniformSlot} from "./tournament-registration-uniform";
 import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster";
 import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
@@ -2007,7 +2008,8 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
 /**
  * Define/atualiza o uniforme do atleta na sua inscrição APÓS a inscrição
  * (modelo "informar uniforme depois"). O caller só altera o próprio slot
- * (player1/player2). Valida o tamanho contra a categoria.
+ * (player1/player2, ou `uniformByUid` em equipe). Vale também na RESERVA SOLO,
+ * antes de a dupla existir. Valida o tamanho contra a categoria.
  */
 export const setRegistrationUniform = onCall(async (request) => {
   const uid = request.auth?.uid;
@@ -2038,25 +2040,17 @@ export const setRegistrationUniform = onCall(async (request) => {
   }
   const registration = regSnap.data()!;
 
+  // Reserva solo NÃO tem doc em `teams` (a equipe nasce quando o parceiro
+  // aceita o convite), então a autorização não pode sair do doc da equipe —
+  // quem decide é `resolveUniformSlot`, que cai pra própria inscrição nesse
+  // caso. Sem isso, informar o uniforme antes de fechar a dupla é impossível.
   const teamId = (registration.teamId as string | undefined)?.trim() ?? "";
-  if (!teamId) {
-    throw new HttpsError("failed-precondition", "Equipe inválida.");
-  }
-  const teamSnap = await db
-    .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
-    .get();
-  const team = teamSnap.data() ?? {};
-  const isTeamRegistration =
-    registrationTeamSize(registration, null) >= MIN_TEAM_CATEGORY_SIZE;
-  const player1Id =
-    typeof team.player1Id === "string" ? team.player1Id.trim() : "";
-  const player2Id =
-    typeof team.player2Id === "string" ? team.player2Id.trim() : "";
-  const isPlayer1 = player1Id === uid;
-  const isPlayer2 = player2Id === uid;
-  const isTeamMember =
-    isTeamRegistration && extractTeamMemberUids(team).includes(uid);
-  if (!isPlayer1 && !isPlayer2 && !isTeamMember) {
+  const team = teamId
+    ? (await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get()).data() ??
+      {}
+    : null;
+  const slot = resolveUniformSlot(registration, team, uid);
+  if (!slot) {
     throw new HttpsError(
       "permission-denied",
       "Você não é um dos atletas desta inscrição.",
@@ -2079,11 +2073,12 @@ export const setRegistrationUniform = onCall(async (request) => {
 
   // Equipe (trio+): uniforme por atleta no mapa `uniformByUid`; dupla mantém
   // os slots legados Player1/Player2.
-  const update = isTeamRegistration
-    ? {[`uniformByUid.${uid}`]: uniformByUidEntry(uniform)}
-    : isPlayer1
-      ? registrationUniformPlayer1(uniform)
-      : registrationUniformPlayer2(uniform);
+  const update =
+    slot === "byUid"
+      ? {[`uniformByUid.${uid}`]: uniformByUidEntry(uniform)}
+      : slot === "player1"
+        ? registrationUniformPlayer1(uniform)
+        : registrationUniformPlayer2(uniform);
 
   await regRef.update({
     ...update,

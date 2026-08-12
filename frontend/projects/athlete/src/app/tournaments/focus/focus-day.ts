@@ -35,3 +35,10 @@ export function focusDayTargetOf(matches: readonly ArenaMatch[], reference: Date
 export function isFocusDismissed(storedValue: string | null, reference: Date): boolean {
   return storedValue != null && storedValue === saoPauloDateKey(reference);
 }
+
+/** Chave da memoização: o alvo do dia só vale para o MESMO atleta no MESMO dia. Sem ela, uma
+ *  aba aberta depois da meia-noite — ou uma troca de conta sem recarregar — serve o alvo de
+ *  ontem, ou o de outra pessoa. */
+export function focusMemoKeyOf(uid: string, reference: Date): string {
+  return `${uid}:${saoPauloDateKey(reference)}`;
+}

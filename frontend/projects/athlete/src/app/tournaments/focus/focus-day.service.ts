@@ -5,7 +5,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { fetchMatchesForTeam, fetchTeamsForAthlete } from '../../data/teams-repository';
 import { saoPauloDateKey } from '../tournament-live.selectors';
-import { FOCUS_DISMISSED_KEY, focusDayTargetOf, isFocusDismissed, type FocusDayTarget } from './focus-day';
+import { FOCUS_DISMISSED_KEY, focusDayTargetOf, focusMemoKeyOf, isFocusDismissed, type FocusDayTarget } from './focus-day';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -31,20 +31,27 @@ export class FocusDayService {
   private readonly projectId = environment.firebase.projectId ?? '';
 
   private pending: Promise<FocusDayTarget | null> | null = null;
+  private pendingKey: string | null = null;
 
-  readonly target = signal<FocusDayTarget | null>(null);
+  private readonly _target = signal<FocusDayTarget | null>(null);
+  readonly target = this._target.asReadonly();
 
   async resolve(now: Date = new Date()): Promise<FocusDayTarget | null> {
+    const uid = this.auth.user()?.uid ?? null;
+    const key = focusMemoKeyOf(uid ?? '', now);
     if (this.isDismissed(now)) return null;
-    this.pending ??= this.load(now);
+    if (key !== this.pendingKey) {
+      this.pending = null;
+      this.pendingKey = key;
+    }
+    this.pending ??= this.load(uid, now);
     const target = await this.pending;
-    this.target.set(target);
+    this._target.set(target);
     return target;
   }
 
-  private async load(now: Date): Promise<FocusDayTarget | null> {
+  private async load(uid: string | null, now: Date): Promise<FocusDayTarget | null> {
     const db = this.db;
-    const uid = this.auth.user()?.uid ?? null;
     if (!db || !this.projectId || !uid) return null;
     try {
       const teams = await fetchTeamsForAthlete(db, this.projectId, uid);
@@ -70,7 +77,9 @@ export class FocusDayService {
       // Modo privativo ou quota estourada: sem a marca o Focus reabre no próximo painel.
       // Degradar é melhor que estourar na saída do Focus.
     }
-    this.target.set(null);
+    this._target.set(null);
+    this.pending = null;
+    this.pendingKey = null;
   }
 
   private read(): string | null {

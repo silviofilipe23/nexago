@@ -1,5 +1,5 @@
 import type { ArenaMatch } from '../../data/teams-repository';
-import { focusDayTargetOf, isFocusDismissed } from './focus-day';
+import { focusDayTargetOf, focusMemoKeyOf, isFocusDismissed } from './focus-day';
 
 function arenaMatch(partial: Partial<ArenaMatch> & Pick<ArenaMatch, 'id'>): ArenaMatch {
   return {
@@ -86,5 +86,48 @@ describe('isFocusDismissed', () => {
 
   it('a marca de ontem não silencia hoje', () => {
     expect(isFocusDismissed('2026-08-28', TODAY)).toBe(false);
+  });
+});
+
+describe('focusMemoKeyOf', () => {
+  it('mesmo uid e mesmo dia geram a mesma chave', () => {
+    const uid = 'user123';
+    const key1 = focusMemoKeyOf(uid, TODAY);
+    const key2 = focusMemoKeyOf(uid, TODAY);
+    expect(key1).toBe(key2);
+  });
+
+  it('mesmo uid em dias diferentes geram chaves diferentes', () => {
+    const uid = 'user123';
+    const today = TODAY;
+    const tomorrow = new Date('2026-08-30T17:00:00Z');
+    const keyToday = focusMemoKeyOf(uid, today);
+    const keyTomorrow = focusMemoKeyOf(uid, tomorrow);
+    expect(keyToday).not.toBe(keyTomorrow);
+  });
+
+  it('uids diferentes no mesmo dia geram chaves diferentes', () => {
+    const today = TODAY;
+    const keyUser1 = focusMemoKeyOf('user1', today);
+    const keyUser2 = focusMemoKeyOf('user2', today);
+    expect(keyUser1).not.toBe(keyUser2);
+  });
+
+  it('uid vazio gera chave diferente de uid normal', () => {
+    const today = TODAY;
+    const keyEmpty = focusMemoKeyOf('', today);
+    const keyUser = focusMemoKeyOf('user123', today);
+    expect(keyEmpty).not.toBe(keyUser);
+  });
+
+  it('atravessar a meia-noite de São Paulo gera chave diferente', () => {
+    // 29/08 às 23:50 em São Paulo (2026-08-30T02:50:00Z)
+    const before = new Date('2026-08-30T02:50:00Z');
+    // 30/08 às 00:10 em São Paulo (2026-08-30T03:10:00Z)
+    const after = new Date('2026-08-30T03:10:00Z');
+    const uid = 'user123';
+    const keyBefore = focusMemoKeyOf(uid, before);
+    const keyAfter = focusMemoKeyOf(uid, after);
+    expect(keyBefore).not.toBe(keyAfter);
   });
 });

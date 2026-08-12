@@ -16,12 +16,23 @@ export interface RoundScenario {
  *  pontos, só pode melhorar ou manter a colocação. Logo, se o melhor e o pior resultado
  *  possíveis de um desfecho dão a MESMA posição, todo resultado legal no meio dá também — é
  *  por isso que bastam duas simulações, desde que sejam os limites. Duas escalas quaisquer do
- *  meio do intervalo não provam nada: o desempate por saldo de pontos é contínuo. */
+ *  meio do intervalo não provam nada: o desempate por saldo de pontos é contínuo.
+ *
+ *  A segunda entrada parece estranha de propósito: o mínimo lexicográfico de uma vitória por
+ *  2-1 NÃO é o placar de margens apertadas em todo set — é aquele em que o atleta fecha os dois
+ *  sets que precisa pelo fio da navalha, mas PERDE o set do meio (que não conta pro resultado)
+ *  do jeito mais feio possível, porque o critério seguinte ao saldo de sets é o saldo de pontos,
+ *  e `0–21` é o pior saldo legal que esse set pode contribuir. Trocar isso por um `19–21`
+ *  "realista" volta a deixar o mínimo fora do array e reintroduz afirmações falsas — o
+ *  contra-exemplo executado (`x` bate `y` 21-19/9-21/15-5) derruba a garantia em ~4% dos
+ *  grupos simulados. */
 const WIN_BOUNDS: readonly MatchSet[][] = [
   // Vitória mais folgada possível: 2-0 com saldo máximo.
   [{ a: 21, b: 0 }, { a: 21, b: 0 }],
-  // Vitória mais apertada possível: 2-1, cada set no mínimo, tie-break incluso.
-  [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 15, b: 13 }],
+  // Vitória mais apertada possível em sets ganhos, mas com o PIOR saldo de pontos legal: os dois
+  // sets que fecham o jogo no fio (21-19 e 15-13), e o set do meio perdido 0-21 — gameDiff = -17,
+  // o verdadeiro mínimo de um 2-1. Ver o porquê acima.
+  [{ a: 21, b: 19 }, { a: 0, b: 21 }, { a: 15, b: 13 }],
 ];
 
 function mirror(sets: readonly MatchSet[]): MatchSet[] {

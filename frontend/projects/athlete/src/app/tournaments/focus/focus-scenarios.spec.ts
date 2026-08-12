@@ -119,4 +119,17 @@ describe('roundScenariosOf', () => {
     const matches = [match({ id: 'mine-vs-rival', poolId: 'p1', status: 'scheduled', teamAId: 'x', teamBId: 'rival' })];
     expect(roundScenariosOf(matches, 'p1', 'mine', 'mine-vs-rival', 2)).toEqual([]);
   });
+
+  it('não confia num 2-1 "realista" como mínimo — regressão do bound interior', () => {
+    // Contra-exemplo real que expôs o bug: com o bound antigo (19-21 no set do meio), a função
+    // afirmava "1º e avança" pra essa mesma vitória. O placar legal 21-19/5-21/15-13 termina em
+    // 2º de verdade (saldo de sets empata com `x` e o saldo de pontos, negativo, perde) — então
+    // a função precisa se recusar a afirmar posição aqui.
+    const matches = [
+      match({ id: 'd1', poolId: 'p4', status: 'completed', teamAId: 'x', teamBId: 'y', winnerId: 'x', sets: [{ a: 21, b: 19 }, { a: 9, b: 21 }, { a: 15, b: 5 }] }),
+      match({ id: 'mine-vs-rival', poolId: 'p4', status: 'scheduled', teamAId: 'mine', teamBId: 'rival' }),
+    ];
+    const win = roundScenariosOf(matches, 'p4', 'mine', 'mine-vs-rival', 2).find((s) => s.outcome === 'win');
+    expect(win?.rank).toBeNull();
+  });
 });

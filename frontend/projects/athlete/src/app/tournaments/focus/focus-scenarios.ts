@@ -1,5 +1,6 @@
 import { buildGroupStandings, matchIsCanceled, matchIsCompleted, type MatchSet, type TournamentMatch } from '../../data/matches-repository';
 import { ordinalOf } from '../tournament-format';
+import { isPending } from '../tournament-live.selectors';
 
 export interface RoundScenario {
   outcome: 'win' | 'loss';
@@ -9,11 +10,18 @@ export interface RoundScenario {
   text: string;
 }
 
-/** Placares plausíveis de uma vitória em melhor-de-3, do lado do atleta. O saldo de sets e de
- *  pontos difere entre eles, e é justamente essa diferença que pode mudar a classificação. */
-const WIN_SCORES: readonly MatchSet[][] = [
-  [{ a: 21, b: 15 }, { a: 21, b: 15 }],
-  [{ a: 21, b: 15 }, { a: 15, b: 21 }, { a: 15, b: 10 }],
+/** Os EXTREMOS de uma vitória em melhor-de-3, do lado do atleta — não uma amostra qualquer.
+ *
+ *  A posição na tabela é monótona no saldo de sets e no de pontos: ganhar mais sets, ou mais
+ *  pontos, só pode melhorar ou manter a colocação. Logo, se o melhor e o pior resultado
+ *  possíveis de um desfecho dão a MESMA posição, todo resultado legal no meio dá também — é
+ *  por isso que bastam duas simulações, desde que sejam os limites. Duas escalas quaisquer do
+ *  meio do intervalo não provam nada: o desempate por saldo de pontos é contínuo. */
+const WIN_BOUNDS: readonly MatchSet[][] = [
+  // Vitória mais folgada possível: 2-0 com saldo máximo.
+  [{ a: 21, b: 0 }, { a: 21, b: 0 }],
+  // Vitória mais apertada possível: 2-1, cada set no mínimo, tie-break incluso.
+  [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 15, b: 13 }],
 ];
 
 function mirror(sets: readonly MatchSet[]): MatchSet[] {
@@ -36,10 +44,11 @@ function rankOf(matches: readonly TournamentMatch[], poolId: string, myTeamId: s
 /**
  * Cenários da rodada decisiva.
  *
- * Deliberadamente conservador, na mesma linha de `qualificationOf`: simula os placares
- * plausíveis e só afirma a posição quando TODOS levam ao mesmo lugar. Errar isso num app de
- * torneio — dizer "vencendo você é o 1º" e o atleta terminar em 2º por saldo — é pior que
- * dizer "depende do placar".
+ * Deliberadamente conservador, na mesma linha de `qualificationOf`: simula os EXTREMOS de cada
+ * desfecho (ver `WIN_BOUNDS`) e só afirma a posição quando os dois levam ao mesmo lugar — a
+ * monotonicidade do desempate garante que, nesse caso, todo placar legal no meio também leva.
+ * Errar isso num app de torneio — dizer "vencendo você é o 1º" e o atleta terminar em 2º por
+ * saldo — é pior que dizer "depende do placar".
  *
  * Só roda quando a partida do atleta é a única pendente do grupo: com outra em aberto, quem
  * decide a posição é um resultado que ninguém controla.
@@ -55,10 +64,12 @@ export function roundScenariosOf(
   const pool = matches.filter((m) => m.poolId === poolId);
   const mine = pool.find((m) => m.id === myMatchId);
   if (!mine || matchIsCompleted(mine) || matchIsCanceled(mine)) return [];
+  // O atleta precisa jogar essa partida — senão o placar hipotético seria aplicado a duas
+  // duplas que não são a dele.
+  if (mine.teamAId !== myTeamId && mine.teamBId !== myTeamId) return [];
 
-  const pending = pool.filter((m) => !matchIsCompleted(m) && !matchIsCanceled(m));
+  const pending = pool.filter(isPending);
   const soleDecider = pending.length === 1 && pending[0]!.id === myMatchId;
-  const others = matches.filter((m) => m.id !== myMatchId);
 
   return (['win', 'loss'] as const).map((outcome) => {
     if (!soleDecider) {
@@ -73,9 +84,17 @@ export function roundScenariosOf(
     }
 
     const iWin = outcome === 'win';
-    const ranks = WIN_SCORES.map((sets) =>
-      rankOf([...others, withHypotheticalResult(mine, myTeamId, iWin ? sets : mirror(sets), iWin)], poolId, myTeamId),
-    );
+    // Só os dois EXTREMOS de WIN_BOUNDS — a monotonicidade do desempate garante que, se ambos
+    // derem a mesma posição, todo placar legal no meio também dá (ver doc da função).
+    const ranks = WIN_BOUNDS.map((bound) => {
+      const oriented = iWin ? bound : mirror(bound);
+      // Substitui em vez de remover-e-reanexar: `buildGroupStandings` semeia seu mapa na ordem
+      // de iteração das partidas e o `sort` é estável, então a ordem de inserção é o desempate
+      // de ÚLTIMO recurso entre duplas empatadas em tudo o mais. Mover a partida do atleta para
+      // o fim mudaria esse desempate na simulação em relação à tabela real.
+      const simulated = matches.map((m) => (m.id === myMatchId ? withHypotheticalResult(mine, myTeamId, oriented, iWin) : m));
+      return rankOf(simulated, poolId, myTeamId);
+    });
     const [first] = ranks;
     const invariant = first != null && ranks.every((r) => r === first);
     if (!invariant) {

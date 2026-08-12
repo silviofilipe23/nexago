@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AuthService } from '../../auth/auth.service';
-import { organizerFirestore } from '../data/firestore';
-import { watchNotifications } from '../data/notifications-repository';
+import { UnreadNotificationsService } from './unread-notifications.service';
 
 /** Sino de notificações do painel — leva à central (`/painel/notificacoes`) e acende o ponto
- *  quando há notificação real não lida (nova inscrição, pagamento, pedido de cancelamento). */
+ *  quando há notificação real não lida (nova inscrição, pagamento, pedido de cancelamento).
+ *  Só a vista: quem escuta o Firestore é o `UnreadNotificationsService`, que sobrevive à
+ *  navegação (este componente não — ele fica no cabeçalho de página). */
 @Component({
   selector: 'og-bell',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,25 +52,5 @@ import { watchNotifications } from '../data/notifications-repository';
   `,
 })
 export class OgBellComponent {
-  private readonly auth = inject(AuthService);
-  private readonly firestore = organizerFirestore();
-
-  protected readonly unreadCount = signal(0);
-
-  constructor() {
-    effect((onCleanup) => {
-      const user = this.auth.user();
-      if (!user) {
-        this.unreadCount.set(0);
-        return;
-      }
-      const stop = watchNotifications(
-        this.firestore,
-        user.uid,
-        (items) => this.unreadCount.set(items.filter((n) => n.unread).length),
-        () => this.unreadCount.set(0),
-      );
-      onCleanup(() => stop());
-    });
-  }
+  protected readonly unreadCount = inject(UnreadNotificationsService).count;
 }

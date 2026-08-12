@@ -1071,7 +1071,8 @@ button {
    acende, e é por isso que estas regras base vêm ANTES dela (mesma especificidade:
    quem vier depois ganha). Carrega o contexto da cascata porque no desktop ele vive
    dentro do `<nav>`, e com a sidebar recolhida "voltar" e o nome do torneio
-   sumiriam junto com ela. */
+   sumiriam junto com ela. O sino vem junto: no desktop ele mora no cabeçalho de
+   página, que aqui embaixo divide a linha com o botão de ação e não teria espaço. */
 .og-topbar {
   display: none;
   align-items: center;

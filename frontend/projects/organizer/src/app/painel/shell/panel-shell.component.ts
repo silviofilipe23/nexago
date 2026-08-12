@@ -156,10 +156,6 @@ function initialsOfName(name: string): string {
         }
       </div>
 
-      <div class="og-sidebar-bell-row">
-        <og-bell />
-      </div>
-
       <div class="og-sidebar-user">
         @if (userMenuOpen()) {
           <div class="og-user-menu" role="menu" (click)="$event.stopPropagation()">
@@ -195,7 +191,8 @@ function initialsOfName(name: string): string {
 
     <div class="og-main" [attr.inert]="compact() && drawerOpen() ? '' : null">
       <!-- Só abaixo de 1024px (o CSS acende). Carrega o contexto da cascata porque no
-           desktop ele mora dentro do <nav>, e sumiria junto com a sidebar recolhida. -->
+           desktop ele mora dentro do <nav>, e sumiria junto com a sidebar recolhida —
+           e o sino, que no desktop fica no cabeçalho de página (og-page-header). -->
       <header class="og-topbar">
         <button
           #burger
@@ -242,12 +239,6 @@ function initialsOfName(name: string): string {
     <og-person-photo />
   `,
   styles: `
-    .og-sidebar-bell-row {
-      display: flex;
-      justify-content: flex-end;
-      padding: 0 2px;
-    }
-
     .og-support-banner {
       display: flex;
       align-items: center;

@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { AgendamentoComponent } from './agendamento.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 import type { TournamentMatch } from '../data/matches-repository';
@@ -130,7 +131,13 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     ctx = new CtxStub();
     await TestBed.configureTestingModule({
       imports: [AgendamentoComponent],
-      providers: [provideZonelessChangeDetection(), { provide: ChaveamentoContextService, useValue: ctx }],
+      // O `og-page-header` da tela carrega o sino, que é um `routerLink` — sem router o
+      // TestBed não consegue nem instanciar a diretiva.
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: ChaveamentoContextService, useValue: ctx },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(AgendamentoComponent);
     setNarrow(false);
@@ -392,7 +399,11 @@ describe('AgendamentoComponent — altura da grade por largura', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AgendamentoComponent],
-      providers: [provideZonelessChangeDetection(), { provide: ChaveamentoContextService, useValue: new CtxStub() }],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: ChaveamentoContextService, useValue: new CtxStub() },
+      ],
     }).compileComponents();
     const fixture = TestBed.createComponent(AgendamentoComponent);
     fixture.detectChanges();

@@ -66,8 +66,8 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
   imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent],
   template: `
     <og-page-header title="Início" subtitle="Visão geral dos seus torneios e ligas">
-      <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div>
-      <button type="button" class="og-bell-btn"><og-icon name="bell" [size]="17" /><span class="dot"></span></button>
+      <!-- <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div> -->
+      <!-- <button type="button" class="og-bell-btn"><og-icon name="bell" [size]="17" /><span class="dot"></span></button> -->
       <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/novo-evento"><og-icon name="plus" [size]="14" />Criar evento</a>
     </og-page-header>
 

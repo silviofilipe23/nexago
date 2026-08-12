@@ -9,7 +9,13 @@ import * as logger from "firebase-functions/logger";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
-import {deliverNotificationToUser, markTournamentPartnerInviteInboxResponse} from "./notification-delivery";
+import {
+  deliverNotificationToUser,
+  markTournamentPartnerInviteInboxResponse,
+  WEB_PUSH_PUBLIC_KEY,
+  WEB_PUSH_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
+} from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
 import {
   assertTournamentAcceptsRegistration,
@@ -1316,7 +1322,9 @@ async function notifyOrganizersRegistrationCompleted({
   );
 }
 
-export const acceptTournamentPartnerInvite = onCall(async (request) => {
+export const acceptTournamentPartnerInvite = onCall({
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");

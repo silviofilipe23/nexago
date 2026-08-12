@@ -23,6 +23,7 @@ import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscript
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
 import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
 import {getFirebaseProjectId} from "./firebase-paths";
+import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -43,7 +44,7 @@ type AsaasWebhookBody = {
  * Webhook Asaas — reservas (`arenaBooking:*`) e inscrições (`tournamentRegistration:*`).
  */
 export const asaasWebhook = onRequest({
-  secrets: [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL],
+  secrets: [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");

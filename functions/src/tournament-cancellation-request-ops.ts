@@ -2,7 +2,12 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {assertCanManageTournament, tournamentManagerUids} from "./tournament-acl";
-import {deliverNotificationToUser} from "./notification-delivery";
+import {
+  deliverNotificationToUser,
+  WEB_PUSH_PUBLIC_KEY,
+  WEB_PUSH_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
+} from "./notification-delivery";
 import {
   artifactsInscriptionsPath,
   artifactsTeamsPath,
@@ -69,7 +74,9 @@ async function loadRegistrationContext(
  * plataforma não estorna: aprovado, o pedido só libera a vaga — a devolução do
  * valor é combinada entre os dois fora da plataforma.
  */
-export const requestRegistrationCancellation = onCall(async (request) => {
+export const requestRegistrationCancellation = onCall({
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");

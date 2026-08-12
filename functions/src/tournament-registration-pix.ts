@@ -48,7 +48,12 @@ import {
   loadTeamMemberUids,
   setTeamGenderWhenRegistrationPaid,
 } from "./tournament-team-roster";
-import {deliverNotificationToUser} from "./notification-delivery";
+import {
+  deliverNotificationToUser,
+  WEB_PUSH_PUBLIC_KEY,
+  WEB_PUSH_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
+} from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
@@ -679,6 +684,7 @@ export const confirmFreeTournamentRegistration = onCall({
 
 /** Reserva vaga em torneio com pagamento direto ao organizador (sem PIX). */
 export const reserveDirectOrganizerRegistration = onCall({
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {

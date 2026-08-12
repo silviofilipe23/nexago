@@ -689,8 +689,12 @@ export interface RoundScenario {
 const WIN_BOUNDS: readonly MatchSet[][] = [
   // Vitória mais folgada possível: 2-0 com saldo máximo.
   [{ a: 21, b: 0 }, { a: 21, b: 0 }],
-  // Vitória mais apertada possível: 2-1, cada set no mínimo, tie-break incluso.
-  [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 15, b: 13 }],
+  // Vitória mais MAGRA possível em saldo: 2-1 perdendo o set do meio o mais feio que a regra
+  // permite. Parece estranho de propósito — o mínimo lexicográfico de uma vitória por 2-1 não é
+  // o placar de margens apertadas (saldo +2), e sim este (saldo -17), porque o desempate depois
+  // do saldo de sets é o de pontos. Trocar por um 19-21 "realista" reintroduz afirmação falsa
+  // em ~4% dos grupos: medido com força bruta sobre todos os placares legais.
+  [{ a: 21, b: 19 }, { a: 0, b: 21 }, { a: 15, b: 13 }],
 ];
 
 function mirror(sets: readonly MatchSet[]): MatchSet[] {

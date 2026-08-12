@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { matchIsLive, type TournamentMatch } from '../../../data/matches-repository';
 import { focusViewContextOf, nextMatchViewOf, timelineOf } from '../focus-views';
@@ -40,10 +40,6 @@ export function nowStateOf(m: Pick<TournamentMatch, 'id' | 'queueStatus' | 'stat
 export class FocusNowComponent {
   protected readonly store = inject(TournamentLiveStore);
 
-  /** Reconhecimento LOCAL da chamada. Não existe callable para avisar a mesa — o botão só
-   *  recolhe o alerta, e o rótulo ("Ok, estou indo") diz exatamente isso. */
-  private readonly acknowledged = signal<string | null>(null);
-
   /** Fotografia do store consumida pelas funções puras de `focus/focus-views` — ver a
    *  documentação de `FocusViewContext` sobre por que essa indireção existe. */
   private readonly ctx = computed(() => focusViewContextOf(this.store));
@@ -51,7 +47,11 @@ export class FocusNowComponent {
   protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx(), this.store.now()));
   protected readonly timeline = computed(() => timelineOf(this.ctx(), this.store.dayTimeline()));
 
-  protected readonly state = computed<NowState>(() => nowStateOf(this.store.nextMatch(), this.acknowledged()));
+  /** O reconhecimento em si mora no store (`acknowledgedCall`/`acknowledgeCall`), não aqui: ver
+   *  o comentário lá sobre por que ele precisa sobreviver à troca de seção dentro do Focus. Não
+   *  existe callable pra avisar a mesa — o botão só recolhe o alerta, e o rótulo ("Ok, estou
+   *  indo") diz exatamente isso. */
+  protected readonly state = computed<NowState>(() => nowStateOf(this.store.nextMatch(), this.store.acknowledgedCall));
 
   protected readonly calledAt = computed(() => {
     const at = this.store.nextMatch()?.matchStartedAt;
@@ -81,7 +81,7 @@ export class FocusNowComponent {
   });
 
   protected acknowledge(): void {
-    const id = this.store.nextMatch()?.id ?? null;
-    this.acknowledged.set(id);
+    const id = this.store.nextMatch()?.id;
+    if (id) this.store.acknowledgeCall(id);
   }
 }

@@ -38,8 +38,11 @@ describe('nowStateOf', () => {
     expect(nowStateOf(m, null)).toBe('next');
   });
 
-  it('chamada de uma partida anterior não vaza pra próxima partida agendada', () => {
-    const m = { id: 'm2', queueStatus: null, status: 'Scheduled' };
-    expect(nowStateOf(m, 'm1')).toBe('next');
+  it('chamada de uma partida NOVA não fica escondida pelo reconhecimento de uma partida anterior', () => {
+    // Precisa ser `on_court` de propósito: com `queueStatus: null` o ramo "called" já é
+    // inalcançável não importa o valor de `acknowledgedMatchId`, e o teste passaria mesmo se
+    // `nowStateOf` ignorasse o parâmetro de reconhecimento por completo.
+    const m = { id: 'm2', queueStatus: 'on_court', status: 'in progress' };
+    expect(nowStateOf(m, 'm1')).toBe('called');
   });
 });

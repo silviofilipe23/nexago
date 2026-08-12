@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { fetchArenaProfile, saveArenaContacts } from './arena-profile-repository';
+import { arenaProfileFromDoc, saveArenaContacts } from './arena-profile-repository';
 
 /** Tela Contatos da arena: WhatsApp, telefone e endereço reais em `arenas/{arenaId}`.
  *  Instagram, e-mail, "equipe de contatos" e toggle de visibilidade por canal saíram — não
@@ -17,7 +17,7 @@ import { fetchArenaProfile, saveArenaContacts } from './arena-profile-repository
   template: `
     <ar-panel-shell>
       <ar-page-header title="Contatos da arena" [subtitle]="headerSubtitle()">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || loading()" (click)="save()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || arenaLoading()" (click)="save()">
           <ar-icon name="check" [size]="14" />
           {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
         </button>
@@ -26,10 +26,8 @@ import { fetchArenaProfile, saveArenaContacts } from './arena-profile-repository
       <div class="body">
         @if (arenaNotFound()) {
           <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
-        } @else if (arenaLoading() || loading()) {
+        } @else if (arenaLoading()) {
           <p class="state-text">Carregando contatos…</p>
-        } @else if (loadError(); as err) {
-          <p class="state-text">{{ err }}</p>
         } @else {
           @if (saveError(); as serr) {
             <div class="error-banner">{{ serr }}</div>
@@ -143,8 +141,6 @@ export class PanelProfileContactsComponent {
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
   protected readonly headerSubtitle = computed(() => `${this.arenaContext.arenaName() ?? 'Arena'} · canais de comunicação com clientes`);
 
-  protected readonly loading = signal(true);
-  protected readonly loadError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
 
@@ -164,25 +160,16 @@ export class PanelProfileContactsComponent {
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
       if (!arenaId) return;
-      void this.load(arenaId);
-    });
-  }
-
-  private async load(arenaId: string): Promise<void> {
-    this.loading.set(true);
-    this.loadError.set(null);
-    try {
-      const profile = await fetchArenaProfile(arenaFirestore(), arenaId);
+      // Semente única por arena: o doc do contexto é ao vivo, e reagir a ele reescreveria os
+      // campos por baixo de quem está editando. Ler daqui não custa ida ao servidor.
+      const data = untracked(() => this.arenaContext.arenaDocData());
+      const profile = data ? arenaProfileFromDoc(data) : null;
       this.phoneSeed.set(profile?.phone ?? '');
       this.whatsappSeed.set(profile?.whatsapp ?? '');
       this.addressSeed.set(profile?.address ?? '');
       this.citySeed.set(profile?.city ?? '');
       this.stateSeed.set(profile?.state ?? '');
-    } catch {
-      this.loadError.set('Não foi possível carregar os contatos.');
-    } finally {
-      this.loading.set(false);
-    }
+    });
   }
 
   protected async save(): Promise<void> {

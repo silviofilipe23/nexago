@@ -1,7 +1,7 @@
 import { collection, documentId, getCountFromServer, getDocs, query, where, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
-import { fetchTeamNames, fetchTeamsByIds } from './teams-repository';
+import { chunkIds, fetchTeamsByIds, teamNamesFrom } from './teams-repository';
 
 /** `artifacts/{projectId}/public/data/inscriptions` (mesma coleção que o athlete lê em
  *  `tournament-registrations-repository.ts`) — o doc real só guarda `participantUids`/`teamId`
@@ -134,7 +134,9 @@ function cancellationRequestFromDoc(v: unknown): InscriptionCancellationRequest 
 }
 
 interface ProfileDisplay {
-  name: string;
+  /** `null` = perfil sem nenhum nome preenchido. O fallback ('Atleta') é de quem exibe: o
+   *  rótulo da dupla precisa distinguir "sem nome" pra não virar "Atleta / Atleta". */
+  name: string | null;
   photoUrl: string | null;
   levelsBySport: Record<string, string>;
   legacyLevel: string | null;
@@ -223,22 +225,22 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
 }
 
 async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Promise<Map<string, ProfileDisplay>> {
-  const unique = [...new Set(uids.filter((id) => id.length > 0))];
   const result = new Map<string, ProfileDisplay>();
-  if (unique.length === 0) return result;
-  for (let i = 0; i < unique.length; i += 10) {
-    const chunk = unique.slice(i, i + 10);
-    const snap = await getDocs(query(collection(db, 'public_profiles'), where(documentId(), 'in', chunk)));
+  const chunks = chunkIds(uids);
+  if (chunks.length === 0) return result;
+  const snaps = await Promise.all(
+    chunks.map((chunk) => getDocs(query(collection(db, 'public_profiles'), where(documentId(), 'in', chunk)))),
+  );
+  for (const snap of snaps) {
     for (const d of snap.docs) {
       const data = d.data() as Record<string, unknown>;
-      const name = optionalStr(data['nickname']) ?? optionalStr(data['fullName']) ?? optionalStr(data['name']);
       const photoUrl =
         optionalStr(data['profilePhotoUrl']) ??
         optionalStr(data['avatarUrl']) ??
         optionalStr(data['photoURL']) ??
         optionalStr(data['photoUrl']);
       result.set(d.id, {
-        name: name ?? 'Atleta',
+        name: optionalStr(data['nickname']) ?? optionalStr(data['fullName']) ?? optionalStr(data['name']),
         photoUrl,
         levelsBySport: levelsBySportOf(data),
         legacyLevel: optionalStr(data['level']) ?? optionalStr(data['nivel']),
@@ -246,6 +248,13 @@ async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Pro
     }
   }
   return result;
+}
+
+/** Só quem tem nome — mesmo contrato que `teamNamesFrom` espera (uid ausente = sem nome). */
+function profileNamesFrom(profiles: ReadonlyMap<string, ProfileDisplay>): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const [uid, profile] of profiles) if (profile.name) names.set(uid, profile.name);
+  return names;
 }
 
 /** Uids da inscrição NA ORDEM DOS SLOTS de uniforme: quem está no slot 1 é `player1Id` quando o
@@ -291,10 +300,7 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
   const rows = snap.docs.map((d) => rawFromDoc(d.id, d.data() as Record<string, unknown>));
 
   const teamIds = rows.map((r) => r.teamId).filter((id): id is string => id != null);
-  const [teamNames, teams] = await Promise.all([
-    fetchTeamNames(db, projectId, teamIds),
-    fetchTeamsByIds(db, projectId, teamIds),
-  ]);
+  const teams = await fetchTeamsByIds(db, projectId, teamIds);
 
   const allUids = new Set<string>();
   for (const r of rows) {
@@ -302,7 +308,14 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       allUids.add(uid);
     }
   }
+  // Os jogadores do time entram na MESMA busca de perfis: o rótulo da dupla sai desses mesmos
+  // nomes, e pedi-los à parte custava uma segunda varredura inteira de `public_profiles`.
+  for (const team of teams.values()) {
+    if (team.player1Id) allUids.add(team.player1Id);
+    if (team.player2Id) allUids.add(team.player2Id);
+  }
   const profiles = await fetchDisplayProfiles(db, [...allUids]);
+  const teamNames = teamNamesFrom(teams, profileNamesFrom(profiles));
 
   return rows.map((r) => {
     const team = r.teamId ? teams.get(r.teamId) ?? null : null;

@@ -1,6 +1,7 @@
 import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
+import { chunkIds } from './teams-repository';
 import type { AthleteRatingLite } from './team-level-score';
 
 /** `artifacts/{projectId}/public/data/athleteRatings/{uid}_{sportCode}` — estado derivado da
@@ -34,9 +35,10 @@ export async function fetchAthleteRatings(
   const docIds = unique.map((uid) => `${uid}${suffix}`);
 
   try {
-    for (let i = 0; i < docIds.length; i += 10) {
-      const chunk = docIds.slice(i, i + 10);
-      const snap = await getDocs(query(ref, where(documentId(), 'in', chunk)));
+    const snaps = await Promise.all(
+      chunkIds(docIds).map((chunk) => getDocs(query(ref, where(documentId(), 'in', chunk)))),
+    );
+    for (const snap of snaps) {
       for (const d of snap.docs) {
         if (!d.id.endsWith(suffix)) continue;
         const data = d.data() as Record<string, unknown>;

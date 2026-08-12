@@ -1,5 +1,5 @@
 import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY } from '@nexago/arena-discovery';
-import { deleteField, doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
+import { deleteField, doc, setDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
 import { validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
 
@@ -20,11 +20,9 @@ function readStringArray(data: Record<string, unknown>, key: string): string[] {
   return v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
 }
 
-export async function fetchArenaProfile(db: Firestore, arenaId: string): Promise<ArenaProfile | null> {
-  const snap = await getDoc(doc(db, 'arenas', arenaId));
-  if (!snap.exists()) return null;
-  const data = snap.data() as Record<string, unknown>;
-
+/** Perfil a partir do doc `arenas/{arenaId}` já em memória — as telas leem o doc do
+ *  `ArenaContextService`, que o mantém ao vivo, em vez de refazer a mesma leitura. */
+export function arenaProfileFromDoc(data: Record<string, unknown>): ArenaProfile {
   return {
     name: readString(data, 'name'),
     description: readString(data, 'description'),

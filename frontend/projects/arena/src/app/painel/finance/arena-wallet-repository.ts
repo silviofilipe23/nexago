@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, setDoc, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import { collection, doc, limit, onSnapshot, orderBy, query, setDoc, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 import {
   inferPixKeyType,
@@ -71,10 +71,9 @@ export interface ArenaPayoutPix {
 }
 
 /** `arenas/{arenaId}.payoutPixKey`/`payoutPixKeyType` — mesmo doc do Perfil, campo livre pro
- *  gestor escrever direto (rules só congelam campos de plano). */
-export async function fetchArenaPayoutPix(db: Firestore, arenaId: string): Promise<ArenaPayoutPix> {
-  const snap = await getDoc(doc(db, 'arenas', arenaId));
-  const data = (snap.data() ?? {}) as Record<string, unknown>;
+ *  gestor escrever direto (rules só congelam campos de plano). Lê do doc que o
+ *  `ArenaContextService` já mantém ao vivo, sem refazer a leitura só pra abrir a tela. */
+export function arenaPayoutPixFromDoc(data: Record<string, unknown>): ArenaPayoutPix {
   const pixKey = typeof data['payoutPixKey'] === 'string' ? data['payoutPixKey'] : '';
   const storedType = typeof data['payoutPixKeyType'] === 'string' ? (data['payoutPixKeyType'].toUpperCase() as PixKeyType) : null;
   const pixKeyType: PixKeyType = storedType && ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP'].includes(storedType) ? storedType : inferPixKeyType(pixKey);

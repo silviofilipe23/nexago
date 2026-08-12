@@ -11,8 +11,14 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NxProcessingOverlayComponent, NxSpinnerComponent],
   styles: `
+    /* Fica entre o host da página e o .og-wizard-body, então precisa repassar a altura
+       adiante: como bloco de altura automática, o flex: 1 + overflow-y: auto do corpo do
+       wizard não teria o que morder e a rolagem voltaria pro documento. */
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
       position: relative;
     }
   `,

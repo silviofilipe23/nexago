@@ -57,6 +57,10 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
       grid-template-columns: 1fr 1fr;
       gap: 16px;
       align-items: start;
+      /* O .og-content preenche a altura da coluna (é ele quem rola), então sobra espaço
+         quando os cards são curtos. Sem isto o grid reparte essa sobra entre as linhas
+         (medido: linhas de 120px viravam 420px) e os cards saem espalhados. */
+      align-content: start;
     }
 
     @media (max-width: 1100px) {

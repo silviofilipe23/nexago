@@ -238,8 +238,9 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
     }
   `,
   styles: `
+    /* Sem display: o box do host é do shell (regra .og-main > router-outlet + * em
+       styles.scss). Aqui fica só a âncora do overlay de saque. */
     :host {
-      display: block;
       position: relative;
     }
 

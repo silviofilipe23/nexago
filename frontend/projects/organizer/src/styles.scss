@@ -639,10 +639,16 @@ button {
 
 /* ── Painel: shell (sidebar + área de conteúdo) ────────────── */
 
+/* Quem rola no painel é o `.og-content`, não o documento — e isso depende de uma cadeia de
+   altura que precisa estar inteira, porque basta um elo solto pra rolagem cair no documento.
+   Aqui vão os dois primeiros elos: altura EXATA (com `min-height` o shell só ganha um piso e
+   cresce com o conteúdo) e a linha do grid presa em `minmax(0, 1fr)` (a linha implícita nasce
+   `auto` e não segura o item nem quando o container tem altura fixa). */
 .og-shell {
   display: grid;
   grid-template-columns: 236px 1fr;
-  min-height: 100dvh;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100dvh;
   background: var(--nx-bg);
   color: var(--nx-text);
   font-family: var(--nx-font-ui);
@@ -1011,10 +1017,29 @@ button {
   text-overflow: ellipsis;
 }
 
+/* Elo 3: item de grid nasce com `min-height: auto` — um piso de min-content que faz o item
+   estourar a linha do shell mesmo com a altura fixa lá em cima (medido: linha de 3537px numa
+   tela de 812px). Zerar é o que deixa a altura do shell realmente descer. */
 .og-main {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+}
+
+/* Elo 4: o `router-outlet` insere o host do componente de página ENTRE o `.og-main` e o
+   `.og-content`, e esse host nasce sem estilo (bloco de altura automática). Era o elo que
+   faltava: o `flex: 1` do `.og-content` e o do `.og-wizard-body` ficavam dentro de um pai que
+   não é flex nem tem altura, então o `overflow-y: auto` deles nunca tinha o que morder — a
+   tela inteira caía na rolagem do documento. As telas já são escritas nesse formato
+   (cabeçalho `flex: none` + corpo `flex: 1`); o contrato mora aqui pra nenhuma precisar
+   repetir. */
+.og-main > router-outlet + * {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ── Painel: moldura de tablet ──────────────────────────────────
@@ -1158,9 +1183,6 @@ button {
 @media (max-width: 1023.98px) {
   .og-shell {
     grid-template-columns: 1fr;
-    /* Altura exata (não `min-height`): a topbar fica presa no topo e quem rola é o
-       `.og-content`, como no desktop. */
-    height: 100dvh;
   }
 
   .og-sidebar {
@@ -1270,50 +1292,6 @@ button {
   }
 }
 
-/* ── Painel: densidade em tela estreita ─────────────────────── */
-
-@media (max-width: 1023.98px) {
-  /* O cabeçalho é a peça que mais estoura na horizontal: título, subtítulo e migalhas
-     nascem `nowrap` e as ações são `flex: none`, então nada cede e a PÁGINA INTEIRA passa
-     a rolar de lado (medido: 1004px de conteúdo numa tela de 744px). Aqui ele deixa de ser
-     uma linha rígida e vira duas quando precisa. */
-  .og-page-header {
-    padding: 14px 20px;
-    gap: 12px;
-    flex-wrap: wrap;
-    row-gap: 10px;
-  }
-
-  /* Sai porque é repetição: "Copa Verão · categoria Feminino B" é exatamente o que a
-     topbar mostra dois centímetros acima. */
-  .og-page-header-subtitle {
-    display: none;
-  }
-
-  .og-page-header-title {
-    white-space: normal;
-  }
-
-  /* As migalhas ficam (são o atalho pros níveis acima, que a topbar não dá — ela só
-     volta um), mas encolhem em vez de empurrar. */
-  .og-page-header-crumbs {
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .og-page-header-crumbs a {
-    max-width: 130px;
-  }
-
-  .og-page-header-actions {
-    flex-wrap: wrap;
-  }
-
-  .og-content {
-    padding: 16px 20px 24px;
-  }
-}
-
 /* ── Painel: cabeçalho de página ────────────────────────────── */
 
 .og-page-header {
@@ -1386,6 +1364,50 @@ button {
   flex: none;
 }
 
+/* ── Painel: densidade em tela estreita ───────────────────────
+   DEPOIS das regras base acima, e não antes: media query não soma especificidade, então
+   declarado antes o bloco empatava com a base e perdia. Metade dele estava morta — sobrava
+   só o que a base não declara (`flex-wrap`, `display: none` do subtítulo). Medido a 375px:
+   o cabeçalho saía com `padding: 20px 32px` e o título com `white-space: nowrap`, que é
+   justamente o que este bloco existe pra desfazer. */
+@media (max-width: 1023.98px) {
+  /* O cabeçalho é a peça que mais estoura na horizontal: título, subtítulo e migalhas
+     nascem `nowrap` e as ações são `flex: none`, então nada cede e a PÁGINA INTEIRA passa
+     a rolar de lado (medido: 1004px de conteúdo numa tela de 744px). Aqui ele deixa de ser
+     uma linha rígida e vira duas quando precisa. */
+  .og-page-header {
+    padding: 14px 20px;
+    gap: 12px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  /* Sai porque é repetição: "Copa Verão · categoria Feminino B" é exatamente o que a
+     topbar mostra dois centímetros acima. */
+  .og-page-header-subtitle {
+    display: none;
+  }
+
+  .og-page-header-title {
+    white-space: normal;
+  }
+
+  /* As migalhas ficam (são o atalho pros níveis acima, que a topbar não dá — ela só
+     volta um), mas encolhem em vez de empurrar. */
+  .og-page-header-crumbs {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .og-page-header-crumbs a {
+    max-width: 130px;
+  }
+
+  .og-page-header-actions {
+    flex-wrap: wrap;
+  }
+}
+
 .og-content {
   flex: 1;
   padding: 22px 32px 28px;
@@ -1395,6 +1417,13 @@ button {
   overflow-y: auto;
   scrollbar-width: none;
   min-height: 0;
+
+  /* Aninhado de propósito: esta regra já morou num bloco `@media` mais acima no arquivo e
+     era descartada em silêncio — mesma especificidade da regra base, mas declarada ANTES
+     dela. Dentro do seletor não tem como a ordem se perder de novo. */
+  @media (max-width: 1023.98px) {
+    padding: 16px 20px 24px;
+  }
 }
 
 /* ── Painel: card base ──────────────────────────────────────── */

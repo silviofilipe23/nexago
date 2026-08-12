@@ -49,7 +49,7 @@ Modificados: `app.routes.ts`, `tournament-live.selectors.ts`, `category-bracket.
 
 **Interfaces:**
 - Consumes: `ArenaMatch` de `data/teams-repository`, `isSameSaoPauloDay`/`saoPauloDateKey` de `tournaments/tournament-live.selectors`.
-- Produces: `FocusDayTarget { tournamentId: string; matchId: string }`, `FOCUS_DISMISSED_KEY: string`, `focusDayTargetOf(matches: readonly ArenaMatch[], reference: Date): FocusDayTarget | null`, `isFocusDismissed(storedValue: string | null, reference: Date): boolean`.
+- Produces: `FocusDayTarget { tournamentId: string; matchId: string }`, `FOCUS_DISMISSED_KEY: string`, `focusDayTargetOf(matches: readonly ArenaMatch[], reference: Date): FocusDayTarget | null`, `isFocusDismissed(storedValue: string | null, reference: Date): boolean`, `focusMemoKeyOf(uid: string, reference: Date): string`.
 
 - [ ] **Step 1: Ligar o `node_modules` do checkout principal**
 
@@ -214,6 +214,13 @@ export function focusDayTargetOf(matches: readonly ArenaMatch[], reference: Date
 export function isFocusDismissed(storedValue: string | null, reference: Date): boolean {
   return storedValue != null && storedValue === saoPauloDateKey(reference);
 }
+
+/** Chave da memoização do `FocusDayService`: o alvo do dia só vale para o MESMO atleta no
+ *  MESMO dia. Sem ela, uma aba aberta depois da meia-noite serve o alvo de ontem, e uma troca
+ *  de conta sem recarregar a página serve o alvo de outra pessoa. */
+export function focusMemoKeyOf(uid: string, reference: Date): string {
+  return `${uid}:${saoPauloDateKey(reference)}`;
+}
 ```
 
 - [ ] **Step 6: Rodar e confirmar que passa**
@@ -239,9 +246,9 @@ git add frontend/projects/athlete/src/app/tournaments/focus/ && git commit -m "f
 
 **Interfaces:**
 - Consumes: `focusDayTargetOf`, `isFocusDismissed`, `FOCUS_DISMISSED_KEY`, `FocusDayTarget` (Task 1); `fetchTeamsForAthlete(db, projectId, uid)` e `fetchMatchesForTeam(db, projectId, teamId)` de `data/teams-repository`; `AuthService`.
-- Produces: `FocusDayService` com `resolve(now?: Date): Promise<FocusDayTarget | null>`, `isDismissed(now?: Date): boolean`, `dismissForToday(now?: Date): void`, `readonly target: Signal<FocusDayTarget | null>`.
+- Produces: `FocusDayService` com `resolve(now?: Date): Promise<FocusDayTarget | null>`, `isDismissed(now?: Date): boolean`, `dismissForToday(now?: Date): void`, `readonly target: Signal<FocusDayTarget | null>` (exposto por `asReadonly()` — só `resolve`/`dismissForToday` escrevem).
 
-Sem teste unitário próprio: a lógica testável já está em `focus-day.ts` e o que sobra aqui é I/O e `localStorage`. A verificação é a Task 11, que liga o serviço ao painel.
+Sem teste unitário próprio: a lógica testável vive em `focus-day.ts` — inclusive `focusMemoKeyOf`, que é o que impede o serviço de servir o alvo de ontem ou o de outro atleta. O que sobra aqui é I/O e `localStorage`; `fetchTeamsForAthlete`/`fetchMatchesForTeam` são imports de módulo e não dão para falsificar barato. A verificação de ponta a ponta é a Task 11.
 
 - [ ] **Step 1: Implementar o serviço**
 
@@ -281,20 +288,30 @@ export class FocusDayService {
   private readonly projectId = environment.firebase.projectId ?? '';
 
   private pending: Promise<FocusDayTarget | null> | null = null;
+  /** Chave da memoização em vigor. Ver `focusMemoKeyOf`. */
+  private pendingKey: string | null = null;
 
-  readonly target = signal<FocusDayTarget | null>(null);
+  private readonly _target = signal<FocusDayTarget | null>(null);
+  readonly target = this._target.asReadonly();
 
   async resolve(now: Date = new Date()): Promise<FocusDayTarget | null> {
     if (this.isDismissed(now)) return null;
-    this.pending ??= this.load(now);
+    const uid = this.auth.user()?.uid ?? null;
+    // A memo vale por atleta e por dia. Sem a chave, uma aba aberta depois da meia-noite serve
+    // o alvo de ontem, e uma troca de conta sem recarregar serve o alvo de outra pessoa.
+    const key = focusMemoKeyOf(uid ?? '', now);
+    if (key !== this.pendingKey) {
+      this.pending = null;
+      this.pendingKey = key;
+    }
+    this.pending ??= this.load(now, uid);
     const target = await this.pending;
-    this.target.set(target);
+    this._target.set(target);
     return target;
   }
 
-  private async load(now: Date): Promise<FocusDayTarget | null> {
+  private async load(now: Date, uid: string | null): Promise<FocusDayTarget | null> {
     const db = this.db;
-    const uid = this.auth.user()?.uid ?? null;
     if (!db || !this.projectId || !uid) return null;
     try {
       const teams = await fetchTeamsForAthlete(db, this.projectId, uid);
@@ -320,7 +337,9 @@ export class FocusDayService {
       // Modo privativo ou quota estourada: sem a marca o Focus reabre no próximo painel.
       // Degradar é melhor que estourar na saída do Focus.
     }
-    this.target.set(null);
+    this.pending = null;
+    this.pendingKey = null;
+    this._target.set(null);
   }
 
   private read(): string | null {

@@ -1299,7 +1299,11 @@ async function notifyOrganizersRegistrationCompleted({
   teamName: string | null;
 }): Promise<void> {
   const recipients = await tournamentManagerUids(db, tournamentId);
-  if (recipients.length === 0) return;
+  if (recipients.length === 0) {
+    logger.info(`Nenhum recipient (managerId/staff) pra notificar inscrição em ${tournamentId}`);
+    return;
+  }
+  logger.info(`Notificando inscrição completa: tournamentId=${tournamentId} recipients=${recipients.join(",")}`);
 
   const who = teamName?.trim() || "Uma dupla";
   const where = categoryName ? ` em ${categoryName}` : "";

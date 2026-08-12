@@ -1614,6 +1614,23 @@ git add frontend/projects/athlete/src/app/tournaments/ frontend/projects/athlete
 **Interfaces:**
 - Consumes: `FocusDayService` (Task 2).
 
+- [ ] **Step 0: Escopar a marca de dispensa por atleta**
+
+A re-revisão da Task 2 deixou isto pendente e este é o lugar certo, porque é aqui que o ciclo de dispensa passa a ser exercitado de ponta a ponta. Hoje `dismissForToday` grava só a data, então num dispositivo compartilhado o atleta A dispensa e o Focus do B fica silenciado no mesmo dia.
+
+Em `focus-day.service.ts`, grave a marca com a mesma chave da memo — `focusMemoKeyOf(uid ?? '', now)` — e compare com ela na leitura. Ajuste `isFocusDismissed` em `focus-day.ts` para receber a chave esperada em vez da data:
+
+```ts
+/** O atleta já dispensou o Focus hoje? A marca é escopada por atleta e dia (ver
+ *  `focusMemoKeyOf`): num dispositivo compartilhado, a dispensa de um não pode silenciar o
+ *  Focus do outro. */
+export function isFocusDismissed(storedValue: string | null, uid: string, reference: Date): boolean {
+  return storedValue != null && storedValue === focusMemoKeyOf(uid, reference);
+}
+```
+
+Atualize os testes existentes de `isFocusDismissed` em `focus-day.spec.ts` para a nova assinatura e adicione um caso: a marca do atleta A não silencia o atleta B no mesmo dia.
+
 - [ ] **Step 1: Redirecionar do painel**
 
 Em `athlete-painel.component.ts`, injete o serviço e resolva no construtor. Sem guard: guard aqui bloquearia a navegação e daria tela branca esperando o Firestore.

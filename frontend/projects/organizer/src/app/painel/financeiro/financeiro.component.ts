@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../auth/auth.service';
 import type { PillTone } from '../data/mock-data';
+import type { OrganizerTournament } from '../data/tournament.model';
 import {
   PIX_KEY_TYPES,
   PIX_KEY_TYPE_HINT,
@@ -24,6 +25,9 @@ import {
   type OrganizerWithdrawal,
   type WithdrawalRequestResult,
 } from '../data/wallet-repository';
+import { formatCentsShort } from '../data/tournament-collected';
+import { listMyTournaments } from '../data/tournaments-repository';
+import { OgBarRowComponent } from '../ui/bar-row.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -64,6 +68,18 @@ const DATE_FORMAT = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2
 
 const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 0, payoutPixKey: '', payoutPixKeyType: '' };
 
+/** Quantos eventos entram no card de arrecadação — o card divide altura com os outros do lado
+ *  direito, e passar disso vira rolagem interna. */
+const MAX_EVENTOS_ARRECADACAO = 6;
+
+interface EventoArrecadacaoRow {
+  id: string;
+  name: string;
+  sub: string;
+  pct: number;
+  tone: 'orange' | 'green';
+}
+
 /** Saldo consolidado, chave PIX de repasse, saque e extrato/saques reais da carteira do organizador. */
 @Component({
   selector: 'og-financeiro',
@@ -71,6 +87,7 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
   imports: [
     ReactiveFormsModule,
     OgPageHeaderComponent,
+    OgBarRowComponent,
     OgCardComponent,
     OgIconComponent,
     OgPillComponent,
@@ -137,8 +154,21 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
               <p class="og-empty">— em breve</p>
             </og-card>
             <og-card kicker="Por evento" title="Arrecadação" flex="1">
-              <!-- mock (fase 2): ledger não vincula entradas a um evento/torneio específico -->
-              <p class="og-empty">— em breve</p>
+              @if (eventosArrecadacao(); as eventos) {
+                @if (eventos.length === 0) {
+                  <p class="og-empty">{{ tournamentsLoading() ? 'Carregando…' : 'Nenhum recebimento ainda.' }}</p>
+                } @else {
+                  @for (e of eventos; track e.id; let last = $last) {
+                    <og-bar-row [label]="e.name" [sub]="e.sub" [pct]="e.pct" [tone]="e.tone" [last]="last" />
+                  }
+                  <!-- A carteira só guarda o que passou pela plataforma; sem esta linha o card
+                       sugere que todo o valor listado é sacável. -->
+                  <p class="og-fin-hint">
+                    Só o que entra pela plataforma cai na sua carteira — o que você recebe direto
+                    entra aqui para fechar o total do evento.
+                  </p>
+                }
+              }
             </og-card>
           </div>
         </div>
@@ -369,6 +399,8 @@ export class FinanceiroComponent {
   protected readonly pixKeyTypeLabel = PIX_KEY_TYPE_LABEL;
 
   protected readonly loading = signal(true);
+  protected readonly tournamentsLoading = signal(true);
+  protected readonly tournaments = signal<OrganizerTournament[]>([]);
   protected readonly wallet = signal<OrganizerWalletSummary>(EMPTY_WALLET);
   protected readonly ledger = signal<OrganizerLedgerEntry[]>([]);
   protected readonly withdrawals = signal<OrganizerWithdrawal[]>([]);
@@ -397,6 +429,30 @@ export class FinanceiroComponent {
   private readonly pixKeyTypeValueSignal = toSignal(this.pixForm.controls.pixKeyType.valueChanges, { initialValue: 'CPF' as PixKeyType });
   private readonly pixKeyValueSignal = toSignal(this.pixForm.controls.pixKey.valueChanges, { initialValue: '' });
   private readonly amountValueSignal = toSignal(this.withdrawForm.controls.amount.valueChanges, { initialValue: '' });
+
+  /** Eventos que arrecadaram algo, do maior pro menor. `pct` é a fatia do total arrecadado — a
+   *  leitura útil aqui é "quanto deste dinheiro veio de qual evento". */
+  protected readonly eventosArrecadacao = computed<EventoArrecadacaoRow[]>(() => {
+    const comValor = this.tournaments().filter((t) => t.collected.totalCents > 0);
+    const total = comValor.reduce((sum, t) => sum + t.collected.totalCents, 0);
+    if (total === 0) return [];
+
+    return comValor
+      .sort((a, b) => b.collected.totalCents - a.collected.totalCents)
+      .slice(0, MAX_EVENTOS_ARRECADACAO)
+      .map((t) => {
+        const c = t.collected;
+        const direto = c.viaOrganizerCents > c.viaAppCents;
+        return {
+          id: t.id,
+          name: t.name,
+          sub: `${formatCentsShort(c.totalCents)}${direto ? ' · direto' : ''}`,
+          pct: Math.round((c.totalCents / total) * 100),
+          // Verde = está na carteira; laranja = maior parte veio por fora e não é sacável aqui.
+          tone: direto ? ('orange' as const) : ('green' as const),
+        };
+      });
+  });
 
   protected readonly saldoLabel = computed(() => BRL.format(this.wallet().availableReais));
   protected readonly pendenteLabel = computed(() => BRL.format(this.wallet().pendingReais));
@@ -448,8 +504,15 @@ export class FinanceiroComponent {
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.loading.set(false);
+      this.tournamentsLoading.set(false);
       return;
     }
+
+    // Independente da carteira: uma falha aqui não pode esconder saldo, extrato nem saque.
+    listMyTournaments(uid)
+      .then((tournaments) => this.tournaments.set(tournaments))
+      .catch(() => this.tournaments.set([]))
+      .finally(() => this.tournamentsLoading.set(false));
 
     const unsubscribeWallet = watchWallet(uid, (wallet) => {
       this.wallet.set(wallet);

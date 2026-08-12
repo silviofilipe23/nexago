@@ -3,6 +3,7 @@
  *  pro mapeamento de campos. */
 
 import type { TournamentPaymentMode, TournamentVisibility } from './tournament-create.model';
+import type { TournamentCollected } from './tournament-collected';
 
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
@@ -75,6 +76,9 @@ export interface OrganizerTournament {
   /** `directWithOrganizer` não tem webhook: o atleta declara que pagou e o dinheiro cai fora do
    *  app. É o que separa "pagou" de "disse que pagou" na tela de Inscrições. */
   paymentMode: TournamentPaymentMode;
+  /** Arrecadação já separada por canal (plataforma / por fora), mantida pela CF
+   *  `tournament-collected-stats.ts`. Ver `tournament-collected.ts`. */
+  collected: TournamentCollected;
   startAt: Date | null;
   endAt: Date | null;
   city: string | null;

@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { AgendamentoComponent } from './agendamento.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 import type { TournamentMatch } from '../data/matches-repository';
+import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
 
 const DAY = '2026-10-24';
@@ -19,6 +20,7 @@ function tournamentFixture(): OrganizerTournament {
     status: 'andamento',
     visibility: 'publicListing',
     paymentMode: 'appPixCard',
+    collected: EMPTY_TOURNAMENT_COLLECTED,
     startAt: new Date(`${DAY}T09:00:00-03:00`),
     endAt: new Date(`${DAY}T22:00:00-03:00`),
     city: null,

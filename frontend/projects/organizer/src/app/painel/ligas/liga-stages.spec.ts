@@ -1,4 +1,5 @@
 import { leagueFromDoc, type League } from '@nexago/leagues';
+import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { buildLigaEtapaRows, ligaEtapaStatusOf, nextLigaEtapa } from './liga-stages';
 
@@ -15,6 +16,7 @@ describe('liga-stages', () => {
       status: 'inscricoes',
       visibility: 'publicListing',
       paymentMode: 'appPixCard',
+      collected: EMPTY_TOURNAMENT_COLLECTED,
       startAt: null,
       endAt: null,
       city: null,

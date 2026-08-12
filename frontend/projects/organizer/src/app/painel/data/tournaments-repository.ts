@@ -17,6 +17,8 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { organizerFirestore } from './firestore';
+import { collectedFromDoc } from './tournament-collected';
+import type { TournamentPaymentMode } from './tournament-create.model';
 import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig } from './tournament.model';
 
 /** `tournaments/{id}` (top-level, leitura pública, espelha `TournamentDocumentMapper`/
@@ -149,6 +151,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
   const capacityFallback = categories.reduce((sum, c) => sum + (c.maxTeams ?? 0), 0);
   const statusRaw = optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '';
   const courtsCount = numberOf(data['courtsCount']) ?? 4;
+  const paymentMode: TournamentPaymentMode = data['paymentMode'] === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard';
   return {
     id,
     name: optionalStr(data['name']) ?? 'Torneio',
@@ -164,7 +167,8 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     visibility: data['visibility'] === 'publicListing' ? 'publicListing' : 'linkOnly',
     // Mesma leitura do wizard (`tournament-create-mapper.ts`): só `directWithOrganizer` explícito
     // sai do padrão de cobrança pelo app.
-    paymentMode: data['paymentMode'] === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
+    paymentMode,
+    collected: collectedFromDoc(data, paymentMode),
     startAt: toDate(data['startAt']),
     endAt: toDate(data['endAt']),
     city: optionalStr(data['city']),

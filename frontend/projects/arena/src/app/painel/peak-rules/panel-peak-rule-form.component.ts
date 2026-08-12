@@ -358,21 +358,23 @@ export class PanelPeakRuleFormComponent {
   private async load(arenaId: string): Promise<void> {
     this.loading.set(true);
     try {
-      this.courts.set(await fetchCourts(arenaFirestore(), arenaId));
+      // As quadras e a regra são independentes — em série a edição pagava duas idas enfileiradas.
       const id = this.ruleId();
-      if (id) {
-        const rule = await fetchPeakRule(arenaFirestore(), arenaId, id);
-        if (rule) {
-          this.label.set(rule.label);
-          this.active.set(rule.active);
-          this.courtIds.set(rule.courtIds);
-          this.weekdays.set(rule.weekdays);
-          this.startTime.set(rule.startTime);
-          this.endTime.set(rule.endTime);
-          this.minDurationMinutes.set(rule.minDurationMinutes);
-          this.releaseEnabled.set(rule.releaseHoursBefore != null);
-          this.releaseHoursBefore.set(rule.releaseHoursBefore ?? 3);
-        }
+      const [courts, rule] = await Promise.all([
+        fetchCourts(arenaFirestore(), arenaId),
+        id ? fetchPeakRule(arenaFirestore(), arenaId, id) : null,
+      ]);
+      this.courts.set(courts);
+      if (rule) {
+        this.label.set(rule.label);
+        this.active.set(rule.active);
+        this.courtIds.set(rule.courtIds);
+        this.weekdays.set(rule.weekdays);
+        this.startTime.set(rule.startTime);
+        this.endTime.set(rule.endTime);
+        this.minDurationMinutes.set(rule.minDurationMinutes);
+        this.releaseEnabled.set(rule.releaseHoursBefore != null);
+        this.releaseHoursBefore.set(rule.releaseHoursBefore ?? 3);
       }
     } finally {
       this.loading.set(false);

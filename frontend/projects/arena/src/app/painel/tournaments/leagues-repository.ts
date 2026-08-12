@@ -1,4 +1,5 @@
 import { collection, documentId, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { chunkIds } from '../data/chunk-ids';
 import type { ArenaTournament } from './tournament.model';
 import type { ArenaLeagueSummary } from './league.model';
 
@@ -22,31 +23,44 @@ function sportLabelOf(raw: unknown): string {
   return SPORT_LABELS[v] ?? v;
 }
 
-export async function fetchArenaLeagues(db: Firestore, arenaTournaments: readonly ArenaTournament[]): Promise<ArenaLeagueSummary[]> {
-  const stagesHereCount = new Map<string, number>();
+/** Quantas etapas de cada liga acontecem nesta arena — contagem sobre os torneios JÁ filtrados
+ *  por `arenaId`, que é a única pista de "liga com etapa aqui" que existe. */
+export function countStagesByLeague(arenaTournaments: readonly ArenaTournament[]): Map<string, number> {
+  const counts = new Map<string, number>();
   for (const t of arenaTournaments) {
     if (!t.leagueId) continue;
-    stagesHereCount.set(t.leagueId, (stagesHereCount.get(t.leagueId) ?? 0) + 1);
+    counts.set(t.leagueId, (counts.get(t.leagueId) ?? 0) + 1);
   }
-  const leagueIds = [...stagesHereCount.keys()];
-  if (leagueIds.length === 0) return [];
+  return counts;
+}
+
+export function leagueSummaryFromDoc(id: string, data: Record<string, unknown>, stagesHereCount: number): ArenaLeagueSummary {
+  const stages = Array.isArray(data['stages']) ? data['stages'] : [];
+  return {
+    id,
+    name: optionalStr(data['name']) ?? 'Liga',
+    sport: sportLabelOf(data['sport']),
+    city: optionalStr(data['city']) ?? '',
+    seasonLabel: optionalStr(data['seasonLabel']),
+    stagesHereCount,
+    stagesTotalCount: stages.length,
+  };
+}
+
+export async function fetchArenaLeagues(db: Firestore, arenaTournaments: readonly ArenaTournament[]): Promise<ArenaLeagueSummary[]> {
+  const stagesHereCount = countStagesByLeague(arenaTournaments);
+  const chunks = chunkIds([...stagesHereCount.keys()]);
+  if (chunks.length === 0) return [];
+
+  // Os lotes saem juntos: são independentes, e com `await` dentro do laço cada lote de 10 ligas
+  // só partia depois do anterior voltar — latência enfileirada à toa.
+  const col = collection(db, 'leagues');
+  const snaps = await Promise.all(chunks.map((chunk) => getDocs(query(col, where(documentId(), 'in', chunk)))));
 
   const result: ArenaLeagueSummary[] = [];
-  for (let i = 0; i < leagueIds.length; i += 10) {
-    const chunk = leagueIds.slice(i, i + 10);
-    const snap = await getDocs(query(collection(db, 'leagues'), where(documentId(), 'in', chunk)));
+  for (const snap of snaps) {
     for (const d of snap.docs) {
-      const data = d.data() as Record<string, unknown>;
-      const stages = Array.isArray(data['stages']) ? data['stages'] : [];
-      result.push({
-        id: d.id,
-        name: optionalStr(data['name']) ?? 'Liga',
-        sport: sportLabelOf(data['sport']),
-        city: optionalStr(data['city']) ?? '',
-        seasonLabel: optionalStr(data['seasonLabel']),
-        stagesHereCount: stagesHereCount.get(d.id) ?? 0,
-        stagesTotalCount: stages.length,
-      });
+      result.push(leagueSummaryFromDoc(d.id, d.data() as Record<string, unknown>, stagesHereCount.get(d.id) ?? 0));
     }
   }
   return result.sort((a, b) => a.name.localeCompare(b.name));

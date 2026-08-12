@@ -633,8 +633,9 @@ describe('roundScenariosOf', () => {
     expect(roundScenariosOf(groupWithOnlyMyMatchPending(), 'p1', 'mine', 'inexistente', 2)).toEqual([]);
   });
 
-  it('cai em "depende do placar" quando 2-0 e 2-1 dão posições diferentes', () => {
-    // Empate em vitórias com saldo de sets apertado: vencer por 2-0 tira o 1º, por 2-1 não.
+  it('cai em "depende do placar" quando os extremos dão posições diferentes', () => {
+    // A divergência tem de vir do DESEMPATE POR SALDO, não da contagem de vitórias: com o
+    // atleta e o rival empatados em vitórias, o 1º lugar depende de quanto o atleta vence.
     const matches = [
       match({ id: 'd1', poolId: 'p1', status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine', sets: [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 15, b: 13 }] }),
       match({ id: 'd2', poolId: 'p1', status: 'completed', teamAId: 'rival', teamBId: 'y', winnerId: 'rival', sets: [{ a: 21, b: 5 }, { a: 21, b: 5 }] }),
@@ -667,6 +668,7 @@ Crie `frontend/projects/athlete/src/app/tournaments/focus/focus-scenarios.ts`:
 ```ts
 import { buildGroupStandings, matchIsCanceled, matchIsCompleted, type MatchSet, type TournamentMatch } from '../../data/matches-repository';
 import { ordinalOf } from '../tournament-format';
+import { isPending } from '../tournament-live.selectors';
 
 export interface RoundScenario {
   outcome: 'win' | 'loss';
@@ -676,11 +678,19 @@ export interface RoundScenario {
   text: string;
 }
 
-/** Placares plausíveis de uma vitória em melhor-de-3, do lado do atleta. O saldo de sets e de
- *  pontos difere entre eles, e é justamente essa diferença que pode mudar a classificação. */
-const WIN_SCORES: readonly MatchSet[][] = [
-  [{ a: 21, b: 15 }, { a: 21, b: 15 }],
-  [{ a: 21, b: 15 }, { a: 15, b: 21 }, { a: 15, b: 10 }],
+/** Os EXTREMOS de uma vitória em melhor-de-3, do lado do atleta — não uma amostra qualquer.
+ *
+ *  A posição na tabela é monótona no saldo de sets e no de pontos: ganhar mais sets, ou mais
+ *  pontos, só pode melhorar ou manter a colocação. Logo, se o melhor e o pior resultado
+ *  possíveis de um desfecho dão a MESMA posição, todo resultado legal no meio dá também — é por
+ *  isso que bastam duas simulações, desde que sejam os limites. Duas escalas do meio do
+ *  intervalo não provam nada: o desempate por saldo de pontos é contínuo, e a função acabaria
+ *  afirmando uma posição que um placar plausível contradiz. */
+const WIN_BOUNDS: readonly MatchSet[][] = [
+  // Vitória mais folgada possível: 2-0 com saldo máximo.
+  [{ a: 21, b: 0 }, { a: 21, b: 0 }],
+  // Vitória mais apertada possível: 2-1, cada set no mínimo, tie-break incluso.
+  [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 15, b: 13 }],
 ];
 
 function mirror(sets: readonly MatchSet[]): MatchSet[] {
@@ -723,9 +733,12 @@ export function roundScenariosOf(
   const mine = pool.find((m) => m.id === myMatchId);
   if (!mine || matchIsCompleted(mine) || matchIsCanceled(mine)) return [];
 
-  const pending = pool.filter((m) => !matchIsCompleted(m) && !matchIsCanceled(m));
+  // O atleta precisa realmente jogar esta partida: sem a checagem, um `myTeamId` do grupo mas
+  // de fora do confronto faria o placar hipotético cair em duas duplas alheias.
+  if (mine.teamAId !== myTeamId && mine.teamBId !== myTeamId) return [];
+
+  const pending = pool.filter(isPending);
   const soleDecider = pending.length === 1 && pending[0]!.id === myMatchId;
-  const others = matches.filter((m) => m.id !== myMatchId);
 
   return (['win', 'loss'] as const).map((outcome) => {
     if (!soleDecider) {
@@ -740,9 +753,14 @@ export function roundScenariosOf(
     }
 
     const iWin = outcome === 'win';
-    const ranks = WIN_SCORES.map((sets) =>
-      rankOf([...others, withHypotheticalResult(mine, myTeamId, iWin ? sets : mirror(sets), iWin)], poolId, myTeamId),
-    );
+    // Substitui NO LUGAR, não remove e reanexa: `buildGroupStandings` semeia a tabela na ordem
+    // de iteração das partidas e o `sort` é estável, então a ordem do array é o desempate de
+    // último recurso. Mover a partida faria a simulação discordar da tabela que ela prevê.
+    const ranks = WIN_BOUNDS.map((sets) => {
+      const oriented = iWin ? sets : mirror(sets);
+      const simulated = matches.map((m) => (m.id === myMatchId ? withHypotheticalResult(mine, myTeamId, oriented, iWin) : m));
+      return rankOf(simulated, poolId, myTeamId);
+    });
     const [first] = ranks;
     const invariant = first != null && ranks.every((r) => r === first);
     if (!invariant) {

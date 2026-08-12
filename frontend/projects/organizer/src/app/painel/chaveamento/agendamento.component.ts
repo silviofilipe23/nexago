@@ -295,9 +295,18 @@ interface AgendaBloco {
       gap: 16px;
     }
 
+    .og-agenda {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
     /* Tablet: a coluna lateral de 300px comeria metade da grade num iPad em
        retrato (584px úteis). Empilha, e a grade — que é o trabalho da tela —
-       fica com a largura inteira; a fila de partidas desce e rola com a página. */
+       fica com a largura inteira; a fila de partidas desce e rola com a página.
+       Precisa vir DEPOIS das regras base: mesma especificidade, quem estiver
+       por último no arquivo vence. */
     @media (max-width: 1023.98px) {
       .og-agenda-layout {
         grid-template-columns: 1fr;
@@ -312,12 +321,6 @@ interface AgendaBloco {
            senão colapsa pro conteúdo e perde a rolagem interna das horas. */
         height: 70dvh;
       }
-    }
-    .og-agenda {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
     }
     .og-agenda-cols {
       display: flex;

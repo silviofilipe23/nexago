@@ -42,10 +42,12 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
   };
 }
 
+/** 14:00 em São Paulo (UTC-3) no dia 29/08/2026 — o "agora" fixo usado nos testes que precisam dele. */
+const NOW = new Date('2026-08-29T14:00:00Z');
+
 function ctxOf(partial: Partial<FocusViewContext> & Pick<FocusViewContext, 'matches'>): FocusViewContext {
   return {
     myTeamIds: new Set(['teamMine']),
-    now: new Date('2026-08-29T14:00:00Z'),
     duoNameOf: (teamId, fallback) => (teamId ? `Dupla ${teamId}` : (fallback ?? 'A definir')),
     duoPlayersOf: () => [
       { initial: 'MA', photo: null },
@@ -61,12 +63,12 @@ function ctxOf(partial: Partial<FocusViewContext> & Pick<FocusViewContext, 'matc
 
 describe('nextMatchViewOf', () => {
   it('devolve null sem próxima partida', () => {
-    expect(nextMatchViewOf(ctxOf({ matches: [] }))).toBeNull();
+    expect(nextMatchViewOf(ctxOf({ matches: [] }), NOW)).toBeNull();
   });
 
   it('monta horário, quadra e lados a partir da partida', () => {
     const m = match({ id: 'm1', teamAId: 'teamMine', teamBId: 'teamRival', courtName: '3', scheduleTime: new Date('2026-08-29T15:10:00Z') });
-    const view = nextMatchViewOf(ctxOf({ matches: [m], nextMatch: m }));
+    const view = nextMatchViewOf(ctxOf({ matches: [m], nextMatch: m }), NOW);
     expect(view?.matchId).toBe('m1');
     expect(view?.courtLabel).toBe('Quadra 3');
     expect(view?.sideA.isMe).toBe(true);
@@ -75,7 +77,7 @@ describe('nextMatchViewOf', () => {
 
   it('em quadra não mostra contagem regressiva', () => {
     const m = match({ id: 'm1', status: 'in progress', teamAId: 'teamMine', teamBId: 'teamRival', scheduleTime: new Date('2026-08-29T13:00:00Z') });
-    const view = nextMatchViewOf(ctxOf({ matches: [m], nextMatch: m }));
+    const view = nextMatchViewOf(ctxOf({ matches: [m], nextMatch: m }), NOW);
     expect(view?.live).toBe(true);
     expect(view?.countdown).toBeNull();
   });
@@ -101,6 +103,24 @@ describe('timelineOf', () => {
     const upcoming = match({ id: 'm2', teamAId: 'teamMine', teamBId: 'teamRival', scheduleTime: new Date('2026-08-29T15:00:00Z') });
     const [entry] = timelineOf(ctxOf({ matches: [upcoming], dayTimeline: [upcoming], nextMatch: upcoming }));
     expect(entry?.state).toBe('next');
+  });
+
+  it('inverte o placar quando o atleta está do lado B — mySetLine não pode ficar sob o lado A', () => {
+    const done = match({
+      id: 'm1',
+      status: 'completed',
+      teamAId: 'teamRival',
+      teamBId: 'teamMine',
+      winnerId: 'teamMine',
+      sets: [
+        { a: 15, b: 21 },
+        { a: 19, b: 21 },
+      ],
+      scheduleTime: new Date('2026-08-29T12:00:00Z'),
+    });
+    const [entry] = timelineOf(ctxOf({ matches: [done], dayTimeline: [done] }));
+    expect(entry?.outcome).toBe('win');
+    expect(entry?.outcomeLabel).toBe('V 2–0');
   });
 });
 
@@ -150,6 +170,16 @@ describe('standingsViewOf', () => {
     expect(rows[0]).toEqual(jasmine.objectContaining({ rank: 1, isMe: true, qualifies: true, wins: 2, sets: '4–0' }));
     expect(rows[1]).toEqual(jasmine.objectContaining({ rank: 2, isMe: false, qualifies: false }));
   });
+
+  it('losses vem das partidas encerradas do grupo, não do campo bruto da classificação', () => {
+    // O campo `losses` do standing bruto propositalmente NÃO bate com a contagem real — se
+    // `standingsViewOf` algum dia passar a repassar `s.losses` direto em vez de recalcular via
+    // `lossesOf`, este teste denuncia.
+    const standings: GroupStanding[] = [{ teamId: 'teamMine', wins: 2, losses: 5, setsWon: 4, setsLost: 2, gamesWon: 0, gamesLost: 0, points: 6 }];
+    const lost = match({ id: 'm1', poolId: 'pool-a', status: 'completed', teamAId: 'teamMine', teamBId: 'teamRival', winnerId: 'teamRival' });
+    const rows = standingsViewOf(ctxOf({ matches: [lost], standingsOf: () => standings }), 'pool-a', 1, 'teamMine');
+    expect(rows[0]?.losses).toBe(1);
+  });
 });
 
 describe('qualificationNoteOf', () => {
@@ -161,7 +191,17 @@ describe('qualificationNoteOf', () => {
     const standings: GroupStanding[] = [{ teamId: 'teamMine', wins: 2, losses: 0, setsWon: 4, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 6 }];
     const done = match({ id: 'm1', poolId: 'pool-a', status: 'completed', teamAId: 'teamMine', teamBId: 'teamRival', winnerId: 'teamMine' });
     const note = qualificationNoteOf(ctxOf({ matches: [done], standingsOf: () => standings }), 'pool-a', { qualifiersPerGroup: 1 }, 'teamMine');
-    expect(note?.tone).toBe('win');
+    expect(note).toEqual({ tone: 'win', text: 'Grupo encerrado em 1º. Você avançou para o mata-mata.' });
+  });
+
+  it('grupo encerrado sem classificar avisa quantos passaram, em tom neutro', () => {
+    const standings: GroupStanding[] = [
+      { teamId: 'teamRival', wins: 2, losses: 0, setsWon: 4, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 6 },
+      { teamId: 'teamMine', wins: 0, losses: 2, setsWon: 0, setsLost: 4, gamesWon: 0, gamesLost: 0, points: 0 },
+    ];
+    const done = match({ id: 'm1', poolId: 'pool-a', status: 'completed', teamAId: 'teamMine', teamBId: 'teamRival', winnerId: 'teamRival' });
+    const note = qualificationNoteOf(ctxOf({ matches: [done], standingsOf: () => standings }), 'pool-a', { qualifiersPerGroup: 1 }, 'teamMine');
+    expect(note).toEqual({ tone: 'neutral', text: 'Grupo encerrado em 2º. Passavam os 1 primeiros.' });
   });
 
   it('grupo em andamento avisa quantas partidas faltam', () => {

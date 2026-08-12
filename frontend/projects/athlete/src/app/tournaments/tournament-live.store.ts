@@ -139,7 +139,6 @@ export class TournamentLiveStore {
     return teamIds.has(mine.teamAId) ? mine.teamAId : mine.teamBId;
   });
 
-  readonly liveInFocusCategory = computed(() => liveMatchesOf(this.matches(), this.focusCategoryId() ?? undefined));
   readonly liveInTournament = computed(() => liveMatchesOf(this.matches()));
 
   readonly hasMyMatchToday = computed(() => this.dayTimeline().length > 0);

@@ -94,11 +94,16 @@ export interface StandingRow {
  * O que uma view do Focus precisa saber. É o store reduzido a valores — os componentes montam
  * este objeto lendo os signals, e os testes montam um literal. Sem isso as funções voltariam a
  * depender do `TournamentLiveStore` e deixariam de ser testáveis sem TestBed.
+ *
+ * Propositalmente SEM `now`: é o único valor do store que anda sozinho (tick de 1s em partida ao
+ * vivo — ver `TICK_LIVE_MS` em `tournament-live.store.ts`). Se entrasse aqui, o `ctx` inteiro
+ * recomputaria a cada tick e arrastaria `standingsViewOf`/`qualificationNoteOf`/`liveRowsOf` —
+ * que não dependem do relógio — junto. `nextMatchViewOf`, o único consumidor de `now`, recebe o
+ * valor à parte.
  */
 export interface FocusViewContext {
   matches: readonly TournamentMatch[];
   myTeamIds: ReadonlySet<string>;
-  now: Date;
   duoNameOf(teamId: string, fallback?: string | null): string;
   duoPlayersOf(teamId: string): [DuoPlayer, DuoPlayer];
   isMyTeam(teamId: string): boolean;
@@ -113,7 +118,6 @@ export function focusViewContextOf(store: TournamentLiveStore): FocusViewContext
   return {
     matches: store.matches(),
     myTeamIds: store.myTeamIds(),
-    now: store.now(),
     duoNameOf: (teamId, fallback) => store.duoNameOf(teamId, fallback ?? null),
     duoPlayersOf: (teamId) => store.duoPlayersOf(teamId),
     isMyTeam: (teamId) => store.isMyTeam(teamId),
@@ -186,7 +190,7 @@ function duoViewOf(ctx: FocusViewContext, teamId: string, description: string | 
   };
 }
 
-export function nextMatchViewOf(ctx: FocusViewContext): NextMatchView | null {
+export function nextMatchViewOf(ctx: FocusViewContext, now: Date): NextMatchView | null {
   const m = ctx.nextMatch;
   if (!m) return null;
   const live = matchIsLive(m);
@@ -197,7 +201,7 @@ export function nextMatchViewOf(ctx: FocusViewContext): NextMatchView | null {
     kicker: kickerOf(ctx, m),
     numberLabel: numberChipOf(m),
     timeLabel: timeLabelOf(m.scheduleTime),
-    countdown: live ? null : countdownLabelOf(m.scheduleTime, ctx.now),
+    countdown: live ? null : countdownLabelOf(m.scheduleTime, now),
     courtLabel: courtLabelOf(m.courtName),
     bestOfLabel: bestOfLabelOf(m),
     checkedIn: checkIn === 'present',

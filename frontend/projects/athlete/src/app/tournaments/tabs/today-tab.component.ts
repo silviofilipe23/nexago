@@ -44,7 +44,7 @@ export class TodayTabComponent {
    *  documentação de `FocusViewContext` sobre por que essa indireção existe. */
   private readonly ctx = computed(() => focusViewContextOf(this.store));
 
-  protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx()));
+  protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx(), this.store.now()));
 
   protected readonly timeline = computed(() => timelineOf(this.ctx()));
 

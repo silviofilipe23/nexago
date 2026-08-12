@@ -224,14 +224,22 @@ export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
   return m.bestOf && m.bestOf > 0 ? m.bestOf : DEFAULT_BEST_OF;
 }
 
-/** Regras de set (espelho mínimo de `match_scoring_logic.dart`): alvo 21, decisivo até 15 no
- *  3º set de MD3, vantagem de 2 — o suficiente pra separar set fechado de set em andamento. */
+/** Regras de set (espelho mínimo de `match_scoring_logic.dart`, também replicado — e validado
+ *  de fato — em `functions/src/match-scoring.ts`): alvo 21, decisivo até 15 no 3º set de MD3,
+ *  vantagem de 2. As três cópias concordam, e nenhuma delas trata o 5º set de MD5 como
+ *  decisivo — ele também vai a 21. Não é uma lacuna deste espelho: é a regra em produção. */
 const DEFAULT_SET_POINTS = 21;
 const TIEBREAK_SET_POINTS = 15;
-const MIN_ADVANTAGE = 2;
+export const MIN_ADVANTAGE = 2;
+
+/** Alvo de pontos de um set pelo índice (0-based) dentro do formato — exportado pra quem precisa
+ *  montar placares hipotéticos legais (`focus-scenarios.ts`) sem duplicar os números mágicos. */
+export function setTargetPointsOf(index: number, bestOf: number): number {
+  return bestOf === 3 && index === 2 ? TIEBREAK_SET_POINTS : DEFAULT_SET_POINTS;
+}
 
 function setIsWon(s: MatchSet, index: number, bestOf: number): boolean {
-  const target = bestOf === 3 && index === 2 ? TIEBREAK_SET_POINTS : DEFAULT_SET_POINTS;
+  const target = setTargetPointsOf(index, bestOf);
   return (s.a >= target && s.a - s.b >= MIN_ADVANTAGE) || (s.b >= target && s.b - s.a >= MIN_ADVANTAGE);
 }
 

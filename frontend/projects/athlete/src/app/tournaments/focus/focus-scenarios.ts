@@ -1,4 +1,13 @@
-import { buildGroupStandings, matchIsCanceled, matchIsCompleted, type MatchSet, type TournamentMatch } from '../../data/matches-repository';
+import {
+  buildGroupStandings,
+  matchBestOf,
+  matchIsCanceled,
+  matchIsCompleted,
+  setTargetPointsOf,
+  MIN_ADVANTAGE,
+  type MatchSet,
+  type TournamentMatch,
+} from '../../data/matches-repository';
 import { ordinalOf } from '../tournament-format';
 import { isPending } from '../tournament-live.selectors';
 
@@ -10,30 +19,63 @@ export interface RoundScenario {
   text: string;
 }
 
-/** Os EXTREMOS de uma vitória em melhor-de-3, do lado do atleta — não uma amostra qualquer.
+/**
+ * Os EXTREMOS de uma vitória em `bestOf` sets, do lado do atleta — CALCULADOS a partir do
+ * formato da partida, não uma constante fixa. O app oferece melhor-de-1, -3 e -5
+ * (`TournamentBestOf`, ver o wizard do organizador), e o intervalo de saldo de pontos legal de
+ * um MD5 é bem mais largo que o de um MD3 — reaproveitar as constantes de um formato menor pro
+ * maior reintroduz, um degrau acima, o exato defeito que este arquivo existe pra evitar (ver o
+ * histórico: primeiro amostras internas em vez de extremos, depois um "extremo" que não era o
+ * mínimo de verdade). Por isso os limites vêm de `setTargetPointsOf`/`MIN_ADVANTAGE`
+ * (`data/matches-repository.ts`) — a mesma régua que decide o alvo de cada set no resto do
+ * app — em vez de números escritos à mão.
  *
- *  A posição na tabela é monótona no saldo de sets e no de pontos: ganhar mais sets, ou mais
- *  pontos, só pode melhorar ou manter a colocação. Logo, se o melhor e o pior resultado
- *  possíveis de um desfecho dão a MESMA posição, todo resultado legal no meio dá também — é
- *  por isso que bastam duas simulações, desde que sejam os limites. Duas escalas quaisquer do
- *  meio do intervalo não provam nada: o desempate por saldo de pontos é contínuo.
+ * A posição na tabela é monótona no saldo de sets e no de pontos: ganhar mais sets, ou mais
+ * pontos, só pode melhorar ou manter a colocação. Logo, se o melhor e o pior resultado
+ * possíveis de um desfecho dão a MESMA posição, todo resultado legal no meio dá também — é por
+ * isso que bastam duas simulações, desde que sejam os limites de verdade.
  *
- *  A segunda entrada parece estranha de propósito: o mínimo lexicográfico de uma vitória por
- *  2-1 NÃO é o placar de margens apertadas em todo set — é aquele em que o atleta fecha os dois
- *  sets que precisa pelo fio da navalha, mas PERDE o set do meio (que não conta pro resultado)
- *  do jeito mais feio possível, porque o critério seguinte ao saldo de sets é o saldo de pontos,
- *  e `0–21` é o pior saldo legal que esse set pode contribuir. Trocar isso por um `19–21`
- *  "realista" volta a deixar o mínimo fora do array e reintroduz afirmações falsas — o
- *  contra-exemplo executado (`x` bate `y` 21-19/9-21/15-5) derruba a garantia em ~4% dos
- *  grupos simulados. */
-const WIN_BOUNDS: readonly MatchSet[][] = [
-  // Vitória mais folgada possível: 2-0 com saldo máximo.
-  [{ a: 21, b: 0 }, { a: 21, b: 0 }],
-  // Vitória mais apertada possível em sets ganhos, mas com o PIOR saldo de pontos legal: os dois
-  // sets que fecham o jogo no fio (21-19 e 15-13), e o set do meio perdido 0-21 — gameDiff = -17,
-  // o verdadeiro mínimo de um 2-1. Ver o porquê acima.
-  [{ a: 21, b: 19 }, { a: 0, b: 21 }, { a: 15, b: 13 }],
-];
+ * O limite de baixo (`narrowest`) parece estranho de propósito: o mínimo lexicográfico de uma
+ * vitória por `setsToWin` a `setsToWin - 1` NÃO é o placar de margens apertadas em todo set — é
+ * aquele em que o atleta fecha pelo fio da navalha os sets que precisa vencer, mas PERDE os sets
+ * que não precisa vencer (não contam pro resultado, só pro saldo de pontos) do jeito mais feio
+ * possível, com o placar zerado do lado dele. O set que fecha o jogo (o último, indo até o fim)
+ * é sempre uma vitória do atleta — é ele quem termina a partida — então nunca entra como "set
+ * perdido" aqui. Trocar isso por margens apertadas em TODO set "porque parece mais realista"
+ * volta a deixar o mínimo fora do array: o contra-exemplo executado que expôs esse bug pra MD3
+ * (`x` bate `y` 21-19/9-21/15-5) derrubava a garantia em ~4% dos grupos simulados; o mesmo
+ * defeito, sem essa conta, reaparece em MD5 com uma faixa ainda mais larga de saldo de pontos.
+ */
+function winBoundsOf(bestOf: number): readonly MatchSet[][] {
+  const setsToWin = Math.ceil(bestOf / 2);
+  const setsToLose = setsToWin - 1;
+  const totalSets = setsToWin + setsToLose;
+  const deciderIndex = totalSets - 1;
+
+  // Vence tudo, perde nada: maximiza o saldo de sets primeiro, e dentro disso o saldo de pontos
+  // (adversário zerado em cada set).
+  const widest: MatchSet[] = [];
+  for (let i = 0; i < setsToWin; i++) {
+    widest.push({ a: setTargetPointsOf(i, bestOf), b: 0 });
+  }
+
+  // Vence o mínimo pra fechar o jogo, indo até o fim: os `setsToLose` sets que não decidem nada
+  // saem zerados do lado do atleta; os `setsToWin` que precisa vencer (incluindo sempre o
+  // decisivo) saem pela margem legal mínima.
+  const narrowest: MatchSet[] = [];
+  let remainingLosses = setsToLose;
+  for (let i = 0; i < totalSets; i++) {
+    const target = setTargetPointsOf(i, bestOf);
+    if (i !== deciderIndex && remainingLosses > 0) {
+      narrowest.push({ a: 0, b: target });
+      remainingLosses--;
+    } else {
+      narrowest.push({ a: target, b: target - MIN_ADVANTAGE });
+    }
+  }
+
+  return [widest, narrowest];
+}
 
 function mirror(sets: readonly MatchSet[]): MatchSet[] {
   return sets.map((s) => ({ a: s.b, b: s.a }));
@@ -56,10 +98,11 @@ function rankOf(matches: readonly TournamentMatch[], poolId: string, myTeamId: s
  * Cenários da rodada decisiva.
  *
  * Deliberadamente conservador, na mesma linha de `qualificationOf`: simula os EXTREMOS de cada
- * desfecho (ver `WIN_BOUNDS`) e só afirma a posição quando os dois levam ao mesmo lugar — a
- * monotonicidade do desempate garante que, nesse caso, todo placar legal no meio também leva.
- * Errar isso num app de torneio — dizer "vencendo você é o 1º" e o atleta terminar em 2º por
- * saldo — é pior que dizer "depende do placar".
+ * desfecho (ver `winBoundsOf`, calculado a partir do `bestOf` da própria partida) e só afirma a
+ * posição quando os dois levam ao mesmo lugar — a monotonicidade do desempate garante que,
+ * nesse caso, todo placar legal no meio também leva. Errar isso num app de torneio — dizer
+ * "vencendo você é o 1º" e o atleta terminar em 2º por saldo — é pior que dizer "depende do
+ * placar".
  *
  * Só roda quando a partida do atleta é a única pendente do grupo: com outra em aberto, quem
  * decide a posição é um resultado que ninguém controla.
@@ -95,9 +138,10 @@ export function roundScenariosOf(
     }
 
     const iWin = outcome === 'win';
-    // Só os dois EXTREMOS de WIN_BOUNDS — a monotonicidade do desempate garante que, se ambos
-    // derem a mesma posição, todo placar legal no meio também dá (ver doc da função).
-    const ranks = WIN_BOUNDS.map((bound) => {
+    // Só os dois EXTREMOS de winBoundsOf, derivados do bestOf desta partida — a monotonicidade
+    // do desempate garante que, se ambos derem a mesma posição, todo placar legal no meio
+    // também dá (ver doc da função).
+    const ranks = winBoundsOf(matchBestOf(mine)).map((bound) => {
       const oriented = iWin ? bound : mirror(bound);
       // Substitui em vez de remover-e-reanexar: `buildGroupStandings` semeia seu mapa na ordem
       // de iteração das partidas e o `sort` é estável, então a ordem de inserção é o desempate

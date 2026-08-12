@@ -1,7 +1,7 @@
 import { matchClosedSets, matchIsCompleted, type TournamentMatch } from '../../data/matches-repository';
 import type { TournamentPrize } from '../../data/tournaments-repository';
 import { isDoubleElimination } from '../bracket-tree';
-import { sideOf } from '../tournament-live.selectors';
+import { outcomeOf, sideOf } from '../tournament-live.selectors';
 
 /** Uma barra do gráfico "você × adversário": um set de uma partida do atleta. */
 export interface SetBar {
@@ -52,20 +52,26 @@ export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: s
   if (rounds.length === 0) return null;
   if (isDoubleElimination(matches.filter((m) => m.categoryId === categoryId))) return null;
 
-  const myTeamIdOf = (m: TournamentMatch): string => (sideOf(m, myTeamIds) === 'A' ? m.teamAId : m.teamBId);
   const myKnockouts = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
 
   // Eliminado: perdeu alguma partida do mata-mata já encerrada. Checado ANTES do fallback de
   // "sem pendência" abaixo — sem isso, um atleta eliminado (nenhuma partida futura leva o time
   // dele) cai no mesmo ramo de quem ainda está nos grupos e herda `rounds.length` por engano.
-  const lost = myKnockouts.some((m) => matchIsCompleted(m) && m.winnerId != null && m.winnerId !== myTeamIdOf(m));
+  const lost = myKnockouts.some((m) => outcomeOf(m, myTeamIds) === 'loss');
   if (lost) return null;
 
   // Campeão: venceu a partida encerrada da última fase do mata-mata. Mesma lógica do `lost`
   // acima — sem esse ramo, o campeão também cairia no fallback e ouviria que ainda falta vencer
   // fases que já venceu.
+  //
+  // A ORDEM destes dois `if` é obrigatória, não estética: a disputa de 3º lugar recebe o MESMO
+  // número de rodada da final (`category-bracket-builders.ts`, "3º lugar: perdedores das
+  // semifinais" — `round: roundStart + totalRounds - 1`, igual ao da final). Um atleta que
+  // perdeu a semifinal e venceu o 3º lugar tem uma partida completed em `lastRound` com vitória
+  // dele — bateria no `champion` abaixo se ele rodasse primeiro, coroando um 3º colocado. Só não
+  // acontece porque o `lost` acima já devolveu `null` pra esse atleta antes de chegar aqui.
   const lastRound = rounds[rounds.length - 1];
-  const champion = myKnockouts.some((m) => m.round === lastRound && matchIsCompleted(m) && m.winnerId === myTeamIdOf(m));
+  const champion = myKnockouts.some((m) => m.round === lastRound && outcomeOf(m, myTeamIds) === 'win');
   if (champion) return 0;
 
   const myPending = myKnockouts
@@ -114,7 +120,13 @@ export function tournamentNumbersOf(matches: readonly TournamentMatch[], myTeamI
 }
 
 /** A melhor premiação que a campanha atual já garante — `bestPossiblePlace` é a pior colocação
- *  possível a partir daqui (ex.: quem está na final termina no máximo em 2º). */
+ *  possível a partir daqui (ex.: quem está na final termina no máximo em 2º).
+ *
+ *  Casamento EXATO com `bestPossiblePlace`, não um "piso" (menor posição >= ele): o atleta pode
+ *  terminar em qualquer lugar até `bestPossiblePlace`, nunca pior — então o que está garantido é
+ *  o prêmio da colocação mais ruim ainda alcançável. Se essa colocação exata não tem prêmio
+ *  cadastrado (tabela com buraco), a resposta certa é "nada garantido", não o prêmio de uma
+ *  colocação pior que o atleta não pode mais alcançar. */
 export function guaranteedPrizeOf(prizes: readonly TournamentPrize[], bestPossiblePlace: number): TournamentPrize | null {
-  return [...prizes].sort((a, b) => a.position - b.position).find((p) => p.position >= bestPossiblePlace) ?? null;
+  return prizes.find((p) => p.position === bestPossiblePlace) ?? null;
 }

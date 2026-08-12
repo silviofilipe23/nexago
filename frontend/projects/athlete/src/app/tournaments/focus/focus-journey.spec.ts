@@ -82,6 +82,20 @@ describe('winsToTitleOf', () => {
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBe(0);
   });
+
+  // Fix round 2 (Task 5), achado 3: a disputa de 3º lugar recebe o MESMO número de rodada da
+  // final (`category-bracket-builders.ts`: `round: roundStart + totalRounds - 1` pros dois). Um
+  // atleta que perdeu a semifinal e venceu o 3º lugar NÃO pode virar "campeão" só porque tem uma
+  // vitória completed em `lastRound` — pina que o `lost` (perdeu a semifinal) decide antes do
+  // `champion` chegar a olhar pro 3º lugar.
+  it('não confunde vencer o 3º lugar com ser campeão quando os dois dividem a última rodada', () => {
+    const matches = [
+      match({ id: 'sf', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
+      match({ id: 'tp', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, status: 'completed', teamAId: 'x', teamBId: 'z', winnerId: 'x' }),
+    ];
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBeNull();
+  });
 });
 
 describe('tournamentNumbersOf', () => {
@@ -141,5 +155,27 @@ describe('guaranteedPrizeOf', () => {
 
   it('lista de prêmios vazia nunca garante nada', () => {
     expect(guaranteedPrizeOf([], 1)).toBeNull();
+  });
+
+  // Fix round 2 (Task 5), achado 2: a semântica correta é casamento EXATO com a pior colocação
+  // ainda possível, não "o primeiro prêmio de posição >= bestPossiblePlace". Com uma tabela
+  // ESPARSA (sem prêmio pra 2º), um atleta na final (bestPossiblePlace 2) pode terminar em 1º ou
+  // 2º — nunca em 3º — então prometer o prêmio de 3º aqui é dinheiro que ele pode não ganhar.
+  // Contra a implementação antiga (`find(p => p.position >= bestPossiblePlace)` com sort), este
+  // teste falhava devolvendo o prêmio de 3º.
+  it('tabela esparsa (sem prêmio pra 2º): atleta na final não tem nada garantido', () => {
+    const sparse: TournamentPrize[] = [
+      { position: 1, value: 1000, label: '1º lugar' },
+      { position: 3, value: 200, label: '3º lugar' },
+    ];
+    expect(guaranteedPrizeOf(sparse, 2)).toBeNull();
+  });
+
+  it('tabela completa: pior colocação possível 2º garante exatamente o prêmio de 2º', () => {
+    expect(guaranteedPrizeOf(prizes, 2)).toEqual({ position: 2, value: 500, label: '2º lugar' });
+  });
+
+  it('pior colocação possível além da tabela não garante nada', () => {
+    expect(guaranteedPrizeOf(prizes, 5)).toBeNull();
   });
 });

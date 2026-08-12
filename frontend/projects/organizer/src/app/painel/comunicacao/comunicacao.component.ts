@@ -46,7 +46,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
   template: `
     <og-page-header title="Comunicação" [subtitle]="headerSubtitle()" />
 
-    <div class="og-content" style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start">
+    <div class="og-content" style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start;align-content:start">
       <og-card kicker="Broadcast" title="Novo aviso">
         @if (loading()) {
           <p class="og-comm-empty">Carregando torneio…</p>

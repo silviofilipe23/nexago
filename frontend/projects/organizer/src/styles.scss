@@ -68,6 +68,31 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  /* `manipulation` = tudo que o toque já fazia MENOS o duplo-toque pra dar zoom. Rolagem e
+     pinça continuam funcionando — a pinça é requisito de acessibilidade (WCAG 1.4.4) e é o
+     que `user-scalable=no` no viewport mataria junto, além de o iOS ignorar essa meta desde
+     o iOS 10. Vale no <html> porque o navegador cruza o touch-action do alvo do toque até a
+     raiz: restringir aqui alcança a árvore inteira sem repetir a regra por componente.
+     Sem isto, o toque duplo rápido em "+1 ponto" na mesa ao vivo dá zoom em vez de 2 pontos. */
+  touch-action: manipulation;
+
+  /* Impede o WebKit de inflar o texto sozinho ao girar o aparelho — o efeito é lido
+     como zoom e desalinha o placar. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Repetido no alvo do toque de propósito: WebKit antigo (iPad/iPhone de mesa que não
+   atualizam) olhava só o touch-action do elemento tocado, sem subir até o <html>. */
+a,
+button,
+input,
+select,
+textarea,
+[role='button'] {
+  touch-action: manipulation;
+}
+
 input::placeholder {
   color: rgba(244, 244, 245, 0.3);
 }
@@ -1215,6 +1240,17 @@ button {
   a,
   button {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Toque repetido num botão faz o iOS selecionar o rótulo e abrir o balão de copiar —
+     aparece justamente em quem martela "+1 ponto". Só nos controles: texto de conteúdo,
+     placar e nomes de dupla seguem selecionáveis pra copiar. */
+  a,
+  button,
+  .og-chip,
+  .og-nav-item {
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* Cuidado com o `:not(.active)`: neste CSS `.active` é "item selecionado" (laranja) e

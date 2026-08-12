@@ -19,7 +19,8 @@
       "@nexago/br-locations": ["shared/br-locations/index.ts"],
       "@nexago/leagues": ["shared/leagues/index.ts"],
       "@nexago/levels": ["shared/levels/index.ts"],
-      "@nexago/link-pages": ["shared/link-pages/index.ts"]
+      "@nexago/link-pages": ["shared/link-pages/index.ts"],
+      "@nexago/push-notifications": ["shared/push-notifications/index.ts"]
     }
   },
   "angularCompilerOptions": {

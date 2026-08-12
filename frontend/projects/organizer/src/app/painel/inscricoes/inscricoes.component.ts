@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { listInscriptions } from '../data/inscriptions-repository';
 import {
   confirmRegistrationPayment,
@@ -223,6 +223,10 @@ interface PendingConfirm {
 })
 export class InscricoesComponent {
   readonly id = input<string>('');
+  /** Vem do deep-link da notificação (`?registrationId=...`) — abre e rola até a linha. */
+  readonly registrationId = input<string>('');
+
+  private readonly injector = inject(Injector);
 
   protected readonly tabs = INSCRICAO_TABS;
   protected readonly tab = signal<InscricaoTab>('todos');
@@ -367,9 +371,22 @@ export class InscricoesComponent {
       });
       rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
       this.rows.set(rows);
+      this.openFromDeepLink(rows);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Notificação de nova inscrição/pagamento/cancelamento leva direto pra dupla — expande a
+   *  gaveta de ações e rola até ela, sem depender de o organizador achá-la na lista. */
+  private openFromDeepLink(rows: InscricaoRow[]): void {
+    const target = this.registrationId();
+    if (!target || !rows.some((r) => r.id === target)) return;
+    this.actionsFor.set(target);
+    afterNextRender(
+      () => document.getElementById(`insc-drawer-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      { injector: this.injector },
+    );
   }
 
   private matchesTab(r: InscricaoRow, tab: InscricaoTab): boolean {

@@ -4,6 +4,7 @@ import { watchOrganizerSettings } from '../data/organizer-settings-repository';
 import { DEFAULT_ORGANIZER_SETTINGS, type OrganizerSettings } from '../data/organizer-settings.model';
 import { watchWallet, type OrganizerWalletSummary } from '../data/wallet-repository';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
+import { OgConfigNotificacoesCardComponent } from './notificacoes-card.component';
 import { OgConfigPagamentosCardComponent } from './pagamentos-card.component';
 import { OgConfigPerfilCardComponent } from './perfil-card.component';
 import { OgConfigRegrasCardComponent } from './regras-card.component';
@@ -26,6 +27,7 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
     OgConfigPerfilCardComponent,
     OgConfigPagamentosCardComponent,
     OgConfigRegrasCardComponent,
+    OgConfigNotificacoesCardComponent,
   ],
   template: `
     <og-page-header title="Configurações" subtitle="Dados da organização, pagamentos e padrões de evento" />
@@ -46,6 +48,7 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
         [loading]="loading()"
       />
       <og-config-regras [uid]="uid()" [defaults]="settings().defaults" [loading]="loading()" />
+      <og-config-notificacoes [uid]="uid()" />
     </div>
   `,
   styles: `

@@ -1,9 +1,15 @@
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { PanelShellComponent } from './panel-shell.component';
 import { PanelContextService } from './panel-context.service';
+import { OgBellComponent } from './og-bell.component';
+
+/** `og-bell` de verdade abre um `onSnapshot` real contra o Firestore de produção — sem sentido
+ *  (e sem rede) neste teste de gaveta/inert, que não olha pra notificação nenhuma. */
+@Component({ selector: 'og-bell', template: '' })
+class OgBellStub {}
 
 /** `MediaQueryList` de mentira com `matches` controlável, pra simular girar o tablet
  *  sem depender do tamanho real da janela do runner. */
@@ -56,6 +62,7 @@ describe('PanelShellComponent — gaveta de tablet', () => {
     media = fakeMediaQueryList(compact);
     spyOn(window, 'matchMedia').and.returnValue(media.mql);
 
+    TestBed.overrideComponent(PanelShellComponent, { remove: { imports: [OgBellComponent] }, add: { imports: [OgBellStub] } });
     await TestBed.configureTestingModule({
       imports: [PanelShellComponent],
       providers: [

@@ -10,6 +10,7 @@ import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {deliverNotificationToUser, markTournamentPartnerInviteInboxResponse} from "./notification-delivery";
+import {tournamentManagerUids} from "./tournament-acl";
 import {
   assertTournamentAcceptsRegistration,
   findCategory,
@@ -1274,6 +1275,47 @@ export const cancelTournamentRegistration = onCall({
   return {ok: true, registrationId};
 });
 
+/** Avisa quem opera o torneio que uma inscrição fechou o elenco (dupla completa ou equipe no
+ *  tamanho da categoria). Pagamento é aviso à parte — este é só sobre a vaga estar ocupada. */
+async function notifyOrganizersRegistrationCompleted({
+  db,
+  registrationId,
+  tournamentId,
+  categoryId,
+  categoryName,
+  teamName,
+}: {
+  db: Firestore;
+  registrationId: string;
+  tournamentId: string;
+  categoryId: string;
+  categoryName: string;
+  teamName: string | null;
+}): Promise<void> {
+  const recipients = await tournamentManagerUids(db, tournamentId);
+  if (recipients.length === 0) return;
+
+  const who = teamName?.trim() || "Uma dupla";
+  const where = categoryName ? ` em ${categoryName}` : "";
+
+  await Promise.all(
+    recipients.map((recipientUid) =>
+      deliverNotificationToUser({
+        userId: recipientUid,
+        title: "Nova inscrição",
+        body: `${who} se inscreveu${where}.`,
+        type: "tournament_registration_created",
+        data: {
+          tournamentId,
+          registrationId,
+          categoryId,
+          url: `/painel/eventos/${tournamentId}/inscricoes?registrationId=${registrationId}`,
+        },
+      }).catch(() => undefined),
+    ),
+  );
+}
+
 export const acceptTournamentPartnerInvite = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
@@ -1853,6 +1895,27 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
       logger.warn("Falha ao notificar convidador do torneio", {
         inviteId,
         inviterUid,
+        notifyError,
+      });
+    }
+  }
+
+  // Dupla fecha ao aceitar (sempre 2/2); equipe só quando o elenco chega ao teamSize.
+  const rosterNowComplete =
+    teamResult.isTeamInvite === true ? teamResult.rosterComplete === true : true;
+  if (rosterNowComplete) {
+    try {
+      await notifyOrganizersRegistrationCompleted({
+        db,
+        registrationId,
+        tournamentId,
+        categoryId,
+        categoryName: previewCategory.categoryName,
+        teamName: teamResult.isTeamInvite === true ? (teamResult.teamName ?? null) : null,
+      });
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar organizador da inscrição completa", {
+        inviteId,
         notifyError,
       });
     }

@@ -56,20 +56,38 @@ const FOCUSABLE =
       position: fixed;
       inset: 0;
       z-index: 1000;
-      display: grid;
-      place-items: center;
-      padding: 20px;
+      display: flex;
+      align-items: safe center;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: max(16px, env(safe-area-inset-top, 0px))
+        max(16px, env(safe-area-inset-right, 0px))
+        max(16px, env(safe-area-inset-bottom, 0px))
+        max(16px, env(safe-area-inset-left, 0px));
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       background: rgba(5, 5, 5, 0.72);
       backdrop-filter: blur(3px);
     }
 
+    /* Era largura fixa + max-width: 100% num host em grid: a porcentagem resolvia
+       contra uma track que a própria largura de 520px tinha medido, então no celular
+       o diálogo continuava com 520px e cortava texto e botões à direita. Com o host
+       em flex e min() a porcentagem cai na caixa do host, que é definida — mesmo
+       padrão do nx-blocking-dialog. dvh porque a barra do navegador móvel encolhe o
+       viewport visível e 100vh deixava os botões atrás dela. */
     .dialog {
-      width: 520px;
-      max-width: 100%;
-      max-height: calc(100vh - 40px);
+      box-sizing: border-box;
+      width: min(520px, 100%);
+      max-height: min(100%, calc(100dvh - 32px));
+      margin: auto;
       display: flex;
       flex-direction: column;
       padding: 26px 26px 22px;
+      overflow-x: hidden;
+      overflow-y: auto;
       background: var(--nx-surface-2);
       border: 1px solid var(--nx-line-strong);
       border-radius: var(--nx-r-4);
@@ -86,13 +104,19 @@ const FOCUSABLE =
       color: var(--nx-text);
     }
 
+    /* O termo encolhe antes de tudo quando a tela é baixa (é ele que rola), mas
+       com um piso legível: abaixo disso quem rola é o diálogo, senão em tela
+       muito baixa o termo virava uma fresta e o "Cancelar" saía embaixo. */
     .term {
+      flex: 0 1 auto;
+      min-height: 96px;
       margin-top: 14px;
       padding: 12px 14px;
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-2);
       overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .term p {
@@ -135,12 +159,17 @@ const FOCUSABLE =
     }
 
     .btn {
-      flex: 1;
+      box-sizing: border-box;
+      flex: 1 1 140px;
+      min-width: 0;
       min-height: 46px;
-      padding: 1px 6px;
+      padding: 10px 12px;
       border-radius: var(--nx-r-3);
       font-family: var(--nx-font-display);
       font-size: 14px;
+      line-height: 1.25;
+      white-space: normal;
+      text-align: center;
       cursor: pointer;
     }
 
@@ -165,11 +194,17 @@ const FOCUSABLE =
 
     @media (max-width: 520px) {
       .dialog {
-        padding: 22px 18px 18px;
+        padding: 22px 16px 18px;
+        border-radius: var(--nx-r-3);
       }
 
       .actions {
         flex-direction: column;
+      }
+
+      .btn {
+        flex: 1 1 auto;
+        width: 100%;
       }
     }
   `,

@@ -1007,10 +1007,15 @@ export function tournamentNumbersOf(matches: readonly TournamentMatch[], myTeamI
   };
 }
 
-/** A melhor premiação que a campanha atual já garante — `bestPossiblePlace` é a pior colocação
- *  possível a partir daqui (ex.: quem está na final termina no máximo em 2º). */
+/** A premiação que a campanha atual já garante. `bestPossiblePlace` é a PIOR colocação ainda
+ *  possível (quem está na final termina no máximo em 2º).
+ *
+ *  Casamento exato, não piso: se a tabela tem buraco justo nessa colocação, o atleta não está
+ *  garantindo nada. Com `>=` a função devolveria o prêmio de 3º para quem está na final numa
+ *  tabela que premia só 1º e 3º — uma colocação que ele já não pode alcançar. Prometer dinheiro
+ *  a mais é o pior erro que esta função pode cometer. */
 export function guaranteedPrizeOf(prizes: readonly TournamentPrize[], bestPossiblePlace: number): TournamentPrize | null {
-  return [...prizes].sort((a, b) => a.position - b.position).find((p) => p.position >= bestPossiblePlace) ?? null;
+  return prizes.find((p) => p.position === bestPossiblePlace) ?? null;
 }
 ```
 

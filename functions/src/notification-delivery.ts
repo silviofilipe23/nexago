@@ -196,8 +196,15 @@ async function sendWebPushToSubscriptions(
           `Web Push send falhou user=${userId} doc=${subscription.id} status=${statusCode}:`,
           body ?? (error as Error)?.message ?? error
         );
-        if (statusCode === 404 || statusCode === 410) {
-          logger.warn(`Web Push assinatura expirada removida user=${userId} doc=${subscription.id}`);
+        // 404/410: endpoint não existe mais (usuário desinstalou/revogou). 400 com esse motivo:
+        // assinatura foi criada com uma chave VAPID diferente da atual — nunca vai funcionar,
+        // reenviar não resolve (foi assim que achamos a `sub_wmbyj6`, órfã desde março).
+        const permanentFailure =
+          statusCode === 404 ||
+          statusCode === 410 ||
+          (statusCode === 400 && (body ?? "").includes("VapidPkHashMismatch"));
+        if (permanentFailure) {
+          logger.warn(`Web Push assinatura inválida removida user=${userId} doc=${subscription.id}`);
           await db
             .doc(`users/${subscription.userId}/webPushSubscriptions/${subscription.id}`)
             .delete()

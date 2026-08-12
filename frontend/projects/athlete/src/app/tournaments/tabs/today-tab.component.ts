@@ -46,7 +46,7 @@ export class TodayTabComponent {
 
   protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx(), this.store.now()));
 
-  protected readonly timeline = computed(() => timelineOf(this.ctx()));
+  protected readonly timeline = computed(() => timelineOf(this.ctx(), this.store.dayTimeline()));
 
   /** Rodapé da timeline: existe mata-mata pela frente, mas o slot ainda não tem dono. */
   protected readonly pendingKnockout = computed(() => {

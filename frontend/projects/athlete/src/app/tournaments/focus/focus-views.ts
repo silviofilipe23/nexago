@@ -95,11 +95,14 @@ export interface StandingRow {
  * este objeto lendo os signals, e os testes montam um literal. Sem isso as funções voltariam a
  * depender do `TournamentLiveStore` e deixariam de ser testáveis sem TestBed.
  *
- * Propositalmente SEM `now`: é o único valor do store que anda sozinho (tick de 1s em partida ao
- * vivo — ver `TICK_LIVE_MS` em `tournament-live.store.ts`). Se entrasse aqui, o `ctx` inteiro
- * recomputaria a cada tick e arrastaria `standingsViewOf`/`qualificationNoteOf`/`liveRowsOf` —
- * que não dependem do relógio — junto. `nextMatchViewOf`, o único consumidor de `now`, recebe o
- * valor à parte.
+ * Só entra aqui o que é ESTÁVEL entre ticks do relógio — tudo que deriva de `now()` fica de fora
+ * e vira parâmetro de quem consome, senão o `ctx` inteiro recomputaria a cada tick (1s com
+ * partida ao vivo — ver `TICK_LIVE_MS` em `tournament-live.store.ts`) e arrastaria
+ * `standingsViewOf`/`qualificationNoteOf`/`liveRowsOf` — que não dependem do relógio — junto:
+ * - `now`: `nextMatchViewOf`, o único consumidor, recebe o valor à parte.
+ * - `dayTimeline`: `store.dayTimeline()` é `computed(() => myDayTimeline(matches, myTeamIds,
+ *   now()))`, que termina em `.filter().sort()` — um array NOVO a cada leitura, mesmo com o
+ *   mesmo conteúdo. Fora do `ctx`, quem lê é só `timelineOf`, que recebe o array à parte.
  */
 export interface FocusViewContext {
   matches: readonly TournamentMatch[];
@@ -109,7 +112,6 @@ export interface FocusViewContext {
   isMyTeam(teamId: string): boolean;
   standingsOf(poolId: string): readonly GroupStanding[];
   nextMatch: TournamentMatch | null;
-  dayTimeline: readonly TournamentMatch[];
 }
 
 /** Fotografia do store para as funções de view. `import type` de propósito: nada aqui depende
@@ -123,7 +125,6 @@ export function focusViewContextOf(store: TournamentLiveStore): FocusViewContext
     isMyTeam: (teamId) => store.isMyTeam(teamId),
     standingsOf: (poolId) => store.standingsOf(poolId),
     nextMatch: store.nextMatch(),
-    dayTimeline: store.dayTimeline(),
   };
 }
 
@@ -212,11 +213,10 @@ export function nextMatchViewOf(ctx: FocusViewContext, now: Date): NextMatchView
   };
 }
 
-export function timelineOf(ctx: FocusViewContext): TimelineEntry[] {
+export function timelineOf(ctx: FocusViewContext, dayTimeline: readonly TournamentMatch[]): TimelineEntry[] {
   const myTeamIds = ctx.myTeamIds;
   const nextId = ctx.nextMatch?.id;
-  const entries = ctx.dayTimeline;
-  return entries.map((m) => {
+  return dayTimeline.map((m) => {
     const outcome = outcomeOf(m, myTeamIds);
     const side = sideOf(m, myTeamIds);
     const opponentId = side === 'A' ? m.teamBId : m.teamAId;

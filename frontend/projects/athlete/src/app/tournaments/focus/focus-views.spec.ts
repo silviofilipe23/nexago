@@ -56,7 +56,6 @@ function ctxOf(partial: Partial<FocusViewContext> & Pick<FocusViewContext, 'matc
     isMyTeam: (teamId) => teamId === 'teamMine',
     standingsOf: (): GroupStanding[] => [],
     nextMatch: null,
-    dayTimeline: [],
     ...partial,
   };
 }
@@ -94,14 +93,14 @@ describe('timelineOf', () => {
       sets: [{ a: 21, b: 15 }, { a: 21, b: 12 }],
       scheduleTime: new Date('2026-08-29T12:00:00Z'),
     });
-    const [entry] = timelineOf(ctxOf({ matches: [done], dayTimeline: [done] }));
+    const [entry] = timelineOf(ctxOf({ matches: [done] }), [done]);
     expect(entry?.state).toBe('done');
     expect(entry?.outcome).toBe('win');
   });
 
   it('marca como "next" a partida que é a próxima do atleta', () => {
     const upcoming = match({ id: 'm2', teamAId: 'teamMine', teamBId: 'teamRival', scheduleTime: new Date('2026-08-29T15:00:00Z') });
-    const [entry] = timelineOf(ctxOf({ matches: [upcoming], dayTimeline: [upcoming], nextMatch: upcoming }));
+    const [entry] = timelineOf(ctxOf({ matches: [upcoming], nextMatch: upcoming }), [upcoming]);
     expect(entry?.state).toBe('next');
   });
 
@@ -118,7 +117,7 @@ describe('timelineOf', () => {
       ],
       scheduleTime: new Date('2026-08-29T12:00:00Z'),
     });
-    const [entry] = timelineOf(ctxOf({ matches: [done], dayTimeline: [done] }));
+    const [entry] = timelineOf(ctxOf({ matches: [done] }), [done]);
     expect(entry?.outcome).toBe('win');
     expect(entry?.outcomeLabel).toBe('V 2–0');
   });

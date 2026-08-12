@@ -927,8 +927,14 @@ function knockoutRounds(matches: readonly TournamentMatch[], categoryId: string)
  * Quantas vitórias separam o atleta do título.
  *
  * `null` quando a chave ainda não foi sorteada — nesse caso a manchete some em vez de chutar.
- * Também `null` em dupla eliminação: lá o caminho depende da chave em que o atleta está e a
- * contagem simples de fases mentiria.
+ * Também `null` em dupla eliminação (o caminho depende da chave em que o atleta está) e para
+ * quem já perdeu um mata-mata. `0` significa campeão, e é um número honesto: a seção mostra
+ * estado de título em vez de contagem.
+ *
+ * NÃO tenta detectar eliminação na fase de grupos. Isso exigiria saber se o grupo terminou e se
+ * o atleta se classificou — a mesma simulação de critério de desempate que este código recusa a
+ * fazer fora de `focus-scenarios.ts` (ver `qualificationOf`). Quem caiu por saldo no grupo vê um
+ * número até a chave ser sorteada: imprecisão conhecida e limitada, melhor que chutar desempate.
  */
 export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): number | null {
   const rounds = knockoutRounds(matches, categoryId);
@@ -939,6 +945,27 @@ export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: s
     .filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null && !matchIsCompleted(m))
     .map((m) => m.round)
     .sort((a, b) => a - b);
+
+  // Sem partida pendente o atleta pode estar em três situações MUITO diferentes: ainda nos
+  // grupos, eliminado, ou campeão. Sem separá-las, a tela diria "3 vitórias do título" para
+  // quem já caiu e "1 vitória do título" para quem já levantou a taça.
+  const myKnockouts = matches.filter(
+    (m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null,
+  );
+  const lost = myKnockouts.some((m) => {
+    if (!matchIsCompleted(m)) return false;
+    const myTeamId = sideOf(m, myTeamIds) === 'A' ? m.teamAId : m.teamBId;
+    return m.winnerId != null && m.winnerId !== myTeamId;
+  });
+  if (lost) return null;
+
+  const finalRound = rounds[rounds.length - 1];
+  const champion = myKnockouts.some((m) => {
+    if (m.round !== finalRound || !matchIsCompleted(m)) return false;
+    const myTeamId = sideOf(m, myTeamIds) === 'A' ? m.teamAId : m.teamBId;
+    return m.winnerId === myTeamId;
+  });
+  if (champion) return 0;
 
   // Já dentro do mata-mata: conta da fase pendente dele em diante. Ainda nos grupos: todas.
   const from = myPending[0];

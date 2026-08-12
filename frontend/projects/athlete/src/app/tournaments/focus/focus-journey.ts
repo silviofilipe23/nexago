@@ -31,17 +31,45 @@ function knockoutRounds(matches: readonly TournamentMatch[], categoryId: string)
 /**
  * Quantas vitórias separam o atleta do título.
  *
- * `null` quando a chave ainda não foi sorteada — nesse caso a manchete some em vez de chutar.
- * Também `null` em dupla eliminação: lá o caminho depende da chave em que o atleta está e a
- * contagem simples de fases mentiria.
+ * `null` quando: a chave ainda não foi sorteada (a manchete some em vez de chutar); em dupla
+ * eliminação (o caminho depende de qual chave o atleta está e a contagem simples de fases
+ * mentiria); ou quando o atleta já PERDEU alguma partida do mata-mata — eliminado, sem caminho
+ * pro título daqui pra frente.
+ *
+ * `0` quando o atleta já venceu a partida da última fase do mata-mata — campeão. É uma resposta
+ * honesta (zero vitórias faltando), diferente do `null` de "não dá pra afirmar".
+ *
+ * Deliberadamente NÃO tenta detectar eliminação que aconteceu só na fase de grupos (grupo
+ * encerrado, atleta não classificado, mata-mata ainda sem chave sorteada). Decidir isso exigiria
+ * simular o desempate do grupo — exatamente o que `qualificationOf`
+ * (`tournament-live.selectors.ts`) se recusa a fazer antes do grupo estar 100% encerrado, pelo
+ * mesmo motivo: errar o desempate num app de torneio é pior que uma imprecisão temporária e
+ * limitada. Um atleta fora só pelo resultado do grupo continua vendo um número de vitórias até
+ * o mata-mata ser sorteado — não "complete" essa lacuna aqui sem entender esse custo.
  */
 export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): number | null {
   const rounds = knockoutRounds(matches, categoryId);
   if (rounds.length === 0) return null;
   if (isDoubleElimination(matches.filter((m) => m.categoryId === categoryId))) return null;
 
-  const myPending = matches
-    .filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null && !matchIsCompleted(m))
+  const myTeamIdOf = (m: TournamentMatch): string => (sideOf(m, myTeamIds) === 'A' ? m.teamAId : m.teamBId);
+  const myKnockouts = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
+
+  // Eliminado: perdeu alguma partida do mata-mata já encerrada. Checado ANTES do fallback de
+  // "sem pendência" abaixo — sem isso, um atleta eliminado (nenhuma partida futura leva o time
+  // dele) cai no mesmo ramo de quem ainda está nos grupos e herda `rounds.length` por engano.
+  const lost = myKnockouts.some((m) => matchIsCompleted(m) && m.winnerId != null && m.winnerId !== myTeamIdOf(m));
+  if (lost) return null;
+
+  // Campeão: venceu a partida encerrada da última fase do mata-mata. Mesma lógica do `lost`
+  // acima — sem esse ramo, o campeão também cairia no fallback e ouviria que ainda falta vencer
+  // fases que já venceu.
+  const lastRound = rounds[rounds.length - 1];
+  const champion = myKnockouts.some((m) => m.round === lastRound && matchIsCompleted(m) && m.winnerId === myTeamIdOf(m));
+  if (champion) return 0;
+
+  const myPending = myKnockouts
+    .filter((m) => !matchIsCompleted(m))
     .map((m) => m.round)
     .sort((a, b) => a - b);
 

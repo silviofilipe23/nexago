@@ -60,6 +60,28 @@ describe('winsToTitleOf', () => {
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBe(2);
   });
+
+  // Fix round 1 (Task 5): `myPending` vazio também acontece quando o atleta já saiu do
+  // mata-mata de vez — eliminado ou campeão — não só quando ainda está nos grupos. Os dois
+  // testes abaixo pinam essa distinção; contra a implementação antiga, os dois vinham com
+  // `rounds.length` (3), não com o valor honesto.
+  it('devolve null quando o atleta já perdeu no mata-mata (eliminado, sem caminho pro título)', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+    ];
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBeNull();
+  });
+
+  it('devolve 0 quando o atleta já venceu a final (campeão, zero vitórias faltando)', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'z', winnerId: 'mine' }),
+    ];
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBe(0);
+  });
 });
 
 describe('tournamentNumbersOf', () => {

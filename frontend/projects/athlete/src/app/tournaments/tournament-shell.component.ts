@@ -26,7 +26,6 @@ function nameFromEmail(email: string | null | undefined): string {
 
 const TAB_LABELS: Record<TournamentTabId, string> = {
   'visao-geral': 'Visão geral',
-  hoje: 'Hoje',
   categorias: 'Categorias',
   'minha-inscricao': 'Minha inscrição',
   palpites: 'Palpites',
@@ -73,14 +72,9 @@ export class TournamentShellComponent {
     return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
   });
 
-  protected readonly tabs = computed(() =>
-    this.store.visibleTabs().map((id) => ({
-      id,
-      label: TAB_LABELS[id],
-      /** O ponto laranja do protótipo: a aba Hoje sinaliza que existe algo acontecendo agora. */
-      dot: id === 'hoje' && this.store.liveInTournament().length > 0,
-    })),
-  );
+  // O ponto laranja "acontecendo agora" era da aba Hoje, aposentada: quem tem jogo ao vivo hoje
+  // entra pelo Modo Focus, não por uma aba desta casca.
+  protected readonly tabs = computed(() => this.store.visibleTabs().map((id) => ({ id, label: TAB_LABELS[id] })));
 
   protected readonly heroTitle = computed(() => {
     const t = this.store.tournament();
@@ -114,8 +108,9 @@ export class TournamentShellComponent {
       if (id) void this.store.load(id);
     });
 
-    // Rota canônica: `/torneios/:id` sem aba resolve para a aba mais relevante assim que os
-    // dados chegam (quem tem jogo hoje cai no "Hoje"). `replaceUrl` mantém o back funcionando.
+    // Rota canônica: `/torneios/:id` sem aba resolve para "Visão geral" assim que os dados
+    // chegam — quem tem jogo hoje é levado ao Modo Focus por outro caminho, não por aqui.
+    // `replaceUrl` mantém o back funcionando.
     effect(() => {
       if (this.store.loading()) return;
       if (this.currentSegment() !== null) return;

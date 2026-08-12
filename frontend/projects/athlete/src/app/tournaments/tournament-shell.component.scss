@@ -179,13 +179,6 @@ router-outlet + * {
   border-bottom-color: var(--nx-orange-500);
 }
 
-.tsh-tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--nx-orange-500);
-}
-
 .tsh-empty {
   @include tl.empty-state;
 }

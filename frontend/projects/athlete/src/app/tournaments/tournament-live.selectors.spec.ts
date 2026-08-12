@@ -296,10 +296,10 @@ describe('visibleTabsOf / defaultTabOf', () => {
     expect(defaultTabOf(tabs)).toBe('visao-geral');
   });
 
-  it('abre em "hoje" para quem tem jogo no dia', () => {
-    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: false });
-    expect(tabs).toEqual(['visao-geral', 'hoje', 'categorias', 'minha-inscricao']);
-    expect(defaultTabOf(tabs)).toBe('hoje');
+  it('não emite mais a aba Hoje — o dia do atleta vive no Focus', () => {
+    const tabs = visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: true });
+    expect(tabs).not.toContain('hoje' as never);
+    expect(tabs).toEqual(['visao-geral', 'categorias', 'minha-inscricao', 'palpites']);
   });
 
   it('mantém "minha inscrição" para o inscrito sem jogo hoje', () => {
@@ -318,7 +318,6 @@ describe('visibleTabsOf / defaultTabOf', () => {
     ]);
     expect(visibleTabsOf({ hasMyMatchToday: true, isRegistered: true, hasDefinedMatchups: true })).toEqual([
       'visao-geral',
-      'hoje',
       'categorias',
       'minha-inscricao',
       'palpites',

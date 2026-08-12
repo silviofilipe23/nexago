@@ -32,9 +32,6 @@
             [attr.aria-current]="isActive(tab.id) ? 'page' : null"
           >
             <span>{{ tab.label }}</span>
-            @if (tab.dot) {
-              <span class="tsh-tab-dot" aria-label="acontecendo agora"></span>
-            }
           </a>
         }
       </nav>

@@ -271,9 +271,12 @@ export function qualificationOf(
   };
 }
 
-export type TournamentTabId = 'visao-geral' | 'hoje' | 'categorias' | 'minha-inscricao' | 'palpites';
+export type TournamentTabId = 'visao-geral' | 'categorias' | 'minha-inscricao' | 'palpites';
 
 export interface TabVisibilityInput {
+  /** Não decide mais aba nenhuma aqui — o dia do atleta em jogo virou o Modo Focus, uma casca
+   *  própria fora destas abas. O campo continua existindo porque o botão de entrada do Focus
+   *  (Task 11) decide se aparece a partir dele. */
   hasMyMatchToday: boolean;
   isRegistered: boolean;
   /** Existe ao menos um confronto definido? Antes disso não há em quem palpitar. */
@@ -288,9 +291,7 @@ export interface TabVisibilityInput {
  *  "Palpites" fica por último — é a aba de torcida, não de operação — e NÃO some quando o
  *  torneio acaba: é justamente aí que o ranking de palpiteiros e o "você acertou" importam. */
 export function visibleTabsOf(input: TabVisibilityInput): TournamentTabId[] {
-  const tabs: TournamentTabId[] = ['visao-geral'];
-  if (input.hasMyMatchToday) tabs.push('hoje');
-  tabs.push('categorias');
+  const tabs: TournamentTabId[] = ['visao-geral', 'categorias'];
   if (input.isRegistered) tabs.push('minha-inscricao');
   if (input.hasDefinedMatchups) tabs.push('palpites');
   return tabs;
@@ -319,7 +320,8 @@ export function defaultCategoryViewOf(views: readonly CategoryViewId[]): Categor
   return views[0] ?? 'chave';
 }
 
-/** Aba de entrada: quem tem jogo hoje cai direto no "Hoje". */
-export function defaultTabOf(tabs: readonly TournamentTabId[]): TournamentTabId {
-  return tabs.includes('hoje') ? 'hoje' : 'visao-geral';
+/** Aba de entrada: sempre a visão geral — quem tem jogo hoje é levado ao Modo Focus, não a
+ *  uma aba destas. */
+export function defaultTabOf(_tabs: readonly TournamentTabId[]): TournamentTabId {
+  return 'visao-geral';
 }

@@ -239,12 +239,37 @@ export const routes: Routes = [
         loadComponent: () => import('./tournaments/match/match-detail.component').then((m) => m.MatchDetailComponent),
       },
       {
+        // O Focus é irmão da casca de abas, não filho: assim herda a mesma instância de
+        // `TournamentLiveStore` sem refazer leitura, e não carrega o `AtPanelShellComponent` que
+        // toda tela do portal usa — é isso que faz o resto do portal sumir.
+        path: 'focus',
+        loadComponent: () => import('./tournaments/focus/focus-shell.component').then((m) => m.FocusShellComponent),
+        children: [
+          { path: 'agora', loadComponent: () => import('./tournaments/focus/now/focus-now.component').then((m) => m.FocusNowComponent) },
+          {
+            path: 'trajetoria',
+            loadComponent: () => import('./tournaments/focus/journey/focus-journey.component').then((m) => m.FocusJourneyComponent),
+          },
+          { path: 'grupo', loadComponent: () => import('./tournaments/focus/group/focus-group.component').then((m) => m.FocusGroupComponent) },
+          { path: '', pathMatch: 'full', redirectTo: 'agora' },
+        ],
+      },
+      {
         path: '',
         loadComponent: () => import('./tournaments/tournament-shell.component').then((m) => m.TournamentShellComponent),
         children: [
           {
+            // Link antigo da aba Hoje, aposentada: o dia do atleta em jogo agora vive no Modo
+            // Focus. Forma de função (absoluta), não a relativa `'../focus/agora'`: essa rota
+            // está aninhada um nível a mais no config (dentro do path vazio desta casca) do que
+            // `focus`, que é filho direto de `torneios/:id` — e o router resolve `redirectTo`
+            // relativo tratando `..` como segmento literal a casar contra as ROTAS IRMÃS deste
+            // mesmo nível, não como "suba um nível", então ele nunca casa e a navegação falha
+            // com NG04002. Confirmado com um teste isolado via `RouterTestingHarness` antes de
+            // escrever esta rota. Mesmo padrão de `legacyCategoryRedirect`, só que absoluto.
             path: 'hoje',
-            loadComponent: () => import('./tournaments/tabs/today-tab.component').then((m) => m.TodayTabComponent),
+            pathMatch: 'full',
+            redirectTo: ({ params }) => `/torneios/${params['id']}/focus/agora`,
           },
           {
             path: 'categorias',

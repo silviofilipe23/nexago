@@ -24,39 +24,40 @@
 
   <section class="jr-card">
     <h2 class="jr-card__title">Caminho até a final</h2>
-    @if (pathRows().length === 0 && futureRows().length === 0) {
+    @if (steps().length === 0) {
       <p class="jr-empty">Sua chave ainda não foi sorteada.</p>
     } @else {
       <ol class="jr-path">
-        @for (row of pathRows(); track row.matchId) {
-          <li class="jr-path-row">
-            <span class="jr-path-row__phase">{{ row.phaseLabel }}</span>
-            <div class="jr-path-row__body">
-              @if (row.clickable) {
-                <a [routerLink]="['../../partida', row.matchId]" class="jr-path-row__opponent">vs {{ row.opponentName }}</a>
+        @for (step of steps(); track step.id) {
+          <li class="jr-step" [attr.data-status]="step.status">
+            <span class="jr-step__rail" aria-hidden="true">
+              <span class="jr-step__dot">
+                @if (step.status === 'win') {
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+                    <path d="M9.55 17.575 4.025 12.05l1.4-1.4 4.125 4.125 9.025-9.025 1.4 1.4Z" />
+                  </svg>
+                }
+              </span>
+              <span class="jr-step__line"></span>
+            </span>
+
+            <div class="jr-step__body">
+              <p class="jr-step__meta">
+                <span class="jr-step__phase">{{ step.phaseLabel }}</span>
+                @if (step.metaLabel) {
+                  <span class="jr-step__when">{{ step.metaLabel }}</span>
+                }
+                <span class="jr-step__score">{{ step.scoreLabel }}</span>
+              </p>
+
+              @if (step.matchId) {
+                <a [routerLink]="['../../partida', step.matchId]" class="jr-step__opponent">{{ step.opponentName }}</a>
               } @else {
-                <span class="jr-path-row__opponent">vs {{ row.opponentName }}</span>
+                <span class="jr-step__opponent">{{ step.opponentName }}</span>
               }
-              @if (row.scoreLabel) {
-                <span class="jr-path-row__score">{{ row.scoreLabel }}</span>
-              } @else if (row.timeLabel) {
-                <span class="jr-path-row__time">{{ row.timeLabel }}</span>
-              }
-            </div>
-            @if (row.outcome) {
-              <span class="jr-path-row__outcome" [attr.data-outcome]="row.outcome">{{ row.outcome === 'win' ? 'V' : 'D' }}</span>
-            } @else if (row.live) {
-              <span class="jr-path-row__live"><span class="jr-live-dot" aria-hidden="true"></span>Ao vivo</span>
-            }
-          </li>
-        }
-        @for (row of futureRows(); track row.round) {
-          <li class="jr-path-row jr-path-row--future">
-            <span class="jr-path-row__phase">{{ row.phaseLabel }}</span>
-            <div class="jr-path-row__body">
-              <span class="jr-path-row__opponent">A definir</span>
-              @if (row.timeLabel) {
-                <span class="jr-path-row__time">{{ row.timeLabel }}</span>
+
+              @if (step.detailLabel) {
+                <p class="jr-step__detail">{{ step.detailLabel }}</p>
               }
             </div>
           </li>

@@ -99,38 +99,93 @@
 }
 
 // ── Caminho até a final ──────────────────────────────────────
+// Linha do tempo vertical: trilho (marcador + conector) à esquerda, degrau à direita. Quem conta
+// o estado é o MARCADOR — o texto ao lado nunca repete "V"/"D", como no protótipo.
 .jr-path {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--nx-s-2) 0 0;
 }
 
-.jr-path-row {
+.jr-step {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 22px minmax(0, 1fr);
   gap: var(--nx-s-3);
-  padding: var(--nx-s-4) var(--nx-s-2);
-  border-top: 1px solid var(--nx-line);
+  padding-bottom: var(--nx-s-5);
 
-  &:first-child {
-    border-top: none;
-  }
-
-  &--future {
-    opacity: 0.6;
-  }
-
-  @media (max-width: 640px) {
-    grid-template-columns: minmax(0, 1fr) auto;
-
-    .jr-path-row__phase {
-      grid-column: 1 / -1;
-    }
+  &:last-child {
+    padding-bottom: 0;
   }
 }
 
-.jr-path-row__phase {
+// O conector estica até o fim do degrau (`1fr`) e some no último — senão a timeline terminaria
+// num traço solto embaixo do marcador da final.
+.jr-step__rail {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  justify-items: center;
+  gap: var(--nx-s-1);
+}
+
+.jr-step__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--nx-line-strong);
+  border-radius: 50%;
+  background: var(--nx-surface-0);
+  color: var(--nx-win);
+
+  .jr-step[data-status='win'] & {
+    border-color: var(--nx-win);
+  }
+
+  .jr-step[data-status='loss'] & {
+    border-color: var(--nx-live);
+  }
+
+  .jr-step[data-status='live'] &,
+  .jr-step[data-status='next'] & {
+    border-width: 3px;
+    border-color: var(--nx-orange-500);
+    box-shadow: 0 0 0 4px rgba(255, 106, 26, 0.12);
+  }
+}
+
+.jr-step__line {
+  width: 2px;
+  min-height: 10px;
+  align-self: stretch;
+  border-radius: 1px;
+  background: var(--nx-line-strong);
+
+  // Verde só saindo de uma partida vencida: o trecho da campanha que o atleta já percorreu.
+  .jr-step[data-status='win'] & {
+    background: var(--nx-win);
+  }
+
+  .jr-step:last-child & {
+    display: none;
+  }
+}
+
+.jr-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-1);
+  min-width: 0;
+}
+
+// `wrap` porque a linha carrega fase + horário + quadra + placar: numa quadra com nome longo
+// ("Q. central") a 375px o placar desceria pra segunda linha em vez de vazar pra fora do card.
+.jr-step__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nx-s-2);
+  margin: 0;
   font-family: var(--nx-font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -138,17 +193,54 @@
   color: var(--nx-text-dim);
 }
 
-.jr-path-row__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.jr-step__phase {
+  font-weight: 700;
+
+  .jr-step[data-status='win'] & {
+    color: var(--nx-win);
+  }
+
+  .jr-step[data-status='loss'] & {
+    color: var(--nx-live);
+  }
+
+  .jr-step[data-status='live'] &,
+  .jr-step[data-status='next'] & {
+    color: var(--nx-orange-500);
+  }
 }
 
-.jr-path-row__opponent {
-  display: inline-block;
-  font-size: 14px;
-  font-weight: 600;
+.jr-step__when {
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-step__score {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  // A linha inteira é caixa alta, menos aqui: o "vs" do protótipo é minúsculo, e é ele que
+  // segura a coluna enquanto não há placar.
+  text-transform: none;
+
+  .jr-step[data-status='win'] & {
+    color: var(--nx-win);
+  }
+
+  .jr-step[data-status='loss'] & {
+    color: var(--nx-live);
+  }
+
+  .jr-step[data-status='live'] & {
+    color: var(--nx-orange-500);
+  }
+}
+
+.jr-step__opponent {
+  align-self: flex-start;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
   color: var(--nx-text);
   text-decoration: none;
   overflow-wrap: anywhere;
@@ -157,45 +249,19 @@
   &:focus-visible {
     color: var(--nx-orange-400);
   }
+
+  .jr-step[data-status='upcoming'] & {
+    color: var(--nx-text-mute);
+  }
 }
 
-.jr-path-row__score,
-.jr-path-row__time {
+.jr-step__detail {
+  margin: 0;
   font-family: var(--nx-font-mono);
   font-size: 12px;
   color: var(--nx-text-dim);
   font-variant-numeric: tabular-nums;
-}
-
-.jr-path-row__outcome {
-  font-family: var(--nx-font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-
-  &[data-outcome='win'] {
-    color: var(--nx-win);
-  }
-
-  &[data-outcome='loss'] {
-    color: var(--nx-live);
-  }
-}
-
-.jr-path-row__live {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--nx-s-2);
-  color: var(--nx-live);
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.jr-live-dot {
-  color: var(--nx-live);
-  @include tl.live-dot(7px);
+  overflow-wrap: anywhere;
 }
 
 // ── Seus números no torneio ──────────────────────────────────

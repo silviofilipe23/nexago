@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { matchClosedSets, matchIsLive, type TournamentMatch } from '../../../data/matches-repository';
+import { matchClosedSets, matchIsLive, matchSetWins, type TournamentMatch } from '../../../data/matches-repository';
 import type { TournamentPrize } from '../../../data/tournaments-repository';
 import { isDoubleElimination } from '../../bracket-tree';
-import { timeLabelOf, liveScoreLineOf } from '../../tournament-format';
+import { shortCourtLabelOf, timeLabelOf } from '../../tournament-format';
 import {
   byScheduleTime,
   campaignOf,
   groupLabelOf,
+  isDecidingRound,
   isPending,
   knockoutLabelOf,
   outcomeOf,
   qualificationOf,
   roundDisplayNumberOf,
+  roundGroupsOf,
   sideOf,
   type CampaignEntry,
   type MatchOutcome,
@@ -233,9 +235,12 @@ export function possibleOpponentsOf(
     }));
 }
 
+/** Fase de grupos vira só "Rodada N": o grupo do atleta é o contexto da tela inteira (a seção
+ *  Grupo já se intitula "Grupo A · Classificação parcial"), então repetir "Grupo A ·" em cada
+ *  degrau só roubaria a largura da linha mono no celular. Mesma leitura do protótipo. */
 function phaseLabelOf(matches: readonly TournamentMatch[], m: TournamentMatch): string {
   return m.poolId
-    ? `${groupLabelOf(m.poolId, matches)} · Rodada ${roundDisplayNumberOf(matches, m.poolId, m.round)}`
+    ? `Rodada ${roundDisplayNumberOf(matches, m.poolId, m.round)}`
     : knockoutLabelOf(m, knockoutRounds(matches, m.categoryId));
 }
 
@@ -248,36 +253,146 @@ function mySetsLabelOf(m: TournamentMatch, side: 'A' | 'B'): string | null {
   return sets.map((s) => (side === 'A' ? `${s.a}-${s.b}` : `${s.b}-${s.a}`)).join(' · ');
 }
 
-export interface JourneyMatchRow {
-  matchId: string;
+/**
+ * Estado do degrau na linha do tempo — é ele que pinta o marcador e o rótulo da fase.
+ * `next` é a partida que o atleta vai jogar A SEGUIR (`store.nextMatch()`), o degrau laranja
+ * "você está aqui" do protótipo; `upcoming` são as fases depois dela.
+ */
+export type JourneyStepStatus = 'win' | 'loss' | 'live' | 'next' | 'upcoming';
+
+/** Uma linha da "Caminho até a final": tanto uma partida do atleta quanto uma fase ainda sem
+ *  dono. Um tipo só porque a timeline é uma sequência contínua — o trilho não sabe (nem deve
+ *  saber) onde termina o que já tem adversário e começa o que ainda vai ser sorteado. */
+export interface JourneyStepRow {
+  /** `matchId` nas partidas do atleta; `fase-<round>` nas fases ainda sem dono. */
+  id: string;
+  status: JourneyStepStatus;
   phaseLabel: string;
-  /** `null` numa partida ainda sem horário marcado — o card não promete estimativa. */
-  timeLabel: string | null;
+  /** "9:00 · Q3" — horário e quadra, só o que o organizador REALMENTE marcou. Sem os dois,
+   *  `null`: esta tela nunca estima horário (ver `futurePhasesOf`). */
+  metaLabel: string | null;
   opponentName: string;
-  /** Sets fechados do ponto de vista do atleta, ou o placar ao vivo — `null` antes de começar. */
-  scoreLabel: string | null;
-  outcome: MatchOutcome;
-  live: boolean;
-  clickable: boolean;
+  /** A linha de baixo: os sets já jogados, o que a partida decide ou a premiação do título. */
+  detailLabel: string | null;
+  /** "2 – 0" a partir do momento em que há set jogado; "vs" enquanto não há. */
+  scoreLabel: string;
+  /** `null` quando não há partida pra abrir (fase sem dono, ou slot ainda vazio). */
+  matchId: string | null;
 }
 
-function journeyRowOf(ctx: FocusViewContext, m: TournamentMatch): JourneyMatchRow {
+const VS_LABEL = 'vs';
+
+function isFinalPhaseLabel(phaseLabel: string): boolean {
+  return phaseLabel === 'Final' || phaseLabel === 'Grand final';
+}
+
+/**
+ * Quadra do jeito curto que cabe na linha mono: "3" e "Quadra 3" viram "Q3" (`shortCourtLabelOf`,
+ * a mesma abreviação das tabelas). Quadra COM NOME sai como o organizador escreveu — "Central",
+ * "Q. central" —, nunca por `shortCourtLabelOf`, que corta em 4 letras e transformaria o nome em
+ * charada ("CENT"), nem por `courtLabelOf`, que prefixaria um "Quadra" redundante.
+ */
+function courtChipOf(courtName: string | null): string | null {
+  const court = courtName?.trim() ?? '';
+  if (!court) return null;
+  return /\d/.test(court) ? shortCourtLabelOf(court) : court;
+}
+
+/** "09:00 · Q3". */
+function metaLabelOf(m: TournamentMatch): string | null {
+  const parts = [m.scheduleTime ? timeLabelOf(m.scheduleTime) : null, courtChipOf(m.courtName)].filter((p): p is string => p != null);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+/**
+ * A linha de baixo do degrau, na ordem em que ela importa pro atleta: o que JÁ aconteceu (sets),
+ * depois o que está em jogo (título, classificação do grupo) e por fim de onde sai o adversário.
+ *
+ * "decide a classificação do grupo" repete a redação de `noteOf` (`focus-views.ts`) de propósito:
+ * o protótipo escreve "decide o 1º do grupo", mas afirmar POSIÇÃO exigiria simular o desempate —
+ * o mesmo que `qualificationOf` se recusa a fazer antes do grupo encerrar.
+ */
+function detailLabelOf(
+  ctx: FocusViewContext,
+  m: TournamentMatch,
+  side: 'A' | 'B',
+  phaseLabel: string,
+  finalPrizeLabel: string | null,
+  hasPendingGroupMatches: boolean,
+): string | null {
+  const sets = mySetsLabelOf(m, side);
+  if (sets) return sets;
+  if (isFinalPhaseLabel(phaseLabel)) return finalPrizeLabel;
+  if (m.poolId && isPending(m) && isDecidingRound(roundGroupsOf(ctx.matches, m.poolId), m.round)) {
+    return 'decide a classificação do grupo';
+  }
+  // Mata-mata com o slot do adversário ainda vazio enquanto os grupos correm: é literalmente de
+  // onde ele sai. Sem grupo pendente a frase seria falsa — aí o adversário sai de outra partida
+  // de mata-mata.
+  const opponentId = side === 'A' ? m.teamBId : m.teamAId;
+  if (!m.poolId && !opponentId && hasPendingGroupMatches) return 'sai ao fim dos grupos';
+  return null;
+}
+
+function journeyStepOfMatch(
+  ctx: FocusViewContext,
+  m: TournamentMatch,
+  nextMatchId: string | null,
+  finalPrizeLabel: string | null,
+  hasPendingGroupMatches: boolean,
+): JourneyStepRow {
   // `m` vem de `journeyPathOf(...).mine`, que já filtrou por `sideOf(...) !== null` — a asserção
   // só documenta essa garantia, não introduz um caso novo.
   const side = sideOf(m, ctx.myTeamIds)!;
   const opponentId = side === 'A' ? m.teamBId : m.teamAId;
   const opponentDescription = side === 'A' ? m.teamBDescription : m.teamADescription;
+  const outcome: MatchOutcome = outcomeOf(m, ctx.myTeamIds);
   const live = matchIsLive(m);
+  const phaseLabel = phaseLabelOf(ctx.matches, m);
+  const [setsA, setsB] = matchSetWins(m);
+  const [mySets, theirSets] = side === 'A' ? [setsA, setsB] : [setsB, setsA];
+
   return {
-    matchId: m.id,
-    phaseLabel: phaseLabelOf(ctx.matches, m),
-    timeLabel: m.scheduleTime ? timeLabelOf(m.scheduleTime) : null,
+    id: m.id,
+    status: outcome ?? (live ? 'live' : m.id === nextMatchId ? 'next' : 'upcoming'),
+    phaseLabel,
+    metaLabel: metaLabelOf(m),
     opponentName: ctx.duoNameOf(opponentId, opponentDescription),
-    scoreLabel: live ? liveScoreLineOf(m) : mySetsLabelOf(m, side),
-    outcome: outcomeOf(m, ctx.myTeamIds),
-    live,
-    clickable: Boolean(m.teamAId && m.teamBId),
+    detailLabel: detailLabelOf(ctx, m, side, phaseLabel, finalPrizeLabel, hasPendingGroupMatches),
+    // O placar em SETS fica na coluna da direita e o detalhe dos games na linha de baixo — a
+    // leitura do protótipo. `matchSetWins` já conta o set em andamento, então vale pro ao vivo.
+    scoreLabel: outcome != null || live ? `${mySets} – ${theirSets}` : VS_LABEL,
+    matchId: m.teamAId && m.teamBId ? m.id : null,
   };
+}
+
+/**
+ * A timeline inteira: as partidas do atleta em ordem, seguidas das fases que ainda não têm dono.
+ * Função pura (parâmetros crus, não `this.store`) pra ser testável sem `TestBed`.
+ *
+ * As fases sem dono entram com adversário "A definir" e SEM horário estimado — ver
+ * `futurePhasesOf`, que só repassa horário de verdade.
+ */
+export function journeyStepsOf(
+  ctx: FocusViewContext,
+  path: JourneyPath,
+  knockoutRoundsOfCategory: readonly number[],
+  nextMatchId: string | null,
+  finalPrizeLabel: string | null,
+): JourneyStepRow[] {
+  const hasPendingGroupMatches = ctx.matches.some((m) => m.poolId && isPending(m));
+  const mine = path.mine.map((m) => journeyStepOfMatch(ctx, m, nextMatchId, finalPrizeLabel, hasPendingGroupMatches));
+  const future = futurePhasesOf(path.future, knockoutRoundsOfCategory).map<JourneyStepRow>((row) => ({
+    id: `fase-${row.round}`,
+    status: 'upcoming',
+    phaseLabel: row.phaseLabel,
+    metaLabel: row.timeLabel,
+    opponentName: 'A definir',
+    detailLabel: isFinalPhaseLabel(row.phaseLabel) ? finalPrizeLabel : null,
+    scoreLabel: VS_LABEL,
+    matchId: null,
+  }));
+  return [...mine, ...future];
 }
 
 export interface JourneyPrizeRow {
@@ -353,13 +468,22 @@ export class FocusJourneyComponent {
     journeyPathOf(this.store.matches(), this.store.focusCategoryId() ?? '', this.store.myTeamIds()),
   );
 
-  protected readonly pathRows = computed<JourneyMatchRow[]>(() => {
-    const ctx = this.ctx();
-    return this.path().mine.map((m) => journeyRowOf(ctx, m));
+  /** O que a premiação paga ao campeão — a linha de baixo do degrau da final no protótipo. Só o
+   *  dinheiro: pontos por colocação não existem em `tournamentPrizes` (`{position, value,
+   *  label}`), e esta tela não inventa número nenhum. */
+  private readonly finalPrizeLabel = computed<string | null>(() => {
+    const champion = this.prizes().find((p) => p.position === 1);
+    return champion && champion.value > 0 ? formatBRL(champion.value) : null;
   });
 
-  protected readonly futureRows = computed(() =>
-    futurePhasesOf(this.path().future, knockoutRounds(this.store.matches(), this.store.focusCategoryId() ?? '')),
+  protected readonly steps = computed<JourneyStepRow[]>(() =>
+    journeyStepsOf(
+      this.ctx(),
+      this.path(),
+      knockoutRounds(this.store.matches(), this.store.focusCategoryId() ?? ''),
+      this.store.nextMatch()?.id ?? null,
+      this.finalPrizeLabel(),
+    ),
   );
 
   /** Já tem assento confirmado no mata-mata (não só nos grupos) — ver o gate em `guaranteedPrize`

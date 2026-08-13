@@ -61,7 +61,7 @@ export class FocusShellComponent {
     { initialValue: this.currentSection() },
   );
 
-  protected readonly clock = computed(() => CLOCK.format(this.store.now()));
+  // protected readonly clock = computed(() => CLOCK.format(this.store.now()));
 
   protected readonly hasLive = computed(() => this.store.liveInTournament().length > 0);
 

@@ -63,9 +63,10 @@
 
 .focus__title {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--nx-s-2);
+  align-items: flex-start;
+  flex-direction: column;
+  // flex-wrap: wrap;
+  // gap: var(--nx-s-2);
   min-width: 0;
   overflow: hidden;
 
@@ -82,7 +83,7 @@
 
 .focus__badge {
   flex-shrink: 0;
-  padding: 3px var(--nx-s-2);
+  // padding: 3px var(--nx-s-2);
   border-radius: var(--nx-r-pill);
   background: var(--nx-orange-tint);
   color: var(--nx-orange-400);

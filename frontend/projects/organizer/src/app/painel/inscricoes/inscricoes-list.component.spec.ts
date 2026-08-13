@@ -1,16 +1,17 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
-import { normalizeSearch, type InscricaoRow } from './inscricoes.model';
+import { normalizeSearch, type InscricaoAthlete, type InscricaoRow } from './inscricoes.model';
+
+function athlete(over: Partial<InscricaoAthlete> = {}): InscricaoAthlete {
+  return { name: 'Ana Paula', photoUrl: null, lgpdAccepted: true, phone: '', ...over };
+}
 
 function row(over: Partial<InscricaoRow> = {}): InscricaoRow {
   return {
     id: 'i1',
     name: 'Ana Paula / Beatriz Costa',
-    athletes: [
-      { name: 'Ana Paula', photoUrl: null, lgpdAccepted: true },
-      { name: 'Beatriz Costa', photoUrl: null, lgpdAccepted: true },
-    ],
+    athletes: [athlete(), athlete({ name: 'Beatriz Costa' })],
     categoriaId: 'c1',
     categoria: 'Feminina B',
     pay: 'pago',
@@ -53,7 +54,7 @@ describe('OgInscricoesListComponent', () => {
   }
 
   it('cabeçalho e linha usam a mesma grade — as colunas não podem sair do lugar', async () => {
-    const el = await render([row(), row({ id: 'i2', athletes: [{ name: 'Solo', photoUrl: null, lgpdAccepted: true }] })]);
+    const el = await render([row(), row({ id: 'i2', athletes: [athlete({ name: 'Solo' })] })]);
     const cols = (node: Element) => getComputedStyle(node).gridTemplateColumns;
 
     const head = el.querySelector('.og-insc-head')!;
@@ -91,10 +92,7 @@ describe('OgInscricoesListComponent', () => {
 
   it('a gaveta abre só na linha pedida e traz o LGPD atleta a atleta', async () => {
     fixture.componentRef.setInput('rows', [
-      row({ athletes: [
-        { name: 'Ana Paula', photoUrl: null, lgpdAccepted: true },
-        { name: 'Beatriz Costa', photoUrl: null, lgpdAccepted: false },
-      ] }),
+      row({ athletes: [athlete(), athlete({ name: 'Beatriz Costa', lgpdAccepted: false })] }),
       row({ id: 'i2' }),
     ]);
     fixture.componentRef.setInput('openId', 'i1');
@@ -107,6 +105,98 @@ describe('OgInscricoesListComponent', () => {
 
     const lgpd = [...drawers[0].querySelectorAll('.og-insc-athletes .lgpd')];
     expect(lgpd.map((n) => n.classList.contains('ok'))).toEqual([true, false]);
+  });
+
+  /** O telefone é PII: fica na gaveta, nunca na linha que o organizador varre de olho — e cada
+   *  botão tem de apontar pro número certo do atleta certo. */
+  describe('contato do atleta', () => {
+    async function openDrawerWith(athletes: InscricaoAthlete[]): Promise<HTMLElement> {
+      fixture.componentRef.setInput('rows', [row({ athletes })]);
+      fixture.componentRef.setInput('openId', 'i1');
+      await fixture.whenStable();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('monta WhatsApp e ligação a partir do telefone do atleta', async () => {
+      const el = await openDrawerWith([athlete({ phone: '(62) 98240-6456' })]);
+      const links = [...el.querySelectorAll('.og-insc-athletes .contact a')] as HTMLAnchorElement[];
+
+      expect(links.map((a) => a.getAttribute('href'))).toEqual([
+        'https://wa.me/5562982406456',
+        'tel:+5562982406456',
+      ]);
+      expect(links[1].textContent?.trim()).toBe('(62) 98240-6456');
+      // O WhatsApp abre fora do painel — o organizador não pode perder a tela de inscrições.
+      expect(links[0].target).toBe('_blank');
+      expect(links[0].rel).toContain('noopener');
+    });
+
+    it('cada atleta recebe o próprio número', async () => {
+      const el = await openDrawerWith([
+        athlete({ name: 'Ana Paula', phone: '+5562982406456' }),
+        athlete({ name: 'Beatriz Costa', phone: '62 3241-0000' }),
+      ]);
+      const tel = [...el.querySelectorAll('.og-insc-athletes .contact a[href^="tel:"]')];
+
+      expect(tel.map((a) => a.getAttribute('href'))).toEqual(['tel:+5562982406456', 'tel:+556232410000']);
+    });
+
+    it('sem telefone cadastrado não há botão pra clicar', async () => {
+      const el = await openDrawerWith([athlete({ phone: '' })]);
+
+      expect(el.querySelector('.og-insc-athletes .contact')).toBeNull();
+      expect(el.querySelector('.og-insc-athletes .contact-none')?.textContent).toContain(
+        'Sem telefone cadastrado',
+      );
+    });
+
+    it('número quebrado no perfil aparece como está, sem virar link', async () => {
+      const el = await openDrawerWith([athlete({ phone: 'ramal 204' })]);
+
+      expect(el.querySelector('.og-insc-athletes .contact')).toBeNull();
+      expect(el.querySelector('.og-insc-athletes .contact-none')?.textContent).toContain('ramal 204');
+    });
+
+    it('copiar leva o número formatado e marca só o botão daquele atleta', async () => {
+      const written: string[] = [];
+      spyOn(navigator.clipboard, 'writeText').and.callFake((t: string) => {
+        written.push(t);
+        return Promise.resolve();
+      });
+      const el = await openDrawerWith([
+        athlete({ name: 'Ana Paula', phone: '+5562982406456' }),
+        athlete({ name: 'Beatriz Costa', phone: '62 3241-0000' }),
+      ]);
+      const buttons = [...el.querySelectorAll('.og-insc-athletes .contact button')] as HTMLButtonElement[];
+
+      buttons[1].click();
+      await fixture.whenStable();
+
+      expect(written).toEqual(['(62) 3241-0000']);
+      expect(buttons.map((b) => b.textContent?.trim())).toEqual(['Copiar', 'Copiado']);
+    });
+
+    /** Sem área de transferência (contexto inseguro, permissão negada) o botão não pode dizer
+     *  que copiou — o organizador coloca a mão no bolso achando que tem o número. */
+    it('área de transferência indisponível não vira "Copiado" mentiroso', async () => {
+      spyOn(navigator.clipboard, 'writeText').and.returnValue(Promise.reject(new Error('denied')));
+      const el = await openDrawerWith([athlete({ phone: '62982406456' })]);
+      const button = el.querySelector('.og-insc-athletes .contact button') as HTMLButtonElement;
+
+      button.click();
+      await fixture.whenStable();
+
+      expect(button.textContent?.trim()).toBe('Copiar');
+    });
+
+    it('o telefone não vaza pra linha da lista', async () => {
+      fixture.componentRef.setInput('rows', [row({ athletes: [athlete({ phone: '62982406456' })] })]);
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+
+      expect(el.querySelector('.og-insc-drawer')).toBeNull();
+      expect((el.querySelector('.og-insc-row') as HTMLElement).textContent).not.toContain('98240');
+    });
   });
 
   it('sem linhas, o vazio explica e oferece limpar filtros quando há filtro ativo', async () => {

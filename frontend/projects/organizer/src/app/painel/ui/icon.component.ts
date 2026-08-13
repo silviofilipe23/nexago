@@ -29,6 +29,9 @@ export type OgIconName =
   | 'tv'
   | 'shirt'
   | 'flame'
+  | 'phone'
+  | 'whatsapp'
+  | 'copy'
   | 'menu';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
@@ -128,6 +131,15 @@ export type OgIconName =
         }
         @case ('flame') {
           <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+        }
+        @case ('phone') {
+          <path d="M6.5 3h3l1.5 4-2 1.4a13 13 0 0 0 6.6 6.6L17 13l4 1.5v3a2.5 2.5 0 0 1-2.7 2.5C10.4 19.5 4.5 13.6 4 5.7A2.5 2.5 0 0 1 6.5 3z" />
+        }
+        @case ('whatsapp') {
+          <path d="M3.5 20.5 5 16.4A8.2 8.2 0 1 1 8 19.3l-4.5 1.2z" /><path d="M9 9.2c.3 1 .8 2 1.6 2.8.8.8 1.7 1.3 2.7 1.6" />
+        }
+        @case ('copy') {
+          <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M15 6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2" />
         }
         @case ('menu') {
           <path d="M4 7h16M4 12h16M4 17h16" />

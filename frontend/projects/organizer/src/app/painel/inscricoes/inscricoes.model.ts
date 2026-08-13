@@ -54,6 +54,9 @@ export interface InscricaoAthlete {
   photoUrl: string | null;
   /** Aceitou o termo de uso de imagem/LGPD nesta inscrição. */
   lgpdAccepted: boolean;
+  /** Telefone cadastrado, cru (`getTournamentAthleteContacts`); `''` = sem telefone no perfil,
+   *  ou contato indisponível. Só a gaveta mostra — é PII, não vai pra varredura da lista. */
+  phone: string;
 }
 
 export interface InscricaoRow {

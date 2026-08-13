@@ -1,6 +1,6 @@
 import type { TournamentMatch } from '../../data/matches-repository';
 import type { TournamentPrize } from '../../data/tournaments-repository';
-import { guaranteedPrizeOf, tournamentNumbersOf, winsToTitleOf } from './focus-journey';
+import { guaranteedPrizeOf, happyPathOf, tournamentNumbersOf, winsToTitleOf } from './focus-journey';
 
 function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>): TournamentMatch {
   return {
@@ -219,5 +219,123 @@ describe('guaranteedPrizeOf', () => {
 
   it('pior colocação possível além da tabela não garante nada', () => {
     expect(guaranteedPrizeOf(prizes, 5)).toBeNull();
+  });
+});
+
+/**
+ * Dupla eliminação de 4 duplas, na forma que `buildDoubleEliminationMatches` gera: WB com duas
+ * rodadas, LB com uma, e a final recebendo o vencedor da WB no `teamAId` e o da LB no `teamBId`.
+ * `round` reinicia em cada chave — é justamente isso que quebra qualquer contagem por rodada e
+ * obriga a caminhar a fiação.
+ *
+ *   #1 WB R1  mine × x ─┐
+ *   #2 WB R1  y × z ────┴─→ #3 WB R2 ─→ #5 Final (slot A)
+ *   #4 LB R1 ───────────────────────────→ #5 Final (slot B)
+ */
+function deBracket(overrides: Partial<Record<'m1' | 'm2' | 'm3' | 'm4' | 'm5', Partial<TournamentMatch>>> = {}): TournamentMatch[] {
+  const de = (id: string, partial: Partial<TournamentMatch>): TournamentMatch =>
+    match({ id, poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', ...partial, ...(overrides[id as 'm1'] ?? {}) });
+  return [
+    de('m1', { matchType: 'WB', round: 1, matchNumber: 1, teamAId: 'mine', teamBId: 'x', winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'A' }),
+    de('m2', { matchType: 'WB', round: 1, matchNumber: 2, teamAId: 'y', teamBId: 'z', winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'B' }),
+    de('m3', { matchType: 'WB', round: 2, matchNumber: 3, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'A' }),
+    de('m4', { matchType: 'LB', round: 1, matchNumber: 4, winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'B' }),
+    de('m5', { matchType: 'Final', round: 1, matchNumber: 5 }),
+  ];
+}
+
+describe('happyPathOf (dupla eliminação)', () => {
+  it('invicto na WB: caminho pela WB até a final', () => {
+    expect(happyPathOf(deBracket(), 'c1', MINE)?.map((m) => m.id)).toEqual(['m1', 'm3', 'm5']);
+    expect(winsToTitleOf(deBracket(), 'c1', MINE)).toBe(3);
+  });
+
+  it('depois de perder na WB, recalcula pela LB — perder uma vez não elimina', () => {
+    const matches = deBracket({
+      m1: { status: 'completed', winnerId: 'x' },
+      m4: { teamAId: 'mine', teamBId: 'w' },
+    });
+
+    expect(happyPathOf(matches, 'c1', MINE)?.map((m) => m.id)).toEqual(['m4', 'm5']);
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBe(2);
+  });
+
+  it('campeão com uma derrota no currículo continua sendo campeão', () => {
+    const matches = deBracket({
+      m1: { status: 'completed', winnerId: 'x' },
+      m4: { teamAId: 'mine', teamBId: 'w', status: 'completed', winnerId: 'mine' },
+      m5: { teamAId: 'x', teamBId: 'mine', status: 'completed', winnerId: 'mine' },
+    });
+
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBe(0);
+  });
+
+  it('eliminado de vez (duas derrotas): sem caminho e sem manchete', () => {
+    const matches = deBracket({
+      m1: { status: 'completed', winnerId: 'x' },
+      m4: { teamAId: 'mine', teamBId: 'w', status: 'completed', winnerId: 'w' },
+    });
+
+    expect(happyPathOf(matches, 'c1', MINE)).toBeNull();
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBeNull();
+  });
+
+  it('fiação que não desemboca na final não vira número', () => {
+    // Já aconteceu neste projeto (as 9 plantas de LB com ligação errada): melhor não afirmar nada
+    // do que anunciar um caminho mais curto que a verdade.
+    const quebrada = deBracket({ m3: { winnerAdvanceMatchNumber: null } });
+
+    expect(happyPathOf(quebrada, 'c1', MINE)).toBeNull();
+    expect(winsToTitleOf(quebrada, 'c1', MINE)).toBeNull();
+  });
+
+  it('não conta o bye como partida a vencer', () => {
+    // Bye: adversário vazio e o atleta JÁ está na partida seguinte da fiação.
+    const comBye = deBracket({
+      m1: { teamBId: '' },
+      m3: { teamAId: 'mine' },
+    });
+
+    expect(happyPathOf(comBye, 'c1', MINE)?.map((m) => m.id)).toEqual(['m3', 'm5']);
+    expect(winsToTitleOf(comBye, 'c1', MINE)).toBe(2);
+  });
+});
+
+/**
+ * Planta REAL de 16 duplas (`BRACKET_DEFINITIONS[16]` via `buildDoubleEliminationMatches`), o
+ * formato do "Torneio seed nexaGO". Os números abaixo — matchNumber, rodada e slot de destino —
+ * saíram de uma execução do gerador, não de suposição:
+ *
+ *   #1 WB R1 (t1 × t2) → #13 WB R2 (slot A) → #21 WB R3 (slot A) → #27 WB R4 (slot B) → #30 Final (slot B)
+ *
+ * São 30 partidas no total (15 WB, 13 LB, 3º lugar e final) e as rodadas COLIDEM entre as chaves:
+ * WB vai de 1 a 4, LB de 1 a 5. É por isso que agrupar por rodada misturava as duas.
+ */
+describe('happyPathOf · planta real de 16 duplas', () => {
+  const de = (id: string, partial: Partial<TournamentMatch>): TournamentMatch =>
+    match({ id, poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', ...partial });
+
+  const BRACKET_16 = [
+    de('m1', { matchType: 'WB', round: 1, matchNumber: 1, teamAId: 'mine', teamBId: 't2', winnerAdvanceMatchNumber: 13, winnerAdvanceSlot: 'A' }),
+    // LB com rodadas 1 e 2 — as mesmas da WB. Nenhuma pode entrar no caminho de quem está invicto.
+    de('m9', { matchType: 'LB', round: 1, matchNumber: 9, winnerAdvanceMatchNumber: 17, winnerAdvanceSlot: 'B' }),
+    de('m17', { matchType: 'LB', round: 2, matchNumber: 17, winnerAdvanceMatchNumber: 23, winnerAdvanceSlot: 'B' }),
+    de('m13', { matchType: 'WB', round: 2, matchNumber: 13, winnerAdvanceMatchNumber: 21, winnerAdvanceSlot: 'A' }),
+    de('m21', { matchType: 'WB', round: 3, matchNumber: 21, winnerAdvanceMatchNumber: 27, winnerAdvanceSlot: 'B' }),
+    de('m27', { matchType: 'WB', round: 4, matchNumber: 27, winnerAdvanceMatchNumber: 30, winnerAdvanceSlot: 'B' }),
+    de('m30', { matchType: 'Final', round: 1, matchNumber: 30 }),
+  ];
+
+  it('invicto na WB: 4 vitórias até chegar na final, 5 até o título', () => {
+    const caminho = happyPathOf(BRACKET_16, 'c1', MINE);
+
+    expect(caminho?.map((m) => `${m.matchType} R${m.round}`)).toEqual(['WB R1', 'WB R2', 'WB R3', 'WB R4', 'Final R1']);
+    expect(winsToTitleOf(BRACKET_16, 'c1', MINE)).toBe(5);
+    // "Caminho até a final": os quatro degraus da WB antes dela.
+    expect((caminho?.length ?? 0) - 1).toBe(4);
+  });
+
+  it('nenhuma partida da LB entra no caminho de quem está invicto', () => {
+    expect(happyPathOf(BRACKET_16, 'c1', MINE)?.every((m) => m.matchType !== 'LB')).toBe(true);
   });
 });

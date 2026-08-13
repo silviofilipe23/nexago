@@ -22,6 +22,7 @@ import {
   sideOf,
 } from '../tournament-live.selectors';
 import type { DuoPlayer, TournamentLiveStore } from '../tournament-live.store';
+import { knockoutRounds } from './focus-journey';
 
 /** Views puras da experiência "acompanhar o dia": próxima partida, linha do tempo, classificação
  *  do grupo e o que está em quadra agora. Extraídas da aba Hoje pra serem reaproveitadas pelas
@@ -142,7 +143,7 @@ function mySetLine(m: TournamentMatch, side: 'A' | 'B' | null): string {
 
 function phaseLabelOf(ctx: FocusViewContext, m: TournamentMatch): string {
   if (m.poolId) return `Rodada ${roundDisplayNumberOf(ctx.matches, m.poolId, m.round)}`;
-  return knockoutLabelOf(m);
+  return knockoutLabelOf(m, knockoutRounds(ctx.matches, m.categoryId));
 }
 
 function kickerOf(ctx: FocusViewContext, m: TournamentMatch): string {

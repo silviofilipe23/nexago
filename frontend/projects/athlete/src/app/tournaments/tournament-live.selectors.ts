@@ -161,8 +161,16 @@ export interface CampaignEntry {
 }
 
 /** "Como a dupla chegou até aqui": desempenho no grupo + os mata-matas já vencidos.
- *  Tudo derivado das partidas da categoria — nenhum campo novo no Firestore. */
-export function campaignOf(matches: readonly TournamentMatch[], teamId: string, opponentNameOf: (opponentTeamId: string) => string): CampaignEntry[] {
+ *  Tudo derivado das partidas da categoria — nenhum campo novo no Firestore.
+ *
+ *  `knockoutRoundsOfCategory` é repassado direto pra `knockoutLabelOf` — ver a doc dela sobre por
+ *  que o parâmetro é obrigatório (`knockoutRounds`, `focus/focus-journey.ts`, é quem calcula). */
+export function campaignOf(
+  matches: readonly TournamentMatch[],
+  teamId: string,
+  opponentNameOf: (opponentTeamId: string) => string,
+  knockoutRoundsOfCategory: readonly number[],
+): CampaignEntry[] {
   if (!teamId) return [];
   const mine = matches.filter((m) => m.teamAId === teamId || m.teamBId === teamId);
   const entries: CampaignEntry[] = [];
@@ -182,7 +190,7 @@ export function campaignOf(matches: readonly TournamentMatch[], teamId: string, 
     const mySets = m.teamAId === teamId ? a : b;
     const theirSets = m.teamAId === teamId ? b : a;
     entries.push({
-      label: knockoutLabelOf(m),
+      label: knockoutLabelOf(m, knockoutRoundsOfCategory),
       detail: `V ${mySets}–${theirSets} vs ${opponentNameOf(opponentId)}`,
     });
   }
@@ -209,11 +217,59 @@ const KNOCKOUT_LABELS: Record<string, string> = {
   quarterfinal: 'Quartas',
   'round of 16': 'Oitavas',
   'round of 32': '16 avos',
+  // WB/LB (dupla eliminação, `category-bracket-builders.ts`) entram no mapa como caminho
+  // preferencial pelo mesmo motivo de 'final'/'third place': o round de cada lado numera a
+  // própria chave (WB e LB recomeçam do 1), então "distância até a final" não tem sentido pra
+  // eles — ver `knockoutLabelOf` abaixo.
+  wb: 'WB',
+  lb: 'LB',
 };
 
-export function knockoutLabelOf(m: Pick<TournamentMatch, 'matchType' | 'round'>): string {
+/** Rótulo por distância até a final (1 = final, 2 = semifinal…) — só usado quando o `matchType`
+ *  não bate com nenhuma chave do mapa acima. `buildSingleEliminationMatches`/
+ *  `buildGroupsKnockoutMatches` (`functions/src/category-bracket-builders.ts`) gravam `'knockout'`
+ *  pra toda rodada que não é a final, sem distinguir quartas de semifinal por `matchType` — só o
+ *  `round` carrega essa informação, junto da lista de rounds de mata-mata da categoria. */
+const POSITIONAL_KNOCKOUT_LABELS: Record<number, string> = {
+  1: 'Final',
+  2: 'Semifinal',
+  3: 'Quartas',
+  4: 'Oitavas',
+  5: '16 avos',
+};
+
+/** `null` quando o round da partida não está em `knockoutRoundsOfCategory` (dado inconsistente)
+ *  ou a distância não tem rótulo definido (chave maior que 16 avos) — quem chama cai de volta no
+ *  fallback genérico de `knockoutLabelOf`. */
+function positionalKnockoutLabelOf(round: number, knockoutRoundsOfCategory: readonly number[]): string | null {
+  const index = knockoutRoundsOfCategory.indexOf(round);
+  if (index < 0) return null;
+  const distanceFromFinal = knockoutRoundsOfCategory.length - index;
+  return POSITIONAL_KNOCKOUT_LABELS[distanceFromFinal] ?? null;
+}
+
+/**
+ * Rótulo em pt-BR da fase de mata-mata de uma partida.
+ *
+ * Caminho preferencial: o mapa acima, quando `matchType` bate com um valor conhecido — inclui
+ * 'Final'/'Third Place'/'WB'/'LB', que carregam significado que a posição sozinha não dá (WB/LB
+ * numeram rounds pela própria chave, não por distância até a final).
+ *
+ * Fallback posicional: quando `matchType` não resolve pelo mapa — hoje, só o `'knockout'` que o
+ * gerador de eliminatória simples grava pra toda rodada que não é a final (achado do bug: ver
+ * `category-bracket-builders.ts`) — a fase vira a distância da partida até a final dentro de
+ * `knockoutRoundsOfCategory` (rodadas de mata-mata da categoria, em ordem — `knockoutRounds` em
+ * `focus/focus-journey.ts`). O parâmetro é OBRIGATÓRIO de propósito: opcional aqui deixaria fácil
+ * esquecer de passar a lista e cair de volta no "Knockout" em inglês, calado.
+ */
+export function knockoutLabelOf(m: Pick<TournamentMatch, 'matchType' | 'round'>, knockoutRoundsOfCategory: readonly number[]): string {
   const key = m.matchType.trim().toLowerCase();
-  return KNOCKOUT_LABELS[key] ?? (key ? `${m.matchType[0]!.toUpperCase()}${m.matchType.slice(1)}` : `Rodada ${m.round}`);
+  const mapped = KNOCKOUT_LABELS[key];
+  if (mapped) return mapped;
+  return (
+    positionalKnockoutLabelOf(m.round, knockoutRoundsOfCategory) ??
+    (key ? `${m.matchType[0]!.toUpperCase()}${m.matchType.slice(1)}` : `Rodada ${m.round}`)
+  );
 }
 
 /** Sets já fechados + o set em andamento (mesa ponto a ponto ou `liveScore` agregado — ver

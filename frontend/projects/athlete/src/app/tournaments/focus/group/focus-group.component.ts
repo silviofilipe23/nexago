@@ -5,6 +5,7 @@ import type { TournamentSummary } from '../../../data/tournaments-repository';
 import { courtLabelOf } from '../../tournament-format';
 import { groupLabelOf, knockoutLabelOf } from '../../tournament-live.selectors';
 import { TournamentLiveStore } from '../../tournament-live.store';
+import { knockoutRounds } from '../focus-journey';
 import { roundScenariosOf } from '../focus-scenarios';
 import { focusViewContextOf, liveRowsOf, qualificationNoteOf, standingsViewOf } from '../focus-views';
 
@@ -26,12 +27,13 @@ export interface CrossingRow {
  */
 export function crossingRowsOf(matches: readonly TournamentMatch[], categoryId: string | null): CrossingRow[] {
   if (!categoryId) return [];
+  const rounds = knockoutRounds(matches, categoryId);
   return matches
     .filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch)
     .filter((m) => m.teamADescription != null && m.teamBDescription != null)
     .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)
     .slice(0, 4)
-    .map((m) => ({ id: m.id, label: knockoutLabelOf(m), a: m.teamADescription!, b: m.teamBDescription! }));
+    .map((m) => ({ id: m.id, label: knockoutLabelOf(m, rounds), a: m.teamADescription!, b: m.teamBDescription! }));
 }
 
 export interface WherePlayView {

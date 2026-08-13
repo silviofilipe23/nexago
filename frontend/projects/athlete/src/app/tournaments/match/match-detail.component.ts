@@ -6,6 +6,7 @@ import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { knockoutRounds } from '../focus/focus-journey';
 import { bestOfLabelOf, courtLabelOf, currentSetNumberOf, elapsedLabelOf, matchNumberLabelOf, ordinalOf, timeLabelOf } from '../tournament-format';
 import {
   campaignOf,
@@ -118,9 +119,9 @@ export class MatchDetailComponent {
   protected readonly phaseLabel = computed(() => {
     const m = this.match();
     if (!m) return '';
-    return m.poolId
-      ? `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`
-      : knockoutLabelOf(m);
+    if (m.poolId) return `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`;
+    const categoryMatches = this.store.matchesOfCategory(m.categoryId);
+    return knockoutLabelOf(m, knockoutRounds(categoryMatches, m.categoryId));
   });
 
   /** Só a fase: os nomes das duplas já dominam o placar logo abaixo, e repeti-los no título
@@ -190,7 +191,7 @@ export class MatchDetailComponent {
       isMe: this.store.isMyTeam(teamId),
       players: this.store.duoPlayersOf(teamId),
       seedLine: this.seedLineOf(teamId, categoryMatches),
-      campaign: campaignOf(categoryMatches, teamId, (opponentId) => this.store.duoNameOf(opponentId)),
+      campaign: campaignOf(categoryMatches, teamId, (opponentId) => this.store.duoNameOf(opponentId), knockoutRounds(categoryMatches, m.categoryId)),
       winner: matchIsCompleted(m) && m.winnerId === teamId,
     };
   }

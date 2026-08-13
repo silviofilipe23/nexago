@@ -6,6 +6,7 @@ import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../../data/
 import { fetchPredictionEntries, submitBracketPrediction, type TournamentPredictionEntry } from '../../data/tournament-predictions-repository';
 import { NxToastService } from '../../shared/feedback';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { knockoutRounds } from '../focus/focus-journey';
 import { matchNumberLabelOf, timeLabelOf } from '../tournament-format';
 import { groupLabelOf, knockoutLabelOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
@@ -253,6 +254,21 @@ export class PredictionsTabComponent {
     return labels;
   });
 
+  /** `categoryId` → rodadas de mata-mata, na ordem — pra `knockoutLabelOf` derivar a fase de
+   *  partidas `'knockout'` pela distância até a final (mesmo padrão de `poolLabels` acima: montado
+   *  uma vez por categoria, não recalculado a cada card). */
+  private readonly knockoutRoundsByCategory = computed<ReadonlyMap<string, number[]>>(() => {
+    const byCategory = new Map<string, TournamentMatch[]>();
+    for (const m of this.store.matches()) {
+      const list = byCategory.get(m.categoryId);
+      if (list) list.push(m);
+      else byCategory.set(m.categoryId, [m]);
+    }
+    const rounds = new Map<string, number[]>();
+    for (const [categoryId, list] of byCategory) rounds.set(categoryId, knockoutRounds(list, categoryId));
+    return rounds;
+  });
+
   /** Uma seção por categoria — o agrupamento e a ordem são do seletor puro; aqui só vira view. */
   protected readonly sections = computed<PredictionSectionView[]>(() => {
     const picks = this.picks();
@@ -282,7 +298,7 @@ export class PredictionsTabComponent {
   /** Fase da partida como o atleta a chama: "Grupo A" na fase de grupos, "Semifinal" no
    *  mata-mata. Sem isso o `matchType` cru vaza em inglês ("Group") no cabeçalho do card. */
   private phaseLabelOf(m: TournamentMatch): string {
-    return m.poolId ? (this.poolLabels().get(m.poolId) ?? 'Grupo') : knockoutLabelOf(m);
+    return m.poolId ? (this.poolLabels().get(m.poolId) ?? 'Grupo') : knockoutLabelOf(m, this.knockoutRoundsByCategory().get(m.categoryId) ?? []);
   }
 
   private cardOf(m: TournamentMatch, picks: Readonly<Record<string, string>>): PredictionCardView {
@@ -328,7 +344,7 @@ export class PredictionsTabComponent {
 
   private stageOf(m: TournamentMatch): 'final' | 'third' | null {
     if (m.poolId) return null;
-    const label = knockoutLabelOf(m);
+    const label = knockoutLabelOf(m, this.knockoutRoundsByCategory().get(m.categoryId) ?? []);
     if (label === 'Final' || label === 'Grand final') return 'final';
     if (label === '3º lugar') return 'third';
     return null;

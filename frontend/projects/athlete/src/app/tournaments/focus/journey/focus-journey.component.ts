@@ -179,14 +179,18 @@ export interface JourneyFutureRow {
  * Uma linha por fase restante. `future` pode conter várias partidas do MESMO round — grupos
  * paralelos da chave que ainda não têm dono nenhum, dos dois lados — mas a jornada é uma linha do
  * tempo do atleta, não uma lista de partidas de outras duplas: cada fase aparece uma vez só.
+ *
+ * `knockoutRoundsOfCategory` vem à parte porque `future` já é um RECORTE (só as fases ainda sem
+ * dono) — não dá pra recalcular a partir dele a lista completa de rounds da categoria que
+ * `knockoutLabelOf` precisa pra saber a distância até a final.
  */
-export function futurePhasesOf(future: readonly TournamentMatch[]): JourneyFutureRow[] {
+export function futurePhasesOf(future: readonly TournamentMatch[], knockoutRoundsOfCategory: readonly number[]): JourneyFutureRow[] {
   const seenRounds = new Set<number>();
   const rows: JourneyFutureRow[] = [];
   for (const m of future) {
     if (seenRounds.has(m.round)) continue;
     seenRounds.add(m.round);
-    rows.push({ round: m.round, phaseLabel: knockoutLabelOf(m), timeLabel: m.scheduleTime ? timeLabelOf(m.scheduleTime) : null });
+    rows.push({ round: m.round, phaseLabel: knockoutLabelOf(m, knockoutRoundsOfCategory), timeLabel: m.scheduleTime ? timeLabelOf(m.scheduleTime) : null });
   }
   return rows;
 }
@@ -225,12 +229,14 @@ export function possibleOpponentsOf(
       teamId,
       name: duoNameOf(teamId),
       players: duoPlayersOf(teamId),
-      campaign: campaignOf(matches, teamId, duoNameOf),
+      campaign: campaignOf(matches, teamId, duoNameOf, knockoutRounds(matches, categoryId)),
     }));
 }
 
 function phaseLabelOf(matches: readonly TournamentMatch[], m: TournamentMatch): string {
-  return m.poolId ? `${groupLabelOf(m.poolId, matches)} · Rodada ${roundDisplayNumberOf(matches, m.poolId, m.round)}` : knockoutLabelOf(m);
+  return m.poolId
+    ? `${groupLabelOf(m.poolId, matches)} · Rodada ${roundDisplayNumberOf(matches, m.poolId, m.round)}`
+    : knockoutLabelOf(m, knockoutRounds(matches, m.categoryId));
 }
 
 /** "21-15 · 21-12" do PONTO DE VISTA DO ATLETA. `matchClosedSets` guarda os sets crus (lado A
@@ -343,7 +349,9 @@ export class FocusJourneyComponent {
     return this.path().mine.map((m) => journeyRowOf(ctx, m));
   });
 
-  protected readonly futureRows = computed(() => futurePhasesOf(this.path().future));
+  protected readonly futureRows = computed(() =>
+    futurePhasesOf(this.path().future, knockoutRounds(this.store.matches(), this.store.focusCategoryId() ?? '')),
+  );
 
   /** Já tem assento confirmado no mata-mata (não só nos grupos) — ver o gate em `guaranteedPrize`
    *  logo abaixo sobre por que isso importa. */

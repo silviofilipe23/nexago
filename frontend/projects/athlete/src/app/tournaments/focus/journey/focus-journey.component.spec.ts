@@ -58,9 +58,7 @@ const MINE = new Set(['mine']);
 // quartas de semifinal por `matchType`, só pelo campo `round` — e `'Final'`/`'Third Place'` com
 // essa grafia exata. Achado do round 3 de review, pinado aqui: com nomes plausíveis mas
 // inexistentes na produção (`'quarterfinal'`/`'semifinal'`) o fixture ficava mentiroso assim que
-// a detecção de campeão passou a ser por `matchType` em vez de por `round` (N2). EXCEÇÃO: o
-// primeiro teste de `futurePhasesOf` abaixo mantém `matchType: 'semifinal'` de propósito — ver o
-// comentário lá.
+// a detecção de campeão passou a ser por `matchType` em vez de por `round` (N2).
 describe('journeyHeadlineOf', () => {
   it('sem número honesto (chave não sorteada, dupla eliminação ou já eliminado), some por completo', () => {
     expect(journeyHeadlineOf(null)).toBeNull();
@@ -139,17 +137,16 @@ describe('journeyPathOf', () => {
 });
 
 describe('futurePhasesOf', () => {
-  // NÃO renomeado pra 'knockout' (achado do round 3 de review, deixado como registro em vez de
-  // "consertado" silenciosamente): a produção nunca escreve `matchType: 'semifinal'` — só
-  // `'knockout'` — e `knockoutLabelOf('knockout')` cai fora de `KNOCKOUT_LABELS`
-  // (`tournament-live.selectors.ts`), virando o rótulo genérico "Knockout" em vez de "Quartas" ou
-  // "Semifinal". Trocar o fixture pra `'knockout'` mudaria o valor esperado abaixo de 'Semifinal'
-  // pra 'Knockout' — exatamente o "se um valor esperado precisar mudar, pare e reporte" do
-  // coordenador. `knockoutLabelOf` é função já hardenizada (fora do escopo desta task), então isso
-  // fica registrado aqui e no report em vez de decidido por conta própria.
+  // Antes da Task 12, `matchType: 'knockout'` (a forma REAL que o gerador grava) caía fora de
+  // `KNOCKOUT_LABELS` e virava "Knockout" em inglês — daí o fixture aqui ter usado
+  // `matchType: 'semifinal'`, um valor plausível mas que a produção nunca escreve, só pra não
+  // travar neste teste um resultado que já era sabido errado (achado do round 3 de review). A
+  // Task 12 ensinou `knockoutLabelOf` a derivar a fase pela distância até a final quando
+  // `matchType` é `'knockout'` — o fixture agora usa a forma real, e o `knockoutRoundsOfCategory`
+  // (2º parâmetro, também novo da Task 12) é quem informa que o round 2 é a penúltima rodada.
   it('uma fase futura vira uma linha', () => {
-    const future = [match({ id: 's1', round: 2, matchType: 'semifinal', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' })];
-    expect(futurePhasesOf(future)).toEqual([{ round: 2, phaseLabel: 'Semifinal', timeLabel: null }]);
+    const future = [match({ id: 's1', round: 2, matchType: 'knockout', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' })];
+    expect(futurePhasesOf(future, [1, 2, 3])).toEqual([{ round: 2, phaseLabel: 'Semifinal', timeLabel: null }]);
   });
 
   it('duas partidas paralelas do MESMO round (grupos diferentes da chave, nenhum com dono) viram UMA linha só', () => {
@@ -157,13 +154,13 @@ describe('futurePhasesOf', () => {
       match({ id: 'q1', round: 1, matchType: 'knockout', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' }),
       match({ id: 'q2', round: 1, matchType: 'knockout', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' }),
     ];
-    expect(futurePhasesOf(future).length).toBe(1);
+    expect(futurePhasesOf(future, [1, 2]).length).toBe(1);
   });
 
   it('mostra o horário só quando a fase já tem um horário real marcado', () => {
     const scheduled = new Date('2026-08-12T18:00:00-03:00');
     const future = [match({ id: 'f1', round: 3, matchType: 'Final', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', scheduleTime: scheduled })];
-    expect(futurePhasesOf(future)[0]?.timeLabel).not.toBeNull();
+    expect(futurePhasesOf(future, [1, 2, 3])[0]?.timeLabel).not.toBeNull();
   });
 });
 

@@ -1767,3 +1767,30 @@ git add frontend/projects/athlete/src/app && git commit -m "feat(athlete): entra
 **Consistência de tipos:** `FocusViewContext` é definido na Task 3 e consumido com os mesmos campos nas Tasks 7 e 9. `FocusDayTarget` sai da Task 1 e é consumido nas Tasks 2 e 11. `roundScenariosOf` tem a mesma assinatura na Task 4 e na Task 9. `categoryIdInput` tem o mesmo nome na Task 10 e no wrapper.
 
 **Riscos conhecidos:** a Task 3 é a de maior chance de erro (movimentação mecânica grande) — por isso ela mantém o `today-tab` funcionando como prova de equivalência antes de a Task 6 apagá-lo. A Task 6 exige `ng build`, não só teste, porque erro de template só aparece na compilação.
+
+---
+
+### Task 12: rótulo de fase do mata-mata mostra "Knockout" em inglês
+
+Bug pré-existente do portal, descoberto durante a Task 8 e fora do escopo dela. Não foi introduzido por este plano, mas aparece com destaque no "Caminho até a final" do Focus — e no pôster que o atleta compartilha.
+
+**Files:**
+- Modify: `frontend/projects/athlete/src/app/tournaments/tournament-live.selectors.ts`
+- Modify: os pontos de chamada de `knockoutLabelOf` (19 em 8 arquivos; `grep -rn "knockoutLabelOf" --include=*.ts frontend/projects/athlete/src`)
+- Test: `frontend/projects/athlete/src/app/tournaments/tournament-live.selectors.spec.ts`
+
+**O defeito.** `buildSingleEliminationMatches` grava `matchType: isFinal ? "Final" : "knockout"` (`functions/src/category-bracket-builders.ts:273`) — ou seja, quartas, oitavas e semifinais TODAS chegam como `'knockout'`. `KNOCKOUT_LABELS` (`tournament-live.selectors.ts:200-212`) não tem a chave `knockout`, então `knockoutLabelOf` cai no fallback `${maiúscula}${resto}` e devolve **"Knockout"**. As chaves que o mapa cobre (`quarterfinal`, `semifinal`, `round of 16`) nunca são gravadas por este gerador.
+
+**A correção.** A fase de uma partida de mata-mata é a distância dela até a final, não uma string. Com a lista de partidas da categoria em mãos: 1 rodada até o fim = Final, 2 = Semifinal, 3 = Quartas, 4 = Oitavas, 5 = 16 avos. `knockoutRounds` (exportada de `focus/focus-journey.ts` na Task 8) já devolve as rodadas de mata-mata ordenadas — reaproveite em vez de recalcular.
+
+Mantenha o mapa atual como caminho preferencial: `'Final'`, `'Third Place'`, `'Grand Final'`, `'WB'` e `'LB'` SÃO gravados de verdade e carregam significado que a posição não dá. A derivação posicional entra só quando o `matchType` não resolve — hoje, o caso `'knockout'`.
+
+**Restrição dura:** nenhum ponto de chamada pode continuar exibindo "Knockout". Se algum não tiver a lista de partidas da categoria disponível, é ele que muda para tê-la — não é aceitável deixar metade das telas certa.
+
+**Testes:** `'knockout'` a 3 rodadas da final → "Quartas"; a 2 → "Semifinal"; a 4 → "Oitavas"; `'Final'` → "Final" (o mapa vence a posição); `'Third Place'` → "3º lugar"; dupla eliminação preserva WB/LB/Grand final. E um teste que rode o gerador real de uma chave de 8 e confirme que nenhuma partida rotula "Knockout".
+
+- [ ] **Step 1:** escrever os testes acima e confirmar que falham
+- [ ] **Step 2:** implementar a derivação posicional com fallback pelo mapa
+- [ ] **Step 3:** atualizar os 19 pontos de chamada; `grep` para provar que nenhum ficou sem a lista de partidas
+- [ ] **Step 4:** rodar testes + build, e conferir o pôster de partida (`match-share-dialog`) e a tela de partida, que é onde o rótulo aparece maior
+- [ ] **Step 5:** commit

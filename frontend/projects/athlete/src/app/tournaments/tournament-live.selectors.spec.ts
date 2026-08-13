@@ -6,6 +6,7 @@ import {
   defaultCategoryViewOf,
   defaultTabOf,
   displaySetsOf,
+  eliminatedFromKnockout,
   hasPendingKnockout,
   isSameSaoPauloDay,
   knockoutLabelOf,
@@ -258,6 +259,41 @@ describe('hasPendingKnockout', () => {
     expect(hasPendingKnockout([bracket('semi', 'Scheduled')], 'c1')).toBe(true);
     expect(hasPendingKnockout([bracket('semi', 'Completed')], 'c1')).toBe(false);
     expect(hasPendingKnockout([match({ id: 'grupo' })], 'c1')).toBe(false);
+  });
+});
+
+describe('eliminatedFromKnockout', () => {
+  const bracket = (partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>) =>
+    match({ poolId: '', isGroupMatch: false, matchType: 'knockout', ...partial });
+
+  it('perdeu uma partida encerrada do mata-mata: eliminado', () => {
+    const matches = [bracket({ id: 'quartas', status: 'Completed', teamAId: 'A', teamBId: 'B', winnerId: 'B' })];
+    expect(eliminatedFromKnockout(matches, 'c1', MINE)).toBe(true);
+  });
+
+  it('venceu a partida encerrada do mata-mata: não eliminado', () => {
+    const matches = [bracket({ id: 'quartas', status: 'Completed', teamAId: 'A', teamBId: 'B', winnerId: 'A' })];
+    expect(eliminatedFromKnockout(matches, 'c1', MINE)).toBe(false);
+  });
+
+  it('mata-mata do atleta ainda pendente: não eliminado', () => {
+    const matches = [bracket({ id: 'quartas', status: 'Scheduled', teamAId: 'A', teamBId: 'B' })];
+    expect(eliminatedFromKnockout(matches, 'c1', MINE)).toBe(false);
+  });
+
+  // Mesma decisão de `winsToTitleOf`: perder só na fase de grupos não é "eliminado do
+  // mata-mata" pra esta função — o atleta nunca chegou a ter um jogo de mata-mata seu.
+  it('perdeu só na fase de grupos (nunca teve jogo de mata-mata seu): não eliminado', () => {
+    const matches = [
+      match({ id: 'grupo', status: 'Completed', teamAId: 'A', teamBId: 'B', winnerId: 'B' }),
+      bracket({ id: 'semi-de-outra-dupla', status: 'Scheduled', teamAId: 'X', teamBId: 'Y' }),
+    ];
+    expect(eliminatedFromKnockout(matches, 'c1', MINE)).toBe(false);
+  });
+
+  it('partida de mata-mata de outra dupla, encerrada: não conta como eliminação do atleta', () => {
+    const matches = [bracket({ id: 'semi', status: 'Completed', teamAId: 'X', teamBId: 'Y', winnerId: 'X' })];
+    expect(eliminatedFromKnockout(matches, 'c1', MINE)).toBe(false);
   });
 });
 

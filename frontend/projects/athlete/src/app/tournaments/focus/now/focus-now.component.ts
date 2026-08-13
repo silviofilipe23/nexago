@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { matchIsLive, type TournamentMatch } from '../../../data/matches-repository';
-import { hasPendingKnockout } from '../../tournament-live.selectors';
+import { eliminatedFromKnockout, hasPendingKnockout } from '../../tournament-live.selectors';
 import { focusViewContextOf, nextMatchViewOf, timelineOf } from '../focus-views';
 import { TournamentLiveStore } from '../../tournament-live.store';
 
@@ -59,10 +59,20 @@ export class FocusNowComponent {
   protected readonly timeline = computed(() => timelineOf(this.ctx(), this.store.dayTimeline()));
 
   /** Existe mata-mata pendente na categoria em foco enquanto o atleta não tem partida própria
-   *  agendada — ver a doc de `nowStateOf` sobre o slot que ainda não tem o `teamId` dele. */
+   *  agendada — ver a doc de `nowStateOf` sobre o slot que ainda não tem o `teamId` dele.
+   *
+   *  Excluído quando o atleta já PERDEU alguma partida do próprio mata-mata
+   *  (`eliminatedFromKnockout`): sem essa trava, um atleta eliminado nas quartas via a MESMA
+   *  mensagem de quem está esperando o sorteio, porque `hasPendingKnockout` só olha a chave da
+   *  categoria inteira, não se o slot pendente ainda é dele. Não cobre eliminação só na fase de
+   *  grupos — mesma decisão de `winsToTitleOf` — mas o texto do estado (`pending-knockout` no
+   *  template) já é escrito como fato da categoria, não promessa ao leitor, então continua
+   *  verdadeiro mesmo nesse caso residual. */
   protected readonly pendingKnockout = computed(() => {
     const categoryId = this.store.focusCategoryId();
-    return categoryId != null && hasPendingKnockout(this.store.matches(), categoryId);
+    if (categoryId == null) return false;
+    const matches = this.store.matches();
+    return hasPendingKnockout(matches, categoryId) && !eliminatedFromKnockout(matches, categoryId, this.store.myTeamIds());
   });
 
   /** O reconhecimento em si mora no store (`acknowledgedCall`/`acknowledgeCall`), não aqui: ver

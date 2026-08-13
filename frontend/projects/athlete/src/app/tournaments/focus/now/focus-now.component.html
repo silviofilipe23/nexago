@@ -147,7 +147,12 @@
 
     @case ('pending-knockout') {
       <section class="now-idle">
-        <p class="now-idle__text">Mata-mata ainda não definido. Seu próximo adversário e a quadra saem assim que a fase de grupos terminar.</p>
+        <!-- Fato da CATEGORIA, não promessa ao leitor: nem toda categoria tem fase de grupos
+             (mata-mata direto também chega aqui), e hasPendingKnockout não distingue quem
+             classificou de quem já foi eliminado no próprio mata-mata — ver o comentário de
+             `pendingKnockout` no componente sobre o que a trava de eliminação cobre e o que não
+             cobre. Por isso o texto nunca diz "seu adversário" nem menciona grupos. -->
+        <p class="now-idle__text">O mata-mata desta categoria ainda está sendo definido. Os confrontos e as quadras saem conforme as partidas pendentes terminam.</p>
       </section>
     }
 

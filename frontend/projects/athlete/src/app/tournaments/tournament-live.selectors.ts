@@ -101,6 +101,17 @@ export function hasPendingKnockout(matches: readonly TournamentMatch[], category
   return matches.some((m) => m.categoryId === categoryId && !m.isGroupMatch && !m.poolId && isPending(m));
 }
 
+/** O atleta já perdeu alguma partida do MATA-MATA desta categoria — eliminado, mesmo que a
+ *  chave ainda tenha jogos pendentes de outras duplas (ver `hasPendingKnockout`). Mesma decisão
+ *  de `winsToTitleOf` (`focus/focus-journey.ts`): NÃO tenta detectar eliminação que aconteceu só
+ *  na fase de grupos (grupo encerrado, atleta não classificado) — exigiria simular o desempate,
+ *  o mesmo custo que `qualificationOf` se recusa a pagar antes do grupo estar 100% encerrado. */
+export function eliminatedFromKnockout(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): boolean {
+  return matches.some(
+    (m) => m.categoryId === categoryId && !m.isGroupMatch && !m.poolId && sideOf(m, myTeamIds) !== null && outcomeOf(m, myTeamIds) === 'loss',
+  );
+}
+
 /** Partidas em quadra agora. Sem `categoryId`, varre o torneio inteiro. */
 export function liveMatchesOf(matches: readonly TournamentMatch[], categoryId?: string): TournamentMatch[] {
   return matches.filter((m) => matchIsLive(m) && (!categoryId || m.categoryId === categoryId)).sort(byScheduleTime);

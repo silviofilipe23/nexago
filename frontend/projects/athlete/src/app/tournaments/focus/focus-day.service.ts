@@ -4,7 +4,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { fetchMatchesForTeam, fetchTeamsForAthlete } from '../../data/teams-repository';
-import { FOCUS_DISMISSED_KEY, focusDayTargetOf, focusMemoKeyOf, isFocusDismissed, type FocusDayTarget } from './focus-day';
+import { focusDayTargetOf, focusMemoKeyOf, type FocusDayTarget } from './focus-day';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -32,14 +32,20 @@ export class FocusDayService {
   private pending: Promise<FocusDayTarget | null> | null = null;
   private pendingKey: string | null = null;
 
-  /** Marca EM MEMÓRIA (nunca `localStorage`) do dia já oferecido nesta sessão do app. Resolve o
-   *  problema que `dismissForToday` não resolve: `router.navigate()` empilha uma entrada de
-   *  histórico, então o botão voltar do navegador remonta o painel e chamaria `resolve()` de
-   *  novo — sem isto, ofereceria o MESMO alvo de novo e o atleta seria empurrado pro Focus outra
-   *  vez, em loop, porque voltar não passa por `dismissForToday` (só o "×" passa). Fica só em
-   *  memória de propósito: um recarregamento de página é um gesto deliberado do atleta e deve
-   *  reoferecer o Focus — só uma remontagem DENTRO do mesmo app (voltar, um link, etc.) deve
-   *  virar no-op. Persistir isto em `localStorage` mataria esse caminho de reload sem querer. */
+  /**
+   * Marca EM MEMÓRIA (nunca `localStorage`) do dia já oferecido nesta sessão do app — a ÚNICA
+   * trava da entrada automática desde que o "silêncio até amanhã" foi removido: no dia de jogo o
+   * Focus abre sempre, e o que impede o loop é isto.
+   *
+   * O que ela resolve: `router.navigate()` empilha uma entrada de histórico, então o botão voltar
+   * (e o "×", que devolve o atleta ao painel) remonta o painel e chamaria `resolve()` de novo —
+   * sem isto, o mesmo alvo seria oferecido outra vez e o atleta ficaria preso no Focus, sem saída
+   * nenhuma dentro do app.
+   *
+   * Fica só em memória de propósito: recarregar a página é um gesto deliberado do atleta e DEVE
+   * reoferecer o Focus — é assim que "sempre abrir no dia de jogo" acontece de verdade. Persistir
+   * isto mataria justamente esse caminho.
+   */
   private offeredKey: string | null = null;
 
   private readonly _target = signal<FocusDayTarget | null>(null);
@@ -48,7 +54,6 @@ export class FocusDayService {
   async resolve(now: Date = new Date()): Promise<FocusDayTarget | null> {
     const uid = this.auth.user()?.uid ?? null;
     const key = focusMemoKeyOf(uid ?? '', now);
-    if (this.isDismissed(now)) return null;
     if (this.offeredKey === key) return null;
     if (key !== this.pendingKey) {
       this.pending = null;
@@ -76,36 +81,4 @@ export class FocusDayService {
     }
   }
 
-  isDismissed(now: Date = new Date()): boolean {
-    const uid = this.auth.user()?.uid ?? '';
-    return isFocusDismissed(this.read(), uid, now);
-  }
-
-  /** Chamado ao sair do Focus: silencia a entrada AUTOMÁTICA até o dia seguinte — só para ESTE
-   *  atleta, para não silenciar o Focus de outra conta no mesmo dispositivo compartilhado.
-   *
-   *  NÃO zera `target`: esse signal continua valendo como "existe partida hoje" para o botão
-   *  manual "Entrar no Focus" do painel (`AthletePainelComponent`) — dispensar a entrada
-   *  automática não apaga o fato de que o dia tem jogo, só a decisão de levar o atleta pra lá
-   *  sem ele pedir. Zerar `target` aqui faria o único caminho de volta desaparecer bem no
-   *  momento em que o atleta sai do Focus e mais precisaria dele. */
-  dismissForToday(now: Date = new Date()): void {
-    const uid = this.auth.user()?.uid ?? '';
-    try {
-      localStorage.setItem(FOCUS_DISMISSED_KEY, focusMemoKeyOf(uid, now));
-    } catch {
-      // Modo privativo ou quota estourada: sem a marca o Focus reabre no próximo painel.
-      // Degradar é melhor que estourar na saída do Focus.
-    }
-    this.pending = null;
-    this.pendingKey = null;
-  }
-
-  private read(): string | null {
-    try {
-      return localStorage.getItem(FOCUS_DISMISSED_KEY);
-    } catch {
-      return null;
-    }
-  }
 }

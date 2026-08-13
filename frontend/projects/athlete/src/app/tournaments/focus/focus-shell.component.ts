@@ -5,7 +5,6 @@ import { filter, map, startWith } from 'rxjs';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { eventDayOf } from '../tournament-days';
 import { TournamentLiveStore } from '../tournament-live.store';
-import { FocusDayService } from './focus-day.service';
 
 export type FocusSectionId = 'agora' | 'trajetoria' | 'grupo' | 'chave';
 
@@ -45,7 +44,6 @@ const CLOCK = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-dig
 export class FocusShellComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly focusDay = inject(FocusDayService);
   protected readonly store = inject(TournamentLiveStore);
 
   protected readonly sections = SECTIONS;
@@ -91,11 +89,17 @@ export class FocusShellComponent {
     });
   }
 
-  /** Sair silencia a entrada automática até amanhã — sem isso o painel puxaria o atleta de
-   *  volta para cá na navegação seguinte. */
+  /**
+   * Sair devolve o atleta à HOME, não à página do torneio: no dia de jogo a home é a base da
+   * navegação dele — é de lá que o Focus abre, e é lá que ele quer voltar pra reservar quadra,
+   * ver ranking ou qualquer outra coisa do portal.
+   *
+   * Não silencia mais nada: a trava que impede o painel de puxar o atleta de volta pra cá na
+   * mesma sessão é o `offeredKey` em memória do `FocusDayService`. Recarregar a página reabre o
+   * Focus de propósito — é o que "sempre abrir no dia de jogo" quer dizer.
+   */
   protected async exit(): Promise<void> {
-    this.focusDay.dismissForToday();
-    await this.router.navigate(['/torneios', this.id()]);
+    await this.router.navigate(['/painel']);
   }
 
   private currentSection(): FocusSectionId {

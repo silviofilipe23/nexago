@@ -1,5 +1,5 @@
 import type { ArenaMatch } from '../../data/teams-repository';
-import { focusDayTargetOf, focusMemoKeyOf, isFocusDismissed, isOpenToday } from './focus-day';
+import { focusDayTargetOf, focusMemoKeyOf, isOpenToday } from './focus-day';
 
 function arenaMatch(partial: Partial<ArenaMatch> & Pick<ArenaMatch, 'id'>): ArenaMatch {
   return {
@@ -97,26 +97,6 @@ describe('isOpenToday', () => {
     const closed = arenaMatch({ id: 'm2', status: 'completed', scheduleTime: new Date('2026-08-29T15:00:00Z') });
     expect(isOpenToday(open, TODAY)).toBe(true);
     expect(isOpenToday(closed, TODAY)).toBe(false);
-  });
-});
-
-describe('isFocusDismissed', () => {
-  const YESTERDAY = new Date('2026-08-28T17:00:00Z');
-
-  it('é falso sem marca', () => {
-    expect(isFocusDismissed(null, 'userA', TODAY)).toBe(false);
-  });
-
-  it('é verdadeiro com a marca de hoje do mesmo atleta', () => {
-    expect(isFocusDismissed(focusMemoKeyOf('userA', TODAY), 'userA', TODAY)).toBe(true);
-  });
-
-  it('a marca de ontem não silencia hoje', () => {
-    expect(isFocusDismissed(focusMemoKeyOf('userA', YESTERDAY), 'userA', TODAY)).toBe(false);
-  });
-
-  it('num dispositivo compartilhado, a dispensa do atleta A não silencia o atleta B no mesmo dia', () => {
-    expect(isFocusDismissed(focusMemoKeyOf('userA', TODAY), 'userB', TODAY)).toBe(false);
   });
 });
 

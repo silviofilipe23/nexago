@@ -218,11 +218,20 @@
   gap: 16px;
   flex-wrap: wrap;
   padding-left: 22px;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .at-focus-banner-copy {
   min-width: 0;
   flex: 1 1 12rem;
+
+  @media (max-width: 640px) {
+    flex: none;
+  }
 }
 
 .at-focus-banner-text {
@@ -239,6 +248,10 @@
 
 .at-focus-banner .at-mini-btn {
   flex-shrink: 0;
+
+  @media (max-width: 640px) {
+    width: 100%;
+  }
 }
 
 .at-card-head {

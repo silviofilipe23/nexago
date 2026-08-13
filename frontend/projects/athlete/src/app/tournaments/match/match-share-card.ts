@@ -335,10 +335,12 @@ function drawResult(ctx: CanvasRenderingContext2D, data: ShareCardData, photos: 
   drawPair(ctx, featured, photos, CX, 800, 185, metalGradient(ctx, m, CX - 340, 615, CX + 340, 985), 8);
 
   // nome da dupla em destaque
-  fitFont(ctx, featured.name, 930, 96, 56, (s) => sora(800, s), 4);
+  // `fitFont` encolhe até o piso e devolve o texto inteiro do jeito que estiver — quem garante o
+  // encaixe é o `truncate`, medindo já com a fonte ajustada. Sem ele, dupla de nome longo vaza a borda.
+  fitFont(ctx, featured.name, 930, 96, 56, (s) => sora(800, s));
   ctx.fillStyle = INK;
   ctx.textAlign = 'center';
-  ctx.fillText(featured.name, CX, 1108);
+  ctx.fillText(truncate(ctx, featured.name, 930), CX, 1108);
 
   // rótulo em degradê metálico
   ctx.font = sora(800, 46);
@@ -387,16 +389,19 @@ function drawResult(ctx: CanvasRenderingContext2D, data: ShareCardData, photos: 
   ctx.font = mono(500, 24);
   ctx.fillStyle = DIM;
   tracked(ctx, m.loseLabel, CX, rowY, 8);
-  const nameSize = fitFont(ctx, other.name, 560, 40, 28, (s) => inter(600, s), 4);
+  const nameSize = fitFont(ctx, other.name, 560, 40, 28, (s) => inter(600, s));
+  // corta antes de medir: a linha é centrada a partir da largura do nome, então o texto que
+  // realmente vai ser desenhado tem de ser o mesmo que entra na conta do `rowW`.
+  const otherName = truncate(ctx, other.name, 560);
   const r = 42;
   const pairW = r * 2 + r * 1.3;
-  const rowW = pairW + 26 + ctx.measureText(other.name).width;
+  const rowW = pairW + 26 + ctx.measureText(otherName).width;
   const startX = CX - rowW / 2;
   drawPair(ctx, other, photos, startX + pairW / 2, rowY + 62, r, 'rgba(255, 255, 255, 0.25)', 3);
   ctx.font = inter(600, nameSize);
   ctx.fillStyle = MUTE;
   ctx.textAlign = 'left';
-  ctx.fillText(other.name, startX + pairW + 26, rowY + 62 + nameSize * 0.34);
+  ctx.fillText(otherName, startX + pairW + 26, rowY + 62 + nameSize * 0.34);
 }
 
 function drawMatchup(ctx: CanvasRenderingContext2D, data: ShareCardData, photos: Map<string, HTMLImageElement | null>, m: Metal): void {
@@ -413,7 +418,7 @@ function drawMatchup(ctx: CanvasRenderingContext2D, data: ShareCardData, photos:
     fitFont(ctx, team.name, 930, 84, 52, (s) => sora(800, s), 4);
     ctx.fillStyle = INK;
     ctx.textAlign = 'center';
-    ctx.fillText(team.name, CX, nameY);
+    ctx.fillText(truncate(ctx, team.name, 930), CX, nameY);
   };
 
   drawTeam(data.teamA, 712, 952);

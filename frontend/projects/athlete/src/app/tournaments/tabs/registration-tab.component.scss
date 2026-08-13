@@ -109,6 +109,22 @@
   }
 }
 
+/* Compartilhar é a única ação do card já confirmado, mas não é uma pendência — outline, pra não
+   gritar como o laranja do pagamento. */
+.reg-cta--share {
+  gap: var(--nx-s-2);
+  margin-right: var(--nx-s-3);
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  color: var(--nx-text);
+
+  &:hover,
+  &:focus-visible {
+    background: var(--nx-surface-2);
+    border-color: var(--nx-orange-500);
+  }
+}
+
 /* Convidar atletas/parceiro convive com o CTA laranja de pagamento no mesmo card —
    outline pra não disputar com ele. */
 .reg-cta--invite {

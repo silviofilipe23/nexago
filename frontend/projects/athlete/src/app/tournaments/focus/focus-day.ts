@@ -1,3 +1,4 @@
+import { matchIsCanceled, matchIsCompleted } from '../../data/matches-repository';
 import type { ArenaMatch } from '../../data/teams-repository';
 import { isSameSaoPauloDay, saoPauloDateKey } from '../tournament-live.selectors';
 
@@ -13,10 +14,14 @@ export interface FocusDayTarget {
 export const FOCUS_DISMISSED_KEY = 'nexago.focus.dismissed';
 
 /** Partida que ainda decide o dia: agendada para o dia de referência e nem encerrada nem
- *  cancelada. `in progress` CONTA — é exatamente o momento em que o Focus mais serve. */
-function isOpenToday(m: ArenaMatch, reference: Date): boolean {
-  const status = m.status.trim().toLowerCase();
-  if (status === 'completed' || status === 'canceled') return false;
+ *  cancelada. `in progress` CONTA — é exatamente o momento em que o Focus mais serve.
+ *
+ *  Delega em `matchIsCompleted`/`matchIsCanceled` (`data/matches-repository.ts`) em vez de
+ *  reimplementar o critério de status: `ArenaMatch.status` é `string`, estruturalmente igual ao
+ *  `Pick<TournamentMatch, 'status'>` que aquelas funções pedem, então encaixam sem adaptação —
+ *  e duas definições de "cancelada" é a classe de bug que este branch já cometeu duas vezes. */
+export function isOpenToday(m: ArenaMatch, reference: Date): boolean {
+  if (matchIsCompleted(m) || matchIsCanceled(m)) return false;
   return m.scheduleTime != null && isSameSaoPauloDay(m.scheduleTime, reference);
 }
 

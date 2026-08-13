@@ -1,5 +1,5 @@
 import type { ArenaMatch } from '../../data/teams-repository';
-import { focusDayTargetOf, focusMemoKeyOf, isFocusDismissed } from './focus-day';
+import { focusDayTargetOf, focusMemoKeyOf, isFocusDismissed, isOpenToday } from './focus-day';
 
 function arenaMatch(partial: Partial<ArenaMatch> & Pick<ArenaMatch, 'id'>): ArenaMatch {
   return {
@@ -72,6 +72,31 @@ describe('focusDayTargetOf', () => {
       arenaMatch({ id: 'm1', tournamentId: '', scheduleTime: new Date('2026-08-29T15:00:00Z') }),
     ];
     expect(focusDayTargetOf(matches, TODAY)).toBeNull();
+  });
+});
+
+describe('isOpenToday', () => {
+  // `isOpenToday` precisa concordar com `matchIsCompleted`/`matchIsCanceled`
+  // (`data/matches-repository.ts`) em vez de reimplementar o próprio critério de status — duas
+  // definições de "encerrada"/"cancelada" é a classe de bug que já pegou este branch duas vezes
+  // (ver Finding 5 da revisão). Estes casos cobrem exatamente os status que aquelas funções
+  // reconhecem, incluindo variação de maiúscula/minúscula e espaço, pra garantir que a leitura
+  // vem delas e não de uma cópia local.
+  it('partida encerrada não conta como aberta, mesmo com variação de maiúscula/minúscula e espaço', () => {
+    const matches = [arenaMatch({ id: 'm1', status: '  Completed  ', scheduleTime: new Date('2026-08-29T15:00:00Z') })];
+    expect(focusDayTargetOf(matches, TODAY)).toBeNull();
+  });
+
+  it('partida cancelada não conta como aberta, mesmo com variação de maiúscula/minúscula', () => {
+    const matches = [arenaMatch({ id: 'm1', status: 'CANCELED', scheduleTime: new Date('2026-08-29T15:00:00Z') })];
+    expect(focusDayTargetOf(matches, TODAY)).toBeNull();
+  });
+
+  it('é exportada e utilizável fora de `focusDayTargetOf`', () => {
+    const open = arenaMatch({ id: 'm1', status: 'in progress', scheduleTime: new Date('2026-08-29T15:00:00Z') });
+    const closed = arenaMatch({ id: 'm2', status: 'completed', scheduleTime: new Date('2026-08-29T15:00:00Z') });
+    expect(isOpenToday(open, TODAY)).toBe(true);
+    expect(isOpenToday(closed, TODAY)).toBe(false);
   });
 });
 

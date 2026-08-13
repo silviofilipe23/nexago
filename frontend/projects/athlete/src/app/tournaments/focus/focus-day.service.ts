@@ -32,6 +32,16 @@ export class FocusDayService {
   private pending: Promise<FocusDayTarget | null> | null = null;
   private pendingKey: string | null = null;
 
+  /** Marca EM MEMÓRIA (nunca `localStorage`) do dia já oferecido nesta sessão do app. Resolve o
+   *  problema que `dismissForToday` não resolve: `router.navigate()` empilha uma entrada de
+   *  histórico, então o botão voltar do navegador remonta o painel e chamaria `resolve()` de
+   *  novo — sem isto, ofereceria o MESMO alvo de novo e o atleta seria empurrado pro Focus outra
+   *  vez, em loop, porque voltar não passa por `dismissForToday` (só o "×" passa). Fica só em
+   *  memória de propósito: um recarregamento de página é um gesto deliberado do atleta e deve
+   *  reoferecer o Focus — só uma remontagem DENTRO do mesmo app (voltar, um link, etc.) deve
+   *  virar no-op. Persistir isto em `localStorage` mataria esse caminho de reload sem querer. */
+  private offeredKey: string | null = null;
+
   private readonly _target = signal<FocusDayTarget | null>(null);
   readonly target = this._target.asReadonly();
 
@@ -39,6 +49,7 @@ export class FocusDayService {
     const uid = this.auth.user()?.uid ?? null;
     const key = focusMemoKeyOf(uid ?? '', now);
     if (this.isDismissed(now)) return null;
+    if (this.offeredKey === key) return null;
     if (key !== this.pendingKey) {
       this.pending = null;
       this.pendingKey = key;
@@ -46,6 +57,7 @@ export class FocusDayService {
     this.pending ??= this.load(uid, now);
     const target = await this.pending;
     this._target.set(target);
+    if (target) this.offeredKey = key;
     return target;
   }
 

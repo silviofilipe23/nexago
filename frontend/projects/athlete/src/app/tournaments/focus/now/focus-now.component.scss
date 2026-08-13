@@ -342,15 +342,21 @@
   }
 }
 
+// Serve pro link "Como chegar" e pro botão "Compartilhar" — daí os resets de `<button>`, que
+// não afetam o `<a>`.
 .now-btn-ghost {
   display: inline-flex;
   align-items: center;
   gap: var(--nx-s-2);
   min-height: 44px;
   padding: 0 var(--nx-s-3);
+  border: 0;
+  background: none;
   color: var(--nx-text-mute);
+  font-family: inherit;
   font-size: 14px;
   text-decoration: none;
+  cursor: pointer;
 
   &:hover,
   &:focus-visible {

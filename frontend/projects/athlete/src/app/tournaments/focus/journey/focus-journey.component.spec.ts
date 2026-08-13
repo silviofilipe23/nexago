@@ -365,4 +365,104 @@ describe('bracketWorstPlaceOf', () => {
       expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(2);
     });
   });
+
+  // Achado do round 5 de review: o piso (`wonRoundsFloorOf`) só enxerga o bye DEPOIS que o atleta
+  // vence alguma coisa — antes disso o piso é `-Infinity` e o bye continua sendo "a pendente mais
+  // cedo". Mas byes são propagados pra rodada seguinte NA CONSTRUÇÃO da chave
+  // (`category-bracket-builders.ts`), então essa é a janela de abertura de TODA chave que não é
+  // potência de 2, não um caso de canto: 3 duplas → bye entra direto na final; 5-7 → semifinal;
+  // 9-12 → quartas; 20 → oitavas. `pendingKnockoutsOf` (`focus-journey.ts`) fecha a janela: uma
+  // partida pendente de slot vazio em que o atleta já aparece numa rodada posterior é um bye
+  // consumido, nunca a referência. Fixtures no formato REAL do gerador, do estado INICIAL da
+  // chave (nada jogado ainda) — é justamente esse estado que `wonRoundsFloorOf` sozinho não cobre.
+  describe('achado N1 fechado no round 5 — bye consumido antes da primeira vitória', () => {
+    it('3 duplas (bracketSize 4, 1 bye): bye entra direto na final, nada jogado ainda → 1 vitória do título / 2º garantido, não 2 / 4º', () => {
+      const matches = [
+        match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r1-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'a', teamBId: 'b' }),
+        // Propagado na construção da chave: o slot do atleta já preenchido, o do adversário TBD
+        // (esperando o vencedor de `r1-outros`) — nenhuma partida real foi jogada ainda.
+        match({ id: 'r2-final', poolId: '', categoryId: 'c1', round: 2, matchType: 'Final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(1);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(2);
+    });
+
+    it('6 duplas (bracketSize 8, 2 byes): bye na 1ª rodada, nada jogado ainda → 2 vitórias do título / 4º garantido, não 3 / 8º', () => {
+      const matches = [
+        match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r1-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'a', teamBId: 'b' }),
+        match({ id: 'r2-propagado', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(2);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
+    });
+
+    it('12 duplas (bracketSize 16, 4 byes): bye na 1ª rodada, nada jogado ainda → 3 vitórias do título / 8º garantido, não 4 / 16º', () => {
+      const matches = [
+        match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r2-propagado', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r3', poolId: '', categoryId: 'c1', round: 3, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' }),
+        match({ id: 'r4-final', poolId: '', categoryId: 'c1', round: 4, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(3);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
+    });
+
+    // Pega um predicado largo demais: se `isConsumedByeOf` esquecesse de checar o slot vazio (ou
+    // checasse round diferente), uma dupla que joga de verdade a 1ª rodada — sem bye nenhum —
+    // podia ser confundida com uma "já consumida" por engano. Mesma chave de 6 duplas do teste
+    // acima, mas agora o atleta É a dupla que joga a 1ª rodada de verdade (adversário real, slot
+    // preenchido) — nada muda.
+    it('6 duplas: dupla SEM bye (joga a 1ª rodada de verdade), nada jogado ainda → inalterado: 3 vitórias / 8º', () => {
+      const matches = [
+        match({ id: 'r1-mine', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: 'x' }),
+        match({ id: 'r1-bye-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'y', teamBId: '' }),
+        match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' }),
+        match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(3);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
+    });
+
+    // Uma partida legitimamente pendente TAMBÉM tem o slot do adversário vazio — o alimentador
+    // dela (o outro lado da chave) ainda não terminou. Isso não pode ser lido como bye: o atleta
+    // venceu a 1ª rodada de verdade e está esperando o adversário da 2ª, sem aparecer em nenhuma
+    // rodada mais adiante ainda.
+    it('slot do adversário vazio SEM o atleta aparecer mais adiante (TBD de verdade, não bye) → continua sendo a referência, inalterado', () => {
+      const matches = [
+        match({ id: 'r1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+        match({ id: 'r2-tbd', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(2);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
+    });
+
+    // Potência de 2: nunca tem bye, então o predicado nunca deveria disparar — em duas posições
+    // diferentes (cedo, sem nada jogado; e no meio, com uma vitória já no bolso), em dois tamanhos
+    // diferentes (8 e 16), pra confirmar que o comportamento continua idêntico ao de antes deste
+    // fix.
+    it('potência de 2 — 8 duplas, cedo (nada jogado, adversário real na 1ª rodada): inalterado, 3 vitórias / 8º', () => {
+      const matches = [
+        match({ id: 'r1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: 'x' }),
+        match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' }),
+        match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(3);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
+    });
+
+    it('potência de 2 — 16 duplas, no meio (1ª rodada já vencida, 2ª pendente com adversário real): inalterado, 3 vitórias / 8º', () => {
+      const matches = [
+        match({ id: 'r1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+        match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: 'y' }),
+        match({ id: 'r3', poolId: '', categoryId: 'c1', round: 3, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' }),
+        match({ id: 'r4-final', poolId: '', categoryId: 'c1', round: 4, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      ];
+      expect(winsToTitleOf(matches, 'c1', MINE)).toBe(3);
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
+    });
+  });
 });

@@ -18,7 +18,7 @@ import {
   type MatchOutcome,
 } from '../../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../../tournament-live.store';
-import { guaranteedPrizeOf, knockoutRounds, tournamentNumbersOf, winsToTitleOf, wonRoundsFloorOf } from '../focus-journey';
+import { guaranteedPrizeOf, knockoutRounds, pendingKnockoutsOf, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
 import { focusViewContextOf, type FocusViewContext } from '../focus-views';
 
 /**
@@ -82,16 +82,23 @@ export function bestPossiblePlaceOf(wins: number): number {
  *   fixa a colocação — isso ignora sozinho uma disputa de 3º lugar ainda pendente (não é uma
  *   derrota) e também cobre quem perdeu a própria disputa de 3º lugar (a derrota mais cedo
  *   continua sendo a da semifinal, então a pior colocação continua 4º, o valor certo).
- * - Senão: a referência é a partida de mata-mata PENDENTE mais cedo (menor round) — nunca a de
- *   round mais alto — E nunca anterior à última partida já VENCIDA. Achado N1 do round 3 de
- *   review, confirmado por execução contra `buildSingleEliminationMatches`: um BYE é gravado
- *   como partida real (`A=mine, B=—`, `status: Scheduled`) e NUNCA é jogado — sem o piso da
- *   última vitória, "a pendente mais cedo" ancorava nesse bye pra sempre, e um atleta que recebeu
- *   bye na 1ª rodada (todo mata-mata que não é potência de 2 tem algum — 6 duplas → 2 byes, 12 →
- *   4) lia a chave inteira como pendência ("8º"/"16º") não importa quantas fases reais já tivesse
- *   vencido depois. O piso é `wonRoundsFloorOf` (`focus-journey.ts`), compartilhado com
- *   `winsToTitleOf` — achado do round 4: o mesmo bug existia lá (visível na manchete "N vitórias
- *   do título"), e a versão daqui tinha ficado sozinha até então. Não duplique de novo.
+ * - Senão: a referência é a partida de mata-mata PENDENTE mais cedo (menor round), calculada por
+ *   `pendingKnockoutsOf` (`focus-journey.ts`) — nunca a de round mais alto, nunca anterior à
+ *   última partida já VENCIDA, e nunca um bye já consumido. Achado N1 do round 3 de review,
+ *   confirmado por execução contra `buildSingleEliminationMatches`: um BYE é gravado como partida
+ *   real (`A=mine, B=—`, `status: Scheduled`) e NUNCA é jogado — sem um piso, "a pendente mais
+ *   cedo" ancorava nesse bye pra sempre, e um atleta que recebeu bye na 1ª rodada (todo mata-mata
+ *   que não é potência de 2 tem algum — 6 duplas → 2 byes, 12 → 4) lia a chave inteira como
+ *   pendência ("8º"/"16º") não importa quantas fases reais já tivesse vencido depois. O piso por
+ *   si só (`wonRoundsFloorOf`) não bastou: até o atleta vencer a PRIMEIRA partida real, o piso é
+ *   `-Infinity` e o bye — propagado pra rodada seguinte NA CONSTRUÇÃO da chave, antes de qualquer
+ *   partida ser jogada — continua sendo "a pendente mais cedo". `pendingKnockoutsOf` fecha essa
+ *   janela reconhecendo o bye pelo que ele é: uma partida pendente de slot vazio em que o atleta
+ *   já aparece numa rodada posterior (achado do round 5; ver a doc de `isConsumedByeOf`,
+ *   `focus-journey.ts`, pro porquê o slot vazio sozinho não basta). Compartilhada com
+ *   `winsToTitleOf` — achados do round 4 (o mesmo bug do piso existia lá, visível na manchete "N
+ *   vitórias do título") e do round 5 (o mesmo bug do bye "ainda não vencido nada" também) — pra
+ *   não duplicar a regra de novo.
  *
  * Conservadorismo deliberado: quem VENCE a disputa de 3º lugar está de fato garantido em 3º, mas
  * esta função continua devolvendo 4º, porque a referência permanece a derrota da semifinal. Não
@@ -123,11 +130,10 @@ export function bracketWorstPlaceOf(matches: readonly TournamentMatch[], categor
     return 2 ** (rounds.length - rounds.indexOf(earliestLoss.round));
   }
 
-  // Piso (achado N1, round 3 de review — ver `wonRoundsFloorOf` em `focus-journey.ts`, agora
-  // compartilhada com `winsToTitleOf` em vez de duplicada aqui: a cópia foi exatamente o que
-  // deixou a segunda desatualizada até o round 4).
-  const floor = wonRoundsFloorOf(myKnockouts, myTeamIds);
-  const pending = myKnockouts.filter((m) => isPending(m) && m.round >= floor);
+  // Piso + byes já consumidos (achados N1/round 3, round 4 e round 5 de review — ver
+  // `pendingKnockoutsOf` em `focus-journey.ts`, compartilhada com `winsToTitleOf` em vez de
+  // duplicada aqui: a cópia foi exatamente o que deixou a segunda desatualizada até o round 4).
+  const pending = pendingKnockoutsOf(myKnockouts, myTeamIds);
   if (pending.length > 0) {
     const earliestPending = pending.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));
     return 2 ** (rounds.length - rounds.indexOf(earliestPending.round));

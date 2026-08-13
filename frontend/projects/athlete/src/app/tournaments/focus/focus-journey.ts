@@ -1,7 +1,7 @@
 import { matchClosedSets, matchIsCompleted, type TournamentMatch } from '../../data/matches-repository';
 import type { TournamentPrize } from '../../data/tournaments-repository';
 import { isDoubleElimination } from '../bracket-tree';
-import { outcomeOf, sideOf } from '../tournament-live.selectors';
+import { isPending, outcomeOf, sideOf } from '../tournament-live.selectors';
 
 /** Uma barra do gráfico "você × adversário": um set de uma partida do atleta. */
 export interface SetBar {
@@ -54,6 +54,50 @@ export function wonRoundsFloorOf(myKnockouts: readonly TournamentMatch[], myTeam
 }
 
 /**
+ * Um BYE já consumido: partida de mata-mata pendente com o slot do adversário vazio, em que o
+ * atleta JÁ aparece numa rodada estritamente posterior. Nunca pode ser a referência "pendente
+ * mais cedo".
+ *
+ * Achado do round 5 de review: `wonRoundsFloorOf` (acima) só enxerga o bye depois que o atleta
+ * vence alguma coisa — antes disso o piso é `-Infinity` e o bye continua sendo "a pendente mais
+ * cedo". Mas byes são propagados pra rodada seguinte NA CONSTRUÇÃO da chave
+ * (`category-bracket-builders.ts`, "Propaga byes... da 1ª rodada para a 2ª"), ANTES de qualquer
+ * partida real acontecer — então o estado inicial de toda chave que não é potência de 2 já tem o
+ * atleta com bye aparecendo em duas partidas ao mesmo tempo: a do bye (round 1, `teamAId=mine,
+ * teamBId=''`, `status: Scheduled`, nunca jogada) e a rodada seguinte (já com o time dele, o
+ * outro lado ainda por decidir). É esse cenário — zero vitórias ainda, mas já mais adiante — que
+ * o piso sozinho não cobre.
+ *
+ * O slot do adversário vazio SOZINHO não basta pra identificar um bye: uma partida
+ * legitimamente pendente TAMBÉM tem o lado do adversário vazio enquanto o alimentador dela não
+ * termina (ex.: a própria rodada seguinte do atleta, esperando o vencedor do outro confronto). O
+ * que distingue um bye é o atleta já estar presente numa rodada MAIS ADIANTE: em eliminação
+ * simples isso só acontece via bye — do contrário o atleta ainda estaria disputando a rodada
+ * corrente, não uma posterior.
+ */
+function isConsumedByeOf(m: TournamentMatch, myKnockouts: readonly TournamentMatch[], myTeamIds: ReadonlySet<string>): boolean {
+  const side = sideOf(m, myTeamIds);
+  const opponentEmpty = side === 'A' ? m.teamBId.length === 0 : m.teamAId.length === 0;
+  if (!opponentEmpty) return false;
+  return myKnockouts.some((other) => other.round > m.round);
+}
+
+/**
+ * As partidas de mata-mata do atleta que ainda estão de fato pendentes — depois de descontar o
+ * piso das já vencidas (`wonRoundsFloorOf`) e os byes já consumidos (`isConsumedByeOf`).
+ * Compartilhada entre `winsToTitleOf` e `bracketWorstPlaceOf` (`focus-journey.component.ts`) de
+ * propósito: uma cópia da regra do piso já ficou pra trás numa das duas funções entre o round 3 e
+ * o round 4 de review, e as duas também discordavam sobre o que conta como "pendente" — uma usava
+ * `isPending` (exclui `Canceled`), a outra `!matchIsCompleted` (inclui). `isPending` é a resposta
+ * única do app pra essa pergunta; as duas passam a usar a mesma função em vez de cada uma manter
+ * sua própria definição.
+ */
+export function pendingKnockoutsOf(myKnockouts: readonly TournamentMatch[], myTeamIds: ReadonlySet<string>): TournamentMatch[] {
+  const floor = wonRoundsFloorOf(myKnockouts, myTeamIds);
+  return myKnockouts.filter((m) => isPending(m) && m.round >= floor && !isConsumedByeOf(m, myKnockouts, myTeamIds));
+}
+
+/**
  * Quantas vitórias separam o atleta do título.
  *
  * `null` quando: a chave ainda não foi sorteada (a manchete some em vez de chutar); em dupla
@@ -102,14 +146,12 @@ export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: s
   const champion = myKnockouts.some((m) => m.matchType.trim().toLowerCase() === 'final' && outcomeOf(m, myTeamIds) === 'win');
   if (champion) return 0;
 
-  // Piso (achado N1, alargado pro round 4 de review): sem ele, um BYE — partida real, nunca
-  // jogada — ancora `myPending[0]` na 1ª rodada pra sempre, e um atleta na final de uma chave de
-  // 6 duplas (bye na 1ª rodada) lia "3 vitórias do título" (a chave inteira) em vez de "1". Ver a
-  // doc de `wonRoundsFloorOf` acima — mesma regra que corrige `bracketWorstPlaceOf`
-  // (`focus-journey.component.ts`), compartilhada em vez de duplicada.
-  const floor = wonRoundsFloorOf(myKnockouts, myTeamIds);
-  const myPending = myKnockouts
-    .filter((m) => !matchIsCompleted(m) && m.round >= floor)
+  // Piso + byes já consumidos (achado N1, alargado pro round 4 e fechado no round 5 de review —
+  // ver `pendingKnockoutsOf` acima): sem isso, um BYE — partida real, nunca jogada — ancora
+  // `myPending[0]` na 1ª rodada pra sempre, e um atleta na final de uma chave de 6 duplas (bye na
+  // 1ª rodada) lia "3 vitórias do título" (a chave inteira) em vez de "1". Regra compartilhada com
+  // `bracketWorstPlaceOf` (`focus-journey.component.ts`) em vez de duplicada.
+  const myPending = pendingKnockoutsOf(myKnockouts, myTeamIds)
     .map((m) => m.round)
     .sort((a, b) => a - b);
 

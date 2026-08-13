@@ -78,13 +78,17 @@ painel, para quem saiu e quer voltar.
 
 ### Agora
 
-Bloco principal com três estados, na mesma posição:
+Bloco principal com cinco estados, na mesma posição:
 
 | Ordem | Estado | Condição | Conteúdo |
 | --- | --- | --- | --- |
 | 1º | Chamado | `queueStatus === 'on_court'` **e** o atleta ainda não reconheceu este `matchId` | Hero vermelho, "Quadra X liberada", hora da chamada (`matchStartedAt`), "Ok, estou indo", Mapa, Ver partida |
 | 2º | Em quadra | `matchIsLive` | Placar ao vivo e link para o detalhe |
 | 3º | Próxima | partida agendada pendente | Contagem regressiva + barra, selo de check-in, card VS com avatares e linha de posição, pílulas hora/quadra/formato, CTA "Como chegar" |
+| 4º | Mata-mata em definição | sem partida pendente, mas a categoria tem mata-mata em aberto e o atleta não perdeu nenhuma dele | Fato sobre a categoria: os confrontos e as quadras saem conforme as partidas pendentes terminam |
+| 5º | Fim | sem partida pendente | "Você não tem mais partidas pendentes neste torneio." |
+
+O 4º estado existe porque, entre o fim dos grupos e o `winnerAdvance`, o slot do atleta na chave tem descrição mas não tem `teamId` — sem ele, o Focus dizia a quem acabou de classificar que o torneio tinha acabado. O texto fala da categoria e não promete adversário ao leitor: `hasPendingKnockout` não distingue quem classificou de quem caiu por saldo no grupo, e detectar isso exigiria simular desempate.
 
 A ordem importa porque `callMatchToCourt` grava `queueStatus: 'on_court'` **e**
 `status: inProgress` na mesma escrita — os dois primeiros estados coexistem no dado. "Chamado"

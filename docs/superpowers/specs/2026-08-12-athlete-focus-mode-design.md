@@ -200,3 +200,23 @@ Specs de componente, se houver, com `provideZonelessChangeDetection()` nos provi
   próxima; o botão na casca do torneio permite ir ao outro.
 - **Atleta sem jogo hoje abrindo o Focus por link**: as seções degradam para o estado de fim de
   dia em vez de quebrar.
+
+## Pendências conhecidas na entrega
+
+Cada uma foi avaliada na revisão final e liberada com justificativa. Nenhuma é bloqueio; todas estão aqui para quem mexer nisso depois não achar que passaram batido.
+
+| Pendência | Por que ficou |
+| --- | --- |
+| Eliminação na fase de grupos não é detectada | Exigiria simular critério de desempate — a mesma recusa deliberada de `qualificationOf` e `winsToTitleOf`. Quem caiu por saldo vê o texto de mata-mata em definição, que é verdadeiro sobre a categoria |
+| Quem vence a disputa de 3º lugar lê "garantido em 4º" | Conservadorismo de propósito: sub-informar é seguro, super-informar promete dinheiro não conquistado. 294 estados no fuzz, todos nessa direção |
+| Dupla eliminação não mostra prêmio garantido | `winsToTitleOf` e `bracketWorstPlaceOf` devolvem `null` em DE, porque as chaves de vencedores e perdedores numeram rodadas em paralelo e qualquer contagem sobre a lista mesclada mente |
+| Banner do painel sobrevive ao fim das partidas do dia | `target` é resolvido uma vez por sessão e não é limpo; um reload corrige. O gêmeo na casca do torneio (`hasMyMatchToday`) é igualmente frouxo |
+| Banner cruzado por um instante ao trocar de conta | O serviço é `root`; `resolve()` sobrescreve no tick seguinte |
+| `dayTimeline` recomputa a 1Hz com partida ao vivo | Só o `computed` da timeline depende dele; o contexto compartilhado foi isolado justamente para isso |
+| Sem watcher de virada de dia com aba ociosa | `focusMemoKeyOf` invalida por data na navegação seguinte. Pré-existente |
+| `knockoutRounds` mora em arquivo do Focus e é importado por telas fora dele | Deveria ficar ao lado de `knockoutLabelOf`; refactor separado |
+| Clamp de MD5 em `winBoundsOf` é silencioso | Um MD7 hipotético seria simulado como MD5 em vez de recusar. O wizard só oferece MD1/3/5 |
+| `matchIsCompleted` duplicado em `teams-repository.ts` | Implementação idêntica, para `ArenaMatch`; consolidar é refactor à parte |
+| Offset de uma hora em datas anteriores a 2019 | `saoPauloMidnightUtc` usa offset fixo; o Brasil ainda tinha horário de verão. Contagem de dias segue exata, só a fronteira da janela desloca. Nenhum torneio é anterior a 2019 |
+
+Aberto como trabalho separado: `roundShortLabel`/`roundFullLabel` em `data/teams-repository.ts` ainda mostram "KNOCKOUT" no perfil público de equipe — mesmo vazamento de inglês da Task 12, em funções que não têm a lista de partidas da categoria no escopo.

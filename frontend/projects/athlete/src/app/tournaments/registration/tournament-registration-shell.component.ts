@@ -57,6 +57,15 @@ import {
 import { LgpdConsentBoxComponent } from '../../shared/lgpd/lgpd-consent-box.component';
 import { uniformSlotForUid } from '../../painel/registration-progress';
 import { InvitePartnerDialogComponent } from './invite-partner-dialog.component';
+import {
+  pickRegistrationSharePhrase,
+  registrationShareDateLabel,
+  registrationShareFooter,
+  registrationShareLocationLine,
+  registrationShareSlotLabel,
+  type RegistrationShareData,
+} from './registration-share';
+import { RegistrationShareDialogComponent } from './registration-share-dialog.component';
 import { UniformAutoSaver, type UniformAutoSaveState } from './uniform-autosave';
 import { UniformFormComponent } from './uniform-form.component';
 
@@ -125,6 +134,7 @@ interface CategoryStatus {
     InvitePartnerDialogComponent,
     NxInlineMessageComponent,
     LgpdConsentBoxComponent,
+    RegistrationShareDialogComponent,
   ],
   templateUrl: './tournament-registration-shell.component.html',
   styleUrl: './tournament-registration-shell.component.scss',
@@ -308,6 +318,58 @@ export class TournamentRegistrationShellComponent {
   });
   protected readonly leavingTeam = signal(false);
 
+  // ── Compartilhar a inscrição (card instagramável, paridade com o app) ───
+  protected readonly showShareDialog = signal(false);
+
+  /** Confirmada = paga e com o elenco fechado. É o único estado em que o card pode sair: ele diz
+   *  "DUPLA/EQUIPE CONFIRMADA", e com parceiro pendente ou pagamento em aberto isso seria mentira.
+   *  Mesma condição do ramo `@else` do template. */
+  protected readonly registrationConfirmed = computed(() => {
+    const reg = this.registration();
+    return reg != null && !reg.partnerPending && reg.isPaid;
+  });
+
+  protected readonly shareData = computed<RegistrationShareData | null>(() => {
+    const reg = this.registration();
+    const category = this.selectedCategory();
+    const t = this.listing();
+    if (!reg || !category || !t || !this.registrationConfirmed()) return null;
+
+    const roster = this.rosterMembers();
+    // Elenco ainda carregando (ou indisponível): o card sai com o próprio atleta, em vez de
+    // travar o botão — melhor um card com um nome do que nenhum card.
+    const athletes =
+      roster.length > 0
+        ? roster.map((member) => ({ name: this.shareCardNameOf(member), photo: member.photoUrl }))
+        : [{ name: this.accountLabel(), photo: null }];
+
+    return {
+      headline: pickRegistrationSharePhrase(reg.id, { team: reg.teamSize != null }),
+      slotLabel: registrationShareSlotLabel(this.enrolledCounts().get(category.id) ?? null, category.maxTeams),
+      tournamentName: t.name,
+      dateLabel: registrationShareDateLabel(t.startAt, t.endAt, t.dateLabel),
+      categoryName: category.categoryName,
+      locationLine: registrationShareLocationLine(t.location, t.city),
+      footerLabel: registrationShareFooter(t.startAt),
+      athletes,
+      teamName: reg.teamName,
+    };
+  });
+
+  /** Na lista de elenco a própria linha aparece como "Você" quando o perfil público não tem nome.
+   *  Impresso no card isso não faz sentido — ali vale o nome da conta. */
+  private shareCardNameOf(member: { name: string; isMe: boolean }): string {
+    return member.isMe && member.name === 'Você' ? this.accountLabel() : member.name;
+  }
+
+  protected openShareDialog(): void {
+    this.showShareDialog.set(true);
+  }
+
+  protected closeShareDialog(): void {
+    this.showShareDialog.set(false);
+  }
+
   constructor() {
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.searchDebounceHandle);
@@ -367,11 +429,13 @@ export class TournamentRegistrationShellComponent {
       );
     });
 
-    // Elenco da equipe (nomes/fotos) — só em categoria de equipe com inscrição.
+    // Elenco (nomes/fotos) de QUALQUER inscrição, não só das de equipe: a dupla também precisa
+    // dele para o card compartilhável. Na tela o elenco continua aparecendo só em categoria de
+    // equipe — quem renderiza está dentro de `@if (isTeamCategory())`.
     effect(() => {
       const reg = this.registration();
       const uid = this.auth.user()?.uid ?? null;
-      if (!reg || reg.teamSize == null) {
+      if (!reg) {
         this.rosterMembers.set([]);
         return;
       }

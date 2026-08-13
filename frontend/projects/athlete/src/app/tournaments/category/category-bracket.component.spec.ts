@@ -111,4 +111,29 @@ describe('CategoryBracketComponent — origem da categoria', () => {
 
     expect(categoryById).toHaveBeenCalledWith('cat-foco');
   });
+
+  /** `bracketData()` é `null` sempre que `category()` é `null` — categoria não encontrada, id
+   *  vazio (atleta não registrado abrindo um link de Focus compartilhado) ou torneio ainda não
+   *  carregado (`fetchTournament().catch(() => null)`). O `@if (bracketData(); as data)` de
+   *  nível superior não tinha `@else`: a tela ficava completamente em branco, sem chrome nem
+   *  mensagem — Finding 2 da revisão. Reproduzido nas DUAS rotas que apontam pra este
+   *  componente. */
+  it('sem categoria encontrada (rota antiga com :categoriaId desconhecido), mostra um estado vazio em vez de tela em branco', () => {
+    const categoryById = jasmine.createSpy('categoryById').and.returnValue(null);
+    const fixture = setup(routeWithParentCategoriaId('cat-inexistente'), categoryById);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent?.trim() ?? '';
+    expect(text.length).toBeGreaterThan(0);
+  });
+
+  it('sem categoria em foco no Focus (atleta não registrado abrindo um link compartilhado), mostra um estado vazio em vez de tela em branco', () => {
+    const categoryById = jasmine.createSpy('categoryById').and.returnValue(null);
+    const fixture = setup(routeWithParentCategoriaId(null), categoryById);
+
+    fixture.componentRef.setInput('categoryIdInput', null);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent?.trim() ?? '';
+    expect(text.length).toBeGreaterThan(0);
+  });
 });

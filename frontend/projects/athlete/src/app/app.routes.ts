@@ -251,6 +251,12 @@ export const routes: Routes = [
             loadComponent: () => import('./tournaments/focus/journey/focus-journey.component').then((m) => m.FocusJourneyComponent),
           },
           { path: 'grupo', loadComponent: () => import('./tournaments/focus/group/focus-group.component').then((m) => m.FocusGroupComponent) },
+          {
+            // Wrapper fino: só alimenta `categoryIdInput` de `CategoryBracketComponent` com
+            // `store.focusCategoryId()`, já que esta rota não tem `:categoriaId` (Task 10).
+            path: 'chave',
+            loadComponent: () => import('./tournaments/focus/bracket/focus-bracket.component').then((m) => m.FocusBracketComponent),
+          },
           { path: '', pathMatch: 'full', redirectTo: 'agora' },
         ],
       },

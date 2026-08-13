@@ -9,15 +9,18 @@ import { FocusDayService } from './focus-day.service';
 
 export type FocusSectionId = 'agora' | 'trajetoria' | 'grupo' | 'chave';
 
-// 'chave' fica de fora da lista até a Task 10 criar a rota `focus/chave` (que aponta direto pra
-// `CategoryBracketComponent`, sem seção própria). Uma seção listada aqui sem rota correspondente
-// falha em silêncio: o segmento não casa com nenhum filho de `focus`, o router recua por todos
-// os irmãos em `torneios/:id` e cai no catch-all `{ path: '**', redirectTo: 'painel' }` de
-// `app.routes.ts` — o atleta é ejetado do Focus pro painel, sem erro nenhum no console.
+// Toda entrada aqui PRECISA ter uma rota irmã correspondente em `focus.children`
+// (`app.routes.ts`), adicionada no MESMO commit que a entrada — nunca uma sem a outra. Uma
+// seção listada aqui sem rota correspondente falha em silêncio: o segmento não casa com nenhum
+// filho de `focus`, o router recua por todos os irmãos em `torneios/:id` e cai no catch-all
+// `{ path: '**', redirectTo: 'painel' }` de `app.routes.ts` — o atleta é ejetado do Focus pro
+// painel, sem erro nenhum no console. `chave` só entrou junto com a rota `focus/chave` (Task 10),
+// que aponta pro wrapper `FocusBracketComponent` (alimenta `CategoryBracketComponent` via input).
 const SECTIONS: readonly { id: FocusSectionId; label: string }[] = [
   { id: 'agora', label: 'Agora' },
   { id: 'trajetoria', label: 'Trajetória' },
   { id: 'grupo', label: 'Grupo' },
+  { id: 'chave', label: 'Chave' },
 ];
 
 const CLOCK = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });

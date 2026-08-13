@@ -1,5 +1,5 @@
 import type { TournamentMatch } from '../../data/matches-repository';
-import { roundScenariosOf } from './focus-scenarios';
+import { roundScenariosOf, winBoundsOf } from './focus-scenarios';
 
 function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>): TournamentMatch {
   return {
@@ -184,5 +184,16 @@ describe('roundScenariosOf', () => {
     expect(win?.rank).toBe(1);
     expect(win?.qualifies).toBe(true);
     expect(win?.text).toBe('Vencendo, você termina em 1º do grupo e avança.');
+  });
+});
+
+describe('winBoundsOf', () => {
+  it('trava no maior formato real (MD5) mesmo com um bestOf malformado — sem alocar arrays proporcionais ao valor cru', () => {
+    // `bestOf` chega cru do documento do Firestore (`matchBestOf` só cobre valores <= 0, caindo
+    // pro padrão); nada trava o topo. Um documento malformado ou editado à mão com um número
+    // gigante alocava arrays desse tamanho e travava a aba — Finding 4 da revisão.
+    const [widest, narrowest] = winBoundsOf(99);
+    expect(widest.length).toBe(3); // setsToWin de um MD5 (ceil(5 / 2))
+    expect(narrowest.length).toBe(5); // total de sets de um MD5 (3 + 2)
   });
 });

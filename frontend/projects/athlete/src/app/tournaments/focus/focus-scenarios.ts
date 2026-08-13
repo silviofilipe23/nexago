@@ -46,8 +46,13 @@ export interface RoundScenario {
  * (`x` bate `y` 21-19/9-21/15-5) derrubava a garantia em ~4% dos grupos simulados; o mesmo
  * defeito, sem essa conta, reaparece em MD5 com uma faixa ainda mais larga de saldo de pontos.
  */
-function winBoundsOf(bestOf: number): readonly MatchSet[][] {
-  const setsToWin = Math.ceil(bestOf / 2);
+export function winBoundsOf(bestOf: number): readonly MatchSet[][] {
+  // `bestOf` chega cru do documento do Firestore (`matchBestOf` só cai pro padrão com valores <=
+  // 0 — nada trava o topo). Um documento malformado ou editado à mão com um número gigante
+  // alocaria arrays proporcionais a ele e travaria a aba; trava no maior formato que o app
+  // realmente oferece (MD5).
+  const clampedBestOf = Math.min(bestOf, 5);
+  const setsToWin = Math.ceil(clampedBestOf / 2);
   const setsToLose = setsToWin - 1;
   const totalSets = setsToWin + setsToLose;
   const deciderIndex = totalSets - 1;
@@ -56,7 +61,7 @@ function winBoundsOf(bestOf: number): readonly MatchSet[][] {
   // (adversário zerado em cada set).
   const widest: MatchSet[] = [];
   for (let i = 0; i < setsToWin; i++) {
-    widest.push({ a: setTargetPointsOf(i, bestOf), b: 0 });
+    widest.push({ a: setTargetPointsOf(i, clampedBestOf), b: 0 });
   }
 
   // Vence o mínimo pra fechar o jogo, indo até o fim: os `setsToLose` sets que não decidem nada
@@ -65,7 +70,7 @@ function winBoundsOf(bestOf: number): readonly MatchSet[][] {
   const narrowest: MatchSet[] = [];
   let remainingLosses = setsToLose;
   for (let i = 0; i < totalSets; i++) {
-    const target = setTargetPointsOf(i, bestOf);
+    const target = setTargetPointsOf(i, clampedBestOf);
     if (i !== deciderIndex && remainingLosses > 0) {
       narrowest.push({ a: 0, b: target });
       remainingLosses--;

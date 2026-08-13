@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
+import { fetchAthletePhones } from '../data/athlete-contacts-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
+import { formatPhoneBR } from '../data/phone-contact';
 import {
   confirmRegistrationPayment,
   moveToWaitlist,
@@ -304,7 +306,14 @@ export class InscricoesComponent {
 
   private async load(tid: string): Promise<void> {
     try {
-      const [tournament, inscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
+      // O telefone vem de um callable à parte (`users` é fechado, `public_profiles` é sem PII) e
+      // é acessório: entra na MESMA rodada de rede das inscrições e, se falhar, volta vazio —
+      // a lista carrega igual, só sem o contato.
+      const [tournament, inscriptions, phones] = await Promise.all([
+        getTournament(tid),
+        listInscriptions(tid),
+        fetchAthletePhones(tid),
+      ]);
       this.tournament.set(tournament);
       const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
       // No modo direto o atleta DECLARA que pagou; no modo app o dinheiro entrou de verdade.
@@ -318,8 +327,9 @@ export class InscricoesComponent {
                 name: p.name,
                 photoUrl: p.photoUrl,
                 lgpdAccepted: accepted.has(p.uid),
+                phone: phones.get(p.uid) ?? '',
               }))
-            : [{ name: insc.teamName, photoUrl: null, lgpdAccepted: false }];
+            : [{ name: insc.teamName, photoUrl: null, lgpdAccepted: false, phone: '' }];
         const missing = insc.participants.filter((p) => !accepted.has(p.uid));
         const lgpd: LgpdStatus =
           insc.participants.length > 0 && missing.length === 0
@@ -518,10 +528,13 @@ export class InscricoesComponent {
   /** Exporta o que está na tela (mesmos filtros e busca), separado por `;` e com BOM — é assim
    *  que o Excel em pt-BR abre o arquivo já nas colunas certas e com acento. */
   protected exportCsv(): void {
-    const head = ['Dupla', 'Atletas', 'Categoria', 'Inscrita em', 'Pagamento', 'Termo de imagem', 'Cancelamento'];
+    const head = ['Dupla', 'Atletas', 'Telefones', 'Categoria', 'Inscrita em', 'Pagamento', 'Termo de imagem', 'Cancelamento'];
     const lines = this.filtered().map((r) => [
       r.name,
       r.athletes.map((a) => a.name).join(' | '),
+      // Mesmo separador e MESMA ordem da coluna "Atletas": quem lê a planilha casa telefone com
+      // atleta pela posição, então quem não tem número ocupa a posição com '—' em vez de sumir.
+      r.athletes.map((a) => (a.phone ? formatPhoneBR(a.phone) : '—')).join(' | '),
       r.categoria,
       r.dateLong,
       PAY_LABEL[r.pay] + (r.payNote ? ` (${r.payNote})` : ''),

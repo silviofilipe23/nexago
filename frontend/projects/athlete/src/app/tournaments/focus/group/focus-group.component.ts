@@ -101,7 +101,7 @@ export class FocusGroupComponent {
 
   protected readonly standingsTitle = computed(() => {
     const poolId = this.store.focusPoolId();
-    return poolId ? `${groupLabelOf(poolId, this.store.matches())} · classificação parcial` : null;
+    return poolId ? `${groupLabelOf(poolId, this.store.matches())} · Classificação parcial` : null;
   });
 
   /** `roundScenariosOf` é deliberadamente conservadora (ver a doc dela em `focus-scenarios.ts`)

@@ -312,6 +312,11 @@
   align-items: center;
   gap: var(--nx-s-3);
   flex-wrap: wrap;
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .now-btn-primary {
@@ -330,6 +335,10 @@
   &:hover,
   &:focus-visible {
     background: var(--nx-orange-400);
+  }
+
+  @media (max-width: 720px) {
+    width: 100%;
   }
 }
 
@@ -359,6 +368,7 @@
 
   @media (max-width: 720px) {
     text-align: left;
+    flex: none;
   }
 }
 

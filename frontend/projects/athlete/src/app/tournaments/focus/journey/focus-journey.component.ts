@@ -18,7 +18,7 @@ import {
   type MatchOutcome,
 } from '../../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../../tournament-live.store';
-import { guaranteedPrizeOf, knockoutRounds, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
+import { guaranteedPrizeOf, knockoutRounds, tournamentNumbersOf, winsToTitleOf, wonRoundsFloorOf } from '../focus-journey';
 import { focusViewContextOf, type FocusViewContext } from '../focus-views';
 
 /**
@@ -89,7 +89,9 @@ export function bestPossiblePlaceOf(wins: number): number {
  *   última vitória, "a pendente mais cedo" ancorava nesse bye pra sempre, e um atleta que recebeu
  *   bye na 1ª rodada (todo mata-mata que não é potência de 2 tem algum — 6 duplas → 2 byes, 12 →
  *   4) lia a chave inteira como pendência ("8º"/"16º") não importa quantas fases reais já tivesse
- *   vencido depois.
+ *   vencido depois. O piso é `wonRoundsFloorOf` (`focus-journey.ts`), compartilhado com
+ *   `winsToTitleOf` — achado do round 4: o mesmo bug existia lá (visível na manchete "N vitórias
+ *   do título"), e a versão daqui tinha ficado sozinha até então. Não duplique de novo.
  *
  * Conservadorismo deliberado: quem VENCE a disputa de 3º lugar está de fato garantido em 3º, mas
  * esta função continua devolvendo 4º, porque a referência permanece a derrota da semifinal. Não
@@ -121,14 +123,10 @@ export function bracketWorstPlaceOf(matches: readonly TournamentMatch[], categor
     return 2 ** (rounds.length - rounds.indexOf(earliestLoss.round));
   }
 
-  // Uma partida já VENCIDA fixa um piso: nada anterior a ela pode ser a referência. Sem isso um
-  // bye — que o gerador grava como partida real, `Scheduled`, e ninguém nunca joga
-  // (`buildSingleEliminationMatches`/`organizer-category-ops.ts:287`) — fica pendente pra sempre
-  // e ancora a referência na primeira rodada pelo resto da campanha. Achado N1 do round 3 de
-  // review, confirmado por execução contra o gerador real: um atleta que recebeu bye na 1ª rodada
-  // e já venceu tudo depois lia "8º"/"16º" (a chave inteira) em vez do que tinha de verdade.
-  const played = myKnockouts.filter((m) => outcomeOf(m, myTeamIds) === 'win').map((m) => m.round);
-  const floor = played.length > 0 ? Math.max(...played) : -Infinity;
+  // Piso (achado N1, round 3 de review — ver `wonRoundsFloorOf` em `focus-journey.ts`, agora
+  // compartilhada com `winsToTitleOf` em vez de duplicada aqui: a cópia foi exatamente o que
+  // deixou a segunda desatualizada até o round 4).
+  const floor = wonRoundsFloorOf(myKnockouts, myTeamIds);
   const pending = myKnockouts.filter((m) => isPending(m) && m.round >= floor);
   if (pending.length > 0) {
     const earliestPending = pending.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));

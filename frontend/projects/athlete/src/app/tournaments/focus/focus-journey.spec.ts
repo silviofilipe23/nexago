@@ -111,6 +111,33 @@ describe('winsToTitleOf', () => {
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBeNull();
   });
+
+  // Achado N1, alargado pro round 4 de review: mesma forma estrutural do bug que já tinha sido
+  // corrigido em `bracketWorstPlaceOf` (`focus-journey.component.ts`) — um BYE é gravado como
+  // partida real e nunca é jogado (`buildSingleEliminationMatches`/`organizer-category-ops.ts`),
+  // então `myPending[0]` (o round pendente mais cedo) ancorava nele pra sempre. Diferente de
+  // `bracketWorstPlaceOf`, aqui o efeito é visível na MANCHETE da seção: um atleta na final de uma
+  // chave de 6 duplas lia "3 vitórias do título" (a chave inteira) em vez de "1 vitória do
+  // título". Fixtures no formato REAL do gerador (bracketSize 8, bye na 1ª rodada).
+  it('6 duplas (bracketSize 8, 2 byes): bye na 1ª rodada, venceu a 2ª, pendente na final → 1 vitória do título, não 3', () => {
+    const matches = [
+      match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      match({ id: 'r1-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'a', teamBId: 'b' }),
+      match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      match({ id: 'r3-3lugar', poolId: '', categoryId: 'c1', round: 3, matchType: 'Third Place', isGroupMatch: false, teamAId: 'a', teamBId: 'c' }),
+    ];
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBe(1);
+  });
+
+  it('6 duplas (bracketSize 8, 2 byes): bye na 1ª rodada, campeão (venceu a final) → 0 vitórias, não 3', () => {
+    const matches = [
+      match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+    ];
+    expect(winsToTitleOf(matches, 'c1', MINE)).toBe(0);
+  });
 });
 
 describe('tournamentNumbersOf', () => {

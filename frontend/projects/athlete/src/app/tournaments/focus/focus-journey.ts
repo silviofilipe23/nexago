@@ -33,6 +33,27 @@ export function knockoutRounds(matches: readonly TournamentMatch[], categoryId: 
 }
 
 /**
+ * O round da partida de mata-mata JÁ VENCIDA mais avançada do atleta, ou `-Infinity` se ele ainda
+ * não venceu nenhuma — o piso: nenhuma partida de round anterior a este pode servir de
+ * referência "pendente mais cedo" pra `winsToTitleOf`/`bracketWorstPlaceOf`.
+ *
+ * Existe porque um BYE é gravado como partida real (`teamAId=mine, teamBId=''`, `status:
+ * Scheduled`) e NUNCA é jogado (`buildSingleEliminationMatches`, `organizer-category-ops.ts`) —
+ * sem o piso, "a pendente mais cedo" ancora nesse bye pra sempre, não importa quantas fases reais
+ * o atleta já tenha vencido depois dele. Byes existem em todo mata-mata que não é potência de 2
+ * (6 duplas → 2 byes, 12 → 4…), então isso não é um caso de canto.
+ *
+ * Exportada e compartilhada de propósito (achado do round 4 de review): a primeira versão desta
+ * regra foi escrita duas vezes — uma em `bracketWorstPlaceOf` (round 3), outra faltando em
+ * `winsToTitleOf` até este round — e foi exatamente a cópia que deixou a segunda desatualizada.
+ * Uma derivação só, duas consumidoras, mesmo espírito de `knockoutRounds` acima.
+ */
+export function wonRoundsFloorOf(myKnockouts: readonly TournamentMatch[], myTeamIds: ReadonlySet<string>): number {
+  const wonRounds = myKnockouts.filter((m) => outcomeOf(m, myTeamIds) === 'win').map((m) => m.round);
+  return wonRounds.length > 0 ? Math.max(...wonRounds) : -Infinity;
+}
+
+/**
  * Quantas vitórias separam o atleta do título.
  *
  * `null` quando: a chave ainda não foi sorteada (a manchete some em vez de chutar); em dupla
@@ -81,8 +102,14 @@ export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: s
   const champion = myKnockouts.some((m) => m.matchType.trim().toLowerCase() === 'final' && outcomeOf(m, myTeamIds) === 'win');
   if (champion) return 0;
 
+  // Piso (achado N1, alargado pro round 4 de review): sem ele, um BYE — partida real, nunca
+  // jogada — ancora `myPending[0]` na 1ª rodada pra sempre, e um atleta na final de uma chave de
+  // 6 duplas (bye na 1ª rodada) lia "3 vitórias do título" (a chave inteira) em vez de "1". Ver a
+  // doc de `wonRoundsFloorOf` acima — mesma regra que corrige `bracketWorstPlaceOf`
+  // (`focus-journey.component.ts`), compartilhada em vez de duplicada.
+  const floor = wonRoundsFloorOf(myKnockouts, myTeamIds);
   const myPending = myKnockouts
-    .filter((m) => !matchIsCompleted(m))
+    .filter((m) => !matchIsCompleted(m) && m.round >= floor)
     .map((m) => m.round)
     .sort((a, b) => a - b);
 

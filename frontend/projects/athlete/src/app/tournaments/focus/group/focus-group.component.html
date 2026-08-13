@@ -1,0 +1,141 @@
+<div class="gp">
+  @if (standingsTitle(); as title) {
+    <section class="gp-card">
+      <h2 class="gp-card__title">{{ title }}</h2>
+      @if (standings().length === 0) {
+        <p class="gp-empty">A classificação aparece assim que as partidas do grupo começam.</p>
+      } @else {
+        <div class="gp-table-scroll">
+          <table class="gp-table">
+            <thead>
+              <tr>
+                <th scope="col" class="gp-th-rank"><span class="gp-sr">Posição</span></th>
+                <th scope="col">Dupla</th>
+                <th scope="col">V</th>
+                <th scope="col">D</th>
+                <th scope="col">Sets</th>
+                <th scope="col">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of standings(); track row.rank) {
+                <tr [attr.data-qualifies]="row.qualifies" [attr.data-mine]="row.isMe">
+                  <td class="gp-rank">{{ row.rank }}</td>
+                  <td class="gp-team">
+                    {{ row.name }}
+                    @if (row.isMe) {
+                      <span class="gp-you"> · você</span>
+                    }
+                  </td>
+                  <td>{{ row.wins }}</td>
+                  <td>{{ row.losses }}</td>
+                  <td>{{ row.sets }}</td>
+                  <td class="gp-pts">{{ row.points }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (qualificationNote(); as note) {
+        <p class="gp-note" [attr.data-tone]="note.tone">{{ note.text }}</p>
+      }
+    </section>
+  }
+
+  @if (scenarios().length > 0) {
+    <section class="gp-card">
+      <h2 class="gp-card__title">Cenários da rodada</h2>
+      <ul class="gp-scenarios">
+        @for (s of scenarios(); track s.outcome) {
+          <li class="gp-scenario" [attr.data-outcome]="s.outcome">
+            <span class="gp-scenario__tag">{{ s.outcome === 'win' ? 'VENCE' : 'PERDE' }}</span>
+            <p class="gp-scenario__text">{{ s.text }}</p>
+            @if (s.qualifies) {
+              <span class="gp-scenario__badge">Classifica</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (crossing().length > 0) {
+    <section class="gp-card">
+      <h2 class="gp-card__title">Cruzamento no mata-mata</h2>
+      <ul class="gp-crossing">
+        @for (row of crossing(); track row.id) {
+          <li class="gp-crossing-row">
+            <span class="gp-crossing-row__phase">{{ row.label }}</span>
+            <div class="gp-crossing-row__body">
+              <span class="gp-crossing-row__team">{{ row.a }}</span>
+              <span class="gp-crossing-row__vs" aria-hidden="true">×</span>
+              <span class="gp-crossing-row__team">{{ row.b }}</span>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (liveNow().length > 0) {
+    <section class="gp-card">
+      <h2 class="gp-card__title">Ao vivo na categoria</h2>
+      <ul class="gp-live-list">
+        @for (row of liveNow(); track row.matchId) {
+          <li class="gp-live-row">
+            <a [routerLink]="['../../partida', row.matchId]" class="gp-live-row__link">
+              <span class="gp-live-row__flag"><span class="gp-live-dot" aria-hidden="true"></span>Ao vivo</span>
+              <span class="gp-live-row__body">
+                <span class="gp-live-row__teams">{{ row.nameA }} <span aria-hidden="true">×</span> {{ row.nameB }}</span>
+                <span class="gp-live-row__context">{{ row.context }}</span>
+              </span>
+              @if (row.scoreLine) {
+                <span class="gp-live-row__score">{{ row.scoreLine }}</span>
+              }
+            </a>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (where().court || where().arena) {
+    <section class="gp-card">
+      <h2 class="gp-card__title">Onde jogar</h2>
+      <dl class="gp-where">
+        @if (where().court; as court) {
+          <div class="gp-where-row">
+            <dt>Quadra</dt>
+            <dd>{{ court }}</dd>
+          </div>
+        }
+        @if (where().arena; as arena) {
+          <div class="gp-where-row">
+            <dt>Arena</dt>
+            <dd>{{ arena }}</dd>
+          </div>
+        }
+        @if (where().address; as address) {
+          <div class="gp-where-row">
+            <dt>Endereço</dt>
+            <dd>{{ address }}</dd>
+          </div>
+        }
+      </dl>
+      @if (where().mapsUrl; as url) {
+        <a [href]="url" target="_blank" rel="noopener" class="gp-where-cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+          {{ mapsLabel() }}
+        </a>
+      }
+    </section>
+  }
+
+  @if (!hasAnyContent()) {
+    <section class="gp-card">
+      <p class="gp-empty">Nada por aqui ainda — volte quando o grupo ou a chave desta categoria tiverem novidade.</p>
+    </section>
+  }
+</div>

@@ -18,6 +18,18 @@
       </section>
     }
   </div>
+} @else {
+  <!-- `bracketData()` é nulo sempre que a categoria não é encontrada: id vazio (link do Focus
+       compartilhado aberto por quem não está inscrito), id desconhecido, ou o torneio ainda não
+       carregou (`fetchTournament().catch(() => null)`). Sem este ramo a tela ficava
+       completamente em branco — a aba "Chave" do Focus não tem sidebar nem breadcrumb pra
+       sinalizar que algo deu errado. -->
+  <div class="bx-body">
+    <section class="bx-card">
+      <p class="bx-empty-title">Chave</p>
+      <p class="bx-body-text">Nada por aqui ainda — não encontramos esta categoria.</p>
+    </section>
+  </div>
 }
 
 <!-- Um lado do card: avatares da dupla, nome e sets ganhos. -->

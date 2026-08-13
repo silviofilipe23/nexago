@@ -139,7 +139,6 @@ export class TournamentLiveStore {
     return teamIds.has(mine.teamAId) ? mine.teamAId : mine.teamBId;
   });
 
-  readonly liveInFocusCategory = computed(() => liveMatchesOf(this.matches(), this.focusCategoryId() ?? undefined));
   readonly liveInTournament = computed(() => liveMatchesOf(this.matches()));
 
   readonly hasMyMatchToday = computed(() => this.dayTimeline().length > 0);
@@ -155,12 +154,31 @@ export class TournamentLiveStore {
     }),
   );
 
-  readonly defaultTab = computed(() => defaultTabOf(this.visibleTabs()));
+  readonly defaultTab = computed(() => defaultTabOf());
 
   /** Ligado quando o atleta pede a lista de categorias ("Todas as categorias"). Enquanto for
    *  falso, quem está inscrito é levado direto para a própria categoria — sem o sinal, o atalho
    *  reagiria ao clique de voltar e prenderia o atleta na categoria dele. */
   readonly categoryListRequested = signal(false);
+
+  /** Reconhecimento LOCAL da chamada de quadra (seção Agora do Focus) — mora aqui, não no
+   *  componente da seção. `callMatchToCourt` grava `queueStatus: 'on_court'` e NUNCA o reseta —
+   *  `submitMatchResult` grava `status`/`sets`/`winnerId` mas não toca em `queueStatus`; só
+   *  `declareMatchWalkover` o limpa. Então, depois que o atleta confirma, o reconhecimento é o
+   *  ÚNICO sinal que distingue "chamado" de "em quadra" pro resto da partida, e ele precisa
+   *  sobreviver à troca de seção dentro do Focus: `agora`/`trajetória`/`grupo` são rotas irmãs,
+   *  sem `RouteReuseStrategy` customizada, então o Angular destrói e recria o componente da
+   *  seção a cada navegação — um signal local ali reapareceria com o alerta vermelho no meio da
+   *  partida. Só em memória, de propósito: um reload deve mostrar a chamada de novo. */
+  private readonly acknowledgedCallMatchId = signal<string | null>(null);
+
+  get acknowledgedCall(): string | null {
+    return this.acknowledgedCallMatchId();
+  }
+
+  acknowledgeCall(matchId: string): void {
+    this.acknowledgedCallMatchId.set(matchId);
+  }
 
   constructor() {
     this.startTicking(TICK_IDLE_MS);

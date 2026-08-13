@@ -1,0 +1,228 @@
+// Casca do Modo Focus: dark surface + laranja da marca, no mesmo padrão visual de
+// `tournament-shell.component.scss`. Diferente daquela casca, esta ocupa a viewport inteira
+// (sem sidebar, sem bottom-nav do portal) — ver o comentário do componente sobre por que ela
+// não entra em `AtPanelShellComponent`.
+:host {
+  display: block;
+  height: 100dvh;
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+}
+
+.focus {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+// Sem `position: sticky` de propósito: `.focus` não rola (só `.focus__content` rola, por
+// dentro), então o header já fica fixo no lugar por ser um item de flex column fora do
+// container com scroll — `sticky` aqui não faria nada além de custar uma camada de composição.
+.focus__header {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3) var(--nx-s-5);
+  background: var(--nx-surface-0);
+  border-bottom: 1px solid var(--nx-line);
+
+  @media (max-width: 560px) {
+    padding: var(--nx-s-3) var(--nx-s-4);
+    gap: var(--nx-s-2);
+  }
+}
+
+// Alvo de toque de 40px: menor que os 44px do resto do portal de propósito — aqui é uma saída
+// discreta no canto, não uma ação primária.
+.focus__exit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  color: var(--nx-text-mute);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--nx-d-fast) var(--nx-ease-out),
+    border-color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+    border-color: rgba(255, 106, 26, 0.5);
+  }
+}
+
+.focus__title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--nx-s-2);
+  min-width: 0;
+  overflow: hidden;
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--nx-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.focus__badge {
+  flex-shrink: 0;
+  padding: 3px var(--nx-s-2);
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-orange-tint);
+  color: var(--nx-orange-400);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.focus__badge--live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--nx-live);
+    animation: focus-live-pulse 1.6s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+    }
+  }
+}
+
+.focus__meta {
+  flex-shrink: 0;
+  color: var(--nx-text-dim);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (max-width: 720px) {
+    display: none;
+  }
+}
+
+.focus__clock {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: var(--nx-font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--nx-text);
+}
+
+// Mobile-first: barra fixa no rodapé. Vira segmentado no topo a partir de 1024px.
+.focus__nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--nx-surface-0);
+  border-top: 1px solid var(--nx-line);
+
+  @media (min-width: 1024px) {
+    position: static;
+    justify-content: center;
+    padding: var(--nx-s-3) var(--nx-s-5);
+    padding-bottom: var(--nx-s-3);
+    border-top: none;
+    border-bottom: 1px solid var(--nx-line);
+  }
+}
+
+.focus__tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  color: var(--nx-text-mute);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border-top: 2px solid transparent;
+  transition:
+    color var(--nx-d-fast) var(--nx-ease-out),
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    background var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-text);
+  }
+
+  @media (min-width: 1024px) {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 var(--nx-s-5);
+    border-top: none;
+    border-radius: var(--nx-r-pill);
+  }
+}
+
+.focus__tab--active {
+  color: var(--nx-text);
+  border-top-color: var(--nx-orange-500);
+
+  @media (min-width: 1024px) {
+    background: var(--nx-orange-tint);
+    color: var(--nx-orange-400);
+  }
+}
+
+.focus__content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  // Altura da barra fixa no rodapé (mobile): sem isso o fim do conteúdo fica encoberto por ela.
+  // `0px`, não `0`: dentro de um `calc()`, somar um número puro a um `<length>` é erro de tipo e
+  // invalida a propriedade shorthand inteira em engines que não resolvem o `env()`.
+  padding: var(--nx-s-5) var(--nx-s-5) calc(56px + var(--nx-s-5) + env(safe-area-inset-bottom, 0px));
+
+  @media (min-width: 1024px) {
+    padding: var(--nx-s-5);
+  }
+}
+
+@keyframes focus-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}

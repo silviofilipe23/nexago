@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { matchBestOf, matchClosedSets, matchIsCompleted, matchIsLive, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
 import { NxToastService } from '../../shared/feedback';
+import { knockoutRounds } from '../focus/focus-journey';
 import { courtLabelOf, dayLabelOf, liveScoreLineOf, timeLabelOf } from '../tournament-format';
 import { groupLabelOf, knockoutLabelOf, roundDisplayNumberOf } from '../tournament-live.selectors';
 import { TournamentLiveStore } from '../tournament-live.store';
@@ -86,15 +87,16 @@ export class MatchShareDialogComponent {
   }
 
   private phaseLabel(m: TournamentMatch): string {
-    return m.poolId
-      ? `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`
-      : knockoutLabelOf(m);
+    if (m.poolId) return `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`;
+    const categoryMatches = this.store.matchesOfCategory(m.categoryId);
+    return knockoutLabelOf(m, knockoutRounds(categoryMatches, m.categoryId));
   }
 
   /** Final e 3º lugar ganham a paleta ouro/bronze do pôster da Copa VH. */
   private stageOf(m: TournamentMatch): ShareStage {
     if (m.poolId) return 'game';
-    const label = knockoutLabelOf(m);
+    const categoryMatches = this.store.matchesOfCategory(m.categoryId);
+    const label = knockoutLabelOf(m, knockoutRounds(categoryMatches, m.categoryId));
     if (label === 'Final' || label === 'Grand final') return 'final';
     if (label === '3º lugar') return 'third';
     return 'game';

@@ -1,0 +1,163 @@
+<div class="jr">
+  @if (headline(); as h) {
+    <section class="jr-headline" [attr.data-kind]="h.kind">
+      @if (h.kind === 'champion') {
+        <span class="jr-headline__kicker">Fim de jornada</span>
+        <h1 class="jr-headline__title">Campeão da categoria!</h1>
+      } @else {
+        <span class="jr-headline__kicker">Rumo ao título</span>
+        <h1 class="jr-headline__title">{{ h.text }}</h1>
+      }
+    </section>
+  }
+
+  @if (enrolledLabel() || qualified()) {
+    <div class="jr-chips">
+      @if (enrolledLabel(); as label) {
+        <span class="jr-chip">{{ label }}</span>
+      }
+      @if (qualified()) {
+        <span class="jr-chip jr-chip--win">Classificado</span>
+      }
+    </div>
+  }
+
+  <section class="jr-card">
+    <h2 class="jr-card__title">Caminho até a final</h2>
+    @if (pathRows().length === 0 && futureRows().length === 0) {
+      <p class="jr-empty">Sua chave ainda não foi sorteada.</p>
+    } @else {
+      <ol class="jr-path">
+        @for (row of pathRows(); track row.matchId) {
+          <li class="jr-path-row">
+            <span class="jr-path-row__phase">{{ row.phaseLabel }}</span>
+            <div class="jr-path-row__body">
+              @if (row.clickable) {
+                <a [routerLink]="['../../partida', row.matchId]" class="jr-path-row__opponent">vs {{ row.opponentName }}</a>
+              } @else {
+                <span class="jr-path-row__opponent">vs {{ row.opponentName }}</span>
+              }
+              @if (row.scoreLabel) {
+                <span class="jr-path-row__score">{{ row.scoreLabel }}</span>
+              } @else if (row.timeLabel) {
+                <span class="jr-path-row__time">{{ row.timeLabel }}</span>
+              }
+            </div>
+            @if (row.outcome) {
+              <span class="jr-path-row__outcome" [attr.data-outcome]="row.outcome">{{ row.outcome === 'win' ? 'V' : 'D' }}</span>
+            } @else if (row.live) {
+              <span class="jr-path-row__live"><span class="jr-live-dot" aria-hidden="true"></span>Ao vivo</span>
+            }
+          </li>
+        }
+        @for (row of futureRows(); track row.round) {
+          <li class="jr-path-row jr-path-row--future">
+            <span class="jr-path-row__phase">{{ row.phaseLabel }}</span>
+            <div class="jr-path-row__body">
+              <span class="jr-path-row__opponent">A definir</span>
+              @if (row.timeLabel) {
+                <span class="jr-path-row__time">{{ row.timeLabel }}</span>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </section>
+
+  <section class="jr-card">
+    <h2 class="jr-card__title">Seus números no torneio</h2>
+    <dl class="jr-stats">
+      <div class="jr-stat">
+        <dt>Sets</dt>
+        <dd>{{ numbers().setsWon }}–{{ numbers().setsLost }}</dd>
+      </div>
+      <div class="jr-stat">
+        <dt>Pontos</dt>
+        <dd>{{ numbers().points }}</dd>
+      </div>
+      <div class="jr-stat">
+        <dt>Pontos por set</dt>
+        <dd>{{ numbers().pointsPerSet }}</dd>
+      </div>
+      <div class="jr-stat">
+        <dt>Partidas</dt>
+        <dd>{{ numbers().matches }}</dd>
+      </div>
+    </dl>
+
+    @if (numbers().sets.length > 0) {
+      <div class="jr-bars" role="img" aria-label="Pontos por set, você contra o adversário, em cada partida encerrada">
+        @for (bar of numbers().sets; track bar.label) {
+          <div class="jr-bar-group">
+            <div class="jr-bar-pair">
+              <span class="jr-bar jr-bar--mine" [style.height.%]="(bar.mine / maxSetValue()) * 100"></span>
+              <span class="jr-bar jr-bar--theirs" [style.height.%]="(bar.theirs / maxSetValue()) * 100"></span>
+            </div>
+            <span class="jr-bar-group__label">{{ bar.label }}</span>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="jr-empty">Nenhuma partida encerrada ainda.</p>
+    }
+  </section>
+
+  @if (possibleOpponents().length > 0) {
+    <section class="jr-card">
+      <h2 class="jr-card__title">Quem pode cruzar com você</h2>
+      <ul class="jr-opponents">
+        @for (opp of possibleOpponents(); track opp.teamId) {
+          <li class="jr-opponent">
+            <span class="jr-duo-avatars" aria-hidden="true">
+              @for (p of opp.players; track $index) {
+                <span class="duo-avatar">
+                  @if (p.photo) {
+                    <img [src]="p.photo" alt="" loading="lazy" />
+                  } @else {
+                    {{ p.initial }}
+                  }
+                </span>
+              }
+            </span>
+            <div class="jr-opponent__body">
+              <strong class="jr-opponent__name">{{ opp.name }}</strong>
+              @if (opp.campaign.length > 0) {
+                <dl class="jr-opponent__campaign">
+                  @for (entry of opp.campaign; track entry.label) {
+                    <div class="jr-opponent__campaign-row">
+                      <dt>{{ entry.label }}</dt>
+                      <dd>{{ entry.detail }}</dd>
+                    </div>
+                  }
+                </dl>
+              } @else {
+                <span class="jr-opponent__empty">Primeira partida no torneio.</span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (prizeRows().length > 0) {
+    <section class="jr-card">
+      <h2 class="jr-card__title">O que este torneio muda</h2>
+      <ul class="jr-prizes">
+        @for (prize of prizeRows(); track prize.position) {
+          <li class="jr-prize" [class.jr-prize--guaranteed]="prize.guaranteed">
+            <span class="jr-prize__position">{{ prize.position }}º</span>
+            <span class="jr-prize__label">{{ prize.label }}</span>
+            @if (prize.valueLabel) {
+              <span class="jr-prize__value">{{ prize.valueLabel }}</span>
+            }
+            @if (prize.guaranteed) {
+              <span class="jr-prize__badge">Garantido</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</div>

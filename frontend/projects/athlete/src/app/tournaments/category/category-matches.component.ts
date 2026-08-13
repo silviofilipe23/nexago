@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { buildBracketColumns, matchIsCanceled, matchIsCompleted, matchIsLive, matchLiveCurrentSet, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
+import { knockoutRounds } from '../focus/focus-journey';
 import { matchNumberLabelOf, timeLabelOf } from '../tournament-format';
 import { byScheduleTime, displaySetsOf, groupLabelOf, isMyMatch, knockoutLabelOf, roundGroupsOf } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
@@ -93,6 +94,10 @@ export class CategoryMatchesComponent {
 
   private readonly categoryMatches = computed<TournamentMatch[]>(() => this.store.matchesOfCategory(this.categoryId()));
 
+  /** Rodadas de mata-mata da categoria, pra `knockoutLabelOf` derivar a fase de partidas
+   *  `'knockout'` pela distância até a final — ver `stageOf`. */
+  private readonly knockoutRoundsOfCategory = computed<number[]>(() => knockoutRounds(this.categoryMatches(), this.categoryId()));
+
   protected readonly pools = computed(() => {
     const matches = this.categoryMatches();
     const ids = [...new Set(matches.filter((m) => m.poolId).map((m) => m.poolId))].sort();
@@ -179,7 +184,7 @@ export class CategoryMatchesComponent {
   /** Final e 3º lugar têm identidade própria (ouro/bronze) — só no mata-mata. */
   private stageOf(m: TournamentMatch): 'final' | 'third' | null {
     if (m.poolId) return null;
-    const label = knockoutLabelOf(m);
+    const label = knockoutLabelOf(m, this.knockoutRoundsOfCategory());
     if (label === 'Final' || label === 'Grand final') return 'final';
     if (label === '3º lugar') return 'third';
     return null;

@@ -40,6 +40,7 @@ import {
 import { athleteFunctions } from './data/functions';
 import { fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
+import { FocusDayService } from './tournaments/focus/focus-day.service';
 
 type DashboardTone = 'accent' | 'success' | 'warning' | 'neutral';
 type ChartTab = 'Jogos' | 'Vitórias';
@@ -412,6 +413,10 @@ export class AthletePainelComponent {
   protected readonly auth = inject(AuthService);
   private readonly gamification = inject(AthleteGamificationService);
   private readonly router = inject(Router);
+  /** `protected`, não `private`: o template lê `focusDay.target()` direto pra mostrar "Entrar
+   *  no Focus" quando há partida hoje — sem reimplementar a detecção aqui (ver o comentário de
+   *  `dismissForToday()` sobre por que o signal sobrevive à saída do Focus). */
+  protected readonly focusDay = inject(FocusDayService);
   private readonly firestore = createFirestore();
 
   private readonly bookingsState = signal<readonly MyBooking[]>([]);
@@ -621,6 +626,14 @@ export class AthletePainelComponent {
   constructor() {
     const clock = setInterval(() => this.now.set(new Date()), CLOCK_TICK_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(clock));
+
+    // Entrada automática no Modo Focus: sem guard, porque um guard bloquearia a navegação
+    // esperando o Firestore e daria tela branca. O painel renderiza normal e só redireciona
+    // quando a resposta chega. O serviço já devolve `null` para "não dispensar" (sem jogo hoje,
+    // já dispensado, deslogado ou leitura falhou) — o painel não precisa saber qual caso é.
+    void this.focusDay.resolve().then((target) => {
+      if (target) void this.router.navigate(['/torneios', target.tournamentId, 'focus']);
+    });
 
     effect((onCleanup) => {
       const user = this.auth.user();

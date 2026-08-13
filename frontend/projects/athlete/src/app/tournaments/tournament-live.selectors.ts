@@ -101,6 +101,17 @@ export function hasPendingKnockout(matches: readonly TournamentMatch[], category
   return matches.some((m) => m.categoryId === categoryId && !m.isGroupMatch && !m.poolId && isPending(m));
 }
 
+/** O atleta já perdeu alguma partida do MATA-MATA desta categoria — eliminado, mesmo que a
+ *  chave ainda tenha jogos pendentes de outras duplas (ver `hasPendingKnockout`). Mesma decisão
+ *  de `winsToTitleOf` (`focus/focus-journey.ts`): NÃO tenta detectar eliminação que aconteceu só
+ *  na fase de grupos (grupo encerrado, atleta não classificado) — exigiria simular o desempate,
+ *  o mesmo custo que `qualificationOf` se recusa a pagar antes do grupo estar 100% encerrado. */
+export function eliminatedFromKnockout(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): boolean {
+  return matches.some(
+    (m) => m.categoryId === categoryId && !m.isGroupMatch && !m.poolId && sideOf(m, myTeamIds) !== null && outcomeOf(m, myTeamIds) === 'loss',
+  );
+}
+
 /** Partidas em quadra agora. Sem `categoryId`, varre o torneio inteiro. */
 export function liveMatchesOf(matches: readonly TournamentMatch[], categoryId?: string): TournamentMatch[] {
   return matches.filter((m) => matchIsLive(m) && (!categoryId || m.categoryId === categoryId)).sort(byScheduleTime);
@@ -161,8 +172,16 @@ export interface CampaignEntry {
 }
 
 /** "Como a dupla chegou até aqui": desempenho no grupo + os mata-matas já vencidos.
- *  Tudo derivado das partidas da categoria — nenhum campo novo no Firestore. */
-export function campaignOf(matches: readonly TournamentMatch[], teamId: string, opponentNameOf: (opponentTeamId: string) => string): CampaignEntry[] {
+ *  Tudo derivado das partidas da categoria — nenhum campo novo no Firestore.
+ *
+ *  `knockoutRoundsOfCategory` é repassado direto pra `knockoutLabelOf` — ver a doc dela sobre por
+ *  que o parâmetro é obrigatório (`knockoutRounds`, `focus/focus-journey.ts`, é quem calcula). */
+export function campaignOf(
+  matches: readonly TournamentMatch[],
+  teamId: string,
+  opponentNameOf: (opponentTeamId: string) => string,
+  knockoutRoundsOfCategory: readonly number[],
+): CampaignEntry[] {
   if (!teamId) return [];
   const mine = matches.filter((m) => m.teamAId === teamId || m.teamBId === teamId);
   const entries: CampaignEntry[] = [];
@@ -182,7 +201,7 @@ export function campaignOf(matches: readonly TournamentMatch[], teamId: string, 
     const mySets = m.teamAId === teamId ? a : b;
     const theirSets = m.teamAId === teamId ? b : a;
     entries.push({
-      label: knockoutLabelOf(m),
+      label: knockoutLabelOf(m, knockoutRoundsOfCategory),
       detail: `V ${mySets}–${theirSets} vs ${opponentNameOf(opponentId)}`,
     });
   }
@@ -209,11 +228,70 @@ const KNOCKOUT_LABELS: Record<string, string> = {
   quarterfinal: 'Quartas',
   'round of 16': 'Oitavas',
   'round of 32': '16 avos',
+  // WB/LB (dupla eliminação, `category-bracket-builders.ts`) entram no mapa como caminho
+  // preferencial pelo mesmo motivo de 'final'/'third place': o round de cada lado numera a
+  // própria chave (WB e LB recomeçam do 1), então "distância até a final" não tem sentido pra
+  // eles — ver `knockoutLabelOf` abaixo.
+  wb: 'WB',
+  lb: 'LB',
 };
 
-export function knockoutLabelOf(m: Pick<TournamentMatch, 'matchType' | 'round'>): string {
+/** Rótulo por distância até a final (1 = final, 2 = semifinal…) — só usado quando o `matchType`
+ *  não bate com nenhuma chave do mapa acima. `buildSingleEliminationMatches`/
+ *  `buildGroupsKnockoutMatches` (`functions/src/category-bracket-builders.ts`) gravam `'knockout'`
+ *  pra toda rodada que não é a final, sem distinguir quartas de semifinal por `matchType` — só o
+ *  `round` carrega essa informação, junto da lista de rounds de mata-mata da categoria.
+ *
+ *  Vai até distância 7 (64 avos, ~128 duplas): o gerador não tem teto de duplas
+ *  (`organizer-category-ops.ts`), e uma categoria de 33-64 duplas já produz 6 rodadas (achado do
+ *  round 1 de fix — a tabela parava em 5 e a 1ª rodada dessas chaves caía no fallback genérico). */
+const POSITIONAL_KNOCKOUT_LABELS: Record<number, string> = {
+  1: 'Final',
+  2: 'Semifinal',
+  3: 'Quartas',
+  4: 'Oitavas',
+  5: '16 avos',
+  6: '32 avos',
+  7: '64 avos',
+};
+
+/** `null` quando o round da partida não está em `knockoutRoundsOfCategory` (dado inconsistente)
+ *  ou a distância não tem rótulo definido (chave maior que 64 avos, hoje só teórico) — quem chama
+ *  cai pro fallback final de `knockoutLabelOf`, nunca pro `matchType` cru. */
+function positionalKnockoutLabelOf(round: number, knockoutRoundsOfCategory: readonly number[]): string | null {
+  const index = knockoutRoundsOfCategory.indexOf(round);
+  if (index < 0) return null;
+  const distanceFromFinal = knockoutRoundsOfCategory.length - index;
+  return POSITIONAL_KNOCKOUT_LABELS[distanceFromFinal] ?? null;
+}
+
+/**
+ * Rótulo em pt-BR da fase de mata-mata de uma partida.
+ *
+ * Caminho preferencial: o mapa acima, quando `matchType` bate com um valor conhecido — inclui
+ * 'Final'/'Third Place'/'WB'/'LB', que carregam significado que a posição sozinha não dá (WB/LB
+ * numeram rounds pela própria chave, não por distância até a final).
+ *
+ * Fallback posicional: quando `matchType` não resolve pelo mapa — hoje, só o `'knockout'` que o
+ * gerador de eliminatória simples grava pra toda rodada que não é a final (achado do bug: ver
+ * `category-bracket-builders.ts`) — a fase vira a distância da partida até a final dentro de
+ * `knockoutRoundsOfCategory` (rodadas de mata-mata da categoria, em ordem — `knockoutRounds` em
+ * `focus/focus-journey.ts`). O parâmetro é OBRIGATÓRIO de propósito: opcional aqui deixaria fácil
+ * esquecer de passar a lista e cair de volta no "Knockout" em inglês, calado.
+ *
+ * Último fallback: `Rodada ${round}` — NUNCA o `matchType` cru capitalizado (removido no round 1
+ * de fix). Os três geradores só gravam valores do mapa ou `'knockout'`, então nada real precisa de
+ * um terceiro caminho; manter a capitalização vazava "Knockout" (ou qualquer outro `matchType`
+ * bruto) sempre que a posição também não resolvesse — chave maior que a tabela acima cobre, ou um
+ * `matchType` desconhecido dentro de dupla eliminação, onde `knockoutRoundsOfCategory` mistura as
+ * rodadas independentes de WB e LB e uma posição "resolvida" ali seria só coincidência, nunca um
+ * dado confiável.
+ */
+export function knockoutLabelOf(m: Pick<TournamentMatch, 'matchType' | 'round'>, knockoutRoundsOfCategory: readonly number[]): string {
   const key = m.matchType.trim().toLowerCase();
-  return KNOCKOUT_LABELS[key] ?? (key ? `${m.matchType[0]!.toUpperCase()}${m.matchType.slice(1)}` : `Rodada ${m.round}`);
+  const mapped = KNOCKOUT_LABELS[key];
+  if (mapped) return mapped;
+  return positionalKnockoutLabelOf(m.round, knockoutRoundsOfCategory) ?? `Rodada ${m.round}`;
 }
 
 /** Sets já fechados + o set em andamento (mesa ponto a ponto ou `liveScore` agregado — ver
@@ -271,9 +349,12 @@ export function qualificationOf(
   };
 }
 
-export type TournamentTabId = 'visao-geral' | 'hoje' | 'categorias' | 'minha-inscricao' | 'palpites';
+export type TournamentTabId = 'visao-geral' | 'categorias' | 'minha-inscricao' | 'palpites';
 
 export interface TabVisibilityInput {
+  /** Não decide mais aba nenhuma aqui — o dia do atleta em jogo virou o Modo Focus, uma casca
+   *  própria fora destas abas. O campo continua existindo porque o botão de entrada do Focus
+   *  (Task 11) decide se aparece a partir dele. */
   hasMyMatchToday: boolean;
   isRegistered: boolean;
   /** Existe ao menos um confronto definido? Antes disso não há em quem palpitar. */
@@ -288,9 +369,7 @@ export interface TabVisibilityInput {
  *  "Palpites" fica por último — é a aba de torcida, não de operação — e NÃO some quando o
  *  torneio acaba: é justamente aí que o ranking de palpiteiros e o "você acertou" importam. */
 export function visibleTabsOf(input: TabVisibilityInput): TournamentTabId[] {
-  const tabs: TournamentTabId[] = ['visao-geral'];
-  if (input.hasMyMatchToday) tabs.push('hoje');
-  tabs.push('categorias');
+  const tabs: TournamentTabId[] = ['visao-geral', 'categorias'];
   if (input.isRegistered) tabs.push('minha-inscricao');
   if (input.hasDefinedMatchups) tabs.push('palpites');
   return tabs;
@@ -319,7 +398,8 @@ export function defaultCategoryViewOf(views: readonly CategoryViewId[]): Categor
   return views[0] ?? 'chave';
 }
 
-/** Aba de entrada: quem tem jogo hoje cai direto no "Hoje". */
-export function defaultTabOf(tabs: readonly TournamentTabId[]): TournamentTabId {
-  return tabs.includes('hoje') ? 'hoje' : 'visao-geral';
+/** Aba de entrada: sempre a visão geral — quem tem jogo hoje é levado ao Modo Focus, não a
+ *  uma aba destas. */
+export function defaultTabOf(): TournamentTabId {
+  return 'visao-geral';
 }

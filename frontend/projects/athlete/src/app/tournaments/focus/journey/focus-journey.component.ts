@@ -83,12 +83,25 @@ export function bestPossiblePlaceOf(wins: number): number {
  *   derrota) e também cobre quem perdeu a própria disputa de 3º lugar (a derrota mais cedo
  *   continua sendo a da semifinal, então a pior colocação continua 4º, o valor certo).
  * - Senão: a referência é a partida de mata-mata PENDENTE mais cedo (menor round) — nunca a de
- *   round mais alto.
+ *   round mais alto — E nunca anterior à última partida já VENCIDA. Achado N1 do round 3 de
+ *   review, confirmado por execução contra `buildSingleEliminationMatches`: um BYE é gravado
+ *   como partida real (`A=mine, B=—`, `status: Scheduled`) e NUNCA é jogado — sem o piso da
+ *   última vitória, "a pendente mais cedo" ancorava nesse bye pra sempre, e um atleta que recebeu
+ *   bye na 1ª rodada (todo mata-mata que não é potência de 2 tem algum — 6 duplas → 2 byes, 12 →
+ *   4) lia a chave inteira como pendência ("8º"/"16º") não importa quantas fases reais já tivesse
+ *   vencido depois.
  *
  * Conservadorismo deliberado: quem VENCE a disputa de 3º lugar está de fato garantido em 3º, mas
  * esta função continua devolvendo 4º, porque a referência permanece a derrota da semifinal. Não
  * adicione um caso especial pra espremer esse último degrau — sub-informar uma garantia é seguro;
  * super-informar é exatamente o bug que esta função existe pra evitar (ver o histórico acima).
+ *
+ * A detecção de campeão (nenhuma derrota, nenhuma pendência a partir do piso) é por `matchType
+ * === 'final'`, não por `round === lastRound` — achado N2 do round 3: a mesma colisão de round da
+ * disputa de 3º lugar (acima) também alcançava o campeão, só que blindada apenas pela ORDEM dos
+ * `if`s (derrota checada antes), sem nenhuma blindagem própria. Latente, não alcançável hoje (não
+ * há caminho de escrita que produza um mata-mata completed sem `winnerId`), mas key-ar por tipo
+ * em vez de por round elimina essa dependência de ordem por completo.
  *
  * `null` também quando o atleta não tem NENHUMA partida de mata-mata na categoria — sem posição
  * na chave, não há o que garantir. Mesma condição do gate `inKnockout` do componente; mantida
@@ -108,16 +121,27 @@ export function bracketWorstPlaceOf(matches: readonly TournamentMatch[], categor
     return 2 ** (rounds.length - rounds.indexOf(earliestLoss.round));
   }
 
-  const pending = myKnockouts.filter(isPending);
+  // Uma partida já VENCIDA fixa um piso: nada anterior a ela pode ser a referência. Sem isso um
+  // bye — que o gerador grava como partida real, `Scheduled`, e ninguém nunca joga
+  // (`buildSingleEliminationMatches`/`organizer-category-ops.ts:287`) — fica pendente pra sempre
+  // e ancora a referência na primeira rodada pelo resto da campanha. Achado N1 do round 3 de
+  // review, confirmado por execução contra o gerador real: um atleta que recebeu bye na 1ª rodada
+  // e já venceu tudo depois lia "8º"/"16º" (a chave inteira) em vez do que tinha de verdade.
+  const played = myKnockouts.filter((m) => outcomeOf(m, myTeamIds) === 'win').map((m) => m.round);
+  const floor = played.length > 0 ? Math.max(...played) : -Infinity;
+  const pending = myKnockouts.filter((m) => isPending(m) && m.round >= floor);
   if (pending.length > 0) {
     const earliestPending = pending.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));
     return 2 ** (rounds.length - rounds.indexOf(earliestPending.round));
   }
 
-  // Sem derrota nenhuma e sem pendência nenhuma: só resta o campeão, que venceu até a última fase
-  // do mata-mata — a única forma de esgotar as duas listas acima numa chave de eliminação simples.
-  const lastRound = rounds[rounds.length - 1];
-  const champion = myKnockouts.some((m) => m.round === lastRound && outcomeOf(m, myTeamIds) === 'win');
+  // Sem derrota nenhuma e sem pendência nenhuma (a partir do piso): só resta o campeão, que
+  // venceu a FINAL — checado pelo `matchType` (achado N2 do round 3: nunca por `round`, o mesmo
+  // erro de fundo que a disputa de 3º lugar já expôs para `losses`/`pending` acima — ver a doc da
+  // função). O gerador grava a final como `matchType: 'Final'` exatamente
+  // (`category-bracket-builders.ts`); comparação case-insensitive no valor trim() pelo mesmo
+  // motivo de `knockoutLabelOf` (`tournament-live.selectors.ts`).
+  const champion = myKnockouts.some((m) => m.matchType.trim().toLowerCase() === 'final' && outcomeOf(m, myTeamIds) === 'win');
   return champion ? 1 : null;
 }
 

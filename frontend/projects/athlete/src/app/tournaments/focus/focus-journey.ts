@@ -64,18 +64,21 @@ export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: s
   const lost = myKnockouts.some((m) => outcomeOf(m, myTeamIds) === 'loss');
   if (lost) return null;
 
-  // Campeão: venceu a partida encerrada da última fase do mata-mata. Mesma lógica do `lost`
-  // acima — sem esse ramo, o campeão também cairia no fallback e ouviria que ainda falta vencer
-  // fases que já venceu.
+  // Campeão: venceu a partida encerrada da FINAL. Mesma lógica do `lost` acima — sem esse ramo, o
+  // campeão também cairia no fallback e ouviria que ainda falta vencer fases que já venceu.
   //
-  // A ORDEM destes dois `if` é obrigatória, não estética: a disputa de 3º lugar recebe o MESMO
-  // número de rodada da final (`category-bracket-builders.ts`, "3º lugar: perdedores das
-  // semifinais" — `round: roundStart + totalRounds - 1`, igual ao da final). Um atleta que
-  // perdeu a semifinal e venceu o 3º lugar tem uma partida completed em `lastRound` com vitória
-  // dele — bateria no `champion` abaixo se ele rodasse primeiro, coroando um 3º colocado. Só não
-  // acontece porque o `lost` acima já devolveu `null` pra esse atleta antes de chegar aqui.
-  const lastRound = rounds[rounds.length - 1];
-  const champion = myKnockouts.some((m) => m.round === lastRound && outcomeOf(m, myTeamIds) === 'win');
+  // Checado por `matchType === 'final'` (case-insensitive, trim — mesmo critério de
+  // `knockoutLabelOf` em `tournament-live.selectors.ts`), NUNCA por `round === lastRound` (achado
+  // N2, round 3 de review): a disputa de 3º lugar recebe o MESMO número de rodada da final
+  // (`category-bracket-builders.ts`, "3º lugar: perdedores das semifinais" — `round: roundStart +
+  // totalRounds - 1`, igual ao da final), então checar por round faria um atleta que perdeu a
+  // semifinal e venceu o 3º lugar (uma partida completed em `lastRound` com vitória dele) coroar
+  // como campeão — e a única coisa que impedia isso era a ORDEM dos `if`s (`lost` primeiro), sem
+  // nenhuma blindagem própria neste ramo. Checar o `matchType` elimina essa dependência de ordem:
+  // "Third Place" nunca é lido como "Final" não importa em que sequência os `if`s rodem. A ordem
+  // `lost`-antes-de-`champion` continua correta por outro motivo (eliminado nunca é campeão), só
+  // deixou de ser a ÚNICA defesa contra essa colisão específica.
+  const champion = myKnockouts.some((m) => m.matchType.trim().toLowerCase() === 'final' && outcomeOf(m, myTeamIds) === 'win');
   if (champion) return 0;
 
   const myPending = myKnockouts

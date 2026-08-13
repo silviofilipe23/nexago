@@ -52,6 +52,15 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
 
 const MINE = new Set(['mine']);
 
+// `matchType` nos fixtures abaixo usa a forma REAL que `buildSingleEliminationMatches`/
+// `buildDoubleEliminationMatches` gravam (`functions/src/category-bracket-builders.ts`):
+// `'knockout'` pra qualquer rodada de mata-mata que não seja a final — o gerador NÃO distingue
+// quartas de semifinal por `matchType`, só pelo campo `round` — e `'Final'`/`'Third Place'` com
+// essa grafia exata. Achado do round 3 de review, pinado aqui: com nomes plausíveis mas
+// inexistentes na produção (`'quarterfinal'`/`'semifinal'`) o fixture ficava mentiroso assim que
+// a detecção de campeão passou a ser por `matchType` em vez de por `round` (N2). EXCEÇÃO: o
+// primeiro teste de `futurePhasesOf` abaixo mantém `matchType: 'semifinal'` de propósito — ver o
+// comentário lá.
 describe('journeyHeadlineOf', () => {
   it('sem número honesto (chave não sorteada, dupla eliminação ou já eliminado), some por completo', () => {
     expect(journeyHeadlineOf(null)).toBeNull();
@@ -91,7 +100,7 @@ describe('bestPossiblePlaceOf', () => {
 describe('journeyPathOf', () => {
   it('agrupa em `mine` as partidas de grupo e de mata-mata já com o atleta, em ordem cronológica', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'mine', teamBId: 'y', scheduleTime: new Date('2026-08-12T11:00:00-03:00') }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: 'y', scheduleTime: new Date('2026-08-12T11:00:00-03:00') }),
       match({ id: 'g1', poolId: 'p1', categoryId: 'c1', teamAId: 'mine', teamBId: 'x', scheduleTime: new Date('2026-08-12T09:00:00-03:00') }),
     ];
     const path = journeyPathOf(matches, 'c1', MINE);
@@ -100,8 +109,8 @@ describe('journeyPathOf', () => {
 
   it('agrupa em `future` as fases de mata-mata sem dono, em ordem de round', () => {
     const matches = [
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, teamAId: '', teamBId: '' }),
-      match({ id: 'q2', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'a', teamBId: 'b' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      match({ id: 'q2', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'a', teamBId: 'b' }),
     ];
     const path = journeyPathOf(matches, 'c1', MINE);
     expect(path.future.map((m) => m.id)).toEqual(['q2', 's1']);
@@ -116,7 +125,7 @@ describe('journeyPathOf', () => {
 
   it('não inclui em `future` uma partida de mata-mata já encerrada entre outras duas duplas', () => {
     const matches = [
-      match({ id: 'q-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'a', teamBId: 'b', winnerId: 'a' }),
+      match({ id: 'q-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'a', teamBId: 'b', winnerId: 'a' }),
     ];
     const path = journeyPathOf(matches, 'c1', MINE);
     expect(path.future).toEqual([]);
@@ -130,6 +139,14 @@ describe('journeyPathOf', () => {
 });
 
 describe('futurePhasesOf', () => {
+  // NÃO renomeado pra 'knockout' (achado do round 3 de review, deixado como registro em vez de
+  // "consertado" silenciosamente): a produção nunca escreve `matchType: 'semifinal'` — só
+  // `'knockout'` — e `knockoutLabelOf('knockout')` cai fora de `KNOCKOUT_LABELS`
+  // (`tournament-live.selectors.ts`), virando o rótulo genérico "Knockout" em vez de "Quartas" ou
+  // "Semifinal". Trocar o fixture pra `'knockout'` mudaria o valor esperado abaixo de 'Semifinal'
+  // pra 'Knockout' — exatamente o "se um valor esperado precisar mudar, pare e reporte" do
+  // coordenador. `knockoutLabelOf` é função já hardenizada (fora do escopo desta task), então isso
+  // fica registrado aqui e no report em vez de decidido por conta própria.
   it('uma fase futura vira uma linha', () => {
     const future = [match({ id: 's1', round: 2, matchType: 'semifinal', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' })];
     expect(futurePhasesOf(future)).toEqual([{ round: 2, phaseLabel: 'Semifinal', timeLabel: null }]);
@@ -137,15 +154,15 @@ describe('futurePhasesOf', () => {
 
   it('duas partidas paralelas do MESMO round (grupos diferentes da chave, nenhum com dono) viram UMA linha só', () => {
     const future = [
-      match({ id: 'q1', round: 1, matchType: 'quarterfinal', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' }),
-      match({ id: 'q2', round: 1, matchType: 'quarterfinal', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      match({ id: 'q1', round: 1, matchType: 'knockout', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' }),
+      match({ id: 'q2', round: 1, matchType: 'knockout', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '' }),
     ];
     expect(futurePhasesOf(future).length).toBe(1);
   });
 
   it('mostra o horário só quando a fase já tem um horário real marcado', () => {
     const scheduled = new Date('2026-08-12T18:00:00-03:00');
-    const future = [match({ id: 'f1', round: 3, matchType: 'final', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', scheduleTime: scheduled })];
+    const future = [match({ id: 'f1', round: 3, matchType: 'Final', poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', scheduleTime: scheduled })];
     expect(futurePhasesOf(future)[0]?.timeLabel).not.toBeNull();
   });
 });
@@ -158,19 +175,19 @@ describe('possibleOpponentsOf', () => {
   ];
 
   it('lista os dois lados de uma partida de mata-mata pendente e sem o atleta', () => {
-    const matches = [match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'x', teamBId: 'y' })];
+    const matches = [match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'x', teamBId: 'y' })];
     const opponents = possibleOpponentsOf(matches, 'c1', MINE, duoNameOf, duoPlayersOf);
     expect(opponents.map((o) => o.teamId)).toEqual(['x', 'y']);
   });
 
   it('nunca lista um slot ainda sem dono ("a definir") — não adivinha adversário', () => {
-    const matches = [match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, teamAId: '', teamBId: '' })];
+    const matches = [match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' })];
     expect(possibleOpponentsOf(matches, 'c1', MINE, duoNameOf, duoPlayersOf)).toEqual([]);
   });
 
   it('não lista uma partida de mata-mata já encerrada — a dupla perdedora está eliminada e não pode mais cruzar com ninguém', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'x', teamBId: 'y', winnerId: 'x' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'x', teamBId: 'y', winnerId: 'x' }),
     ];
     expect(possibleOpponentsOf(matches, 'c1', MINE, duoNameOf, duoPlayersOf)).toEqual([]);
   });
@@ -182,8 +199,8 @@ describe('possibleOpponentsOf', () => {
 
   it('não lista o time do próprio atleta, mesmo que apareça em outra partida da chave', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'mine', teamBId: 'x' }),
-      match({ id: 'q2', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'y', teamBId: 'z' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: 'x' }),
+      match({ id: 'q2', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'y', teamBId: 'z' }),
     ];
     const opponents = possibleOpponentsOf(matches, 'c1', MINE, duoNameOf, duoPlayersOf);
     expect(opponents.map((o) => o.teamId)).toEqual(['y', 'z']);
@@ -191,8 +208,8 @@ describe('possibleOpponentsOf', () => {
 
   it('não duplica um time que aparece em mais de uma partida pendente sem o atleta', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'x', teamBId: 'y' }),
-      match({ id: 'q2', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, teamAId: 'x', teamBId: 'z' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'x', teamBId: 'y' }),
+      match({ id: 'q2', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'x', teamBId: 'z' }),
     ];
     const opponents = possibleOpponentsOf(matches, 'c1', MINE, duoNameOf, duoPlayersOf);
     expect(opponents.map((o) => o.teamId)).toEqual(['x', 'y', 'z']);
@@ -217,21 +234,21 @@ describe('bracketWorstPlaceOf', () => {
 
   it('perdeu a semifinal, com a disputa de 3º lugar já pendente na mesma rodada da final: ainda garantiu o 4º, não o 2º', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
       // `loserAdvance` da semifinal já preencheu o slot do atleta aqui, no MESMO round da final —
       // é exatamente essa colisão que faz "o maior round" mentir. Ver o comentário do describe.
-      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, teamAId: 'y', teamBId: '' }),
+      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Third Place', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: 'y', teamBId: '' }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
   });
 
   it('perdeu a disputa de 3º lugar (depois de perder a semifinal): ainda garantiu o 4º', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
-      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'w', winnerId: 'w' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
+      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Third Place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'w', winnerId: 'w' }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
   });
@@ -243,9 +260,9 @@ describe('bracketWorstPlaceOf', () => {
   // inteiro existe pra evitar.
   it('venceu a disputa de 3º lugar: continua reportando o 4º, não o 3º — conservadorismo deliberado', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
-      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'w', winnerId: 'mine' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
+      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Third Place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'w', winnerId: 'mine' }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
   });
@@ -254,7 +271,7 @@ describe('bracketWorstPlaceOf', () => {
     const matches = [
       // Só o `matchType` 'WB'/'LB' já basta pra `isDoubleElimination` — ver `bracket-tree.ts`.
       match({ id: 'wbf', poolId: '', categoryId: 'c1', round: 2, matchType: 'WB', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 'gf', poolId: '', categoryId: 'c1', round: 1, matchType: 'final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      match({ id: 'gf', poolId: '', categoryId: 'c1', round: 1, matchType: 'Final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBeNull();
   });
@@ -262,25 +279,25 @@ describe('bracketWorstPlaceOf', () => {
   it('dupla eliminação — campeão da LB com a Grand Final ainda pendente: `null`, nunca 1º', () => {
     const matches = [
       match({ id: 'lbf', poolId: '', categoryId: 'c1', round: 3, matchType: 'LB', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 'gf', poolId: '', categoryId: 'c1', round: 1, matchType: 'final', isGroupMatch: false, teamAId: '', teamBId: 'mine' }),
+      match({ id: 'gf', poolId: '', categoryId: 'c1', round: 1, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: 'mine' }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBeNull();
   });
 
   it('perdeu as quartas (chave QF/SF/F): ainda garantiu o 8º, não `null`', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
   });
 
   it('vivo, com a final pendente: pior colocação possível 2º — inalterado em relação a hoje', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, teamAId: 'mine', teamBId: 'z' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: 'mine', teamBId: 'z' }),
     ];
     const worst = bracketWorstPlaceOf(matches, 'c1', MINE);
     expect(worst).toBe(2);
@@ -293,7 +310,7 @@ describe('bracketWorstPlaceOf', () => {
 
   it('campeão (venceu a final): pior colocação possível 1º — inalterado em relação a hoje', () => {
     const matches = [
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'z', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'z', winnerId: 'mine' }),
     ];
     const worst = bracketWorstPlaceOf(matches, 'c1', MINE);
     expect(worst).toBe(1);
@@ -303,5 +320,49 @@ describe('bracketWorstPlaceOf', () => {
   it('nunca entrou no mata-mata (só grupo, ou grupo ainda sem chave sorteada): `null`, sem nada garantido', () => {
     const matches = [match({ id: 'g1', poolId: 'p1', categoryId: 'c1', teamAId: 'mine', teamBId: 'x' })];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBeNull();
+  });
+
+  // Achado N1 do round 3 de review, confirmado por execução contra o gerador real
+  // (`buildSingleEliminationMatches`): um BYE vira uma partida de verdade — `A=mine, B=—`,
+  // gravada `status: Scheduled` (`organizer-category-ops.ts:287`) — e NINGUÉM NUNCA JOGA. Sem
+  // piso, "a partida pendente mais cedo" ancora nesse bye pra sempre: um atleta que recebeu bye
+  // na 1ª rodada e já venceu tudo depois continuava lendo a 1ª rodada como referência. Byes
+  // existem em todo mata-mata que não é potência de 2 (6 duplas → 2 byes; 12 duplas → 4 byes) —
+  // era, na prática, o bug do round 1 (a garantia sumindo) reintroduzido pra boa parte das chaves
+  // reais, só que silenciosamente (`guaranteedPrizeOf` não acha prêmio pra uma colocação tão
+  // ruim quanto "8º"/"16º" e o card inteiro desaparece, em vez de mostrar um valor obviamente
+  // errado). Fixtures no formato REAL do gerador (`bracketSize` = próxima potência de 2, byes na
+  // 1ª rodada contra os melhores seeds — `standardSeedSlots`), não hipotéticas.
+  describe('achado N1 — bye ancorando a referência na 1ª rodada pra sempre', () => {
+    it('6 duplas (bracketSize 8, 2 byes): bye na 1ª rodada, venceu a 2ª, pendente na final → 2º, não 8º', () => {
+      const matches = [
+        // Bye: o gerador grava a partida mesmo assim, só que nunca é jogada.
+        match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r1-outros', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'a', teamBId: 'b' }),
+        match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+        match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r3-3lugar', poolId: '', categoryId: 'c1', round: 3, matchType: 'Third Place', isGroupMatch: false, teamAId: 'a', teamBId: 'c' }),
+      ];
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(2);
+    });
+
+    it('6 duplas (bracketSize 8, 2 byes): bye na 1ª rodada, venceu tudo até a final → campeão (1º), não 8º', () => {
+      const matches = [
+        match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+        match({ id: 'r3-final', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      ];
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(1);
+    });
+
+    it('12 duplas (bracketSize 16, 4 byes): bye na 1ª rodada, venceu a 2ª e a 3ª, pendente na final → 2º, não 16º', () => {
+      const matches = [
+        match({ id: 'bye', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+        match({ id: 'r2', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+        match({ id: 'r3', poolId: '', categoryId: 'c1', round: 3, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+        match({ id: 'r4-final', poolId: '', categoryId: 'c1', round: 4, matchType: 'Final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      ];
+      expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(2);
+    });
   });
 });

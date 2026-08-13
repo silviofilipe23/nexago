@@ -36,6 +36,14 @@ function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>):
 
 const MINE = new Set(['mine']);
 
+// `matchType` nos fixtures abaixo usa a forma REAL que `buildSingleEliminationMatches`/
+// `buildDoubleEliminationMatches` gravam (`functions/src/category-bracket-builders.ts`):
+// `'knockout'` pra qualquer rodada de mata-mata que não seja a final (o gerador NÃO distingue
+// quartas de semifinal por `matchType` — só o campo `round` diferencia), `'Final'` e
+// `'Third Place'` com essa grafia exata. Achado do round 3 de review: os fixtures chegaram a usar
+// `'quarterfinal'`/`'semifinal'`/`'final'`/`'third place'` (nomes plausíveis, mas que o gerador
+// nunca escreve) — inofensivo enquanto a detecção de campeão era por `round`, mas viraria um
+// fixture mentiroso assim que a detecção passou a ser por `matchType`.
 describe('winsToTitleOf', () => {
   it('devolve null sem chave sorteada', () => {
     const groups = [match({ id: 'g1', poolId: 'p1', categoryId: 'c1', teamAId: 'mine', teamBId: 'x' })];
@@ -45,18 +53,18 @@ describe('winsToTitleOf', () => {
   it('conta as fases de mata-mata quando o atleta ainda está nos grupos', () => {
     const matches = [
       match({ id: 'g1', poolId: 'p1', categoryId: 'c1', teamAId: 'mine', teamBId: 'x' }),
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false }),
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBe(3);
   });
 
   it('desconta as fases já vencidas quando o atleta está no mata-mata', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, teamAId: 'mine', teamBId: 'y' }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: 'y' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false }),
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBe(2);
   });
@@ -67,18 +75,18 @@ describe('winsToTitleOf', () => {
   // `rounds.length` (3), não com o valor honesto.
   it('devolve null quando o atleta já perdeu no mata-mata (eliminado, sem caminho pro título)', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false }),
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBeNull();
   });
 
   it('devolve 0 quando o atleta já venceu a final (campeão, zero vitórias faltando)', () => {
     const matches = [
-      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
-      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'z', winnerId: 'mine' }),
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'z', winnerId: 'mine' }),
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBe(0);
   });
@@ -88,11 +96,18 @@ describe('winsToTitleOf', () => {
   // atleta que perdeu a semifinal e venceu o 3º lugar NÃO pode virar "campeão" só porque tem uma
   // vitória completed em `lastRound` — pina que o `lost` (perdeu a semifinal) decide antes do
   // `champion` chegar a olhar pro 3º lugar.
+  //
+  // Fix round 3 (Task 8), achado N2: a detecção de campeão agora é por `matchType === 'final'`
+  // (case-insensitive), não mais por `round === lastRound` — então este teste passa a ter DUAS
+  // defesas independentes contra a colisão de round: a ordem `lost`-antes-de-`champion` (que
+  // continua obrigatória por outro motivo — ver o parágrafo acima) E o fato de "Third Place" nunca
+  // ser lido como "Final" não importa em que ordem os `if`s rodem. Mantido com `lost` primeiro
+  // mesmo assim, porque essa ordem também é o que garante "eliminado nunca é campeão" em geral.
   it('não confunde vencer o 3º lugar com ser campeão quando os dois dividem a última rodada', () => {
     const matches = [
-      match({ id: 'sf', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
-      match({ id: 'tp', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, status: 'completed', teamAId: 'x', teamBId: 'z', winnerId: 'x' }),
+      match({ id: 'sf', poolId: '', categoryId: 'c1', round: 2, matchType: 'knockout', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
+      match({ id: 'tp', poolId: '', categoryId: 'c1', round: 3, matchType: 'Third Place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'Final', isGroupMatch: false, status: 'completed', teamAId: 'x', teamBId: 'z', winnerId: 'x' }),
     ];
     expect(winsToTitleOf(matches, 'c1', MINE)).toBeNull();
   });

@@ -1,6 +1,8 @@
 import type { TournamentMatch } from '../../../data/matches-repository';
+import { winsToTitleOf } from '../focus-journey';
 import {
   bestPossiblePlaceOf,
+  bracketWorstPlaceOf,
   futurePhasesOf,
   journeyHeadlineOf,
   journeyPathOf,
@@ -194,5 +196,61 @@ describe('possibleOpponentsOf', () => {
     ];
     const opponents = possibleOpponentsOf(matches, 'c1', MINE, duoNameOf, duoPlayersOf);
     expect(opponents.map((o) => o.teamId)).toEqual(['x', 'y', 'z']);
+  });
+});
+
+describe('bracketWorstPlaceOf', () => {
+  // Achado do round 1 de review: `winsToTitleOf` vira `null` assim que o atleta perde — correto
+  // pra "quantas vitórias faltam pro título" (deixa de fazer sentido), mas `bracketWorstPlaceOf`
+  // responde uma pergunta diferente ("o que já está garantido") que continua valendo depois da
+  // eliminação. Os dois testes abaixo, ANTES deste fix, reproduziam a fórmula antiga
+  // (`bestPossiblePlaceOf(winsToTitleOf(...))`) e falhavam com "Expected undefined to be 4"/"...8"
+  // — a premiação sumia do card justo quando o atleta mais queria ver o que já tinha embolsado.
+
+  it('perdeu a semifinal (chave QF/SF/F): ainda garantiu o 4º, não `null`', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+    ];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
+  });
+
+  it('perdeu as quartas (chave QF/SF/F): ainda garantiu o 8º, não `null`', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'x' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+    ];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
+  });
+
+  it('vivo, com a final pendente: pior colocação possível 2º — inalterado em relação a hoje', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'mine' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, teamAId: 'mine', teamBId: 'z' }),
+    ];
+    const worst = bracketWorstPlaceOf(matches, 'c1', MINE);
+    expect(worst).toBe(2);
+    // Pino de equivalência: nos casos VIVOS, `bracketWorstPlaceOf` tem que bater exatamente com
+    // a fórmula antiga (`bestPossiblePlaceOf` sobre `winsToTitleOf`) — as duas perguntas só
+    // coincidem enquanto o atleta segue vivo (ver a doc de `bracketWorstPlaceOf`). Se este
+    // `expect` quebrar, as duas fórmulas divergiram onde NÃO deveriam.
+    expect(worst).toBe(bestPossiblePlaceOf(winsToTitleOf(matches, 'c1', MINE)!));
+  });
+
+  it('campeão (venceu a final): pior colocação possível 1º — inalterado em relação a hoje', () => {
+    const matches = [
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'z', winnerId: 'mine' }),
+    ];
+    const worst = bracketWorstPlaceOf(matches, 'c1', MINE);
+    expect(worst).toBe(1);
+    expect(worst).toBe(bestPossiblePlaceOf(winsToTitleOf(matches, 'c1', MINE)!));
+  });
+
+  it('nunca entrou no mata-mata (só grupo, ou grupo ainda sem chave sorteada): `null`, sem nada garantido', () => {
+    const matches = [match({ id: 'g1', poolId: 'p1', categoryId: 'c1', teamAId: 'mine', teamBId: 'x' })];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBeNull();
   });
 });

@@ -46,6 +46,56 @@ export function bestPossiblePlaceOf(wins: number): number {
   return 2 ** wins;
 }
 
+/** Fases de mata-mata da categoria, da mais distante da final pra final — mesma extração que
+ *  `focus-journey.ts` já faz em `knockoutRounds` (privada lá). Duplicada aqui de propósito, não
+ *  importada: é a única peça de informação que `bracketWorstPlaceOf` precisaria pedir emprestada
+ *  de `winsToTitleOf`, e o ponto inteiro de `bracketWorstPlaceOf` é NÃO depender dela — ver o
+ *  porquê no comentário abaixo. */
+function knockoutRoundsOf(matches: readonly TournamentMatch[], categoryId: string): number[] {
+  const rounds = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch).map((m) => m.round);
+  return [...new Set(rounds)].sort((a, b) => a - b);
+}
+
+/**
+ * A pior colocação que a posição REAL do atleta na chave ainda permite — vivo, com uma partida
+ * de mata-mata pendente numa fase, OU já eliminado nela. `2 ** (rodadas restantes a partir da
+ * fase de referência)`, a mesma régua de `bestPossiblePlaceOf`, mas aplicada à fase em que o
+ * atleta REALMENTE está, não à contagem de vitórias que faltam pro título.
+ *
+ * NÃO deriva de `winsToTitleOf`, de propósito. `winsToTitleOf` responde "quantas vitórias faltam
+ * pro título" — uma pergunta que deixa de fazer sentido assim que o atleta perde, e por isso ela
+ * devolve `null` nesse momento (ver a doc dela em `focus-journey.ts`). Só que "o que a premiação
+ * já garante" é uma pergunta DIFERENTE, que continua fazendo sentido depois da eliminação: quem
+ * venceu a quartas e perdeu a semifinal, numa chave QF/SF/F, segue garantido em 4º — e este app
+ * modela uma disputa de 3º lugar de verdade (`KNOCKOUT_LABELS['third place']`,
+ * `category-bracket-builders.ts`) que essa dupla ainda vai jogar por dinheiro real. As duas
+ * perguntas só COINCIDEM enquanto o atleta segue vivo (por isso os casos "vivo" batem com
+ * `bestPossiblePlaceOf(winsToTitleOf(...))`, ver `focus-journey.component.spec.ts`) — encadear
+ * esta função a `winsToTitleOf` faria a premiação já garantida sumir do card bem no momento em
+ * que o atleta mais quer ver o que ele já embolsou.
+ *
+ * `null` só quando o atleta não tem NENHUMA partida de mata-mata na categoria (ainda nos grupos,
+ * ou chave/categoria sem mata-mata) — sem posição na chave, não há o que garantir. Mesma condição
+ * do gate `inKnockout` do componente; mantida aqui também pra a função ficar íntegra sozinha.
+ */
+export function bracketWorstPlaceOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): number | null {
+  const rounds = knockoutRoundsOf(matches, categoryId);
+  const myKnockouts = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
+  if (myKnockouts.length === 0) return null;
+
+  // A fase de referência é sempre a de round mais alto entre as partidas do atleta: enquanto ele
+  // avança, `winnerAdvance` já grava o time dele na próxima partida (ver a doc de
+  // `journeyPathOf`/`possibleOpponentsOf` sobre esse mecanismo), então essa partida mais recente
+  // é sempre a pendente atual OU a que ele perdeu — nunca uma vitória de uma fase anterior.
+  const reference = myKnockouts.reduce((latest, m) => (m.round > latest.round ? m : latest));
+  const index = rounds.indexOf(reference.round);
+  const isLastRound = reference.round === rounds[rounds.length - 1];
+  const champion = isLastRound && outcomeOf(reference, myTeamIds) === 'win';
+  if (champion) return 1;
+
+  return 2 ** (rounds.length - index);
+}
+
 export interface JourneyPath {
   mine: readonly TournamentMatch[];
   future: readonly TournamentMatch[];
@@ -260,17 +310,18 @@ export class FocusJourneyComponent {
   private readonly prizes = computed(() => this.store.tournament()?.tournamentPrizes ?? []);
 
   /**
-   * `winsToTitleOf` também devolve um número enquanto o atleta ainda está só nos grupos —
-   * deliberadamente otimista, por design dela (ver a doc em `focus-journey.ts`: não detecta
-   * eliminação por resultado de grupo). Reaproveitar esse número aqui SEM o gate `inKnockout`
-   * prometeria "garantido" a quem pode nem se classificar pro mata-mata — dinheiro que o atleta
-   * pode nunca ver. Só calcula a premiação garantida depois que o atleta tem um assento
-   * confirmado na chave.
+   * Gate em `inKnockout`, não em `winsToTitle()`: um atleta ainda nos grupos pode nem se
+   * classificar pro mata-mata, então nenhuma colocação está garantida antes de um assento
+   * confirmado na chave (mesmo raciocínio de sempre — ver `inKnockout` acima). A colocação em si
+   * vem de `bracketWorstPlaceOf`, não de `winsToTitle()`: essa última fica `null` assim que o
+   * atleta perde uma partida do mata-mata, e a premiação já garantida NÃO deveria desaparecer
+   * nesse momento — ver a doc de `bracketWorstPlaceOf` pro porquê.
    */
   protected readonly guaranteedPrize = computed<TournamentPrize | null>(() => {
-    const wins = this.winsToTitle();
-    if (wins == null || !this.inKnockout()) return null;
-    return guaranteedPrizeOf(this.prizes(), bestPossiblePlaceOf(wins));
+    if (!this.inKnockout()) return null;
+    const worstPlace = bracketWorstPlaceOf(this.store.matches(), this.store.focusCategoryId() ?? '', this.store.myTeamIds());
+    if (worstPlace == null) return null;
+    return guaranteedPrizeOf(this.prizes(), worstPlace);
   });
 
   protected readonly prizeRows = computed<JourneyPrizeRow[]>(() => {

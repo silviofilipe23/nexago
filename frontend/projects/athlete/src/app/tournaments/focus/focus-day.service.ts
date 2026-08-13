@@ -81,8 +81,14 @@ export class FocusDayService {
     return isFocusDismissed(this.read(), uid, now);
   }
 
-  /** Chamado ao sair do Focus: silencia a entrada automática até o dia seguinte — só para ESTE
-   *  atleta, para não silenciar o Focus de outra conta no mesmo dispositivo compartilhado. */
+  /** Chamado ao sair do Focus: silencia a entrada AUTOMÁTICA até o dia seguinte — só para ESTE
+   *  atleta, para não silenciar o Focus de outra conta no mesmo dispositivo compartilhado.
+   *
+   *  NÃO zera `target`: esse signal continua valendo como "existe partida hoje" para o botão
+   *  manual "Entrar no Focus" do painel (`AthletePainelComponent`) — dispensar a entrada
+   *  automática não apaga o fato de que o dia tem jogo, só a decisão de levar o atleta pra lá
+   *  sem ele pedir. Zerar `target` aqui faria o único caminho de volta desaparecer bem no
+   *  momento em que o atleta sai do Focus e mais precisaria dele. */
   dismissForToday(now: Date = new Date()): void {
     const uid = this.auth.user()?.uid ?? '';
     try {
@@ -91,7 +97,6 @@ export class FocusDayService {
       // Modo privativo ou quota estourada: sem a marca o Focus reabre no próximo painel.
       // Degradar é melhor que estourar na saída do Focus.
     }
-    this._target.set(null);
     this.pending = null;
     this.pendingKey = null;
   }

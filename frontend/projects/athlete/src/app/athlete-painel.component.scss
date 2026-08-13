@@ -207,6 +207,22 @@
   }
 }
 
+// ── Entrar no Focus (card de acompanhamento) ────────────────
+.at-focus-banner {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.at-focus-banner-text {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+  margin: 4px 0 0;
+}
+
 .at-card-head {
   display: flex;
   align-items: center;

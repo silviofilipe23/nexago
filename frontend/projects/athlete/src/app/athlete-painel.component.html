@@ -89,6 +89,19 @@
       }
     </div>
 
+    @if (focusDay.target(); as focusTarget) {
+      <!-- Fallback permanente pra quem saiu do Modo Focus (ou nunca entrou) e quer voltar — a
+           entrada automática dispara só uma vez por dia. Espelha o "Entrar no Focus" da casca
+           do torneio (`tournament-shell.component.html`). -->
+      <div class="at-card at-card--accent at-focus-banner">
+        <div>
+          <div class="at-card-kicker">Hoje tem torneio</div>
+          <p class="at-focus-banner-text">Sua partida do dia te espera no Modo Focus.</p>
+        </div>
+        <a [routerLink]="['/torneios', focusTarget.tournamentId, 'focus']" class="at-mini-btn at-mini-btn--primary">Entrar no Focus</a>
+      </div>
+    }
+
     @if (inProgressRegistrations().length > 0) {
       <at-registration-tracker
         [items]="inProgressRegistrations()"

@@ -61,6 +61,24 @@ describe('FocusDayService.resolve', () => {
     expect(await service.resolve(TODAY)).toBeNull();
   });
 
+  // Finding 3 da revisão: dismissForToday() silencia só a ENTRADA AUTOMÁTICA (é o que
+  // `resolve()` acima verifica) — não apaga o fato de que existe partida hoje. O painel usa o
+  // signal `target` como caminho manual de volta ("Entrar no Focus") depois que o atleta sai;
+  // se `dismissForToday()` zerasse `target`, esse botão desapareceria bem no momento em que o
+  // atleta mais precisa dele.
+  it('dismissForToday() não apaga `target` — é o caminho manual de volta do painel depois que o atleta sai', async () => {
+    const { service, userSignal } = setup();
+    userSignal.set({ uid: 'userA' });
+    stubLoad(service, TARGET);
+
+    expect(await service.resolve(TODAY)).toEqual(TARGET);
+    expect(service.target()).toEqual(TARGET);
+
+    service.dismissForToday(TODAY);
+
+    expect(service.target()).toEqual(TARGET);
+  });
+
   // Mesmo dispositivo, troca de conta na mesma sessão (mesma instância do serviço): a marca de
   // "já oferecido" do atleta A não pode silenciar a oferta do atleta B no mesmo dia.
   it('outro atleta no mesmo dispositivo/dia: a marca de quem já foi oferecido não silencia o outro', async () => {

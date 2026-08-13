@@ -413,7 +413,10 @@ export class AthletePainelComponent {
   protected readonly auth = inject(AuthService);
   private readonly gamification = inject(AthleteGamificationService);
   private readonly router = inject(Router);
-  private readonly focusDay = inject(FocusDayService);
+  /** `protected`, não `private`: o template lê `focusDay.target()` direto pra mostrar "Entrar
+   *  no Focus" quando há partida hoje — sem reimplementar a detecção aqui (ver o comentário de
+   *  `dismissForToday()` sobre por que o signal sobrevive à saída do Focus). */
+  protected readonly focusDay = inject(FocusDayService);
   private readonly firestore = createFirestore();
 
   private readonly bookingsState = signal<readonly MyBooking[]>([]);

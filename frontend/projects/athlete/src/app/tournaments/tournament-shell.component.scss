@@ -31,6 +31,14 @@ router-outlet + * {
     padding: var(--nx-s-4) var(--nx-s-4) var(--nx-s-8);
     gap: var(--nx-s-4);
   }
+
+  // Barra fixa do Focus (~48px) acima da bottom nav (64px). Só no breakpoint em
+  // que a nav existe — senão o padding extra sobra no desktop.
+  @media (max-width: 900px) {
+    &.tsh--with-focus-entry {
+      padding-bottom: calc(var(--nx-s-8) + 56px);
+    }
+  }
 }
 
 // Altura real de 44px em vez do pseudo-elemento: o alvo ampliado por `::after` funciona no
@@ -164,6 +172,7 @@ router-outlet + * {
 .tsh-focus-entry {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   min-height: 44px;
   padding: 0 var(--nx-s-4);
@@ -179,6 +188,19 @@ router-outlet + * {
   &:hover,
   &:focus-visible {
     filter: brightness(1.08);
+  }
+
+  // Acima da bottom nav (64px, mesmo breakpoint do `.at-bottom-nav`), largura total.
+  @media (max-width: 900px) {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 64px;
+    z-index: 39;
+    width: 100%;
+    min-height: 48px;
+    border-radius: 0;
+    padding: 0 var(--nx-s-4);
   }
 }
 

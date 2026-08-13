@@ -2,7 +2,7 @@
   @if (store.loading()) {
     <app-nx-page-loading title="Carregando torneio…" />
   } @else if (store.tournament(); as t) {
-    <div class="tsh">
+    <div class="tsh" [class.tsh--with-focus-entry]="showFocusEntry()">
       <!-- Voltar e Compartilhar dividem a mesma linha: no celular, o botão em linha própria
            custava ~60px de altura logo antes do conteúdo. -->
       <div class="tsh-topbar">
@@ -40,7 +40,7 @@
         @if (showFocusEntry()) {
           <!-- Quem dispensou o Focus hoje não é levado de volta automaticamente — este é o
                único caminho de volta até o silêncio expirar amanhã. -->
-          <a class="tsh-focus-entry" [routerLink]="['/torneios', t.id, 'focus']">Entrar no Focus</a>
+          <a class="tsh-focus-entry" [routerLink]="['/torneios', t.id, 'focus']">Entrar no modo Focus</a>
         }
       </div>
 

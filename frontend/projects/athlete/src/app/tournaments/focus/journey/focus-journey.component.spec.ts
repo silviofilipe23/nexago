@@ -1,11 +1,13 @@
 import type { TournamentMatch } from '../../../data/matches-repository';
-import { winsToTitleOf } from '../focus-journey';
+import { knockoutRounds, winsToTitleOf } from '../focus-journey';
+import type { FocusViewContext } from '../focus-views';
 import {
   bestPossiblePlaceOf,
   bracketWorstPlaceOf,
   futurePhasesOf,
   journeyHeadlineOf,
   journeyPathOf,
+  journeyStepsOf,
   possibleOpponentsOf,
 } from './focus-journey.component';
 
@@ -461,5 +463,113 @@ describe('bracketWorstPlaceOf', () => {
       expect(winsToTitleOf(matches, 'c1', MINE)).toBe(3);
       expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(8);
     });
+  });
+});
+
+/**
+ * A timeline "Caminho até a final" — o desenho do protótipo C1. O que cada degrau mostra sai
+ * daqui; o SCSS só pinta o estado que este `status` decide.
+ */
+describe('journeyStepsOf', () => {
+  function ctxOf(matches: readonly TournamentMatch[]): FocusViewContext {
+    return {
+      matches,
+      myTeamIds: MINE,
+      duoNameOf: (teamId, fallback) => (teamId ? `Dupla ${teamId}` : (fallback ?? 'A definir')),
+      duoPlayersOf: () => [
+        { initial: 'MA', photo: null },
+        { initial: 'EN', photo: null },
+      ],
+      isMyTeam: (teamId) => MINE.has(teamId),
+      standingsOf: () => [],
+      nextMatch: null,
+    };
+  }
+
+  const GROUP_WON = match({
+    id: 'g1',
+    poolId: 'pool-a',
+    round: 0,
+    status: 'completed',
+    teamAId: 'mine',
+    teamBId: 'rival',
+    winnerId: 'mine',
+    sets: [
+      { a: 21, b: 15 },
+      { a: 21, b: 12 },
+    ],
+    scheduleTime: new Date('2026-08-29T12:00:00Z'),
+    courtName: '3',
+  });
+
+  const GROUP_NEXT = match({ id: 'g2', poolId: 'pool-a', round: 1, teamAId: 'mine', teamBId: 'outro' });
+
+  function stepsOf(matches: readonly TournamentMatch[], nextMatchId: string | null = null, finalPrize: string | null = null) {
+    const path = journeyPathOf(matches, 'c1', MINE);
+    return journeyStepsOf(ctxOf(matches), path, knockoutRounds(matches, 'c1'), nextMatchId, finalPrize);
+  }
+
+  it('enfileira as partidas do atleta e depois as fases ainda sem dono', () => {
+    const semi = match({ id: 'sf', poolId: '', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: '', teamBId: '' });
+    const final = match({ id: 'f', poolId: '', round: 2, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' });
+
+    const steps = stepsOf([GROUP_WON, GROUP_NEXT, semi, final]);
+
+    expect(steps.map((s) => s.phaseLabel)).toEqual(['Rodada 1', 'Rodada 2', 'Semifinal', 'Final']);
+    expect(steps.map((s) => s.opponentName)).toEqual(['Dupla rival', 'Dupla outro', 'A definir', 'A definir']);
+    // Fase sem dono não abre partida nenhuma: o slot ainda não tem jogo pra mostrar.
+    expect(steps.slice(2).every((s) => s.matchId === null)).toBe(true);
+  });
+
+  it('marca vencida, a próxima e o resto — é o status que pinta o trilho', () => {
+    const steps = stepsOf([GROUP_WON, GROUP_NEXT], 'g2');
+
+    expect(steps.map((s) => s.status)).toEqual(['win', 'next']);
+  });
+
+  it('placar em sets na coluna da direita e os games na linha de baixo', () => {
+    const [won, pending] = stepsOf([GROUP_WON, GROUP_NEXT]);
+
+    expect(won?.scoreLabel).toBe('2 – 0');
+    expect(won?.detailLabel).toBe('21-15 · 21-12');
+    expect(pending?.scoreLabel).toBe('vs');
+  });
+
+  it('mostra horário e quadra do jeito curto da tabela', () => {
+    // "09:00", não "9:00": é o formato de hora que o app inteiro usa (`timeLabelOf`).
+    expect(stepsOf([GROUP_WON])[0]?.metaLabel).toBe('09:00 · Q3');
+  });
+
+  it('quadra com nome sai como o organizador escreveu, sem virar sigla', () => {
+    const named = match({ id: 'g3', poolId: 'pool-a', teamAId: 'mine', teamBId: 'rival', scheduleTime: new Date('2026-08-29T20:40:00Z'), courtName: 'Q. central' });
+
+    expect(stepsOf([named])[0]?.metaLabel).toBe('17:40 · Q. central');
+  });
+
+  it('sem horário nem quadra marcados, não inventa nada', () => {
+    expect(stepsOf([GROUP_NEXT])[0]?.metaLabel).toBeNull();
+  });
+
+  it('a final carrega a premiação do título', () => {
+    const final = match({ id: 'f', poolId: '', round: 1, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' });
+
+    expect(stepsOf([GROUP_NEXT, final], null, 'R$ 2.400')[1]?.detailLabel).toBe('R$ 2.400');
+  });
+
+  it('avisa que o adversário do mata-mata sai ao fim dos grupos', () => {
+    const semi = match({ id: 'sf', poolId: '', round: 1, matchType: 'knockout', isGroupMatch: false, teamAId: 'mine', teamBId: '', teamBDescription: '2º do Grupo A' });
+    // A final precisa existir no fixture: com uma rodada de mata-mata só, a derivação posicional
+    // leria a própria `sf` como Final (`knockoutLabelOf`) e a linha viraria a da premiação.
+    const final = match({ id: 'f', poolId: '', round: 2, matchType: 'Final', isGroupMatch: false, teamAId: '', teamBId: '' });
+
+    const [, qf] = stepsOf([GROUP_NEXT, semi, final]);
+
+    expect(qf?.opponentName).toBe('2º do Grupo A');
+    expect(qf?.detailLabel).toBe('sai ao fim dos grupos');
+  });
+
+  it('na última rodada em aberto do grupo, diz o que a partida decide', () => {
+    // Só a rodada 1 segue pendente: é ela que fecha a classificação.
+    expect(stepsOf([GROUP_WON, GROUP_NEXT])[1]?.detailLabel).toBe('decide a classificação do grupo');
   });
 });

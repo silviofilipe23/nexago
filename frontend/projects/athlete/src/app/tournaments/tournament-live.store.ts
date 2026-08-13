@@ -357,7 +357,9 @@ export class TournamentLiveStore {
     return distinctPoolIds(this.matches().filter((m) => m.categoryId === categoryId));
   }
 
-  standingsOf(poolId: string) {
-    return buildGroupStandings(this.matches(), poolId);
+  /** `categoryId` junto do `poolId` porque "Grupo A" existe em toda categoria do torneio e
+   *  `matches()` é o torneio inteiro — ver `buildGroupStandings`. */
+  standingsOf(categoryId: string, poolId: string) {
+    return buildGroupStandings(this.matches(), categoryId, poolId);
   }
 }

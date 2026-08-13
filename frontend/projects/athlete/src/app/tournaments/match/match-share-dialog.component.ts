@@ -87,8 +87,9 @@ export class MatchShareDialogComponent {
   }
 
   private phaseLabel(m: TournamentMatch): string {
-    if (m.poolId) return `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`;
+    // Categoria, nunca torneio: `poolId` só é único dentro da categoria (ver `buildGroupStandings`).
     const categoryMatches = this.store.matchesOfCategory(m.categoryId);
+    if (m.poolId) return `${groupLabelOf(m.poolId, categoryMatches)} · rodada ${roundDisplayNumberOf(categoryMatches, m.poolId, m.round)}`;
     return knockoutLabelOf(m, knockoutRounds(categoryMatches, m.categoryId));
   }
 

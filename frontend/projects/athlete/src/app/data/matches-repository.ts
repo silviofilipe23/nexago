@@ -410,8 +410,16 @@ function parseLegacyResult(raw: string | null): number[] {
 /** Classificação de grupo (round-robin) — espelha `tournament_group_standings_logic.dart`,
  *  simplificado: desempate por vitórias → saldo de sets → saldo de games (sem head-to-head
  *  detalhado, que exigiria reconstruir todos os confrontos par a par). */
-export function buildGroupStandings(matches: readonly TournamentMatch[], poolId: string): GroupStanding[] {
-  const poolMatches = matches.filter((m) => m.poolId === poolId);
+/**
+ * Classificação de UM grupo. `categoryId` é obrigatório de propósito: `poolId` é único só dentro
+ * da categoria — os geradores numeram os grupos como 'A', 'B', 'C'… por categoria (o portal do
+ * organizador em `seeds.component.ts` e o app em `category_ops_logic.dart`, ambos
+ * `String.fromCharCode(65 + i)`), então TODA categoria de um torneio com fase de grupos tem um
+ * "Grupo A". Filtrar só por `poolId` sobre a lista do torneio inteiro (`store.matches()`) fundia
+ * o Grupo A da categoria do atleta com o Grupo A das outras: um grupo de 4 duplas aparecia com 8.
+ */
+export function buildGroupStandings(matches: readonly TournamentMatch[], categoryId: string, poolId: string): GroupStanding[] {
+  const poolMatches = matches.filter((m) => m.categoryId === categoryId && m.poolId === poolId);
   const byTeam = new Map<string, GroupStanding>();
   const ensure = (id: string) =>
     byTeam.get(id) ?? byTeam.set(id, { teamId: id, wins: 0, losses: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 }).get(id)!;

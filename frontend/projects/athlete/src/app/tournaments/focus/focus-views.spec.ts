@@ -1,5 +1,7 @@
 import type { GroupStanding, TournamentMatch } from '../../data/matches-repository';
+import type { TournamentLiveStore } from '../tournament-live.store';
 import {
+  focusViewContextOf,
   liveRowsOf,
   lossesOf,
   nextMatchViewOf,
@@ -209,5 +211,38 @@ describe('qualificationNoteOf', () => {
     const note = qualificationNoteOf(ctxOf({ matches: [pending], standingsOf: () => standings }), 'pool-a', { qualifiersPerGroup: 2 }, 'teamMine');
     expect(note?.tone).toBe('neutral');
     expect(note?.text).toContain('Falta 1 partida no grupo');
+  });
+});
+
+describe('focusViewContextOf', () => {
+  /**
+   * O ctx recebia `store.matches()` — o TORNEIO INTEIRO — e todas as derivações por grupo daqui
+   * filtram por `poolId`, que só é único dentro da categoria: com um "Grupo A" em cada categoria,
+   * o grupo de 4 duplas do atleta aparecia com 8 na seção Grupo do Focus.
+   */
+  it('entrega só as partidas da categoria em foco e leva a categoria na classificação', () => {
+    const mine = match({ id: 'm1', categoryId: 'c1', poolId: 'A' });
+    const otherCategory = match({ id: 'm2', categoryId: 'c2', poolId: 'A' });
+    const standingsAsked: string[] = [];
+    const store = {
+      focusCategoryId: () => 'c1',
+      matches: () => [mine, otherCategory],
+      matchesOfCategory: (categoryId: string) => [mine, otherCategory].filter((m) => m.categoryId === categoryId),
+      myTeamIds: () => new Set<string>(),
+      duoNameOf: () => 'Dupla',
+      duoPlayersOf: () => [],
+      isMyTeam: () => false,
+      standingsOf: (categoryId: string, poolId: string) => {
+        standingsAsked.push(`${categoryId}/${poolId}`);
+        return [] as GroupStanding[];
+      },
+      nextMatch: () => null,
+    } as unknown as TournamentLiveStore;
+
+    const ctx = focusViewContextOf(store);
+    ctx.standingsOf('A');
+
+    expect(ctx.matches.map((m) => m.id)).toEqual(['m1']);
+    expect(standingsAsked).toEqual(['c1/A']);
   });
 });

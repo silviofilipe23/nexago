@@ -119,8 +119,10 @@ export class MatchDetailComponent {
   protected readonly phaseLabel = computed(() => {
     const m = this.match();
     if (!m) return '';
-    if (m.poolId) return `${groupLabelOf(m.poolId, this.store.matches())} · rodada ${roundDisplayNumberOf(this.store.matches(), m.poolId, m.round)}`;
+    // Sempre a categoria, nunca o torneio: as duas derivações abaixo recortam por `poolId`, que
+    // só é único dentro da categoria — 'Grupo A' existe em todas (ver `buildGroupStandings`).
     const categoryMatches = this.store.matchesOfCategory(m.categoryId);
+    if (m.poolId) return `${groupLabelOf(m.poolId, categoryMatches)} · rodada ${roundDisplayNumberOf(categoryMatches, m.poolId, m.round)}`;
     return knockoutLabelOf(m, knockoutRounds(categoryMatches, m.categoryId));
   });
 
@@ -199,12 +201,12 @@ export class MatchDetailComponent {
   /** "1º do Grupo B" — posição final/parcial da dupla no grupo por onde ela passou. */
   private seedLineOf(teamId: string, categoryMatches: readonly TournamentMatch[]): string | null {
     if (!teamId) return null;
-    const poolId = categoryMatches.find((m) => m.poolId && (m.teamAId === teamId || m.teamBId === teamId))?.poolId;
-    if (!poolId) return null;
-    const rows = this.store.standingsOf(poolId);
+    const poolMatch = categoryMatches.find((m) => m.poolId && (m.teamAId === teamId || m.teamBId === teamId));
+    if (!poolMatch) return null;
+    const rows = this.store.standingsOf(poolMatch.categoryId, poolMatch.poolId);
     const index = rows.findIndex((s) => s.teamId === teamId);
     if (index < 0) return null;
-    return `${ordinalOf(index + 1)} do ${groupLabelOf(poolId, categoryMatches)}`;
+    return `${ordinalOf(index + 1)} do ${groupLabelOf(poolMatch.poolId, categoryMatches)}`;
   }
 
   protected readonly sets = computed<SetRowView[]>(() => {

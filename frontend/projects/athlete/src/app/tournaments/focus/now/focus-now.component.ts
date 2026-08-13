@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { matchIsLive, type TournamentMatch } from '../../../data/matches-repository';
+import { MatchShareDialogComponent } from '../../match/match-share-dialog.component';
 import { eliminatedFromKnockout, hasPendingKnockout } from '../../tournament-live.selectors';
 import { focusViewContextOf, nextMatchViewOf, timelineOf } from '../focus-views';
 import { TournamentLiveStore } from '../../tournament-live.store';
@@ -43,7 +44,7 @@ export function nowStateOf(
  */
 @Component({
   selector: 'app-focus-now',
-  imports: [RouterLink],
+  imports: [RouterLink, MatchShareDialogComponent],
   templateUrl: './focus-now.component.html',
   styleUrl: './focus-now.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,6 +55,11 @@ export class FocusNowComponent {
   /** Fotografia do store consumida pelas funções puras de `focus/focus-views` — ver a
    *  documentação de `FocusViewContext` sobre por que essa indireção existe. */
   private readonly ctx = computed(() => focusViewContextOf(this.store));
+
+  /** Compartilhar a próxima partida — o MESMO diálogo da tela da partida
+   *  (`MatchShareDialogComponent`), que já monta o pôster, escolhe entre a folha nativa e o
+   *  download e injeta o store por conta própria. Aqui só decide quando ele aparece. */
+  protected readonly shareOpen = signal(false);
 
   protected readonly nextMatch = computed(() => nextMatchViewOf(this.ctx(), this.store.now()));
   protected readonly timeline = computed(() => timelineOf(this.ctx(), this.store.dayTimeline()));

@@ -332,7 +332,22 @@ describe('knockoutLabelOf', () => {
     expect(knockoutLabelOf(match({ id: 'gf', matchType: 'grand final', round: 1, poolId: '', isGroupMatch: false }), misleadingRounds)).toBe('Grand final');
   });
 
-  it('gerador real de eliminatória simples (8 duplas): nenhuma partida rotula "Knockout"', () => {
+  it('chave de 6 rodadas (33-64 duplas, sem teto no gerador): a 1ª rodada, a 6 rodadas da final, vira 32 avos', () => {
+    // Achado do round 1 de fix: a tabela posicional parava em distância 5 (16 avos). Uma categoria
+    // de 33-64 duplas (`buildSingleEliminationMatches` não tem teto — `organizer-category-ops.ts`)
+    // produz 6 rodadas de mata-mata; a 1ª rodada ficava sem entrada na tabela e caía no fallback
+    // que capitalizava o `matchType` cru — "Knockout" na 1ª rodada de toda chave grande.
+    const rounds = [1, 2, 3, 4, 5, 6];
+    expect(knockoutLabelOf(match({ id: 'r64', matchType: 'knockout', round: 1, poolId: '', isGroupMatch: false }), rounds)).toBe('32 avos');
+  });
+
+  it('round da partida fora da lista de rounds da categoria (dado inconsistente): "Rodada N", nunca o matchType cru', () => {
+    // O fallback final não pode mais vazar o `matchType` bruto capitalizado (removido no round 1
+    // de fix) — nem pra `'knockout'` fora de posição, nem pra qualquer outro valor desconhecido.
+    expect(knockoutLabelOf(match({ id: 'x', matchType: 'knockout', round: 9, poolId: '', isGroupMatch: false }), [1, 2, 3])).toBe('Rodada 9');
+  });
+
+  it('gerador real de eliminatória simples (8 duplas) — fixture que reproduz o formato do gerador: nenhuma partida rotula "Knockout"', () => {
     // Formato EXATO do que `buildSingleEliminationMatches(8 times)` grava
     // (`functions/src/category-bracket-builders.ts:198-344`): `functions/` e `frontend/` são
     // projetos independentes (toolchains diferentes — `node:test` lá, Karma aqui — sem precedente

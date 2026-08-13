@@ -229,18 +229,24 @@ const KNOCKOUT_LABELS: Record<string, string> = {
  *  não bate com nenhuma chave do mapa acima. `buildSingleEliminationMatches`/
  *  `buildGroupsKnockoutMatches` (`functions/src/category-bracket-builders.ts`) gravam `'knockout'`
  *  pra toda rodada que não é a final, sem distinguir quartas de semifinal por `matchType` — só o
- *  `round` carrega essa informação, junto da lista de rounds de mata-mata da categoria. */
+ *  `round` carrega essa informação, junto da lista de rounds de mata-mata da categoria.
+ *
+ *  Vai até distância 7 (64 avos, ~128 duplas): o gerador não tem teto de duplas
+ *  (`organizer-category-ops.ts`), e uma categoria de 33-64 duplas já produz 6 rodadas (achado do
+ *  round 1 de fix — a tabela parava em 5 e a 1ª rodada dessas chaves caía no fallback genérico). */
 const POSITIONAL_KNOCKOUT_LABELS: Record<number, string> = {
   1: 'Final',
   2: 'Semifinal',
   3: 'Quartas',
   4: 'Oitavas',
   5: '16 avos',
+  6: '32 avos',
+  7: '64 avos',
 };
 
 /** `null` quando o round da partida não está em `knockoutRoundsOfCategory` (dado inconsistente)
- *  ou a distância não tem rótulo definido (chave maior que 16 avos) — quem chama cai de volta no
- *  fallback genérico de `knockoutLabelOf`. */
+ *  ou a distância não tem rótulo definido (chave maior que 64 avos, hoje só teórico) — quem chama
+ *  cai pro fallback final de `knockoutLabelOf`, nunca pro `matchType` cru. */
 function positionalKnockoutLabelOf(round: number, knockoutRoundsOfCategory: readonly number[]): string | null {
   const index = knockoutRoundsOfCategory.indexOf(round);
   if (index < 0) return null;
@@ -261,15 +267,20 @@ function positionalKnockoutLabelOf(round: number, knockoutRoundsOfCategory: read
  * `knockoutRoundsOfCategory` (rodadas de mata-mata da categoria, em ordem — `knockoutRounds` em
  * `focus/focus-journey.ts`). O parâmetro é OBRIGATÓRIO de propósito: opcional aqui deixaria fácil
  * esquecer de passar a lista e cair de volta no "Knockout" em inglês, calado.
+ *
+ * Último fallback: `Rodada ${round}` — NUNCA o `matchType` cru capitalizado (removido no round 1
+ * de fix). Os três geradores só gravam valores do mapa ou `'knockout'`, então nada real precisa de
+ * um terceiro caminho; manter a capitalização vazava "Knockout" (ou qualquer outro `matchType`
+ * bruto) sempre que a posição também não resolvesse — chave maior que a tabela acima cobre, ou um
+ * `matchType` desconhecido dentro de dupla eliminação, onde `knockoutRoundsOfCategory` mistura as
+ * rodadas independentes de WB e LB e uma posição "resolvida" ali seria só coincidência, nunca um
+ * dado confiável.
  */
 export function knockoutLabelOf(m: Pick<TournamentMatch, 'matchType' | 'round'>, knockoutRoundsOfCategory: readonly number[]): string {
   const key = m.matchType.trim().toLowerCase();
   const mapped = KNOCKOUT_LABELS[key];
   if (mapped) return mapped;
-  return (
-    positionalKnockoutLabelOf(m.round, knockoutRoundsOfCategory) ??
-    (key ? `${m.matchType[0]!.toUpperCase()}${m.matchType.slice(1)}` : `Rodada ${m.round}`)
-  );
+  return positionalKnockoutLabelOf(m.round, knockoutRoundsOfCategory) ?? `Rodada ${m.round}`;
 }
 
 /** Sets já fechados + o set em andamento (mesa ponto a ponto ou `liveScore` agregado — ver

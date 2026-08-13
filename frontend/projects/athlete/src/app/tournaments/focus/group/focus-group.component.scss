@@ -45,6 +45,15 @@
   .gp-team {
     color: var(--nx-text);
   }
+
+  // A faixa de classificação da mixin mira `.st-num` (`_tournament-live.scss`), uma classe que
+  // esta tabela não usa — sem este override o seletor nunca casa e a faixa não aparece. Mesmo
+  // problema, mesma solução de `category-groups.component.scss` (`.gr-rank`), aplicada aqui.
+  tr[data-qualifies='true'] .gp-rank {
+    box-shadow: inset 2px 0 0 var(--nx-orange-500);
+    color: var(--nx-orange-400);
+    font-weight: 700;
+  }
 }
 
 .gp-th-rank {

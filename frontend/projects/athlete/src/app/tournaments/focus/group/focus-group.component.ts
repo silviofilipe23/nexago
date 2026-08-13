@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import type { TournamentMatch } from '../../../data/matches-repository';
 import type { TournamentSummary } from '../../../data/tournaments-repository';
+import { courtLabelOf } from '../../tournament-format';
 import { groupLabelOf, knockoutLabelOf } from '../../tournament-live.selectors';
 import { TournamentLiveStore } from '../../tournament-live.store';
 import { roundScenariosOf } from '../focus-scenarios';
@@ -47,12 +48,19 @@ export interface WherePlayView {
  * coordenada nenhuma (mesma régua de `mapsUrl`/`mapsLabel` em `focus-now.component.ts`, que este
  * arquivo replica de propósito em vez de importar: são views de seções diferentes, e a única
  * coisa em comum é a fórmula do endereço). Função pura pra ser testável sem `TestBed`.
+ *
+ * `courtName` chega CRU do documento da partida — o organizador normalmente digita só o número
+ * ("3"), nunca "Quadra 3" pronto — então passa por `courtLabelOf` (`tournament-format.ts`) antes
+ * de virar `court`, a mesma normalização que `focus-views.ts` já aplica pro Agora, pra timeline e
+ * pro "ao vivo". Sem isso a seção Grupo mostraria "3" onde a seção ao lado, pra ESSA MESMA
+ * partida, mostra "Quadra 3". `courtLabelOf` é idempotente pra nomes que já vêm por extenso, então
+ * a chamada é segura mesmo que o dado já esteja formatado.
  */
 export function wherePlayOf(courtName: string | null, tournament: Pick<TournamentSummary, 'location' | 'locationAddress' | 'city'> | null): WherePlayView {
   const arena = tournament?.location || null;
   const address = tournament ? (tournament.locationAddress ?? `${tournament.location}, ${tournament.city}`) : null;
   return {
-    court: courtName,
+    court: courtLabelOf(courtName),
     arena,
     address,
     mapsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null,

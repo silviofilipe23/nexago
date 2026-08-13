@@ -102,10 +102,26 @@ describe('wherePlayOf', () => {
   });
 
   it('usa o endereço explícito da arena quando existe', () => {
-    const view = wherePlayOf('Quadra 3', tournament);
-    expect(view.court).toBe('Quadra 3');
+    const view = wherePlayOf('3', tournament);
     expect(view.arena).toBe('Arena Praia Central');
     expect(view.address).toBe('Av. Beira Mar, 100');
+  });
+
+  // O dado cru gravado em `TournamentMatch.courtName` é o valor que o organizador digita
+  // (`tournament_match_display.dart`/`courtLabelOf`, `tournament-format.ts`) — normalmente só o
+  // número da quadra, nunca "Quadra N" pronto. `focus-views.ts` já normaliza esse mesmo campo com
+  // `courtLabelOf` em três lugares (Agora, timeline, ao vivo); sem a mesma normalização aqui a
+  // seção Grupo mostraria "3" onde a seção Agora, pra essa MESMA partida, mostra "Quadra 3".
+  it('normaliza o nome cru da quadra com courtLabelOf — nunca mostra o dígito solto', () => {
+    expect(wherePlayOf('3', tournament).court).toBe('Quadra 3');
+  });
+
+  it('nome de quadra já por extenso passa intacto (courtLabelOf é idempotente)', () => {
+    expect(wherePlayOf('Quadra 3', tournament).court).toBe('Quadra 3');
+  });
+
+  it('sem quadra nenhuma, court continua null', () => {
+    expect(wherePlayOf(null, tournament).court).toBeNull();
   });
 
   it('sem endereço explícito, cai para "local, cidade" — mesma fórmula de focus-now', () => {
@@ -114,7 +130,7 @@ describe('wherePlayOf', () => {
   });
 
   it('o link do Maps aponta pro endereço, urlencodado — nunca pra "quadra N" (não existe posição de quadra)', () => {
-    const view = wherePlayOf('Quadra 3', tournament);
+    const view = wherePlayOf('3', tournament);
     expect(view.mapsUrl).toBe(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Av. Beira Mar, 100')}`);
     expect(view.mapsUrl).not.toContain('Quadra');
   });

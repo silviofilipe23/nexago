@@ -1,0 +1,41 @@
+<div class="rsd-scrim" (click)="close()"></div>
+
+<div class="rsd" role="dialog" aria-modal="true" aria-labelledby="rsd-title">
+  <header class="rsd-head">
+    <div>
+      <h2 class="rsd-title" id="rsd-title">Compartilhar inscrição</h2>
+      <p class="rsd-sub">O card sai no formato dos stories, com a dupla, a categoria e a data do torneio.</p>
+    </div>
+    <button type="button" class="rsd-close" (click)="close()" aria-label="Fechar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+    </button>
+  </header>
+
+  <div class="rsd-body">
+    <div class="rsd-preview">
+      <canvas #canvas [width]="canvasWidth" [height]="canvasHeight" role="img" aria-label="Prévia da imagem da inscrição confirmada"></canvas>
+    </div>
+
+    <div class="rsd-actions">
+      <button type="button" class="rsd-btn rsd-btn--primary" [disabled]="busy()" (click)="share()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+        {{ canShareFiles() ? 'Compartilhar no story' : 'Baixar imagem' }}
+      </button>
+
+      @if (canShareFiles()) {
+        <button type="button" class="rsd-btn" [disabled]="busy()" (click)="download()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4" /><path d="M5 19h14" /></svg>
+          Baixar imagem
+        </button>
+      }
+
+      <p class="rsd-hint">
+        @if (canShareFiles()) {
+          Compartilhar abre as opções do seu celular — Instagram, WhatsApp e o que mais estiver instalado.
+        } @else {
+          Neste navegador o compartilhamento direto não está disponível: baixe a imagem e poste pelo seu app.
+        }
+      </p>
+    </div>
+  </div>
+</div>

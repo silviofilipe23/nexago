@@ -1,3 +1,4 @@
+import { DIM, INK, MUTE, ORANGE, drawWordmark, hexA, loadBrandMark, loadShareFonts, mono, sora, tracked, truncate } from '../share-canvas';
 import type { PredictionShareData, PredictionShareRow } from './predictions-share';
 
 /**
@@ -31,101 +32,8 @@ const ME_GAP = 72;
 const STACK_TOP = 460;
 const STACK_BOTTOM = 1630;
 
-const INK = '#f4f4f5';
-const MUTE = 'rgba(244, 244, 245, 0.6)';
-const DIM = 'rgba(244, 244, 245, 0.38)';
-const ORANGE = '#ff6a1a';
-
 /** Ouro, prata e bronze do pódio — mesma família de metais do pôster de partida. */
 const MEDALS = ['#f2c14e', '#c8ccd4', '#d08a5a'] as const;
-
-const mono = (weight: number, size: number) => `${weight} ${size}px "JetBrains Mono", ui-monospace, monospace`;
-const sora = (weight: number, size: number) => `${weight} ${size}px "Sora", system-ui, sans-serif`;
-
-function hexA(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-/** Texto com espaçamento manual entre letras (canvas não tem letter-spacing confiável). */
-function tracked(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  spacing: number,
-  align: 'left' | 'center' = 'center',
-): void {
-  const prev = ctx.textAlign;
-  ctx.textAlign = 'left';
-  const chars = [...text];
-  const widths = chars.map((c) => ctx.measureText(c).width);
-  const total = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
-  let cur = align === 'center' ? x - total / 2 : x;
-  chars.forEach((c, i) => {
-    ctx.fillText(c, cur, y);
-    cur += widths[i]! + spacing;
-  });
-  ctx.textAlign = prev;
-}
-
-/** Reduz a fonte até o texto caber. Deixa `ctx.font` ajustada. */
-function fitFont(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  start: number,
-  min: number,
-  font: (size: number) => string,
-): void {
-  let size = start;
-  ctx.font = font(size);
-  while (size > min && ctx.measureText(text).width > maxWidth) {
-    size -= 2;
-    ctx.font = font(size);
-  }
-}
-
-function truncate(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let result = text;
-  while (result.length > 1 && ctx.measureText(`${result}…`).width > maxWidth) {
-    result = result.slice(0, -1);
-  }
-  return `${result}…`;
-}
-
-/**
- * A marca "N" laranja de `public/brand/logo.png`. É do mesmo domínio, então não suja o canvas
- * (o `toBlob` continua funcionando) — diferente de foto de atleta, que vem do Storage.
- *
- * Falhar em carregar resolve `null` e o cabeçalho cai só no lettering: a imagem compartilhada
- * nunca deixa de sair por causa da logo.
- */
-let logoPromise: Promise<HTMLImageElement | null> | null = null;
-
-function loadBrandMark(): Promise<HTMLImageElement | null> {
-  logoPromise ??= new Promise<HTMLImageElement | null>((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = '/brand/logo.png';
-  });
-  return logoPromise;
-}
-
-function drawWordmark(ctx: CanvasRenderingContext2D, x: number, baseline: number, size: number): number {
-  ctx.font = sora(800, size);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = INK;
-  ctx.fillText('nexa', x, baseline);
-  const nexaW = ctx.measureText('nexa').width;
-  ctx.fillStyle = ORANGE;
-  ctx.fillText('GO', x + nexaW, baseline);
-  return x + nexaW + ctx.measureText('GO').width;
-}
 
 function drawBackdrop(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = '#050505';
@@ -267,10 +175,7 @@ function drawFooter(ctx: CanvasRenderingContext2D, data: PredictionShareData): v
  */
 export async function drawPredictionsShareCard(ctx: CanvasRenderingContext2D, data: PredictionShareData): Promise<void> {
   const fontSpecs = [sora(800, 88), sora(800, 64), sora(800, 52), sora(700, 52), sora(700, 44), sora(700, 30), mono(700, 26), mono(500, 30), mono(500, 22)];
-  const [, mark] = await Promise.all([
-    Promise.all(fontSpecs.map((f) => document.fonts.load(f).catch(() => []))).catch(() => {}),
-    loadBrandMark(),
-  ]);
+  const [, mark] = await Promise.all([loadShareFonts(fontSpecs), loadBrandMark()]);
 
   ctx.clearRect(0, 0, W, H);
   drawBackdrop(ctx);

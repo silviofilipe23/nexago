@@ -94,8 +94,8 @@ function withHypotheticalResult(m: TournamentMatch, myTeamId: string, sets: read
   return { ...m, status: 'completed', winnerId, sets: [...oriented], resultA: null, resultB: null };
 }
 
-function rankOf(matches: readonly TournamentMatch[], poolId: string, myTeamId: string): number | null {
-  const index = buildGroupStandings(matches, poolId).findIndex((s) => s.teamId === myTeamId);
+function rankOf(matches: readonly TournamentMatch[], categoryId: string, poolId: string, myTeamId: string): number | null {
+  const index = buildGroupStandings(matches, categoryId, poolId).findIndex((s) => s.teamId === myTeamId);
   return index < 0 ? null : index + 1;
 }
 
@@ -120,9 +120,12 @@ export function roundScenariosOf(
   qualifiersPerGroup: number,
 ): RoundScenario[] {
   if (!poolId || !myTeamId) return [];
-  const pool = matches.filter((m) => m.poolId === poolId);
-  const mine = pool.find((m) => m.id === myMatchId);
+  // A partida do atleta vem primeiro porque é ela que diz de que CATEGORIA é este grupo: `poolId`
+  // sozinho não identifica um grupo — 'A' existe em toda categoria do torneio (ver
+  // `buildGroupStandings`). O recorte sai do par (categoria da partida, poolId).
+  const mine = matches.find((m) => m.id === myMatchId && m.poolId === poolId);
   if (!mine || matchIsCompleted(mine) || matchIsCanceled(mine)) return [];
+  const pool = matches.filter((m) => m.categoryId === mine.categoryId && m.poolId === poolId);
   // O atleta precisa jogar essa partida — senão o placar hipotético seria aplicado a duas
   // duplas que não são a dele.
   if (mine.teamAId !== myTeamId && mine.teamBId !== myTeamId) return [];
@@ -153,7 +156,7 @@ export function roundScenariosOf(
       // de ÚLTIMO recurso entre duplas empatadas em tudo o mais. Mover a partida do atleta para
       // o fim mudaria esse desempate na simulação em relação à tabela real.
       const simulated = matches.map((m) => (m.id === myMatchId ? withHypotheticalResult(mine, myTeamId, oriented, iWin) : m));
-      return rankOf(simulated, poolId, myTeamId);
+      return rankOf(simulated, mine.categoryId, poolId, myTeamId);
     });
     const [first] = ranks;
     const invariant = first != null && ranks.every((r) => r === first);

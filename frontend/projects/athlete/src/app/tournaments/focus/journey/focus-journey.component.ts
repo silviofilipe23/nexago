@@ -335,8 +335,17 @@ export class FocusJourneyComponent {
   protected readonly qualified = computed(() => {
     const poolId = this.store.focusPoolId();
     const category = this.store.focusCategory();
-    if (!poolId || !category) return false;
-    const info = qualificationOf(this.store.matches(), poolId, this.store.myTeamIdInFocus(), this.store.standingsOf(poolId), category.qualifiersPerGroup);
+    const categoryId = this.store.focusCategoryId();
+    if (!poolId || !category || !categoryId) return false;
+    // Partidas da categoria, não do torneio: `qualificationOf` conta as pendentes do grupo por
+    // `poolId`, e 'Grupo A' existe em toda categoria (ver `buildGroupStandings`).
+    const info = qualificationOf(
+      this.store.matchesOfCategory(categoryId),
+      poolId,
+      this.store.myTeamIdInFocus(),
+      this.store.standingsOf(categoryId, poolId),
+      category.qualifiersPerGroup,
+    );
     return info?.decided === true && info.qualifies;
   });
 

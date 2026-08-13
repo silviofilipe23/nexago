@@ -91,6 +91,11 @@ export class FocusGroupComponent {
    *  documentação de `FocusViewContext` sobre por que essa indireção existe. */
   private readonly ctx = computed(() => focusViewContextOf(this.store));
 
+  /** Partidas da categoria em foco. Mesma regra do `ctx` (ver `FocusViewContext.matches`): tudo
+   *  que recorta por `poolId` tem de receber a lista JÁ recortada por categoria — 'Grupo A'
+   *  existe em todas elas. */
+  private readonly categoryMatches = computed(() => this.store.matchesOfCategory(this.store.focusCategoryId() ?? ''));
+
   protected readonly standings = computed(() =>
     standingsViewOf(this.ctx(), this.store.focusPoolId() ?? '', this.store.focusCategory()?.qualifiersPerGroup ?? 2, this.store.myTeamIdInFocus()),
   );
@@ -101,7 +106,7 @@ export class FocusGroupComponent {
 
   protected readonly standingsTitle = computed(() => {
     const poolId = this.store.focusPoolId();
-    return poolId ? `${groupLabelOf(poolId, this.store.matches())} · Classificação parcial` : null;
+    return poolId ? `${groupLabelOf(poolId, this.categoryMatches())} · Classificação parcial` : null;
   });
 
   /** `roundScenariosOf` é deliberadamente conservadora (ver a doc dela em `focus-scenarios.ts`)
@@ -112,7 +117,7 @@ export class FocusGroupComponent {
     const myMatch = this.store.nextMatch();
     const qualifiers = this.store.focusCategory()?.qualifiersPerGroup ?? 2;
     if (!poolId || !myMatch || myMatch.poolId !== poolId) return [];
-    return roundScenariosOf(this.store.matches(), poolId, this.store.myTeamIdInFocus(), myMatch.id, qualifiers);
+    return roundScenariosOf(this.categoryMatches(), poolId, this.store.myTeamIdInFocus(), myMatch.id, qualifiers);
   });
 
   protected readonly crossing = computed(() => crossingRowsOf(this.store.matches(), this.store.focusCategoryId()));

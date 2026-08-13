@@ -66,7 +66,7 @@ export class CategoryGroupsComponent {
         id: poolId,
         title: groupLabelOf(poolId, matches),
         progressLabel: `${played}/${poolMatches.length} jogos`,
-        rows: buildGroupStandings(matches, poolId).map((s, index) => ({
+        rows: buildGroupStandings(matches, this.categoryId(), poolId).map((s, index) => ({
           rank: index + 1,
           teamId: s.teamId,
           name: this.store.duoNameOf(s.teamId),
@@ -95,7 +95,7 @@ export class CategoryGroupsComponent {
     if (!mine) return null;
     const myTeamId = myTeamIds.has(mine.teamAId) ? mine.teamAId : mine.teamBId;
 
-    const info = qualificationOf(matches, mine.poolId, myTeamId, buildGroupStandings(matches, mine.poolId), category.qualifiersPerGroup);
+    const info = qualificationOf(matches, mine.poolId, myTeamId, buildGroupStandings(matches, this.categoryId(), mine.poolId), category.qualifiersPerGroup);
     if (!info) return null;
     if (info.decided) {
       return info.qualifies

@@ -106,6 +106,15 @@ export interface StandingRow {
  *   mesmo conteúdo. Fora do `ctx`, quem lê é só `timelineOf`, que recebe o array à parte.
  */
 export interface FocusViewContext {
+  /**
+   * Partidas da CATEGORIA em foco, nunca do torneio inteiro. O Focus é sempre sobre uma
+   * categoria só (`focusCategoryId`), e as derivações por grupo daqui — classificação, derrotas,
+   * "decide a classificação", número da rodada — filtram por `poolId`, que só é único DENTRO da
+   * categoria: os grupos são 'A', 'B', 'C'… em todas elas (ver `buildGroupStandings`). Com a
+   * lista do torneio, o Grupo A do atleta vinha fundido com o Grupo A das outras categorias e um
+   * grupo de 4 duplas aparecia com 8. As telas da categoria (`category/*.component.ts`) já
+   * seguiam essa regra via `matchesOfCategory`; o Focus era a exceção.
+   */
   matches: readonly TournamentMatch[];
   myTeamIds: ReadonlySet<string>;
   duoNameOf(teamId: string, fallback?: string | null): string;
@@ -118,13 +127,14 @@ export interface FocusViewContext {
 /** Fotografia do store para as funções de view. `import type` de propósito: nada aqui depende
  *  do store em tempo de execução, então não há ciclo. */
 export function focusViewContextOf(store: TournamentLiveStore): FocusViewContext {
+  const categoryId = store.focusCategoryId() ?? '';
   return {
-    matches: store.matches(),
+    matches: store.matchesOfCategory(categoryId),
     myTeamIds: store.myTeamIds(),
     duoNameOf: (teamId, fallback) => store.duoNameOf(teamId, fallback ?? null),
     duoPlayersOf: (teamId) => store.duoPlayersOf(teamId),
     isMyTeam: (teamId) => store.isMyTeam(teamId),
-    standingsOf: (poolId) => store.standingsOf(poolId),
+    standingsOf: (poolId) => store.standingsOf(categoryId, poolId),
     nextMatch: store.nextMatch(),
   };
 }

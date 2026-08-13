@@ -63,6 +63,7 @@ import {
   registrationShareFooter,
   registrationShareLocationLine,
   registrationShareSlotLabel,
+  registrationShareable,
   type RegistrationShareData,
 } from './registration-share';
 import { RegistrationShareDialogComponent } from './registration-share-dialog.component';
@@ -321,12 +322,11 @@ export class TournamentRegistrationShellComponent {
   // ── Compartilhar a inscrição (card instagramável, paridade com o app) ───
   protected readonly showShareDialog = signal(false);
 
-  /** Confirmada = paga e com o elenco fechado. É o único estado em que o card pode sair: ele diz
-   *  "DUPLA/EQUIPE CONFIRMADA", e com parceiro pendente ou pagamento em aberto isso seria mentira.
-   *  Mesma condição do ramo `@else` do template. */
+  /** Mesma regra da aba `minha-inscricao` — mora em `registration-share.ts` justamente para as
+   *  duas telas não divergirem. Coincide com o ramo `@else` do template. */
   protected readonly registrationConfirmed = computed(() => {
     const reg = this.registration();
-    return reg != null && !reg.partnerPending && reg.isPaid;
+    return reg != null && registrationShareable(reg);
   });
 
   protected readonly shareData = computed<RegistrationShareData | null>(() => {

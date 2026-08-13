@@ -8,11 +8,32 @@ import {
   registrationShareSlotLabel,
   registrationShareText,
   registrationSharePhrases,
+  registrationShareable,
   shortAthleteName,
   type RegistrationShareData,
 } from './registration-share';
 
 describe('registration-share', () => {
+  describe('registrationShareable', () => {
+    const confirmed = { isPaid: true, partnerPending: false, waitlist: false };
+
+    it('libera a inscrição paga e com o elenco fechado', () => {
+      expect(registrationShareable(confirmed)).toBeTrue();
+    });
+
+    it('segura enquanto o pagamento não saiu', () => {
+      expect(registrationShareable({ ...confirmed, isPaid: false })).toBeFalse();
+    });
+
+    it('segura enquanto falta parceiro/atleta no elenco', () => {
+      expect(registrationShareable({ ...confirmed, partnerPending: true })).toBeFalse();
+    });
+
+    it('segura na lista de espera — lá não existe vaga confirmada pra anunciar', () => {
+      expect(registrationShareable({ ...confirmed, waitlist: true })).toBeFalse();
+    });
+  });
+
   describe('pickRegistrationSharePhrase', () => {
     it('devolve sempre a mesma frase para a mesma inscrição', () => {
       const first = pickRegistrationSharePhrase('reg-abc-123');

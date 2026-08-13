@@ -38,6 +38,20 @@ export interface RegistrationShareData {
   teamName: string | null;
 }
 
+/** O que decide se o botão de compartilhar aparece. Vale para as DUAS telas que mostram uma
+ *  inscrição (o shell `/torneios/:id/inscricao` e a aba `minha-inscricao`) — a regra é a mesma e
+ *  não pode divergir entre elas. */
+export type ShareableRegistration = Pick<
+  { isPaid: boolean; partnerPending: boolean; waitlist: boolean },
+  'isPaid' | 'partnerPending' | 'waitlist'
+>;
+
+/** Só inscrição paga e com o elenco fechado: o card diz "DUPLA/EQUIPE CONFIRMADA", e nos outros
+ *  estados isso seria mentira impressa. Lista de espera não é vaga. */
+export function registrationShareable(registration: ShareableRegistration): boolean {
+  return registration.isPaid && !registration.partnerPending && !registration.waitlist;
+}
+
 /** Frases exibidas no card. As que falam em "dupla" ficam fora das categorias de equipe — ver
  *  `pickRegistrationSharePhrase`. */
 export const registrationSharePhrases: readonly RegistrationSharePhrase[] = [

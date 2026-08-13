@@ -20,8 +20,12 @@ export interface TournamentNumbers {
   sets: SetBar[];
 }
 
-/** Fases de mata-mata da categoria, da mais distante da final para a final. */
-function knockoutRounds(matches: readonly TournamentMatch[], categoryId: string): number[] {
+/** Fases de mata-mata da categoria, da mais distante da final para a final. Exportada porque
+ *  `focus-journey.component.ts` (`bracketWorstPlaceOf`) também precisa dela — uma cópia privada
+ *  chegou a existir lá e foi exatamente por perder o contexto desta função que carregou um ponto
+ *  cego de dupla eliminação; ver o histórico em `bracketWorstPlaceOf`. Uma derivação só, duas
+ *  consumidoras. */
+export function knockoutRounds(matches: readonly TournamentMatch[], categoryId: string): number[] {
   const rounds = matches
     .filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch)
     .map((m) => m.round);

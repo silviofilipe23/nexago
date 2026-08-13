@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { matchClosedSets, matchIsLive, type TournamentMatch } from '../../../data/matches-repository';
 import type { TournamentPrize } from '../../../data/tournaments-repository';
+import { isDoubleElimination } from '../../bracket-tree';
 import { timeLabelOf, liveScoreLineOf } from '../../tournament-format';
 import {
   byScheduleTime,
@@ -17,7 +18,7 @@ import {
   type MatchOutcome,
 } from '../../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../../tournament-live.store';
-import { guaranteedPrizeOf, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
+import { guaranteedPrizeOf, knockoutRounds, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
 import { focusViewContextOf, type FocusViewContext } from '../focus-views';
 
 /**
@@ -46,16 +47,6 @@ export function bestPossiblePlaceOf(wins: number): number {
   return 2 ** wins;
 }
 
-/** Fases de mata-mata da categoria, da mais distante da final pra final — mesma extração que
- *  `focus-journey.ts` já faz em `knockoutRounds` (privada lá). Duplicada aqui de propósito, não
- *  importada: é a única peça de informação que `bracketWorstPlaceOf` precisaria pedir emprestada
- *  de `winsToTitleOf`, e o ponto inteiro de `bracketWorstPlaceOf` é NÃO depender dela — ver o
- *  porquê no comentário abaixo. */
-function knockoutRoundsOf(matches: readonly TournamentMatch[], categoryId: string): number[] {
-  const rounds = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch).map((m) => m.round);
-  return [...new Set(rounds)].sort((a, b) => a - b);
-}
-
 /**
  * A pior colocação que a posição REAL do atleta na chave ainda permite — vivo, com uma partida
  * de mata-mata pendente numa fase, OU já eliminado nela. `2 ** (rodadas restantes a partir da
@@ -69,31 +60,65 @@ function knockoutRoundsOf(matches: readonly TournamentMatch[], categoryId: strin
  * venceu a quartas e perdeu a semifinal, numa chave QF/SF/F, segue garantido em 4º — e este app
  * modela uma disputa de 3º lugar de verdade (`KNOCKOUT_LABELS['third place']`,
  * `category-bracket-builders.ts`) que essa dupla ainda vai jogar por dinheiro real. As duas
- * perguntas só COINCIDEM enquanto o atleta segue vivo (por isso os casos "vivo" batem com
- * `bestPossiblePlaceOf(winsToTitleOf(...))`, ver `focus-journey.component.spec.ts`) — encadear
- * esta função a `winsToTitleOf` faria a premiação já garantida sumir do card bem no momento em
- * que o atleta mais quer ver o que ele já embolsou.
+ * perguntas só COINCIDEM enquanto o atleta segue vivo — encadear esta função a `winsToTitleOf`
+ * faria a premiação já garantida sumir do card bem no momento em que o atleta mais quer ver o
+ * que ele já embolsou.
  *
- * `null` só quando o atleta não tem NENHUMA partida de mata-mata na categoria (ainda nos grupos,
- * ou chave/categoria sem mata-mata) — sem posição na chave, não há o que garantir. Mesma condição
- * do gate `inKnockout` do componente; mantida aqui também pra a função ficar íntegra sozinha.
+ * A fase de referência NÃO é "a de round mais alto que o atleta aparece" — essa foi a primeira
+ * versão desta função, e se mostrou insegura: a disputa de 3º lugar recebe o MESMO round da
+ * final (`category-bracket-builders.ts` — "3º lugar: perdedores das semifinais", `round:
+ * roundStart + totalRounds - 1`, igual ao da final) e `loserAdvance` cria essa partida pendente
+ * no INSTANTE em que a semifinal termina (`category-bracket-advance.ts`). Um atleta que perdeu a
+ * semifinal já tem, na mesma leitura, uma partida de 3º lugar pendente NO ROUND DA FINAL —
+ * "pegar o round mais alto" devolvia 2 ali, dizendo a um eliminado na semifinal que ele estava
+ * garantido vice-campeão. A regra certa escolhe a referência pelo SIGNIFICADO, não pelo round:
+ *
+ * - Dupla eliminação: `null`. A ladder não é uma sequência única — WB e LB numeram rounds
+ *   independentemente a partir de 1 (`category-bracket-builders.ts`) — então qualquer contagem
+ *   sobre o round misturando as duas não tem sentido. Mesma guarda de `winsToTitleOf`, mesmo
+ *   motivo; usa o mesmo `isDoubleElimination` em vez de reinventar a detecção.
+ * - Se o atleta já PERDEU alguma partida do mata-mata: a referência é a derrota MAIS CEDO (menor
+ *   round). Em eliminação simples uma derrota encerra a campanha, então é a derrota mais cedo que
+ *   fixa a colocação — isso ignora sozinho uma disputa de 3º lugar ainda pendente (não é uma
+ *   derrota) e também cobre quem perdeu a própria disputa de 3º lugar (a derrota mais cedo
+ *   continua sendo a da semifinal, então a pior colocação continua 4º, o valor certo).
+ * - Senão: a referência é a partida de mata-mata PENDENTE mais cedo (menor round) — nunca a de
+ *   round mais alto.
+ *
+ * Conservadorismo deliberado: quem VENCE a disputa de 3º lugar está de fato garantido em 3º, mas
+ * esta função continua devolvendo 4º, porque a referência permanece a derrota da semifinal. Não
+ * adicione um caso especial pra espremer esse último degrau — sub-informar uma garantia é seguro;
+ * super-informar é exatamente o bug que esta função existe pra evitar (ver o histórico acima).
+ *
+ * `null` também quando o atleta não tem NENHUMA partida de mata-mata na categoria — sem posição
+ * na chave, não há o que garantir. Mesma condição do gate `inKnockout` do componente; mantida
+ * aqui também pra a função ficar íntegra sozinha.
  */
 export function bracketWorstPlaceOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): number | null {
-  const rounds = knockoutRoundsOf(matches, categoryId);
-  const myKnockouts = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
+  const categoryMatches = matches.filter((m) => m.categoryId === categoryId);
+  if (isDoubleElimination(categoryMatches)) return null;
+
+  const rounds = knockoutRounds(matches, categoryId);
+  const myKnockouts = categoryMatches.filter((m) => !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
   if (myKnockouts.length === 0) return null;
 
-  // A fase de referência é sempre a de round mais alto entre as partidas do atleta: enquanto ele
-  // avança, `winnerAdvance` já grava o time dele na próxima partida (ver a doc de
-  // `journeyPathOf`/`possibleOpponentsOf` sobre esse mecanismo), então essa partida mais recente
-  // é sempre a pendente atual OU a que ele perdeu — nunca uma vitória de uma fase anterior.
-  const reference = myKnockouts.reduce((latest, m) => (m.round > latest.round ? m : latest));
-  const index = rounds.indexOf(reference.round);
-  const isLastRound = reference.round === rounds[rounds.length - 1];
-  const champion = isLastRound && outcomeOf(reference, myTeamIds) === 'win';
-  if (champion) return 1;
+  const losses = myKnockouts.filter((m) => outcomeOf(m, myTeamIds) === 'loss');
+  if (losses.length > 0) {
+    const earliestLoss = losses.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));
+    return 2 ** (rounds.length - rounds.indexOf(earliestLoss.round));
+  }
 
-  return 2 ** (rounds.length - index);
+  const pending = myKnockouts.filter(isPending);
+  if (pending.length > 0) {
+    const earliestPending = pending.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));
+    return 2 ** (rounds.length - rounds.indexOf(earliestPending.round));
+  }
+
+  // Sem derrota nenhuma e sem pendência nenhuma: só resta o campeão, que venceu até a última fase
+  // do mata-mata — a única forma de esgotar as duas listas acima numa chave de eliminação simples.
+  const lastRound = rounds[rounds.length - 1];
+  const champion = myKnockouts.some((m) => m.round === lastRound && outcomeOf(m, myTeamIds) === 'win');
+  return champion ? 1 : null;
 }
 
 export interface JourneyPath {

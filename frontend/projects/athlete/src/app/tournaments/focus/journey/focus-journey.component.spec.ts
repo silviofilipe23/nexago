@@ -203,17 +203,68 @@ describe('bracketWorstPlaceOf', () => {
   // Achado do round 1 de review: `winsToTitleOf` vira `null` assim que o atleta perde — correto
   // pra "quantas vitórias faltam pro título" (deixa de fazer sentido), mas `bracketWorstPlaceOf`
   // responde uma pergunta diferente ("o que já está garantido") que continua valendo depois da
-  // eliminação. Os dois testes abaixo, ANTES deste fix, reproduziam a fórmula antiga
-  // (`bestPossiblePlaceOf(winsToTitleOf(...))`) e falhavam com "Expected undefined to be 4"/"...8"
-  // — a premiação sumia do card justo quando o atleta mais queria ver o que já tinha embolsado.
+  // eliminação.
+  //
+  // Achado do round 2 de review: a primeira versão desta função escolhia a fase de referência
+  // pelo MAIOR round entre as partidas do atleta — e isso supõe demais. A disputa de 3º lugar
+  // recebe o MESMO round da final (`category-bracket-builders.ts`) e `loserAdvance` cria essa
+  // partida pendente no instante em que a semifinal termina (`category-bracket-advance.ts`), então
+  // um atleta que perdeu a semifinal já tem, ao mesmo tempo, uma partida de 3º lugar pendente NO
+  // ROUND DA FINAL — "o maior round" apontava pra ela e devolvia 2, prometendo vice-campeão a
+  // quem só tinha garantido 4º. Em dupla eliminação o problema era pior: WB e LB numeram rounds
+  // independentemente a partir de 1, então "o maior round" misturava as duas ladders e podia
+  // devolver 1 (campeão) com a Grand Final ainda por jogar. Os testes abaixo fixam os dois casos.
 
-  it('perdeu a semifinal (chave QF/SF/F): ainda garantiu o 4º, não `null`', () => {
+  it('perdeu a semifinal, com a disputa de 3º lugar já pendente na mesma rodada da final: ainda garantiu o 4º, não o 2º', () => {
     const matches = [
       match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
       match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
-      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false }),
+      // `loserAdvance` da semifinal já preencheu o slot do atleta aqui, no MESMO round da final —
+      // é exatamente essa colisão que faz "o maior round" mentir. Ver o comentário do describe.
+      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+      match({ id: 'f1', poolId: '', categoryId: 'c1', round: 3, matchType: 'final', isGroupMatch: false, teamAId: 'y', teamBId: '' }),
     ];
     expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
+  });
+
+  it('perdeu a disputa de 3º lugar (depois de perder a semifinal): ainda garantiu o 4º', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
+      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'w', winnerId: 'w' }),
+    ];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
+  });
+
+  // Conservadorismo deliberado (documentado em `bracketWorstPlaceOf`): quem VENCE o 3º lugar está
+  // de fato garantido em 3º, mas esta função continua devolvendo 4º — a referência permanece a
+  // derrota da semifinal, que veio ANTES. Pinado de propósito: não "conserte" isso pra devolver 3
+  // sem entender que sub-informar uma garantia é seguro e super-informar é o bug que este arquivo
+  // inteiro existe pra evitar.
+  it('venceu a disputa de 3º lugar: continua reportando o 4º, não o 3º — conservadorismo deliberado', () => {
+    const matches = [
+      match({ id: 'q1', poolId: '', categoryId: 'c1', round: 1, matchType: 'quarterfinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 's1', poolId: '', categoryId: 'c1', round: 2, matchType: 'semifinal', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'y', winnerId: 'y' }),
+      match({ id: 'tp1', poolId: '', categoryId: 'c1', round: 3, matchType: 'third place', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'w', winnerId: 'mine' }),
+    ];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBe(4);
+  });
+
+  it('dupla eliminação — campeão da WB com a Grand Final ainda pendente: `null`, nunca 1º', () => {
+    const matches = [
+      // Só o `matchType` 'WB'/'LB' já basta pra `isDoubleElimination` — ver `bracket-tree.ts`.
+      match({ id: 'wbf', poolId: '', categoryId: 'c1', round: 2, matchType: 'WB', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 'gf', poolId: '', categoryId: 'c1', round: 1, matchType: 'final', isGroupMatch: false, teamAId: 'mine', teamBId: '' }),
+    ];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBeNull();
+  });
+
+  it('dupla eliminação — campeão da LB com a Grand Final ainda pendente: `null`, nunca 1º', () => {
+    const matches = [
+      match({ id: 'lbf', poolId: '', categoryId: 'c1', round: 3, matchType: 'LB', isGroupMatch: false, status: 'completed', teamAId: 'mine', teamBId: 'x', winnerId: 'mine' }),
+      match({ id: 'gf', poolId: '', categoryId: 'c1', round: 1, matchType: 'final', isGroupMatch: false, teamAId: '', teamBId: 'mine' }),
+    ];
+    expect(bracketWorstPlaceOf(matches, 'c1', MINE)).toBeNull();
   });
 
   it('perdeu as quartas (chave QF/SF/F): ainda garantiu o 8º, não `null`', () => {

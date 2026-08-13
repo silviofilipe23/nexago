@@ -7,7 +7,9 @@ export interface FocusDayTarget {
   matchId: string;
 }
 
-/** Marca do "silêncio do dia": guarda a data local de São Paulo em que o atleta saiu do Focus. */
+/** Marca do "silêncio do dia": guarda a `focusMemoKeyOf` (atleta + data local de São Paulo) de
+ *  quando o atleta saiu do Focus — escopada por atleta para não vazar entre contas no mesmo
+ *  dispositivo. */
 export const FOCUS_DISMISSED_KEY = 'nexago.focus.dismissed';
 
 /** Partida que ainda decide o dia: agendada para o dia de referência e nem encerrada nem
@@ -31,9 +33,11 @@ export function focusDayTargetOf(matches: readonly ArenaMatch[], reference: Date
   return first ? { tournamentId: first.tournamentId, matchId: first.id } : null;
 }
 
-/** O atleta já dispensou o Focus hoje? */
-export function isFocusDismissed(storedValue: string | null, reference: Date): boolean {
-  return storedValue != null && storedValue === saoPauloDateKey(reference);
+/** O atleta já dispensou o Focus hoje? A marca é escopada por atleta e dia (ver
+ *  `focusMemoKeyOf`): num dispositivo compartilhado, a dispensa de um não pode silenciar o
+ *  Focus do outro. */
+export function isFocusDismissed(storedValue: string | null, uid: string, reference: Date): boolean {
+  return storedValue != null && storedValue === focusMemoKeyOf(uid, reference);
 }
 
 /** Chave da memoização: o alvo do dia só vale para o MESMO atleta no MESMO dia. Sem ela, uma

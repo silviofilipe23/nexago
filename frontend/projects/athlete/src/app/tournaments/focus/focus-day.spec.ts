@@ -76,16 +76,22 @@ describe('focusDayTargetOf', () => {
 });
 
 describe('isFocusDismissed', () => {
+  const YESTERDAY = new Date('2026-08-28T17:00:00Z');
+
   it('é falso sem marca', () => {
-    expect(isFocusDismissed(null, TODAY)).toBe(false);
+    expect(isFocusDismissed(null, 'userA', TODAY)).toBe(false);
   });
 
-  it('é verdadeiro com a marca de hoje', () => {
-    expect(isFocusDismissed('2026-08-29', TODAY)).toBe(true);
+  it('é verdadeiro com a marca de hoje do mesmo atleta', () => {
+    expect(isFocusDismissed(focusMemoKeyOf('userA', TODAY), 'userA', TODAY)).toBe(true);
   });
 
   it('a marca de ontem não silencia hoje', () => {
-    expect(isFocusDismissed('2026-08-28', TODAY)).toBe(false);
+    expect(isFocusDismissed(focusMemoKeyOf('userA', YESTERDAY), 'userA', TODAY)).toBe(false);
+  });
+
+  it('num dispositivo compartilhado, a dispensa do atleta A não silencia o atleta B no mesmo dia', () => {
+    expect(isFocusDismissed(focusMemoKeyOf('userA', TODAY), 'userB', TODAY)).toBe(false);
   });
 });
 

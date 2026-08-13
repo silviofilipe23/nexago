@@ -75,6 +75,10 @@ export class TournamentShellComponent {
   // entra pelo Modo Focus, não por uma aba desta casca.
   protected readonly tabs = computed(() => this.store.visibleTabs().map((id) => ({ id, label: TAB_LABELS[id] })));
 
+  /** Porta de entrada para quem saiu do Focus e quer voltar — a entrada automática está
+   *  silenciada até amanhã, então sem este botão o atleta não teria caminho de volta. */
+  protected readonly showFocusEntry = computed(() => this.store.hasMyMatchToday());
+
   protected readonly heroTitle = computed(() => {
     const t = this.store.tournament();
     if (!t) return '';

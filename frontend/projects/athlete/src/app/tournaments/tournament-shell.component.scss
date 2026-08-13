@@ -134,18 +134,51 @@ router-outlet + * {
   }
 }
 
+// Abas + botão de retorno ao Focus na mesma linha; no celular a barra de abas rola e o botão
+// fica fixo à direita, sempre alcançável.
+.tsh-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  border-bottom: 1px solid var(--nx-line);
+}
+
 // Barra de abas: no mobile rola na horizontal com snap, mantendo a aba ativa alcançável
 // sem quebrar o scroll vertical da página.
 .tsh-tabs {
   display: flex;
+  flex: 1;
+  min-width: 0;
   gap: var(--nx-s-2);
-  border-bottom: 1px solid var(--nx-line);
   overflow-x: auto;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
 
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+// Porta de volta para quem dispensou o Focus hoje — cor sólida para se destacar das abas de
+// navegação comum, mesmo tratamento de alvo mínimo de 44px que o resto da casca.
+.tsh-focus-entry {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 var(--nx-s-4);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: filter var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    filter: brightness(1.08);
   }
 }
 

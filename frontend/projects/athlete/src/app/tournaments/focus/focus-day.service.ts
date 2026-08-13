@@ -4,7 +4,6 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { fetchMatchesForTeam, fetchTeamsForAthlete } from '../../data/teams-repository';
-import { saoPauloDateKey } from '../tournament-live.selectors';
 import { FOCUS_DISMISSED_KEY, focusDayTargetOf, focusMemoKeyOf, isFocusDismissed, type FocusDayTarget } from './focus-day';
 
 function createFirestore(): Firestore | null {
@@ -66,13 +65,16 @@ export class FocusDayService {
   }
 
   isDismissed(now: Date = new Date()): boolean {
-    return isFocusDismissed(this.read(), now);
+    const uid = this.auth.user()?.uid ?? '';
+    return isFocusDismissed(this.read(), uid, now);
   }
 
-  /** Chamado ao sair do Focus: silencia a entrada automática até o dia seguinte. */
+  /** Chamado ao sair do Focus: silencia a entrada automática até o dia seguinte — só para ESTE
+   *  atleta, para não silenciar o Focus de outra conta no mesmo dispositivo compartilhado. */
   dismissForToday(now: Date = new Date()): void {
+    const uid = this.auth.user()?.uid ?? '';
     try {
-      localStorage.setItem(FOCUS_DISMISSED_KEY, saoPauloDateKey(now));
+      localStorage.setItem(FOCUS_DISMISSED_KEY, focusMemoKeyOf(uid, now));
     } catch {
       // Modo privativo ou quota estourada: sem a marca o Focus reabre no próximo painel.
       // Degradar é melhor que estourar na saída do Focus.

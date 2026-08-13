@@ -20,7 +20,7 @@ import {
   type MatchOutcome,
 } from '../../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../../tournament-live.store';
-import { guaranteedPrizeOf, knockoutRounds, pendingKnockoutsOf, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
+import { guaranteedPrizeOf, happyPathOf, knockoutRounds, pendingKnockoutsOf, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
 import { focusViewContextOf, type FocusViewContext } from '../focus-views';
 
 /**
@@ -235,13 +235,21 @@ export function possibleOpponentsOf(
     }));
 }
 
+/** WB e LB numeram rodadas por conta própria, então o rótulo carrega a chave junto — o mesmo
+ *  "WB · Rodada 2" que o atleta lê nas colunas da aba Chave (`columnLabelOf`, `bracket-tree.ts`).
+ *  Vale pras partidas dele e pros degraus do caminho feliz: uma convenção só na mesma lista. */
+function knockoutStepLabelOf(m: TournamentMatch, knockoutRoundsOfCategory: readonly number[]): string {
+  const type = m.matchType.trim().toUpperCase();
+  return type === 'WB' || type === 'LB' ? `${type} · Rodada ${m.round}` : knockoutLabelOf(m, knockoutRoundsOfCategory);
+}
+
 /** Fase de grupos vira só "Rodada N": o grupo do atleta é o contexto da tela inteira (a seção
  *  Grupo já se intitula "Grupo A · Classificação parcial"), então repetir "Grupo A ·" em cada
  *  degrau só roubaria a largura da linha mono no celular. Mesma leitura do protótipo. */
 function phaseLabelOf(matches: readonly TournamentMatch[], m: TournamentMatch): string {
   return m.poolId
     ? `Rodada ${roundDisplayNumberOf(matches, m.poolId, m.round)}`
-    : knockoutLabelOf(m, knockoutRounds(matches, m.categoryId));
+    : knockoutStepLabelOf(m, knockoutRounds(matches, m.categoryId));
 }
 
 /** "21-15 · 21-12" do PONTO DE VISTA DO ATLETA. `matchClosedSets` guarda os sets crus (lado A
@@ -367,11 +375,48 @@ function journeyStepOfMatch(
 }
 
 /**
- * A timeline inteira: as partidas do atleta em ordem, seguidas das fases que ainda não têm dono.
+ * Os degraus do CAMINHO FELIZ na dupla eliminação (`happyPathOf`), a partir do segundo: o
+ * primeiro é a próxima partida do próprio atleta e já entrou pela lista dele.
+ *
+ * O adversário sai do slot que sobra: `winnerAdvanceSlot` da partida ANTERIOR diz em qual lado o
+ * atleta cairia, então o outro lado é de quem ele enfrentaria. Se esse lado já tem dupla, o nome
+ * aparece; senão fica "A definir" — nunca uma dupla adivinhada.
+ */
+function happyPathStepsOf(
+  ctx: FocusViewContext,
+  happyPath: readonly TournamentMatch[],
+  knockoutRoundsOfCategory: readonly number[],
+  finalPrizeLabel: string | null,
+): JourneyStepRow[] {
+  return happyPath.slice(1).map((m, index) => {
+    const mySlot = happyPath[index]!.winnerAdvanceSlot;
+    const opponentId = mySlot === 'A' ? m.teamBId : mySlot === 'B' ? m.teamAId : '';
+    const opponentDescription = mySlot === 'A' ? m.teamBDescription : mySlot === 'B' ? m.teamADescription : null;
+    const phaseLabel = knockoutStepLabelOf(m, knockoutRoundsOfCategory);
+    return {
+      id: m.id,
+      status: 'upcoming' as const,
+      phaseLabel,
+      metaLabel: metaLabelOf(m),
+      opponentName: mySlot ? ctx.duoNameOf(opponentId, opponentDescription) : 'A definir',
+      detailLabel: isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
+      scoreLabel: VS_LABEL,
+      matchId: null,
+    };
+  });
+}
+
+/**
+ * A timeline inteira: as partidas do atleta em ordem, seguidas do que ainda vem pela frente.
  * Função pura (parâmetros crus, não `this.store`) pra ser testável sem `TestBed`.
  *
- * As fases sem dono entram com adversário "A definir" e SEM horário estimado — ver
- * `futurePhasesOf`, que só repassa horário de verdade.
+ * O "pela frente" tem duas fontes, e é o formato da categoria que decide:
+ *
+ * - **Dupla eliminação** (`happyPath` preenchido): o caminho feliz da fiação — as partidas que o
+ *   atleta ainda precisa vencer a partir de onde está. Agrupar por rodada ali fundiria WB e LB,
+ *   que numeram rodadas independentes, e a lista viraria uma sequência que ninguém joga.
+ * - **Eliminação simples** (`happyPath` nulo): as fases ainda sem dono, uma linha por rodada
+ *   (`futurePhasesOf`), com adversário "A definir" e sem horário estimado.
  */
 export function journeyStepsOf(
   ctx: FocusViewContext,
@@ -379,19 +424,22 @@ export function journeyStepsOf(
   knockoutRoundsOfCategory: readonly number[],
   nextMatchId: string | null,
   finalPrizeLabel: string | null,
+  happyPath: readonly TournamentMatch[] | null = null,
 ): JourneyStepRow[] {
   const hasPendingGroupMatches = ctx.matches.some((m) => m.poolId && isPending(m));
   const mine = path.mine.map((m) => journeyStepOfMatch(ctx, m, nextMatchId, finalPrizeLabel, hasPendingGroupMatches));
-  const future = futurePhasesOf(path.future, knockoutRoundsOfCategory).map<JourneyStepRow>((row) => ({
-    id: `fase-${row.round}`,
-    status: 'upcoming',
-    phaseLabel: row.phaseLabel,
-    metaLabel: row.timeLabel,
-    opponentName: 'A definir',
-    detailLabel: isFinalPhaseLabel(row.phaseLabel) ? finalPrizeLabel : null,
-    scoreLabel: VS_LABEL,
-    matchId: null,
-  }));
+  const future = happyPath
+    ? happyPathStepsOf(ctx, happyPath, knockoutRoundsOfCategory, finalPrizeLabel)
+    : futurePhasesOf(path.future, knockoutRoundsOfCategory).map<JourneyStepRow>((row) => ({
+        id: `fase-${row.round}`,
+        status: 'upcoming',
+        phaseLabel: row.phaseLabel,
+        metaLabel: row.timeLabel,
+        opponentName: 'A definir',
+        detailLabel: isFinalPhaseLabel(row.phaseLabel) ? finalPrizeLabel : null,
+        scoreLabel: VS_LABEL,
+        matchId: null,
+      }));
   return [...mine, ...future];
 }
 
@@ -476,6 +524,15 @@ export class FocusJourneyComponent {
     return champion && champion.value > 0 ? formatBRL(champion.value) : null;
   });
 
+  /** Só na dupla eliminação: o que vem pela frente sai da fiação (ver `journeyStepsOf`). Na
+   *  eliminação simples fica `null` e a timeline segue com as fases por rodada, que é a derivação
+   *  verificada por fuzz contra o gerador. */
+  private readonly happyPath = computed<TournamentMatch[] | null>(() => {
+    const categoryId = this.store.focusCategoryId() ?? '';
+    const categoryMatches = this.store.matchesOfCategory(categoryId);
+    return isDoubleElimination(categoryMatches) ? happyPathOf(categoryMatches, categoryId, this.store.myTeamIds()) : null;
+  });
+
   protected readonly steps = computed<JourneyStepRow[]>(() =>
     journeyStepsOf(
       this.ctx(),
@@ -483,6 +540,7 @@ export class FocusJourneyComponent {
       knockoutRounds(this.store.matches(), this.store.focusCategoryId() ?? ''),
       this.store.nextMatch()?.id ?? null,
       this.finalPrizeLabel(),
+      this.happyPath(),
     ),
   );
 

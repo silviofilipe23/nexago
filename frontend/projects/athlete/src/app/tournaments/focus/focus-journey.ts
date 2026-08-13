@@ -97,13 +97,98 @@ export function pendingKnockoutsOf(myKnockouts: readonly TournamentMatch[], myTe
   return myKnockouts.filter((m) => isPending(m) && m.round >= floor && !isConsumedByeOf(m, myKnockouts, myTeamIds));
 }
 
+/** Um caminho de mata-mata nunca é maior que isto. Só existe pra que fiação circular — planta
+ *  quebrada, não dado normal — pare em vez de girar pra sempre; 32 já cobre uma chave de 4 bilhões
+ *  de duplas. */
+const MAX_HAPPY_PATH = 32;
+
+function isFinalMatchTypeOf(m: TournamentMatch): boolean {
+  const t = m.matchType.trim().toLowerCase();
+  return t === 'final' || t === 'grand final' || t === 'grand_final';
+}
+
+/**
+ * A partida de onde o caminho do atleta parte: a pendente de menor `matchNumber` que não seja um
+ * BYE já consumido.
+ *
+ * NÃO usa `pendingKnockoutsOf`, e a diferença importa: aquela função ancora tudo no `round` (piso
+ * das vencidas, bye por "aparece numa rodada posterior"), e na dupla eliminação `round` não é uma
+ * escala única — WB e LB numeram a partir de 1 cada uma (`buildDoubleEliminationMatches`). Um
+ * atleta que vence a WB rodada 3 e cai na LB rodada 2 tem piso 3 e seria filtrado da própria
+ * partida que vai jogar. `matchNumber` é global e cronológico no gerador, então serve às duas
+ * chaves; e o bye é reconhecido pela FIAÇÃO — slot do adversário vazio numa partida cujo destino
+ * do vencedor JÁ tem o time do atleta —, que também não depende de rodada.
+ */
+function happyPathAnchorOf(
+  myKnockouts: readonly TournamentMatch[],
+  byMatchNumber: ReadonlyMap<number, TournamentMatch>,
+  myTeamIds: ReadonlySet<string>,
+): TournamentMatch | null {
+  const pending = myKnockouts.filter(isPending).sort((a, b) => a.matchNumber - b.matchNumber);
+  return (
+    pending.find((m) => {
+      const side = sideOf(m, myTeamIds);
+      const opponentEmpty = side === 'A' ? m.teamBId.length === 0 : m.teamAId.length === 0;
+      if (!opponentEmpty) return true;
+      const next = m.winnerAdvanceMatchNumber != null ? byMatchNumber.get(m.winnerAdvanceMatchNumber) : undefined;
+      // Bye consumido: o atleta já está na partida seguinte sem ter jogado esta.
+      return next == null || sideOf(next, myTeamIds) === null;
+    }) ?? null
+  );
+}
+
+/**
+ * O CAMINHO FELIZ: as partidas que o atleta ainda precisa vencer, na ordem, até o título — ele
+ * ganhando todas a partir de onde está.
+ *
+ * Sai da fiação real da planta (`winnerAdvance`, gravada por `category-bracket-builders.ts` e já
+ * usada pelo desenho da chave em `bracket-tree.ts`), nunca de contagem de rodadas. É o que torna a
+ * resposta possível na DUPLA ELIMINAÇÃO, onde contar fases mente: WB e LB são duas escadas de
+ * comprimentos diferentes que numeram rodadas independentes, e quem caiu pra LB tem MAIS partidas
+ * pela frente que quem segue invicto — a fiação sabe disso, a rodada não. Como a âncora é sempre a
+ * próxima partida real do atleta, uma derrota na WB (que o `loserAdvance` transforma numa partida
+ * pendente da LB) recalcula o caminho sozinho, sem nenhum caso especial aqui.
+ *
+ * `null` quando não dá pra afirmar: sem partida pendente (campeão ou eliminado de vez), fiação
+ * ausente (torneio antigo, gerado antes do `winnerAdvance`) ou fiação que não desemboca na final —
+ * planta com ligação errada já aconteceu neste projeto (as 9 plantas de LB), e uma cadeia que
+ * termina no meio da chave viraria um número menor que a verdade. Melhor não afirmar nada.
+ */
+export function happyPathOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): TournamentMatch[] | null {
+  const knockouts = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch);
+  const byMatchNumber = new Map(knockouts.map((m) => [m.matchNumber, m]));
+  const anchor = happyPathAnchorOf(
+    knockouts.filter((m) => sideOf(m, myTeamIds) !== null),
+    byMatchNumber,
+    myTeamIds,
+  );
+  if (!anchor) return null;
+
+  const path: TournamentMatch[] = [anchor];
+  const seen = new Set<number>([anchor.matchNumber]);
+  let current = anchor;
+  while (current.winnerAdvanceMatchNumber != null && path.length < MAX_HAPPY_PATH) {
+    const next = byMatchNumber.get(current.winnerAdvanceMatchNumber);
+    if (!next || seen.has(next.matchNumber)) break;
+    seen.add(next.matchNumber);
+    path.push(next);
+    current = next;
+  }
+  return isFinalMatchTypeOf(path[path.length - 1]!) ? path : null;
+}
+
 /**
  * Quantas vitórias separam o atleta do título.
  *
- * `null` quando: a chave ainda não foi sorteada (a manchete some em vez de chutar); em dupla
- * eliminação (o caminho depende de qual chave o atleta está e a contagem simples de fases
- * mentiria); ou quando o atleta já PERDEU alguma partida do mata-mata — eliminado, sem caminho
- * pro título daqui pra frente.
+ * Duas derivações, uma por formato. Na ELIMINAÇÃO SIMPLES a contagem é por fases restantes — é a
+ * versão verificada por fuzz contra o gerador, e continua intacta. Na DUPLA ELIMINAÇÃO a resposta
+ * vem de `happyPathOf`, que caminha a fiação da planta: contar fases ali mentiria, porque WB e LB
+ * têm comprimentos diferentes e numeram rodadas independentes.
+ *
+ * `null` quando: a chave ainda não foi sorteada (a manchete some em vez de chutar); na eliminação
+ * simples, quando o atleta já PERDEU alguma partida do mata-mata — eliminado, sem caminho pro
+ * título daqui pra frente; na dupla eliminação, quando não sobrou partida pendente (eliminado de
+ * vez, com as duas derrotas) ou a fiação não desemboca na final.
  *
  * `0` quando o atleta já venceu a partida da última fase do mata-mata — campeão. É uma resposta
  * honesta (zero vitórias faltando), diferente do `null` de "não dá pra afirmar".
@@ -119,18 +204,15 @@ export function pendingKnockoutsOf(myKnockouts: readonly TournamentMatch[], myTe
 export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): number | null {
   const rounds = knockoutRounds(matches, categoryId);
   if (rounds.length === 0) return null;
-  if (isDoubleElimination(matches.filter((m) => m.categoryId === categoryId))) return null;
 
-  const myKnockouts = matches.filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
+  const categoryMatches = matches.filter((m) => m.categoryId === categoryId);
+  const myKnockouts = categoryMatches.filter((m) => !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
 
-  // Eliminado: perdeu alguma partida do mata-mata já encerrada. Checado ANTES do fallback de
-  // "sem pendência" abaixo — sem isso, um atleta eliminado (nenhuma partida futura leva o time
-  // dele) cai no mesmo ramo de quem ainda está nos grupos e herda `rounds.length` por engano.
-  const lost = myKnockouts.some((m) => outcomeOf(m, myTeamIds) === 'loss');
-  if (lost) return null;
-
-  // Campeão: venceu a partida encerrada da FINAL. Mesma lógica do `lost` acima — sem esse ramo, o
-  // campeão também cairia no fallback e ouviria que ainda falta vencer fases que já venceu.
+  // Campeão primeiro, e não mais depois de `lost`: na DUPLA ELIMINAÇÃO uma derrota não elimina —
+  // quem cai pra LB e volta pra vencer a final é campeão com uma derrota no currículo, e a ordem
+  // antiga responderia `null` pra ele. Continua seguro na eliminação simples porque a checagem é
+  // pelo `matchType` da final, não pelo round (ver abaixo): lá, uma derrota nunca coexiste com uma
+  // final vencida.
   //
   // Checado por `matchType === 'final'` (case-insensitive, trim — mesmo critério de
   // `knockoutLabelOf` em `tournament-live.selectors.ts`), NUNCA por `round === lastRound` (achado
@@ -140,11 +222,23 @@ export function winsToTitleOf(matches: readonly TournamentMatch[], categoryId: s
   // semifinal e venceu o 3º lugar (uma partida completed em `lastRound` com vitória dele) coroar
   // como campeão — e a única coisa que impedia isso era a ORDEM dos `if`s (`lost` primeiro), sem
   // nenhuma blindagem própria neste ramo. Checar o `matchType` elimina essa dependência de ordem:
-  // "Third Place" nunca é lido como "Final" não importa em que sequência os `if`s rodem. A ordem
-  // `lost`-antes-de-`champion` continua correta por outro motivo (eliminado nunca é campeão), só
-  // deixou de ser a ÚNICA defesa contra essa colisão específica.
-  const champion = myKnockouts.some((m) => m.matchType.trim().toLowerCase() === 'final' && outcomeOf(m, myTeamIds) === 'win');
+  // "Third Place" nunca é lido como "Final" não importa em que sequência os `if`s rodem — é
+  // justamente essa independência de ordem que permitiu subir este ramo pra cima do `lost`.
+  const champion = myKnockouts.some((m) => isFinalMatchTypeOf(m) && outcomeOf(m, myTeamIds) === 'win');
   if (champion) return 0;
+
+  // Dupla eliminação: a contagem de fases mentiria (WB e LB são duas escadas de comprimentos
+  // diferentes, com rodadas numeradas independentemente), então a resposta vem da FIAÇÃO — quantas
+  // partidas o atleta ainda precisa vencer a partir de onde está. `happyPathOf` devolve `null`
+  // quando não dá pra afirmar (eliminado de vez, ou planta sem fiação até a final), e aí a
+  // manchete some, como sempre fez aqui.
+  if (isDoubleElimination(categoryMatches)) return happyPathOf(matches, categoryId, myTeamIds)?.length ?? null;
+
+  // Eliminado na eliminação simples: uma derrota encerra a campanha. Checado ANTES do fallback de
+  // "sem pendência" abaixo — sem isso, um atleta eliminado (nenhuma partida futura leva o time
+  // dele) cai no mesmo ramo de quem ainda está nos grupos e herda `rounds.length` por engano.
+  const lost = myKnockouts.some((m) => outcomeOf(m, myTeamIds) === 'loss');
+  if (lost) return null;
 
   // Piso + byes já consumidos (achado N1, alargado pro round 4 e fechado no round 5 de review —
   // ver `pendingKnockoutsOf` acima): sem isso, um BYE — partida real, nunca jogada — ancora

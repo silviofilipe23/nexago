@@ -1,5 +1,5 @@
 import type { TournamentMatch } from '../../../data/matches-repository';
-import { knockoutRounds, winsToTitleOf } from '../focus-journey';
+import { happyPathOf, knockoutRounds, winsToTitleOf } from '../focus-journey';
 import type { FocusViewContext } from '../focus-views';
 import {
   bestPossiblePlaceOf,
@@ -571,5 +571,61 @@ describe('journeyStepsOf', () => {
   it('na última rodada em aberto do grupo, diz o que a partida decide', () => {
     // Só a rodada 1 segue pendente: é ela que fecha a classificação.
     expect(stepsOf([GROUP_WON, GROUP_NEXT])[1]?.detailLabel).toBe('decide a classificação do grupo');
+  });
+});
+
+/**
+ * Dupla eliminação: o que vem pela frente sai do caminho feliz (`happyPathOf`), não das fases por
+ * rodada — WB e LB numeram rodadas independentes e o agrupamento por rodada fundiria as duas.
+ * Fixture na forma que `buildDoubleEliminationMatches` gera: #1 WB R1 → #3 WB R2 → #5 Final.
+ */
+describe('journeyStepsOf · dupla eliminação', () => {
+  function ctxOf(matches: readonly TournamentMatch[]): FocusViewContext {
+    return {
+      matches,
+      myTeamIds: MINE,
+      duoNameOf: (teamId, fallback) => (teamId ? `Dupla ${teamId}` : (fallback ?? 'A definir')),
+      duoPlayersOf: () => [
+        { initial: 'MA', photo: null },
+        { initial: 'EN', photo: null },
+      ],
+      isMyTeam: (teamId) => MINE.has(teamId),
+      standingsOf: () => [],
+      nextMatch: null,
+    };
+  }
+
+  const de = (id: string, partial: Partial<TournamentMatch>): TournamentMatch =>
+    match({ id, poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', ...partial });
+
+  const MATCHES = [
+    de('m1', { matchType: 'WB', round: 1, matchNumber: 1, teamAId: 'mine', teamBId: 'x', winnerAdvanceMatchNumber: 3, winnerAdvanceSlot: 'A' }),
+    de('m3', { matchType: 'WB', round: 2, matchNumber: 3, teamBId: 'y', winnerAdvanceMatchNumber: 5, winnerAdvanceSlot: 'A' }),
+    de('m5', { matchType: 'Final', round: 1, matchNumber: 5 }),
+  ];
+
+  function stepsOf() {
+    return journeyStepsOf(
+      ctxOf(MATCHES),
+      journeyPathOf(MATCHES, 'c1', MINE),
+      knockoutRounds(MATCHES, 'c1'),
+      null,
+      'R$ 1.000',
+      happyPathOf(MATCHES, 'c1', MINE),
+    );
+  }
+
+  it('mostra a chave e a rodada em cada degrau, na partida do atleta e nas seguintes', () => {
+    expect(stepsOf().map((s) => s.phaseLabel)).toEqual(['WB · Rodada 1', 'WB · Rodada 2', 'Final']);
+  });
+
+  it('o adversário sai do slot que sobra na fiação, e só quando já tem dupla', () => {
+    const steps = stepsOf();
+
+    // O vencedor de m1 cai no slot A de m3, então o adversário é o slot B — já ocupado.
+    expect(steps[1]?.opponentName).toBe('Dupla y');
+    // A final ainda não tem ninguém do outro lado.
+    expect(steps[2]?.opponentName).toBe('A definir');
+    expect(steps[2]?.detailLabel).toBe('R$ 1.000');
   });
 });

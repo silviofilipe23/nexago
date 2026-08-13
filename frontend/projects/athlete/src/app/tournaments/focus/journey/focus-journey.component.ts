@@ -34,7 +34,7 @@ export type JourneyHeadline = { kind: 'champion' } | { kind: 'countdown'; text: 
 export function journeyHeadlineOf(wins: number | null): JourneyHeadline | null {
   if (wins == null) return null;
   if (wins === 0) return { kind: 'champion' };
-  return { kind: 'countdown', text: wins === 1 ? '1 vitória do título.' : `${wins} vitórias do título.` };
+  return { kind: 'countdown', text: wins === 1 ? '1 vitória até o título.' : `${wins} vitórias até o título.` };
 }
 
 /**

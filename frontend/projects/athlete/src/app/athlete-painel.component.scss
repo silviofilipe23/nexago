@@ -195,6 +195,9 @@
 .at-card--accent {
   position: relative;
   overflow: hidden;
+  // Filho direto de `.at-body` (flex column): `overflow: hidden` zera o min-height
+  // automático e o card é comprimido até sumir o texto. O scroll fica no body.
+  flex-shrink: 0;
 
   &::before {
     content: '';
@@ -214,13 +217,28 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  padding-left: 22px;
+}
+
+.at-focus-banner-copy {
+  min-width: 0;
+  flex: 1 1 12rem;
 }
 
 .at-focus-banner-text {
   font-family: var(--nx-font-ui);
-  font-size: 12.5px;
-  color: var(--nx-text-mute);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--nx-text);
   margin: 4px 0 0;
+}
+
+.at-focus-banner .at-card-kicker {
+  color: var(--nx-orange-500);
+}
+
+.at-focus-banner .at-mini-btn {
+  flex-shrink: 0;
 }
 
 .at-card-head {

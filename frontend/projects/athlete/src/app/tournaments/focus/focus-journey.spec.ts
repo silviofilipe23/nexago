@@ -300,3 +300,42 @@ describe('happyPathOf (dupla eliminação)', () => {
     expect(winsToTitleOf(comBye, 'c1', MINE)).toBe(2);
   });
 });
+
+/**
+ * Planta REAL de 16 duplas (`BRACKET_DEFINITIONS[16]` via `buildDoubleEliminationMatches`), o
+ * formato do "Torneio seed nexaGO". Os números abaixo — matchNumber, rodada e slot de destino —
+ * saíram de uma execução do gerador, não de suposição:
+ *
+ *   #1 WB R1 (t1 × t2) → #13 WB R2 (slot A) → #21 WB R3 (slot A) → #27 WB R4 (slot B) → #30 Final (slot B)
+ *
+ * São 30 partidas no total (15 WB, 13 LB, 3º lugar e final) e as rodadas COLIDEM entre as chaves:
+ * WB vai de 1 a 4, LB de 1 a 5. É por isso que agrupar por rodada misturava as duas.
+ */
+describe('happyPathOf · planta real de 16 duplas', () => {
+  const de = (id: string, partial: Partial<TournamentMatch>): TournamentMatch =>
+    match({ id, poolId: '', isGroupMatch: false, teamAId: '', teamBId: '', ...partial });
+
+  const BRACKET_16 = [
+    de('m1', { matchType: 'WB', round: 1, matchNumber: 1, teamAId: 'mine', teamBId: 't2', winnerAdvanceMatchNumber: 13, winnerAdvanceSlot: 'A' }),
+    // LB com rodadas 1 e 2 — as mesmas da WB. Nenhuma pode entrar no caminho de quem está invicto.
+    de('m9', { matchType: 'LB', round: 1, matchNumber: 9, winnerAdvanceMatchNumber: 17, winnerAdvanceSlot: 'B' }),
+    de('m17', { matchType: 'LB', round: 2, matchNumber: 17, winnerAdvanceMatchNumber: 23, winnerAdvanceSlot: 'B' }),
+    de('m13', { matchType: 'WB', round: 2, matchNumber: 13, winnerAdvanceMatchNumber: 21, winnerAdvanceSlot: 'A' }),
+    de('m21', { matchType: 'WB', round: 3, matchNumber: 21, winnerAdvanceMatchNumber: 27, winnerAdvanceSlot: 'B' }),
+    de('m27', { matchType: 'WB', round: 4, matchNumber: 27, winnerAdvanceMatchNumber: 30, winnerAdvanceSlot: 'B' }),
+    de('m30', { matchType: 'Final', round: 1, matchNumber: 30 }),
+  ];
+
+  it('invicto na WB: 4 vitórias até chegar na final, 5 até o título', () => {
+    const caminho = happyPathOf(BRACKET_16, 'c1', MINE);
+
+    expect(caminho?.map((m) => `${m.matchType} R${m.round}`)).toEqual(['WB R1', 'WB R2', 'WB R3', 'WB R4', 'Final R1']);
+    expect(winsToTitleOf(BRACKET_16, 'c1', MINE)).toBe(5);
+    // "Caminho até a final": os quatro degraus da WB antes dela.
+    expect((caminho?.length ?? 0) - 1).toBe(4);
+  });
+
+  it('nenhuma partida da LB entra no caminho de quem está invicto', () => {
+    expect(happyPathOf(BRACKET_16, 'c1', MINE)?.every((m) => m.matchType !== 'LB')).toBe(true);
+  });
+});

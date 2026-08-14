@@ -155,7 +155,7 @@ describe('registration-share', () => {
       dateLabel: '18–20 Mai',
       categoryName: 'Mista C',
       locationLine: 'Arena Beach GYN · Goiânia, GO',
-      footerLabel: 'NEXAGO.APP · MAI 2026',
+      footerLabel: 'NEXAGO · MAI 2026',
       athletes: [{ name: 'Silvio', photo: null }, { name: 'Marcelo', photo: null }],
       teamName: null,
     };

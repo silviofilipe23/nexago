@@ -160,9 +160,9 @@ export function registrationShareLocationLine(location: string | null, city: str
 
 /** `NEXAGO.APP · MAI 2026`. */
 export function registrationShareFooter(startAt: Date | null): string {
-  if (startAt == null) return 'NEXAGO.APP';
+  if (startAt == null) return 'NEXAGO';
   const month = startAt.toLocaleDateString('pt-BR', { month: 'short' }).replace(/\.$/, '').toUpperCase();
-  return `NEXAGO.APP · ${month} ${startAt.getFullYear()}`;
+  return `NEXAGO · ${month} ${startAt.getFullYear()}`;
 }
 
 /** `VAGA #6/8`. Sem capacidade declarada a categoria é ilimitada — sai só o número da vaga. */

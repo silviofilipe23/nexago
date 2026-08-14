@@ -101,11 +101,11 @@ describe('registration-share', () => {
 
   describe('registrationShareFooter', () => {
     it('carimba mês e ano do torneio', () => {
-      expect(registrationShareFooter(new Date(2026, 4, 18))).toBe('NEXAGO.APP · MAI 2026');
+      expect(registrationShareFooter(new Date(2026, 4, 18))).toBe('NEXAGO · MAI 2026');
     });
 
     it('cai só na marca sem data', () => {
-      expect(registrationShareFooter(null)).toBe('NEXAGO.APP');
+      expect(registrationShareFooter(null)).toBe('NEXAGO');
     });
   });
 

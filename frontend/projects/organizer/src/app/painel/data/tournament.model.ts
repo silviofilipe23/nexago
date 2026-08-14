@@ -11,6 +11,8 @@ export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches
   name: string;
   maxTeams: number | null;
+  /** Taxa de inscrição em reais; `0` = categoria gratuita. */
+  entryFee: number;
   /** Tamanho do elenco em categoria de equipe (3–5); `null` = dupla clássica. */
   teamSize: number | null;
   /** Formato salvo na categoria (`bracketFormat`: groups_knockout/single_elimination/…) e a

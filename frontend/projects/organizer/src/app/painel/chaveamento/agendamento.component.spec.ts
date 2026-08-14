@@ -30,6 +30,7 @@ function tournamentFixture(): OrganizerTournament {
         id: 'femB',
         name: 'Feminino B',
         maxTeams: null,
+        entryFee: 0,
         teamSize: null,
         bracketFormat: null,
         teamsPerGroup: 3,

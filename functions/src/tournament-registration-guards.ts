@@ -82,13 +82,29 @@ export function resolveCategoryMatchKeys(
   return keys;
 }
 
+/**
+ * Opções do guard.
+ *
+ * `allowClosedRegistration` existe para o organizador inscrever uma dupla depois do prazo
+ * (`organizerCreateTeamRegistration`): pula SÓ as travas de calendário/vitrine — listagem
+ * fechada, `registrationClosesAt` vencido, `registrationOpensAt` futuro e
+ * `category.registrationClosed`. Torneio em rascunho/programado/cancelado, categoria concluída
+ * e categoria lotada continuam barrando: essas não são "o atleta perdeu o prazo", são estados
+ * em que uma inscrição nova corrompe a competição.
+ */
+export interface RegistrationGuardOptions {
+  allowClosedRegistration?: boolean;
+}
+
 /** Bloqueia inscrição/convite/PIX quando torneio ou categoria está fechado. */
 export async function assertTournamentAcceptsRegistration(
   db: Firestore,
   projectId: string,
   tournamentId: string,
   categoryId?: string,
+  options?: RegistrationGuardOptions,
 ): Promise<TournamentData> {
+  const allowClosed = options?.allowClosedRegistration === true;
   const tournament = await loadTournamentData(db, projectId, tournamentId);
   if (!tournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
@@ -111,7 +127,7 @@ export async function assertTournamentAcceptsRegistration(
     );
   }
 
-  if (isRegistrationListingClosed(listingStatus)) {
+  if (!allowClosed && isRegistrationListingClosed(listingStatus)) {
     throw new HttpsError(
       "failed-precondition",
       "Inscrições encerradas para este torneio.",
@@ -119,7 +135,11 @@ export async function assertTournamentAcceptsRegistration(
   }
 
   const closesAt = tournament.registrationClosesAt;
-  if (closesAt instanceof Timestamp && closesAt.toMillis() < Date.now()) {
+  if (
+    !allowClosed &&
+    closesAt instanceof Timestamp &&
+    closesAt.toMillis() < Date.now()
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Prazo de inscrição encerrado.",
@@ -127,7 +147,11 @@ export async function assertTournamentAcceptsRegistration(
   }
 
   const opensAt = tournament.registrationOpensAt;
-  if (opensAt instanceof Timestamp && opensAt.toMillis() > Date.now()) {
+  if (
+    !allowClosed &&
+    opensAt instanceof Timestamp &&
+    opensAt.toMillis() > Date.now()
+  ) {
     throw new HttpsError(
       "failed-precondition",
       "Prazo de inscrição ainda não iniciado.",
@@ -140,7 +164,7 @@ export async function assertTournamentAcceptsRegistration(
     if (!category) {
       throw new HttpsError("not-found", "Categoria não encontrada.");
     }
-    if (category.registrationClosed === true) {
+    if (!allowClosed && category.registrationClosed === true) {
       throw new HttpsError(
         "failed-precondition",
         "Inscrições encerradas nesta categoria.",

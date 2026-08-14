@@ -113,6 +113,86 @@ describe("tournament-registration-guards", () => {
     );
   });
 
+  // `allowClosedRegistration` é o atalho do organizador (organizerCreateTeamRegistration):
+  // só as travas de calendário/vitrine saem do caminho.
+  it("allowClosedRegistration passa por prazo, vitrine e categoria fechados", async () => {
+    const db = mockDb({
+      listingStatus: "closed",
+      registrationClosesAt: Timestamp.fromMillis(Date.now() - 60_000),
+      registrationOpensAt: Timestamp.fromMillis(Date.now() + 60_000),
+      categories: [{categoryName: "cat-a", registrationClosed: true, spotsLeft: 4}],
+    });
+    const data = await assertTournamentAcceptsRegistration(
+      db as never,
+      "proj",
+      "t1",
+      "cat-a",
+      {allowClosedRegistration: true},
+    );
+    assert.equal(data.listingStatus, "closed");
+  });
+
+  it("allowClosedRegistration NÃO passa por torneio cancelado", async () => {
+    const db = mockDb({listingStatus: "cancelado", categories: [{categoryName: "cat-a"}]});
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+          {allowClosedRegistration: true},
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("allowClosedRegistration NÃO passa por categoria concluída", async () => {
+    const db = mockDb({
+      listingStatus: "open",
+      categories: [{categoryName: "cat-a", isCompleted: true}],
+    });
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+          {allowClosedRegistration: true},
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("allowClosedRegistration NÃO passa por categoria lotada sem fila", async () => {
+    const db = mockDb({
+      listingStatus: "open",
+      waitlistEnabled: false,
+      categories: [{categoryName: "cat-a", spotsLeft: 0}],
+    });
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+          {allowClosedRegistration: true},
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
   it("allows category lotada when waitlist is enabled", async () => {
     const db = mockDb({
       listingStatus: "open",

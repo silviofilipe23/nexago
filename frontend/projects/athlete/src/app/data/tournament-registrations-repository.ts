@@ -1,5 +1,18 @@
-import { collection, doc, getDocs, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  where,
+  type DocumentData,
+  type Firestore,
+  type QuerySnapshot,
+  type Unsubscribe,
+} from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+
+const INVITES_COLLECTION = 'tournamentRegistrationInvites';
 
 /** Inscrições do atleta em torneios (`artifacts/{projectId}/public/data/inscriptions`) e
  *  convites de parceiro pendentes (`tournamentRegistrationInvites`, top-level) — espelha
@@ -181,19 +194,25 @@ export interface TournamentPartnerInvite {
   teamSize: number | null;
 }
 
-/** Convites pendentes recebidos, já filtrando os expirados (o Firestore não faz isso sozinho —
+/** Par `(id, data)` que `getDocs` e `onSnapshot` entregam igual — o mapeamento e o corte de
+ *  expirados vivem num lugar só, servindo os dois. */
+export interface RawInviteDoc {
+  id: string;
+  data: Record<string, unknown>;
+}
+
+function rawDocsOf(snap: QuerySnapshot<DocumentData>): RawInviteDoc[] {
+  return snap.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }));
+}
+
+/** Convites recebidos, já filtrando os expirados (o Firestore não faz isso sozinho —
  *  `expiresAt` é só um campo, quem decide "expirado" é o client, mesma regra do Flutter). */
-export async function fetchMyPendingPartnerInvites(db: Firestore, uid: string): Promise<TournamentPartnerInvite[]> {
-  const snap = await getDocs(
-    query(collection(db, 'tournamentRegistrationInvites'), where('inviteeUid', '==', uid), where('status', '==', 'pending')),
-  );
-  const now = Date.now();
-  return snap.docs
-    .map((d) => {
-      const data = d.data() as Record<string, unknown>;
+export function partnerInvitesFromDocs(docs: readonly RawInviteDoc[], now = Date.now()): TournamentPartnerInvite[] {
+  return docs
+    .map(({ id, data }) => {
       const teamSize = optionalNum(data['teamSize']);
       return {
-        id: d.id,
+        id,
         tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
         categoryId: typeof data['categoryId'] === 'string' ? data['categoryId'] : '',
         inviterUid: typeof data['inviterUid'] === 'string' ? data['inviterUid'] : '',
@@ -208,6 +227,22 @@ export async function fetchMyPendingPartnerInvites(db: Firestore, uid: string): 
     .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
 }
 
+/** Convites pendentes recebidos, AO VIVO. Quem cria o convite é o parceiro, do outro lado —
+ *  numa busca única ele só apareceria no próximo carregamento da tela (era preciso recarregar
+ *  pra descobrir que foi convidado). Espelha `watchPendingForInvitee` (Flutter). */
+export function watchMyPendingPartnerInvites(
+  db: Firestore,
+  uid: string,
+  onChange: (invites: TournamentPartnerInvite[]) => void,
+  onError?: () => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, INVITES_COLLECTION), where('inviteeUid', '==', uid), where('status', '==', 'pending')),
+    (snap) => onChange(partnerInvitesFromDocs(rawDocsOf(snap))),
+    () => onError?.(),
+  );
+}
+
 export interface SentPartnerInvite {
   id: string;
   inviteeUid: string;
@@ -215,37 +250,41 @@ export interface SentPartnerInvite {
   expiresAt: Date | null;
 }
 
+export function sentInvitesFromDocs(docs: readonly RawInviteDoc[], now = Date.now()): SentPartnerInvite[] {
+  return docs
+    .map(({ id, data }) => ({
+      id,
+      inviteeUid: typeof data['inviteeUid'] === 'string' ? data['inviteeUid'] : '',
+      inviteeName: optionalStr(data['inviteeName']) ?? 'Atleta',
+      expiresAt: toDate(data['expiresAt']),
+    }))
+    .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
+}
+
 /** Convites pendentes que EU enviei nesta categoria — pra mostrar "aguardando resposta"
  *  em vez de voltar pra busca vazia depois de convidar (ou ao recarregar a página). O
  *  atleta pode convidar mais de uma pessoa: o primeiro aceite marca os outros como stale
- *  (`markStaleInvitesAfterAccept` no backend), então listamos todos os pendentes. */
-export async function fetchMySentPendingInvites(
+ *  (`markStaleInvitesAfterAccept` no backend), então listamos todos os pendentes. Ao vivo
+ *  pelo mesmo motivo do lado recebido: a resposta do parceiro chega sem gesto meu. */
+export function watchMySentPendingInvites(
   db: Firestore,
   uid: string,
   tournamentId: string,
   categoryId: string,
-): Promise<SentPartnerInvite[]> {
-  const snap = await getDocs(
+  onChange: (invites: SentPartnerInvite[]) => void,
+  onError?: () => void,
+): Unsubscribe {
+  return onSnapshot(
     query(
-      collection(db, 'tournamentRegistrationInvites'),
+      collection(db, INVITES_COLLECTION),
       where('inviterUid', '==', uid),
       where('tournamentId', '==', tournamentId),
       where('categoryId', '==', categoryId),
       where('status', '==', 'pending'),
     ),
+    (snap) => onChange(sentInvitesFromDocs(rawDocsOf(snap))),
+    () => onError?.(),
   );
-  const now = Date.now();
-  return snap.docs
-    .map((d) => {
-      const data = d.data() as Record<string, unknown>;
-      return {
-        id: d.id,
-        inviteeUid: typeof data['inviteeUid'] === 'string' ? data['inviteeUid'] : '',
-        inviteeName: optionalStr(data['inviteeName']) ?? 'Atleta',
-        expiresAt: toDate(data['expiresAt']),
-      };
-    })
-    .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
 }
 
 /** Cancela um convite que EU enviei (o backend também aceita o convidado recusar via

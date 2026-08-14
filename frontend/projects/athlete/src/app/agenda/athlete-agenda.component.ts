@@ -13,12 +13,11 @@ import { fetchMyClubParticipations, type MyClubParticipation } from '../data/are
 import {
   acceptPartnerInvite,
   declinePartnerInvite,
-  fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
   type AthleteTournamentRegistration,
-  type TournamentPartnerInvite,
   type UniformInput,
 } from '../data/tournament-registrations-repository';
+import { PartnerInvitesService } from '../data/partner-invites.service';
 import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
@@ -382,8 +381,30 @@ export class AthleteAgendaComponent {
 
   protected readonly loading = signal(true);
   protected readonly events = signal<AgendaEvent[]>([]);
-  protected readonly pendingRequests = signal<AgendaPendingRequest[]>([]);
   protected readonly monthStats = signal<AgendaMonthStat[]>([]);
+
+  private readonly partnerInvites = inject(PartnerInvitesService);
+
+  /** "Precisa de você": convites ao vivo do store — quem convida é o outro atleta, então a
+   *  lista não pode depender de a Agenda ser recarregada pra saber que o convite chegou. */
+  protected readonly pendingRequests = computed<AgendaPendingRequest[]>(() =>
+    this.partnerInvites.pending().map(({ invite, tournament }) => ({
+      id: invite.id,
+      initials: initialsOf(invite.inviterName),
+      title: `Convite de parceiro de ${invite.inviterName}`,
+      subtitle: tournament?.name ?? 'Torneio',
+      scheduleLine: tournament?.startAt
+        ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(tournament.startAt)
+        : 'Data a confirmar',
+      tournamentId: invite.tournamentId,
+      // Casa por id resolvido (mesma ordem do app) com fallback no nome — convites antigos
+      // podem carregar o nome da categoria como id.
+      category:
+        tournament?.categories.find((c) => c.id === invite.categoryId) ??
+        tournament?.categories.find((c) => c.categoryName === invite.categoryId) ??
+        null,
+    })),
+  );
 
   protected readonly eventNotice = signal<string | null>(null);
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -531,7 +552,6 @@ export class AthleteAgendaComponent {
     const projectId = environment.firebase.projectId;
     if (!db || !projectId || !uid) {
       this.events.set([]);
-      this.pendingRequests.set([]);
       this.monthStats.set([]);
       this.loading.set(false);
       return;
@@ -540,14 +560,13 @@ export class AthleteAgendaComponent {
     this.loading.set(true);
     try {
       const clubsFrom = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
-      const [bookings, registrations, invites, clubParticipations] = await Promise.all([
+      const [bookings, registrations, clubParticipations] = await Promise.all([
         fetchMyBookings(db, uid),
         fetchMyRegistrations(db, projectId, uid),
-        fetchMyPendingPartnerInvites(db, uid),
         fetchMyClubParticipations(db, uid, clubsFrom).catch(() => [] as MyClubParticipation[]),
       ]);
 
-      const tournamentIds = [...new Set([...registrations.map((r) => r.tournamentId), ...invites.map((i) => i.tournamentId)])];
+      const tournamentIds = [...new Set(registrations.map((r) => r.tournamentId))];
       const tournaments = await fetchTournamentSummariesByIds(db, tournamentIds);
 
       const bookingEvents = bookings.filter(bookingIsActive).map((b) => bookingToEvent(b)).filter((e): e is AgendaEvent => e != null);
@@ -562,33 +581,9 @@ export class AthleteAgendaComponent {
       // aconteceram, não só os que ainda vêm. `isPast` continua disponível pra estilização.
       this.events.set([...bookingEvents, ...registrationEvents, ...clubEvents]);
 
-      this.pendingRequests.set(
-        invites.map((invite) => {
-          const tournament = tournaments.get(invite.tournamentId);
-          // Casa por id resolvido (mesma ordem do app) com fallback no nome — convites antigos
-          // podem carregar o nome da categoria como id.
-          const category =
-            tournament?.categories.find((c) => c.id === invite.categoryId) ??
-            tournament?.categories.find((c) => c.categoryName === invite.categoryId) ??
-            null;
-          return {
-            id: invite.id,
-            initials: initialsOf(invite.inviterName),
-            title: `Convite de parceiro de ${invite.inviterName}`,
-            subtitle: tournament?.name ?? 'Torneio',
-            scheduleLine: tournament?.startAt
-              ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(tournament.startAt)
-              : 'Data a confirmar',
-            tournamentId: invite.tournamentId,
-            category,
-          };
-        }),
-      );
-
       this.monthStats.set(this.computeMonthStats(bookings, registrationEvents));
     } catch {
       this.events.set([]);
-      this.pendingRequests.set([]);
       this.monthStats.set([]);
     } finally {
       this.loading.set(false);
@@ -710,7 +705,7 @@ export class AthleteAgendaComponent {
       await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform, {
         lgpdAccepted: this.lgpdConsentedInviteId() === id,
       });
-      this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
+      this.partnerInvites.markAnswered(id);
       this.expandedInviteId.set(null);
       this.inviteUniform.set(null);
       this.showNotice('Convite aceito! Vocês já formam dupla nessa categoria.');
@@ -733,7 +728,7 @@ export class AthleteAgendaComponent {
     this.decliningId.set(id);
     try {
       await declinePartnerInvite(athleteFunctions(), id);
-      this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
+      this.partnerInvites.markAnswered(id);
       this.showNotice('Convite recusado.');
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível recusar o convite.');

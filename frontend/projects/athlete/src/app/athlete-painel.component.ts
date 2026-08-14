@@ -26,13 +26,13 @@ import {
   type MyBooking,
 } from './data/my-bookings-repository';
 import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
+import { PartnerInvitesService } from './data/partner-invites.service';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
 import {
   acceptPartnerInvite,
   cancelMyRegistration,
   declinePartnerInvite,
-  fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
   TournamentRegistrationError,
   type AthleteTournamentRegistration,
@@ -423,8 +423,9 @@ export class AthletePainelComponent {
   private readonly bookingsState = signal<readonly MyBooking[]>([]);
   private readonly rankingState = signal<DashboardRanking | null>(null);
   /** Convites de parceiro pendentes — mostrados aqui pra não depender de o atleta navegar
-   *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. */
-  private readonly pendingInvitesState = signal<PendingInviteItem[]>([]);
+   *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. Vêm do store ao
+   *  vivo: quem convida é o outro atleta, e o card tem de acender sem recarregar a página. */
+  private readonly partnerInvites = inject(PartnerInvitesService);
   /** Foto enviada no onboarding — prioridade sobre o `photoURL` do Firebase Auth. */
   private readonly profilePhotoUrlState = signal<string | null>(null);
   protected readonly respondingInviteId = signal<string | null>(null);
@@ -565,7 +566,15 @@ export class AthletePainelComponent {
 
   protected readonly myTournaments = computed(() => this.myTournamentsState());
   protected readonly inProgressRegistrations = computed(() => this.inProgressRegistrationsState());
-  protected readonly pendingInvites = computed(() => this.pendingInvitesState());
+  protected readonly pendingInvites = computed<PendingInviteItem[]>(() =>
+    this.partnerInvites.pending().map(({ invite, tournament }) => ({
+      id: invite.id,
+      inviterName: invite.inviterName,
+      tournamentId: invite.tournamentId,
+      categoryId: invite.categoryId,
+      tournamentName: tournament?.name ?? 'Torneio',
+    })),
+  );
 
   /** Atividade da comunidade — itens reais do `communityFeed` (sem UGC). */
   protected readonly communityActivity = computed<CommunityActivityItem[]>(() =>
@@ -649,7 +658,6 @@ export class AthletePainelComponent {
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
         this.inProgressRegistrationsState.set([]);
-        this.pendingInvitesState.set([]);
         this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
         this.bootLoadingState.set(false);
@@ -696,7 +704,6 @@ export class AthletePainelComponent {
 
       void this.loadMatchHistory(user.uid);
       void this.loadRegistrationsAndTournaments(user.uid);
-      void this.loadPendingInvites(user.uid);
       void this.loadProfilePhoto(user.uid);
 
       onCleanup(() => {
@@ -828,35 +835,6 @@ export class AthletePainelComponent {
     );
   }
 
-  private async loadPendingInvites(uid: string): Promise<void> {
-    const db = this.firestore;
-    if (!db) return;
-    try {
-      const invites = await fetchMyPendingPartnerInvites(db, uid);
-      if (this.auth.user()?.uid !== uid) return;
-      const ids = [...new Set(invites.map((i) => i.tournamentId).filter(Boolean))];
-      const summaries = await fetchTournamentSummariesByIds(db, ids);
-      if (this.auth.user()?.uid !== uid) return;
-      this.pendingInvitesState.set(
-        invites
-          // Convite de torneio cancelado é botão que só entrega erro: `acceptTournamentPartnerInvite`
-          // recusa com "Este torneio não aceita novas inscrições". Torneio que não resolveu (fetch
-          // parcial) continua aparecendo com o nome genérico — só o cancelado sai.
-          .filter((i) => summaries.get(i.tournamentId)?.isCancelled !== true)
-          .map((i) => ({
-            id: i.id,
-            inviterName: i.inviterName,
-            tournamentId: i.tournamentId,
-            categoryId: i.categoryId,
-            tournamentName: summaries.get(i.tournamentId)?.name ?? 'Torneio',
-          })),
-      );
-    } catch {
-      // Sem card de convites é estado válido; sem banner por falha pontual (mesmo padrão de "Meus torneios").
-      this.pendingInvitesState.set([]);
-    }
-  }
-
   private async loadProfilePhoto(uid: string): Promise<void> {
     const db = this.firestore;
     if (!db) return;
@@ -891,7 +869,7 @@ export class AthletePainelComponent {
     this.respondingInviteId.set(invite.id);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, undefined, { lgpdAccepted: true });
-      this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
+      this.partnerInvites.markAnswered(invite.id);
       // Depois de aceitar, o próximo passo real é completar a inscrição (uniforme/pagamento)
       // — leva direto pra lá em vez de deixar o atleta no painel.
       void this.router.navigate(['/torneios', invite.tournamentId, 'inscricao'], {
@@ -914,7 +892,7 @@ export class AthletePainelComponent {
     this.respondingInviteId.set(invite.id);
     try {
       await declinePartnerInvite(athleteFunctions(), invite.id);
-      this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
+      this.partnerInvites.markAnswered(invite.id);
     } catch (err) {
       this.toasts.error(
         'Não foi possível recusar o convite',

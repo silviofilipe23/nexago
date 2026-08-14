@@ -14,12 +14,12 @@ import {
   createTeamRegistration,
   declinePartnerInvite,
   EMPTY_UNIFORM_SLOT,
-  fetchMyRegistrations,
   leaveTeamRegistration,
   registerSolo,
   sendPartnerInvite,
   setRegistrationUniform,
   TournamentRegistrationError,
+  watchMyRegistrations,
   watchMySentPendingInvites,
   type AthleteTournamentRegistration,
   type SentPartnerInvite,
@@ -392,10 +392,27 @@ export class TournamentRegistrationShellComponent {
       void this.loadTournament(id);
     });
 
-    effect(() => {
-      const id = this.tournamentId();
+    // Minhas inscrições neste torneio, ao vivo: o aceite do parceiro acontece do outro lado e
+    // muda a inscrição por baixo da tela (sai o `partnerPending`, entra o elenco e o pagamento).
+    // Sem listener, quem convidou ficava olhando "aguardando parceiro" até recarregar.
+    effect((onCleanup) => {
+      const tournamentId = this.tournamentId();
       const uid = this.auth.user()?.uid;
-      void this.loadMyRegistrations(id, uid);
+      const db = this.firestore;
+      const projectId = environment.firebase.projectId;
+      if (!db || !projectId || !uid || !tournamentId) {
+        this.myRegistrations.set([]);
+        return;
+      }
+      onCleanup(
+        watchMyRegistrations(
+          db,
+          projectId,
+          uid,
+          (all) => this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId)),
+          () => this.myRegistrations.set([]),
+        ),
+      );
     });
 
     effect(() => {
@@ -528,21 +545,6 @@ export class TournamentRegistrationShellComponent {
       }
     } finally {
       this.loading.set(false);
-    }
-  }
-
-  private async loadMyRegistrations(tournamentId: string, uid: string | undefined): Promise<void> {
-    const db = this.firestore;
-    const projectId = environment.firebase.projectId;
-    if (!db || !projectId || !uid || !tournamentId) {
-      this.myRegistrations.set([]);
-      return;
-    }
-    try {
-      const all = await fetchMyRegistrations(db, projectId, uid);
-      this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId));
-    } catch {
-      this.myRegistrations.set([]);
     }
   }
 
@@ -1002,9 +1004,7 @@ export class TournamentRegistrationShellComponent {
         this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
       }
       this.partnerInvites.markAnswered(invite.id);
-      const uid = this.auth.user()?.uid;
-      const tournamentId = this.tournamentId();
-      if (uid && tournamentId) await this.loadMyRegistrations(tournamentId, uid);
+      // A inscrição criada pelo aceite chega pelo listener de `myRegistrations`.
     } catch (err) {
       this.toasts.error(
         'Não foi possível aceitar o convite',

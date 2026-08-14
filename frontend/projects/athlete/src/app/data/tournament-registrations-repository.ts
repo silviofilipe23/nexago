@@ -163,11 +163,35 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
   };
 }
 
-export async function fetchMyRegistrations(db: Firestore, projectId: string, uid: string): Promise<AthleteTournamentRegistration[]> {
-  const snap = await getDocs(
-    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('participantUids', 'array-contains', uid)),
+function myRegistrationsQuery(db: Firestore, projectId: string, uid: string) {
+  return query(
+    collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'),
+    where('participantUids', 'array-contains', uid),
   );
+}
+
+export async function fetchMyRegistrations(db: Firestore, projectId: string, uid: string): Promise<AthleteTournamentRegistration[]> {
+  const snap = await getDocs(myRegistrationsQuery(db, projectId, uid));
   return snap.docs.map((d) => registrationFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
+/** Minhas inscrições AO VIVO. Diferente de {@link watchRegistration}, que observa um doc: quando
+ *  o parceiro aceita o convite, a inscrição pode TROCAR de doc — `acceptTournamentPartnerInvite`
+ *  preenche a reserva solo de um dos dois e **apaga** a do outro (`tx.delete(releaseRegRef)`), pra
+ *  a dupla ocupar uma vaga só. Um listener de doc veria só "sumiu"; a query segue a inscrição
+ *  que passou a me incluir em `participantUids`. */
+export function watchMyRegistrations(
+  db: Firestore,
+  projectId: string,
+  uid: string,
+  onChange: (registrations: AthleteTournamentRegistration[]) => void,
+  onError?: () => void,
+): Unsubscribe {
+  return onSnapshot(
+    myRegistrationsQuery(db, projectId, uid),
+    (snap) => onChange(snap.docs.map((d) => registrationFromDoc(d.id, d.data() as Record<string, unknown>))),
+    () => onError?.(),
+  );
 }
 
 /** Observa a inscrição ao vivo (`isPaid`/`sharePaidUids`) — espelha o listener do app na tela

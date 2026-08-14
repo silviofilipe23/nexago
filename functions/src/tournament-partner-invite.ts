@@ -223,8 +223,9 @@ function uniformToInviteFields(
 
 type UniformSlot = "Player1" | "Player2";
 
-/** Uniforme no slot do atleta — quem é player1 depende de qual inscrição sobrevive. */
-function registrationUniformForSlot(
+/** Uniforme no slot do atleta — quem é player1 depende de qual inscrição sobrevive.
+ *  Exportado para a inscrição criada pelo organizador gravar nos MESMOS campos. */
+export function registrationUniformForSlot(
   uniform: UniformPayload,
   slot: UniformSlot,
 ): Record<string, string | number> {

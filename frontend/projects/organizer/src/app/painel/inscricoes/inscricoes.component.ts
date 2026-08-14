@@ -12,6 +12,7 @@ import {
 } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
+import { uniformCategoryConfigs } from '../data/uniforms';
 import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -92,6 +93,7 @@ interface PendingConfirm {
       @if (creating()) {
         <og-nova-inscricao
           [categorias]="categorias()"
+          [uniformConfigs]="uniformConfigs()"
           [categoriaInicial]="categoryFilter()"
           [busy]="busy()"
           (submitted)="onCreate($event)"
@@ -272,6 +274,10 @@ export class InscricoesComponent {
   protected readonly rows = signal<InscricaoRow[]>([]);
 
   protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
+
+  /** Exigência de uniforme por categoria — mesma fonte da tela de Uniformes, com a herança
+   *  das flags da raiz resolvida. */
+  protected readonly uniformConfigs = computed(() => uniformCategoryConfigs(this.tournament()));
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -486,6 +492,7 @@ export class InscricoesComponent {
           categoryId: form.categoryId,
           athleteUids: form.athleteUids,
           markAsPaid: form.markAsPaid,
+          uniforms: form.uniforms,
         });
         this.creating.set(false);
         return result;

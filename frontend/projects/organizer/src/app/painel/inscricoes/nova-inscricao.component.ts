@@ -6,20 +6,33 @@ import {
   searchAthletes,
   type AthleteSearchResult,
 } from '../data/athlete-search-repository';
+import { EMPTY_INSCRIPTION_UNIFORM, type InscriptionUniformSlot } from '../data/inscriptions-repository';
 import { initialsOf } from '../data/mock-data';
 import type { OrganizerTournamentCategory } from '../data/tournament.model';
+import { uniformStatusOf, type UniformCategoryConfig } from '../data/uniforms';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
+import { OgNovaInscricaoUniformeComponent } from './nova-inscricao-uniforme.component';
 
 const SEARCH_DEBOUNCE_MS = 350;
 const PAIR_SIZE = 2;
+
+/** Uniforme no formato que a Cloud Function recebe (campos vazios não são enviados). */
+export interface NovaInscricaoUniform {
+  sizeTop?: string;
+  sizeShorts?: string;
+  jerseyNumber?: number;
+  jerseyName?: string;
+}
 
 export interface NovaInscricaoSubmit {
   categoryId: string;
   athleteUids: [string, string];
   markAsPaid: boolean;
+  /** Por uid; vazio quando a categoria não pede uniforme. */
+  uniforms: Record<string, NovaInscricaoUniform>;
 }
 
 /** Formulário de inscrição criada pelo organizador — a saída para quem não conseguiu se
@@ -31,7 +44,14 @@ export interface NovaInscricaoSubmit {
 @Component({
   selector: 'og-nova-inscricao',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxSpinnerComponent],
+  imports: [
+    OgCardComponent,
+    OgIconComponent,
+    OgAvatarComponent,
+    OgToggleRowComponent,
+    OgNovaInscricaoUniformeComponent,
+    NxSpinnerComponent,
+  ],
   template: `
     <og-card kicker="Nova inscrição" title="Inscrever uma dupla" pad="lg">
       <p class="og-ni-hint">
@@ -111,6 +131,27 @@ export interface NovaInscricaoSubmit {
               </button>
             }
           </div>
+        }
+      }
+
+      <!-- Uniforme só faz sentido com a dupla escolhida: os campos são POR atleta. -->
+      @if (uniformConfig(); as uniform) {
+        @if (isPairComplete()) {
+          <div class="og-ni-field">
+            <span class="og-ni-label">Uniforme · {{ uniform.modelLabel }}</span>
+            @for (a of athletes(); track a.uid) {
+              <og-nova-inscricao-uniforme
+                [athleteName]="nameOf(a)"
+                [slotId]="a.uid"
+                [config]="uniform"
+                [value]="uniformOf(a.uid)"
+                [disabled]="busy()"
+                (changed)="setUniform(a.uid, $event)"
+              />
+            }
+          </div>
+        } @else {
+          <p class="og-ni-status">Esta categoria tem uniforme: escolha os dois atletas para informar os tamanhos.</p>
         }
       }
 
@@ -259,6 +300,9 @@ export interface NovaInscricaoSubmit {
 })
 export class OgNovaInscricaoComponent {
   readonly categorias = input.required<readonly OrganizerTournamentCategory[]>();
+  /** Config de uniforme por categoria, com a herança das flags da raiz já resolvida
+   *  (`uniformCategoryConfigs`) — mesma fonte da tela de Uniformes. */
+  readonly uniformConfigs = input<readonly UniformCategoryConfig[]>([]);
   /** Categoria que a tela já está filtrando — poupa um clique no caso comum. */
   readonly categoriaInicial = input<string | null>(null);
   readonly busy = input(false);
@@ -273,6 +317,7 @@ export class OgNovaInscricaoComponent {
   protected readonly categoryId = signal('');
   protected readonly athletes = signal<AthleteSearchResult[]>([]);
   protected readonly markAsPaid = signal(false);
+  protected readonly uniformByUid = signal<Record<string, InscriptionUniformSlot>>({});
 
   protected readonly searchTerm = signal('');
   protected readonly searching = signal(false);
@@ -299,8 +344,29 @@ export class OgNovaInscricaoComponent {
     return term.length > 0 && term.length < ATHLETE_SEARCH_MIN_TERM;
   });
 
+  /** `null` quando a categoria escolhida não pede uniforme. */
+  protected readonly uniformConfig = computed<UniformCategoryConfig | null>(() => {
+    const id = this.categoryId();
+    const config = this.uniformConfigs().find((c) => c.categoryId === id);
+    return config?.requiresUniform ? config : null;
+  });
+
+  /** Uniforme completo dos DOIS atletas, pela mesma regra que a tela de Uniformes usa para
+   *  dizer "confirmado" — o organizador não inscreve deixando um pedido pela metade. */
+  protected readonly isUniformComplete = computed(() => {
+    const config = this.uniformConfig();
+    if (!config) return true;
+    const chosen = this.athletes();
+    if (chosen.length < PAIR_SIZE) return false;
+    return chosen.every((a) => uniformStatusOf(config, this.uniformOf(a.uid)) === 'confirmado');
+  });
+
   protected readonly canSubmit = computed(
-    () => !this.busy() && this.categoryId() !== '' && this.isPairComplete(),
+    () =>
+      !this.busy() &&
+      this.categoryId() !== '' &&
+      this.isPairComplete() &&
+      this.isUniformComplete(),
   );
 
   constructor() {
@@ -361,6 +427,19 @@ export class OgNovaInscricaoComponent {
 
   protected remove(uid: string): void {
     this.athletes.update((cur) => cur.filter((a) => a.uid !== uid));
+    // O uniforme é de quem saiu: quem entrar no lugar informa o seu.
+    this.uniformByUid.update(({ [uid]: _removed, ...rest }) => rest);
+  }
+
+  protected uniformOf(uid: string): InscriptionUniformSlot {
+    return this.uniformByUid()[uid] ?? EMPTY_INSCRIPTION_UNIFORM;
+  }
+
+  protected setUniform(uid: string, patch: Partial<InscriptionUniformSlot>): void {
+    this.uniformByUid.update((cur) => ({
+      ...cur,
+      [uid]: { ...(cur[uid] ?? EMPTY_INSCRIPTION_UNIFORM), ...patch },
+    }));
   }
 
   protected submit(): void {
@@ -370,6 +449,23 @@ export class OgNovaInscricaoComponent {
       categoryId: this.categoryId(),
       athleteUids: [first.uid, second.uid],
       markAsPaid: this.isPaidCategory() && this.markAsPaid(),
+      uniforms: this.uniformConfig()
+        ? {
+          [first.uid]: uniformPayload(this.uniformOf(first.uid)),
+          [second.uid]: uniformPayload(this.uniformOf(second.uid)),
+        }
+        : {},
     });
   }
+}
+
+/** Campo vazio não vai no payload — o servidor trata ausência e string vazia igual, e mandar
+ *  `null` só engorda o documento da inscrição. */
+function uniformPayload(slot: InscriptionUniformSlot): NovaInscricaoUniform {
+  const payload: NovaInscricaoUniform = {};
+  if (slot.sizeTop) payload.sizeTop = slot.sizeTop;
+  if (slot.sizeShorts) payload.sizeShorts = slot.sizeShorts;
+  if (slot.jerseyNumber != null) payload.jerseyNumber = slot.jerseyNumber;
+  if (slot.jerseyName?.trim()) payload.jerseyName = slot.jerseyName.trim();
+  return payload;
 }

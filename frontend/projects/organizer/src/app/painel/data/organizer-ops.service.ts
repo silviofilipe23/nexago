@@ -45,6 +45,13 @@ export function moveToWaitlist(registrationId: string): Promise<unknown> {
   return call('organizerMoveToWaitlist', { registrationId: registrationId.trim() });
 }
 
+export interface TeamRegistrationUniform {
+  sizeTop?: string;
+  sizeShorts?: string;
+  jerseyNumber?: number;
+  jerseyName?: string;
+}
+
 export interface CreateTeamRegistrationResult {
   registrationId: string;
   teamId: string;
@@ -61,12 +68,15 @@ export function createTeamRegistration(params: {
   categoryId: string;
   athleteUids: readonly [string, string];
   markAsPaid: boolean;
+  /** Uniforme por uid — obrigatório quando a categoria exige; o servidor valida os tamanhos. */
+  uniforms?: Record<string, TeamRegistrationUniform>;
 }): Promise<CreateTeamRegistrationResult> {
   return call<CreateTeamRegistrationResult>('organizerCreateTeamRegistration', {
     tournamentId: params.tournamentId.trim(),
     categoryId: params.categoryId.trim(),
     athleteUids: [params.athleteUids[0].trim(), params.athleteUids[1].trim()],
     markAsPaid: params.markAsPaid,
+    uniforms: params.uniforms ?? {},
   });
 }
 

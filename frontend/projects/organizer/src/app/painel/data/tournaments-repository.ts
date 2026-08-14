@@ -84,6 +84,7 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
     id,
     name: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
     maxTeams: numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']),
+    entryFee: numberOf(o['entryFee']) ?? 0,
     teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
     bracketFormat: optionalStr(o['bracketFormat']),
     teamsPerGroup: numberOf(o['teamsPerGroup']) ?? 4,

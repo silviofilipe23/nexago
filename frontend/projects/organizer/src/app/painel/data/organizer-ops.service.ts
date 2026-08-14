@@ -45,6 +45,31 @@ export function moveToWaitlist(registrationId: string): Promise<unknown> {
   return call('organizerMoveToWaitlist', { registrationId: registrationId.trim() });
 }
 
+export interface CreateTeamRegistrationResult {
+  registrationId: string;
+  teamId: string;
+  /** A dupla fechou sobre uma reserva que um dos atletas já tinha, em vez de nascer do zero. */
+  merged: boolean;
+  waitlist: boolean;
+}
+
+/** Inscreve uma dupla que não conseguiu se inscrever sozinha (prazo estourado, convite nunca
+ *  aceito, pagamento travado). O servidor decide se cria a dupla ou aproveita uma reserva
+ *  existente — e continua barrando nível, idade e dupla repetida na categoria. */
+export function createTeamRegistration(params: {
+  tournamentId: string;
+  categoryId: string;
+  athleteUids: readonly [string, string];
+  markAsPaid: boolean;
+}): Promise<CreateTeamRegistrationResult> {
+  return call<CreateTeamRegistrationResult>('organizerCreateTeamRegistration', {
+    tournamentId: params.tournamentId.trim(),
+    categoryId: params.categoryId.trim(),
+    athleteUids: [params.athleteUids[0].trim(), params.athleteUids[1].trim()],
+    markAsPaid: params.markAsPaid,
+  });
+}
+
 /** `description` é obrigatória: a inscrição é deletada, então esse texto é a única
  *  explicação que o atleta recebe por perder a vaga. */
 export function removeFromCategory(registrationId: string, description: string): Promise<unknown> {

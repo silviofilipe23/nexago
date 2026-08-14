@@ -4,6 +4,7 @@ import { listInscriptions } from '../data/inscriptions-repository';
 import { formatPhoneBR } from '../data/phone-contact';
 import {
   confirmRegistrationPayment,
+  createTeamRegistration,
   moveToWaitlist,
   removeFromCategory,
   resendRegistrationPayment,
@@ -15,6 +16,7 @@ import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dial
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
+import { OgNovaInscricaoComponent, type NovaInscricaoSubmit } from './nova-inscricao.component';
 import {
   INSCRICAO_TABS,
   LGPD_LABEL,
@@ -52,7 +54,13 @@ interface PendingConfirm {
 @Component({
   selector: 'og-inscricoes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgIconComponent, OgInscricoesListComponent, OgConfirmDialogComponent],
+  imports: [
+    OgPageHeaderComponent,
+    OgIconComponent,
+    OgInscricoesListComponent,
+    OgNovaInscricaoComponent,
+    OgConfirmDialogComponent,
+  ],
   template: `
     <og-page-header title="Inscrições" [subtitle]="headerSubtitle()">
       <label class="og-insc-search">
@@ -68,11 +76,27 @@ interface PendingConfirm {
       <button type="button" class="og-mini-btn" [disabled]="filtered().length === 0" (click)="exportCsv()">
         <og-icon name="download" [size]="14" />Exportar
       </button>
+      @if (categorias().length > 0) {
+        <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="busy()" (click)="toggleNova()">
+          <og-icon [name]="creating() ? 'close' : 'plus'" [size]="14" />
+          {{ creating() ? 'Fechar' : 'Nova inscrição' }}
+        </button>
+      }
     </og-page-header>
 
     <div class="og-content">
       @if (feedback(); as fb) {
         <div class="og-banner" [class.win]="fb.ok" role="status">{{ fb.message }}</div>
+      }
+
+      @if (creating()) {
+        <og-nova-inscricao
+          [categorias]="categorias()"
+          [categoriaInicial]="categoryFilter()"
+          [busy]="busy()"
+          (submitted)="onCreate($event)"
+          (cancelled)="toggleNova()"
+        />
       }
 
       @if (categorias().length > 1) {
@@ -240,6 +264,8 @@ export class InscricoesComponent {
   /** Qual ação/inscrição está processando (`'confirm:<id>'` etc.) — o botão certo mostra spinner. */
   protected readonly busyKey = signal<string | null>(null);
   protected readonly actionsFor = signal<string | null>(null);
+  /** Formulário de inscrição criada pelo organizador aberto. */
+  protected readonly creating = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
@@ -442,6 +468,37 @@ export class InscricoesComponent {
     this.actionsFor.update((cur) => (cur === id ? null : id));
   }
 
+  protected toggleNova(): void {
+    this.creating.update((cur) => !cur);
+    this.feedback.set(null);
+  }
+
+  /** A inscrição pode nascer de dois jeitos, e o organizador precisa saber qual aconteceu:
+   *  dupla nova na lista, ou a reserva que um dos atletas já tinha, agora fechada — sem esse
+   *  aviso ele procura uma linha nova que não existe. */
+  protected onCreate(form: NovaInscricaoSubmit): void {
+    const categoria = this.categorias().find((c) => c.id === form.categoryId)?.name ?? 'categoria';
+    void this.run(
+      'create',
+      async () => {
+        const result = await createTeamRegistration({
+          tournamentId: this.id(),
+          categoryId: form.categoryId,
+          athleteUids: form.athleteUids,
+          markAsPaid: form.markAsPaid,
+        });
+        this.creating.set(false);
+        return result;
+      },
+      (result) => {
+        const base = result.merged
+          ? `Dupla fechada em ${categoria} sobre a inscrição que o atleta já tinha.`
+          : `Dupla inscrita em ${categoria}.`;
+        return result.waitlist ? `${base} A categoria está lotada: entrou na lista de espera.` : base;
+      },
+    );
+  }
+
   protected onAction(a: InscricaoAction): void {
     const { kind, row, note } = a;
     switch (kind) {
@@ -502,14 +559,23 @@ export class InscricoesComponent {
     }
   }
 
-  private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
+  /** `okMessage` aceita função porque nem toda ação sabe o resultado antes de rodar — criar
+   *  inscrição, por exemplo, só descobre no retorno se fundiu com uma reserva existente. */
+  private async run<T>(
+    key: string,
+    action: () => Promise<T>,
+    okMessage: string | ((result: T) => string),
+  ): Promise<void> {
     this.busy.set(true);
     this.busyKey.set(key);
     this.feedback.set(null);
     try {
-      await action();
+      const result = await action();
       this.pendingConfirm.set(null);
-      this.feedback.set({ ok: true, message: okMessage });
+      this.feedback.set({
+        ok: true,
+        message: typeof okMessage === 'function' ? okMessage(result) : okMessage,
+      });
       this.actionsFor.set(null);
       const tid = this.id();
       if (tid) {

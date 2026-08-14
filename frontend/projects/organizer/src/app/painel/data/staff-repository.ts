@@ -1,4 +1,5 @@
-import { collection, deleteDoc, doc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { searchAthletes, type AthleteSearchResult } from './athlete-search-repository';
 import { organizerFirestore } from './firestore';
 
 /** `tournaments/{id}/staff/{uid}` — equipe do torneio (gestor/mesário). Espelha
@@ -30,12 +31,8 @@ export interface TournamentStaffMember {
   addedAt: Date | null;
 }
 
-export interface StaffCandidate {
-  uid: string;
-  displayName: string;
-  nickname: string;
-  photoUrl: string | null;
-}
+/** Candidato a membro da equipe é o mesmo atleta cadastrado que a busca do painel devolve. */
+export type StaffCandidate = AthleteSearchResult;
 
 /** Apelido primeiro, senão nome completo (mesma regra de `displayLabel` no Flutter). */
 export function staffDisplayName(m: Pick<TournamentStaffMember | StaffCandidate, 'displayName' | 'nickname'>): string {
@@ -74,34 +71,10 @@ export async function listTournamentStaff(tournamentId: string): Promise<Tournam
   return members;
 }
 
-function candidateFromDoc(id: string, data: Record<string, unknown>): StaffCandidate {
-  return {
-    uid: id,
-    displayName: optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? 'Usuário',
-    nickname: optionalStr(data['nickname']) ?? '',
-    photoUrl: optionalStr(data['profilePhotoUrl']) ?? optionalStr(data['avatarUrl']) ?? optionalStr(data['photoURL']),
-  };
-}
-
-function normalizeSearchTerm(term: string): string {
-  return term
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-/** Busca por prefixo em `public_profiles` (`hasAthleteRole` + `keywords array-contains`) — mesmo
- *  índice composto que `searchUsersByNicknameOrName` usa no app pra convidar staff. */
-export async function searchStaffCandidates(term: string, excludeUids: readonly string[]): Promise<StaffCandidate[]> {
-  const normalized = normalizeSearchTerm(term);
-  if (normalized.length < 2) return [];
-  const db = organizerFirestore();
-  const snap = await getDocs(
-    query(collection(db, 'public_profiles'), where('hasAthleteRole', '==', true), where('keywords', 'array-contains', normalized), limit(20)),
-  );
-  const excluded = new Set(excludeUids);
-  return snap.docs.map((d) => candidateFromDoc(d.id, d.data() as Record<string, unknown>)).filter((c) => !excluded.has(c.uid));
+/** Busca por prefixo em `public_profiles` — mesma consulta que a inscrição de dupla usa, em
+ *  `athlete-search-repository`. Duas cópias divergiriam no dia em que o índice mudar. */
+export function searchStaffCandidates(term: string, excludeUids: readonly string[]): Promise<StaffCandidate[]> {
+  return searchAthletes(term, excludeUids);
 }
 
 export async function addTournamentStaff(tournamentId: string, addedBy: string, candidate: StaffCandidate, role: TournamentStaffRole): Promise<void> {

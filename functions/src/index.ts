@@ -62,6 +62,9 @@ import {
   cancelTournament,
 } from "./organizer-category-ops";
 import {
+  organizerCreateTeamRegistration,
+} from "./organizer-create-registration";
+import {
   scheduleMatch,
   rescheduleMatch,
   unscheduleMatch,
@@ -186,6 +189,7 @@ export {
   onArenaReviewCreatedAwardXp,
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
+  organizerCreateTeamRegistration,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,
   sendCategoryCommunication,

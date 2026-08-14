@@ -93,7 +93,7 @@ class TournamentRegistrationSuccessPage extends ConsumerWidget {
         : '';
     final footerLabel = tournament != null
         ? tournamentShareCardFooter(tournament)
-        : 'NEXAGO.APP ';
+        : 'NEXAGO';
 
     return _TournamentRegistrationSuccessView(
       args: args,

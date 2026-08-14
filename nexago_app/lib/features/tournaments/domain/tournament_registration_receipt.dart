@@ -76,7 +76,6 @@ String tournamentSuccessLocationSubtitle(TournamentDetail tournament) {
 
 final _shareDayFmt = DateFormat('d', 'pt_BR');
 final _shareMonthFmt = DateFormat('MMM', 'pt_BR');
-final _shareFooterFmt = DateFormat('MMM yyyy', 'pt_BR');
 
 String formatShareCardPlayerLine(String player1, String player2) {
   final p1 = player1.trim();
@@ -124,8 +123,17 @@ String tournamentShareCardLocationLine(TournamentDetail tournament) {
   return '$location · $city';
 }
 
-/// `NEXAGO.APP · MAI 2026`
+/// `NEXAGO · MAI 2026`
+///
+/// Par do `registrationShareFooter` do portal do atleta
+/// (`frontend/projects/athlete/src/app/tournaments/registration/registration-share.ts`):
+/// o card é desenhado à mão nas duas superfícies e o rodapé tem de sair
+/// idêntico. O `intl` abrevia o mês com ponto em pt_BR (`mai.`) e o portal
+/// remove esse ponto — sem o mesmo corte aqui o app emitiria `MAI. 2026`.
 String tournamentShareCardFooter(TournamentDetail tournament) {
-  final label = _shareFooterFmt.format(tournament.startDate).toUpperCase();
-  return 'NEXAGO.APP · $label';
+  final month = _monthAbbrevNoDot(tournament.startDate).toUpperCase();
+  return 'NEXAGO · $month ${tournament.startDate.year}';
 }
+
+String _monthAbbrevNoDot(DateTime date) =>
+    _shareMonthFmt.format(date).replaceFirst(RegExp(r'\.$'), '');

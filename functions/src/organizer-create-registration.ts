@@ -40,11 +40,19 @@ import {
   loadCategoryRegistrationsTx,
   registrationConflictMessage,
 } from "./tournament-pair-uniqueness";
+import {
+  asTournamentCategory,
+  categoryRequiresUniform,
+  registrationUniformForSlot,
+  validateUniformPayload,
+} from "./tournament-partner-invite";
 import {resolvePartnerRegistrationPlan} from "./tournament-solo-registration";
+import {isTeamCategory} from "./tournament-team-category";
 import {setTeamGenderWhenRegistrationPaid} from "./tournament-team-roster";
 import {
   buildOrganizerPaymentFields,
   buildOrganizerRegistrationDoc,
+  effectiveUniformCategory,
   organizerRegistrationNotification,
   organizerRegistrationStamp,
   parseCreateTeamRegistrationInput,
@@ -76,7 +84,7 @@ export const organizerCreateTeamRegistration = onCall({
     throw new HttpsError("unauthenticated", "Login necessário");
   }
 
-  const {tournamentId, categoryId, athleteUids, markAsPaid} =
+  const {tournamentId, categoryId, athleteUids, markAsPaid, uniforms} =
     parseCreateTeamRegistrationInput(request.data);
   const [uidA, uidB] = athleteUids;
 
@@ -94,6 +102,28 @@ export const organizerCreateTeamRegistration = onCall({
   );
   const shouldWaitlist = tournament.__shouldWaitlist === true;
   const category = findCategory(tournament, categoryId);
+
+  // Categoria de trio+ tem elenco nomeado pelo capitão e uniforme por uid — nada disso cabe
+  // num formulário de dupla, e uma "dupla" em categoria de quarteto entraria torta na chave.
+  if (isTeamCategory(category)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta categoria é de equipe. Use a inscrição de equipe para montar o elenco.",
+    );
+  }
+
+  // Uniforme é obrigatório para o organizador na mesma medida em que é para o atleta: a
+  // inscrição criada aqui não pode nascer com um pedido de uniforme pela metade.
+  const uniformCategory = asTournamentCategory(category);
+  const requiresUniform =
+    uniformCategory != null &&
+    categoryRequiresUniform(effectiveUniformCategory(tournament, uniformCategory));
+  if (requiresUniform && uniformCategory) {
+    const effective = effectiveUniformCategory(tournament, uniformCategory);
+    for (const uid of athleteUids) {
+      validateUniformPayload(effective, uniforms[uid] ?? null, true);
+    }
+  }
 
   await assertAthletesExist(db, athleteUids);
   await assertTeamLevelEligibility({db, tournament, category, uids: [uidA, uidB]});
@@ -166,6 +196,17 @@ export const organizerCreateTeamRegistration = onCall({
           FieldValue.serverTimestamp(),
         ),
       };
+
+      // Slot do uniforme segue quem é player1 na inscrição que sobrevive — não a ordem em
+      // que o organizador escolheu os atletas na tela.
+      const ownerUniform = uniforms[baseOwnerUid];
+      const joiningUniform = uniforms[joiningUid];
+      if (ownerUniform) {
+        Object.assign(update, registrationUniformForSlot(ownerUniform, "Player1"));
+      }
+      if (joiningUniform) {
+        Object.assign(update, registrationUniformForSlot(joiningUniform, "Player2"));
+      }
       // Reserva já paga (o atleta pagou o total) → o parceiro entra sem taxa.
       if (basePaid) {
         update.sharePaidUids = FieldValue.arrayUnion(joiningUid);
@@ -238,6 +279,12 @@ export const organizerCreateTeamRegistration = onCall({
       timestamp: FieldValue.serverTimestamp(),
     });
     if (payment) Object.assign(registrationDoc, payment);
+    if (uniforms[uidA]) {
+      Object.assign(registrationDoc, registrationUniformForSlot(uniforms[uidA], "Player1"));
+    }
+    if (uniforms[uidB]) {
+      Object.assign(registrationDoc, registrationUniformForSlot(uniforms[uidB], "Player2"));
+    }
     tx.set(regRef, registrationDoc);
 
     return {

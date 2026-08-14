@@ -17,6 +17,8 @@ import {
   ORGANIZER_DIRECT_PAYMENT_METHOD,
   organizerDirectConfirmPaidAmount,
 } from "./organizer-category-ops-payments";
+import {parseUniformPayload} from "./tournament-partner-invite";
+import type {TournamentCategory, UniformPayload} from "./tournament-partner-invite";
 
 /** Marca de origem gravada na inscrição — separa do que veio do fluxo do atleta. */
 export const ORGANIZER_CREATED_VIA = "organizer";
@@ -28,6 +30,12 @@ export interface CreateTeamRegistrationInput {
   athleteUids: [string, string];
   /** O organizador já recebeu o valor por fora (Pix/dinheiro na mão). */
   markAsPaid: boolean;
+  /**
+   * Uniforme por atleta, indexado pelo uid. Vem cru: a exigência e os tamanhos válidos
+   * dependem da categoria, então quem valida é a Cloud Function com
+   * `validateUniformPayload` — a mesma do fluxo do atleta.
+   */
+  uniforms: Record<string, UniformPayload>;
 }
 
 function requiredText(value: unknown, field: string): string {
@@ -64,11 +72,47 @@ export function parseCreateTeamRegistrationInput(
     );
   }
 
+  const uniformsRaw =
+    raw.uniforms && typeof raw.uniforms === "object" ?
+      (raw.uniforms as Record<string, unknown>) :
+      {};
+  const uniforms: Record<string, UniformPayload> = {};
+  for (const uid of uids) {
+    const payload = parseUniformPayload(uniformsRaw[uid]);
+    if (payload) uniforms[uid] = payload;
+  }
+
   return {
     tournamentId,
     categoryId,
     athleteUids: [uids[0], uids[1]],
     markAsPaid: raw.markAsPaid === true,
+    uniforms,
+  };
+}
+
+/**
+ * Categoria com a herança do torneio já resolvida, para validar uniforme.
+ *
+ * Categoria sem exigência própria em torneio com `uniformRequired` conta como `top_only`, com as
+ * flags de número/nome da RAIZ — é o que o portal do atleta, o app e a tela de Uniformes já
+ * fazem. `categoryRequiresUniform` sozinha ignora essa herança; passar a categoria efetiva
+ * reusa `validateUniformPayload` sem que servidor e tela discordem sobre o que é obrigatório.
+ */
+export function effectiveUniformCategory(
+  tournament: Record<string, unknown>,
+  category: TournamentCategory,
+): TournamentCategory {
+  const ownType = String(category.uniformType ?? "none").trim();
+  const hasOwnRequirement =
+    ownType === "top_only" || ownType === "top" || ownType === "full";
+  if (hasOwnRequirement || tournament.uniformRequired !== true) return category;
+
+  return {
+    ...category,
+    uniformType: "top_only",
+    uniformNumberOnShirt: tournament.uniformNumberOnShirt === true,
+    uniformNameOnShirt: tournament.uniformNameOnShirt === true,
   };
 }
 

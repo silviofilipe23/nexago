@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildOrganizerPaymentFields,
   buildOrganizerRegistrationDoc,
+  effectiveUniformCategory,
   organizerRegistrationNotification,
   organizerRegistrationStamp,
   parseCreateTeamRegistrationInput,
@@ -34,7 +35,38 @@ describe("parseCreateTeamRegistrationInput", () => {
       categoryId: "Masculino B",
       athleteUids: ["uid-a", "uid-b"],
       markAsPaid: true,
+      uniforms: {},
     });
+  });
+
+  it("recolhe o uniforme de cada atleta e descarta o resto", () => {
+    const input = parseCreateTeamRegistrationInput({
+      tournamentId: "t1",
+      categoryId: "c",
+      athleteUids: ["uid-a", "uid-b"],
+      uniforms: {
+        "uid-a": {sizeTop: " M ", jerseyNumber: "7", jerseyName: " Ana "},
+        "uid-b": {sizeTop: "G", sizeShorts: "GG"},
+        // Uid que não é da dupla não entra na inscrição.
+        "uid-intruso": {sizeTop: "P"},
+      },
+    });
+    assert.deepEqual(input.uniforms, {
+      "uid-a": {sizeTop: "M", jerseyNumber: 7, jerseyName: "Ana"},
+      "uid-b": {sizeTop: "G", sizeShorts: "GG"},
+    });
+  });
+
+  it("uniforme ausente ou vazio some do payload (a CF é quem exige)", () => {
+    const base = {tournamentId: "t1", categoryId: "c", athleteUids: ["uid-a", "uid-b"]};
+    assert.deepEqual(parseCreateTeamRegistrationInput(base).uniforms, {});
+    assert.deepEqual(
+      parseCreateTeamRegistrationInput({
+        ...base,
+        uniforms: {"uid-a": {sizeTop: "  "}, "uid-b": null},
+      }).uniforms,
+      {},
+    );
   });
 
   it("markAsPaid só é verdadeiro no booleano true", () => {
@@ -61,6 +93,35 @@ describe("parseCreateTeamRegistrationInput", () => {
     rejectsInvalidArgument({...base, athleteUids: ["a", "   "]});
     rejectsInvalidArgument({...base, athleteUids: "a,b"});
     rejectsInvalidArgument({...base});
+  });
+});
+
+describe("effectiveUniformCategory", () => {
+  const category = {categoryName: "Masculino B"};
+
+  it("categoria sem exigência herda a do torneio, com as flags da RAIZ", () => {
+    const effective = effectiveUniformCategory(
+      {uniformRequired: true, uniformNumberOnShirt: true, uniformNameOnShirt: true},
+      category,
+    );
+    assert.equal(effective.uniformType, "top_only");
+    assert.equal(effective.uniformNumberOnShirt, true);
+    assert.equal(effective.uniformNameOnShirt, true);
+  });
+
+  it("exigência própria da categoria manda — a raiz não sobrescreve", () => {
+    const own = {...category, uniformType: "full" as const, uniformNumberOnShirt: false};
+    const effective = effectiveUniformCategory(
+      {uniformRequired: true, uniformNumberOnShirt: true},
+      own,
+    );
+    assert.equal(effective.uniformType, "full");
+    assert.equal(effective.uniformNumberOnShirt, false);
+  });
+
+  it("torneio sem uniforme deixa a categoria como está", () => {
+    assert.equal(effectiveUniformCategory({}, category), category);
+    assert.equal(effectiveUniformCategory({uniformRequired: false}, category), category);
   });
 });
 

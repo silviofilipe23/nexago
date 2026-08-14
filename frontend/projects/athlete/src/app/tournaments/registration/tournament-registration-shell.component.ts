@@ -14,19 +14,19 @@ import {
   createTeamRegistration,
   declinePartnerInvite,
   EMPTY_UNIFORM_SLOT,
-  fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
-  fetchMySentPendingInvites,
   leaveTeamRegistration,
   registerSolo,
   sendPartnerInvite,
   setRegistrationUniform,
   TournamentRegistrationError,
+  watchMySentPendingInvites,
   type AthleteTournamentRegistration,
   type SentPartnerInvite,
   type TournamentPartnerInvite,
   type UniformInput,
 } from '../../data/tournament-registrations-repository';
+import { PartnerInvitesService } from '../../data/partner-invites.service';
 import {
   categoryFormatLabel,
   categoryGenderDetail,
@@ -148,6 +148,7 @@ export class TournamentRegistrationShellComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly toasts = inject(NxToastService);
+  private readonly partnerInvites = inject(PartnerInvitesService);
   private searchDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly accountLabel = computed(() => {
@@ -247,8 +248,18 @@ export class TournamentRegistrationShellComponent {
   protected readonly referralCode = computed(() => this.auth.user()?.uid ?? '');
 
   /** Convite QUE EU RECEBI pra essa categoria — aceitar/recusar direto aqui, sem depender
-   *  de o atleta achar a Agenda (é onde a aceitação sempre viveu até então). */
-  protected readonly receivedInvite = signal<TournamentPartnerInvite | null>(null);
+   *  de o atleta achar a Agenda (é onde a aceitação sempre viveu até então). Vem do store ao
+   *  vivo: o convite pode chegar com a tela já aberta. */
+  protected readonly receivedInvite = computed<TournamentPartnerInvite | null>(() => {
+    const tournamentId = this.tournamentId();
+    const category = this.selectedCategory();
+    if (!tournamentId || !category) return null;
+    return (
+      this.partnerInvites
+        .pending()
+        .find(({ invite }) => invite.tournamentId === tournamentId && invite.categoryId === category.id)?.invite ?? null
+    );
+  });
   protected readonly acceptingInvite = signal(false);
   protected readonly decliningInvite = signal(false);
 
@@ -387,19 +398,6 @@ export class TournamentRegistrationShellComponent {
       void this.loadMyRegistrations(id, uid);
     });
 
-    // Convite que ALGUÉM me enviou pra essa categoria — mostrado direto na tela, em vez de
-    // só na Agenda.
-    effect(() => {
-      const uid = this.auth.user()?.uid;
-      const tournamentId = this.tournamentId();
-      const category = this.selectedCategory();
-      if (!uid || !tournamentId || !category) {
-        this.receivedInvite.set(null);
-        return;
-      }
-      void this.loadReceivedInvite(uid, tournamentId, category.id);
-    });
-
     effect(() => {
       const uid = this.auth.user()?.uid;
       if (uid) void this.loadProfile(uid);
@@ -408,16 +406,27 @@ export class TournamentRegistrationShellComponent {
     // Convites que eu enviei e ainda tão pendentes — mostra "aguardando resposta" em vez de
     // deixar a busca vazia (recarregar a página não deve esconder que já convidei alguém).
     // Pode ter mais de um: o atleta pode convidar várias pessoas, o primeiro aceite cancela
-    // os demais (markStaleInvitesAfterAccept no backend).
-    effect(() => {
+    // os demais (markStaleInvitesAfterAccept no backend). Ao vivo: a resposta do parceiro
+    // chega sem gesto meu e a lista tem de refletir isso na hora.
+    effect((onCleanup) => {
       const reg = this.registration();
       const uid = this.auth.user()?.uid;
       const tournamentId = this.tournamentId();
-      if (!reg?.partnerPending || !uid || !tournamentId) {
+      const db = this.firestore;
+      if (!reg?.partnerPending || !uid || !tournamentId || !db) {
         this.sentPendingInvites.set([]);
         return;
       }
-      void this.loadSentPendingInvites(uid, tournamentId, reg.categoryId);
+      onCleanup(
+        watchMySentPendingInvites(
+          db,
+          uid,
+          tournamentId,
+          reg.categoryId,
+          (invites) => this.sentPendingInvites.set(invites),
+          () => this.sentPendingInvites.set([]),
+        ),
+      );
     });
 
     // Marcador local "convite por link enviado" acompanha a categoria selecionada.
@@ -534,27 +543,6 @@ export class TournamentRegistrationShellComponent {
       this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId));
     } catch {
       this.myRegistrations.set([]);
-    }
-  }
-
-  private async loadReceivedInvite(uid: string, tournamentId: string, categoryId: string): Promise<void> {
-    const db = this.firestore;
-    if (!db) return;
-    try {
-      const invites = await fetchMyPendingPartnerInvites(db, uid);
-      this.receivedInvite.set(invites.find((i) => i.tournamentId === tournamentId && i.categoryId === categoryId) ?? null);
-    } catch {
-      this.receivedInvite.set(null);
-    }
-  }
-
-  private async loadSentPendingInvites(uid: string, tournamentId: string, categoryId: string): Promise<void> {
-    const db = this.firestore;
-    if (!db) return;
-    try {
-      this.sentPendingInvites.set(await fetchMySentPendingInvites(db, uid, tournamentId, categoryId));
-    } catch {
-      this.sentPendingInvites.set([]);
     }
   }
 
@@ -942,14 +930,13 @@ export class TournamentRegistrationShellComponent {
       );
       this.partnerResults.set([]);
       this.partnerQuery.set('');
-      await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
+      // A lista de "aguardando resposta" é do listener — o convite recém-criado entra sozinho.
     } catch (err) {
       // 409 / already-exists = convite ainda válido — trata como ok (já foi enviado).
       if (err instanceof TournamentRegistrationError && err.isPendingInviteConflict) {
         this.toasts.info('Convite já enviado', `${candidate.displayName} ainda não respondeu. Aguarde ou convide outra pessoa.`);
         this.partnerResults.set([]);
         this.partnerQuery.set('');
-        await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
       } else {
         this.toasts.error(
           'Não foi possível enviar o convite',
@@ -966,7 +953,6 @@ export class TournamentRegistrationShellComponent {
     this.cancelingInviteId.set(invite.id);
     try {
       await cancelSentPartnerInvite(athleteFunctions(), invite.id);
-      this.sentPendingInvites.update((list) => list.filter((i) => i.id !== invite.id));
       this.toasts.success('Convite cancelado', `${invite.inviteeName} não vai mais receber o pedido de dupla.`);
     } catch (err) {
       this.toasts.error(
@@ -1015,7 +1001,7 @@ export class TournamentRegistrationShellComponent {
       } else {
         this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
       }
-      this.receivedInvite.set(null);
+      this.partnerInvites.markAnswered(invite.id);
       const uid = this.auth.user()?.uid;
       const tournamentId = this.tournamentId();
       if (uid && tournamentId) await this.loadMyRegistrations(tournamentId, uid);
@@ -1037,7 +1023,7 @@ export class TournamentRegistrationShellComponent {
     try {
       await declinePartnerInvite(athleteFunctions(), invite.id);
       this.toasts.success('Convite recusado', `${invite.inviterName} foi avisado e pode convidar outra pessoa.`);
-      this.receivedInvite.set(null);
+      this.partnerInvites.markAnswered(invite.id);
     } catch (err) {
       this.toasts.error(
         'Não foi possível recusar o convite',

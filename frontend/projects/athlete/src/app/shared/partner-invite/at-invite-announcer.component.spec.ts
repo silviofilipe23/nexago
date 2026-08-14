@@ -29,7 +29,19 @@ function item(id: string, overrides: Partial<TournamentPartnerInvite> = {}): Pen
     teamSize: null,
     ...overrides,
   };
-  return { invite, tournament: { id: invite.tournamentId, name: 'Copa VH', isCancelled: false } as TournamentSummary };
+  return {
+    invite,
+    tournament: {
+      id: invite.tournamentId,
+      name: 'Copa VH',
+      isCancelled: false,
+      location: 'Arena CFC',
+      city: 'Aparecida',
+      startAt: new Date(2026, 5, 20, 8, 0),
+      paymentMode: 'appPixCard',
+      categories: [{ id: invite.categoryId, categoryName: 'Masc. Intermediário', entryFee: 360, teamSize: null }],
+    } as unknown as TournamentSummary,
+  };
 }
 
 describe('AtInviteAnnouncerComponent', () => {
@@ -51,7 +63,7 @@ describe('AtInviteAnnouncerComponent', () => {
     return dialog()?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
   }
 
-  async function click(act: 'accept' | 'decline' | 'later'): Promise<void> {
+  async function click(act: 'accept' | 'decline' | 'later' | 'details'): Promise<void> {
     host().querySelector<HTMLButtonElement>(`[data-act="${act}"]`)!.click();
     await fixture.whenStable();
   }
@@ -103,7 +115,49 @@ describe('AtInviteAnnouncerComponent', () => {
   it('anuncia o convite pendente ao entrar', async () => {
     await build([item('i1')]);
 
-    expect(text()).toContain('Bia te chamou pra formar dupla no Copa VH.');
+    expect(text()).toContain('Bia te chamou pra dupla');
+    expect(text()).toContain('Falta só você aceitar');
+  });
+
+  it('mostra o quadro do torneio com o que o summary já trouxe', async () => {
+    await build([item('i1')]);
+    const facts = text();
+
+    expect(facts).toContain('Masc. Intermediário');
+    expect(facts).toContain('sáb · 20 jun · 08h');
+    expect(facts).toContain('Arena CFC · Aparecida');
+    // Cota, não o total da dupla: 360 / 2.
+    expect(facts.replace(/ /g, ' ')).toContain('R$ 180');
+  });
+
+  it('sem prazo no convite não inventa contagem', async () => {
+    await build([item('i1')]);
+
+    expect(host().querySelector('.deadline')).toBeNull();
+  });
+
+  it('com prazo, conta o que resta e mede o decorrido', async () => {
+    await build([
+      item('i1', {
+        createdAt: new Date(Date.now() - 2 * 3_600_000),
+        // Um minuto de folga: o componente lê o relógio alguns ms depois daqui, e sem a
+        // folga o Math.floor de "22 h menos 3 ms" vira 21.
+        expiresAt: new Date(Date.now() + 22 * 3_600_000 + 60_000),
+      }),
+    ]);
+
+    expect(text()).toContain('Restam 22 h pra responder');
+    expect(host().querySelector('.deadline-bar')?.getAttribute('aria-valuenow')).toBe('8');
+  });
+
+  it('"Ver detalhes" leva pro torneio sem responder o convite', async () => {
+    await build([item('i1')]);
+    await click('details');
+
+    expect(navigate).toHaveBeenCalledWith(['/torneios', 't-i1']);
+    expect(markAnswered).not.toHaveBeenCalled();
+    expect(responder.decline).not.toHaveBeenCalled();
+    expect(dialog()).toBeNull();
   });
 
   it('"Depois" fecha e não reabre nesta sessão', async () => {

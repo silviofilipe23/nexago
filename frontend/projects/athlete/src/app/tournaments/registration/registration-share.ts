@@ -30,7 +30,7 @@ export interface RegistrationShareData {
   categoryName: string;
   /** `Arena Beach GYN · Goiânia, GO` — vazio quando o torneio não tem local nem cidade. */
   locationLine: string;
-  /** `NEXAGO.APP · MAI 2026`. */
+  /** `NEXAGO · MAI 2026`. */
   footerLabel: string;
   /** Ordem significativa: é a ordem em que os avatares saem no leque. */
   athletes: RegistrationShareAthlete[];
@@ -158,7 +158,7 @@ export function registrationShareLocationLine(location: string | null, city: str
   return parts.join(' · ');
 }
 
-/** `NEXAGO.APP · MAI 2026`. */
+/** `NEXAGO · MAI 2026`. */
 export function registrationShareFooter(startAt: Date | null): string {
   if (startAt == null) return 'NEXAGO';
   const month = startAt.toLocaleDateString('pt-BR', { month: 'short' }).replace(/\.$/, '').toUpperCase();

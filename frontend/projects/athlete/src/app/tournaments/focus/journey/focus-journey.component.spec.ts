@@ -71,11 +71,11 @@ describe('journeyHeadlineOf', () => {
   });
 
   it('1 vitória falta: singular', () => {
-    expect(journeyHeadlineOf(1)).toEqual({ kind: 'countdown', text: '1 vitória do título.' });
+    expect(journeyHeadlineOf(1)).toEqual({ kind: 'countdown', text: '1 vitória até o título.' });
   });
 
   it('N vitórias faltam: plural', () => {
-    expect(journeyHeadlineOf(3)).toEqual({ kind: 'countdown', text: '3 vitórias do título.' });
+    expect(journeyHeadlineOf(3)).toEqual({ kind: 'countdown', text: '3 vitórias até o título.' });
   });
 });
 

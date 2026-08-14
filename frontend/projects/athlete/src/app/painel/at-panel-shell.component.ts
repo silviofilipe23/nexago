@@ -18,6 +18,7 @@ import { AuthService } from '../auth/auth.service';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { NxBannerComponent } from '../shared/feedback';
+import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
 /** Rotas que o hub Competir agrupa — mantêm o item "Competir" aceso na bottom-nav mobile. */
 const COMPETIR_PREFIXES = ['/competir', '/torneios', '/ligas', '/ranking', '/equipes', '/atletas'];
@@ -42,7 +43,7 @@ function createFirestore(): Firestore | null {
 @Component({
   selector: 'app-at-panel-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, NxBannerComponent],
+  imports: [RouterLink, RouterLinkActive, NxBannerComponent, AtInviteAnnouncerComponent],
   templateUrl: './at-panel-shell.component.html',
   styleUrl: './at-panel-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

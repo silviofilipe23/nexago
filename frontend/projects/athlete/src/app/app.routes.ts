@@ -1,6 +1,7 @@
 import { type RedirectFunction, type Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { onboardingGuard } from './auth/onboarding.guard';
+import { staffGuard } from './auth/staff.guard';
 import { TournamentLiveStore } from './tournaments/tournament-live.store';
 
 /** As abas "Partidas & tabela" e "Chaves" viraram sub-visões da categoria. O link antigo já
@@ -175,6 +176,24 @@ export const routes: Routes = [
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./competir/competir-hub.component').then((m) => m.CompetirHubComponent),
+  },
+  {
+    // Operação do mesário (e do gestor) — os torneios em que ELE é equipe, não em que joga.
+    // O `staffGuard` só evita tela vazia por link solto; quem autoriza a escrita são as rules
+    // (`canScoreTournament`) e o `assertCanScoreTournament` dos callables.
+    path: 'mesa',
+    canActivate: [authGuard, onboardingGuard, staffGuard],
+    loadComponent: () => import('./mesa/mesa-tournaments.component').then((m) => m.MesaTournamentsComponent),
+  },
+  {
+    path: 'mesa/:tournamentId/partida/:matchId',
+    canActivate: [authGuard, onboardingGuard, staffGuard],
+    loadComponent: () => import('./mesa/mesa-live.component').then((m) => m.MesaLiveComponent),
+  },
+  {
+    path: 'mesa/:tournamentId',
+    canActivate: [authGuard, onboardingGuard, staffGuard],
+    loadComponent: () => import('./mesa/mesa-matches.component').then((m) => m.MesaMatchesComponent),
   },
   {
     path: 'notificacoes',

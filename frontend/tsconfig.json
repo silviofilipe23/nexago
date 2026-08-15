@@ -20,6 +20,7 @@
       "@nexago/leagues": ["shared/leagues/index.ts"],
       "@nexago/levels": ["shared/levels/index.ts"],
       "@nexago/link-pages": ["shared/link-pages/index.ts"],
+      "@nexago/live-scoring": ["shared/live-scoring/index.ts"],
       "@nexago/push-notifications": ["shared/push-notifications/index.ts"]
     }
   },

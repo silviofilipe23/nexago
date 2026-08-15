@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { Router } from '@angular/router';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { courtChangeBlockReason, courtChangePayload } from '../data/match-court-change';
-import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '../data/match-scoring';
+import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '@nexago/live-scoring';
 import { declareMatchWalkover, scheduleMatch, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';

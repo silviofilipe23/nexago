@@ -46,7 +46,7 @@ import {
 
 export type { RankingRow };
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
+const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Avançado 1', 'Avançado 2', 'Open'];
 const GENDER_OPTIONS: readonly FilterGender[] = ['all', 'male', 'female', 'mixed'];
 const GENDER_LABELS: Record<FilterGender, string> = { all: 'Todos os gêneros', male: 'Masculino', female: 'Feminino', mixed: 'Misto' };
 const FORMAT_OPTIONS: readonly FilterFormat[] = ['all', 'dupla', 'trio', 'quarteto', 'quinteto'];

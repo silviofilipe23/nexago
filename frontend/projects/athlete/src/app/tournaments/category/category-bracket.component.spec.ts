@@ -38,6 +38,7 @@ function makeCategory(id: string): TournamentCategoryOffer {
     maxTeams: 8,
     spotsLeft: 0,
     level: null,
+    minLevel: null,
     genderType: 'M',
     teamSize: null,
     genderFree: false,

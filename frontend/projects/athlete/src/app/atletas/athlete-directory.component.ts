@@ -28,8 +28,26 @@ import type { AthleteDirectoryEntry } from './athlete-directory.models';
 
 export type SortBy = 'ranking' | 'name' | 'level';
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
-const LEVEL_ORDER: Record<FilterLevel, number> = { all: -1, 'Open': 0, 'Intermediário 2': 1, 'Intermediário 1': 2, 'Iniciante 2': 3, 'Iniciante 1': 4 };
+const LEVEL_OPTIONS: readonly FilterLevel[] = [
+  'all',
+  'Iniciante 1',
+  'Iniciante 2',
+  'Intermediário 1',
+  'Intermediário 2',
+  'Avançado 1',
+  'Avançado 2',
+  'Open',
+];
+const LEVEL_ORDER: Record<FilterLevel, number> = {
+  all: -1,
+  Open: 0,
+  'Avançado 2': 1,
+  'Avançado 1': 2,
+  'Intermediário 2': 3,
+  'Intermediário 1': 4,
+  'Iniciante 2': 5,
+  'Iniciante 1': 6,
+};
 const CITY_ALL = 'all';
 
 const SORT_OPTIONS: readonly { value: SortBy; label: string }[] = [

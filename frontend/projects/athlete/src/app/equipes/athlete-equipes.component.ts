@@ -15,7 +15,16 @@ import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type Arena
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
 import type { MyTeam, PartnerCandidate } from './athlete-equipes.models';
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
+const LEVEL_OPTIONS: readonly FilterLevel[] = [
+  'all',
+  'Iniciante 1',
+  'Iniciante 2',
+  'Intermediário 1',
+  'Intermediário 2',
+  'Avançado 1',
+  'Avançado 2',
+  'Open',
+];
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;

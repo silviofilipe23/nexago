@@ -43,6 +43,7 @@ function makeCategory(overrides: Partial<TournamentCategoryOffer> = {}): Tournam
     maxTeams: 16,
     spotsLeft: 4,
     level: null,
+    minLevel: null,
     genderType: 'M',
     teamSize: null,
     genderFree: false,

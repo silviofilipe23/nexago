@@ -166,6 +166,9 @@ interface FeedRowView {
 
         @if ($first) {
           <div class="mesa-mid">
+            <a class="mesa-midctl" [routerLink]="['/mesa', tournamentId()]" aria-label="Voltar para as partidas">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
+            </a>
             <div class="mesa-setsw">
               <span [class.lo]="wins().a < wins().b">{{ wins().a }}</span>
               <span class="d">·</span>
@@ -201,6 +204,9 @@ interface FeedRowView {
                 </button>
               }
             }
+            <button type="button" class="mesa-midctl" (click)="exitPresent()" aria-label="Sair do modo exibição">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
           </div>
         }
       }
@@ -223,10 +229,6 @@ interface FeedRowView {
           Placar
         </button>
       </div>
-
-      <button type="button" class="mesa-exit" (click)="exitPresent()" aria-label="Sair do modo exibição">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-      </button>
 
       @if (feedback(); as fb) {
         <div class="mesa-banner" [class.ok]="fb.ok" role="status" (click)="feedback.set(null)">{{ fb.message }}</div>
@@ -796,21 +798,26 @@ interface FeedRowView {
     }
 
     /* ── modo exibição (tela virada para os atletas) ── */
-    .mesa-exit {
+    /* Voltar e sair moram na FAIXA CENTRAL, não flutuando sobre os painéis: painel é alvo de
+       ponto, e controle por cima dele vira ponto marcado sem querer (além de cobrir o selo de
+       SAQUE, que foi como esta tela nasceu). */
+    .mesa-midctl {
       display: none;
-      position: absolute;
-      top: calc(14px + env(safe-area-inset-top));
-      right: 14px;
-      z-index: 40;
-      width: 34px;
-      height: 34px;
+      width: 40px;
+      height: 40px;
+      flex: none;
       border-radius: var(--nx-r-2);
-      background: var(--nx-glass);
       border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
       place-items: center;
       color: var(--nx-text-mute);
-      backdrop-filter: blur(8px);
       cursor: pointer;
+    }
+    .mesa-midctl:active {
+      background: rgba(255, 255, 255, 0.07);
+    }
+    :host(.mesa-present) .mesa-midctl {
+      display: grid;
     }
     :host(.mesa-present) {
       grid-template-rows: 1fr auto 1fr;
@@ -825,6 +832,12 @@ interface FeedRowView {
     :host(.mesa-present) .mesa-midbtn {
       display: none;
     }
+    :host(.mesa-present) .mesa-side {
+      /* Sem o rodapé (escondido aqui), o space-between empurrava o número pro alto de um lado e
+         pro meio do outro — a dupla que saca tem uma linha a mais de selo. */
+      justify-content: center;
+      gap: 10px;
+    }
     :host(.mesa-present) .mesa-num {
       font-size: min(34cqh, 62cqw);
     }
@@ -836,15 +849,8 @@ interface FeedRowView {
     :host(.mesa-present) .mesa-team {
       justify-content: center;
     }
-    /* O X de sair fica sobre o canto superior direito: em retrato isso é o primeiro painel
-       (sem esta folga ele cobre o selo de SAQUE de quem saca); em paisagem é o segundo. */
-    @media (max-aspect-ratio: 1/1) {
-      :host(.mesa-present) .mesa-sidewrap--first .mesa-team {
-        padding-right: 44px;
-      }
-    }
-    /* Selo de set/match point + SAQUE + nome não cabem numa linha só no painel estreito da
-       paisagem: deixa quebrar, o nome continua sendo a primeira linha. */
+    /* Selo de set/match point + SAQUE + nome não cabem numa linha só no painel estreito: deixa
+       quebrar, o nome continua sendo a primeira linha. */
     :host(.mesa-present) .mesa-team {
       flex-wrap: wrap;
       row-gap: 6px;
@@ -854,13 +860,14 @@ interface FeedRowView {
       max-width: 100%;
     }
     :host(.mesa-present) .mesa-mid {
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    }
+    :host(.mesa-present) .mesa-setsw {
+      flex: 1;
       justify-content: center;
-      padding: 6px 12px;
     }
-    :host(.mesa-present) .mesa-exit {
-      display: grid;
-    }
-
     /* Paisagem no modo exibição: duplas lado a lado, sets no meio — é como o tablet fica
        apoiado na mesa da quadra. Regra de MEDIA, não de container: o container é o próprio
        :host, e consulta de container só vale para os DESCENDENTES dele — nunca casaria. */
@@ -871,7 +878,10 @@ interface FeedRowView {
       }
       :host(.mesa-present) .mesa-mid {
         flex-direction: column;
-        gap: 6px;
+        /* Coluna central lida como um bloco só (voltar · sets · regra · sair), não espalhada
+           pelas pontas como no retrato. */
+        justify-content: center;
+        gap: 16px;
         border-top: none;
         border-bottom: none;
         border-left: 1px solid var(--nx-line);
@@ -885,8 +895,8 @@ interface FeedRowView {
       :host(.mesa-present) .mesa-num {
         font-size: min(52cqh, 30cqw);
       }
-      :host(.mesa-present) .mesa-sidewrap--first .mesa-team {
-        padding-right: 0;
+      :host(.mesa-present) .mesa-setsw {
+        flex: none;
       }
     }
 

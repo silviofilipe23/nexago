@@ -222,6 +222,21 @@ describe('MesaLiveComponent', () => {
     expect(pointEvent).toEqual(jasmine.objectContaining({ type: 'undo-point', side: 'B' }));
   });
 
+  it('modo exibição mantém voltar e sair FORA dos painéis — controle sobre o painel vira ponto marcado sem querer', () => {
+    gateway.push(liveMatch());
+    fixture.detectChanges();
+
+    el().querySelector<HTMLButtonElement>('[aria-label="Modo exibição para os atletas"]')!.click();
+    fixture.detectChanges();
+
+    const back = el().querySelector<HTMLAnchorElement>('a.mesa-midctl');
+    expect(back?.getAttribute('href')).toBe('/mesa/t1');
+    expect(el().querySelector('button.mesa-midctl[aria-label="Sair do modo exibição"]')).not.toBeNull();
+    // Os dois controles vivem na faixa central, que não marca ponto.
+    expect(el().querySelectorAll('.mesa-side .mesa-midctl').length).toBe(0);
+    expect(gateway.points.length).toBe(0);
+  });
+
   it('partida sem as duas duplas não abre a mesa', () => {
     gateway.push(liveMatch({ teamBId: '', status: 'scheduled' }));
     fixture.detectChanges();

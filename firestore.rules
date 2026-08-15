@@ -100,6 +100,11 @@ service cloud.firestore {
         isTournamentStaff(tournamentId, ['manager', 'scorer'])
       );
     }
+    // `servingTeamId` é campo de PLACAR, não de configuração: a mesa ponto a ponto (app,
+    // organizador e portal do atleta) passa o saque pra quem marcou no MESMO update do ponto.
+    // Sem ele aqui, todo ponto de mesário voltava permission-denied enquanto o do gestor
+    // passava — o gestor cai em `managerCanOnlyEditMatchFields`, que já o listava.
+    // Coberto por `functions/test/mesa-scorer-point.rules.test.mjs`.
     function scorerCanOnlyEditScoreFields() {
       return request.resource.data.diff(resource.data).changedKeys().hasOnly([
         'resultA',
@@ -108,6 +113,7 @@ service cloud.firestore {
         'status',
         'sets',
         'currentSetIndex',
+        'servingTeamId',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',

@@ -1,5 +1,5 @@
 import { matchClosedSets, matchLiveCurrentSet, type LiveScoreFields } from '../data/live-set-display';
-import { matchWinnerSide, setWinnerSide, type ScoreSet } from '../data/match-scoring';
+import { matchWinnerSide, setWinnerSide, type ScoreSet } from '@nexago/live-scoring';
 import type { TournamentMatch } from '../data/matches-repository';
 import { finishedAtOf, type MatchFinishMemory } from './telao-finished';
 

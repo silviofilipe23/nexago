@@ -26,6 +26,7 @@ import {
   type MyBooking,
 } from './data/my-bookings-repository';
 import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
+import { staffRoleLabel, watchMyStaffTournaments, type MyStaffTournament } from './data/tournament-staff-repository';
 import { PartnerInvitesService } from './data/partner-invites.service';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
@@ -438,6 +439,10 @@ export class AthletePainelComponent {
   private readonly communityState = signal<CommunityFeedItem[]>([]);
   private readonly missionsDoneState = signal<ReadonlySet<string>>(new Set());
   private readonly myTournamentsState = signal<MyTournamentItem[]>([]);
+  /** Torneios em que o atleta é EQUIPE (mesário/gestor) — espelho `users/{uid}/tournamentStaff`.
+   *  Fica no topo do painel, e não na coluna lateral, porque no celular a lateral cai pro fim
+   *  da página: no dia do evento a mesa não pode depender de rolagem. */
+  private readonly staffTournamentsState = signal<MyStaffTournament[]>([]);
   /** Inscrições que ainda têm próximo passo (falta dupla/pagamento/uniforme) — o card de
    *  acompanhamento no topo. Sai da lista assim que a inscrição fecha. */
   private readonly inProgressRegistrationsState = signal<readonly RegistrationProgress[]>([]);
@@ -565,6 +570,13 @@ export class AthletePainelComponent {
   protected readonly missionsDone = computed(() => this.missions().filter((mission) => mission.done).length);
 
   protected readonly myTournaments = computed(() => this.myTournamentsState());
+  protected readonly staffTournaments = computed(() =>
+    this.staffTournamentsState().map((entry) => ({
+      id: entry.tournamentId,
+      name: entry.tournamentName || 'Torneio',
+      roleLabel: staffRoleLabel(entry.role),
+    })),
+  );
   protected readonly inProgressRegistrations = computed(() => this.inProgressRegistrationsState());
   protected readonly pendingInvites = computed<PendingInviteItem[]>(() =>
     this.partnerInvites.pending().map(({ invite, tournament }) => ({
@@ -657,6 +669,7 @@ export class AthletePainelComponent {
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
+        this.staffTournamentsState.set([]);
         this.inProgressRegistrationsState.set([]);
         this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
@@ -702,6 +715,13 @@ export class AthletePainelComponent {
         () => this.missionsDoneState.set(new Set()),
       );
 
+      const stopStaff = watchMyStaffTournaments(
+        this.firestore,
+        user.uid,
+        (entries) => this.staffTournamentsState.set(entries),
+        () => this.staffTournamentsState.set([]),
+      );
+
       void this.loadMatchHistory(user.uid);
       void this.loadRegistrationsAndTournaments(user.uid);
       void this.loadProfilePhoto(user.uid);
@@ -710,6 +730,7 @@ export class AthletePainelComponent {
         stopBookings();
         stopCommunity();
         stopMissions();
+        stopStaff();
       });
     });
   }

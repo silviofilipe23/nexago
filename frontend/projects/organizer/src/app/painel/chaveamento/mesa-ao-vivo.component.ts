@@ -4,27 +4,26 @@ import { deleteField, serverTimestamp } from 'firebase/firestore';
 import type { PillTone } from '../data/mock-data';
 import { initialsOf, truncateName } from '../data/mock-data';
 import {
-  lastUndoablePoint,
-  recordPointTransaction,
-  updateMatchFields,
-  watchLiveMatch,
-  watchPointEvents,
-  type LiveMatch,
-  type LivePointEvent,
-} from '../data/live-match-repository';
-import {
   applyBestOfChange,
   applyPoint,
   canReduceBestOf,
   elapsedSecondsFromStart,
   formatElapsedMmSs,
+  lastUndoablePoint,
   liveSetToMap,
+  recordPointTransaction,
   setPointHint,
   setRulesLabel,
   setsWonOf,
   undoPoint,
-} from '../data/live-scoring';
-import type { MatchDisplayStatus } from '../data/matches-repository';
+  updateMatchFields,
+  watchLiveMatch,
+  watchPointEvents,
+  type LiveMatch,
+  type LivePointEvent,
+  type MatchDisplayStatus,
+} from '@nexago/live-scoring';
+import { organizerLiveScoringContext } from '../data/live-scoring-context';
 import { updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
@@ -494,6 +493,7 @@ interface FeedRowView {
 export class MesaAoVivoComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly scoring = organizerLiveScoringContext();
   protected readonly initialsOf = initialsOf;
   protected readonly truncate = truncateName;
 
@@ -523,6 +523,7 @@ export class MesaAoVivoComponent {
         return;
       }
       const unsubMatch = watchLiveMatch(
+        this.scoring,
         id,
         (m) => {
           this.live.set(m);
@@ -530,7 +531,7 @@ export class MesaAoVivoComponent {
         },
         () => this.liveLoaded.set(true),
       );
-      const unsubEvents = watchPointEvents(id, (events) => this.events.set(events));
+      const unsubEvents = watchPointEvents(this.scoring, id, (events) => this.events.set(events));
       onCleanup(() => {
         unsubMatch();
         unsubEvents();
@@ -684,7 +685,7 @@ export class MesaAoVivoComponent {
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      await recordPointTransaction({
+      await recordPointTransaction(this.scoring, {
         matchId: m.id,
         matchUpdate: {
           sets: result.sets.map(liveSetToMap),
@@ -735,7 +736,7 @@ export class MesaAoVivoComponent {
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await recordPointTransaction({
+      await recordPointTransaction(this.scoring, {
         matchId: m.id,
         matchUpdate: {
           sets: result.sets.map(liveSetToMap),
@@ -765,7 +766,7 @@ export class MesaAoVivoComponent {
     if (!next) return;
     this.saving.set(true);
     try {
-      await updateMatchFields(m.id, { servingTeamId: next });
+      await updateMatchFields(this.scoring, m.id, { servingTeamId: next });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o saque.' });
     } finally {
@@ -789,7 +790,7 @@ export class MesaAoVivoComponent {
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      await updateMatchFields(m.id, {
+      await updateMatchFields(this.scoring, m.id, {
         bestOf: newBestOf,
         sets: result.sets.map(liveSetToMap),
         currentSetIndex: result.currentSetIndex,

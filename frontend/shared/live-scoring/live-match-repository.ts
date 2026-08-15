@@ -1,8 +1,6 @@
-import { collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, type Unsubscribe } from 'firebase/firestore';
-import { environment } from '../../../environments/environment';
-import { organizerFirestore } from './firestore';
+import { collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import type { LiveSet } from './live-scoring';
-import { statusOf, type MatchDisplayStatus } from './matches-repository';
+import { statusOf, type MatchDisplayStatus } from './match-status';
 
 /** Leitura/escrita da MESA AO VIVO — espelha `TournamentMatchesRepository` do app
  *  (`tournament_matches_repository.dart`): a marcação ponto a ponto escreve DIRETO no doc da
@@ -10,10 +8,21 @@ import { statusOf, type MatchDisplayStatus } from './matches-repository';
  *  / `scorerCanOnlyEditScoreFields`), gravando junto o evento em `pointEvents` com `seq`
  *  sequencial validado pelas rules (`seq == pointEventSeq + 1`). O avanço de chave continua
  *  sendo do servidor: o trigger `onTournamentMatchCompletedAdvance` dispara quando o ponto
- *  final grava `status: Completed` + `winnerId`. */
+ *  final grava `status: Completed` + `winnerId`.
+ *
+ *  Compartilhado entre o portal do organizador e o do atleta (mesário opera pelos dois): a
+ *  instância do Firestore e o `projectId` chegam por parâmetro em vez de virem do
+ *  `environment` de um portal específico. */
 
-/** Recorte do doc que a mesa usa — campos crus, sem os rótulos resolvidos do
- *  `ChaveamentoContextService` (nomes de dupla vêm de lá). */
+/** Firestore + projectId do portal que está usando a mesa — cada app monta o seu
+ *  (`organizerLiveScoringContext()` / `athleteLiveScoringContext()`). */
+export interface LiveScoringContext {
+  db: Firestore;
+  projectId: string;
+}
+
+/** Recorte do doc que a mesa usa — campos crus, sem os rótulos resolvidos (nomes de dupla vêm
+ *  do contexto de cada portal). */
 export interface LiveMatch {
   id: string;
   tournamentId: string;
@@ -76,7 +85,7 @@ function liveSetsFromRaw(raw: unknown): LiveSet[] {
     .filter((s): s is LiveSet => s != null);
 }
 
-function liveMatchFromDoc(id: string, data: Record<string, unknown>): LiveMatch {
+export function liveMatchFromDoc(id: string, data: Record<string, unknown>): LiveMatch {
   const sets = liveSetsFromRaw(data['sets']);
   return {
     id,
@@ -99,23 +108,22 @@ function liveMatchFromDoc(id: string, data: Record<string, unknown>): LiveMatch 
   };
 }
 
-function matchesCol() {
-  const projectId = environment.firebase.projectId;
-  if (!projectId) throw new Error('Firebase projectId ausente no environment.');
-  return collection(organizerFirestore(), 'artifacts', projectId, 'public', 'data', 'matches');
+function matchesCol(ctx: LiveScoringContext) {
+  if (!ctx.projectId) throw new Error('Firebase projectId ausente no environment.');
+  return collection(ctx.db, 'artifacts', ctx.projectId, 'public', 'data', 'matches');
 }
 
-export function watchLiveMatch(matchId: string, onChange: (match: LiveMatch | null) => void, onError?: (error: unknown) => void): Unsubscribe {
+export function watchLiveMatch(ctx: LiveScoringContext, matchId: string, onChange: (match: LiveMatch | null) => void, onError?: (error: unknown) => void): Unsubscribe {
   return onSnapshot(
-    doc(matchesCol(), matchId),
+    doc(matchesCol(ctx), matchId),
     (snap) => onChange(snap.exists() ? liveMatchFromDoc(snap.id, snap.data() as Record<string, unknown>) : null),
     (err) => onError?.(err),
   );
 }
 
-export function watchPointEvents(matchId: string, onChange: (events: LivePointEvent[]) => void, onError?: (error: unknown) => void): Unsubscribe {
+export function watchPointEvents(ctx: LiveScoringContext, matchId: string, onChange: (events: LivePointEvent[]) => void, onError?: (error: unknown) => void): Unsubscribe {
   return onSnapshot(
-    query(collection(doc(matchesCol(), matchId), 'pointEvents'), orderBy('seq')),
+    query(collection(doc(matchesCol(ctx), matchId), 'pointEvents'), orderBy('seq')),
     (snap) =>
       onChange(
         snap.docs.map((d) => {
@@ -140,10 +148,9 @@ export function watchPointEvents(matchId: string, onChange: (events: LivePointEv
 /** Transação idêntica à do app (`recordPointTransaction`): atualiza o doc da partida e grava o
  *  evento com `seq = pointEventSeq + 1` no MESMO commit — as rules validam a sequência, então
  *  duas mesas concorrentes não conseguem gravar o mesmo seq. */
-export async function recordPointTransaction(params: { matchId: string; matchUpdate: Record<string, unknown>; pointEvent: Record<string, unknown> }): Promise<void> {
-  const db = organizerFirestore();
-  const matchRef = doc(matchesCol(), params.matchId);
-  await runTransaction(db, async (txn) => {
+export async function recordPointTransaction(ctx: LiveScoringContext, params: { matchId: string; matchUpdate: Record<string, unknown>; pointEvent: Record<string, unknown> }): Promise<void> {
+  const matchRef = doc(matchesCol(ctx), params.matchId);
+  await runTransaction(ctx.db, async (txn) => {
     const snap = await txn.get(matchRef);
     if (!snap.exists()) throw new Error('Partida não encontrada');
     const currentSeq = intOf((snap.data() as Record<string, unknown>)['pointEventSeq'], 0);
@@ -155,8 +162,8 @@ export async function recordPointTransaction(params: { matchId: string; matchUpd
 }
 
 /** Escrita simples de campos permitidos pelas rules (troca de saque, troca de formato). */
-export function updateMatchFields(matchId: string, fields: Record<string, unknown>): Promise<void> {
-  return updateDoc(doc(matchesCol(), matchId), { ...fields, updatedAt: serverTimestamp() });
+export function updateMatchFields(ctx: LiveScoringContext, matchId: string, fields: Record<string, unknown>): Promise<void> {
+  return updateDoc(doc(matchesCol(ctx), matchId), { ...fields, updatedAt: serverTimestamp() });
 }
 
 /** Último ponto ainda não desfeito: replay da timeline casando cada `undo-point` com o `point`

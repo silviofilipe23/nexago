@@ -1,4 +1,5 @@
 import { collection, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
+import { statusOf, type MatchDisplayStatus } from '@nexago/live-scoring';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
 import { fetchTeamNames } from './teams-repository';
@@ -14,9 +15,9 @@ import { fetchTeamNames } from './teams-repository';
  *  direto) só gravam `teamAId`/`teamBId` crus, então o nome precisa vir de `teams` (mesmo join
  *  que `inscriptions-repository.ts` já fazia, ver `teams-repository.ts`). */
 
-/** Status normalizado — espelha `MatchStatus` (`functions/src/match-status.ts`: "Scheduled"/
- *  "In Progress"/"Completed"/"Canceled") em snake_case pro template Angular. */
-export type MatchDisplayStatus = 'scheduled' | 'in_progress' | 'completed' | 'canceled';
+/** Status normalizado mora em `@nexago/live-scoring` (a mesa ao vivo do atleta lê o mesmo doc);
+ *  reexportado aqui porque metade do painel importa daqui. */
+export { statusOf, type MatchDisplayStatus };
 
 /** Placar parcial gravado por `updateLiveMatchScore` (lançamento rápido) — o set em andamento
  *  vive aqui quando a partida NÃO usa a mesa ponto a ponto (que mantém o corrente em `sets[]`).
@@ -170,17 +171,6 @@ function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
   if (slot === 'teamAId') return 'A';
   if (slot === 'teamBId') return 'B';
   return null;
-}
-
-export function statusOf(raw: unknown): MatchDisplayStatus {
-  const v = String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, ' ');
-  if (v === 'in progress') return 'in_progress';
-  if (v === 'completed') return 'completed';
-  if (v === 'canceled' || v === 'cancelled') return 'canceled';
-  return 'scheduled';
 }
 
 interface RawMatch {

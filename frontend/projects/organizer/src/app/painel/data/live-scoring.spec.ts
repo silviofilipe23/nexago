@@ -1,4 +1,4 @@
-import { applyBestOfChange, applyPoint, canReduceBestOf, setPointHint, undoPoint } from './live-scoring';
+import { applyBestOfChange, applyPoint, canReduceBestOf, setPointHint, undoPoint } from '@nexago/live-scoring';
 
 /** Casos espelhados de `match_scoring_logic_test.dart` (app) — a mesa web tem que fechar set,
  *  virar set decisivo e declarar vencedor exatamente como a mesa I1 do Flutter. */

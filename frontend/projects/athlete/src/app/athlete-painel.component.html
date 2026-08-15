@@ -40,6 +40,32 @@
         <a [routerLink]="['/torneios', focusTarget.tournamentId, 'focus']" class="at-mini-btn at-mini-btn--primary">Entrar no Focus</a>
       </div>
     }
+    @if (staffTournaments().length > 0) {
+      <!-- Operação: o atleta também é equipe de algum torneio (mesário/gestor). Fica no topo
+           do corpo, e não na coluna lateral, porque no celular a lateral cai pro fim da página
+           — no dia do evento a mesa não pode depender de rolagem. -->
+      <div class="at-card at-staff-card">
+        <div class="at-card-head">
+          <div>
+            <div class="at-card-kicker">Torneios que eu opero</div>
+            <div class="at-card-title">Mesa</div>
+          </div>
+          <a routerLink="/mesa" class="at-ghost-btn">Ver todos</a>
+        </div>
+        <div class="at-staff-list">
+          @for (entry of staffTournaments(); track entry.id) {
+            <a class="at-staff-row" [routerLink]="['/mesa', entry.id]">
+              <div class="at-staff-info">
+                <div class="at-staff-name">{{ entry.name }}</div>
+                <div class="at-staff-meta">{{ entry.roleLabel }} · lançar placares</div>
+              </div>
+              <span class="at-pill at-pill--orange">Abrir mesa</span>
+            </a>
+          }
+        </div>
+      </div>
+    }
+
     @if (bootLoading()) {
       <p class="at-visually-hidden" role="status">Carregando seu painel…</p>
       <div class="at-kpi-row" aria-hidden="true">

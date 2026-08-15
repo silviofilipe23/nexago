@@ -317,10 +317,13 @@ service cloud.firestore {
     // escrita dos clientes novos). Downgrade só via super admin (suporte).
     // Primeira definição é livre (campo ausente/valor desconhecido →
     // rank -1); sobrescrever nível conhecido por valor inválido é bloqueado.
-    // Escada única de 5 níveis para TODOS os esportes (Iniciante 1/2,
-    // Intermediário 1/2, Open no rank 5 — rank 4 sem uso, numeração fixa por
-    // compatibilidade com athleteRatings.levelRank). Legados se comportam
-    // como o degrau inferior do split (iniciante→0, intermediario→2).
+    // Escada de 7 níveis para TODOS os esportes: Iniciante 1/2 (0/1),
+    // Intermediário 1/2 (2/3), Avançado 1/2 (4/5), Open (6). Em 15/08/2026
+    // open foi renumerado de 5→6 (rank 4, antes vago, passou a Avançado 1)
+    // para abrir os dois degraus de Avançado; a partir daqui a numeração é
+    // fixa por compatibilidade com athleteRatings.levelRank — não reordenar
+    // de novo. Legados se comportam como o degrau inferior do split
+    // (iniciante→0, intermediario→2).
     // Lookup por map literal (barato) em vez de cadeias de `in` sobre listas:
     // a guarda roda para 9 esportes por update e a versão com ternários
     // estourava o limite de expressões avaliadas por request.

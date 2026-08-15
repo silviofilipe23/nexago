@@ -7,6 +7,7 @@ import {
   applyRelegation,
   computeZone,
   evaluateLadderTransition,
+  expectedLevelRankFor,
   type AthleteRatingState,
 } from "./rating-ladder";
 
@@ -399,5 +400,15 @@ describe("escada de 7 degraus", () => {
 
   it("legado 'livre' resolve pro degrau open (rank 6)", () => {
     assert.equal(resolveLadderLevel(cfg, "livre").code, "open");
+  });
+});
+
+describe("expectedLevelRankFor", () => {
+  const config = parseLadderConfig("VOLEI_PRAIA", undefined);
+  it("recalcula o rank pelo CÓDIGO, nunca pelo rank gravado", () => {
+    assert.equal(expectedLevelRankFor(config, "open"), 6); // doc antigo tinha 5
+    assert.equal(expectedLevelRankFor(config, "avancado_1"), 4);
+    assert.equal(expectedLevelRankFor(config, "livre"), 6); // legado → open
+    assert.equal(expectedLevelRankFor(config, ""), 0); // desconhecido → piso
   });
 });

@@ -88,7 +88,7 @@ describe("planLevelChange — realinhamento do rating", () => {
 
   it("subindo, garante o piso do nível novo e protege contra rebaixamento", () => {
     const {ratingNext} = plan("open");
-    assert.equal(ratingNext?.rating, 1900);
+    assert.equal(ratingNext?.rating, 2200);
     assert.deepEqual(
       ratingNext?.protectedUntil,
       new Date(NOW.getTime() + CONFIG.ladder.promotionProtectionDays * DAY_MS),

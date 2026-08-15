@@ -218,8 +218,8 @@ describe("applyMatchRatingUpdate", () => {
     const doc = ratingDocOf(db, "a1")!;
     assert.equal(doc.seededFromLevel, "open");
     assert.equal(doc.levelCode, "open");
-    // Favorito (1900) vencendo dupla 1600: sobe pouco, mas sobe.
-    assert.ok((doc.rating as number) > 1900);
+    // Favorito (2200) vencendo dupla 1600: sobe pouco, mas sobe.
+    assert.ok((doc.rating as number) > 2200);
   });
 
   it("correção de vencedor superseda o evento e replaya == recomputar do zero", async () => {

@@ -1,24 +1,11 @@
-import { ChangeDetectionStrategy, Component, input, provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, type ParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, type ParamMap } from '@angular/router';
 import { of } from 'rxjs';
 import type { LiveMatch, LivePointEvent, ScoreSet } from '@nexago/live-scoring';
-import { AuthService } from '../auth/auth.service';
-import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { MesaLiveComponent } from './mesa-live.component';
-import { MesaLiveGateway } from './mesa-live.gateway';
+import { EMPTY_HEADER, MesaLiveGateway } from './mesa-live.gateway';
 import { EMPTY_TEAM_NAMES } from './mesa-team-names';
-
-/** Casca do portal trocada por um passa-conteúdo: a de verdade liga Auth + listeners de
- *  convites no construtor, e spec que abre Firestore derruba o runner. */
-@Component({
-  selector: 'app-at-panel-shell',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: '<ng-content />',
-})
-class PanelShellStubComponent {
-  readonly userName = input('Atleta');
-}
 
 interface RecordedPoint {
   matchId: string;
@@ -85,6 +72,10 @@ class FakeGateway {
   teamNames(): Promise<typeof EMPTY_TEAM_NAMES> {
     return Promise.resolve(EMPTY_TEAM_NAMES);
   }
+
+  header(): Promise<typeof EMPTY_HEADER> {
+    return Promise.resolve({ tournamentName: 'Etapa Rio', categoryName: 'Masculino A' });
+  }
 }
 
 function liveMatch(partial: Partial<LiveMatch> = {}): LiveMatch {
@@ -97,6 +88,10 @@ function liveMatch(partial: Partial<LiveMatch> = {}): LiveMatch {
     teamADescription: 'Ana / Bia',
     teamBDescription: 'Carla / Duda',
     status: 'in_progress',
+    matchType: 'semifinal',
+    round: 2,
+    poolId: '',
+    matchNumber: 7,
     sets: [{ a: 14, b: 12 }],
     currentSetIndex: 0,
     bestOf: 3,
@@ -123,14 +118,10 @@ describe('MesaLiveComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
+        provideRouter([]),
         { provide: ActivatedRoute, useValue: routeStub() },
         { provide: MesaLiveGateway, useValue: gateway },
-        { provide: AuthService, useValue: { user: () => ({ displayName: 'Mesário' }) } },
       ],
-    });
-    TestBed.overrideComponent(MesaLiveComponent, {
-      remove: { imports: [AtPanelShellComponent] },
-      add: { imports: [PanelShellStubComponent] },
     });
     fixture = TestBed.createComponent(MesaLiveComponent);
     fixture.detectChanges();
@@ -146,15 +137,24 @@ describe('MesaLiveComponent', () => {
   }
 
   function pointButtons(): HTMLButtonElement[] {
-    return Array.from(el().querySelectorAll<HTMLButtonElement>('.ml-point'));
+    return Array.from(el().querySelectorAll<HTMLButtonElement>('.mesa-side'));
+  }
+
+  function minusButtons(): HTMLButtonElement[] {
+    return Array.from(el().querySelectorAll<HTMLButtonElement>('.mesa-minus'));
+  }
+
+  function byText(text: string): HTMLButtonElement | undefined {
+    return Array.from(el().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes(text));
   }
 
   it('mostra o placar do set corrente e os sets vencidos vindos do doc', () => {
     gateway.push(liveMatch({ sets: [{ a: 21, b: 15 }, { a: 14, b: 12 }], currentSetIndex: 1 }));
     fixture.detectChanges();
 
-    expect(Array.from(el().querySelectorAll('.ml-score')).map((n) => n.textContent?.trim())).toEqual(['14', '12']);
-    expect(el().querySelector('.ml-sets')?.textContent?.replace(/\s/g, '')).toBe('1×0');
+    // Dois dígitos, como no painel de quadra.
+    expect(Array.from(el().querySelectorAll('.mesa-num')).map((n) => n.textContent?.trim())).toEqual(['14', '12']);
+    expect(el().querySelector('.mesa-setsw')?.textContent?.replace(/\s/g, '')).toBe('1·0');
   });
 
   it('ponto grava a transação com sets, saque e o par resultA/resultB', async () => {
@@ -197,8 +197,7 @@ describe('MesaLiveComponent', () => {
 
     expect(pointButtons().every((b) => b.disabled)).toBeTrue();
 
-    const start = Array.from(el().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('Iniciar partida'));
-    start!.click();
+    byText('Iniciar partida')!.click();
     await fixture.whenStable();
 
     expect(gateway.started).toEqual(['m1']);
@@ -210,7 +209,7 @@ describe('MesaLiveComponent', () => {
     gateway.pushEvents([{ id: 'e1', seq: 1, type: 'point', side: 'B', setIndex: 0, scoreA: 14, scoreB: 12, ts: null }]);
     fixture.detectChanges();
 
-    const [minusA, minusB] = Array.from(el().querySelectorAll<HTMLButtonElement>('.ml-minus'));
+    const [minusA, minusB] = minusButtons();
     expect(minusA!.disabled).toBeTrue();
     expect(minusB!.disabled).toBeFalse();
 
@@ -235,25 +234,23 @@ describe('MesaLiveComponent', () => {
     gateway.push(liveMatch({ status: 'completed', sets: [{ a: 21, b: 15 }], winnerId: 'time-a' }));
     fixture.detectChanges();
 
-    const toggle = el().querySelector<HTMLButtonElement>('.ml-toggle');
-    toggle!.click();
+    byText('Placar')!.click();
     fixture.detectChanges();
 
     // Um set fechado não vence um MD3: o botão fica travado com a mensagem do app.
-    const saveButton = () => Array.from(el().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('Salvar placar'))!;
+    const saveButton = () => byText('Salvar placar')!;
     expect(saveButton().disabled).toBeTrue();
     expect(el().textContent).toContain('Complete o placar: nenhuma dupla venceu ainda.');
 
-    const inputs = Array.from(el().querySelectorAll<HTMLInputElement>('.ml-input'));
+    const inputs = Array.from(el().querySelectorAll<HTMLInputElement>('.mesa-input'));
     inputs[0]!.value = '21';
     inputs[0]!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    const addSet = Array.from(el().querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.includes('Adicionar set'))!;
-    addSet.click();
+    byText('Adicionar set')!.click();
     fixture.detectChanges();
 
-    const second = Array.from(el().querySelectorAll<HTMLInputElement>('.ml-input')).slice(2);
+    const second = Array.from(el().querySelectorAll<HTMLInputElement>('.mesa-input')).slice(2);
     second[0]!.value = '21';
     second[0]!.dispatchEvent(new Event('input'));
     second[1]!.value = '18';

@@ -11,7 +11,16 @@ import {
 } from '@nexago/live-scoring';
 import { athleteFirestore, athleteLiveScoringContext, athleteProjectId } from '../data/firestore';
 import { submitMatchResult, updateLiveMatchScore, validateMatchResult } from '../data/match-ops.service';
+import { fetchTournament } from '../data/tournaments-repository';
 import { EMPTY_TEAM_NAMES, fetchTeamNamesFor, type MesaTeamNames } from './mesa-team-names';
+
+/** Cabeçalho da mesa: de que torneio e categoria é esta partida. */
+export interface MesaHeaderInfo {
+  tournamentName: string | null;
+  categoryName: string | null;
+}
+
+export const EMPTY_HEADER: MesaHeaderInfo = { tournamentName: null, categoryName: null };
 
 /** Tudo que a mesa lê e escreve, num lugar só: o componente não fala com o Firestore nem com os
  *  callables direto. Serve pra duas coisas — manter a tela sem detalhe de infra e permitir um
@@ -75,5 +84,20 @@ export class MesaLiveGateway {
     const projectId = athleteProjectId();
     if (!db || !projectId) return EMPTY_TEAM_NAMES;
     return fetchTeamNamesFor(db, projectId, teamIds);
+  }
+
+  /** Nome do torneio e da categoria pro cabeçalho ("Masculino A · Semifinal" / "Etapa Rio ·
+   *  Quadra 3"). Uma leitura por partida aberta; falha vira cabeçalho sem torneio, não erro. */
+  async header(tournamentId: string, categoryId: string | null): Promise<MesaHeaderInfo> {
+    const db = athleteFirestore();
+    if (!db || !tournamentId) return EMPTY_HEADER;
+    try {
+      const t = await fetchTournament(db, tournamentId);
+      if (!t) return EMPTY_HEADER;
+      const category = categoryId ? (t.categories.find((c) => c.id === categoryId)?.categoryName ?? null) : null;
+      return { tournamentName: t.name, categoryName: category };
+    } catch {
+      return EMPTY_HEADER;
+    }
   }
 }

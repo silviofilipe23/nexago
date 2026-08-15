@@ -1,12 +1,15 @@
 import { levelBucketOf, levelRankOf } from './public-profiles-repository';
+import { LEVEL_CODES, levelDisplayLabel, levelLabelForRank } from '@nexago/levels';
 
 describe('levelRankOf (vocabulário canônico via @nexago/levels)', () => {
-  it('rankeia os 5 códigos canônicos (ranks 0,1,2,3,5 — rank 4 sem uso)', () => {
+  it('rankeia os 7 códigos canônicos (ranks 0..6 contíguos)', () => {
     expect(levelRankOf('iniciante_1')).toBe(0);
     expect(levelRankOf('iniciante_2')).toBe(1);
     expect(levelRankOf('intermediario_1')).toBe(2);
     expect(levelRankOf('intermediario_2')).toBe(3);
-    expect(levelRankOf('open')).toBe(5);
+    expect(levelRankOf('avancado_1')).toBe(4);
+    expect(levelRankOf('avancado_2')).toBe(5);
+    expect(levelRankOf('open')).toBe(6);
   });
 
   it('aceita labels e legados (degrau inferior do split)', () => {
@@ -14,9 +17,22 @@ describe('levelRankOf (vocabulário canônico via @nexago/levels)', () => {
     expect(levelRankOf('iniciante')).toBe(0);
     expect(levelRankOf('basico')).toBe(0);
     expect(levelRankOf('intermediario')).toBe(2);
-    expect(levelRankOf('livre')).toBe(5);
+    expect(levelRankOf('livre')).toBe(6);
     expect(levelRankOf('xpto')).toBeNull();
     expect(levelRankOf(null)).toBeNull();
+  });
+
+  it('escada de 7: Avançado 1/2 e Open no rank 6', () => {
+    expect(levelRankOf('avancado_1')).toBe(4);
+    expect(levelRankOf('Avançado 1')).toBe(4);
+    expect(levelRankOf('avancado_2')).toBe(5);
+    expect(levelRankOf('open')).toBe(6);
+    expect(levelRankOf('livre')).toBe(6);
+    expect(levelLabelForRank(4)).toBe('Avançado 1');
+    expect(levelLabelForRank(5)).toBe('Avançado 2');
+    expect(levelLabelForRank(6)).toBe('Open');
+    expect(levelDisplayLabel('avancado_2')).toBe('Avançado 2');
+    expect(LEVEL_CODES.length).toBe(7);
   });
 });
 

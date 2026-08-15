@@ -3,10 +3,10 @@
  * portais web. Espelha `functions/src/category-level-eligibility.ts` (backend
  * autoritativo) e `AthleteProfileOptions` no app Flutter.
  *
- * Escada única de 5 níveis para TODOS os esportes; a fonte de escrita no
+ * Escada única de 7 níveis para TODOS os esportes; a fonte de escrita no
  * Firestore é sempre `users/{uid}.sportOnboarding.levelsBySport[sportCode]`
- * com os códigos de `LEVEL_CODES`. Ranks são 0,1,2,3,5 — o rank 4 não é usado
- * e a numeração é fixa (gravada em `athleteRatings.levelRank` e nas rules).
+ * com os códigos de `LEVEL_CODES`. Ranks são 0..6 contíguos e a numeração é
+ * fixa (gravada em `athleteRatings.levelRank` e nas rules).
  */
 
 export type LevelCode =
@@ -14,6 +14,8 @@ export type LevelCode =
   | 'iniciante_2'
   | 'intermediario_1'
   | 'intermediario_2'
+  | 'avancado_1'
+  | 'avancado_2'
   | 'open';
 
 export interface LevelOption {
@@ -28,6 +30,8 @@ export const LEVEL_CODES: readonly LevelCode[] = [
   'iniciante_2',
   'intermediario_1',
   'intermediario_2',
+  'avancado_1',
+  'avancado_2',
   'open',
 ];
 
@@ -40,6 +44,8 @@ export const LEVEL_OPTIONS: readonly LevelOption[] = [
   { code: 'iniciante_2', label: 'Iniciante 2', description: 'Já domino o básico e jogo com frequência.' },
   { code: 'intermediario_1', label: 'Intermediário 1', description: 'Jogo com regularidade e tenho boa experiência.' },
   { code: 'intermediario_2', label: 'Intermediário 2', description: 'Jogo forte, disputo torneios e vou bem neles.' },
+  { code: 'avancado_1', label: 'Avançado 1', description: 'Disputo as primeiras posições nos torneios que jogo.' },
+  { code: 'avancado_2', label: 'Avançado 2', description: 'Brigo por título na maioria dos torneios da região.' },
   { code: 'open', label: 'Open', description: 'Tenho alto nível amador e disputo torneios competitivos.' },
 ];
 
@@ -82,6 +88,8 @@ const LEVEL_LABELS: Record<string, string> = {
   iniciante_2: 'Iniciante 2',
   intermediario_1: 'Intermediário 1',
   intermediario_2: 'Intermediário 2',
+  avancado_1: 'Avançado 1',
+  avancado_2: 'Avançado 2',
   open: 'Open',
   // Legados (escada de 3) — exibidos como estão, sem renumerar.
   iniciante: 'Iniciante',
@@ -123,16 +131,22 @@ export function levelRankOf(raw: string | null | undefined): number | null {
     case 'intermediario 2':
     case 'intermediario_2':
       return 3;
+    case 'avancado 1':
+    case 'avancado_1':
+      return 4;
+    case 'avancado 2':
+    case 'avancado_2':
+      return 5;
     case 'open':
     case 'livre':
-      return 5;
+      return 6;
     default:
       return null;
   }
 }
 
 /** Label do nível para um rank unificado (mapeamento EXATO por degrau — os
- *  ranks são 0,1,2,3,5, então thresholds `<=` deslocam os níveis do meio). */
+ *  ranks são 0..6 contíguos, sem pulo). */
 export function levelLabelForRank(rank: number): string {
   switch (rank) {
     case 0:
@@ -143,6 +157,10 @@ export function levelLabelForRank(rank: number): string {
       return 'Intermediário 1';
     case 3:
       return 'Intermediário 2';
+    case 4:
+      return 'Avançado 1';
+    case 5:
+      return 'Avançado 2';
     default:
       return 'Open';
   }

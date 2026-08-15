@@ -213,6 +213,71 @@ await expect(
   ),
 );
 
+// ── Escada de 7: Avançado 1/2 (4/5) e Open (rank 6) ────────────────────────
+const avancado2User = {
+  ...baseUser,
+  level: 'Avançado 2',
+  sportProfile: { level: 'avancado_2' },
+  sportOnboarding: {
+    version: 1,
+    primarySportId: 'VOLEI_PRAIA',
+    secondarySportIds: [],
+    levelsBySport: { VOLEI_PRAIA: 'avancado_2' },
+  },
+};
+
+const openUser = {
+  ...baseUser,
+  level: 'Open',
+  sportProfile: { level: 'open' },
+  sportOnboarding: {
+    version: 1,
+    primarySportId: 'VOLEI_PRAIA',
+    secondarySportIds: [],
+    levelsBySport: { VOLEI_PRAIA: 'open' },
+  },
+};
+
+await seed();
+await expect(
+  'subir para Avançado 1 (avancado_1) é permitido',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'avancado_1',
+    }),
+  ),
+);
+
+await seed(avancado2User);
+await expect(
+  'descer de Avançado 2 para Avançado 1 é bloqueado',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'avancado_1',
+    }),
+  ),
+);
+
+await seed(openUser);
+await expect(
+  'descer de Open para Avançado 2 é bloqueado',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'avancado_2',
+    }),
+  ),
+);
+
+await seed(avancado2User);
+await expect(
+  'subir de Avançado 2 para Open é permitido',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'open',
+    }),
+  ),
+);
+
 // Super admin pode rebaixar (canal de suporte).
 await seed(multiSportUser);
 await expect(

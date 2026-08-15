@@ -332,7 +332,9 @@ service cloud.firestore {
         'intermediario': 2, 'Intermediário': 2,
         'intermediario_1': 2, 'Intermediário 1': 2,
         'intermediario_2': 3, 'Intermediário 2': 3,
-        'open': 5, 'Open': 5, 'livre': 5, 'Livre': 5, 'Open / federado': 5
+        'avancado_1': 4, 'Avançado 1': 4,
+        'avancado_2': 5, 'Avançado 2': 5,
+        'open': 6, 'Open': 6, 'livre': 6, 'Livre': 6, 'Open / federado': 6
       };
       return value is string ? ranks.get(value, -1) : -1;
     }

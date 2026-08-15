@@ -8,16 +8,16 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * Regra: um atleta pode disputar a sua própria categoria ou categorias ACIMA do
  * seu nível, nunca ABAIXO. Para duplas, vale o atleta de MAIOR nível.
  *
- * Ranks unificados (mesma escada de 5 degraus para TODOS os esportes; `open`
- * fica no rank 5 por compatibilidade histórica — o rank 4 não é usado e a
- * numeração não pode mudar, pois está gravada em `athleteRatings.levelRank` e
- * nas rules deployadas):
+ * Ranks unificados (escada de 7 degraus para TODOS os esportes, contígua 0–6):
  *
  *   iniciante_1 (0) < iniciante_2 (1) < intermediario_1 (2)
- *     < intermediario_2 (3) < open (5)
+ *     < intermediario_2 (3) < avancado_1 (4) < avancado_2 (5) < open (6)
+ *
+ * Renumeração única de `open` 5→6 em 15/08/2026 com a base vazia (pré-primeiro-torneio);
+ * a partir daqui a numeração volta a ser fixa.
  *
  * Legados (aliasing — docs não migrados se comportam como o degrau inferior
- * do split): iniciante→0, intermediario→2, open→5.
+ * do split): iniciante→0, intermediario→2, open→6.
  *
  * As chaves incluem código (`intermediario_1`) E label normalizado
  * (`intermediario1`), porque `categories[].level` guarda o LABEL
@@ -25,12 +25,14 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * [normalizeLevelKey] tira acento/espaço mas preserva underscore.
  */
 
-/** Códigos canônicos dos 5 níveis, em ordem crescente de força. */
+/** Códigos canônicos dos 7 níveis, em ordem crescente de força. */
 export const LEVEL_CODES = [
   "iniciante_1",
   "iniciante_2",
   "intermediario_1",
   "intermediario_2",
+  "avancado_1",
+  "avancado_2",
   "open",
 ] as const;
 
@@ -64,13 +66,17 @@ export const LEVEL_RANK: Record<string, number> = {
   intermediario1: 2,
   intermediario_2: 3,
   intermediario2: 3,
-  open: 5,
+  avancado_1: 4,
+  avancado1: 4,
+  avancado_2: 5,
+  avancado2: 5,
+  open: 6,
   // Legados (escada de 3 níveis) — degrau inferior do split.
   iniciante: 0,
   intermediario: 2,
 };
 
-const HIGHEST_RANK = 5;
+const HIGHEST_RANK = 6;
 
 /** Normaliza acentos/caixa para casar códigos e labels do nível. */
 function normalizeLevelKey(raw: unknown): string {
@@ -124,13 +130,19 @@ export function levelDisplayLabel(raw: unknown): string | null {
     case "intermediario_2":
     case "intermediario2":
       return "Intermediário 2";
+    case "avancado_1":
+    case "avancado1":
+      return "Avançado 1";
+    case "avancado_2":
+    case "avancado2":
+      return "Avançado 2";
     default:
       return null;
   }
 }
 
 /**
- * Código canônico para um rank (0..3 → degrau, demais → open). Usado pela
+ * Código canônico para um rank (0..5 → degrau, demais → open). Usado pela
  * migração para normalizar qualquer formato legado (código ou label) via
  * [levelRank] sem perder o degrau.
  */
@@ -144,6 +156,10 @@ export function levelCodeForRank(rank: number): string {
       return "intermediario_1";
     case 3:
       return "intermediario_2";
+    case 4:
+      return "avancado_1";
+    case 5:
+      return "avancado_2";
     default:
       return "open";
   }
@@ -160,6 +176,10 @@ export function levelLabelForRank(rank: number): string {
       return "Intermediário 1";
     case 3:
       return "Intermediário 2";
+    case 4:
+      return "Avançado 1";
+    case 5:
+      return "Avançado 2";
     default:
       return "Open";
   }

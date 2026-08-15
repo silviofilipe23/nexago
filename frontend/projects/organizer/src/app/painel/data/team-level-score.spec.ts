@@ -1,5 +1,6 @@
 import {
   compareTeamLevelDesc,
+  levelPointsOf,
   teamLevelScore,
   teamLevelsSummary,
   teamScoreLabel,
@@ -16,14 +17,23 @@ function rating(value: number, ratedMatches = 20): AthleteRatingLite {
 }
 
 describe('team-level-score', () => {
+  describe('levelPointsOf', () => {
+    it('pontos 1–7 na escada de 7 (dupla 2–14)', () => {
+      expect(levelPointsOf('avancado_1')).toBe(5);
+      expect(levelPointsOf('avancado_2')).toBe(6);
+      expect(levelPointsOf('open')).toBe(7);
+      expect(levelPointsOf('intermediario_2')).toBe(4);
+    });
+  });
+
   describe('teamLevelScore', () => {
-    it('soma os degraus da escada dos dois atletas (Open = 5, Intermediário 1 = 3)', () => {
+    it('soma os degraus da escada dos dois atletas (Open = 7, Intermediário 1 = 3)', () => {
       const score = teamLevelScore(
         [athlete({ VOLEI_PRAIA: 'open' }), athlete({ VOLEI_PRAIA: 'intermediario_1' })],
         'VOLEI_PRAIA',
       );
 
-      expect(score.points).toBe(8);
+      expect(score.points).toBe(10);
       expect(teamLevelsSummary(score)).toBe('Open + Interm. 1');
     });
 
@@ -36,7 +46,7 @@ describe('team-level-score', () => {
         'BEACH_TENNIS',
       );
 
-      expect(score.points).toBe(10);
+      expect(score.points).toBe(14);
     });
 
     it('cai no nível global legado quando falta o do esporte', () => {
@@ -74,7 +84,7 @@ describe('team-level-score', () => {
       );
 
       expect(score.rating).toBe(1750);
-      expect(teamScoreLabel(score)).toBe('10 pts · 1750');
+      expect(teamScoreLabel(score)).toBe('14 pts · 1750');
     });
 
     it('não mostra rating quando algum atleta ainda é provisional ou não tem doc', () => {

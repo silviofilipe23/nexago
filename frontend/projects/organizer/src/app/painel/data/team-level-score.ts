@@ -11,10 +11,8 @@ import { levelDisplayLabel, levelRankOf } from '@nexago/levels';
  * dura do app (`match_win_probability_providers.dart`): nada de mostrar número com dado fraco.
  */
 
-/** Degrau na escada (1 = Iniciante 1 … 5 = Open). Deriva do rank canônico do
- *  `@nexago/levels`, cuja numeração pula o 4 (0,1,2,3,5) por compatibilidade com
- *  `athleteRatings.levelRank` — a soma direta dos ranks daria saltos irregulares. */
-const POINTS_BY_RANK: Record<number, number> = { 0: 1, 1: 2, 2: 3, 3: 4, 5: 5 };
+/** Degrau na escada (1 = Iniciante 1 … 7 = Open), ranks 0–6 contíguos. */
+const POINTS_BY_RANK: Record<number, number> = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7 };
 
 /** Abaixo disso o rating ainda está consolidando — espelha `AthleteRating.isProvisional`
  *  (Flutter) e `ladder.minRatedMatches` (backend). */
@@ -41,7 +39,7 @@ export interface TeamLevelMember {
 }
 
 export interface TeamLevelScore {
-  /** Soma dos pontos dos atletas (2–10 numa dupla); `null` se algum não tem nível. */
+  /** Soma dos pontos dos atletas (2–14 numa dupla); `null` se algum não tem nível. */
   points: number | null;
   members: TeamLevelMember[];
   /** Rating composto da dupla, ou `null` quando não há dado suficiente. */
@@ -55,7 +53,7 @@ export function levelCodeFor(source: AthleteLevelSource, sportCode: string | nul
   return source.legacyLevel?.trim() || null;
 }
 
-/** Pontos (1–5) do nível, ou `null` quando ausente/desconhecido. */
+/** Pontos (1–7) do nível, ou `null` quando ausente/desconhecido. */
 export function levelPointsOf(raw: string | null | undefined): number | null {
   const rank = levelRankOf(raw);
   if (rank == null) return null;

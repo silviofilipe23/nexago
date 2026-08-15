@@ -258,14 +258,27 @@ export function categoryLevelRank(
   return rank ?? HIGHEST_RANK;
 }
 
-/** Dupla é elegível sse o nível da categoria comporta o atleta mais forte. */
+/**
+ * Rank do PISO da categoria (`categories[].minLevel`, label ou código).
+ * Ausente/desconhecido → 0 (sem piso — todo doc antigo se comporta como hoje).
+ */
+export function categoryMinLevelRank(
+  category: Record<string, unknown> | null | undefined,
+): number {
+  if (!category) return 0;
+  return levelRank(category.minLevel) ?? 0;
+}
+
+/** Dupla elegível sse TODOS os integrantes cabem na faixa [minRank, categoryRank]. */
 export function isTeamEligible(params: {
   categoryRank: number;
   athleteRanks: number[];
+  categoryMinRank?: number;
 }): boolean {
   const {categoryRank, athleteRanks} = params;
+  const minRank = params.categoryMinRank ?? 0;
   if (athleteRanks.length === 0) return true;
-  return athleteRanks.every((rank) => categoryRank >= rank);
+  return athleteRanks.every((rank) => rank >= minRank && rank <= categoryRank);
 }
 
 function athleteDisplayName(userData: UserAccessData | null): string {
@@ -289,7 +302,8 @@ function categoryDisplayName(
 }
 
 /**
- * Bloqueia a inscrição quando algum atleta da dupla excede o nível da categoria.
+ * Bloqueia a inscrição quando algum atleta da dupla excede o nível da categoria
+ * ou fica abaixo do piso (minLevel) da categoria.
  * Lança `HttpsError("failed-precondition")` nomeando o atleta que causa o bloqueio.
  *
  * Carrega os docs dos usuários informados (reusa [loadUserAccessData]). uids
@@ -313,8 +327,10 @@ export async function assertTeamLevelEligibility(params: {
   if (cleanUids.length === 0) return;
 
   const categoryRank = categoryLevelRank(category);
-  // Categoria Open comporta qualquer nível — evita carregar usuários à toa.
-  if (categoryRank >= HIGHEST_RANK) return;
+  const minRank = categoryMinLevelRank(category);
+  // Categoria totalmente aberta (teto Open, sem piso) comporta qualquer nível —
+  // evita carregar usuários à toa. Com piso, os docs SÃO necessários.
+  if (categoryRank >= HIGHEST_RANK && minRank <= 0) return;
 
   const sportCode = tournamentSportToLevelSportCode(tournament.sport);
 
@@ -322,25 +338,41 @@ export async function assertTeamLevelEligibility(params: {
     cleanUids.map((uid) => loadUserAccessData(db, uid)),
   );
 
-  const offenders = users.filter(
-    (userData) => resolveAthleteLevelRank(userData, sportCode) > categoryRank,
-  );
-
-  if (offenders.length === 0) return;
-
   const categoryName = categoryDisplayName(category);
-  const names = offenders.map((userData) => {
+  const nameWithLevel = (userData: UserAccessData | null): string => {
     const rank = resolveAthleteLevelRank(userData, sportCode);
     return `${athleteDisplayName(userData)} (${levelLabelForRank(rank)})`;
-  });
-
-  const subject =
+  };
+  const joined = (names: string[]): string =>
     names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
-  const verb = names.length === 1 ? "não pode" : "não podem";
 
-  throw new HttpsError(
-    "failed-precondition",
-    `${subject} ${verb} disputar a categoria ${categoryName}, ` +
-      "abaixo do nível do atleta. Escolha uma categoria igual ou superior.",
+  // Teto (anti-sandbagging) tem precedência — mensagem idêntica à de hoje.
+  const tooStrong = users.filter(
+    (userData) => resolveAthleteLevelRank(userData, sportCode) > categoryRank,
   );
+  if (tooStrong.length > 0) {
+    const subject = joined(tooStrong.map(nameWithLevel));
+    const verb = tooStrong.length === 1 ? "não pode" : "não podem";
+    throw new HttpsError(
+      "failed-precondition",
+      `${subject} ${verb} disputar a categoria ${categoryName}, ` +
+        "abaixo do nível do atleta. Escolha uma categoria igual ou superior.",
+    );
+  }
+
+  // Piso: barra o integrante mais fraco — ninguém entra carregado pelo parceiro.
+  if (minRank > 0) {
+    const tooWeak = users.filter(
+      (userData) => resolveAthleteLevelRank(userData, sportCode) < minRank,
+    );
+    if (tooWeak.length > 0) {
+      const subject = joined(tooWeak.map(nameWithLevel));
+      const verb = tooWeak.length === 1 ? "não atinge" : "não atingem";
+      throw new HttpsError(
+        "failed-precondition",
+        `${subject} ${verb} o nível mínimo da categoria ${categoryName} ` +
+          `(${levelLabelForRank(minRank)}).`,
+      );
+    }
+  }
 }

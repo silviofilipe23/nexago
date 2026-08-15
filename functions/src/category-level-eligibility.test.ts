@@ -8,6 +8,7 @@ import {
   tournamentSportToLevelSportCode,
   resolveAthleteLevelRank,
   categoryLevelRank,
+  categoryMinLevelRank,
   isTeamEligible,
   assertTeamLevelEligibility,
 } from "./category-level-eligibility";
@@ -179,6 +180,55 @@ describe("category-level-eligibility · regra do mais forte (dupla)", () => {
 
   it("dupla vazia é sempre elegível", () => {
     assert.equal(isTeamEligible({categoryRank: 0, athleteRanks: []}), true);
+  });
+});
+
+describe("category-level-eligibility · piso (minLevel)", () => {
+  it("minLevel ausente/desconhecido resolve para 0 (comportamento atual)", () => {
+    assert.equal(categoryMinLevelRank(null), 0);
+    assert.equal(categoryMinLevelRank({}), 0);
+    assert.equal(categoryMinLevelRank({minLevel: "???"}), 0);
+    assert.equal(categoryMinLevelRank({minLevel: "Avançado 1"}), 4);
+    assert.equal(categoryMinLevelRank({minLevel: "avancado_1"}), 4);
+  });
+
+  it("faixa: piso barra o mais fraco, teto barra o mais forte", () => {
+    // Elite 4–6: Avançado 1 + Open entram; Intermediário 2 não.
+    assert.equal(isTeamEligible({categoryRank: 6, categoryMinRank: 4, athleteRanks: [4, 6]}), true);
+    assert.equal(isTeamEligible({categoryRank: 6, categoryMinRank: 4, athleteRanks: [3, 6]}), false);
+    // Sem categoryMinRank: igual a hoje.
+    assert.equal(isTeamEligible({categoryRank: 2, athleteRanks: [0, 2]}), true);
+    // Dupla vazia sempre elegível.
+    assert.equal(isTeamEligible({categoryRank: 6, categoryMinRank: 4, athleteRanks: []}), true);
+  });
+
+  it("assert recusa por piso nomeando o atleta fraco", async () => {
+    const db = mockDb({
+      forte: {name: "Ana", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
+      fraco: {name: "Bia", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "intermediario_2"}}},
+    });
+    await assert.rejects(
+      () => assertTeamLevelEligibility({
+        db: db as never,
+        tournament: {sport: "beachVolleyball"},
+        category: {categoryName: "Elite", level: "Open", minLevel: "Avançado 1"},
+        uids: ["forte", "fraco"],
+      }),
+      (err: {message: string}) => err.message.includes("Bia") && err.message.includes("nível mínimo"),
+    );
+  });
+
+  it("assert aceita a dupla dentro da faixa (piso ativo carrega usuários mesmo com teto Open)", async () => {
+    const db = mockDb({
+      a1: {name: "Ana", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "avancado_1"}}},
+      op: {name: "Bia", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
+    });
+    await assert.doesNotReject(() => assertTeamLevelEligibility({
+      db: db as never,
+      tournament: {sport: "beachVolleyball"},
+      category: {categoryName: "Elite", level: "Open", minLevel: "Avançado 1"},
+      uids: ["a1", "op"],
+    }));
   });
 });
 

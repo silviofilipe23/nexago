@@ -32,6 +32,12 @@ export interface LiveMatch {
   teamADescription: string | null;
   teamBDescription: string | null;
   status: MatchDisplayStatus;
+  /** Identificação da partida na planta — a mesa usa pra rotular a fase no cabeçalho
+   *  ("Semifinal", "Grupo A"). Cru como `category-bracket-builders.ts` grava. */
+  matchType: string;
+  round: number;
+  poolId: string;
+  matchNumber: number;
   sets: LiveSet[];
   currentSetIndex: number;
   bestOf: 1 | 3;
@@ -96,6 +102,10 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     teamADescription: optionalStr(data['teamADescription']),
     teamBDescription: optionalStr(data['teamBDescription']),
     status: statusOf(data['status']),
+    matchType: optionalStr(data['matchType']) ?? '',
+    round: typeof data['round'] === 'number' ? data['round'] : 0,
+    poolId: optionalStr(data['poolId']) ?? '',
+    matchNumber: typeof data['matchNumber'] === 'number' ? data['matchNumber'] : 0,
     sets,
     // Partida antiga sem `currentSetIndex` cai no último set do array (mesmo fallback do app).
     currentSetIndex: intOf(data['currentSetIndex'], Math.max(0, sets.length - 1)),

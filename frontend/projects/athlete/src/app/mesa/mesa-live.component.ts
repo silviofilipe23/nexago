@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { deleteField, serverTimestamp } from 'firebase/firestore';
@@ -12,8 +12,6 @@ import {
   lastUndoablePoint,
   liveSetToMap,
   matchWinnerSide,
-  setPointHint,
-  setRulesLabel,
   setsWonOf,
   undoPoint,
   validateScoreSubmission,
@@ -22,22 +20,27 @@ import {
   type MatchDisplayStatus,
   type ScoreSet,
 } from '@nexago/live-scoring';
-import { AuthService } from '../auth/auth.service';
-import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
-import { MesaLiveGateway } from './mesa-live.gateway';
+import {
+  bestOfLabelOf,
+  courtLabelOf,
+  currentSetIndexOf,
+  currentSetOf,
+  flagOf,
+  phaseLabelOf,
+  scoreText,
+  setPillsOf,
+  setRuleLineOf,
+  type MesaSetPill,
+  type MesaSide,
+} from './mesa-board';
+import { EMPTY_HEADER, MesaLiveGateway, type MesaHeaderInfo } from './mesa-live.gateway';
 import { EMPTY_TEAM_NAMES, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
 
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
 
 const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-
-interface SetChipView {
-  label: string;
-  score: string | null;
-  state: 'closed' | 'current' | 'upcoming';
-}
 
 interface FeedRowView {
   key: string;
@@ -47,612 +50,945 @@ interface FeedRowView {
   undo: boolean;
 }
 
-/** Mesa ao vivo do MESÁRIO no portal do atleta — as MESMAS escritas da mesa do organizador
- *  (`mesa-ao-vivo.component.ts`) e da mesa I1 do app (`organizer_match_live_table_page.dart`),
- *  pelo motor compartilhado `@nexago/live-scoring`: cada ponto roda `recordPointTransaction`
- *  (sets/currentSetIndex/status/saque + evento em `pointEvents`), o START explícito passa por
- *  `updateLiveMatchScore` zerado (servidor marca In Progress + `matchStartedAt` + o torneio como
- *  ao vivo) e o ponto final grava Completed + winnerId, com o avanço da chave disparando no
- *  servidor. A tela é dirigida pelo doc em tempo real — sem estado local de placar.
+/** Mesa ao vivo do mesário — placar de quadra, não formulário: a tela inteira são os dois
+ *  painéis, toque em qualquer lugar do painel marca o ponto, e o número cresce com a janela
+ *  (unidades de container) porque em parte dos eventos ESTA tela fica virada para os atletas,
+ *  no celular ou no tablet. O modo exibição tira cabeçalho e ferramentas e deixa só o placar,
+ *  em retrato ou paisagem.
  *
- *  Quem pode: as rules (`canScoreTournament` + `scorerCanOnlyEditScoreFields`) e o
- *  `assertCanScoreTournament` dos callables — dono, gestor e mesário. Nada novo foi aberto. */
+ *  As escritas são as MESMAS da mesa do organizador (`mesa-ao-vivo.component.ts`) e da mesa I1
+ *  do app, pelo motor compartilhado `@nexago/live-scoring`: cada ponto roda a transação com
+ *  `sets`/`currentSetIndex`/`status`/saque + evento em `pointEvents`, o START passa por
+ *  `updateLiveMatchScore` zerado e o ponto final grava Completed + winnerId (o avanço da chave
+ *  é do servidor). O SET FECHA SOZINHO quando o placar valida — mesma regra das outras duas
+ *  superfícies, decisão do dono ao portar este desenho; não há "fechar set" manual.
+ *
+ *  Quem pode: rules (`canScoreTournament` + `scorerCanOnlyEditScoreFields`) e
+ *  `assertCanScoreTournament` nos callables — dono, gestor e mesário.
+ *
+ *  Fora da tela de propósito: sanção, atendimento médico e súmula existem no protótipo mas não
+ *  têm nada no backend — botão que só abre explicação é pior que ausência numa mesa. */
 @Component({
   selector: 'app-mesa-live',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [RouterLink, NxPageLoadingComponent, NxSpinnerComponent],
+  host: { '[class.mesa-present]': 'present()' },
   template: `
-    <app-at-panel-shell [userName]="accountLabel()">
-      <div class="ml-body">
-        <header class="ml-head">
-          <a class="ml-back" [routerLink]="['/mesa', tournamentId()]">‹ Partidas</a>
-          <h1 class="ml-title">Mesa ao vivo</h1>
-        </header>
-
-        @if (!loaded()) {
-          <app-nx-page-loading title="Carregando partida…" subtitle="Conectando à mesa ao vivo" />
-        } @else if (!match()) {
-          <div class="ml-card"><p class="ml-empty">Partida não encontrada — abra pela lista de partidas.</p></div>
-        } @else if (!teamsReady()) {
-          <div class="ml-card">
-            <p class="ml-empty-title">Aguardando as duas duplas</p>
-            <p class="ml-empty">A mesa só abre quando os dois lados da partida estiverem definidos na chave.</p>
-          </div>
-        } @else {
-          <div class="ml-card ml-board-card">
-            <div class="ml-top">
-              <div class="ml-status">
-                @if (status() === 'in_progress') {
-                  <span class="ml-dot"></span>
-                }
-                <span class="ml-status-label" [attr.data-state]="status()">{{ statusLabel() }}</span>
-                <span class="ml-meta">{{ metaLine() }}</span>
-              </div>
-              <span class="ml-clock" aria-label="Tempo de partida">{{ elapsed() }}</span>
-            </div>
-
-            <div class="ml-strip" role="list" aria-label="Sets">
-              @for (chip of setStrip(); track chip.label) {
-                <span class="ml-set" role="listitem" [attr.data-state]="chip.state">
-                  <span class="lbl">{{ chip.label }}</span>
-                  <span class="val">{{ chip.score ?? '—' }}</span>
-                </span>
-              }
-            </div>
-
-            <div class="ml-board">
-              <div class="ml-side">
-                <button type="button" class="ml-point" [disabled]="!canScore()" [attr.aria-label]="'Ponto para ' + teamALabel()" (click)="point('A')">
-                  <span class="ml-team">
-                    <span class="ml-name" [title]="teamALabel()">{{ teamALabel() }}</span>
-                    @if (servingSide() === 'A') {
-                      <span class="ml-serve" title="No saque">SAQUE</span>
-                    }
-                  </span>
-                  <span class="ml-score">{{ currentSet().a }}</span>
-                  @if (canScore()) {
-                    <span class="ml-plus">+1 ponto</span>
-                  }
-                </button>
-                <button type="button" class="ml-minus" [disabled]="!canUndoSide('A')" (click)="undoSide('A')">−1</button>
-              </div>
-
-              <div class="ml-center">
-                <span class="ml-sets">{{ wins().a }}<em>×</em>{{ wins().b }}</span>
-                <span class="ml-sets-lbl">sets</span>
-              </div>
-
-              <div class="ml-side">
-                <button type="button" class="ml-point" [disabled]="!canScore()" [attr.aria-label]="'Ponto para ' + teamBLabel()" (click)="point('B')">
-                  <span class="ml-team">
-                    <span class="ml-name" [title]="teamBLabel()">{{ teamBLabel() }}</span>
-                    @if (servingSide() === 'B') {
-                      <span class="ml-serve" title="No saque">SAQUE</span>
-                    }
-                  </span>
-                  <span class="ml-score">{{ currentSet().b }}</span>
-                  @if (canScore()) {
-                    <span class="ml-plus">+1 ponto</span>
-                  }
-                </button>
-                <button type="button" class="ml-minus" [disabled]="!canUndoSide('B')" (click)="undoSide('B')">−1</button>
-              </div>
-            </div>
-
-            <div class="ml-rules">
-              <span>{{ rulesLabel() }}</span>
-              @if (hint(); as h) {
-                <span class="ml-hint">{{ h }}</span>
-              }
-            </div>
-          </div>
-
-          @if (feedback(); as fb) {
-            <div class="ml-banner" [class.ml-banner--ok]="fb.ok" role="status">{{ fb.message }}</div>
-          }
-
-          @if (status() === 'scheduled') {
-            <div class="ml-card">
-              <p class="ml-empty-title">Partida ainda não iniciada</p>
-              <p class="ml-empty">Ao iniciar, ela fica <strong>ao vivo</strong> no portal e no app dos atletas, com o placar acompanhando ponto a ponto.</p>
-              <button type="button" class="ml-btn ml-btn--primary" [disabled]="saving()" (click)="start()">
-                @if (busyKey() === 'start') {
-                  <app-nx-spinner [size]="14" tone="dark" />
-                }
-                {{ busyKey() === 'start' ? 'Iniciando…' : 'Iniciar partida' }}
-              </button>
-            </div>
-          }
-
+    @if (!loaded()) {
+      <div class="mesa-state"><app-nx-page-loading title="Carregando partida…" subtitle="Conectando à mesa ao vivo" /></div>
+    } @else if (!match()) {
+      <div class="mesa-state">
+        <p class="mesa-state-title">Partida não encontrada</p>
+        <p class="mesa-state-sub">Abra pela lista de partidas do torneio.</p>
+        <a class="mesa-btn" [routerLink]="['/mesa', tournamentId()]">Voltar</a>
+      </div>
+    } @else if (!teamsReady()) {
+      <div class="mesa-state">
+        <p class="mesa-state-title">Aguardando as duas duplas</p>
+        <p class="mesa-state-sub">A mesa só abre quando os dois lados da partida estiverem definidos na chave.</p>
+        <a class="mesa-btn" [routerLink]="['/mesa', tournamentId()]">Voltar</a>
+      </div>
+    } @else {
+      <header class="mesa-top">
+        <a class="mesa-ico" [routerLink]="['/mesa', tournamentId()]" aria-label="Voltar para as partidas">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
+        </a>
+        <div class="mesa-meta">
+          <div class="mesa-eyebrow">{{ eyebrow() }}</div>
+          <div class="mesa-place">{{ placeLine() }}</div>
+        </div>
+        <span class="mesa-chip" [attr.data-state]="status()">
           @if (status() === 'in_progress') {
-            <div class="ml-card">
-              <p class="ml-card-title">Ações</p>
-              <div class="ml-actions">
-                <button type="button" class="ml-btn" [disabled]="saving() || lastPoint() === null" (click)="undoLast()">
+            <span class="mesa-dot"></span>{{ elapsed() }}
+          } @else {
+            {{ statusLabel() }}
+          }
+        </span>
+        <button type="button" class="mesa-ico" (click)="enterPresent()" aria-label="Modo exibição para os atletas">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        </button>
+      </header>
+
+      <div class="mesa-sets">
+        @for (pill of setPills(); track pill.label) {
+          <span class="mesa-pill" [attr.data-state]="pill.state"><b>{{ pill.label }}</b>{{ pill.score ?? '—' }}</span>
+        }
+        <span class="mesa-grow"></span>
+        <button type="button" class="mesa-chip mesa-chip--tap" [disabled]="saving() || status() === 'completed'" (click)="toggleFormat()">{{ bestOfLabel() }}</button>
+      </div>
+
+      @for (side of sidesInOrder(); track side) {
+        <!-- O −1 é irmão do painel, não filho: botão dentro de botão é HTML inválido, e o toque
+             no painel inteiro é o alvo do ponto. -->
+        <div class="mesa-sidewrap" [attr.data-team]="side" [class.mesa-sidewrap--first]="$first" [class.mesa-side--serving]="servingSide() === side">
+          <button
+            type="button"
+            class="mesa-side"
+            [class.mesa-side--bump]="bumped() === side"
+            [disabled]="!canScore()"
+            [attr.aria-label]="'Ponto para ' + label(side)"
+            (click)="point(side)"
+          >
+            <span class="mesa-uni"></span>
+            <span class="mesa-team">
+              <span class="mesa-badge">{{ side }}</span>
+              <span class="mesa-nm" [title]="label(side)">{{ label(side) }}</span>
+              @if (flag(side); as f) {
+                <span class="mesa-flag">{{ f === 'match' ? 'MATCH POINT' : 'SET POINT' }}</span>
+              }
+              @if (servingSide() === side) {
+                <span class="mesa-chip mesa-chip--acc">SAQUE</span>
+              }
+            </span>
+            <span class="mesa-num">{{ points(side) }}</span>
+            <span class="mesa-foot">
+              <span class="mesa-to">
+                <b>tempo</b>
+                @for (i of timeoutSlots; track i) {
+                  <i [class.used]="timeouts()[side] > i"></i>
+                }
+              </span>
+              @if (canScore()) {
+                <span class="mesa-tapcue">toque = ponto</span>
+              }
+            </span>
+          </button>
+          <button
+            type="button"
+            class="mesa-minus"
+            [disabled]="!canUndoSide(side)"
+            [attr.aria-label]="'Desfazer ponto de ' + label(side)"
+            (click)="undoSide(side)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14" /></svg>
+          </button>
+        </div>
+
+        @if ($first) {
+          <div class="mesa-mid">
+            <div class="mesa-setsw">
+              <span [class.lo]="wins().a < wins().b">{{ wins().a }}</span>
+              <span class="d">·</span>
+              <span [class.lo]="wins().b < wins().a">{{ wins().b }}</span>
+            </div>
+            <div class="mesa-midmeta">
+              <div class="mesa-eyebrow">sets</div>
+              <div class="mesa-midline">{{ midLine() }}</div>
+            </div>
+            @switch (status()) {
+              @case ('scheduled') {
+                <button type="button" class="mesa-midbtn mesa-midbtn--primary" [disabled]="saving()" (click)="start()">
+                  @if (busyKey() === 'start') {
+                    <app-nx-spinner [size]="13" tone="dark" />
+                  }
+                  {{ busyKey() === 'start' ? 'Iniciando…' : 'Iniciar partida' }}
+                </button>
+              }
+              @case ('completed') {
+                <button type="button" class="mesa-midbtn" [disabled]="saving()" (click)="validate()">
+                  @if (busyKey() === 'validate') {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  {{ busyKey() === 'validate' ? 'Validando…' : 'Validar' }}
+                </button>
+              }
+              @default {
+                <button type="button" class="mesa-midbtn" [disabled]="saving() || lastPoint() === null" (click)="undoLast()">
                   @if (busyKey() === 'undo') {
                     <app-nx-spinner [size]="12" />
                   }
-                  Desfazer último ponto
+                  Desfazer
                 </button>
-                <button type="button" class="ml-btn" [disabled]="saving()" (click)="swapServe()">Trocar saque</button>
-                <div class="ml-format">
-                  @for (option of formats; track option) {
-                    <button type="button" class="ml-chip" [class.ml-chip--on]="bestOf() === option" [disabled]="saving()" (click)="setFormat(option)">
-                      {{ option === 1 ? 'Set único' : 'MD3' }}
-                    </button>
-                  }
-                </div>
-              </div>
-            </div>
-          }
+              }
+            }
+          </div>
+        }
+      }
 
-          @if (status() === 'completed') {
-            <div class="ml-card">
-              <p class="ml-card-title">Fim de jogo</p>
-              <p class="ml-empty">Vitória de <strong>{{ winnerLabel() }}</strong> — a chave avança automaticamente.</p>
-              <button type="button" class="ml-btn" [disabled]="saving()" (click)="validate()">
-                @if (busyKey() === 'validate') {
-                  <app-nx-spinner [size]="12" />
+      <div class="mesa-tools">
+        <button type="button" class="mesa-tool" [disabled]="saving() || status() === 'completed'" (click)="swapServe()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8" /><path d="M4.5 9.5c5 .5 9 3 11.5 7M9.5 4.5c.5 5 3 9 7 11.5" /></svg>
+          Saque
+        </button>
+        <button type="button" class="mesa-tool" (click)="swapSides()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4 3 8l4 4" /><path d="M3 8h13" /><path d="M17 20l4-4-4-4" /><path d="M21 16H8" /></svg>
+          Quadra
+        </button>
+        <button type="button" class="mesa-tool" (click)="addTimeout()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
+          Tempo
+        </button>
+        <button type="button" class="mesa-tool" (click)="openScoreSheet()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z" /><path d="M9 12h7M9 16h5" /></svg>
+          Placar
+        </button>
+      </div>
+
+      <button type="button" class="mesa-exit" (click)="exitPresent()" aria-label="Sair do modo exibição">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      </button>
+
+      @if (feedback(); as fb) {
+        <div class="mesa-banner" [class.ok]="fb.ok" role="status" (click)="feedback.set(null)">{{ fb.message }}</div>
+      }
+
+      @if (sheetOpen()) {
+        <div class="mesa-scrim" (click)="closeSheet()">
+          <div class="mesa-sheet" (click)="$event.stopPropagation()">
+            <div>
+              <div class="mesa-eyebrow" style="color: var(--nx-orange-400)">mesa · placar por sets</div>
+              <h3>Lançar ou corrigir o resultado</h3>
+            </div>
+            <p class="mesa-note">Para a partida que já aconteceu na areia, sem marcar ponto a ponto. O servidor revalida antes de gravar.</p>
+
+            <div class="mesa-quick">
+              @for (set of quickSets(); track $index) {
+                <div class="mesa-quick-row">
+                  <span class="mesa-eyebrow">Set {{ $index + 1 }}</span>
+                  <input
+                    class="mesa-input"
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    max="99"
+                    [attr.aria-label]="'Pontos de ' + label('A') + ' no set ' + ($index + 1)"
+                    [value]="set.a"
+                    (input)="updateQuickSet($index, 'a', $event)"
+                  />
+                  <span class="mesa-quick-x">×</span>
+                  <input
+                    class="mesa-input"
+                    type="number"
+                    inputmode="numeric"
+                    min="0"
+                    max="99"
+                    [attr.aria-label]="'Pontos de ' + label('B') + ' no set ' + ($index + 1)"
+                    [value]="set.b"
+                    (input)="updateQuickSet($index, 'b', $event)"
+                  />
+                  <button type="button" class="mesa-quick-del" [disabled]="saving()" (click)="removeQuickSet($index)" aria-label="Remover set">×</button>
+                </div>
+              }
+
+              @if (quickIssues().length > 0) {
+                <ul class="mesa-issues">
+                  @for (issue of quickIssues(); track issue.message) {
+                    <li>{{ issue.message }}</li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <div class="mesa-sheetbtns">
+              <button type="button" class="mesa-btn" [disabled]="saving() || quickSets().length >= bestOf()" (click)="addQuickSet()">Adicionar set</button>
+              <button type="button" class="mesa-btn mesa-btn--go" [disabled]="saving() || !canSubmitQuick()" (click)="saveQuick()">
+                @if (busyKey() === 'quick') {
+                  <app-nx-spinner [size]="13" tone="dark" />
                 }
-                {{ busyKey() === 'validate' ? 'Validando…' : 'Validar resultado' }}
+                {{ busyKey() === 'quick' ? 'Salvando…' : 'Salvar placar' }}
               </button>
             </div>
-          }
 
-          <div class="ml-card">
-            <button type="button" class="ml-toggle" [attr.aria-expanded]="quickOpen()" (click)="toggleQuick()">
-              <span class="ml-card-title">Lançar placar por sets</span>
-              <span class="ml-toggle-icon">{{ quickOpen() ? '−' : '+' }}</span>
-            </button>
-            <p class="ml-empty ml-quick-hint">
-              Para fechar (ou corrigir) o resultado sem marcar ponto a ponto — a partida que já aconteceu na areia.
-            </p>
-
-            @if (quickOpen()) {
-              <div class="ml-quick">
-                @for (set of quickSets(); track $index) {
-                  <div class="ml-quick-row">
-                    <span class="ml-quick-label">Set {{ $index + 1 }}</span>
-                    <input
-                      class="ml-input"
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      max="99"
-                      [attr.aria-label]="'Pontos de ' + teamALabel() + ' no set ' + ($index + 1)"
-                      [value]="set.a"
-                      (input)="updateQuickSet($index, 'a', $event)"
-                    />
-                    <span class="ml-quick-x">×</span>
-                    <input
-                      class="ml-input"
-                      type="number"
-                      inputmode="numeric"
-                      min="0"
-                      max="99"
-                      [attr.aria-label]="'Pontos de ' + teamBLabel() + ' no set ' + ($index + 1)"
-                      [value]="set.b"
-                      (input)="updateQuickSet($index, 'b', $event)"
-                    />
-                    <button type="button" class="ml-quick-del" [disabled]="saving()" (click)="removeQuickSet($index)" aria-label="Remover set">×</button>
-                  </div>
-                }
-
-                <div class="ml-quick-actions">
-                  <button type="button" class="ml-btn" [disabled]="saving() || quickSets().length >= bestOf()" (click)="addQuickSet()">Adicionar set</button>
-                  <button type="button" class="ml-btn ml-btn--primary" [disabled]="saving() || !canSubmitQuick()" (click)="saveQuick()">
-                    @if (busyKey() === 'quick') {
-                      <app-nx-spinner [size]="14" tone="dark" />
-                    }
-                    {{ busyKey() === 'quick' ? 'Salvando…' : 'Salvar placar' }}
-                  </button>
-                </div>
-
-                @if (quickIssues().length > 0) {
-                  <ul class="ml-issues">
-                    @for (issue of quickIssues(); track issue.message) {
-                      <li>{{ issue.message }}</li>
-                    }
-                  </ul>
-                }
+            @if (feed().length > 0) {
+              <div>
+                <div class="mesa-eyebrow">últimos lances</div>
+                <ul class="mesa-feed">
+                  @for (row of feed(); track row.key) {
+                    <li [class.undo]="row.undo">
+                      <span class="t">{{ row.time }}</span>
+                      <span class="l">{{ row.label }}</span>
+                      <span class="s">{{ row.score }}</span>
+                    </li>
+                  }
+                </ul>
               </div>
             }
           </div>
-
-          @if (feed().length > 0) {
-            <div class="ml-card">
-              <p class="ml-card-title">Últimos lances</p>
-              <ul class="ml-feed">
-                @for (row of feed(); track row.key) {
-                  <li [class.undo]="row.undo">
-                    <span class="t">{{ row.time }}</span>
-                    <span class="l">{{ row.label }}</span>
-                    <span class="s">{{ row.score }}</span>
-                  </li>
-                }
-              </ul>
-            </div>
-          }
-        }
-      </div>
-    </app-at-panel-shell>
+        </div>
+      }
+    }
   `,
   styles: `
-    .ml-body {
-      padding: 24px 32px 40px;
+    :host {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto 1fr auto;
+      /* O placar dimensiona por unidades de container (cqh/cqw): é o que faz o número encher a
+         tela em qualquer aparelho, do celular em pé ao tablet deitado. */
+      container-type: size;
+      background: var(--nx-bg);
+      color: var(--nx-text);
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    .mesa-state {
+      grid-row: 1 / -1;
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      max-width: 760px;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 32px 24px;
+      text-align: center;
     }
-    .ml-back {
-      display: inline-block;
-      font-size: 12.5px;
-      color: var(--nx-text-mute);
-      text-decoration: none;
-      margin-bottom: 8px;
-    }
-    .ml-back:hover {
-      color: var(--nx-orange-500);
-    }
-    .ml-title {
+    .mesa-state-title {
       font-family: var(--nx-font-display);
       font-weight: 800;
-      font-size: 24px;
-      letter-spacing: -0.02em;
-      color: var(--nx-text);
+      font-size: 18px;
       margin: 0;
     }
-    .ml-card {
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      border-radius: var(--nx-r-3);
-      padding: 16px;
-    }
-    .ml-card-title {
-      font-family: var(--nx-font-display);
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--nx-text);
-      margin: 0 0 8px;
-    }
-    .ml-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .ml-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-    .ml-status-label {
-      font-family: var(--nx-font-mono);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--nx-text-mute);
-      border: 1px solid var(--nx-line);
-      border-radius: var(--nx-r-pill);
-      padding: 3px 9px;
-    }
-    .ml-status-label[data-state='in_progress'] {
-      color: var(--nx-live);
-      border-color: var(--nx-live);
-    }
-    .ml-status-label[data-state='completed'] {
-      color: var(--nx-win);
-      border-color: var(--nx-win);
-    }
-    .ml-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--nx-live);
-    }
-    .ml-meta {
-      font-size: 12px;
-      color: var(--nx-text-dim);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .ml-clock {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 18px;
-      color: var(--nx-orange-500);
-    }
-    .ml-strip {
-      display: flex;
-      gap: 8px;
-      margin-top: 14px;
-    }
-    .ml-set {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 12px;
-      border-radius: var(--nx-r-2);
-      border: 1px solid var(--nx-line);
-      background: var(--nx-surface-0);
-    }
-    .ml-set .lbl {
-      font-family: var(--nx-font-mono);
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--nx-text-dim);
-    }
-    .ml-set .val {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
+    .mesa-state-sub {
       font-size: 13px;
-      color: var(--nx-text);
-    }
-    .ml-set[data-state='current'] {
-      border-color: var(--nx-orange-500);
-    }
-    .ml-set[data-state='current'] .lbl {
-      color: var(--nx-orange-500);
-    }
-    .ml-set[data-state='upcoming'] .val {
       color: var(--nx-text-mute);
+      margin: 0 0 8px;
+      max-width: 32ch;
     }
-    .ml-board {
+
+    /* ── cabeçalho ── */
+    .mesa-top {
       display: flex;
-      align-items: stretch;
-      gap: 14px;
-      margin-top: 16px;
-    }
-    .ml-side {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 0;
-    }
-    .ml-point {
-      /* Cresce pra altura do lado (o selo SAQUE só aparece de um lado): sem isso os dois
-         cartões ficam com alturas diferentes e os botões −1 desalinham. */
-      flex: 1;
-      display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 18px 12px 14px;
-      border-radius: var(--nx-r-3);
-      border: 1px solid var(--nx-line);
+      gap: 9px;
+      padding: calc(10px + env(safe-area-inset-top)) 14px 8px;
       background: var(--nx-surface-0);
-      cursor: pointer;
-      transition: border-color var(--nx-d-fast) var(--nx-ease-out);
-    }
-    .ml-point:not(:disabled):hover {
-      border-color: var(--nx-orange-500);
-    }
-    .ml-point:disabled {
-      cursor: default;
-    }
-    .ml-team {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      border-bottom: 1px solid var(--nx-line);
       min-width: 0;
-      max-width: 100%;
     }
-    .ml-name {
-      font-family: var(--nx-font-display);
+    .mesa-meta {
+      min-width: 0;
+      flex: 1;
+    }
+    .mesa-eyebrow {
+      font-family: var(--nx-font-mono);
       font-weight: 700;
-      font-size: 14px;
-      color: var(--nx-text);
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .ml-serve {
-      font-family: var(--nx-font-mono);
-      font-size: 8.5px;
+    .mesa-place {
+      font-family: var(--nx-font-display);
       font-weight: 700;
-      letter-spacing: 0.14em;
-      color: var(--nx-orange-500);
-      border: 1px solid var(--nx-orange-500);
-      border-radius: var(--nx-r-pill);
-      padding: 2px 7px;
-      flex: none;
+      font-size: 12px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .ml-score {
-      font-family: var(--nx-font-display);
-      font-weight: 800;
-      font-size: 56px;
-      line-height: 1;
-      color: var(--nx-text);
-      font-variant-numeric: tabular-nums;
+    .mesa-ico {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-line-strong);
+      background: transparent;
+      display: grid;
+      place-items: center;
+      color: var(--nx-text-mute);
+      flex-shrink: 0;
+      cursor: pointer;
     }
-    .ml-plus {
-      font-family: var(--nx-font-mono);
-      font-size: 10.5px;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--nx-orange-500);
+    .mesa-ico:active {
+      background: rgba(255, 255, 255, 0.06);
     }
-    .ml-center {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      min-width: 74px;
-    }
-    .ml-sets {
-      font-family: var(--nx-font-display);
-      font-weight: 800;
-      font-size: 24px;
-      color: var(--nx-orange-500);
-    }
-    .ml-sets em {
-      font-style: normal;
-      color: var(--nx-text-dim);
-      font-size: 16px;
-      margin: 0 4px;
-    }
-    .ml-sets-lbl {
-      font-family: var(--nx-font-mono);
-      font-size: 10px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--nx-text-dim);
-    }
-    .ml-rules {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 14px;
-      font-family: var(--nx-font-mono);
-      font-size: 11px;
-      color: var(--nx-text-dim);
-    }
-    .ml-hint {
-      color: var(--nx-pending);
-      border: 1px solid var(--nx-pending);
-      border-radius: var(--nx-r-pill);
-      padding: 2px 8px;
-    }
-    .ml-btn,
-    .ml-minus,
-    .ml-chip {
-      min-height: 38px;
-      padding: 0 14px;
+
+    .mesa-chip {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      border-radius: var(--nx-r-2);
-      border: 1px solid var(--nx-line);
-      background: var(--nx-surface-0);
-      color: var(--nx-text);
-      font-family: var(--nx-font-display);
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .ml-btn:disabled,
-    .ml-minus:disabled,
-    .ml-chip:disabled {
-      opacity: 0.45;
-      pointer-events: none;
-    }
-    .ml-btn--primary {
-      background: var(--nx-orange-500);
-      border-color: var(--nx-orange-500);
-      color: #10100e;
-    }
-    .ml-minus {
-      align-self: center;
-      min-width: 72px;
-    }
-    .ml-chip--on {
-      border-color: var(--nx-orange-500);
-      color: var(--nx-orange-500);
-    }
-    .ml-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .ml-format {
-      display: flex;
-      gap: 8px;
-      margin-left: auto;
-    }
-    .ml-banner {
-      border: 1px solid var(--nx-line);
-      border-left: 3px solid var(--nx-live);
-      border-radius: var(--nx-r-2);
-      background: var(--nx-surface-1);
-      padding: 12px 14px;
-      font-size: 13px;
-      color: var(--nx-text);
-    }
-    .ml-banner--ok {
-      border-left-color: var(--nx-win);
-    }
-    .ml-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      background: none;
-      border: none;
-      padding: 0;
-      cursor: pointer;
-      color: inherit;
-    }
-    .ml-toggle-icon {
-      font-size: 20px;
-      color: var(--nx-text-dim);
-      line-height: 1;
-    }
-    .ml-quick-hint {
-      margin-top: 2px;
-    }
-    .ml-quick {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .ml-quick-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .ml-quick-label {
+      gap: 5px;
+      height: 23px;
+      padding: 0 8px;
+      border-radius: 7px;
       font-family: var(--nx-font-mono);
-      font-size: 11px;
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--nx-line-strong);
+      color: var(--nx-text-mute);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .mesa-chip[data-state='in_progress'] {
+      background: rgba(255, 59, 48, 0.14);
+      border-color: rgba(255, 59, 48, 0.34);
+      color: #ff6259;
+    }
+    .mesa-chip--acc {
+      background: var(--nx-orange-tint);
+      border-color: rgba(255, 106, 26, 0.34);
+      color: var(--nx-orange-400);
+    }
+    .mesa-chip--tap {
+      cursor: pointer;
+    }
+    .mesa-chip--tap:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .mesa-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: var(--nx-r-pill);
+      background: currentColor;
+      animation: mesa-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes mesa-pulse {
+      50% {
+        opacity: 0.35;
+      }
+    }
+
+    /* ── barra de sets ── */
+    .mesa-sets {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--nx-surface-0);
+      border-bottom: 1px solid var(--nx-line);
+      overflow-x: auto;
+      scrollbar-width: none;
+      min-width: 0;
+    }
+    .mesa-sets::-webkit-scrollbar {
+      display: none;
+    }
+    .mesa-grow {
+      flex: 1;
+    }
+    .mesa-pill {
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-mono);
+      font-size: 11.5px;
+      font-weight: 800;
+      color: var(--nx-text-mute);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .mesa-pill b {
+      font-size: 9px;
+      font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+    }
+    .mesa-pill[data-state='current'] {
+      background: var(--nx-orange-tint);
+      border-color: rgba(255, 106, 26, 0.32);
+      color: var(--nx-text);
+    }
+    .mesa-pill[data-state='current'] b {
+      color: var(--nx-orange-400);
+    }
+    .mesa-pill[data-state='upcoming'] {
+      opacity: 0.45;
+    }
+
+    /* ── painel da dupla ── */
+    .mesa-sidewrap {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+    }
+    .mesa-side {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      padding: 12px 14px 10px;
+      background: var(--nx-surface-0);
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      transition: background var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .mesa-side:disabled {
+      cursor: default;
+    }
+    .mesa-side:not(:disabled):active {
+      background: var(--nx-surface-1);
+    }
+    .mesa-side--serving .mesa-side {
+      background: linear-gradient(180deg, rgba(255, 106, 26, 0.14), var(--nx-surface-0) 66%);
+      box-shadow: inset 0 0 0 1.5px rgba(255, 106, 26, 0.3);
+    }
+    .mesa-uni {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--nx-orange-500);
+    }
+    .mesa-sidewrap[data-team='A'] .mesa-uni {
+      background: #2f6bff;
+    }
+    .mesa-team {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+    }
+    .mesa-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-family: var(--nx-font-mono);
+      font-weight: 800;
+      font-size: 11px;
+      color: #fff;
+      background: var(--nx-orange-500);
+      flex-shrink: 0;
+    }
+    .mesa-sidewrap[data-team='A'] .mesa-badge {
+      background: #2f6bff;
+    }
+    .mesa-nm {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+    }
+    .mesa-num {
+      font-family: var(--nx-font-mono);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 0.82;
+      letter-spacing: -0.06em;
+      font-size: min(19cqh, 36cqw);
+      text-shadow: 0 12px 50px rgba(0, 0, 0, 0.6);
+    }
+    .mesa-side--serving .mesa-num {
+      color: #fff;
+      text-shadow: 0 0 60px rgba(255, 106, 26, 0.3);
+    }
+    .mesa-side--bump .mesa-num {
+      animation: mesa-bump 0.22s var(--nx-ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+    }
+    @keyframes mesa-bump {
+      0% {
+        transform: scale(1);
+      }
+      45% {
+        transform: scale(1.08);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    .mesa-foot {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 32px;
+      /* espaço do −1, que flutua por cima */
+      padding-right: 64px;
+    }
+    .mesa-to {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .mesa-to b {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      margin-right: 3px;
+    }
+    .mesa-to i {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--nx-r-pill);
+      background: rgba(255, 255, 255, 0.14);
+      display: block;
+    }
+    .mesa-to i.used {
+      background: var(--nx-pending);
+    }
+    .mesa-tapcue {
+      margin-left: auto;
+      font-family: var(--nx-font-mono);
+      font-size: 8.5px;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: rgba(244, 244, 245, 0.2);
+    }
+    .mesa-minus {
+      position: absolute;
+      right: 14px;
+      bottom: 10px;
+      z-index: 5;
+      width: 52px;
+      height: 32px;
+      border-radius: 9px;
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      display: grid;
+      place-items: center;
+      color: var(--nx-text-mute);
+      cursor: pointer;
+    }
+    .mesa-minus:active {
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .mesa-minus:disabled {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    /* Na própria linha da dupla, não flutuando no canto: sobreposta ao selo de SAQUE ela
+       aparecia exatamente no momento em que mais importa (set/match point de quem saca). */
+    .mesa-flag {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: rgba(255, 106, 26, 0.16);
+      border: 1px solid rgba(255, 106, 26, 0.4);
+      font-family: var(--nx-font-mono);
+      font-weight: 800;
+      font-size: 9.5px;
+      letter-spacing: 0.12em;
+      color: var(--nx-orange-400);
+      white-space: nowrap;
+      z-index: 12;
+    }
+
+    /* ── faixa central ── */
+    .mesa-mid {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--nx-bg);
+      border-top: 1px solid var(--nx-line);
+      border-bottom: 1px solid var(--nx-line);
+      min-width: 0;
+    }
+    .mesa-setsw {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--nx-font-mono);
+      font-weight: 800;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .mesa-setsw .d {
+      color: rgba(244, 244, 245, 0.22);
+      font-size: 0.7em;
+    }
+    .mesa-setsw .lo {
+      color: var(--nx-text-mute);
+    }
+    .mesa-midmeta {
+      min-width: 0;
+      flex-shrink: 1;
+      overflow: hidden;
+    }
+    .mesa-midline {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-mute);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mesa-midbtn {
+      height: 40px;
+      border-radius: 11px;
+      border: 1px solid var(--nx-line-strong);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      padding: 0 12px;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .mesa-midbtn:active {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .mesa-midbtn--primary {
+      background: var(--nx-orange-500);
+      border-color: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+      box-shadow: 0 8px 24px rgba(255, 106, 26, 0.3);
+    }
+    .mesa-midbtn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+      box-shadow: none;
+    }
+
+    /* ── ferramentas ── */
+    .mesa-tools {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+      background: var(--nx-surface-0);
+      border-top: 1px solid var(--nx-line);
+    }
+    .mesa-tool {
+      height: 44px;
+      border-radius: 11px;
+      border: 1px solid var(--nx-line-strong);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 11.5px;
+      color: var(--nx-text-mute);
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .mesa-tool:active {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .mesa-tool:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    /* ── modo exibição (tela virada para os atletas) ── */
+    .mesa-exit {
+      display: none;
+      position: absolute;
+      top: calc(14px + env(safe-area-inset-top));
+      right: 14px;
+      z-index: 40;
+      width: 34px;
+      height: 34px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-glass);
+      border: 1px solid var(--nx-line-strong);
+      place-items: center;
+      color: var(--nx-text-mute);
+      backdrop-filter: blur(8px);
+      cursor: pointer;
+    }
+    :host(.mesa-present) {
+      grid-template-rows: 1fr auto 1fr;
+    }
+    :host(.mesa-present) .mesa-top,
+    :host(.mesa-present) .mesa-sets,
+    :host(.mesa-present) .mesa-tools,
+    :host(.mesa-present) .mesa-minus,
+    :host(.mesa-present) .mesa-tapcue,
+    :host(.mesa-present) .mesa-to,
+    :host(.mesa-present) .mesa-midmeta,
+    :host(.mesa-present) .mesa-midbtn {
+      display: none;
+    }
+    :host(.mesa-present) .mesa-num {
+      font-size: min(34cqh, 62cqw);
+    }
+    :host(.mesa-present) .mesa-nm {
+      font-size: 19px;
+      text-align: center;
+      flex: 0 1 auto;
+    }
+    :host(.mesa-present) .mesa-team {
+      justify-content: center;
+    }
+    /* O X de sair fica sobre o canto superior direito: em retrato isso é o primeiro painel
+       (sem esta folga ele cobre o selo de SAQUE de quem saca); em paisagem é o segundo. */
+    @media (max-aspect-ratio: 1/1) {
+      :host(.mesa-present) .mesa-sidewrap--first .mesa-team {
+        padding-right: 44px;
+      }
+    }
+    /* Selo de set/match point + SAQUE + nome não cabem numa linha só no painel estreito da
+       paisagem: deixa quebrar, o nome continua sendo a primeira linha. */
+    :host(.mesa-present) .mesa-team {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    :host(.mesa-present) .mesa-nm {
+      flex: 0 1 auto;
+      max-width: 100%;
+    }
+    :host(.mesa-present) .mesa-mid {
+      justify-content: center;
+      padding: 6px 12px;
+    }
+    :host(.mesa-present) .mesa-exit {
+      display: grid;
+    }
+
+    /* Paisagem no modo exibição: duplas lado a lado, sets no meio — é como o tablet fica
+       apoiado na mesa da quadra. Regra de MEDIA, não de container: o container é o próprio
+       :host, e consulta de container só vale para os DESCENDENTES dele — nunca casaria. */
+    @media (min-aspect-ratio: 1/1) {
+      :host(.mesa-present) {
+        grid-template-rows: 1fr;
+        grid-template-columns: 1fr auto 1fr;
+      }
+      :host(.mesa-present) .mesa-mid {
+        flex-direction: column;
+        gap: 6px;
+        border-top: none;
+        border-bottom: none;
+        border-left: 1px solid var(--nx-line);
+        border-right: 1px solid var(--nx-line);
+        padding: 12px 18px;
+      }
+      :host(.mesa-present) .mesa-midmeta {
+        display: block;
+        text-align: center;
+      }
+      :host(.mesa-present) .mesa-num {
+        font-size: min(52cqh, 30cqw);
+      }
+      :host(.mesa-present) .mesa-sidewrap--first .mesa-team {
+        padding-right: 0;
+      }
+    }
+
+    /* ── faixa de aviso ── */
+    .mesa-banner {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 50;
+      border-radius: var(--nx-r-3);
+      border: 1px solid var(--nx-line-strong);
+      border-left: 3px solid var(--nx-live);
+      background: var(--nx-surface-2);
+      padding: 12px 14px;
+      font-size: 13px;
+      box-shadow: var(--nx-elev-2);
+      cursor: pointer;
+    }
+    .mesa-banner.ok {
+      border-left-color: var(--nx-win);
+    }
+
+    /* ── folha do placar por sets ── */
+    .mesa-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: 60;
+      background: rgba(5, 5, 5, 0.74);
+      backdrop-filter: blur(3px);
+      display: flex;
+      align-items: flex-end;
+      padding: 12px;
+    }
+    .mesa-sheet {
+      width: 100%;
+      max-height: 88cqh;
+      overflow-y: auto;
+      border-radius: 20px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line-strong);
+      box-shadow: var(--nx-elev-3);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .mesa-sheet h3 {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+      margin: 6px 0 0;
+    }
+    .mesa-note {
+      padding: 9px 12px;
+      border-radius: var(--nx-r-2);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--nx-line);
+      font-size: 11.5px;
+      color: var(--nx-text-mute);
+      margin: 0;
+    }
+    .mesa-quick {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .mesa-quick-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mesa-quick-row .mesa-eyebrow {
       width: 52px;
     }
-    .ml-quick-x {
+    .mesa-quick-x {
       color: var(--nx-text-dim);
     }
-    .ml-input {
+    .mesa-input {
       width: 68px;
-      height: 40px;
+      height: 44px;
       text-align: center;
       border-radius: var(--nx-r-2);
-      border: 1px solid var(--nx-line);
+      border: 1px solid var(--nx-line-strong);
       background: var(--nx-surface-0);
       color: var(--nx-text);
       font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 15px;
+      font-weight: 800;
+      font-size: 16px;
     }
-    .ml-quick-del {
+    .mesa-quick-del {
       margin-left: auto;
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: var(--nx-r-2);
       border: 1px solid var(--nx-line);
       background: transparent;
       color: var(--nx-text-dim);
       cursor: pointer;
     }
-    .ml-quick-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .ml-issues {
+    .mesa-issues {
       list-style: none;
       margin: 0;
       padding: 0;
@@ -662,111 +998,96 @@ interface FeedRowView {
       font-size: 12.5px;
       color: var(--nx-live);
     }
-    .ml-feed {
+    .mesa-sheetbtns {
+      display: flex;
+      gap: 9px;
+    }
+    .mesa-btn {
+      flex: 1;
+      height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--nx-line-strong);
+      background: transparent;
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 13px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .mesa-btn--go {
+      background: var(--nx-orange-500);
+      border-color: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+    }
+    .mesa-btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .mesa-feed {
       list-style: none;
-      margin: 0;
+      margin: 6px 0 0;
       padding: 0;
       display: flex;
       flex-direction: column;
     }
-    .ml-feed li {
+    .mesa-feed li {
       display: flex;
       align-items: center;
       gap: 12px;
       padding: 7px 2px;
       border-bottom: 1px solid var(--nx-line);
       font-size: 12.5px;
-      color: var(--nx-text);
     }
-    .ml-feed li:last-child {
+    .mesa-feed li:last-child {
       border-bottom: none;
     }
-    .ml-feed li.undo {
+    .mesa-feed li.undo {
       color: var(--nx-text-dim);
     }
-    .ml-feed .t {
+    .mesa-feed .t {
       font-family: var(--nx-font-mono);
       font-size: 11px;
       color: var(--nx-text-dim);
       width: 44px;
     }
-    .ml-feed .l {
+    .mesa-feed .l {
       flex: 1;
       min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .ml-feed .s {
+    .mesa-feed .s {
       font-family: var(--nx-font-mono);
       font-weight: 700;
       font-size: 12px;
     }
-    .ml-empty {
-      font-size: 13px;
-      color: var(--nx-text-mute);
-      margin: 0 0 12px;
-    }
-    .ml-empty:last-child {
-      margin-bottom: 0;
-    }
-    .ml-empty-title {
-      font-family: var(--nx-font-display);
-      font-weight: 700;
-      font-size: 15px;
-      color: var(--nx-text);
-      margin: 0 0 6px;
-    }
-    @media (max-width: 720px) {
-      .ml-body {
-        padding: 20px 16px 32px;
-      }
-      .ml-board {
-        gap: 8px;
-      }
-      /* Lado a lado, o selo SAQUE espremia o nome até sobrar uma letra ("A..."). Empilhado, o
-         nome fica com a largura inteira do lado — e é ele que o mesário confere antes de tocar. */
-      .ml-team {
-        flex-direction: column;
-        gap: 4px;
-        width: 100%;
-      }
-      .ml-name {
-        max-width: 100%;
-        font-size: 13px;
-      }
-      .ml-score {
-        font-size: 44px;
-      }
-      .ml-center {
-        min-width: 52px;
-      }
-      .ml-format {
-        margin-left: 0;
-      }
-    }
 
-    /* Celular/tablet na quadra: "ponto" é o toque mais repetido do evento inteiro e o mais caro
-       de errar. Cresce por ponteiro grosso, não por largura. */
+    /* Toque grosso (celular/tablet na quadra): o alvo do ponto é a tela toda, mas os controles
+       pequenos também precisam caber no dedo. */
     @media (pointer: coarse) {
-      .ml-point {
-        min-height: 132px;
-        justify-content: center;
-        padding: 20px 12px;
+      .mesa-minus {
+        width: 60px;
+        height: 40px;
       }
-      .ml-minus {
-        min-height: 44px;
+      .mesa-tool {
+        height: 48px;
       }
     }
   `,
 })
 export class MesaLiveComponent {
-  private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject(ElementRef<HTMLElement>);
   private readonly gateway = inject(MesaLiveGateway);
 
-  protected readonly formats = [1, 3] as const;
+  protected readonly timeoutSlots = [0, 1] as const;
 
   protected readonly tournamentId = toSignal(this.route.paramMap.pipe(map((p) => p.get('tournamentId')?.trim() ?? '')), {
     initialValue: this.route.snapshot.paramMap.get('tournamentId')?.trim() ?? '',
@@ -778,6 +1099,7 @@ export class MesaLiveComponent {
   private readonly live = signal<LiveMatch | null>(null);
   private readonly events = signal<LivePointEvent[]>([]);
   private readonly names = signal<MesaTeamNames>(EMPTY_TEAM_NAMES);
+  private readonly headerInfo = signal<MesaHeaderInfo>(EMPTY_HEADER);
   private readonly now = signal(Date.now());
   protected readonly loaded = signal(false);
 
@@ -785,11 +1107,19 @@ export class MesaLiveComponent {
   protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
 
-  protected readonly quickOpen = signal(false);
+  /** Estado só da sessão: o doc não guarda tempo técnico nem de que lado a dupla está na
+   *  quadra. Recarregar a página zera — o placar não, esse é do servidor. */
+  protected readonly present = signal(false);
+  protected readonly swapped = signal(false);
+  protected readonly timeouts = signal<Record<MesaSide, number>>({ A: 0, B: 0 });
+  protected readonly bumped = signal<MesaSide | null>(null);
+
+  protected readonly sheetOpen = signal(false);
   protected readonly quickSets = signal<ScoreSet[]>([]);
   private hydratedQuickFor = '';
-
-  protected readonly accountLabel = computed(() => this.auth.user()?.displayName?.trim() || 'Atleta');
+  private resolvedTeamIds = '';
+  private resolvedHeaderFor = '';
+  private lastScore: { a: number; b: number } | null = null;
 
   constructor() {
     // A mesa é dirigida pelo doc em tempo real: troca de matchId refaz as assinaturas.
@@ -800,6 +1130,7 @@ export class MesaLiveComponent {
       this.feedback.set(null);
       this.loaded.set(false);
       this.hydratedQuickFor = '';
+      this.lastScore = null;
       if (!id || !this.gateway.available) {
         this.loaded.set(true);
         return;
@@ -809,7 +1140,10 @@ export class MesaLiveComponent {
         (m) => {
           this.live.set(m);
           this.loaded.set(true);
-          if (m) void this.hydrateNames(m);
+          if (m) {
+            void this.hydrateNames(m);
+            void this.hydrateHeader(m);
+          }
         },
         () => this.loaded.set(true),
       );
@@ -820,11 +1154,39 @@ export class MesaLiveComponent {
       });
     });
 
+    // Pulso do número: dispara pelo DOC (não pelo toque), então o ponto marcado na mesa do
+    // organizador ou no app também acende aqui.
+    effect(() => {
+      const m = this.live();
+      if (!m) return;
+      const score = currentSetOf(m);
+      const previous = this.lastScore;
+      this.lastScore = score;
+      if (!previous) return;
+      const side: MesaSide | null = score.a !== previous.a ? 'A' : score.b !== previous.b ? 'B' : null;
+      if (!side) return;
+      this.bumped.set(side);
+      const timer = setTimeout(() => this.bumped.set(null), 240);
+      this.destroyRef.onDestroy(() => clearTimeout(timer));
+    });
+
     const timer = setInterval(() => this.now.set(Date.now()), 1000);
     this.destroyRef.onDestroy(() => clearInterval(timer));
+
+    void this.keepScreenAwake();
   }
 
-  private resolvedTeamIds = '';
+  /** Tablet apoiado na quadra não pode apagar a tela no meio do set. Sem suporte, segue a vida. */
+  private async keepScreenAwake(): Promise<void> {
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } };
+    if (!nav.wakeLock) return;
+    try {
+      const lock = await nav.wakeLock.request('screen');
+      this.destroyRef.onDestroy(() => void lock.release().catch(() => undefined));
+    } catch {
+      // Aba em segundo plano ou navegador sem permissão — nada a fazer.
+    }
+  }
 
   private async hydrateNames(m: LiveMatch): Promise<void> {
     const key = [m.teamAId, m.teamBId].sort().join(',');
@@ -838,41 +1200,50 @@ export class MesaLiveComponent {
     }
   }
 
+  private async hydrateHeader(m: LiveMatch): Promise<void> {
+    const key = `${m.tournamentId}:${m.categoryId ?? ''}`;
+    if (key === this.resolvedHeaderFor) return;
+    this.resolvedHeaderFor = key;
+    this.headerInfo.set(await this.gateway.header(m.tournamentId, m.categoryId));
+  }
+
   protected readonly match = computed(() => this.live());
   protected readonly status = computed<MatchDisplayStatus>(() => this.match()?.status ?? 'scheduled');
   protected readonly statusLabel = computed(() => STATUS_LABEL[this.status()]);
   protected readonly bestOf = computed(() => this.match()?.bestOf ?? 3);
+  protected readonly bestOfLabel = computed(() => bestOfLabelOf(this.bestOf()));
 
   protected readonly teamsReady = computed(() => {
     const m = this.match();
     return m != null && m.teamAId.length > 0 && m.teamBId.length > 0;
   });
 
-  protected readonly teamALabel = computed(() => {
-    const m = this.match();
-    return m ? teamLabelOf(this.names(), m.teamAId, m.teamADescription) : 'Dupla A';
-  });
+  /** Ordem visual dos painéis — "Quadra" inverte os lados na tela, como as duplas trocam de
+   *  lado na areia. Não toca no doc: A continua sendo A. */
+  protected readonly sidesInOrder = computed<MesaSide[]>(() => (this.swapped() ? ['B', 'A'] : ['A', 'B']));
 
-  protected readonly teamBLabel = computed(() => {
+  protected label(side: MesaSide): string {
     const m = this.match();
-    return m ? teamLabelOf(this.names(), m.teamBId, m.teamBDescription) : 'Dupla B';
-  });
+    if (!m) return side === 'A' ? 'Dupla A' : 'Dupla B';
+    return side === 'A' ? teamLabelOf(this.names(), m.teamAId, m.teamADescription) : teamLabelOf(this.names(), m.teamBId, m.teamBDescription);
+  }
+
+  protected points(side: MesaSide): string {
+    const m = this.match();
+    if (!m) return '00';
+    const set = currentSetOf(m);
+    return scoreText(side === 'A' ? set.a : set.b);
+  }
+
+  protected flag(side: MesaSide) {
+    const m = this.match();
+    return m ? flagOf(m, side) : null;
+  }
 
   protected readonly winnerLabel = computed(() => {
     const m = this.match();
     if (!m?.winnerId) return '—';
-    return m.winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel();
-  });
-
-  private readonly currentSetIdx = computed(() => {
-    const m = this.match();
-    if (!m) return 0;
-    return Math.min(Math.max(m.currentSetIndex, 0), m.bestOf - 1);
-  });
-
-  protected readonly currentSet = computed(() => {
-    const m = this.match();
-    return m?.sets[this.currentSetIdx()] ?? { a: 0, b: 0 };
+    return m.winnerId === m.teamAId ? this.label('A') : this.label('B');
   });
 
   protected readonly wins = computed(() => {
@@ -880,23 +1251,30 @@ export class MesaLiveComponent {
     return m ? setsWonOf(m.sets, m.bestOf) : { a: 0, b: 0 };
   });
 
-  protected readonly setStrip = computed<SetChipView[]>(() => {
+  protected readonly setPills = computed<MesaSetPill[]>(() => {
     const m = this.match();
-    if (!m) return [];
-    const idx = this.currentSetIdx();
-    return Array.from({ length: m.bestOf }, (_, i) => {
-      const s = m.sets[i];
-      const state: SetChipView['state'] = i === idx && m.status === 'in_progress' ? 'current' : s && (s.a > 0 || s.b > 0) ? 'closed' : 'upcoming';
-      return { label: `Set ${i + 1}`, score: s ? `${s.a}·${s.b}` : null, state };
-    });
+    return m ? setPillsOf(m) : [];
   });
 
-  protected readonly rulesLabel = computed(() => setRulesLabel(this.currentSetIdx(), this.bestOf()));
+  protected readonly eyebrow = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    return [this.headerInfo().categoryName, phaseLabelOf(m)].filter((p): p is string => Boolean(p)).join(' · ');
+  });
 
-  protected readonly hint = computed(() => {
-    if (this.status() !== 'in_progress') return null;
-    const s = this.currentSet();
-    return setPointHint(s.a, s.b, this.currentSetIdx(), this.bestOf());
+  protected readonly placeLine = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    const parts = [this.headerInfo().tournamentName, courtLabelOf(m.courtName), m.scheduleTime ? TIME.format(m.scheduleTime) : null];
+    return parts.filter((p): p is string => Boolean(p)).join(' · ');
+  });
+
+  /** Linha do meio: a regra do set enquanto joga, o vencedor quando acabou. */
+  protected readonly midLine = computed(() => {
+    const m = this.match();
+    if (!m) return '';
+    if (this.status() === 'completed') return `vitória de ${this.winnerLabel()}`;
+    return setRuleLineOf(m);
   });
 
   protected readonly elapsed = computed(() => {
@@ -905,7 +1283,7 @@ export class MesaLiveComponent {
     return formatElapsedMmSs(elapsedSecondsFromStart(m.matchStartedAt, new Date(this.now())));
   });
 
-  protected readonly servingSide = computed<'A' | 'B' | null>(() => {
+  protected readonly servingSide = computed<MesaSide | null>(() => {
     const m = this.match();
     if (!m || !m.servingTeamId) return null;
     if (m.servingTeamId === m.teamAId) return 'A';
@@ -915,23 +1293,11 @@ export class MesaLiveComponent {
 
   protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady());
 
-  /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto) — alvo do
-   *  desfazer, como na mesa do organizador. */
+  /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto). */
   protected readonly lastPoint = computed(() => lastUndoablePoint(this.events()));
 
-  protected canUndoSide(side: 'A' | 'B'): boolean {
-    return this.canScore() && this.lastPoint()?.side === side;
-  }
-
-  protected readonly metaLine = computed(() => {
-    const m = this.match();
-    if (!m) return '';
-    const parts = [m.courtName ? (/quadra/i.test(m.courtName) ? m.courtName : `Quadra ${m.courtName}`) : null, m.scheduleTime ? TIME.format(m.scheduleTime) : null];
-    return parts.filter((p): p is string => p != null).join(' · ');
-  });
-
   protected readonly feed = computed<FeedRowView[]>(() => {
-    const nameOf = (side: 'A' | 'B' | null): string => (side === 'A' ? this.teamALabel() : side === 'B' ? this.teamBLabel() : '—');
+    const nameOf = (side: 'A' | 'B' | null): string => (side === 'A' ? this.label('A') : side === 'B' ? this.label('B') : '—');
     return [...this.events()]
       .reverse()
       .slice(0, 12)
@@ -944,6 +1310,35 @@ export class MesaLiveComponent {
       }));
   });
 
+  // ── Modo exibição ──────────────────────────────────────────────────────────
+
+  protected enterPresent(): void {
+    this.present.set(true);
+    const el = this.host.nativeElement;
+    if (el.requestFullscreen) void el.requestFullscreen().catch(() => undefined);
+  }
+
+  protected exitPresent(): void {
+    this.present.set(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  }
+
+  // ── Estado local da mesa ───────────────────────────────────────────────────
+
+  protected swapSides(): void {
+    this.swapped.update((v) => !v);
+  }
+
+  /** Tempo técnico da dupla que está no saque (2 por set, como na regra) — visual, o doc não
+   *  tem campo pra isso. */
+  protected addTimeout(): void {
+    const side = this.servingSide();
+    if (!side) return;
+    this.timeouts.update((t) => (t[side] >= 2 ? t : { ...t, [side]: t[side] + 1 }));
+  }
+
+  // ── Escritas ───────────────────────────────────────────────────────────────
+
   /** START explícito: `updateLiveMatchScore` zerado — servidor seta In Progress +
    *  matchStartedAt + liveMatchesNow. A partir daqui a mesa libera o ponto a ponto. */
   protected async start(): Promise<void> {
@@ -954,6 +1349,7 @@ export class MesaLiveComponent {
     this.feedback.set(null);
     try {
       await this.gateway.start(m.id);
+      this.timeouts.set({ A: 0, B: 0 });
       this.feedback.set({ ok: true, message: 'Partida iniciada — já aparece ao vivo para os atletas.' });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao iniciar a partida.' });
@@ -964,13 +1360,13 @@ export class MesaLiveComponent {
   }
 
   /** Mesma escrita do `_point` do app: transação com sets/currentSetIndex/status/saque +
-   *  evento `point`. O ponto final grava Completed+winnerId (avanço automático no servidor). */
-  protected async point(side: 'A' | 'B'): Promise<void> {
+   *  evento `point`. O ponto que fecha a partida grava Completed+winnerId. */
+  protected async point(side: MesaSide): Promise<void> {
     const m = this.match();
     if (!m || !this.canScore()) return;
 
     const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-    const setIdx = this.currentSetIdx();
+    const setIdx = currentSetIndexOf(m);
     const current = result.sets[setIdx] ?? null;
     const wins = setsWonOf(result.sets, m.bestOf);
 
@@ -991,10 +1387,12 @@ export class MesaLiveComponent {
         },
         pointEvent: { type: 'point', side, setIndex: setIdx, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
       });
+      // Set novo começa com os tempos técnicos zerados.
+      if (result.currentSetIndex !== setIdx) this.timeouts.set({ A: 0, B: 0 });
       if (result.winnerId != null) {
         this.feedback.set({
           ok: true,
-          message: `Partida encerrada — vitória de ${result.winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.`,
+          message: `Partida encerrada — vitória de ${result.winnerId === m.teamAId ? this.label('A') : this.label('B')}. A chave avança automaticamente.`,
         });
       }
     } catch (e) {
@@ -1004,7 +1402,13 @@ export class MesaLiveComponent {
     }
   }
 
-  protected undoSide(side: 'A' | 'B'): void {
+  /** O −1 desfaz o último ponto — e só do lado que o marcou, pra não inventar história na
+   *  timeline de `pointEvents`. */
+  protected canUndoSide(side: MesaSide): boolean {
+    return this.canScore() && this.lastPoint()?.side === side;
+  }
+
+  protected undoSide(side: MesaSide): void {
     const last = this.lastPoint();
     if (!last) return;
     if (last.side !== side) {
@@ -1067,12 +1471,13 @@ export class MesaLiveComponent {
     }
   }
 
-  /** Set único ↔ MD3, com o mesmo guard de não descartar sets já pontuados. */
-  protected async setFormat(newBestOf: number): Promise<void> {
+  /** Set único ↔ MD3 pelo chip do formato, com o mesmo guard de não descartar sets pontuados. */
+  protected async toggleFormat(): Promise<void> {
     const m = this.match();
-    if (!m || this.saving() || m.status === 'completed' || newBestOf === m.bestOf) return;
+    if (!m || this.saving() || m.status === 'completed') return;
+    const newBestOf = m.bestOf === 1 ? 3 : 1;
     if (newBestOf < m.bestOf && !canReduceBestOf(m.sets, newBestOf)) {
-      this.feedback.set({ ok: false, message: `Não dá para mudar para ${newBestOf === 1 ? 'set único' : 'MD3'}: há sets já pontuados.` });
+      this.feedback.set({ ok: false, message: 'Não dá para mudar para set único: há sets já pontuados.' });
       return;
     }
 
@@ -1116,16 +1521,19 @@ export class MesaLiveComponent {
 
   // ── Placar por sets ────────────────────────────────────────────────────────
 
-  /** Abre já preenchido com o que está no doc (sets fechados) — corrigir é o caso mais comum
-   *  depois de a partida ter acontecido. */
-  protected toggleQuick(): void {
-    const open = !this.quickOpen();
-    this.quickOpen.set(open);
+  /** Abre já preenchido com o que está no doc — corrigir é o caso mais comum depois de a
+   *  partida ter acontecido. */
+  protected openScoreSheet(): void {
+    this.sheetOpen.set(true);
     const m = this.match();
-    if (!open || !m || this.hydratedQuickFor === m.id) return;
+    if (!m || this.hydratedQuickFor === m.id) return;
     this.hydratedQuickFor = m.id;
     const fromDoc = m.sets.map((s) => ({ a: s.a, b: s.b }));
     this.quickSets.set(fromDoc.length > 0 ? fromDoc : [{ a: 0, b: 0 }]);
+  }
+
+  protected closeSheet(): void {
+    this.sheetOpen.set(false);
   }
 
   protected addQuickSet(): void {
@@ -1161,11 +1569,12 @@ export class MesaLiveComponent {
       const sets = this.quickSets();
       const result = await this.gateway.submitSets(m.id, sets, this.bestOf());
       const winner = matchWinnerSide(sets, this.bestOf());
-      const winnerLabel = winner === 'A' ? this.teamALabel() : this.teamBLabel();
+      const winnerLabel = winner === 'A' ? this.label('A') : this.label('B');
       this.feedback.set({
         ok: true,
         message: result.completed ? `Placar salvo — vitória de ${winnerLabel}. A chave avança automaticamente.` : 'Placar parcial salvo.',
       });
+      this.sheetOpen.set(false);
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao salvar o placar.' });
     } finally {

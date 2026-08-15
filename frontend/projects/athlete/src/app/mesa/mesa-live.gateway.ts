@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import type { Unsubscribe } from 'firebase/firestore';
 import {
   recordPointTransaction,
@@ -11,7 +11,9 @@ import {
 } from '@nexago/live-scoring';
 import { athleteFirestore, athleteLiveScoringContext, athleteProjectId } from '../data/firestore';
 import { submitMatchResult, updateLiveMatchScore, validateMatchResult } from '../data/match-ops.service';
+import { fetchMyStaffTournaments, staffRoleForTournament, type TournamentStaffRole } from '../data/tournament-staff-repository';
 import { fetchTournament } from '../data/tournaments-repository';
+import { AuthService } from '../auth/auth.service';
 import { EMPTY_TEAM_NAMES, fetchTeamNamesFor, type MesaTeamNames } from './mesa-team-names';
 
 /** Cabeçalho da mesa: de que torneio e categoria é esta partida. */
@@ -31,6 +33,7 @@ export const EMPTY_HEADER: MesaHeaderInfo = { tournamentName: null, categoryName
 @Injectable({ providedIn: 'root' })
 export class MesaLiveGateway {
   private readonly scoring = athleteLiveScoringContext();
+  private readonly auth = inject(AuthService);
 
   /** `false` quando o Firebase não está configurado — a tela mostra estado vazio em vez de
    *  quebrar (mesma guarda das outras telas do portal). */
@@ -84,6 +87,19 @@ export class MesaLiveGateway {
     const projectId = athleteProjectId();
     if (!db || !projectId) return EMPTY_TEAM_NAMES;
     return fetchTeamNamesFor(db, projectId, teamIds);
+  }
+
+  /** Cargo do usuário NESTE torneio (`null` = dono, que não tem espelho de staff, ou ninguém).
+   *  A tela usa pra não oferecer o que as rules negam — trocar o formato é do gestor/dono. */
+  async myStaffRole(tournamentId: string): Promise<TournamentStaffRole | null> {
+    const db = athleteFirestore();
+    const uid = this.auth.user()?.uid;
+    if (!db || !uid || !tournamentId) return null;
+    try {
+      return staffRoleForTournament(await fetchMyStaffTournaments(db, uid), tournamentId);
+    } catch {
+      return null;
+    }
   }
 
   /** Nome do torneio e da categoria pro cabeçalho ("Masculino A · Semifinal" / "Etapa Rio ·

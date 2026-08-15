@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
@@ -79,23 +79,38 @@ test('mesário continua sem mexer no que não é placar (quadra, horário, dupla
   await assertFails(updateDoc(doc(db, MATCH_PATH), { teamAId: 'outro-time', updatedAt: serverTimestamp() }));
 });
 
-/** Formato da partida (MD3 ↔ set único) não é placar: mudar o `bestOf` de uma partida continua
- *  fora do alcance do mesário.
- *
- *  ATENÇÃO — buraco conhecido, ainda ABERTO e maior que este arquivo: as duas allowlists de
- *  partida usam `changedKeys()`, que só enxerga chave presente NOS DOIS lados. Campo AUSENTE do
- *  doc é "added", não "changed", e escapa da lista inteira: por isso o teste abaixo semeia
- *  `bestOf` antes de tentar alterá-lo. O predicado correto é `affectedKeys()` (já usado nas
- *  linhas 1231 e 1614 das rules). Vale para `scorerCanOnlyEditScoreFields` e
- *  `managerCanOnlyEditMatchFields` — e trocar o predicado exige, junto, decidir quem pode mudar
- *  `bestOf`, que hoje não está em NENHUMA das duas listas e só funciona por causa do buraco. */
-test('mesário não muda o formato de uma partida que já tem formato', async () => {
-  await testEnv.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), MATCH_PATH), { bestOf: 3 }, { merge: true });
-  });
-
+/** Formato da partida (MD3 ↔ set único) não é placar: é do gestor/dono, nunca do mesário. */
+test('formato da partida: gestor troca, mesário não', async () => {
   const mesario = testEnv.authenticatedContext(MESARIO).firestore();
   await assertFails(updateDoc(doc(mesario, MATCH_PATH), { bestOf: 1, updatedAt: serverTimestamp() }));
+
+  const gestor = testEnv.authenticatedContext(GESTOR).firestore();
+  await assertSucceeds(updateDoc(doc(gestor, MATCH_PATH), { bestOf: 1, updatedAt: serverTimestamp() }));
+});
+
+/** A regressão que fecha o buraco do `changedKeys()`: campo AUSENTE do documento também tem que
+ *  bater na allowlist. Antes disso, qualquer chave nova passava — inclusive `liveScore`, que é
+ *  escrita exclusiva da Cloud Function, e qualquer lixo arbitrário. */
+test('campo que ainda NÃO existe no doc não escapa da allowlist', async () => {
+  const mesario = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertFails(updateDoc(doc(mesario, MATCH_PATH), { liveScore: { setsA: 9, setsB: 0, currentGamesA: 0, currentGamesB: 0 } }));
+  await assertFails(updateDoc(doc(mesario, MATCH_PATH), { campoInventado: 'x' }));
+
+  const gestor = testEnv.authenticatedContext(GESTOR).firestore();
+  await assertFails(updateDoc(doc(gestor, MATCH_PATH), { liveScore: { setsA: 9, setsB: 0, currentGamesA: 0, currentGamesB: 0 } }));
+  await assertFails(updateDoc(doc(gestor, MATCH_PATH), { campoInventado: 'x' }));
+});
+
+/** Apagar campo também é escrita: `removedKeys` entra em `affectedKeys`. A mesa faz isso ao
+ *  desfazer o ponto que encerrou a partida (`winnerId`/`matchEndedAt` viram deleteField). */
+test('mesário apaga winnerId ao desfazer o ponto final, mas não apaga o que não é dele', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), MATCH_PATH), { winnerId: 'time-a', courtName: '2' }, { merge: true });
+  });
+
+  const db = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertSucceeds(updateDoc(doc(db, MATCH_PATH), { winnerId: deleteField(), status: 'In Progress', updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(db, MATCH_PATH), { courtName: deleteField(), updatedAt: serverTimestamp() }));
 });
 
 test('quem não é da equipe não marca ponto nenhum', async () => {

@@ -114,7 +114,11 @@ interface FeedRowView {
           <span class="mesa-pill" [attr.data-state]="pill.state"><b>{{ pill.label }}</b>{{ pill.score ?? '—' }}</span>
         }
         <span class="mesa-grow"></span>
-        <button type="button" class="mesa-chip mesa-chip--tap" [disabled]="saving() || status() === 'completed'" (click)="toggleFormat()">{{ bestOfLabel() }}</button>
+        @if (canChangeFormat()) {
+          <button type="button" class="mesa-chip mesa-chip--tap" [disabled]="saving() || status() === 'completed'" (click)="toggleFormat()">{{ bestOfLabel() }}</button>
+        } @else {
+          <span class="mesa-chip" title="Só o organizador muda o formato da partida">{{ bestOfLabel() }}</span>
+        }
       </div>
 
       @for (side of sidesInOrder(); track side) {
@@ -1135,6 +1139,8 @@ export class MesaLiveComponent {
   private readonly events = signal<LivePointEvent[]>([]);
   private readonly names = signal<MesaTeamNames>(EMPTY_TEAM_NAMES);
   private readonly headerInfo = signal<MesaHeaderInfo>(EMPTY_HEADER);
+  /** Cargo neste torneio: `scorer` não muda o formato da partida (as rules negam). */
+  private readonly staffRole = signal<string | null>(null);
   private readonly now = signal(Date.now());
   protected readonly loaded = signal(false);
 
@@ -1239,7 +1245,9 @@ export class MesaLiveComponent {
     const key = `${m.tournamentId}:${m.categoryId ?? ''}`;
     if (key === this.resolvedHeaderFor) return;
     this.resolvedHeaderFor = key;
-    this.headerInfo.set(await this.gateway.header(m.tournamentId, m.categoryId));
+    const [header, role] = await Promise.all([this.gateway.header(m.tournamentId, m.categoryId), this.gateway.myStaffRole(m.tournamentId)]);
+    this.headerInfo.set(header);
+    this.staffRole.set(role);
   }
 
   protected readonly match = computed(() => this.live());
@@ -1247,6 +1255,7 @@ export class MesaLiveComponent {
   protected readonly statusLabel = computed(() => STATUS_LABEL[this.status()]);
   protected readonly bestOf = computed(() => this.match()?.bestOf ?? 3);
   protected readonly bestOfLabel = computed(() => bestOfLabelOf(this.bestOf()));
+  protected readonly canChangeFormat = computed(() => this.staffRole() !== 'scorer');
 
   protected readonly teamsReady = computed(() => {
     const m = this.match();

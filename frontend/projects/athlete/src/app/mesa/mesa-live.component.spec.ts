@@ -76,6 +76,12 @@ class FakeGateway {
   header(): Promise<typeof EMPTY_HEADER> {
     return Promise.resolve({ tournamentName: 'Etapa Rio', categoryName: 'Masculino A' });
   }
+
+  role: 'manager' | 'scorer' | null = 'manager';
+
+  myStaffRole(): Promise<'manager' | 'scorer' | null> {
+    return Promise.resolve(this.role);
+  }
 }
 
 function liveMatch(partial: Partial<LiveMatch> = {}): LiveMatch {
@@ -235,6 +241,28 @@ describe('MesaLiveComponent', () => {
     // Os dois controles vivem na faixa central, que não marca ponto.
     expect(el().querySelectorAll('.mesa-side .mesa-midctl').length).toBe(0);
     expect(gateway.points.length).toBe(0);
+  });
+
+  it('mesário vê o formato só como rótulo — trocar MD3/set único é do organizador, e as rules negam', async () => {
+    gateway.role = 'scorer';
+    gateway.push(liveMatch());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(byText('melhor de 3')).toBeUndefined();
+    expect(el().querySelector('.mesa-sets .mesa-chip')?.textContent).toContain('melhor de 3');
+  });
+
+  it('gestor troca o formato pelo chip', async () => {
+    gateway.role = 'manager';
+    gateway.push(liveMatch());
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    byText('melhor de 3')!.click();
+    await fixture.whenStable();
+
+    expect(gateway.fields[0]?.fields['bestOf']).toBe(1);
   });
 
   it('partida sem as duas duplas não abre a mesa', () => {

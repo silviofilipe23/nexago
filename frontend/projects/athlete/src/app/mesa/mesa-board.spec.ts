@@ -1,5 +1,5 @@
 import type { LiveMatch } from '@nexago/live-scoring';
-import { bestOfLabelOf, courtLabelOf, currentSetOf, flagOf, phaseLabelOf, scoreText, setPillsOf, setRuleLineOf } from './mesa-board';
+import { bestOfLabelOf, courtLabelOf, currentSetOf, elapsedLabelOf, flagOf, phaseLabelOf, scoreText, setPillsOf, setRuleLineOf } from './mesa-board';
 
 function board(partial: Partial<LiveMatch> = {}): LiveMatch {
   return {
@@ -108,6 +108,23 @@ describe('mesa-board', () => {
     it('tipo desconhecido cai na rodada — a mesa abre uma partida só, sem a chave inteira pra adivinhar a fase', () => {
       expect(phaseLabelOf(board({ matchType: 'knockout', round: 3 }))).toBe('Rodada 3');
       expect(phaseLabelOf(board({ matchType: '', round: 0 }))).toBe('Partida');
+    });
+  });
+
+  describe('elapsedLabelOf', () => {
+    it('minutos e segundos no jogo normal', () => {
+      expect(elapsedLabelOf(0)).toBe('00:00');
+      expect(elapsedLabelOf(452)).toBe('07:32');
+      expect(elapsedLabelOf(3599)).toBe('59:59');
+    });
+
+    it('passa a contar horas — partida esquecida em aberto virava "1666:39"', () => {
+      expect(elapsedLabelOf(3600)).toBe('1:00:00');
+      expect(elapsedLabelOf(99_999)).toBe('27:46:39');
+    });
+
+    it('não aceita negativo', () => {
+      expect(elapsedLabelOf(-10)).toBe('00:00');
     });
   });
 

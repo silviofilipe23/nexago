@@ -1,4 +1,4 @@
-import { isSetWon, setsWonOf, targetPointsForSet, type LiveMatch, type LiveSet } from '@nexago/live-scoring';
+import { formatElapsedMmSs, isSetWon, setsWonOf, targetPointsForSet, type LiveMatch, type LiveSet } from '@nexago/live-scoring';
 
 /** Leituras do placar que o painel mostra — puras, pra caberem em teste sem Firestore. O que
  *  ELAS não fazem é decidir placar: quem soma, fecha set e declara vencedor é o motor
@@ -87,4 +87,13 @@ export function bestOfLabelOf(bestOf: number): string {
 export function setRuleLineOf(m: Pick<LiveMatch, 'currentSetIndex' | 'bestOf'>): string {
   const idx = currentSetIndexOf(m);
   return `${idx + 1}º set · até ${targetPointsForSet(idx, m.bestOf)}`;
+}
+
+/** "07:32" no jogo normal e "1:07:32" quando passa da hora. `formatElapsedMmSs` (compartilhado)
+ *  só conta minutos: uma partida esquecida em aberto virava "1666:39" no cabeçalho. */
+export function elapsedLabelOf(totalSec: number): string {
+  const safe = Math.min(Math.max(Math.trunc(totalSec), 0), 359_999);
+  if (safe < 3600) return formatElapsedMmSs(safe);
+  const hours = Math.floor(safe / 3600);
+  return `${hours}:${formatElapsedMmSs(safe % 3600)}`;
 }

@@ -8,7 +8,6 @@ import {
   applyPoint,
   canReduceBestOf,
   elapsedSecondsFromStart,
-  formatElapsedMmSs,
   lastUndoablePoint,
   liveSetToMap,
   matchWinnerSide,
@@ -27,6 +26,7 @@ import {
   courtLabelOf,
   currentSetIndexOf,
   currentSetOf,
+  elapsedLabelOf,
   flagOf,
   phaseLabelOf,
   scoreText,
@@ -503,15 +503,20 @@ interface FeedRowView {
       min-width: 0;
       min-height: 0;
       display: grid;
+      /* O número é medido POR ESTE PAINEL, não pela janela: medido pela janela ele passava da
+         altura da linha em tela baixa (desktop, celular deitado) e saía cortado. */
+      container-type: size;
     }
     .mesa-side {
       min-width: 0;
       min-height: 0;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      /* Linhas fixas nas pontas e o número no meio absorvendo a folga: em painel baixo é o
+         número que encolhe, nunca a linha do nome ou o rodapé que somem por baixo. */
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
       align-items: center;
-      justify-content: space-between;
+      justify-items: center;
       gap: 4px;
       padding: 12px 14px 10px;
       background: var(--nx-surface-0);
@@ -582,7 +587,7 @@ interface FeedRowView {
       font-variant-numeric: tabular-nums;
       line-height: 0.82;
       letter-spacing: -0.06em;
-      font-size: min(19cqh, 36cqw);
+      font-size: min(58cqh, 34cqw);
       text-shadow: 0 12px 50px rgba(0, 0, 0, 0.6);
     }
     .mesa-side--serving .mesa-num {
@@ -609,6 +614,7 @@ interface FeedRowView {
       gap: 10px;
       width: 100%;
       min-height: 32px;
+      align-self: end;
       /* espaço do −1, que flutua por cima */
       padding-right: 64px;
     }
@@ -828,9 +834,14 @@ interface FeedRowView {
     :host(.mesa-present) .mesa-minus,
     :host(.mesa-present) .mesa-tapcue,
     :host(.mesa-present) .mesa-to,
-    :host(.mesa-present) .mesa-midmeta,
-    :host(.mesa-present) .mesa-midbtn {
+    :host(.mesa-present) .mesa-midmeta {
       display: none;
+    }
+    /* Desfazer FICA: com a tela virada pros atletas, corrigir o ponto errado é a ação mais
+       frequente da mesa — esconder obrigava a sair do modo exibição a cada engano. */
+    :host(.mesa-present) .mesa-midbtn {
+      flex: none;
+      min-width: 116px;
     }
     :host(.mesa-present) .mesa-side {
       /* Sem o rodapé (escondido aqui), o space-between empurrava o número pro alto de um lado e
@@ -839,7 +850,7 @@ interface FeedRowView {
       gap: 10px;
     }
     :host(.mesa-present) .mesa-num {
-      font-size: min(34cqh, 62cqw);
+      font-size: min(74cqh, 56cqw);
     }
     :host(.mesa-present) .mesa-nm {
       font-size: 19px;
@@ -893,7 +904,7 @@ interface FeedRowView {
         text-align: center;
       }
       :host(.mesa-present) .mesa-num {
-        font-size: min(52cqh, 30cqw);
+        font-size: min(62cqh, 62cqw);
       }
       :host(.mesa-present) .mesa-setsw {
         flex: none;
@@ -1076,6 +1087,20 @@ interface FeedRowView {
       font-family: var(--nx-font-mono);
       font-weight: 700;
       font-size: 12px;
+    }
+
+    /* Tela larga (notebook, tablet deitado) FORA do modo exibição: a mesa foi desenhada em
+       retrato e esticada vira uma faixa de nada com o placar perdido no meio. Mantém a coluna
+       do desenho, centralizada; o modo exibição continua ocupando tudo, que é o ponto dele. */
+    @media (min-width: 700px) {
+      :host(:not(.mesa-present)) > * {
+        width: min(520px, 100%);
+        justify-self: center;
+      }
+      :host(:not(.mesa-present)) .mesa-sidewrap {
+        border-left: 1px solid var(--nx-line);
+        border-right: 1px solid var(--nx-line);
+      }
     }
 
     /* Toque grosso (celular/tablet na quadra): o alvo do ponto é a tela toda, mas os controles
@@ -1272,10 +1297,12 @@ export class MesaLiveComponent {
     return [this.headerInfo().categoryName, phaseLabelOf(m)].filter((p): p is string => Boolean(p)).join(' · ');
   });
 
+  /** Quadra e horário PRIMEIRO, torneio por último: é o que o mesário usa pra confirmar que
+   *  está na partida certa, e num nome de torneio comprido o fim da linha é o que se perde. */
   protected readonly placeLine = computed(() => {
     const m = this.match();
     if (!m) return '';
-    const parts = [this.headerInfo().tournamentName, courtLabelOf(m.courtName), m.scheduleTime ? TIME.format(m.scheduleTime) : null];
+    const parts = [courtLabelOf(m.courtName), m.scheduleTime ? TIME.format(m.scheduleTime) : null, this.headerInfo().tournamentName];
     return parts.filter((p): p is string => Boolean(p)).join(' · ');
   });
 
@@ -1290,7 +1317,7 @@ export class MesaLiveComponent {
   protected readonly elapsed = computed(() => {
     const m = this.match();
     if (!m?.matchStartedAt) return '00:00';
-    return formatElapsedMmSs(elapsedSecondsFromStart(m.matchStartedAt, new Date(this.now())));
+    return elapsedLabelOf(elapsedSecondsFromStart(m.matchStartedAt, new Date(this.now())));
   });
 
   protected readonly servingSide = computed<MesaSide | null>(() => {

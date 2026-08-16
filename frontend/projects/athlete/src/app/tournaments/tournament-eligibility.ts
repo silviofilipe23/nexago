@@ -43,6 +43,16 @@ export function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
   return null; // 'Outro' etc. — não casa com categorias M/F (só Misto).
 }
 
+/** Filtro da busca de parceiro em categoria de gênero fixo. Declarado que não
+ *  casa (inclui "Outro") sai da lista; SEM gênero (vazio) FICA — sumir em
+ *  silêncio deixava o convidante achando que o parceiro não existe. A linha
+ *  avisa a pendência e o aceite valida no servidor. */
+export function partnerMatchesRequiredGender(rawGender: string | null, requiredGender: 'M' | 'F' | null): boolean {
+  if (requiredGender == null) return true;
+  if (!rawGender?.trim()) return true;
+  return normalizeAthleteGender(rawGender) === requiredGender;
+}
+
 function categoryGenderDisplayLabel(genderType: TournamentCategoryOffer['genderType']): string {
   return genderType === 'F' ? 'Feminino' : genderType === 'Mix' ? 'Misto' : 'Masculino';
 }

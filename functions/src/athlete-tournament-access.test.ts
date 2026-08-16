@@ -6,6 +6,7 @@ import {
   isTournamentProfileReady,
   isValidWhatsApp,
   missingTournamentProfileRequirementIds,
+  missingTournamentProfileRequirementLabels,
   tournamentAccessBlockMessage,
 } from "./athlete-tournament-access";
 
@@ -103,6 +104,28 @@ describe("athlete-tournament-access", () => {
     );
     assert.deepEqual(
       missingTournamentProfileRequirementIds(tournamentReadyProfile),
+      [],
+    );
+  });
+
+  it("labels missing requirements for the invite response", () => {
+    assert.deepEqual(
+      missingTournamentProfileRequirementLabels(tournamentReadyProfile),
+      [],
+    );
+    assert.deepEqual(
+      missingTournamentProfileRequirementLabels({onboardingCompleted: true}),
+      ["WhatsApp", "cidade"],
+    );
+    // Doc ausente = atleta sem cadastro: tudo pendente.
+    assert.deepEqual(missingTournamentProfileRequirementLabels(null), [
+      "cadastro inicial",
+      "WhatsApp",
+      "cidade",
+    ]);
+    // Curto-circuito legado: isProfileComplete pronto não lista pendência.
+    assert.deepEqual(
+      missingTournamentProfileRequirementLabels(legacyCompleteProfile),
       [],
     );
   });

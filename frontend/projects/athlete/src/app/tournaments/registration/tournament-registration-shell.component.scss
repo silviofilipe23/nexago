@@ -416,6 +416,14 @@
   color: var(--nx-text-dim);
 }
 
+// Pendência do candidato (ex.: sem gênero no perfil em categoria M/F) — o
+// convite sai mesmo assim; o aviso explica o que falta pro aceite.
+.rg-option-warn {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-yellow-500, #e8c547);
+}
+
 // ── Convite externo (parceiro sem conta) ────────────────────
 .rg-option-row--link-invite {
   cursor: default;

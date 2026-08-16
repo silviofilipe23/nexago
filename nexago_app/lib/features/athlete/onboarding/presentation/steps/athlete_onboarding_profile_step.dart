@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../core/deep_link/deep_link_providers.dart';
 import '../../../../../core/media/profile_image_crop_config.dart';
 import '../../../../../core/media/profile_image_picker.dart';
 import '../../../../../core/router/app_router.dart';
@@ -106,7 +107,16 @@ class _AthleteOnboardingProfileStepState
           .read(athleteOnboardingDraftProvider.notifier)
           .submit();
       if (!mounted) return;
-      ref.read(goRouterProvider).go(AppRoutes.discover);
+      // Deep link pendente (ex.: convite de dupla que trouxe o atleta pro
+      // cadastro) é retomado aqui — concluir o onboarding e cair na home
+      // perderia o convite que motivou tudo.
+      final pendingDeepLink = ref.read(pendingDeepLinkPathProvider);
+      ref.read(pendingDeepLinkPathProvider.notifier).state = null;
+      ref.read(goRouterProvider).go(
+            (pendingDeepLink == null || pendingDeepLink.isEmpty)
+                ? AppRoutes.discover
+                : pendingDeepLink,
+          );
       if (photoWarning != null) {
         showAppSnackBar(context, photoWarning);
       }

@@ -21,6 +21,8 @@ import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/payment_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
+import '../../athlete/domain/profile_access.dart'
+    show formatMissingProfileStepsForAccess;
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../data/tournament_inscriptions_repository.dart';
@@ -597,7 +599,7 @@ class _TournamentRegistrationPageState
 
     try {
       final inviteService = ref.read(tournamentPartnerInviteServiceProvider);
-      final inviteId = await inviteService.sendInvite(
+      final result = await inviteService.sendInvite(
         tournamentId: tournament.id,
         categoryId: cat.id,
         inviteeUid: partner.userId,
@@ -611,12 +613,21 @@ class _TournamentRegistrationPageState
       );
       if (!mounted) return;
       setState(() {
-        _inviteId = inviteId;
+        _inviteId = result.inviteId;
         _step = TournamentRegistrationStep.waiting;
       });
+      final firstName = partner.name.split(' ').first;
+      // Parceiro com cadastro incompleto não consegue aceitar: sem este aviso
+      // o convite ficava "aguardando" até expirar sem ninguém saber o motivo.
+      final missing =
+          formatMissingProfileStepsForAccess(result.inviteeMissingSteps);
       showAppSnackBar(
         context,
-        'Convite enviado para ${partner.name.split(' ').first}.',
+        result.inviteeProfileReady
+            ? 'Convite enviado para $firstName.'
+            : 'Convite enviado! Avise $firstName: falta completar '
+                '${missing.isEmpty ? 'o cadastro' : missing} '
+                'no perfil para poder aceitar.',
       );
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;

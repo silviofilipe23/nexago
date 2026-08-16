@@ -22,13 +22,16 @@ void main() {
     const male = AppUserProfile(uid: 'm', gender: 'Masculino', fullName: 'A');
     const female = AppUserProfile(uid: 'f', gender: 'Feminino', fullName: 'B');
     const noGender = AppUserProfile(uid: 'x', fullName: 'C');
+    const other = AppUserProfile(uid: 'o', gender: 'Outro', fullName: 'D');
 
-    test('filters masculino category', () {
+    test('filters masculino category keeping athletes without gender', () {
+      // Gênero vazio aparece com aviso em vez de sumir em silêncio;
+      // o aceite valida no servidor.
       final result = filterPartnersByCategoryGender(
         [male, female, noGender],
         'Masculino',
       );
-      expect(result.map((u) => u.uid), ['m']);
+      expect(result.map((u) => u.uid), ['m', 'x']);
     });
 
     test('matches legacy lowercase gender values', () {
@@ -41,18 +44,19 @@ void main() {
 
     test('no filter for misto', () {
       final result = filterPartnersByCategoryGender(
-        [male, female, noGender],
+        [male, female, noGender, other],
         'Misto',
       );
-      expect(result.length, 3);
+      expect(result.length, 4);
     });
 
-    test('filters feminino category', () {
+    test('filters feminino category keeping athletes without gender', () {
+      // Mesma regra do masculino: vazio aparece, aceite valida no servidor.
       final result = filterPartnersByCategoryGender(
         [male, female, noGender],
         'Feminino',
       );
-      expect(result.map((u) => u.uid), ['f']);
+      expect(result.map((u) => u.uid), ['f', 'x']);
     });
 
     test('filters canonical Firestore genderType male/female/mixed', () {
@@ -72,11 +76,49 @@ void main() {
       );
     });
 
-    test('excludes athletes without gender for restricted categories', () {
+    test('includes athletes without gender for restricted categories', () {
+      // Antes era filtrado e o convidante achava que o parceiro não existia.
       expect(
-        filterPartnersByCategoryGender([noGender], 'male'),
+        filterPartnersByCategoryGender([noGender], 'male').map((u) => u.uid),
+        ['x'],
+      );
+    });
+
+    test('excludes declared gender Outro in masculino and feminino', () {
+      expect(
+        filterPartnersByCategoryGender([other], 'Masculino'),
         isEmpty,
       );
+      expect(
+        filterPartnersByCategoryGender([other], 'Feminino'),
+        isEmpty,
+      );
+    });
+  });
+
+  group('partnerGenderPendencyLabel', () {
+    const noGender = AppUserProfile(uid: 'x', fullName: 'C');
+
+    test('flags missing gender in fixed-gender category', () {
+      expect(
+        partnerGenderPendencyLabel(noGender, 'Masculino'),
+        'Sem gênero no perfil',
+      );
+    });
+
+    test('returns null for misto category', () {
+      expect(partnerGenderPendencyLabel(noGender, 'Misto'), isNull);
+    });
+
+    test('returns null when gender matches category', () {
+      const female = AppUserProfile(uid: 'f', gender: 'Feminino');
+      expect(partnerGenderPendencyLabel(female, 'Feminino'), isNull);
+    });
+
+    test('returns null for declared gender Outro', () {
+      // 'Outro' é preenchido; a pendência é só sobre cadastro incompleto.
+      const other = AppUserProfile(uid: 'o', gender: 'Outro');
+      expect(partnerGenderPendencyLabel(other, 'Masculino'), isNull);
     });
   });
 

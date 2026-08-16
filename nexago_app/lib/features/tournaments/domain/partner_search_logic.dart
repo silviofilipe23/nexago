@@ -29,9 +29,28 @@ bool matchesCategoryGender(String? profileGender, String? categoryGenderType) {
   final categoryTag = genderTagFromText(categoryGenderType ?? '');
   if (categoryTag == null || categoryTag == 'MISTO') return true;
 
-  final profileTag = genderTagFromText(profileGender ?? '');
+  // SEM gênero no perfil (vazio) aparece na busca — sumir em silêncio deixava
+  // o convidante sem saber que o parceiro existe mas está com cadastro
+  // incompleto. O card avisa ([partnerGenderPendencyLabel]) e o aceite valida
+  // no servidor. Declarado que não casa (inclui "Outro") continua fora.
+  final raw = profileGender?.trim() ?? '';
+  if (raw.isEmpty) return true;
+
+  final profileTag = genderTagFromText(raw);
   if (profileTag == null) return false;
   return profileTag == categoryTag;
+}
+
+/// Rótulo de pendência pro card do candidato: categoria de gênero fixo com
+/// atleta sem gênero no perfil. `null` quando não há o que avisar.
+String? partnerGenderPendencyLabel(
+  AppUserProfile profile,
+  String? categoryGenderType,
+) {
+  final categoryTag = genderTagFromText(categoryGenderType ?? '');
+  if (categoryTag == null || categoryTag == 'MISTO') return null;
+  if ((profile.gender?.trim() ?? '').isNotEmpty) return null;
+  return 'Sem gênero no perfil';
 }
 
 TournamentRegistrationPartnerCandidate partnerCandidateFromProfile(

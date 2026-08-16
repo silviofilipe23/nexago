@@ -338,6 +338,9 @@
                       <span class="rg-option-copy">
                         <span class="rg-option-title">{{ p.displayName }}</span>
                         <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
+                        @if (partnerMissingGender(p)) {
+                          <span class="rg-option-warn">Sem gênero no perfil — precisa completar para aceitar o convite</span>
+                        }
                       </span>
                       <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
                         @if (invitingId() === p.id) {

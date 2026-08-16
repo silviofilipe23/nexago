@@ -72,6 +72,16 @@ export function whatsAppShareUrl(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
+/** Lista PT das pendências do cadastro do parceiro (rótulos vêm do backend do
+ *  envio do convite): "WhatsApp e cidade", "cadastro inicial, WhatsApp e
+ *  cidade". Vazia/ausente → "o cadastro" (o backend antigo não manda a lista). */
+export function formatMissingStepsList(steps: readonly string[] | undefined): string {
+  const clean = (steps ?? []).map((s) => s.trim()).filter((s) => s.length > 0);
+  if (clean.length === 0) return 'o cadastro';
+  if (clean.length === 1) return clean[0]!;
+  return `${clean.slice(0, -1).join(', ')} e ${clean[clean.length - 1]}`;
+}
+
 // ── Contexto do convidado (cadastro → onboarding) ────────────────────────────
 
 export const PARTNER_INVITE_CONTEXT_KEY = 'nexago-athlete-partner-invite';

@@ -28,6 +28,17 @@ bool routeIsAthleteOnboardingPath(String path, String matched) {
       matched.startsWith('${AppRoutes.athleteOnboarding}/');
 }
 
+/// Convite de dupla (`/torneios-convite/:id`). Fica FORA do redirect de
+/// onboarding: quem toca na notificação do convite com cadastro incompleto
+/// precisa VER o convite — a própria tela mostra o gate de perfil com o CTA
+/// de completar o cadastro. Sem isto o redirect engolia o destino e o
+/// convite nunca aparecia para o convidado.
+bool routeIsTournamentPartnerInvitePath(String path) {
+  final prefix =
+      AppRoutes.tournamentPartnerInvite.replaceAll(':inviteId', '');
+  return path.startsWith(prefix) && path.length > prefix.length;
+}
+
 bool needsAthleteOnboarding(AsyncValue<AthleteProfile?> profileAsync) {
   return profileAsync.when(
     data: (profile) => profile == null || !profile.onboardingCompleted,
@@ -104,6 +115,7 @@ Future<String?> resolveAuthenticatedRedirect({
     if (needsAthleteOnboarding(profileAsync) &&
         !isAuthRoute &&
         !isPublicRoute &&
+        !routeIsTournamentPartnerInvitePath(path) &&
         path != AppRoutes.roleSelection) {
       return AppRoutes.athleteOnboardingWelcome;
     }

@@ -24,9 +24,10 @@ import {
   type MatchDisplayStatus,
 } from '@nexago/live-scoring';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
-import { updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
+import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
@@ -64,7 +65,7 @@ interface FeedRowView {
 @Component({
   selector: 'og-mesa-ao-vivo',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, OgConfirmDialogComponent, NxPageLoadingComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Mesa ao vivo" [subtitle]="headerSubtitle()">
       <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
@@ -186,6 +187,7 @@ interface FeedRowView {
                   Desfazer último ponto
                 </button>
                 <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Trocar saque</button>
+                <button type="button" class="og-mini-btn og-mesa-revert" [disabled]="saving()" (click)="askRevert()">Tirar do ao vivo</button>
                 <div class="og-filter-bar og-mesa-format">
                   @for (option of [1, 3]; track option) {
                     <button type="button" class="og-chip" [class.active]="bestOf() === option" [disabled]="saving()" (click)="setFormat(option)">
@@ -217,6 +219,19 @@ interface FeedRowView {
         }
       </div>
     </div>
+
+    @if (confirmingRevert()) {
+      <og-confirm-dialog
+        title="Tirar a partida do ao vivo?"
+        [message]="revertMessage()"
+        confirmLabel="Tirar do ao vivo"
+        [destructive]="true"
+        [busy]="saving()"
+        [error]="revertError()"
+        (confirmed)="revert()"
+        (cancelled)="dismissRevert()"
+      />
+    }
   `,
   styles: `
     .og-mesa-top {
@@ -416,6 +431,10 @@ interface FeedRowView {
       gap: 10px;
       flex-wrap: wrap;
     }
+    .og-mesa-revert {
+      color: var(--nx-live);
+      border-color: color-mix(in srgb, var(--nx-live) 45%, var(--nx-line));
+    }
     .og-mesa-format {
       margin-left: auto;
     }
@@ -509,6 +528,8 @@ export class MesaAoVivoComponent {
   protected readonly saving = signal(false);
   protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  protected readonly confirmingRevert = signal(false);
+  protected readonly revertError = signal<string | null>(null);
 
   constructor() {
     // A mesa é dirigida pelo doc em tempo real: troca de matchId refaz as assinaturas.
@@ -665,6 +686,51 @@ export class MesaAoVivoComponent {
       await this.ctx.reloadMatches();
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao iniciar a partida.' });
+    } finally {
+      this.saving.set(false);
+      this.busyKey.set(null);
+    }
+  }
+
+  /** Placar já lançado: define se o diálogo avisa que algo será descartado. */
+  private readonly hasScore = computed(() => this.match()?.sets.some((s) => s.a > 0 || s.b > 0) ?? false);
+
+  protected readonly revertMessage = computed(() => {
+    const base = 'A partida volta para "Agendada" e sai do ao vivo no portal e no app dos atletas. Horário, quadra e check-in continuam como estão.';
+    if (!this.hasScore()) return `${base} Nenhum ponto foi marcado ainda.`;
+    const w = this.wins();
+    const s = this.currentSet();
+    return `${base} O placar já lançado (${w.a}×${w.b} em sets, ${s.a}-${s.b} no set atual) e o histórico ponto a ponto serão descartados — não dá para recuperar.`;
+  });
+
+  protected askRevert(): void {
+    if (this.saving() || this.status() !== 'in_progress') return;
+    this.revertError.set(null);
+    this.confirmingRevert.set(true);
+  }
+
+  protected dismissRevert(): void {
+    if (this.saving()) return;
+    this.confirmingRevert.set(false);
+  }
+
+  /** Inverso do START: o servidor devolve o doc para `Scheduled`, limpa o placar ao vivo e o
+   *  histórico ponto a ponto, e recalcula `liveMatchesNow`. A mesa reage sozinha pelo snapshot —
+   *  o card "Iniciar partida" volta a aparecer, pronto pra recomeçar do zero. */
+  protected async revert(): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || m.status !== 'in_progress') return;
+    this.saving.set(true);
+    this.busyKey.set('revert');
+    this.revertError.set(null);
+    this.feedback.set(null);
+    try {
+      await revertMatchToScheduled(m.id);
+      this.confirmingRevert.set(false);
+      this.feedback.set({ ok: true, message: 'Partida tirada do ao vivo — voltou para agendada, no mesmo horário e quadra.' });
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.revertError.set((e as Error).message || 'Falha ao tirar a partida do ao vivo.');
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);

@@ -161,6 +161,14 @@ export function updateLiveMatchScore(params: { matchId: string; setsA: number; s
   });
 }
 
+/** Operação inversa do START da mesa: devolve a partida para `Scheduled`, limpa o placar
+ *  ao vivo (incluindo o histórico ponto a ponto) e tira do contador `liveMatchesNow`. O
+ *  agendamento e o check-in ficam intactos — é "tirar do ao vivo", não desagendar. O servidor
+ *  recusa partida já encerrada, porque a chave e o ranking já avançaram. */
+export function revertMatchToScheduled(matchId: string): Promise<{ ok?: boolean }> {
+  return call('revertMatchToScheduled', { matchId: matchId.trim() });
+}
+
 export function declareMatchWalkover(params: { matchId: string; winnerTeamId: string; loserStatus?: string }): Promise<unknown> {
   return call('declareMatchWalkover', {
     matchId: params.matchId.trim(),

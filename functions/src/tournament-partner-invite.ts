@@ -1078,6 +1078,16 @@ export const registerSoloTournament = onCall(async (request) => {
     category,
     uids: [uid],
   });
+  // Reserva solo garante vaga em categoria de gênero fixo, então o próprio
+  // atleta precisa ter gênero declarado e compatível já aqui (requireDeclared)
+  // — antes disso o servidor confiava só na pré-validação client-side. Equipe
+  // (trio+) nunca chega aqui: bloqueada acima.
+  await assertTeamGenderEligibility({
+    db,
+    category,
+    uids: [uid],
+    requireDeclared: true,
+  });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
   const lgpdAccepted = request.data?.lgpdAccepted === true;

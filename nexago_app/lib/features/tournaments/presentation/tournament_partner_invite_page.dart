@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/deep_link/deep_link_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
@@ -57,6 +58,36 @@ class _TournamentPartnerInvitePageState
     jerseyNumber: 10,
     sizeShorts: 'M',
   );
+  bool _inviteRememberedForOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cadastro inicial incompleto: o banner manda pro onboarding, e o fim do
+    // onboarding retoma o deep link pendente — sem isto o atleta concluía o
+    // cadastro e caía na home, perdendo o convite de novo.
+    ref.listenManual<TournamentAccessState>(
+      tournamentAccessStateProvider,
+      fireImmediately: true,
+      (previous, access) {
+        if (_inviteRememberedForOnboarding) return;
+        if (access.isLoading ||
+            access.canAccess ||
+            access.onboardingCompleted) {
+          return;
+        }
+        _inviteRememberedForOnboarding = true;
+        // Microtask: fireImmediately dispara ainda no initState, e mutar
+        // provider durante o build é proibido pelo Riverpod.
+        Future.microtask(() {
+          if (!mounted) return;
+          ref.read(pendingDeepLinkPathProvider.notifier).state = AppRoutes
+              .tournamentPartnerInvite
+              .replaceAll(':inviteId', widget.inviteId);
+        });
+      },
+    );
+  }
 
   TournamentCategoryOffer? _categoryForInvite(
     TournamentDetail? tournament,

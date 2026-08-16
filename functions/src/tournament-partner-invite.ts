@@ -6,9 +6,17 @@ import {
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {assertCanRegisterInTournament} from "./athlete-tournament-access";
+import {
+  assertCanRegisterInTournament,
+  loadUserAccessData,
+  missingTournamentProfileRequirementLabels,
+} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
+import {
+  assertTeamGenderEligibility,
+  categoryRequiredGenderBucket,
+} from "./category-gender-eligibility";
 import {
   deliverNotificationToUser,
   markTournamentPartnerInviteInboxResponse,
@@ -68,6 +76,30 @@ const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 // opcional no payload (apps antigos não enviam); quando presente, fica
 // registrado na inscrição para o organizador consultar.
 export const LGPD_TERM_VERSION = "2026-08";
+
+/** Situação do CONVIDADO no gate de perfil de torneio, devolvida no envio do
+ *  convite. O envio nunca bloqueia por pendência do convidado — quem valida é
+ *  o aceite (`assertCanRegisterInTournament`) — mas sem isto o convidante fica
+ *  esperando um aceite que não pode acontecer, sem saber o motivo. */
+async function inviteeProfileReadiness(
+  db: Firestore,
+  inviteeUid: string,
+  category?: Record<string, unknown> | null,
+): Promise<{inviteeProfileReady: boolean; inviteeMissingSteps: string[]}> {
+  const data = await loadUserAccessData(db, inviteeUid);
+  const missing = missingTournamentProfileRequirementLabels(data);
+  // Categoria de gênero fixo com convidado sem gênero no perfil: o aceite vai
+  // exigir (assertTeamGenderEligibility), então a pendência entra na lista.
+  // Conflito declarado nem chega aqui — o envio já bloqueou.
+  const rawGender = typeof data?.gender === "string" ? data.gender.trim() : "";
+  if (!rawGender && categoryRequiredGenderBucket(category) != null) {
+    missing.push("gênero");
+  }
+  return {
+    inviteeProfileReady: missing.length === 0,
+    inviteeMissingSteps: missing,
+  };
+}
 
 
 
@@ -575,7 +607,11 @@ async function sendTeamCategoryInvite(params: {
   inviterName: string;
   inviteeUid: string;
   inviteeName: string;
-}): Promise<{inviteId: string}> {
+}): Promise<{
+  inviteId: string;
+  inviteeProfileReady: boolean;
+  inviteeMissingSteps: string[];
+}> {
   const {
     db,
     projectId,
@@ -768,7 +804,7 @@ async function sendTeamCategoryInvite(params: {
     teamId,
   });
 
-  return {inviteId: ref.id};
+  return {inviteId: ref.id, ...(await inviteeProfileReadiness(db, inviteeUid))};
 }
 
 export const sendTournamentPartnerInvite = onCall(async (request) => {
@@ -825,6 +861,16 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     tournament,
     category,
     uids: [uid, inviteeUid],
+  });
+  // Gênero declarado incompatível bloqueia já aqui; AUSENTE não — o convite é
+  // o empurrão pro parceiro completar o perfil (a resposta avisa o convidante)
+  // e o aceite valida com requireDeclared. Equipe (trio+) não passa por esta
+  // validação: a composição por buckets cuida no ramo próprio.
+  await assertTeamGenderEligibility({
+    db,
+    category,
+    uids: [uid, inviteeUid],
+    requireDeclared: false,
   });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
@@ -960,7 +1006,10 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     inviteeUid,
   });
 
-  return {inviteId: ref.id};
+  return {
+    inviteId: ref.id,
+    ...(await inviteeProfileReadiness(db, inviteeUid, category)),
+  };
 });
 
 /**
@@ -1397,6 +1446,16 @@ export const acceptTournamentPartnerInvite = onCall({
     category: previewCategory,
     uids: [invitePreviewData.inviterUid as string | undefined, uid],
   });
+  // Dupla de gênero fixo fecha aqui: os DOIS precisam ter gênero declarado e
+  // compatível (requireDeclared). Equipe valida composição na transação.
+  if (!isTeamCategory(previewCategory)) {
+    await assertTeamGenderEligibility({
+      db,
+      category: previewCategory,
+      uids: [invitePreviewData.inviterUid as string | undefined, uid],
+      requireDeclared: true,
+    });
+  }
   // Uniforme do convidado é opcional (informado depois); valida só se enviado.
   validateUniformPayload(
     previewCategory,

@@ -251,12 +251,18 @@ class _TournamentRegistrationPartnerStepState
         else
           ...displayProfiles.map(
             (profile) {
+              // Pendência de gênero vence o "Jogou com você": é o que impede
+              // o aceite e o convidante precisa ver antes de convidar.
               final candidate = partnerCandidateFromProfile(
                 profile,
-                tagLabel: !isFiltering &&
-                        _recentPartners.any((p) => p.uid == profile.uid)
-                    ? 'Jogou com você'
-                    : null,
+                tagLabel: partnerGenderPendencyLabel(
+                      profile,
+                      categoryGenderForPartnerFilter(widget.category),
+                    ) ??
+                    (!isFiltering &&
+                            _recentPartners.any((p) => p.uid == profile.uid)
+                        ? 'Jogou com você'
+                        : null),
               );
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),

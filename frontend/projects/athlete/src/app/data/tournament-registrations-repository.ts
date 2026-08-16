@@ -447,12 +447,23 @@ export async function leaveTeamRegistration(functions: Functions, registrationId
   }
 }
 
+/** Resultado do envio: além do id, o backend diz se o CONVIDADO já passa no gate
+ *  de perfil de torneio (cadastro/WhatsApp/cidade). Pendência não bloqueia o
+ *  envio — mas sem repassar isso o convidante espera um aceite impossível.
+ *  Campos opcionais: backend antigo (sem eles) conta como pronto. */
+export interface PartnerInviteSendResult {
+  inviteId: string;
+  inviteeProfileReady?: boolean;
+  /** Rótulos PT do que falta (ex.: "WhatsApp", "cidade"). */
+  inviteeMissingSteps?: string[];
+}
+
 export async function sendPartnerInvite(
   functions: Functions,
   params: { tournamentId: string; categoryId: string; inviteeUid: string; inviteeName: string; inviterName: string; inviterUniform?: UniformInput; lgpdAccepted?: boolean },
-): Promise<{ inviteId: string }> {
+): Promise<PartnerInviteSendResult> {
   try {
-    const result = await httpsCallable<typeof params, { inviteId: string }>(functions, 'sendTournamentPartnerInvite')(params);
+    const result = await httpsCallable<typeof params, PartnerInviteSendResult>(functions, 'sendTournamentPartnerInvite')(params);
     return result.data;
   } catch (err) {
     throw mapCallableError(err);

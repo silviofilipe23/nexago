@@ -95,6 +95,20 @@ export function missingTournamentProfileRequirementIds(
   return missing;
 }
 
+/** Rótulos (PT) dos requisitos pendentes para o gate de torneio. Doc ausente
+ *  conta como tudo pendente; perfil pronto (inclui o curto-circuito legado
+ *  `isProfileComplete`) devolve lista vazia. */
+export function missingTournamentProfileRequirementLabels(
+  data: UserAccessData | null,
+): string[] {
+  if (data != null && isTournamentProfileReady(data)) return [];
+  const missing = data == null ?
+    (Object.keys(TOURNAMENT_REQUIREMENT_LABELS) as
+      TournamentProfileRequirementId[]) :
+    missingTournamentProfileRequirementIds(data);
+  return missing.map((id) => TOURNAMENT_REQUIREMENT_LABELS[id]);
+}
+
 function formatMissingStepsList(labels: string[]): string {
   if (labels.length === 0) return "";
   if (labels.length === 1) return labels[0];

@@ -36,7 +36,7 @@ import {
   type TournamentCategoryOffer,
   type TournamentSummary,
 } from '../../data/tournaments-repository';
-import { evaluateCategoryEligibility, normalizeAthleteGender } from '../tournament-eligibility';
+import { evaluateCategoryEligibility, partnerMatchesRequiredGender } from '../tournament-eligibility';
 import {
   categoryRequiresUniform,
   defaultJerseyNameForAthlete,
@@ -50,6 +50,7 @@ import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.com
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { NxInlineMessageComponent, NxToastService } from '../../shared/feedback';
 import {
+  formatMissingStepsList,
   readPartnerLinkInviteMarker,
   savePartnerLinkInviteMarker,
   type PartnerLinkInviteMarker,
@@ -836,20 +837,7 @@ export class TournamentRegistrationShellComponent {
       const uid = this.auth.user()?.uid;
       const alreadyInvited = new Set(this.sentPendingInvites().map((i) => i.inviteeUid));
       const alreadyInRoster = new Set(this.registration()?.participantUids ?? []);
-      const category = this.selectedCategory();
-      // Dupla Masculino/Feminino só aceita parceiro do mesmo gênero (Misto não filtra).
-      // Equipe: livre e misto não filtram (a composição exata é conta do backend, que valida
-      // elenco + convites pendentes); só composição de gênero único filtra aqui.
-      let requiredGender: 'M' | 'F' | null = null;
-      if (category != null) {
-        if (category.teamSize != null) {
-          const comp = category.genderComposition;
-          if (comp?.women === 0) requiredGender = 'M';
-          else if (comp?.men === 0) requiredGender = 'F';
-        } else if (category.genderType !== 'Mix') {
-          requiredGender = category.genderType;
-        }
-      }
+      const requiredGender = this.requiredPartnerGender();
       const results = await searchAthleteDirectory(db, term);
       this.partnerResults.set(
         results.filter(
@@ -857,13 +845,34 @@ export class TournamentRegistrationShellComponent {
             p.id !== uid &&
             !alreadyInvited.has(p.id) &&
             !alreadyInRoster.has(p.id) &&
-            (requiredGender == null || normalizeAthleteGender(p.gender) === requiredGender),
+            partnerMatchesRequiredGender(p.gender, requiredGender),
         ),
       );
       this.lastSearchedTerm.set(term.trim());
     } finally {
       this.searchingPartner.set(false);
     }
+  }
+
+  /** Gênero exigido do parceiro pela categoria: Dupla Masculino/Feminino só aceita o mesmo
+   *  gênero (Misto não filtra). Equipe: livre e misto não filtram (a composição exata é conta
+   *  do backend, que valida elenco + convites pendentes); só composição de gênero único filtra. */
+  protected readonly requiredPartnerGender = computed<'M' | 'F' | null>(() => {
+    const category = this.selectedCategory();
+    if (category == null) return null;
+    if (category.teamSize != null) {
+      const comp = category.genderComposition;
+      if (comp?.women === 0) return 'M';
+      if (comp?.men === 0) return 'F';
+      return null;
+    }
+    return category.genderType !== 'Mix' ? category.genderType : null;
+  });
+
+  /** Candidato sem gênero no perfil em categoria de gênero fixo — a linha avisa a pendência
+   *  (o filtro deixa passar de propósito; o aceite valida no servidor). */
+  protected partnerMissingGender(p: AthletePublicProfile): boolean {
+    return this.requiredPartnerGender() != null && !p.gender?.trim();
   }
 
   protected openInviteDialog(): void {
@@ -915,7 +924,7 @@ export class TournamentRegistrationShellComponent {
 
     this.invitingId.set(candidate.id);
     try {
-      await sendPartnerInvite(athleteFunctions(), {
+      const sent = await sendPartnerInvite(athleteFunctions(), {
         tournamentId,
         categoryId: category.id,
         inviteeUid: candidate.id,
@@ -924,12 +933,21 @@ export class TournamentRegistrationShellComponent {
         ...(inviterUniform ? { inviterUniform } : {}),
         ...(this.myLgpdConsentMissing() && this.lgpdAccepted() ? { lgpdAccepted: true } : {}),
       });
-      this.toasts.success(
-        'Convite enviado',
-        this.isTeamCategory()
-          ? `${candidate.displayName} precisa aceitar para entrar na equipe.`
-          : `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`,
-      );
+      // Parceiro com cadastro incompleto não consegue aceitar: sem o aviso o
+      // convite ficava "aguardando resposta" até expirar sem ninguém saber.
+      if (sent.inviteeProfileReady === false) {
+        this.toasts.warning(
+          'Convite enviado — falta um passo do parceiro',
+          `Avise ${candidate.displayName}: falta completar ${formatMissingStepsList(sent.inviteeMissingSteps)} no perfil para poder aceitar.`,
+        );
+      } else {
+        this.toasts.success(
+          'Convite enviado',
+          this.isTeamCategory()
+            ? `${candidate.displayName} precisa aceitar para entrar na equipe.`
+            : `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`,
+        );
+      }
       this.partnerResults.set([]);
       this.partnerQuery.set('');
       // A lista de "aguardando resposta" é do listener — o convite recém-criado entra sozinho.

@@ -25,6 +25,39 @@ class TournamentPartnerInviteException implements Exception {
   String toString() => message;
 }
 
+/// Resultado do envio do convite. Além do id, o backend informa se o CONVIDADO
+/// já passa no gate de perfil de torneio — pendência não bloqueia o envio, mas
+/// o convidante precisa saber que o parceiro ainda não consegue aceitar.
+class TournamentPartnerInviteSendResult {
+  const TournamentPartnerInviteSendResult({
+    required this.inviteId,
+    required this.inviteeProfileReady,
+    required this.inviteeMissingSteps,
+  });
+
+  final String inviteId;
+  final bool inviteeProfileReady;
+
+  /// Rótulos PT do que falta (ex.: "WhatsApp", "cidade"). Vazio quando pronto.
+  final List<String> inviteeMissingSteps;
+
+  /// Backend antigo (sem os campos novos) conta como pronto — comportamento
+  /// idêntico ao anterior.
+  factory TournamentPartnerInviteSendResult.fromMap(
+    String inviteId,
+    Map<dynamic, dynamic> data,
+  ) {
+    final rawSteps = data['inviteeMissingSteps'];
+    return TournamentPartnerInviteSendResult(
+      inviteId: inviteId,
+      inviteeProfileReady: data['inviteeProfileReady'] != false,
+      inviteeMissingSteps: rawSteps is List
+          ? rawSteps.whereType<String>().toList()
+          : const [],
+    );
+  }
+}
+
 class TournamentPartnerInviteService {
   TournamentPartnerInviteService({
     FirebaseFirestore? firestore,
@@ -40,7 +73,7 @@ class TournamentPartnerInviteService {
 
   static const _collection = 'tournamentRegistrationInvites';
 
-  Future<String> sendInvite({
+  Future<TournamentPartnerInviteSendResult> sendInvite({
     required String tournamentId,
     required String categoryId,
     required String inviteeUid,
@@ -79,7 +112,7 @@ class TournamentPartnerInviteService {
       if (inviteId == null || inviteId.isEmpty) {
         throw TournamentPartnerInviteException('Convite não foi criado.');
       }
-      return inviteId;
+      return TournamentPartnerInviteSendResult.fromMap(inviteId, data);
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
         e.message ?? 'Não foi possível enviar o convite.',

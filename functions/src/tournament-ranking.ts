@@ -39,9 +39,6 @@ export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
   groups: 10,
 };
 
-/** Nº de melhores resultados que contam por ano (paridade com `bestNResults`). */
-export const BEST_N_RESULTS_PER_YEAR = 5;
-
 /** Menos de 10 duplas pagas = desafio: não pontua no ranking global. */
 export const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
 
@@ -100,8 +97,8 @@ export interface GlobalRankingResultEntry {
 }
 
 /**
- * Agregados do doc de ranking: `pointsByYear[y]` soma os melhores
- * [BEST_N_RESULTS_PER_YEAR] resultados do ano; `totalPoints` soma os anos.
+ * Agregados do doc de ranking: `pointsByYear[y]` soma TODOS os resultados do
+ * ano — sem descarte — e `totalPoints` soma os anos.
  */
 export function aggregateRankingResults(
   results: GlobalRankingResultEntry[],
@@ -120,12 +117,9 @@ export function aggregateRankingResults(
   const pointsByYear: Record<string, number> = {};
   let totalPoints = 0;
   for (const [year, points] of byYear) {
-    const best = points
-      .sort((a, b) => b - a)
-      .slice(0, BEST_N_RESULTS_PER_YEAR)
-      .reduce((sum, value) => sum + value, 0);
-    pointsByYear[year] = best;
-    totalPoints += best;
+    const yearPoints = points.reduce((sum, value) => sum + value, 0);
+    pointsByYear[year] = yearPoints;
+    totalPoints += yearPoints;
   }
   return {totalPoints, tournamentsCount: results.length, pointsByYear};
 }

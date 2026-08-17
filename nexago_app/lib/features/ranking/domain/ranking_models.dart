@@ -142,6 +142,25 @@ class RankingTeamPlayers {
     this.memberUids = const [],
   });
 
+  factory RankingTeamPlayers.fromDoc(String teamId, Map<String, dynamic> data) {
+    final rawSize = data['teamSize'];
+    final rawMembers = data['memberUids'];
+    return RankingTeamPlayers(
+      teamId: teamId,
+      player1Id: _readStr(data['player1Id']),
+      player2Id: _readStr(data['player2Id']),
+      teamName: _readStr(data['teamName']),
+      gender: _readStr(data['gender']),
+      teamSize: rawSize is num && rawSize >= 3 ? rawSize.toInt() : null,
+      memberUids: rawMembers is List
+          ? [
+              for (final uid in rawMembers)
+                if (uid is String && uid.trim().isNotEmpty) uid.trim(),
+            ]
+          : const [],
+    );
+  }
+
   final String teamId;
   final String? player1Id;
   final String? player2Id;
@@ -153,6 +172,25 @@ class RankingTeamPlayers {
 
   /// Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2).
   final List<String> memberUids;
+
+  /// Elenco resolvido — espelha `extractTeamMemberUids` (functions): `memberUids`
+  /// vence (equipes nomeadas espelham só os 2 primeiros em player1/player2);
+  /// dupla legada cai em player1Id/player2Id. Com dedup: a dupla incompleta
+  /// (player1 == player2) conta o atleta uma vez só.
+  List<String> get memberIds {
+    final out = <String>[];
+    void push(String? raw) {
+      final id = raw?.trim() ?? '';
+      if (id.isNotEmpty && !out.contains(id)) out.add(id);
+    }
+
+    memberUids.forEach(push);
+    if (out.isEmpty) {
+      push(player1Id);
+      push(player2Id);
+    }
+    return out;
+  }
 }
 
 /// Documento agregado em `teamRankings/{teamId}`.

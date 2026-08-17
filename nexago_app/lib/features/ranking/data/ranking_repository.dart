@@ -62,23 +62,7 @@ class RankingRepository {
     if (id.isEmpty) return null;
     final snap = await _teams.doc(id).get();
     if (!snap.exists) return null;
-    final data = snap.data() ?? {};
-    final rawSize = data['teamSize'];
-    final rawMembers = data['memberUids'];
-    return RankingTeamPlayers(
-      teamId: id,
-      player1Id: _readStr(data['player1Id']),
-      player2Id: _readStr(data['player2Id']),
-      teamName: _readStr(data['teamName']),
-      gender: _readStr(data['gender']),
-      teamSize: rawSize is num && rawSize >= 3 ? rawSize.toInt() : null,
-      memberUids: rawMembers is List
-          ? [
-              for (final uid in rawMembers)
-                if (uid is String && uid.trim().isNotEmpty) uid.trim(),
-            ]
-          : const [],
-    );
+    return RankingTeamPlayers.fromDoc(id, snap.data() ?? {});
   }
 
   Future<List<AthleteRankingRow>> loadAthleteRankingByYear(int year) async {
@@ -94,8 +78,7 @@ class RankingRepository {
       final pts = result.pointsEarned;
       final players = teamPlayers[result.teamId];
       if (players == null) continue;
-      for (final uid in [players.player1Id, players.player2Id]) {
-        if (uid == null || uid.isEmpty) continue;
+      for (final uid in players.memberIds) {
         pointsByAthlete.putIfAbsent(uid, () => []).add(pts);
       }
     }
@@ -206,12 +189,6 @@ class RankingRepository {
       }),
     );
     return result;
-  }
-
-  static String? _readStr(dynamic value) {
-    if (value is! String) return null;
-    final trimmed = value.trim();
-    return trimmed.isEmpty ? null : trimmed;
   }
 }
 

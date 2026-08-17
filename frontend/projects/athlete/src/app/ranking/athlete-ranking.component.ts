@@ -300,7 +300,7 @@ export class AthleteRankingComponent {
           for (const [teamId, points] of pointsByTeam) {
             const team = teams.get(teamId);
             if (!team) continue;
-            for (const athleteId of [team.player1Id, team.player2Id]) {
+            for (const athleteId of teamMemberIds(team)) {
               (pointsByAthlete.get(athleteId) ?? pointsByAthlete.set(athleteId, []).get(athleteId)!).push(...points);
             }
           }

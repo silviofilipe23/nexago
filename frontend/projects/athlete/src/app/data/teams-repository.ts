@@ -43,9 +43,21 @@ export function teamIsLookingForPartner(team: Pick<ArenaTeam, 'player1Id' | 'pla
 }
 
 /** uids do elenco — `memberUids` (equipe nomeada) vence; dupla legada cai em player1/2.
- *  Espelha `extractTeamMemberUids` (`functions/src/tournament-team-category.ts`). */
-export function teamMemberIds(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids'>): readonly string[] {
-  return team.memberUids.length > 0 ? team.memberUids : [team.player1Id, team.player2Id];
+ *  Espelha `extractTeamMemberUids` (`functions/src/tournament-team-category.ts`), com dedup:
+ *  a dupla incompleta (player1 === player2) conta o atleta uma vez só — sem isso o modo
+ *  Temporada/Individual soma os pontos dela em dobro. */
+export function teamMemberIds(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids'>): string[] {
+  const out: string[] = [];
+  const push = (raw: string) => {
+    const id = raw.trim();
+    if (id && !out.includes(id)) out.push(id);
+  };
+  for (const raw of team.memberUids) push(raw);
+  if (out.length === 0) {
+    push(team.player1Id);
+    push(team.player2Id);
+  }
+  return out;
 }
 
 export async function fetchTeam(db: Firestore, projectId: string, teamId: string): Promise<ArenaTeam | null> {

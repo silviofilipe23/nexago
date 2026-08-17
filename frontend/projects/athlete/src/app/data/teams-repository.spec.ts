@@ -1,4 +1,32 @@
-import { roundFullLabel, roundShortLabel } from './teams-repository';
+import { roundFullLabel, roundShortLabel, teamMemberIds } from './teams-repository';
+
+/** Espelha `extractTeamMemberUids` (functions/src/tournament-team-category.ts): `memberUids`
+ *  vence; dupla legada sem o campo cai em player1Id/player2Id. */
+describe('teamMemberIds', () => {
+  it('usa memberUids quando existir (equipe trio/quarteto/quinteto)', () => {
+    expect(
+      teamMemberIds({
+        memberUids: ['cap', 'm2', 'm3', 'm4'],
+        player1Id: 'cap',
+        player2Id: 'm2',
+      }),
+    ).toEqual(['cap', 'm2', 'm3', 'm4']);
+  });
+
+  it('deduplica e ignora entradas vazias de memberUids sem mesclar com player1/player2', () => {
+    expect(
+      teamMemberIds({ memberUids: ['cap', ' ', 'cap', 'm2'], player1Id: 'legacy1', player2Id: 'legacy2' }),
+    ).toEqual(['cap', 'm2']);
+  });
+
+  it('cai em player1Id/player2Id na dupla legada sem memberUids', () => {
+    expect(teamMemberIds({ memberUids: [], player1Id: 'p1', player2Id: 'p2' })).toEqual(['p1', 'p2']);
+  });
+
+  it('não repete o atleta da dupla incompleta (player1 === player2)', () => {
+    expect(teamMemberIds({ memberUids: [], player1Id: 'solo', player2Id: 'solo' })).toEqual(['solo']);
+  });
+});
 
 /** Os `matchType` que os geradores de chave realmente gravam
  *  (`functions/src/category-bracket-builders.ts`) — nenhum outro valor chega do backend hoje. */

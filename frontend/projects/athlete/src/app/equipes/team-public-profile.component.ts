@@ -84,9 +84,12 @@ export class TeamPublicProfileComponent {
   protected readonly loading = signal(true);
   protected readonly team = signal<TeamPublicProfile | null>(null);
 
-  protected readonly backPath = computed(() => {
+  /** Origem do link, pra "Voltar" devolver o atleta à tela de onde ele veio. */
+  protected readonly origin = computed(() => {
     const from = this.route.snapshot.queryParamMap.get('from');
-    return from === 'atletas' ? '/atletas' : '/equipes';
+    if (from === 'ranking') return { path: '/ranking', label: 'ranking' };
+    if (from === 'atletas') return { path: '/atletas', label: 'atletas' };
+    return { path: '/equipes', label: 'equipes' };
   });
 
 

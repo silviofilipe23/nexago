@@ -31,7 +31,15 @@ import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { fetchTeamsByIds, teamIsLookingForPartner, type ArenaTeam } from '../data/teams-repository';
 import { RANKING_SCORING_RULES } from './athlete-ranking.models';
 import type { FilterLevel, RankingAvatar, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
-import { CITY_ALL, hasSearchQuery, rankParticipants, searchRanking, type RankingRow } from './athlete-ranking.selectors';
+import {
+  CITY_ALL,
+  athleteProfileLink,
+  hasSearchQuery,
+  rankParticipants,
+  searchRanking,
+  teamProfileLink,
+  type RankingRow,
+} from './athlete-ranking.selectors';
 
 export type { RankingRow };
 
@@ -174,7 +182,18 @@ export class AthleteRankingComponent {
     const uid = this.auth.user()?.uid;
     if (!uid) return null;
     const row = this.rankedList().find((p) => p.id === uid);
-    return row ? { rank: row.rank, name: row.name, city: row.city, points: row.points, level: row.level, trend: row.trend } : null;
+    return row
+      ? {
+          rank: row.rank,
+          name: row.name,
+          city: row.city,
+          points: row.points,
+          level: row.level,
+          trend: row.trend,
+          // Do próprio row: se o seu espelho público não existe, a foto também não abre perfil.
+          profileLink: row.profileLink,
+        }
+      : null;
   });
 
   /** Card "Sua posição": a foto vem do próprio cadastro, não do espelho público, então
@@ -289,6 +308,7 @@ export class AthleteRankingComponent {
       sport: profile?.sportChip ?? 'beachVolleyball',
       trend: 0,
       avatars: [avatarOf(profile, name)],
+      profileLink: athleteProfileLink(id, profile != null),
     };
   }
 
@@ -305,6 +325,7 @@ export class AthleteRankingComponent {
         sport: 'beachVolleyball',
         trend: 0,
         avatars: [avatarOf(solo, 'Atleta')],
+        profileLink: teamProfileLink(id, false),
       };
     }
     const p1 = profiles.get(team.player1Id);
@@ -318,6 +339,7 @@ export class AthleteRankingComponent {
       sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
       trend: 0,
       avatars: [avatarOf(p1, 'Atleta'), avatarOf(p2, 'Atleta')],
+      profileLink: teamProfileLink(id, true),
     };
   }
 
@@ -376,6 +398,11 @@ export class AthleteRankingComponent {
 
   /** Idem para o `ng-template` das fotos. */
   protected asAvatars(value: readonly RankingAvatar[]): readonly RankingAvatar[] {
+    return value;
+  }
+
+  /** Idem para a rota do perfil que chega no contexto das fotos. */
+  protected asLink(value: readonly string[] | null): readonly string[] | null {
     return value;
   }
 

@@ -177,6 +177,28 @@ $rk-bronze: #d98a4b;
   align-items: center;
 }
 
+// Clicável: abre o perfil do atleta (Individual) ou da dupla (Duplas). O realce é halo +
+// leve subida — nada de recolorir a borda, que no pódio é a medalha de ouro/prata/bronze.
+.rk-avatars--link {
+  border-radius: var(--nx-r-pill);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 3px rgba(255, 106, 26, 0.28);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 3px;
+  }
+}
+
 .rk-avatar {
   position: relative;
   overflow: hidden;
@@ -439,6 +461,8 @@ $rk-bronze: #d98a4b;
   bottom: -7px;
   left: 50%;
   transform: translateX(-50%);
+  // Pastilha decorativa sobre a foto — sem isso ela come a parte de baixo do clique no perfil.
+  pointer-events: none;
   min-width: 24px;
   height: 24px;
   padding: 0 6px;

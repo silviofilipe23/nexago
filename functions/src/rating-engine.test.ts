@@ -105,7 +105,7 @@ describe("declaredLevelFor / seedRatingState", () => {
 
   it("seed usa o initialRating do nível declarado (legados por aliasing)", () => {
     const open = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "open");
-    assert.equal(open.rating, 1900);
+    assert.equal(open.rating, 2200);
     assert.equal(open.levelCode, "open");
 
     const legacy = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "intermediario");
@@ -218,8 +218,8 @@ describe("applyMatchRatingUpdate", () => {
     const doc = ratingDocOf(db, "a1")!;
     assert.equal(doc.seededFromLevel, "open");
     assert.equal(doc.levelCode, "open");
-    // Favorito (1900) vencendo dupla 1600: sobe pouco, mas sobe.
-    assert.ok((doc.rating as number) > 1900);
+    // Favorito (2200) vencendo dupla 1600: sobe pouco, mas sobe.
+    assert.ok((doc.rating as number) > 2200);
   });
 
   it("correção de vencedor superseda o evento e replaya == recomputar do zero", async () => {

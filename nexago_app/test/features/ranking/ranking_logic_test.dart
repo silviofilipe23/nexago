@@ -7,34 +7,35 @@ import 'package:nexago_app/features/ranking/domain/ranking_logic.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_models.dart';
 
 void main() {
-  group('sumBestNPoints', () {
-    test('sums top 5 results', () {
+  group('sumPoints', () {
+    test('sums every result, without discarding any', () {
       expect(
-        sumBestNPoints([10, 50, 30, 40, 20, 100, 5]),
-        240,
+        sumPoints([10, 50, 30, 40, 20, 100, 5]),
+        255,
       );
     });
 
     test('returns 0 for empty list', () {
-      expect(sumBestNPoints([]), 0);
+      expect(sumPoints([]), 0);
     });
   });
 
   group('buildAthleteRankingRowsFromPointsByAthlete', () {
-    test('assigns ranks by best N sum', () {
+    test('assigns ranks by total sum, counting past the 5th result', () {
       final rows = buildAthleteRankingRowsFromPointsByAthlete(
         {
-          'a': [100, 80, 60],
-          'b': [90, 90, 90, 90, 90],
+          // Melhores 5 = 330, soma = 360: o 6º resultado decide a liderança.
+          'a': [100, 80, 60, 50, 40, 30],
+          'b': [70, 70, 70, 70, 70],
         },
         year: 2026,
       );
 
-      expect(rows.first.athleteId, 'b');
+      expect(rows.first.athleteId, 'a');
       expect(rows.first.rank, 1);
-      expect(rows.first.totalPoints, 450);
-      expect(rows.last.athleteId, 'a');
-      expect(rows.last.totalPoints, 240);
+      expect(rows.first.totalPoints, 360);
+      expect(rows.last.athleteId, 'b');
+      expect(rows.last.totalPoints, 350);
     });
   });
 
@@ -140,17 +141,19 @@ void main() {
   });
 
   group('buildTeamRankingRowsFromPointsByTeam', () {
-    test('assigns ranks by best N sum', () {
+    test('assigns ranks by total sum, counting past the 5th result', () {
       final rows = buildTeamRankingRowsFromPointsByTeam(
         {
-          't1': [100, 80],
-          't2': [90, 90, 90, 90, 90],
+          // Melhores 5 = 330, soma = 360: o 6º resultado decide a liderança.
+          't1': [100, 80, 60, 50, 40, 30],
+          't2': [70, 70, 70, 70, 70],
         },
         year: 2026,
       );
 
-      expect(rows.first.teamId, 't2');
+      expect(rows.first.teamId, 't1');
       expect(rows.first.rank, 1);
+      expect(rows.first.totalPoints, 360);
     });
   });
 
@@ -273,7 +276,7 @@ void main() {
         primarySportFirestoreId: 'VOLEI_PRAIA',
         levelsBySportFirestore: {'VOLEI_PRAIA': 'open'},
       );
-      expect(teamLevelRank(p1, p2), 5);
+      expect(teamLevelRank(p1, p2), 6);
     });
 
     test('falls back to the resolved player when the other has no level', () {
@@ -362,6 +365,155 @@ void main() {
       expect(filtered.length, 1);
       expect(filtered.first.teamId, 't1');
       expect(filtered.first.rank, 1);
+    });
+  });
+
+  group('rankingTeamFormat', () {
+    test('teamSize da equipe nomeada (3–5) define o formato', () {
+      expect(
+        rankingTeamFormat(teamSize: 3, memberCount: 1),
+        RankingFormatFilter.trio,
+      );
+      expect(
+        rankingTeamFormat(teamSize: 4, memberCount: 2),
+        RankingFormatFilter.quarteto,
+      );
+      expect(
+        rankingTeamFormat(teamSize: 5, memberCount: 5),
+        RankingFormatFilter.quinteto,
+      );
+    });
+
+    test('sem teamSize cai no elenco; dupla legada (sem memberUids) é dupla',
+        () {
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 0),
+        RankingFormatFilter.dupla,
+      );
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 2),
+        RankingFormatFilter.dupla,
+      );
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 4),
+        RankingFormatFilter.quarteto,
+      );
+    });
+
+    test('nunca devolve all; acima de 5 satura em quinteto', () {
+      for (var size = 0; size <= 8; size++) {
+        expect(
+          rankingTeamFormat(teamSize: size, memberCount: 0),
+          isNot(RankingFormatFilter.all),
+        );
+        expect(
+          rankingTeamFormat(teamSize: null, memberCount: size),
+          isNot(RankingFormatFilter.all),
+        );
+      }
+      expect(
+        rankingTeamFormat(teamSize: 6, memberCount: 2),
+        RankingFormatFilter.quinteto,
+      );
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 7),
+        RankingFormatFilter.quinteto,
+      );
+    });
+  });
+
+  group('filterTeamRowsByFormat', () {
+    final rows = [
+      const TeamRankingRow(
+        rank: 1,
+        teamId: 'dupla1',
+        totalPoints: 500,
+        tournamentsCount: 2,
+      ),
+      const TeamRankingRow(
+        rank: 2,
+        teamId: 'trio1',
+        totalPoints: 400,
+        tournamentsCount: 2,
+      ),
+      const TeamRankingRow(
+        rank: 3,
+        teamId: 'trio2',
+        totalPoints: 300,
+        tournamentsCount: 1,
+      ),
+      const TeamRankingRow(
+        rank: 4,
+        teamId: 'semDoc',
+        totalPoints: 200,
+        tournamentsCount: 1,
+      ),
+    ];
+    final formatByTeam = <String, RankingFormatFilter?>{
+      'dupla1': RankingFormatFilter.dupla,
+      'trio1': RankingFormatFilter.trio,
+      'trio2': RankingFormatFilter.trio,
+      'semDoc': null,
+    };
+
+    test('all mantém as linhas e as posições', () {
+      expect(
+        filterTeamRowsByFormat(rows, RankingFormatFilter.all, formatByTeam),
+        rows,
+      );
+    });
+
+    test('filtra pelo formato e renumera; formato desconhecido só entra em all',
+        () {
+      final trios =
+          filterTeamRowsByFormat(rows, RankingFormatFilter.trio, formatByTeam);
+      expect(trios.map((r) => r.teamId), ['trio1', 'trio2']);
+      expect(trios.map((r) => r.rank), [1, 2]);
+
+      final duplas =
+          filterTeamRowsByFormat(rows, RankingFormatFilter.dupla, formatByTeam);
+      expect(duplas.map((r) => r.teamId), ['dupla1']);
+    });
+  });
+
+  group('RankingPageFilter', () {
+    test('default: modo atletas, gênero e formato em all, sem ano/nível', () {
+      const filter = RankingPageFilter();
+      expect(filter.mode, RankingListMode.athletes);
+      expect(filter.gender, RankingGenderFilter.all);
+      expect(filter.format, RankingFormatFilter.all);
+      expect(filter.year, isNull);
+      expect(filter.level, isNull);
+      expect(filter.isGeneralMode, isTrue);
+    });
+
+    test('copyWith(format:) troca só o formato e preserva o resto', () {
+      const base = RankingPageFilter(
+        mode: RankingListMode.teams,
+        year: 2026,
+        gender: RankingGenderFilter.female,
+        level: 3,
+      );
+      final updated = base.copyWith(format: RankingFormatFilter.quarteto);
+      expect(updated.format, RankingFormatFilter.quarteto);
+      expect(updated.mode, RankingListMode.teams);
+      expect(updated.year, 2026);
+      expect(updated.gender, RankingGenderFilter.female);
+      expect(updated.level, 3);
+    });
+
+    test('copyWith sem argumentos e troca de ano preservam o formato', () {
+      const base = RankingPageFilter(
+        mode: RankingListMode.teams,
+        year: 2026,
+        format: RankingFormatFilter.trio,
+      );
+      expect(base.copyWith().format, RankingFormatFilter.trio);
+
+      final geral = base.copyWith(year: () => null);
+      expect(geral.year, isNull);
+      expect(geral.format, RankingFormatFilter.trio);
+      expect(geral.isGeneralMode, isTrue);
     });
   });
 }

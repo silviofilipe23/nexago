@@ -6,7 +6,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../domain/ranking_constants.dart';
 
 /// Folha "Como funciona o ranking" — explica como se ganha ponto e os dois
-/// modos (Geral · soma total / Por ano · melhores 5). Conteúdo derivado das
+/// modos (Geral · soma total / Por ano · soma do ano). Conteúdo derivado das
 /// constantes reais de pontuação para não divergir das regras.
 Future<void> showRankingHowItWorksSheet(BuildContext context) {
   return showModalBottomSheet<void>(
@@ -71,10 +71,9 @@ class _RankingHowItWorksSheet extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             _ModeCard(
-              title: 'Por ano · melhores $bestNResults',
+              title: 'Por ano · soma do ano',
               description:
-                  'Considera só os seus $bestNResults melhores resultados '
-                  'daquele ano.',
+                  'Soma todos os pontos que você conquistou naquele ano.',
             ),
             const SizedBox(height: 22),
             Text(

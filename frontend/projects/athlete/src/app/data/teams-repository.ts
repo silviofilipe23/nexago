@@ -10,10 +10,12 @@ export interface ArenaTeam {
   id: string;
   player1Id: string;
   player2Id: string;
-  /** Elenco completo — ver `teamMemberIds`. */
-  memberIds: string[];
   teamName: string | null;
   gender: string | null;
+  /** 3–5 nas equipes nomeadas (trio/quarteto/quinteto); dupla legada não grava. */
+  teamSize: number | null;
+  /** Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2). */
+  memberUids: readonly string[];
   createdAt: Date | null;
 }
 
@@ -21,39 +23,41 @@ function teamsCol(db: Firestore, projectId: string) {
   return collection(db, 'artifacts', projectId, 'public', 'data', 'teams');
 }
 
-/** uids do elenco — espelha `extractTeamMemberUids` (functions/src/tournament-team-category.ts):
- *  `memberUids` vence (equipes trio/quarteto/quinteto guardam o elenco inteiro nele e espelham só
- *  os 2 primeiros em player1/player2); dupla legada sem o campo cai em player1Id/player2Id. */
-export function teamMemberIds(data: Record<string, unknown>): string[] {
-  const out: string[] = [];
-  const push = (raw: unknown) => {
-    const id = typeof raw === 'string' ? raw.trim() : '';
-    if (id && !out.includes(id)) out.push(id);
-  };
-  if (Array.isArray(data['memberUids'])) {
-    for (const raw of data['memberUids']) push(raw);
-    if (out.length > 0) return out;
-  }
-  push(data['player1Id']);
-  push(data['player2Id']);
-  return out;
-}
-
 function teamFromDoc(id: string, data: Record<string, unknown>): ArenaTeam {
   const createdAtRaw = data['createdAt'] as { toDate?: () => Date } | undefined;
+  const memberUidsRaw = data['memberUids'];
   return {
     id,
     player1Id: typeof data['player1Id'] === 'string' ? data['player1Id'] : '',
     player2Id: typeof data['player2Id'] === 'string' ? data['player2Id'] : '',
-    memberIds: teamMemberIds(data),
     teamName: typeof data['teamName'] === 'string' && data['teamName'].trim() ? data['teamName'].trim() : null,
     gender: typeof data['gender'] === 'string' && data['gender'].trim() ? data['gender'].trim() : null,
+    teamSize: typeof data['teamSize'] === 'number' && data['teamSize'] >= 3 ? data['teamSize'] : null,
+    memberUids: Array.isArray(memberUidsRaw) ? memberUidsRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0) : [],
     createdAt: typeof createdAtRaw?.toDate === 'function' ? createdAtRaw.toDate() : null,
   };
 }
 
 export function teamIsLookingForPartner(team: Pick<ArenaTeam, 'player1Id' | 'player2Id'>): boolean {
   return team.player1Id === team.player2Id;
+}
+
+/** uids do elenco — `memberUids` (equipe nomeada) vence; dupla legada cai em player1/2.
+ *  Espelha `extractTeamMemberUids` (`functions/src/tournament-team-category.ts`), com dedup:
+ *  a dupla incompleta (player1 === player2) conta o atleta uma vez só — sem isso o modo
+ *  Temporada/Individual soma os pontos dela em dobro. */
+export function teamMemberIds(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids'>): string[] {
+  const out: string[] = [];
+  const push = (raw: string) => {
+    const id = raw.trim();
+    if (id && !out.includes(id)) out.push(id);
+  };
+  for (const raw of team.memberUids) push(raw);
+  if (out.length === 0) {
+    push(team.player1Id);
+    push(team.player2Id);
+  }
+  return out;
 }
 
 export async function fetchTeam(db: Firestore, projectId: string, teamId: string): Promise<ArenaTeam | null> {

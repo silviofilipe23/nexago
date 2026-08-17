@@ -13,16 +13,18 @@ describe('teamMemberIds', () => {
     ).toEqual(['cap', 'm2', 'm3', 'm4']);
   });
 
-  it('deduplica e ignora entradas vazias de memberUids', () => {
-    expect(teamMemberIds({ memberUids: ['cap', ' ', 'cap', 'm2'] })).toEqual(['cap', 'm2']);
+  it('deduplica e ignora entradas vazias de memberUids sem mesclar com player1/player2', () => {
+    expect(
+      teamMemberIds({ memberUids: ['cap', ' ', 'cap', 'm2'], player1Id: 'legacy1', player2Id: 'legacy2' }),
+    ).toEqual(['cap', 'm2']);
   });
 
   it('cai em player1Id/player2Id na dupla legada sem memberUids', () => {
-    expect(teamMemberIds({ player1Id: 'p1', player2Id: 'p2' })).toEqual(['p1', 'p2']);
+    expect(teamMemberIds({ memberUids: [], player1Id: 'p1', player2Id: 'p2' })).toEqual(['p1', 'p2']);
   });
 
   it('não repete o atleta da dupla incompleta (player1 === player2)', () => {
-    expect(teamMemberIds({ player1Id: 'solo', player2Id: 'solo' })).toEqual(['solo']);
+    expect(teamMemberIds({ memberUids: [], player1Id: 'solo', player2Id: 'solo' })).toEqual(['solo']);
   });
 });
 

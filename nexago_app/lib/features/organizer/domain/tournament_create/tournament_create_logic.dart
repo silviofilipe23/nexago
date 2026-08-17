@@ -196,9 +196,11 @@ String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
   TournamentSkillLevel.iniciante2 => 'Iniciante 2',
   TournamentSkillLevel.intermediario1 => 'Intermediário 1',
   TournamentSkillLevel.intermediario2 => 'Intermediário 2',
+  TournamentSkillLevel.avancado1 => 'Avançado 1',
+  TournamentSkillLevel.avancado2 => 'Avançado 2',
 };
 
-/// Escada única de 5 níveis para categorias novas de TODOS os esportes.
+/// Escada única de 7 níveis para categorias novas de TODOS os esportes.
 /// Categorias antigas com `Iniciante`/`Intermediário` continuam válidas
 /// (ranks unificados no backend); o editor apenas deixa de oferecê-las.
 List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
@@ -207,6 +209,8 @@ List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
       TournamentSkillLevel.iniciante2,
       TournamentSkillLevel.intermediario1,
       TournamentSkillLevel.intermediario2,
+      TournamentSkillLevel.avancado1,
+      TournamentSkillLevel.avancado2,
       TournamentSkillLevel.open,
     ];
 

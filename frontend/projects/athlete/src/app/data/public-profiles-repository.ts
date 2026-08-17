@@ -62,9 +62,9 @@ export function levelRankOf(raw: string | null): number | null {
 }
 
 /** Label do nível a partir do rank unificado. Mapeamento EXATO por degrau —
- *  os ranks são 0,1,2,3,5 (rank 4 sem uso), então thresholds `<=` deslocavam
- *  3 dos 5 níveis (ex.: `intermediario_1` aparecia como "Iniciante 2").
- *  "Avançado"/"Profissional" não existem como tiers reais no backend. */
+ *  os ranks são 0–6 contíguos (escada de 7: Iniciante 1/2, Intermediário 1/2,
+ *  Avançado 1/2, Open), então thresholds `<=` deslocariam os níveis (ex.:
+ *  `intermediario_1` apareceria como "Iniciante 2"). */
 export function levelBucketOf(raw: string | null): RankingLevel | null {
   const rank = levelRankOf(raw);
   if (rank == null) return null;

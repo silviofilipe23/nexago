@@ -26,6 +26,8 @@ class AthleteDiscoverQuickLevel {
   static const intermediario2 = AthleteDiscoverQuickLevel(
     label: 'Intermediário 2',
   );
+  static const avancado1 = AthleteDiscoverQuickLevel(label: 'Avançado 1');
+  static const avancado2 = AthleteDiscoverQuickLevel(label: 'Avançado 2');
   static const open = AthleteDiscoverQuickLevel(label: 'Open');
 
   static const values = [
@@ -34,6 +36,8 @@ class AthleteDiscoverQuickLevel {
     iniciante2,
     intermediario,
     intermediario2,
+    avancado1,
+    avancado2,
     open,
   ];
 }

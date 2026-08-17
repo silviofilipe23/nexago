@@ -60,7 +60,7 @@ function ageRestrictionToMap(category: TournamentCategoryDraft): Record<string, 
   return { mode: 'none', reference };
 }
 
-function categoryToMap(category: TournamentCategoryDraft, draft: TournamentCreateDraft): Record<string, unknown> {
+export function categoryToMap(category: TournamentCategoryDraft, draft: TournamentCreateDraft): Record<string, unknown> {
   const isTeam = isTeamDispute(category.dispute);
   const composition = categoryGenderComposition(category);
   return {
@@ -80,6 +80,7 @@ function categoryToMap(category: TournamentCategoryDraft, draft: TournamentCreat
     ageBand: category.ageBand,
     ageRestriction: ageRestrictionToMap(category),
     level: SKILL_LEVEL_LABEL[category.skillLevel],
+    minLevel: category.minSkillLevel ? SKILL_LEVEL_LABEL[category.minSkillLevel] : null,
     maxTeams: category.spots,
     spotsTotal: category.spots,
     spotsLeft: category.spots,
@@ -224,7 +225,17 @@ function parseAgeBand(raw: unknown): AgeBand {
 
 function parseSkillLevel(raw: unknown): SkillLevel {
   const v = str(raw);
-  const exact: SkillLevel[] = ['beginner', 'intermediate', 'open', 'iniciante1', 'iniciante2', 'intermediario1', 'intermediario2'];
+  const exact: SkillLevel[] = [
+    'beginner',
+    'intermediate',
+    'open',
+    'iniciante1',
+    'iniciante2',
+    'intermediario1',
+    'intermediario2',
+    'avancado1',
+    'avancado2',
+  ];
   if (exact.includes(v as SkillLevel)) return v as SkillLevel;
   const map: Record<string, SkillLevel> = {
     'iniciante': 'beginner',
@@ -236,8 +247,20 @@ function parseSkillLevel(raw: unknown): SkillLevel {
     'intermediario 1': 'intermediario1',
     'intermediário 2': 'intermediario2',
     'intermediario 2': 'intermediario2',
+    'avançado 1': 'avancado1',
+    'avancado 1': 'avancado1',
+    'avançado 2': 'avancado2',
+    'avancado 2': 'avancado2',
   };
   return map[v.toLowerCase()] ?? 'open';
+}
+
+/** `minLevel` ausente/vazio (categoria antiga, sem piso) → `null`; caindo em `parseSkillLevel`
+ *  pra aceitar código ou label, igual ao `level`. */
+function parseMinSkillLevel(raw: unknown): SkillLevel | null {
+  const v = str(raw);
+  if (!v) return null;
+  return parseSkillLevel(raw);
 }
 
 function parseBestOf(raw: unknown): TournamentBestOf {
@@ -266,7 +289,7 @@ function parseAgeReference(raw: unknown): AgeReference {
   return ref === 'yearEnd' || ref === 'registration' ? ref : 'tournamentStart';
 }
 
-function categoryFromMap(map: Record<string, unknown>): TournamentCategoryDraft | null {
+export function categoryFromMap(map: Record<string, unknown>): TournamentCategoryDraft | null {
   const id = str(map['id']);
   if (!id) return null;
   const entryFeeCents = num(map['entryFeeCents']) ?? Math.round((num(map['entryFee']) ?? 0) * 100);
@@ -291,6 +314,7 @@ function categoryFromMap(map: Record<string, unknown>): TournamentCategoryDraft 
     womenCount,
     ageBand: parseAgeBand(map['ageBand']),
     skillLevel: parseSkillLevel(map['level']),
+    minSkillLevel: parseMinSkillLevel(map['minLevel']),
     ageReference: parseAgeReference(map['ageRestriction']),
     ageCustomEnabled: !!(map['ageRestriction'] && typeof map['ageRestriction'] === 'object' && (map['ageRestriction'] as Record<string, unknown>)['custom'] === true),
     ageMinYears: ageRestrictionInt(map['ageRestriction'], 'minAge'),

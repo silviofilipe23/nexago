@@ -199,7 +199,7 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                 const SizedBox(height: 8),
                 OrganizerChipSelector(
                   horizontalScroll: true,
-                  // Escada conforme o esporte do torneio (vôlei: 5 níveis).
+                  // Escada única de 7 níveis para todos os esportes.
                   options: skillLevelOptionsForSport(
                     ref.watch(tournamentCreateDraftProvider).sport,
                   ),

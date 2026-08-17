@@ -232,6 +232,9 @@ List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
       qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
       bestOf: _parseBestOf(map['bestOf'] as String?),
       finalBestOf5: map['finalBestOf5'] as bool? ?? true,
+      // Faixa de nível gravada pelo portal web — preservada ao criar o
+      // torneio da etapa (ver `minLevel` em LeagueStageCategoryDraft).
+      minLevel: (map['minLevel'] as String?) ?? '',
     );
   }).whereType<LeagueStageCategoryDraft>().toList();
 }

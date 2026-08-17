@@ -229,6 +229,7 @@ export {
   recomputeAthleteRating,
   backfillRatingsAndResults,
   migrateAthleteLevels,
+  migrateAthleteRatingLevelRanks,
 } from "./rating-triggers";
 export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking";
 

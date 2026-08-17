@@ -21,8 +21,6 @@ const rankingPointsMinTotal = 200;
 
 const rankingPointsMaxTotal = 800;
 
-const bestNResults = 5;
-
 int getPointsForPlace(int place) {
   if (place >= 1 && place <= 8) {
     return pointsByPlace[place] ?? 0;
@@ -68,8 +66,7 @@ int getPointsForPlaceFromTotal(int place, int totalToDistribute) {
   return getPointsByPlaceFromTotal(totalToDistribute)[place] ?? 0;
 }
 
-int sumBestNPoints(List<int> points, {int n = bestNResults}) {
-  if (points.isEmpty || n <= 0) return 0;
-  final sorted = [...points]..sort((a, b) => b.compareTo(a));
-  return sorted.take(n).fold(0, (sum, p) => sum + p);
+/// Soma a pontuação inteira: todo resultado conta, nenhum é descartado.
+int sumPoints(List<int> points) {
+  return points.fold(0, (sum, p) => sum + p);
 }

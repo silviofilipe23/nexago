@@ -87,7 +87,7 @@
               <span class="ob-radio" [class.ob-radio--checked]="selectedLevelCode() === l.code" aria-hidden="true"></span>
               <span class="ob-level-copy">
                 <span class="ob-level-title">{{ l.label }}</span>
-                <span class="ob-level-desc">{{ l.desc }}</span>
+                <span class="ob-level-desc">{{ l.description }}</span>
               </span>
             </button>
           }
@@ -187,14 +187,15 @@
           </label>
 
           <div class="nx-field">
-            <span class="nx-field-label">Número de telefone *</span>
+            <span class="nx-field-label">Número de telefone (opcional)</span>
             @if (phoneVerified()) {
               <div class="nx-alert nx-alert--success" role="status">✓ Telefone verificado</div>
             } @else {
               <app-phone-verification (verified)="onPhoneVerified($event)" />
-            }
-            @if (phoneError(); as e) {
-              <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+              <span class="nx-field-msg nx-field-msg--hint">
+                SMS não chegou? Conclua o cadastro e verifique depois no seu perfil —
+                inscrições em torneios exigem WhatsApp verificado.
+              </span>
             }
           </div>
 

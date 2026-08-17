@@ -35,6 +35,15 @@ void main() {
     });
   });
 
+  group('skillLevelOptionsForSport', () {
+    test('editor oferece a escada de 7', () {
+      final options = skillLevelOptionsForSport(TournamentSport.beachVolleyball);
+      expect(options.length, 7);
+      expect(skillLevelLabel(TournamentSkillLevel.avancado1), 'Avançado 1');
+      expect(skillLevelLabel(TournamentSkillLevel.avancado2), 'Avançado 2');
+    });
+  });
+
   group('labels de disputa de equipe', () {
     test('categoryDisputeLabel mapeia trio/quarteto/quinteto', () {
       expect(categoryDisputeLabel(TournamentCategoryDispute.trio), 'Trio');

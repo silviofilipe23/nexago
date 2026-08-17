@@ -39,7 +39,7 @@ describe("finalPlaceForAward / globalPointsForAward", () => {
 });
 
 describe("aggregateRankingResults", () => {
-  it("soma os melhores 5 por ano (best-N) e o total entre anos", () => {
+  it("soma TODOS os resultados do ano e o total entre anos", () => {
     const results = [40, 100, 10, 60, 33, 80].map((points, index) => ({
       tournamentId: `t${index}`,
       categoryId: "c",
@@ -50,10 +50,10 @@ describe("aggregateRankingResults", () => {
     results.push({tournamentId: "old", categoryId: "c", finalPlace: 1, points: 50, year: 2025});
 
     const aggregates = aggregateRankingResults(results);
-    // 2026: melhores 5 de [100,80,60,40,33,10] = 313 (o 10 fica de fora).
-    assert.equal(aggregates.pointsByYear["2026"], 313);
+    // Sem descarte: os 6 resultados de 2026 contam, inclusive o 6º (10).
+    assert.equal(aggregates.pointsByYear["2026"], 323);
     assert.equal(aggregates.pointsByYear["2025"], 50);
-    assert.equal(aggregates.totalPoints, 363);
+    assert.equal(aggregates.totalPoints, 373);
     assert.equal(aggregates.tournamentsCount, 7);
   });
 });

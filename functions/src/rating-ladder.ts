@@ -424,6 +424,16 @@ function toDate(raw: unknown): Date | null {
   return null;
 }
 
+/** Rank correto para um código de nível segundo a escada vigente — usado pela
+ *  migração de renumeração (recalcula pelo CÓDIGO; o rank gravado pode ser da
+ *  numeração antiga). */
+export function expectedLevelRankFor(
+  config: RatingLadderConfig,
+  levelCode: unknown,
+): number {
+  return resolveLadderLevel(config, levelCode).rank;
+}
+
 export function ratingStateFromDoc(
   athleteId: string,
   sportCode: string,

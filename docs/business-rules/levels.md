@@ -6,8 +6,8 @@
 - **Nível declarado** — escolhido pelo próprio atleta (app ou portal web), só pode subir. É o que vale hoje para elegibilidade de categoria.
 - **Rating automático (Glicko-2)** — calculado a partir dos resultados reais em partida, por esporte. Já roda e calcula tudo em produção, mas a promoção/rebaixamento automáticos ainda dependem de flags de rollout (ver seção própria).
 
-## Escada única (unificada em 24/07/2026)
-**Todos os esportes usam a mesma escada de 5 níveis** — não existe mais escada de 3 nem planos de escada D/C/B/A separada para beach tennis:
+## Escada única (unificada em 24/07/2026, ampliada para 7 em 15/08/2026)
+**Todos os esportes usam a mesma escada de 7 níveis** — não existe mais escada de 3 nem planos de escada D/C/B/A separada para beach tennis:
 
 | código (storage) | label | rank |
 |---|---|---|
@@ -15,9 +15,17 @@
 | `iniciante_2` | Iniciante 2 | 1 |
 | `intermediario_1` | Intermediário 1 | 2 |
 | `intermediario_2` | Intermediário 2 | 3 |
-| `open` | Open | 5 |
+| `avancado_1` | Avançado 1 | 4 |
+| `avancado_2` | Avançado 2 | 5 |
+| `open` | Open | 6 |
 
-O rank 4 não é usado; a numeração é fixa (está gravada em `athleteRatings.levelRank` e nas rules deployadas) — **nunca renumerar**. Valores legados são aceitos só em LEITURA, aliasados pro degrau inferior do split: `iniciante`/`basico`→0, `intermediario`→2, `livre`/`Open / federado`→5.
+**Ranks 0–6 contíguos desde 15/08/2026.** A renumeração ÚNICA (`open` 5→6) foi feita em 15–17/08/2026. A partir daí, a numeração é fixa — **nunca renumerar**. Valores legados são aceitos só em LEITURA, aliasados ao degrau inferior do split: `iniciante`/`basico`→0, `intermediario`→2, `'Avançado'`→`avancado_1`, `livre`/`Open / federado`→6.
+
+Duas ferramentas de migração/realinhamento, com papéis diferentes:
+- `migrateAthleteRatingLevelRanks` (callable) recalcula `athleteRatings.levelRank` pelo CÓDIGO do nível.
+- `functions/scripts/backfill-open-rank-6.js` cobre o realinhamento completo do Open: docs de `artifacts/{projectId}/public/data/athleteRatings` com `levelRank == 5` recebem `levelRank: 6`, rating elevado ao piso de ≥2200 (quando ainda abaixo), zona/observação da escada zeradas e proteção de promoção de 120 dias — além de regravar os arrays `levels` de `ratingLadders/{esporte}`.
+
+**Precondição do dry-run:** antes de rodar qualquer migração (dry-run ou real), inspecionar os docs `ratingLadders/{sportCode}` no Firestore. Um doc com array `levels` SOBRESCREVE a escada padrão de 7 degraus deployada — a migração recalcularia `levelRank` contra a ladder ANTIGA gravada no doc, não contra a escada nova. O `backfill-open-rank-6.js` já regrava esses arrays; para a callable, atualizar ou remover os docs antes.
 
 ## Onde o nível é guardado (fonte única)
 - **Única escrita**: `users/{uid}.sportOnboarding.levelsBySport.{SPORT_CODE} = <código>`. É onde escrevem o app, o portal web do atleta, a engine de rating (promoção/rebaixamento) e o backfill de migração. Default de esporte recém-adicionado: `iniciante_1`.
@@ -33,14 +41,28 @@ O rank 4 não é usado; a numeração é fixa (está gravada em `athleteRatings.
 - **Por quê**: sem o ratchet, o atleta rebaixava o próprio nível na véspera de uma inscrição pra caber numa categoria mais fácil — furava o anti-sandbagging.
 
 ## Elegibilidade de categoria (o que o nível decide)
-- Um atleta só pode disputar a própria categoria ou categorias **acima** do seu nível, nunca abaixo.
-- Numa dupla, vale o nível do integrante **mais forte** — a dupla toda fica restrita pelo nível dele.
+- Atleta precisa caber na **faixa**: `minLevel <= nível <= level`. `categories[].level` é o **teto** (label; ausente = Open) e `categories[].minLevel` é o **piso** (label; ausente = sem piso). Categoria sem piso não tem limite mínimo; sem teto = Open (rank 6).
+- Numa dupla: o **piso** é validado pelo integrante **mais fraco** (rank mínimo); o **teto**, pelo mais forte (rank máximo) — regra completa e exemplo trabalhado na seção [Faixa de nível (minLevel)](#faixa-de-nível-minlevel) abaixo.
 - Categoria sem nível definido (ou "Open") aceita qualquer nível. `categories[].level` guarda o **label** ("Iniciante 1") — formato mantido por retrocompatibilidade; os normalizadores aceitam label e código.
 - Mapeamento esporte do torneio → esporte do perfil: `beachVolleyball`→`VOLEI_PRAIA`, `indoorVolleyball`→`VOLEI_QUADRA`, `footvolley`→`FUTEVOLEI`, `beachTennis`→`BEACH_TENNIS`; sem equivalente → nível global legado.
 
+## Faixa de nível (minLevel)
+- `categories[].level` é o **teto** (label; ausente = Open) e `categories[].minLevel` é o **piso** (label; ausente = sem piso).
+- Regra: `minRank <= min(ranks) && max(ranks) <= categoryRank`, onde `minRank` e `categoryRank` são os ranks normalizados de `minLevel` e `level`.
+- Numa dupla: o **piso** é validado pelo integrante **mais fraco** (rank mínimo); o **teto**, pelo mais forte (rank máximo).
+- Exemplo: categoria "Intermediário 1 a Avançado 1" tem `level="Avançado 1"` (rank 4) e `minLevel="Intermediário 1"` (rank 2). Uma dupla (Intermediário 2, Avançado 1) entra: min(3,4)=3 ≥ 2 ✓ e max(3,4)=4 ≤ 4 ✓. Dupla (Iniciante 2, Avançado 1) não: min(1,4)=1 < 2 ✗.
+
 ## Rating automático (escada Glicko-2)
 - Um rating por atleta **por esporte**. Esportes rateados no v1: só `VOLEI_PRAIA` e `VOLEI_QUADRA` (`RATED_SPORT_CODES` em `functions/src/rating-config.ts`) — ter nível declarado NÃO significa ter rating: beach tennis e futevôlei têm nível declarado, sem escada de rating ainda (a engine tem gate explícito por `RATED_SPORT_CODES`).
-- 5 degraus: Iniciante 1 (rating inicial 1250) → Iniciante 2 (1450, promove ≥1570, rebaixa ≤1350) → Intermediário 1 (1600, promove ≥1720, rebaixa ≤1500) → Intermediário 2 (1750, promove ≥1870, rebaixa ≤1650) → Open (1900, rebaixa ≤1800, topo).
+- **7 degraus com régua de rating**:
+  - Iniciante 1: rating inicial 1250, promove ≥1420
+  - Iniciante 2: rating inicial 1450, promove ≥1570, rebaixa ≤1350
+  - Intermediário 1: rating inicial 1600, promove ≥1720, rebaixa ≤1500
+  - Intermediário 2: rating inicial 1750, promove ≥1870, rebaixa ≤1650
+  - Avançado 1 (novo): rating ~1900, promove ≥2020, rebaixa ≤1800
+  - Avançado 2 (novo): rating ~2050, promove ≥2170, rebaixa ≤1950
+  - Open (novo): rating ~2200, rebaixa ≤2100 (topo)
+  - *Régua dos degraus novos (Avançado 1/2/Open) é estimativa sem histórico; ajustar via `ratingLadders/VOLEI_PRAIA`.*
 - Toda partida concluída (exceto W.O.) atualiza o rating. Só decide promover/rebaixar com ≥10 partidas rateadas e RD baixo. Promoção: 120 dias de proteção. Rebaixamento: 90 dias de observação (≥6 partidas no período). Inatividade nunca rebaixa sozinha.
 - Promoção/rebaixamento efetivos escrevem SÓ `sportOnboarding.levelsBySport.{sportCode}` + auditoria em `users/{uid}/levelHistory`.
 - Flags de rollout em `ratingLadders/{esporte}` no Firestore (editável sem deploy) — checar o doc de config para saber o estado vigente em produção.
@@ -55,12 +77,12 @@ O rank 4 não é usado; a numeração é fixa (está gravada em `athleteRatings.
 - Campos legados ficam intocados no doc. Idempotente; paginado (`startAfterId` até `done`); `dryRun` só conta. Obs.: seed de esporte rateado com rank > 0 dispara o re-seed de rating do trigger de self-upgrade — esperado e inofensivo (par de entradas `migration`+`self_upgrade` no levelHistory).
 
 ## O que o atleta vê
-- App, "Esportes e níveis": nível atual por esporte (5 chips, qualquer esporte); níveis abaixo do salvo bloqueados; subir pede confirmação. Barras de nível têm 5 segmentos (um por degrau).
+- App, "Esportes e níveis": nível atual por esporte (7 chips, um por degrau de nível); níveis abaixo do salvo bloqueados; subir pede confirmação. Barras de nível têm 7 segmentos (um por degrau).
 - Portal web do atleta, `/perfil/esportes`: paridade — ver/subir nível por esporte e adicionar esporte (entra como Iniciante 1).
 - Card de "zona" da engine (só esportes rateados com dado suficiente): estável, zona de acesso, zona de reclassificação, ou "consolidando".
 
 ## Regras
 - Nível nunca desce por ação do próprio atleta.
-- Elegibilidade de categoria usa sempre o nível mais alto entre os integrantes da dupla.
+- Elegibilidade de categoria: o **piso** (minLevel) é validado pelo integrante mais fraco (rank mínimo); o **teto** (level) pelo mais forte (rank máximo).
 - Nível e rating são sempre por esporte — não existe um valor único cruzando esportes (o `level` global é legado, só fallback de leitura).
-- A escada é uma só (5 níveis) para todos os esportes; rating automático só nos esportes de `RATED_SPORT_CODES`.
+- A escada é uma só (7 níveis) para todos os esportes; rating automático só nos esportes de `RATED_SPORT_CODES`.

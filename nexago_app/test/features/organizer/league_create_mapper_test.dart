@@ -132,6 +132,70 @@ void main() {
       expect(loaded.draft.categories.first.prizes.first.valueCents, 9000);
     });
 
+    test('categoria: level Avançado 1/2 grava e roundtripa (escada de 7)', () {
+      final draft = LeagueCreateDraft(
+        name: 'Copa',
+        seasonStartAt: DateTime(2026, 2, 1),
+        seasonEndAt: DateTime(2026, 10, 1),
+        categories: const [
+          TournamentCategoryDraft(
+            id: 'c1',
+            skillLevel: TournamentSkillLevel.avancado1,
+          ),
+          TournamentCategoryDraft(
+            id: 'c2',
+            skillLevel: TournamentSkillLevel.avancado2,
+          ),
+        ],
+      );
+
+      final data = LeagueCreateMapper.toFirestore(
+        draft: draft,
+        managerId: 'm',
+        publish: true,
+      );
+      final categories = data['categories'] as List;
+      expect(categories[0]['level'], 'Avançado 1');
+      expect(categories[1]['level'], 'Avançado 2');
+
+      final loaded = LeagueCreateMapper.fromFirestore(data, 'league-y');
+      expect(
+        loaded.draft.categories[0].skillLevel,
+        TournamentSkillLevel.avancado1,
+      );
+      expect(
+        loaded.draft.categories[1].skillLevel,
+        TournamentSkillLevel.avancado2,
+      );
+    });
+
+    test('categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)', () {
+      final loaded = LeagueCreateMapper.fromFirestore({
+        'name': 'Circuito Elite',
+        'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
+        'seasonEndAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
+        'categories': [
+          {
+            'id': 'c1',
+            'categoryName': 'Elite',
+            'maxTeams': 16,
+            'level': 'Open',
+            'minLevel': 'Avançado 1',
+          },
+        ],
+      }, 'league-elite');
+
+      expect(loaded.draft.categories.single.minLevel, 'Avançado 1');
+
+      final data = LeagueCreateMapper.toFirestore(
+        draft: loaded.draft,
+        managerId: 'm',
+        publish: true,
+      );
+      final category = (data['categories'] as List).single as Map<String, dynamic>;
+      expect(category['minLevel'], 'Avançado 1');
+    });
+
     test('fromFirestore restores draft and step', () {
       final data = {
         'name': 'Circuito Verão',

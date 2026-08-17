@@ -1,12 +1,13 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {parseLadderConfig} from "./rating-config";
+import {parseLadderConfig, adjacentLevel, resolveLadderLevel} from "./rating-config";
 import {
   applyLadderActions,
   applyPromotion,
   applyRelegation,
   computeZone,
   evaluateLadderTransition,
+  expectedLevelRankFor,
   type AthleteRatingState,
 } from "./rating-ladder";
 
@@ -90,7 +91,7 @@ describe("evaluateLadderTransition · promoção", () => {
 
   it("open (topo) nunca entra em promoção", () => {
     const {next, actions} = evaluateLadderTransition(
-      state({levelCode: "open", levelRank: 5, rating: 2400}),
+      state({levelCode: "open", levelRank: 6, rating: 2400}),
       config(),
       NOW,
       "match",
@@ -367,5 +368,47 @@ describe("applyLadderActions · flags de rollout", () => {
     assert.equal(history.data.reason, "relegation");
     assert.equal(history.data.fromLevel, "intermediario_1");
     assert.equal(history.data.toLevel, "iniciante_2");
+  });
+});
+
+describe("escada de 7 degraus", () => {
+  const cfg = parseLadderConfig("VOLEI_PRAIA", undefined);
+
+  it("tem os 7 degraus com a régua do spec", () => {
+    assert.equal(cfg.levels.length, 7);
+    const byCode = Object.fromEntries(cfg.levels.map((l) => [l.code, l]));
+    assert.deepEqual(
+      [byCode.avancado_1.rank, byCode.avancado_1.initialRating, byCode.avancado_1.promoteAt, byCode.avancado_1.demoteAt],
+      [4, 1900, 2020, 1800],
+    );
+    assert.deepEqual(
+      [byCode.avancado_2.rank, byCode.avancado_2.initialRating, byCode.avancado_2.promoteAt, byCode.avancado_2.demoteAt],
+      [5, 2050, 2170, 1950],
+    );
+    assert.deepEqual(
+      [byCode.open.rank, byCode.open.initialRating, byCode.open.promoteAt, byCode.open.demoteAt],
+      [6, 2200, null, 2100],
+    );
+  });
+
+  it("adjacência atravessa os degraus novos", () => {
+    const int2 = cfg.levels.find((l) => l.code === "intermediario_2")!;
+    assert.equal(adjacentLevel(cfg, int2, "up")?.code, "avancado_1");
+    const open = cfg.levels.find((l) => l.code === "open")!;
+    assert.equal(adjacentLevel(cfg, open, "down")?.code, "avancado_2");
+  });
+
+  it("legado 'livre' resolve pro degrau open (rank 6)", () => {
+    assert.equal(resolveLadderLevel(cfg, "livre").code, "open");
+  });
+});
+
+describe("expectedLevelRankFor", () => {
+  const config = parseLadderConfig("VOLEI_PRAIA", undefined);
+  it("recalcula o rank pelo CÓDIGO, nunca pelo rank gravado", () => {
+    assert.equal(expectedLevelRankFor(config, "open"), 6); // doc antigo tinha 5
+    assert.equal(expectedLevelRankFor(config, "avancado_1"), 4);
+    assert.equal(expectedLevelRankFor(config, "livre"), 6); // legado → open
+    assert.equal(expectedLevelRankFor(config, ""), 0); // desconhecido → piso
   });
 });

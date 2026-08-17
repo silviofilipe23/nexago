@@ -63,6 +63,8 @@ export interface TournamentCategoryOffer {
   maxTeams: number;
   spotsLeft: number;
   level: string | null;
+  /** Piso da categoria (nível mínimo exigido); `null` = sem piso, qualquer nível abaixo do teto entra. */
+  minLevel: string | null;
   genderType: TournamentGenderCat;
   /** Categoria de EQUIPE nomeada (trio/quarteto/quinteto): 3–5. `null` = dupla clássica. */
   teamSize: number | null;
@@ -140,6 +142,7 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     maxTeams,
     spotsLeft: numberOf(o['spotsLeft']) ?? maxTeams,
     level: optionalStr(o['level']),
+    minLevel: optionalStr(o['minLevel']),
     genderType: genderCatOf(o['genderType']),
     teamSize,
     genderFree,

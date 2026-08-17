@@ -10,7 +10,7 @@ import type { TournamentCategoryOffer } from '../data/tournaments-repository';
  *  `category_{level,gender,age}_eligibility.dart` (Flutter). O backend continua autoritativo;
  *  isto só evita que o atleta tente uma categoria que a function vai recusar. */
 
-const HIGHEST_LEVEL_RANK = 5;
+const HIGHEST_LEVEL_RANK = 6;
 
 /** Esporte do torneio (`tournaments/{id}.sport`) → código de esporte do perfil
  *  (`levelsBySport`). `null` quando não há equivalente → usa nível global. */
@@ -21,6 +21,11 @@ export function tournamentSportToLevelSportCode(sport: string | null): string | 
 /** Rank do nível da categoria; categoria sem nível → Open (aceita todos). */
 export function categoryLevelRank(category: Pick<TournamentCategoryOffer, 'level'>): number {
   return levelRankOf(category.level) ?? HIGHEST_LEVEL_RANK;
+}
+
+/** Rank do piso da categoria; ausente/desconhecido → 0 (sem piso). */
+export function categoryMinLevelRank(category: Pick<TournamentCategoryOffer, 'minLevel'>): number {
+  return levelRankOf(category.minLevel) ?? 0;
 }
 
 /** Rank do atleta pro esporte do torneio: por esporte → global → Iniciante (permissivo). */
@@ -140,7 +145,14 @@ function computeAge(birthDate: Date, reference: AgeReference, tournamentStart: D
 
 // ── Avaliação combinada ──────────────────────────────────────────────────────
 
-export type CategoryEligibilityStatus = 'eligible' | 'belowLevel' | 'genderMismatch' | 'missingGender' | 'missingBirthDate' | 'outOfAgeRange';
+export type CategoryEligibilityStatus =
+  | 'eligible'
+  | 'belowLevel'
+  | 'belowMinLevel'
+  | 'genderMismatch'
+  | 'missingGender'
+  | 'missingBirthDate'
+  | 'outOfAgeRange';
 
 export interface CategoryEligibility {
   status: CategoryEligibilityStatus;
@@ -169,6 +181,16 @@ export function evaluateCategoryEligibility(
       status: 'belowLevel',
       badge: 'ABAIXO DO SEU NÍVEL',
       message: `Seu nível (${levelLabelForRank(athleteRank)}) não permite categorias inferiores. Escolha uma categoria igual ou superior.`,
+    };
+  }
+
+  // Piso da faixa: categoria com nível mínimo barra quem está abaixo dele.
+  const minRank = categoryMinLevelRank(category);
+  if (minRank > 0 && athleteRank < minRank) {
+    return {
+      status: 'belowMinLevel',
+      badge: 'NÍVEL MÍNIMO NÃO ATINGIDO',
+      message: `Esta categoria exige nível mínimo ${levelLabelForRank(minRank)}. Seu nível atual é ${levelLabelForRank(athleteRank)}.`,
     };
   }
 

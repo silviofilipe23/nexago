@@ -381,17 +381,30 @@ class _TournamentRegistrationPageState
     DateTime? tournamentStart,
   }) {
     final profile = ref.read(athleteProfileProvider).valueOrNull;
-    if (!CategoryLevelEligibility.isCategoryEligibleForAthlete(
-      category,
+    final athleteRank = CategoryLevelEligibility.athleteLevelRank(
       profile,
       tournamentSport: tournamentSport,
+    );
+    if (!CategoryLevelEligibility.isCategoryEligibleForLevel(
+      category,
+      athleteRank,
     )) {
+      // Teto excedido (categoria abaixo do nível do atleta) → mensagem
+      // atual; senão o bloqueio é o PISO (`minLevel`) da categoria.
+      final aboveCeiling =
+          CategoryLevelEligibility.categoryLevelRank(category) < athleteRank;
       showAppSnackBar(
         context,
-        CategoryLevelEligibility.blockMessage(
-          profile,
-          tournamentSport: tournamentSport,
-        ),
+        aboveCeiling
+            ? CategoryLevelEligibility.blockMessage(
+                profile,
+                tournamentSport: tournamentSport,
+              )
+            : CategoryLevelEligibility.minLevelBlockMessage(
+                category,
+                profile,
+                tournamentSport: tournamentSport,
+              ),
         isError: true,
       );
       return;
@@ -1747,6 +1760,13 @@ class _TournamentRegistrationPageState
                         cat,
                         athleteLevelRank,
                       ),
+                  // Teto ok mas abaixo do piso (`minLevel`) → selo distinto.
+                  belowMinLevel: CategoryLevelEligibility.categoryLevelRank(
+                        cat,
+                      ) >=
+                          athleteLevelRank &&
+                      athleteLevelRank <
+                          CategoryLevelEligibility.categoryMinLevelRank(cat),
                   ageBlocked: ageEval != AgeEligibility.eligible,
                   ageBlockLabel: CategoryAgeEligibility.blockBadgeLabel(ageEval),
                   genderBlocked:

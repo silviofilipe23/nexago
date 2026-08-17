@@ -44,7 +44,6 @@ class _AthleteOnboardingProfileStepState
   final _locationFormKey = GlobalKey<FormState>();
   bool _submitting = false;
   String? _nameError;
-  String? _phoneError;
   String? _birthError;
   bool _genderMissing = false;
   bool _photoMissing = false;
@@ -97,9 +96,6 @@ class _AthleteOnboardingProfileStepState
       // um botão desabilitado mudo ou um aviso genérico.
       setState(() {
         _nameError = draft.isNameValid ? null : 'Informe seu nome';
-        _phoneError = draft.isPhoneValid
-            ? null
-            : 'Verifique seu WhatsApp por SMS';
         _birthError = draft.isBirthDateValid
             ? null
             : 'Data inválida (dd/mm/aaaa)';
@@ -211,18 +207,25 @@ class _AthleteOnboardingProfileStepState
             onChanged: notifier.setNickname,
           ),
           SizedBox(height: 16),
-          const AuthFieldLabel(label: 'NÚMERO DE TELEFONE *'),
+          const AuthFieldLabel(label: 'NÚMERO DE TELEFONE (OPCIONAL)'),
           PhoneVerificationField(
             phoneNumber: draft.verifiedPhoneNumber.isEmpty
                 ? null
                 : draft.verifiedPhoneNumber,
             verified: draft.verifiedPhoneNumber.isNotEmpty,
-            errorText: _phoneError,
-            onVerified: (phoneNumber) {
-              notifier.setVerifiedPhoneNumber(phoneNumber);
-              if (_phoneError != null) setState(() => _phoneError = null);
-            },
+            onVerified: notifier.setVerifiedPhoneNumber,
           ),
+          if (draft.verifiedPhoneNumber.isEmpty) ...[
+            SizedBox(height: 6),
+            Text(
+              'SMS não chegou? Conclua o cadastro e verifique depois em '
+              'Editar perfil — inscrições em torneios exigem WhatsApp '
+              'verificado.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+          ],
           SizedBox(height: 16),
           const AuthFieldLabel(label: 'DATA DE NASCIMENTO *'),
           AuthTextField(

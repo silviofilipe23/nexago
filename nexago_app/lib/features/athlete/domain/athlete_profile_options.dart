@@ -14,13 +14,15 @@ abstract final class AthleteProfileOptions {
     'Outros',
   ];
 
-  /// Escada única de 5 níveis, a mesma para TODOS os esportes — espelho de
+  /// Escada única de 7 níveis, a mesma para TODOS os esportes — espelho de
   /// `LEVEL_CODES` em `functions/src/category-level-eligibility.ts`.
   static const List<String> levels = [
     'Iniciante 1',
     'Iniciante 2',
     'Intermediário 1',
     'Intermediário 2',
+    'Avançado 1',
+    'Avançado 2',
     'Open',
   ];
 
@@ -45,16 +47,17 @@ abstract final class AthleteProfileOptions {
   ///
   /// Espelho de `LEVEL_RANK` de `functions/src/category-level-eligibility.ts`:
   /// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
-  /// Intermediário 2 (3) < Open (5) — rank 4 sem uso; a numeração é fixa
-  /// (gravada em `athleteRatings.levelRank` e nas rules). Legados se
-  /// comportam como o degrau inferior do split: `iniciante`→0,
-  /// `intermediario`→2, `open`→5.
+  /// Intermediário 2 (3) < Avançado 1 (4) < Avançado 2 (5) < Open (6) — a
+  /// numeração é fixa (gravada em `athleteRatings.levelRank` e nas rules).
+  /// Legados se comportam como o degrau inferior do split: `iniciante`→0,
+  /// `intermediario`→2, `open`→6.
   static int? levelRank(String? raw) {
     final normalized = normalizeLevel(raw)
         .toLowerCase()
         .replaceAll('á', 'a')
         .replaceAll('é', 'e')
-        .replaceAll('í', 'i');
+        .replaceAll('í', 'i')
+        .replaceAll('ç', 'c');
     if (normalized.isEmpty) return null;
     switch (normalized) {
       case 'iniciante':
@@ -72,9 +75,15 @@ abstract final class AthleteProfileOptions {
       case 'intermediario 2':
       case 'intermediario_2':
         return 3;
+      case 'avancado 1':
+      case 'avancado_1':
+        return 4;
+      case 'avancado 2':
+      case 'avancado_2':
+        return 5;
       case 'open':
       case 'livre':
-        return 5;
+        return 6;
     }
     return null;
   }
@@ -90,14 +99,18 @@ abstract final class AthleteProfileOptions {
         return 'Intermediário 1';
       case 3:
         return 'Intermediário 2';
+      case 4:
+        return 'Avançado 1';
+      case 5:
+        return 'Avançado 2';
       default:
         return 'Open';
     }
   }
 
   /// Bucket legado de 3 níveis para exibição/filtros que não conhecem a
-  /// escada de 5 (ex.: filtro de nível do Descobrir): 0-1 → Iniciante,
-  /// 2-3 → Intermediário, 5 → Open.
+  /// escada de 7 (ex.: filtro de nível do Descobrir): 0-1 → Iniciante,
+  /// 2-3 → Intermediário, 4-6 → Open.
   static String? legacyBucketLabel(String? raw) {
     final rank = levelRank(raw);
     if (rank == null) return null;

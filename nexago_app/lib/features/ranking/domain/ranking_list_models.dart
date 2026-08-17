@@ -4,17 +4,27 @@ enum RankingListMode { athletes, teams }
 
 enum RankingGenderFilter { all, male, female, mixed }
 
+/// Formato do time no ranking de duplas/equipes. Dupla é o formato legado sem
+/// `teamSize`; trio/quarteto/quinteto são as equipes nomeadas (`teamSize` 3–5).
+enum RankingFormatFilter { all, dupla, trio, quarteto, quinteto }
+
 class RankingPageFilter {
   const RankingPageFilter({
     this.mode = RankingListMode.athletes,
     this.year,
     this.gender = RankingGenderFilter.all,
+    this.format = RankingFormatFilter.all,
     this.level,
   });
 
   final RankingListMode mode;
   final int? year;
   final RankingGenderFilter gender;
+
+  /// Só vale no modo de duplas/equipes — linha individual não tem formato
+  /// (a tela esconde o chip e volta pra `all` ao trocar de modo).
+  final RankingFormatFilter format;
+
   /// Rank de nível selecionado (`null` = todos os níveis).
   final int? level;
 
@@ -26,12 +36,14 @@ class RankingPageFilter {
     RankingListMode? mode,
     int? Function()? year,
     RankingGenderFilter? gender,
+    RankingFormatFilter? format,
     int? Function()? level,
   }) {
     return RankingPageFilter(
       mode: mode ?? this.mode,
       year: year != null ? year() : this.year,
       gender: gender ?? this.gender,
+      format: format ?? this.format,
       level: level != null ? level() : this.level,
     );
   }

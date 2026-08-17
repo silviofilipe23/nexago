@@ -120,12 +120,22 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
   final teams = await repo.loadTeamsMap(teamIds);
 
   final genderByTeam = <String, RankingGenderFilter?>{};
+  final formatByTeam = <String, RankingFormatFilter?>{};
   for (final teamId in teamIds) {
-    genderByTeam[teamId] =
-        normalizeRankingGender(teams[teamId]?.gender);
+    final team = teams[teamId];
+    genderByTeam[teamId] = normalizeRankingGender(team?.gender);
+    formatByTeam[teamId] = team == null
+        ? null
+        : rankingTeamFormat(
+            teamSize: team.teamSize,
+            memberCount: team.memberUids.length,
+          );
   }
 
   rows = filterTeamRowsByGender(rows, filter.gender, genderByTeam);
+  if (rows.isEmpty) return const [];
+
+  rows = filterTeamRowsByFormat(rows, filter.format, formatByTeam);
   if (rows.isEmpty) return const [];
 
   final profiles = await users.getUsersByIds([

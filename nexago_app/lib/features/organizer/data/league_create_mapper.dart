@@ -231,6 +231,9 @@ abstract final class LeagueCreateMapper {
       },
       'ageBand': category.ageBand.name,
       'level': skillLevelLabel(category.skillLevel),
+      // Faixa de nível gravada pelo portal web — o app não a edita, só
+      // preserva o que já estava no doc (ver `minLevel` em TournamentCategoryDraft).
+      'minLevel': category.minLevel.isEmpty ? null : category.minLevel,
       'maxTeams': category.spots,
       'spotsTotal': category.spots,
       'spotsLeft': category.spots,
@@ -301,6 +304,7 @@ abstract final class LeagueCreateMapper {
       genderFree: (map['genderMode'] as String?) == 'free',
       menCount: _compositionCount(map['genderComposition'], 'men'),
       womenCount: _compositionCount(map['genderComposition'], 'women'),
+      minLevel: (map['minLevel'] as String?) ?? '',
     );
   }
 
@@ -386,6 +390,12 @@ abstract final class LeagueCreateMapper {
       'intermediário 2' ||
       'intermediario 2' ||
       'intermediario_2' => TournamentSkillLevel.intermediario2,
+      'avançado 1' ||
+      'avancado 1' ||
+      'avancado_1' => TournamentSkillLevel.avancado1,
+      'avançado 2' ||
+      'avancado 2' ||
+      'avancado_2' => TournamentSkillLevel.avancado2,
       'open' || 'livre' => TournamentSkillLevel.open,
       _ => TournamentSkillLevel.open,
     };

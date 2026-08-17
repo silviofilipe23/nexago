@@ -1,4 +1,4 @@
-import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
+import {FieldPath, FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
 import type {Firestore} from "firebase-admin/firestore";
 import type {UserRecord} from "firebase-admin/auth";
 import {
@@ -22,10 +22,12 @@ import {
   RATED_SPORT_CODES,
   loadRatingLadderConfig,
   resolveLadderLevel,
+  type RatingLadderConfig,
 } from "./rating-config";
 import {
   applyLadderActions,
   evaluateLadderTransition,
+  expectedLevelRankFor,
   ratingStateFromDoc,
   ratingStateToDoc,
   type AthleteRatingState,
@@ -559,6 +561,81 @@ export const migrateAthleteLevels = onCall(
         `${result.seeded} semeado(s)), dryRun=${dryRun}, done=${result.done}`,
     );
     return {success: true, ...result};
+  },
+);
+
+/**
+ * Migração pós-renumeração da escada (rank do `open` 5→6, `avancado_1`/
+ * `avancado_2` em 4/5 — ver `rating-config.ts`): recalcula `levelRank` em
+ * `athleteRatings/*` a partir do `levelCode` gravado via
+ * [expectedLevelRankFor] — NUNCA do rank já gravado, que pode ser da
+ * numeração antiga. Mesmo esqueleto de paginação de [migrateAthleteLevels]:
+ * repetir com `startAfterId` do retorno até `done`; `dryRun` só conta.
+ */
+export const migrateAthleteRatingLevelRanks = onCall(
+  {timeoutSeconds: 540},
+  async (request) => {
+    await superAdminOrThrow(request.auth?.uid);
+
+    const db = getFirestore();
+    const projectId = getFirebaseProjectId();
+    const pageSize =
+      typeof request.data?.pageSize === "number" && request.data.pageSize > 0
+        ? Math.min(request.data.pageSize, 500)
+        : 300;
+    const startAfterId =
+      typeof request.data?.startAfterId === "string"
+        ? request.data.startAfterId
+        : undefined;
+    const dryRun = request.data?.dryRun === true;
+
+    let query = db
+      .collection(athleteRatingsPath(projectId))
+      .orderBy(FieldPath.documentId())
+      .limit(pageSize);
+    if (startAfterId) query = query.startAfter(startAfterId);
+    const snap = await query.get();
+
+    // Cache por esporte no escopo do handler: uma página raramente cobre mais
+    // que um punhado de sportCodes distintos.
+    const configs = new Map<string, RatingLadderConfig>();
+    const configFor = async (sportCode: string): Promise<RatingLadderConfig> => {
+      const hit = configs.get(sportCode);
+      if (hit) return hit;
+      const loaded = await loadRatingLadderConfig(db, sportCode);
+      configs.set(sportCode, loaded);
+      return loaded;
+    };
+
+    let updated = 0;
+    let lastId: string | undefined;
+    for (const doc of snap.docs) {
+      lastId = doc.id;
+      const data = doc.data() as Record<string, unknown>;
+      const sportCode = typeof data.sportCode === "string" ? data.sportCode : "";
+      if (!sportCode) continue;
+      const config = await configFor(sportCode);
+      const expected = expectedLevelRankFor(config, data.levelCode);
+      if (data.levelRank === expected) continue;
+      updated++;
+      if (!dryRun) {
+        await doc.ref.set({levelRank: expected}, {merge: true});
+      }
+    }
+
+    const done = snap.docs.length < pageSize;
+    logger.info(
+      `migrateAthleteRatingLevelRanks: ${snap.docs.length} doc(s), ` +
+        `${updated} atualizado(s), dryRun=${dryRun}, done=${done}`,
+    );
+    return {
+      success: true,
+      processed: snap.docs.length,
+      updated,
+      lastId: lastId ?? null,
+      done,
+      dryRun,
+    };
   },
 );
 

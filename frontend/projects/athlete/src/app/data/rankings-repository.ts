@@ -53,11 +53,9 @@ export interface TournamentCategoryResult {
   year: number;
 }
 
-const BEST_N_RESULTS = 5;
-
 /** Ranking por temporada (`year`) — só equality single-field, sem índice composto. Agrupa por
- *  time (via `teams`) e soma os {@link BEST_N_RESULTS} melhores resultados, espelhando
- *  `getResultsByYear`/`sumBestNPoints`. */
+ *  time (via `teams`) e soma TODOS os resultados do ano, espelhando
+ *  `getResultsByYear`/`sumPoints`. */
 export async function fetchTournamentCategoryResultsByYear(db: Firestore, projectId: string, year: number): Promise<TournamentCategoryResult[]> {
   const snap = await getDocs(query(collection(db, ...artifactsBase(projectId), 'tournamentCategoryResults'), where('year', '==', year)));
   return snap.docs.map((d) => {
@@ -73,11 +71,9 @@ export async function fetchTournamentCategoryResultsByYear(db: Firestore, projec
   });
 }
 
-export function sumBestNPoints(points: readonly number[], n = BEST_N_RESULTS): number {
-  return [...points]
-    .sort((a, b) => b - a)
-    .slice(0, n)
-    .reduce((sum, p) => sum + p, 0);
+/** Soma a pontuação inteira: todo resultado conta, nenhum é descartado. */
+export function sumPoints(points: readonly number[]): number {
+  return points.reduce((sum, p) => sum + p, 0);
 }
 
 export async function fetchTeamRankingFor(db: Firestore, projectId: string, teamId: string): Promise<TeamRankingAggregate | null> {

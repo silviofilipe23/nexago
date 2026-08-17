@@ -2,12 +2,18 @@ import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_profile_options.dart';
 import 'tournament_discovery_models.dart';
 
-/// Elegibilidade de categoria por nível do atleta (anti-sandbagging).
+/// Elegibilidade de categoria por nível do atleta (anti-sandbagging) e por
+/// piso mínimo da categoria.
 ///
 /// Regra: o atleta pode disputar a própria categoria ou categorias ACIMA do seu
-/// nível, nunca ABAIXO. Ranks unificados (escada única de 5, todos os esportes):
+/// nível, nunca ABAIXO. Ranks unificados (escada única de 7, todos os esportes):
 /// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
-/// Intermediário 2 (3) < Open (5) — legados como o degrau inferior do split.
+/// Intermediário 2 (3) < Avançado 1 (4) < Avançado 2 (5) < Open (6) —
+/// legados como o degrau inferior do split.
+///
+/// Além do teto (`categories[].level`), uma categoria pode declarar um piso
+/// (`categories[].minLevel`): o atleta só entra se seu rank estiver DENTRO da
+/// faixa `[categoryMinLevelRank, categoryLevelRank]`.
 ///
 /// Pré-validação da UI, alinhada ao backend autoritativo
 /// (`functions/src/category-level-eligibility.ts`). Resolve o nível do atleta
@@ -16,7 +22,7 @@ import 'tournament_discovery_models.dart';
 abstract final class CategoryLevelEligibility {
   CategoryLevelEligibility._();
 
-  static const int _highestRank = 5;
+  static const int _highestRank = 6;
 
   /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de
   /// esporte do perfil (chave de `sportOnboarding.levelsBySport`). `null`
@@ -45,6 +51,11 @@ abstract final class CategoryLevelEligibility {
     return levelRank(offer.level) ?? _highestRank;
   }
 
+  /// Rank do piso da categoria; ausente/desconhecido → 0 (sem piso).
+  static int categoryMinLevelRank(TournamentCategoryOffer offer) {
+    return levelRank(offer.minLevel) ?? 0;
+  }
+
   /// Rank do nível do atleta para o esporte do torneio: por esporte
   /// (`levelsBySportFirestore[code]`) → nível global → Iniciante (permissivo).
   ///
@@ -62,12 +73,15 @@ abstract final class CategoryLevelEligibility {
     return levelRank(profile.level) ?? 0;
   }
 
-  /// O atleta (rank) é elegível para a categoria? `categoryRank >= athleteRank`.
+  /// O atleta (rank) é elegível para a categoria? Precisa estar dentro da
+  /// faixa: não pode exceder o teto (`categoryLevelRank`) nem ficar abaixo
+  /// do piso (`categoryMinLevelRank`).
   static bool isCategoryEligibleForLevel(
     TournamentCategoryOffer offer,
     int athleteRank,
   ) {
-    return categoryLevelRank(offer) >= athleteRank;
+    return categoryLevelRank(offer) >= athleteRank &&
+        athleteRank >= categoryMinLevelRank(offer);
   }
 
   /// Atalho usando o perfil diretamente, considerando o esporte do torneio.
@@ -91,5 +105,21 @@ abstract final class CategoryLevelEligibility {
     final label = AthleteProfileOptions.labelForRank(rank);
     return 'Seu nível ($label) não permite categorias inferiores. '
         'Escolha uma categoria igual ou superior.';
+  }
+
+  /// Selo do card quando o atleta está abaixo do piso da categoria.
+  static String minLevelBadgeLabel() => 'NÍVEL MÍNIMO NÃO ATINGIDO';
+
+  /// Mensagem explicativa quando a categoria exige nível mínimo acima do atleta.
+  static String minLevelBlockMessage(
+    TournamentCategoryOffer offer,
+    AthleteProfile? profile, {
+    String? tournamentSport,
+  }) {
+    final minLabel =
+        AthleteProfileOptions.labelForRank(categoryMinLevelRank(offer));
+    final rank = athleteLevelRank(profile, tournamentSport: tournamentSport);
+    final label = AthleteProfileOptions.labelForRank(rank);
+    return 'Esta categoria exige nível mínimo $minLabel. Seu nível atual é $label.';
   }
 }

@@ -63,16 +63,20 @@ export interface RatingLadderConfig {
 }
 
 /**
- * Escada de 5 níveis (a mesma para todos os esportes). `open` fica no rank 5
- * por compatibilidade histórica — o rank 4 não é usado e a numeração não pode
- * mudar (está gravada em `athleteRatings.levelRank` e nas rules deployadas).
+ * Escada de 7 níveis (a mesma para todos os esportes), ranks 0–6 contíguos.
+ * Renumeração única em 15/08/2026 (`open` 5→6) com a base vazia; a partir
+ * daqui a numeração volta a ser FIXA (gravada em `athleteRatings.levelRank`
+ * e nas rules deployadas). Régua dos degraus novos é estimativa sem histórico
+ * — ajustar via doc `ratingLadders/VOLEI_PRAIA`, sem deploy.
  */
 const VOLLEYBALL_LEVELS: RatingLadderLevel[] = [
   {code: "iniciante_1", rank: 0, label: "Iniciante 1", initialRating: 1250, promoteAt: 1420, demoteAt: null},
   {code: "iniciante_2", rank: 1, label: "Iniciante 2", initialRating: 1450, promoteAt: 1570, demoteAt: 1350},
   {code: "intermediario_1", rank: 2, label: "Intermediário 1", initialRating: 1600, promoteAt: 1720, demoteAt: 1500},
   {code: "intermediario_2", rank: 3, label: "Intermediário 2", initialRating: 1750, promoteAt: 1870, demoteAt: 1650},
-  {code: "open", rank: 5, label: "Open", initialRating: 1900, promoteAt: null, demoteAt: 1800},
+  {code: "avancado_1", rank: 4, label: "Avançado 1", initialRating: 1900, promoteAt: 2020, demoteAt: 1800},
+  {code: "avancado_2", rank: 5, label: "Avançado 2", initialRating: 2050, promoteAt: 2170, demoteAt: 1950},
+  {code: "open", rank: 6, label: "Open", initialRating: 2200, promoteAt: null, demoteAt: 2100},
 ];
 
 export const DEFAULT_LADDER_CONFIG: Omit<RatingLadderConfig, "sportCode"> = {

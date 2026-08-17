@@ -35,8 +35,8 @@
 - **Por quê**: sem o ratchet, o atleta rebaixava o próprio nível na véspera de uma inscrição pra caber numa categoria mais fácil — furava o anti-sandbagging.
 
 ## Elegibilidade de categoria (o que o nível decide)
-- Um atleta só pode disputar a própria categoria ou categorias **acima** do seu nível, nunca abaixo.
-- Numa dupla, vale o nível do integrante **mais forte** — a dupla toda fica restrita pelo nível dele.
+- Atleta precisa caber na **faixa**: `minLevel <= nível <= level`. `categories[].level` é o **teto** (label; ausente = Open) e `categories[].minLevel` é o **piso** (label; ausente = sem piso). Categoria sem piso não tem limite mínimo; sem teto = Open (rank 6).
+- Numa dupla: o **piso** é validado pelo integrante **mais fraco** (rank mínimo); o **teto**, pelo mais forte (rank máximo). Ex.: dupla (Intermediário 2, Avançado 1) entra em Intermediário 1–Avançado 1 se min(3,4)=3 ≥ 2 ✓ e max(3,4)=4 ≤ 4 ✓.
 - Categoria sem nível definido (ou "Open") aceita qualquer nível. `categories[].level` guarda o **label** ("Iniciante 1") — formato mantido por retrocompatibilidade; os normalizadores aceitam label e código.
 - Mapeamento esporte do torneio → esporte do perfil: `beachVolleyball`→`VOLEI_PRAIA`, `indoorVolleyball`→`VOLEI_QUADRA`, `footvolley`→`FUTEVOLEI`, `beachTennis`→`BEACH_TENNIS`; sem equivalente → nível global legado.
 
@@ -48,14 +48,15 @@
 
 ## Rating automático (escada Glicko-2)
 - Um rating por atleta **por esporte**. Esportes rateados no v1: só `VOLEI_PRAIA` e `VOLEI_QUADRA` (`RATED_SPORT_CODES` em `functions/src/rating-config.ts`) — ter nível declarado NÃO significa ter rating: beach tennis e futevôlei têm nível declarado, sem escada de rating ainda (a engine tem gate explícito por `RATED_SPORT_CODES`).
-- **7 degraus com régua de rating** (estimativa sem histórico; ajustar via `ratingLadders/VOLEI_PRAIA`):
-  - Iniciante 1: rating inicial 1250
-  - Iniciante 2: promove ≥1450, rebaixa ≤1350
-  - Intermediário 1: promove ≥1600, rebaixa ≤1500
-  - Intermediário 2: promove ≥1750, rebaixa ≤1650
-  - Avançado 1: rating ~1900, promove ≥2020, rebaixa ≤1800
-  - Avançado 2: rating ~2050, promove ≥2170, rebaixa ≤1950
-  - Open: rating ~2200, rebaixa ≤2100 (topo)
+- **7 degraus com régua de rating**:
+  - Iniciante 1: rating inicial 1250, promove ≥1420
+  - Iniciante 2: rating inicial 1450, promove ≥1570, rebaixa ≤1350
+  - Intermediário 1: rating inicial 1600, promove ≥1720, rebaixa ≤1500
+  - Intermediário 2: rating inicial 1750, promove ≥1870, rebaixa ≤1650
+  - Avançado 1 (novo): rating ~1900, promove ≥2020, rebaixa ≤1800
+  - Avançado 2 (novo): rating ~2050, promove ≥2170, rebaixa ≤1950
+  - Open (novo): rating ~2200, rebaixa ≤2100 (topo)
+  - *Régua dos degraus novos (Avançado 1/2/Open) é estimativa sem histórico; ajustar via `ratingLadders/VOLEI_PRAIA`.*
 - Toda partida concluída (exceto W.O.) atualiza o rating. Só decide promover/rebaixar com ≥10 partidas rateadas e RD baixo. Promoção: 120 dias de proteção. Rebaixamento: 90 dias de observação (≥6 partidas no período). Inatividade nunca rebaixa sozinha.
 - Promoção/rebaixamento efetivos escrevem SÓ `sportOnboarding.levelsBySport.{sportCode}` + auditoria em `users/{uid}/levelHistory`.
 - Flags de rollout em `ratingLadders/{esporte}` no Firestore (editável sem deploy) — checar o doc de config para saber o estado vigente em produção.
@@ -70,7 +71,7 @@
 - Campos legados ficam intocados no doc. Idempotente; paginado (`startAfterId` até `done`); `dryRun` só conta. Obs.: seed de esporte rateado com rank > 0 dispara o re-seed de rating do trigger de self-upgrade — esperado e inofensivo (par de entradas `migration`+`self_upgrade` no levelHistory).
 
 ## O que o atleta vê
-- App, "Esportes e níveis": nível atual por esporte (9 chips, qualquer esporte); níveis abaixo do salvo bloqueados; subir pede confirmação. Barras de nível têm 7 segmentos (um por degrau).
+- App, "Esportes e níveis": nível atual por esporte (7 chips, um por degrau de nível); níveis abaixo do salvo bloqueados; subir pede confirmação. Barras de nível têm 7 segmentos (um por degrau).
 - Portal web do atleta, `/perfil/esportes`: paridade — ver/subir nível por esporte e adicionar esporte (entra como Iniciante 1).
 - Card de "zona" da engine (só esportes rateados com dado suficiente): estável, zona de acesso, zona de reclassificação, ou "consolidando".
 

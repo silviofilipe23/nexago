@@ -8,9 +8,6 @@ import {
   searchRanking,
   teamFormatOf,
   athleteProfileLink,
-  hasSearchQuery,
-  rankParticipants,
-  searchRanking,
   teamProfileLink,
   type RankingSlice,
 } from './athlete-ranking.selectors';

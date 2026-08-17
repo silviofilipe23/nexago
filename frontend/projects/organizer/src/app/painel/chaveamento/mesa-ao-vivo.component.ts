@@ -5,7 +5,8 @@ import type { PillTone } from '../data/mock-data';
 import { initialsOf, truncateName } from '../data/mock-data';
 import {
   applyBestOfChange,
-  applyPoint,
+  buildPointWrite,
+  buildUndoWrite,
   canReduceBestOf,
   elapsedSecondsFromStart,
   formatElapsedMmSs,
@@ -16,7 +17,6 @@ import {
   setPointHint,
   setRulesLabel,
   setsWonOf,
-  undoPoint,
   updateMatchFields,
   watchLiveMatch,
   watchPointEvents,
@@ -810,35 +810,22 @@ export class MesaAoVivoComponent {
   }
 
   /** Mesma escrita do `_point` do app: transação com sets/currentSetIndex/status/saque +
-   *  evento `point`. O ponto final grava Completed+winnerId (avanço automático no servidor). */
+   *  evento `point`. O ponto final grava Completed+winnerId (avanço automático no servidor).
+   *
+   *  O placar sai do doc lido DENTRO da transação (`buildPointWrite`), não do snapshot da tela:
+   *  o listener só recebe a versão nova depois da transação resolver, e dois toques dentro
+   *  dessa janela gravavam o mesmo placar duas vezes. */
   protected async point(side: 'A' | 'B'): Promise<void> {
     const m = this.match();
     if (!m || !this.canScore()) return;
 
-    const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-    const setIdx = this.currentSetIdx();
-    const current = result.sets[setIdx] ?? null;
-    const wins = setsWonOf(result.sets, m.bestOf);
-
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      await recordPointTransaction(this.scoring, {
-        matchId: m.id,
-        matchUpdate: {
-          sets: result.sets.map(liveSetToMap),
-          currentSetIndex: result.currentSetIndex,
-          status: result.winnerId != null ? 'Completed' : 'In Progress',
-          servingTeamId: result.servingTeamId,
-          ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
-          ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
-          resultA: `${wins.a}`,
-          resultB: `${wins.b}`,
-        },
-        pointEvent: { type: 'point', side, setIndex: setIdx, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
-      });
-      if (result.winnerId != null) {
-        this.feedback.set({ ok: true, message: `Partida encerrada — vitória de ${result.winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.` });
+      const written = await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildPointWrite(fresh, side) });
+      const winnerId = written?.result.winnerId ?? null;
+      if (winnerId != null) {
+        this.feedback.set({ ok: true, message: `Partida encerrada — vitória de ${winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.` });
         await this.ctx.reloadMatches();
       }
     } catch (e) {
@@ -866,28 +853,12 @@ export class MesaAoVivoComponent {
     if (!m || !last || this.saving() || m.status === 'completed') return;
 
     const side = last.side ?? 'A';
-    const result = undoPoint({ sets: m.sets, currentSetIndex: last.setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-    const wins = setsWonOf(result.sets, m.bestOf);
-    const current = result.sets[result.currentSetIndex] ?? null;
 
     this.saving.set(true);
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await recordPointTransaction(this.scoring, {
-        matchId: m.id,
-        matchUpdate: {
-          sets: result.sets.map(liveSetToMap),
-          currentSetIndex: result.currentSetIndex,
-          status: 'In Progress',
-          servingTeamId: result.servingTeamId,
-          winnerId: deleteField(),
-          matchEndedAt: deleteField(),
-          resultA: `${wins.a}`,
-          resultB: `${wins.b}`,
-        },
-        pointEvent: { type: 'undo-point', side, setIndex: result.currentSetIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
-      });
+      await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex) });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao desfazer o ponto.' });
     } finally {

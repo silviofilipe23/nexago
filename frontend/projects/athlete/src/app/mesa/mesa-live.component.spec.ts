@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, type ParamMap } from '@angular/router';
 import { of } from 'rxjs';
-import type { LiveMatch, LivePointEvent, ScoreSet } from '@nexago/live-scoring';
+import { statusOf, type LiveMatch, type LivePointEvent, type PointWrite, type ScoreSet } from '@nexago/live-scoring';
 import { MesaLiveComponent } from './mesa-live.component';
 import { EMPTY_HEADER, MesaLiveGateway } from './mesa-live.gateway';
 import { EMPTY_TEAM_NAMES } from './mesa-team-names';
@@ -13,8 +13,19 @@ interface RecordedPoint {
   pointEvent: Record<string, unknown>;
 }
 
+interface RecordPointParams {
+  matchId: string;
+  build: (match: LiveMatch) => PointWrite | null;
+}
+
 /** Dublê do gateway: guarda o que a mesa MANDARIA gravar — é esse payload que precisa ser
- *  idêntico ao da mesa do organizador e ao da mesa I1 do app. */
+ *  idêntico ao da mesa do organizador e ao da mesa I1 do app.
+ *
+ *  O dublê também faz o papel do SERVIDOR: mantém o doc autoritativo e aplica nele o que a
+ *  transação grava, sem reemitir o snapshot pra tela. É assim que a corrida de produção
+ *  acontece — a transação já commitou e a watch stream ainda não entregou a versão nova
+ *  (transação do Firestore não tem latency compensation), então a mesa segue enxergando o doc
+ *  velho por algumas dezenas de milissegundos. */
 class FakeGateway {
   readonly available = true;
   readonly points: RecordedPoint[] = [];
@@ -25,6 +36,7 @@ class FakeGateway {
 
   private emitMatch: ((m: LiveMatch | null) => void) | null = null;
   private emitEvents: ((events: LivePointEvent[]) => void) | null = null;
+  private server: LiveMatch | null = null;
 
   watchMatch(_matchId: string, onChange: (m: LiveMatch | null) => void): () => void {
     this.emitMatch = onChange;
@@ -37,6 +49,7 @@ class FakeGateway {
   }
 
   push(match: LiveMatch | null): void {
+    this.server = match;
     this.emitMatch?.(match);
   }
 
@@ -44,9 +57,40 @@ class FakeGateway {
     this.emitEvents?.(events);
   }
 
-  recordPoint(params: RecordedPoint): Promise<void> {
-    this.points.push(params);
-    return Promise.resolve();
+  /** Sets do doc autoritativo — o placar que a partida REALMENTE tem depois das escritas. */
+  serverSets(): ScoreSet[] {
+    return (this.server?.sets ?? []).map((s) => ({ a: s.a, b: s.b }));
+  }
+
+  /** Papel da transação: monta a escrita sobre o doc AUTORITATIVO, não sobre o que a tela vê. */
+  recordPoint(params: RecordPointParams): Promise<PointWrite | null> {
+    if (!this.server) return Promise.reject(new Error('Partida não encontrada'));
+    const written = params.build(this.server);
+    if (!written) return Promise.resolve(null);
+    this.points.push({ matchId: params.matchId, matchUpdate: written.matchUpdate, pointEvent: written.pointEvent });
+    this.applyToServer(written.matchUpdate);
+    return Promise.resolve(written);
+  }
+
+  /** Commit da transação no doc autoritativo — só o que a mesa escreve e a tela relê. */
+  private applyToServer(matchUpdate: Record<string, unknown>): void {
+    if (!this.server) return;
+    const raw = matchUpdate['sets'];
+    const sets = Array.isArray(raw)
+      ? raw.map((s) => {
+          const o = s as Record<string, unknown>;
+          return { a: Number(o['a'] ?? 0), b: Number(o['b'] ?? 0) };
+        })
+      : this.server.sets;
+    const idx = matchUpdate['currentSetIndex'];
+    const winner = matchUpdate['winnerId'];
+    this.server = {
+      ...this.server,
+      sets,
+      currentSetIndex: typeof idx === 'number' ? idx : this.server.currentSetIndex,
+      status: statusOf(matchUpdate['status']),
+      winnerId: typeof winner === 'string' ? winner : null,
+    };
   }
 
   updateFields(matchId: string, fields: Record<string, unknown>): Promise<void> {
@@ -175,6 +219,25 @@ describe('MesaLiveComponent', () => {
     expect(matchUpdate['resultB']).toBe('0');
     expect(matchUpdate['winnerId']).toBeUndefined();
     expect(pointEvent).toEqual(jasmine.objectContaining({ type: 'point', side: 'A', setIndex: 0, scoreA: 15, scoreB: 12 }));
+  });
+
+  it('dois toques antes do snapshot voltar andam o placar duas vezes — não repetem o mesmo ponto', async () => {
+    gateway.push(liveMatch()); // 14×12 no set 0
+    fixture.detectChanges();
+
+    pointButtons()[0]!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Nenhum `push` aqui de propósito: a mesa ainda enxerga 14×12 enquanto o servidor já
+    // está em 15×12. É a janela onde o mesário toca de novo (medida em produção: ~95–160ms).
+    pointButtons()[0]!.click();
+    await fixture.whenStable();
+
+    expect(gateway.points.length).toBe(2);
+    expect(gateway.points[0]!.pointEvent).toEqual(jasmine.objectContaining({ scoreA: 15, scoreB: 12 }));
+    expect(gateway.points[1]!.pointEvent).toEqual(jasmine.objectContaining({ scoreA: 16, scoreB: 12 }));
+    expect(gateway.serverSets()).toEqual([{ a: 16, b: 12 }]);
   });
 
   it('o ponto que fecha a partida grava Completed + winnerId — é o que dispara o avanço da chave', async () => {

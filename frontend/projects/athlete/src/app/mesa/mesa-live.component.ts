@@ -5,7 +5,8 @@ import { deleteField, serverTimestamp } from 'firebase/firestore';
 import { map } from 'rxjs';
 import {
   applyBestOfChange,
-  applyPoint,
+  buildPointWrite,
+  buildUndoWrite,
   canReduceBestOf,
   elapsedSecondsFromStart,
   lastUndoablePoint,
@@ -13,7 +14,6 @@ import {
   matchWinnerSide,
   needsStartingServe,
   setsWonOf,
-  undoPoint,
   validateScoreSubmission,
   type LiveMatch,
   type LivePointEvent,
@@ -25,7 +25,6 @@ import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import {
   bestOfLabelOf,
   courtLabelOf,
-  currentSetIndexOf,
   currentSetOf,
   elapsedLabelOf,
   flagOf,
@@ -1474,39 +1473,26 @@ export class MesaLiveComponent {
   }
 
   /** Mesma escrita do `_point` do app: transação com sets/currentSetIndex/status/saque +
-   *  evento `point`. O ponto que fecha a partida grava Completed+winnerId. */
+   *  evento `point`. O ponto que fecha a partida grava Completed+winnerId.
+   *
+   *  O placar sai do doc lido DENTRO da transação (`buildPointWrite`), não do snapshot da tela:
+   *  o listener só recebe a versão nova depois da transação resolver, e dois toques dentro
+   *  dessa janela gravavam o mesmo placar duas vezes. */
   protected async point(side: MesaSide): Promise<void> {
     const m = this.match();
     if (!m || !this.canScore()) return;
 
-    const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-    const setIdx = currentSetIndexOf(m);
-    const current = result.sets[setIdx] ?? null;
-    const wins = setsWonOf(result.sets, m.bestOf);
-
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      await this.gateway.recordPoint({
-        matchId: m.id,
-        matchUpdate: {
-          sets: result.sets.map(liveSetToMap),
-          currentSetIndex: result.currentSetIndex,
-          status: result.winnerId != null ? 'Completed' : 'In Progress',
-          servingTeamId: result.servingTeamId,
-          ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
-          ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
-          resultA: `${wins.a}`,
-          resultB: `${wins.b}`,
-        },
-        pointEvent: { type: 'point', side, setIndex: setIdx, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
-      });
+      const written = await this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildPointWrite(fresh, side) });
+      if (!written) return;
       // Set novo começa com os tempos técnicos zerados.
-      if (result.currentSetIndex !== setIdx) this.timeouts.set({ A: 0, B: 0 });
-      if (result.winnerId != null) {
+      if (written.result.currentSetIndex !== written.setIndex) this.timeouts.set({ A: 0, B: 0 });
+      if (written.result.winnerId != null) {
         this.feedback.set({
           ok: true,
-          message: `Partida encerrada — vitória de ${result.winnerId === m.teamAId ? this.label('A') : this.label('B')}. A chave avança automaticamente.`,
+          message: `Partida encerrada — vitória de ${written.result.winnerId === m.teamAId ? this.label('A') : this.label('B')}. A chave avança automaticamente.`,
         });
       }
     } catch (e) {
@@ -1540,28 +1526,11 @@ export class MesaLiveComponent {
     if (!m || !last || this.saving() || m.status === 'completed') return;
 
     const side = last.side ?? 'A';
-    const result = undoPoint({ sets: m.sets, currentSetIndex: last.setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-    const wins = setsWonOf(result.sets, m.bestOf);
-    const current = result.sets[result.currentSetIndex] ?? null;
-
     this.saving.set(true);
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await this.gateway.recordPoint({
-        matchId: m.id,
-        matchUpdate: {
-          sets: result.sets.map(liveSetToMap),
-          currentSetIndex: result.currentSetIndex,
-          status: 'In Progress',
-          servingTeamId: result.servingTeamId,
-          winnerId: deleteField(),
-          matchEndedAt: deleteField(),
-          resultA: `${wins.a}`,
-          resultB: `${wins.b}`,
-        },
-        pointEvent: { type: 'undo-point', side, setIndex: result.currentSetIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
-      });
+      await this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex) });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao desfazer o ponto.' });
     } finally {

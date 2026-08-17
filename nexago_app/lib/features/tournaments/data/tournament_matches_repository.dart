@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../organizer/data/match_point_write.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_point_event.dart';
 import 'nexago_artifacts_paths.dart';
@@ -112,37 +113,56 @@ class TournamentMatchesRepository {
   }
 
   /// Transação atômica: atualiza placar + append pointEvent.
-  Future<void> recordPointTransaction({
+  /// Atualiza o doc da partida e grava o evento com `seq = pointEventSeq + 1` no MESMO commit —
+  /// as rules validam a sequência, então duas mesas concorrentes não gravam o mesmo seq.
+  ///
+  /// O placar é montado AQUI DENTRO, pelo [build], sobre o doc que a transação acabou de ler — e
+  /// nunca a partir do que a tela tem em mãos. Transação do Firestore não tem latency
+  /// compensation: o commit não aparece no cache local, e o listener só recebe a versão nova
+  /// quando a stream entrega, o que acontece DEPOIS deste `await` retornar. Montando o payload
+  /// na tela, dois toques dentro dessa janela partiam do mesmo placar e gravavam o mesmo
+  /// `scoreA`/`scoreB` — o segundo ainda sobrescrevia `sets` com o valor antigo, então o ponto
+  /// se perdia de verdade (não era só evento repetido na timeline). Lendo aqui, o controle
+  /// otimista do Firestore fecha o resto: se o doc mudar entre a leitura e o commit, a transação
+  /// REPETE o [build] sobre o estado novo.
+  ///
+  /// Espelha `recordPointTransaction` de `live-match-repository.ts` (mesas web).
+  Future<MatchPointWrite?> recordPointTransaction({
     required String matchId,
-    required Map<String, dynamic> matchUpdate,
-    required Map<String, dynamic> pointEvent,
+    required MatchPointWrite? Function(TournamentMatch match) build,
   }) async {
     final id = matchId.trim();
-    if (id.isEmpty) return;
+    if (id.isEmpty) return null;
 
+    MatchPointWrite? written;
     await _firestore.runTransaction((txn) async {
       final matchRef = _matches.doc(id);
       final matchSnap = await txn.get(matchRef);
-      if (!matchSnap.exists) {
+      final data = matchSnap.data();
+      if (!matchSnap.exists || data == null) {
         throw StateError('Partida não encontrada');
       }
 
-      final currentSeq =
-          (matchSnap.data()?['pointEventSeq'] as num?)?.toInt() ?? 0;
-      final nextSeq = currentSeq + 1;
+      // Reatribuído a cada retry da transação: vale o da última passada.
+      written = build(TournamentMatchMapper.fromMap(matchSnap.id, data));
+      final write = written;
+      if (write == null) return;
 
+      final nextSeq = ((data['pointEventSeq'] as num?)?.toInt() ?? 0) + 1;
       final eventRef = _pointEventsRef(id).doc();
       txn.update(matchRef, {
-        ...matchUpdate,
+        ...write.matchUpdate,
         'pointEventSeq': nextSeq,
         'updatedAt': FieldValue.serverTimestamp(),
       });
       txn.set(eventRef, {
-        ...pointEvent,
+        ...write.pointEvent,
         'seq': nextSeq,
         'ts': FieldValue.serverTimestamp(),
       });
     });
+
+    return written;
   }
 
   Future<void> updateMatchFields({

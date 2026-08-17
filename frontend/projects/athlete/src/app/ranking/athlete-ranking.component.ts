@@ -28,14 +28,27 @@ import {
   sumBestNPoints,
 } from '../data/rankings-repository';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
-import { fetchTeamsByIds, teamIsLookingForPartner, type ArenaTeam } from '../data/teams-repository';
+import { fetchTeamsByIds, teamIsLookingForPartner, teamMemberIds, type ArenaTeam } from '../data/teams-repository';
 import { RANKING_SCORING_RULES } from './athlete-ranking.models';
-import type { FilterLevel, RankingAvatar, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
-import { CITY_ALL, hasSearchQuery, rankParticipants, searchRanking, type RankingRow } from './athlete-ranking.selectors';
+import type { FilterFormat, FilterGender, FilterLevel, RankingAvatar, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
+import {
+  CITY_ALL,
+  deriveTeamGender,
+  hasSearchQuery,
+  normalizeRankingGender,
+  rankParticipants,
+  searchRanking,
+  teamFormatOf,
+  type RankingRow,
+} from './athlete-ranking.selectors';
 
 export type { RankingRow };
 
 const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
+const GENDER_OPTIONS: readonly FilterGender[] = ['all', 'male', 'female', 'mixed'];
+const GENDER_LABELS: Record<FilterGender, string> = { all: 'Todos os gêneros', male: 'Masculino', female: 'Feminino', mixed: 'Misto' };
+const FORMAT_OPTIONS: readonly FilterFormat[] = ['all', 'dupla', 'trio', 'quarteto', 'quinteto'];
+const FORMAT_LABELS: Record<FilterFormat, string> = { all: 'Todos os formatos', dupla: 'Dupla', trio: 'Trio', quarteto: 'Quarteto', quinteto: 'Quinteto' };
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -130,11 +143,15 @@ export class AthleteRankingComponent {
   protected readonly sportFilter = signal<ArenaSportChip>('beachVolleyball');
   protected readonly levelFilter = signal<FilterLevel>('all');
   protected readonly cityFilter = signal<string>(CITY_ALL);
+  protected readonly genderFilter = signal<FilterGender>('all');
+  protected readonly formatFilter = signal<FilterFormat>('all');
 
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly sportOptions = ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all');
   protected readonly levelOptions = LEVEL_OPTIONS;
+  protected readonly genderOptions = GENDER_OPTIONS;
+  protected readonly formatOptions = FORMAT_OPTIONS;
 
   protected readonly loading = signal(true);
   protected readonly allParticipants = signal<readonly RankingParticipant[]>([]);
@@ -144,11 +161,17 @@ export class AthleteRankingComponent {
     return [CITY_ALL, ...cities];
   });
 
-  /** Ranking do recorte (esporte + categoria + cidade). A busca fica de fora de propósito:
-   *  ela é consulta, não recorte — se entrasse aqui renumeraria o buscado como 1º e o
-   *  jogaria no pódio, além de zerar o card "Sua posição". */
+  /** Ranking do recorte (esporte + categoria + cidade + gênero + formato). A busca fica de
+   *  fora de propósito: ela é consulta, não recorte — se entrasse aqui renumeraria o buscado
+   *  como 1º e o jogaria no pódio, além de zerar o card "Sua posição". */
   protected readonly rankedList = computed<RankingRow[]>(() =>
-    rankParticipants(this.allParticipants(), { sport: this.sportFilter(), level: this.levelFilter(), city: this.cityFilter() }),
+    rankParticipants(this.allParticipants(), {
+      sport: this.sportFilter(),
+      level: this.levelFilter(),
+      city: this.cityFilter(),
+      gender: this.genderFilter(),
+      format: this.formatFilter(),
+    }),
   );
 
   protected readonly hasQuery = computed(() => hasSearchQuery(this.filterQuery()));
@@ -159,10 +182,14 @@ export class AthleteRankingComponent {
     this.searchCount() === 1 ? '1 resultado' : `${this.searchCount()} resultados`,
   );
   /** Recorte ativo em texto — o esporte já vem travado em Vôlei de praia, então sem isso
-   *  a busca por um atleta de outro esporte dá "nenhum resultado" sem explicar por quê. */
-  protected readonly sliceLabel = computed(
-    () => `${this.sportLabel(this.sportFilter())} · ${this.levelLabel(this.levelFilter())} · ${this.cityLabel(this.cityFilter())}`,
-  );
+   *  a busca por um atleta de outro esporte dá "nenhum resultado" sem explicar por quê.
+   *  Gênero/formato só entram quando ativos, senão a linha vira um trem de "Todos os…". */
+  protected readonly sliceLabel = computed(() => {
+    const parts = [this.sportLabel(this.sportFilter()), this.levelLabel(this.levelFilter()), this.cityLabel(this.cityFilter())];
+    if (this.genderFilter() !== 'all') parts.push(this.genderLabel(this.genderFilter()));
+    if (this.formatFilter() !== 'all') parts.push(this.formatLabel(this.formatFilter()));
+    return parts.join(' · ');
+  });
 
   protected readonly podium = computed(() => this.rankedList().slice(0, 3));
   protected readonly restList = computed(() => this.rankedList().slice(3));
@@ -228,7 +255,7 @@ export class AthleteRankingComponent {
         } else {
           const rows = await fetchTeamRankingGeneral(db, projectId);
           const teams = await fetchTeamsByIds(db, projectId, rows.map((r) => r.id));
-          const profileIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+          const profileIds = [...teams.values()].flatMap((t) => teamMemberIds(t));
           const profiles = await fetchPublicProfilesByIds(db, profileIds);
           this.allParticipants.set(
             rows
@@ -240,7 +267,7 @@ export class AthleteRankingComponent {
         const results = await fetchTournamentCategoryResultsByYear(db, projectId, this.currentYear);
         const teamIds = [...new Set(results.map((r) => r.teamId).filter((id) => id))];
         const teams = await fetchTeamsByIds(db, projectId, teamIds);
-        const profileIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+        const profileIds = [...teams.values()].flatMap((t) => teamMemberIds(t));
         const profiles = await fetchPublicProfilesByIds(db, profileIds);
 
         const pointsByTeam = new Map<string, number[]>();
@@ -287,12 +314,17 @@ export class AthleteRankingComponent {
       points,
       level: levelLabelOf(profile?.levelCode ?? null),
       sport: profile?.sportChip ?? 'beachVolleyball',
+      gender: normalizeRankingGender(profile?.gender),
+      format: null,
       trend: 0,
       avatars: [avatarOf(profile, name)],
     };
   }
 
   private participantFromTeam(id: string, points: number, team: ArenaTeam, profiles: Map<string, AthletePublicProfile>): RankingParticipant {
+    const memberIds = teamMemberIds(team);
+    const gender = deriveTeamGender(team.gender, memberIds.map((uid) => profiles.get(uid)?.gender ?? null));
+    const format = teamFormatOf(team.teamSize, memberIds.length);
     if (teamIsLookingForPartner(team)) {
       // Só um atleta de verdade na dupla — mostra a foto dele, não um par com o mesmo rosto duas vezes.
       const solo = profiles.get(team.player1Id);
@@ -303,6 +335,8 @@ export class AthleteRankingComponent {
         points,
         level: null,
         sport: 'beachVolleyball',
+        gender,
+        format,
         trend: 0,
         avatars: [avatarOf(solo, 'Atleta')],
       };
@@ -316,6 +350,8 @@ export class AthleteRankingComponent {
       points,
       level: levelLabelOf(p1?.levelCode ?? p2?.levelCode ?? null),
       sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
+      gender,
+      format,
       trend: 0,
       avatars: [avatarOf(p1, 'Atleta'), avatarOf(p2, 'Atleta')],
     };
@@ -335,6 +371,9 @@ export class AthleteRankingComponent {
   protected setMode(mode: RankingMode): void {
     this.mode.set(mode);
     this.cityFilter.set(CITY_ALL);
+    // O filtro de formato só existe (e só aparece) no modo Duplas — carregar um "trio"
+    // escondido pro Individual deixaria a lista vazia sem nenhum controle visível explicando.
+    this.formatFilter.set('all');
   }
 
   protected isMode(mode: RankingMode): boolean {
@@ -357,6 +396,14 @@ export class AthleteRankingComponent {
     this.cityFilter.set(city);
   }
 
+  protected setGender(gender: string): void {
+    this.genderFilter.set(gender as FilterGender);
+  }
+
+  protected setFormat(format: string): void {
+    this.formatFilter.set(format as FilterFormat);
+  }
+
   protected sportLabel(chip: ArenaSportChip): string {
     return this.sportOptions.find((o) => o.chip === chip)?.label ?? chip;
   }
@@ -367,6 +414,14 @@ export class AthleteRankingComponent {
 
   protected cityLabel(city: string): string {
     return city === CITY_ALL ? 'Todas as cidades' : city;
+  }
+
+  protected genderLabel(gender: FilterGender): string {
+    return GENDER_LABELS[gender];
+  }
+
+  protected formatLabel(format: FilterFormat): string {
+    return FORMAT_LABELS[format];
   }
 
   /** Reancora o tipo do contexto do `ng-template` da linha, que chega como `any`. */

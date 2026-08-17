@@ -1,5 +1,14 @@
 import type { RankingParticipant } from './athlete-ranking.models';
-import { CITY_ALL, hasSearchQuery, rankParticipants, searchRanking, type RankingSlice } from './athlete-ranking.selectors';
+import {
+  CITY_ALL,
+  deriveTeamGender,
+  hasSearchQuery,
+  normalizeRankingGender,
+  rankParticipants,
+  searchRanking,
+  teamFormatOf,
+  type RankingSlice,
+} from './athlete-ranking.selectors';
 
 function participant(partial: Partial<RankingParticipant> & Pick<RankingParticipant, 'id' | 'points'>): RankingParticipant {
   return {
@@ -7,13 +16,15 @@ function participant(partial: Partial<RankingParticipant> & Pick<RankingParticip
     city: 'Goiânia',
     level: 'Iniciante 1',
     sport: 'beachVolleyball',
+    gender: null,
+    format: null,
     trend: 0,
     avatars: [{ url: null, initials: 'AT' }],
     ...partial,
   };
 }
 
-const ALL_SPORTS: RankingSlice = { sport: 'beachVolleyball', level: 'all', city: CITY_ALL };
+const ALL_SPORTS: RankingSlice = { sport: 'beachVolleyball', level: 'all', city: CITY_ALL, gender: 'all', format: 'all' };
 
 /** Ranking com 5 atletas de vôlei de praia: 100, 80, 60, 40 e 20 pontos. */
 function sample(): RankingParticipant[] {
@@ -58,6 +69,86 @@ describe('rankParticipants', () => {
       [1, 'b'],
       [2, 'e'],
     ]);
+  });
+
+  it('renumera dentro do recorte de gênero; sem gênero conhecido só entra em "Todos"', () => {
+    const rows = [
+      participant({ id: 'f1', points: 50, gender: 'female' }),
+      participant({ id: 'm1', points: 100, gender: 'male' }),
+      participant({ id: 'f2', points: 80, gender: 'female' }),
+      participant({ id: 'na', points: 90, gender: null }),
+    ];
+
+    expect(rankParticipants(rows, { ...ALL_SPORTS, gender: 'female' }).map((r) => [r.rank, r.id])).toEqual([
+      [1, 'f2'],
+      [2, 'f1'],
+    ]);
+    expect(rankParticipants(rows, ALL_SPORTS).length).toBe(4);
+  });
+
+  it('renumera dentro do recorte de formato; linha sem formato (individual) só entra em "Todos"', () => {
+    const rows = [
+      participant({ id: 'd1', points: 100, format: 'dupla' }),
+      participant({ id: 't1', points: 40, format: 'trio' }),
+      participant({ id: 't2', points: 90, format: 'trio' }),
+      participant({ id: 'solo', points: 70, format: null }),
+    ];
+
+    expect(rankParticipants(rows, { ...ALL_SPORTS, format: 'trio' }).map((r) => [r.rank, r.id])).toEqual([
+      [1, 't2'],
+      [2, 't1'],
+    ]);
+    expect(rankParticipants(rows, ALL_SPORTS).length).toBe(4);
+  });
+});
+
+describe('normalizeRankingGender', () => {
+  it('normaliza as grafias reais dos docs (paridade com o app)', () => {
+    expect(normalizeRankingGender('Masculino')).toBe('male');
+    expect(normalizeRankingGender('m')).toBe('male');
+    expect(normalizeRankingGender('male')).toBe('male');
+    expect(normalizeRankingGender('Feminino')).toBe('female');
+    expect(normalizeRankingGender('f')).toBe('female');
+    expect(normalizeRankingGender('Misto')).toBe('mixed');
+    expect(normalizeRankingGender('Mista')).toBe('mixed');
+    expect(normalizeRankingGender('mixed')).toBe('mixed');
+  });
+
+  it('devolve null para vazio ou desconhecido', () => {
+    expect(normalizeRankingGender(null)).toBeNull();
+    expect(normalizeRankingGender('  ')).toBeNull();
+    expect(normalizeRankingGender('outro')).toBeNull();
+  });
+});
+
+describe('deriveTeamGender', () => {
+  it('o campo gender do time vence quando existe', () => {
+    expect(deriveTeamGender('Feminino', ['Masculino', 'Masculino'])).toBe('female');
+  });
+
+  it('sem gender no time, deriva dos perfis: iguais mantém, diferentes vira misto', () => {
+    expect(deriveTeamGender(null, ['Masculino', 'Masculino'])).toBe('male');
+    expect(deriveTeamGender(null, ['Feminino', 'Masculino'])).toBe('mixed');
+    expect(deriveTeamGender(null, ['Feminino', 'Feminino', 'Feminino'])).toBe('female');
+  });
+
+  it('perfil sem gênero não bloqueia: usa os conhecidos; nenhum conhecido dá null', () => {
+    expect(deriveTeamGender(null, ['Masculino', null])).toBe('male');
+    expect(deriveTeamGender(null, [null, null])).toBeNull();
+  });
+});
+
+describe('teamFormatOf', () => {
+  it('teamSize da equipe nomeada (3–5) define o formato', () => {
+    expect(teamFormatOf(3, 1)).toBe('trio');
+    expect(teamFormatOf(4, 2)).toBe('quarteto');
+    expect(teamFormatOf(5, 5)).toBe('quinteto');
+  });
+
+  it('sem teamSize cai no elenco; dupla legada (sem memberUids) é dupla', () => {
+    expect(teamFormatOf(null, 0)).toBe('dupla');
+    expect(teamFormatOf(null, 2)).toBe('dupla');
+    expect(teamFormatOf(null, 4)).toBe('quarteto');
   });
 });
 

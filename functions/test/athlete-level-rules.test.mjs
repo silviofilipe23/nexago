@@ -5,7 +5,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  assertFails,
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
@@ -65,6 +64,32 @@ async function expect(label, assertion) {
   }
 }
 
+// O `assertFails` da lib não distingue "a regra disse não" de "o orçamento de
+// 1000 expressões por request acabou no meio da avaliação" — os dois chegam
+// como PERMISSION_DENIED. Um teste de ratchet que passa por exaustão de
+// orçamento não prova nada: passaria igual com a guarda inteira apagada. Foi
+// exatamente assim que o estouro se escondeu até 17/08/2026, com o suite
+// verde. Toda negação esperada aqui passa por este helper, que exige a
+// negação PELA REGRA — é ele que transforma o teto de expressões em teste
+// vermelho em vez de falso verde.
+async function assertDeniedByRule(promise) {
+  try {
+    await promise;
+  } catch (e) {
+    const message = String(e.message || e);
+    if (/maximum of \d+ expressions/i.test(message)) {
+      throw new Error(
+        'negado por estouro do teto de expressões, não pela regra de nível',
+      );
+    }
+    if (e.code === 'permission-denied' || /PERMISSION_DENIED/.test(message)) {
+      return;
+    }
+    throw new Error(`negado, mas por erro inesperado: ${message}`);
+  }
+  throw new Error('esperava negação, mas o write passou');
+}
+
 // Campos não relacionados seguem editáveis.
 await seed();
 await expect(
@@ -89,7 +114,7 @@ await expect(
 await seed();
 await expect(
   'rebaixar nível global (Intermediário → Iniciante)',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), { level: 'Iniciante' }),
   ),
 );
@@ -98,7 +123,7 @@ await expect(
 await seed();
 await expect(
   'rebaixar sportProfile.level',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportProfile.level': 'iniciante',
     }),
@@ -109,7 +134,7 @@ await expect(
 await seed();
 await expect(
   'rebaixar levelsBySport.VOLEI_PRAIA',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'iniciante',
     }),
@@ -153,7 +178,7 @@ await expect(
 await seed();
 await expect(
   'nível conhecido → valor inválido é bloqueado',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), { level: 'xpto' }),
   ),
 );
@@ -184,7 +209,7 @@ for (const [sportId, lower] of [
   await seed(multiSportUser);
   await expect(
     `rebaixar levelsBySport.${sportId} é bloqueado`,
-    assertFails(
+    assertDeniedByRule(
       updateDoc(doc(ownerDb(), 'users', UID), {
         [`sportOnboarding.levelsBySport.${sportId}`]: lower,
       }),
@@ -251,7 +276,7 @@ await expect(
 await seed(avancado2User);
 await expect(
   'descer de Avançado 2 para Avançado 1 é bloqueado',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'avancado_1',
     }),
@@ -261,7 +286,7 @@ await expect(
 await seed(openUser);
 await expect(
   'descer de Open para Avançado 2 é bloqueado',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'avancado_2',
     }),
@@ -274,6 +299,65 @@ await expect(
   assertSucceeds(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'open',
+    }),
+  ),
+);
+
+// ── Orçamento de expressões (teto de 1000 por request) ────────────────────
+// A guarda enumera os 9 esportes; cada esporte que MUDA paga dois lookups de
+// rank. Um perfil completo editado de uma vez ("editar todos os meus
+// esportes") tem que caber no teto, e a negação de um rebaixamento tem que
+// vir da REGRA — não do orçamento estourado no meio do caminho.
+const ALL_SPORTS = [
+  'VOLEI_PRAIA', 'VOLEI_QUADRA', 'BEACH_TENNIS', 'FUTEVOLEI', 'FUTEBOL',
+  'BASQUETE', 'TENIS', 'CORRIDA', 'OUTROS',
+];
+
+const allSportsUser = {
+  ...baseUser,
+  sportOnboarding: {
+    version: 1,
+    primarySportId: 'VOLEI_PRAIA',
+    secondarySportIds: ALL_SPORTS.slice(1),
+    levelsBySport: Object.fromEntries(
+      ALL_SPORTS.map((s) => [s, 'intermediario_1']),
+    ),
+  },
+};
+
+function raisePatch(sportIds, level = 'intermediario_2') {
+  return Object.fromEntries(
+    sportIds.map((s) => [`sportOnboarding.levelsBySport.${s}`, level]),
+  );
+}
+
+for (const n of [5, 9]) {
+  await seed(allSportsUser);
+  await expect(
+    `subir ${n} esportes numa tacada só é permitido`,
+    assertSucceeds(
+      updateDoc(doc(ownerDb(), 'users', UID), raisePatch(ALL_SPORTS.slice(0, n))),
+    ),
+  );
+}
+
+await seed(allSportsUser);
+await expect(
+  'rebaixar 1 esporte é negado pela REGRA, não pelo teto de expressões',
+  assertDeniedByRule(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'iniciante_1',
+    }),
+  ),
+);
+
+await seed(allSportsUser);
+await expect(
+  'entre 5 esportes alterados, 1 rebaixado é negado pela REGRA',
+  assertDeniedByRule(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      ...raisePatch(ALL_SPORTS.slice(0, 4)),
+      'sportOnboarding.levelsBySport.FUTEBOL': 'iniciante_1',
     }),
   ),
 );

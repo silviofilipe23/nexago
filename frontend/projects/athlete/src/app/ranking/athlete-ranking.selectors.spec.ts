@@ -8,6 +8,7 @@ function participant(partial: Partial<RankingParticipant> & Pick<RankingParticip
     level: 'Iniciante 1',
     sport: 'beachVolleyball',
     trend: 0,
+    avatars: [{ url: null, initials: 'AT' }],
     ...partial,
   };
 }

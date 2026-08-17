@@ -8,6 +8,12 @@ export type RankingLevel = AthleteLevelLabel;
 export type FilterLevel = 'all' | RankingLevel;
 export type RankingPeriod = 'geral' | 'temporada';
 
+/** Foto pública do atleta (`public_profiles/{uid}.avatarUrl`); `url` nulo cai nas iniciais. */
+export interface RankingAvatar {
+  url: string | null;
+  initials: string;
+}
+
 export interface RankingParticipant {
   id: string;
   name: string;
@@ -17,6 +23,8 @@ export interface RankingParticipant {
   sport: ArenaSportChip;
   /** Variação de posição — sem dado real no backend hoje (sempre 0, sem seta). */
   trend: number;
+  /** Uma foto no modo Individual, duas no de Duplas — a linha é o time, não um atleta. */
+  avatars: readonly RankingAvatar[];
 }
 
 export interface RankingSelfEntry {

@@ -18,7 +18,12 @@
         <span class="rk-search-kbd" aria-hidden="true">⌘K</span>
       </label>
       <at-bell />
-      <a routerLink="/perfil" class="rk-header-avatar">{{ headerInitials() }}</a>
+      <a routerLink="/perfil" class="rk-header-avatar">
+        <span class="rk-header-avatar-fallback">{{ headerInitials() }}</span>
+        @if (myPhotoUrl(); as photo) {
+          <img class="rk-avatar-img" [src]="photo" alt="" loading="lazy" />
+        }
+      </a>
     </div>
   </header>
 
@@ -140,7 +145,10 @@
             <div class="rk-podium">
               @for (p of podium(); track p.id) {
                 <div class="rk-podium-place" [attr.data-place]="p.rank">
-                  <span class="rk-podium-badge">{{ p.rank }}</span>
+                  <span class="rk-podium-badge">
+                    <ng-container [ngTemplateOutlet]="avatarStack" [ngTemplateOutletContext]="{ $implicit: p.avatars }" />
+                    <span class="rk-podium-rank">{{ p.rank }}</span>
+                  </span>
                   <p class="rk-podium-name">{{ p.name }}</p>
                   <p class="rk-podium-city">{{ p.city }}</p>
                   <div class="rk-podium-pedestal">
@@ -177,7 +185,7 @@
             @if (selfEntry(); as self) {
               <div class="rk-self-row">
                 <span class="rk-self-rank">#{{ self.rank }}</span>
-                <span class="rk-self-avatar">{{ headerInitials() }}</span>
+                <ng-container [ngTemplateOutlet]="avatarStack" [ngTemplateOutletContext]="{ $implicit: selfAvatars() }" />
                 <div class="rk-self-info">
                   <p class="rk-self-name">{{ self.name }}</p>
                   <p class="rk-self-city">{{ self.city }}</p>
@@ -228,7 +236,7 @@
     @let p = asRow(item);
     <div class="rk-row">
       <span class="rk-row-rank">{{ p.rank }}</span>
-      <span class="rk-row-avatar">{{ rowInitials(p.name) }}</span>
+      <ng-container [ngTemplateOutlet]="avatarStack" [ngTemplateOutletContext]="{ $implicit: p.avatars }" />
       <div class="rk-row-info">
         <p class="rk-row-name">{{ p.name }}</p>
         <p class="rk-row-city">{{ p.city }}</p>
@@ -244,5 +252,21 @@
         }
       </span>
     </div>
+  </ng-template>
+
+  <!-- Fotos do participante: uma no individual, duas na dupla (o par se sobrepõe).
+       Sem foto pública, fica nas iniciais. `asAvatars` só reancora o tipo do contexto. -->
+  <ng-template #avatarStack let-list>
+    @let avatars = asAvatars(list);
+    <span class="rk-avatars" [class.rk-avatars--pair]="avatars.length > 1" aria-hidden="true">
+      @for (a of avatars; track $index) {
+        <span class="rk-avatar">
+          <span class="rk-avatar-initials">{{ a.initials }}</span>
+          @if (a.url; as photo) {
+            <img class="rk-avatar-img" [src]="photo" alt="" loading="lazy" />
+          }
+        </span>
+      }
+    </span>
   </ng-template>
 </app-at-panel-shell>

@@ -27,9 +27,10 @@ import {
   fetchTournamentCategoryResultsByYear,
   sumBestNPoints,
 } from '../data/rankings-repository';
+import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { fetchTeamsByIds, teamIsLookingForPartner, type ArenaTeam } from '../data/teams-repository';
 import { RANKING_SCORING_RULES } from './athlete-ranking.models';
-import type { FilterLevel, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
+import type { FilterLevel, RankingAvatar, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
 import { CITY_ALL, hasSearchQuery, rankParticipants, searchRanking, type RankingRow } from './athlete-ranking.selectors';
 
 export type { RankingRow };
@@ -71,6 +72,11 @@ function trendTone(trend: number): 'up' | 'down' | 'neutral' {
   return 'neutral';
 }
 
+function avatarOf(profile: AthletePublicProfile | undefined, fallbackName: string): RankingAvatar {
+  const name = profile?.displayName ?? fallbackName;
+  return { url: profile?.avatarUrl ?? null, initials: initialsOf(name) };
+}
+
 function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, p2: AthletePublicProfile | undefined): string {
   if (team.teamName) return team.teamName;
   const a = p1?.displayName?.split(' ')[0] ?? 'Atleta';
@@ -109,6 +115,11 @@ export class AthleteRankingComponent {
     return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
   });
   protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
+
+  /** Foto do próprio atleta: `users/{uid}.profilePhotoUrl` tem prioridade e cai pro `photoURL`
+   *  do Firebase Auth (Google/Apple) — mesma ordem do avatar do shell. */
+  private readonly myProfilePhotoUrl = signal<string | null>(null);
+  protected readonly myPhotoUrl = computed(() => this.myProfilePhotoUrl() ?? this.auth.user()?.photoURL ?? null);
 
   protected readonly mode = signal<RankingMode>('individual');
   protected readonly period = signal<RankingPeriod>('geral');
@@ -166,6 +177,12 @@ export class AthleteRankingComponent {
     return row ? { rank: row.rank, name: row.name, city: row.city, points: row.points, level: row.level, trend: row.trend } : null;
   });
 
+  /** Card "Sua posição": a foto vem do próprio cadastro, não do espelho público, então
+   *  aparece mesmo quando o perfil está fora da busca. */
+  protected readonly selfAvatars = computed<readonly RankingAvatar[]>(() => [
+    { url: this.myPhotoUrl(), initials: this.headerInitials() },
+  ]);
+
   protected readonly scoringRules = RANKING_SCORING_RULES;
 
   constructor() {
@@ -175,6 +192,18 @@ export class AthleteRankingComponent {
       const mode = this.mode();
       const period = this.period();
       void this.loadRanking(mode, period);
+    });
+
+    effect(() => {
+      const uid = this.auth.user()?.uid;
+      const db = this.firestore;
+      if (!uid || !db) {
+        this.myProfilePhotoUrl.set(null);
+        return;
+      }
+      fetchMyAthleteProfile(db, uid)
+        .then((profile) => this.myProfilePhotoUrl.set(profile?.profilePhotoUrl ?? null))
+        .catch(() => this.myProfilePhotoUrl.set(null));
     });
   }
 
@@ -250,20 +279,33 @@ export class AthleteRankingComponent {
   }
 
   private participantFromAthlete(id: string, points: number, profile: AthletePublicProfile | undefined): RankingParticipant {
+    const name = profile?.displayName ?? `Atleta (…${id.slice(-6)})`;
     return {
       id,
-      name: profile?.displayName ?? `Atleta (…${id.slice(-6)})`,
+      name,
       city: profile?.city ?? '',
       points,
       level: levelLabelOf(profile?.levelCode ?? null),
       sport: profile?.sportChip ?? 'beachVolleyball',
       trend: 0,
+      avatars: [avatarOf(profile, name)],
     };
   }
 
   private participantFromTeam(id: string, points: number, team: ArenaTeam, profiles: Map<string, AthletePublicProfile>): RankingParticipant {
     if (teamIsLookingForPartner(team)) {
-      return { id, name: 'Dupla incompleta', city: '', points, level: null, sport: 'beachVolleyball', trend: 0 };
+      // Só um atleta de verdade na dupla — mostra a foto dele, não um par com o mesmo rosto duas vezes.
+      const solo = profiles.get(team.player1Id);
+      return {
+        id,
+        name: 'Dupla incompleta',
+        city: '',
+        points,
+        level: null,
+        sport: 'beachVolleyball',
+        trend: 0,
+        avatars: [avatarOf(solo, 'Atleta')],
+      };
     }
     const p1 = profiles.get(team.player1Id);
     const p2 = profiles.get(team.player2Id);
@@ -275,6 +317,7 @@ export class AthleteRankingComponent {
       level: levelLabelOf(p1?.levelCode ?? p2?.levelCode ?? null),
       sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
       trend: 0,
+      avatars: [avatarOf(p1, 'Atleta'), avatarOf(p2, 'Atleta')],
     };
   }
 
@@ -331,7 +374,11 @@ export class AthleteRankingComponent {
     return value;
   }
 
+  /** Idem para o `ng-template` das fotos. */
+  protected asAvatars(value: readonly RankingAvatar[]): readonly RankingAvatar[] {
+    return value;
+  }
+
   protected readonly trendTone = trendTone;
   protected readonly absTrend = Math.abs;
-  protected readonly rowInitials = initialsOf;
 }

@@ -165,7 +165,7 @@ final competeHubUserRankingProvider =
     rank: userRow.rank > 0 ? userRow.rank : 0,
     seasonLabel: isSeasonMode ? 'TEMPORADA $year' : 'RANKING GERAL',
     subtitle: isSeasonMode
-        ? 'Ranking de atletas · melhores 5 resultados'
+        ? 'Ranking de atletas · soma do ano'
         : 'Ranking de atletas · soma total de pontos',
     points: userRow.totalPoints,
     tournamentsCount: userRow.tournamentsCount,

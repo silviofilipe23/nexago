@@ -120,7 +120,7 @@ int levelSegmentsFromCode(String? raw) {
   }
 }
 
-/// Níveis oficiais: Iniciante 1/2, Intermediário 1/2 e Open.
+/// Níveis oficiais: Iniciante 1/2, Intermediário 1/2, Avançado 1/2 e Open.
 String resolveAthleteLevelLabel(
   AthleteProfile profile, {
   String? sportFirestoreId,

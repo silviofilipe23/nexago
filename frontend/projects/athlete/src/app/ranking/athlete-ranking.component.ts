@@ -25,7 +25,7 @@ import {
   fetchAthleteRankingGeneral,
   fetchTeamRankingGeneral,
   fetchTournamentCategoryResultsByYear,
-  sumBestNPoints,
+  sumPoints,
 } from '../data/rankings-repository';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { fetchTeamsByIds, teamIsLookingForPartner, teamMemberIds, type ArenaTeam } from '../data/teams-repository';
@@ -100,7 +100,7 @@ function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, 
 }
 
 /** Ranking real: `athleteRankings`/`teamRankings` (modo Geral, soma tudo) ou
- *  `tournamentCategoryResults` do ano corrente (modo Temporada, melhores 5) — espelha
+ *  `tournamentCategoryResults` do ano corrente (modo Temporada, soma do ano) — espelha
  *  `loadAthleteRankingGeneral`/`getResultsByYear` (Flutter). Sem dado de "trend" (variação de
  *  posição) no backend hoje — sempre 0, sem seta. */
 @Component({
@@ -293,7 +293,7 @@ export class AthleteRankingComponent {
           this.allParticipants.set(
             [...pointsByTeam.entries()]
               .filter(([teamId]) => teams.has(teamId))
-              .map(([teamId, points]) => this.participantFromTeam(teamId, sumBestNPoints(points), teams.get(teamId)!, profiles)),
+              .map(([teamId, points]) => this.participantFromTeam(teamId, sumPoints(points), teams.get(teamId)!, profiles)),
           );
         } else {
           const pointsByAthlete = new Map<string, number[]>();
@@ -306,7 +306,7 @@ export class AthleteRankingComponent {
           }
           this.allParticipants.set(
             [...pointsByAthlete.entries()].map(([athleteId, points]) =>
-              this.participantFromAthlete(athleteId, sumBestNPoints(points), profiles.get(athleteId)),
+              this.participantFromAthlete(athleteId, sumPoints(points), profiles.get(athleteId)),
             ),
           );
         }

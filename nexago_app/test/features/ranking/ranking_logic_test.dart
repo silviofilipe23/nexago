@@ -7,34 +7,35 @@ import 'package:nexago_app/features/ranking/domain/ranking_logic.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_models.dart';
 
 void main() {
-  group('sumBestNPoints', () {
-    test('sums top 5 results', () {
+  group('sumPoints', () {
+    test('sums every result, without discarding any', () {
       expect(
-        sumBestNPoints([10, 50, 30, 40, 20, 100, 5]),
-        240,
+        sumPoints([10, 50, 30, 40, 20, 100, 5]),
+        255,
       );
     });
 
     test('returns 0 for empty list', () {
-      expect(sumBestNPoints([]), 0);
+      expect(sumPoints([]), 0);
     });
   });
 
   group('buildAthleteRankingRowsFromPointsByAthlete', () {
-    test('assigns ranks by best N sum', () {
+    test('assigns ranks by total sum, counting past the 5th result', () {
       final rows = buildAthleteRankingRowsFromPointsByAthlete(
         {
-          'a': [100, 80, 60],
-          'b': [90, 90, 90, 90, 90],
+          // Melhores 5 = 330, soma = 360: o 6º resultado decide a liderança.
+          'a': [100, 80, 60, 50, 40, 30],
+          'b': [70, 70, 70, 70, 70],
         },
         year: 2026,
       );
 
-      expect(rows.first.athleteId, 'b');
+      expect(rows.first.athleteId, 'a');
       expect(rows.first.rank, 1);
-      expect(rows.first.totalPoints, 450);
-      expect(rows.last.athleteId, 'a');
-      expect(rows.last.totalPoints, 240);
+      expect(rows.first.totalPoints, 360);
+      expect(rows.last.athleteId, 'b');
+      expect(rows.last.totalPoints, 350);
     });
   });
 
@@ -140,17 +141,19 @@ void main() {
   });
 
   group('buildTeamRankingRowsFromPointsByTeam', () {
-    test('assigns ranks by best N sum', () {
+    test('assigns ranks by total sum, counting past the 5th result', () {
       final rows = buildTeamRankingRowsFromPointsByTeam(
         {
-          't1': [100, 80],
-          't2': [90, 90, 90, 90, 90],
+          // Melhores 5 = 330, soma = 360: o 6º resultado decide a liderança.
+          't1': [100, 80, 60, 50, 40, 30],
+          't2': [70, 70, 70, 70, 70],
         },
         year: 2026,
       );
 
-      expect(rows.first.teamId, 't2');
+      expect(rows.first.teamId, 't1');
       expect(rows.first.rank, 1);
+      expect(rows.first.totalPoints, 360);
     });
   });
 

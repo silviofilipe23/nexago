@@ -5,16 +5,15 @@ import 'ranking_constants.dart';
 import 'ranking_list_models.dart';
 import 'ranking_models.dart';
 
-/// Agrupa pontos brutos por atleta e monta linhas da temporada (melhores N).
+/// Agrupa pontos brutos por atleta e monta linhas da temporada (soma do ano).
 List<AthleteRankingRow> buildAthleteRankingRowsFromPointsByAthlete(
   Map<String, List<int>> pointsByAthlete, {
   int year = 0,
-  int n = bestNResults,
 }) {
   final rows = <AthleteRankingRow>[];
   for (final entry in pointsByAthlete.entries) {
     final points = entry.value;
-    final total = sumBestNPoints(points, n: n);
+    final total = sumPoints(points);
     rows.add(
       AthleteRankingRow(
         rank: 0,
@@ -104,16 +103,15 @@ List<AthleteRankingRow> previewRankingRows(
   return [...top, userRow];
 }
 
-/// Agrupa pontos brutos por equipe e monta linhas da temporada (melhores N).
+/// Agrupa pontos brutos por equipe e monta linhas da temporada (soma do ano).
 List<TeamRankingRow> buildTeamRankingRowsFromPointsByTeam(
   Map<String, List<int>> pointsByTeam, {
   int year = 0,
-  int n = bestNResults,
 }) {
   final rows = <TeamRankingRow>[];
   for (final entry in pointsByTeam.entries) {
     final points = entry.value;
-    final total = sumBestNPoints(points, n: n);
+    final total = sumPoints(points);
     rows.add(
       TeamRankingRow(
         rank: 0,

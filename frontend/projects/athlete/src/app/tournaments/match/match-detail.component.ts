@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
+import type { LivePointEvent } from '@nexago/live-scoring';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
@@ -20,6 +21,9 @@ import {
 } from '../tournament-live.selectors';
 import { TournamentLiveStore, type DuoPlayer } from '../tournament-live.store';
 import { MatchShareDialogComponent } from './match-share-dialog.component';
+import { defaultSetIndexOf, pointByPointSetsOf, summaryLineOf, type PointByPointSet } from './match-point-by-point';
+import { MatchPointByPointComponent, type PointByPointColumn, type PointByPointColumns } from './match-point-by-point.component';
+import { MatchPointEventsGateway } from './match-point-events.gateway';
 import { nextRoundPreviewOf } from './next-round-preview';
 
 function titleCase(input: string): string {
@@ -63,13 +67,17 @@ export interface SetRowView {
  * Tela cheia da partida (04h). É irmã das abas, não filha — mas compartilha o mesmo
  * `TournamentLiveStore`, providenciado na rota pai, e assina o tempo real enquanto está aberta.
  *
- * Fora do escopo por decisão de produto: histórico de confronto direto entre as duplas e duração
- * por set. O primeiro exigiria casar duplas por par de uids (o `teamId` nasce a cada inscrição);
- * o segundo, gravar timestamp ao fechar cada set no fluxo do mesário.
+ * O ponto a ponto tem listener próprio: `pointEvents` é subcoleção da PARTIDA, e o store é do
+ * torneio inteiro — quem não abre este detalhe não paga a leitura.
+ *
+ * Fora do escopo por decisão de produto: histórico de confronto direto entre as duplas — exigiria
+ * casar duplas por par de uids, e o `teamId` nasce a cada inscrição. (A duração por set, que
+ * também estava de fora por falta de `endedAt` nos sets, saiu da lista: as horas dos
+ * `pointEvents` dão isso para os sets que a mesa marcou ponto a ponto.)
  */
 @Component({
   selector: 'app-match-detail',
-  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, MatchShareDialogComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, MatchShareDialogComponent, MatchPointByPointComponent],
   templateUrl: './match-detail.component.html',
   styleUrl: './match-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -78,12 +86,19 @@ export class MatchDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly pointEventsGateway = inject(MatchPointEventsGateway);
   protected readonly store = inject(TournamentLiveStore);
 
   private readonly tournamentIdParam = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
   private readonly matchId = toSignal(this.route.paramMap.pipe(map((p) => p.get('matchId') ?? '')), { initialValue: '' });
 
   protected readonly shareOpen = signal(false);
+
+  private readonly pointEvents = signal<readonly LivePointEvent[]>([]);
+
+  /** Set escolhido pelo atleta nas abas de set. `null` = "siga o padrão", que acompanha o set em
+   *  andamento enquanto a partida rola — depois do primeiro toque a escolha dele manda. */
+  private readonly chosenSetIndex = signal<number | null>(null);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -104,6 +119,19 @@ export class MatchDetailComponent {
 
     const release = this.store.acquireLive();
     this.destroyRef.onDestroy(release);
+
+    // A rota pode trocar de partida sem recriar o componente, então a assinatura segue o param:
+    // desliga a anterior, zera a timeline e assina a nova.
+    let unsubscribePoints: (() => void) | null = null;
+    effect(() => {
+      const id = this.matchId();
+      unsubscribePoints?.();
+      unsubscribePoints = null;
+      this.pointEvents.set([]);
+      this.chosenSetIndex.set(null);
+      if (id) unsubscribePoints = this.pointEventsGateway.watch(id, (events) => this.pointEvents.set(events));
+    });
+    this.destroyRef.onDestroy(() => unsubscribePoints?.());
   }
 
   protected readonly live = computed(() => {
@@ -231,6 +259,44 @@ export class MatchDetailComponent {
       sharePercent: total > 0 ? Math.round((s.a / total) * 100) : 50,
       tone: s.inProgress ? 'live' : aWon ? 'a' : 'b',
     };
+  }
+
+  protected readonly pointByPointSets = computed<PointByPointSet[]>(() => {
+    const m = this.match();
+    if (!m) return [];
+    return pointByPointSetsOf({ match: m, events: this.pointEvents(), mySide: sideOf(m, this.store.myTeamIds()) });
+  });
+
+  /** O card só aparece quando ALGUM set foi de fato marcado ponto a ponto: numa partida lançada só
+   *  pelo placar final ele não teria nada a dizer que as Parciais já não dizem. */
+  protected readonly showPointByPoint = computed(() => this.pointByPointSets().some((s) => s.blocks.length > 0));
+
+  protected readonly selectedSetIndex = computed<number | null>(() => {
+    const sets = this.pointByPointSets();
+    const chosen = this.chosenSetIndex();
+    if (chosen != null && sets.some((s) => s.setIndex === chosen)) return chosen;
+    const m = this.match();
+    return m ? defaultSetIndexOf(sets, m) : null;
+  });
+
+  protected readonly selectedSetSummary = computed<string | null>(() => {
+    const index = this.selectedSetIndex();
+    const set = this.pointByPointSets().find((s) => s.setIndex === index);
+    return set ? summaryLineOf(set.summary) : null;
+  });
+
+  /** Quem fica em cada coluna: a dupla do atleta à esquerda quando ele joga esta partida (a mesma
+   *  perspectiva que `pointByPointSetsOf` aplica ao placar), senão o lado A do doc. */
+  protected readonly pointByPointColumns = computed<PointByPointColumns | null>(() => {
+    const m = this.match();
+    if (!m) return null;
+    const a: PointByPointColumn = { name: this.store.duoNameOf(m.teamAId, m.teamADescription), isMe: this.store.isMyTeam(m.teamAId) };
+    const b: PointByPointColumn = { name: this.store.duoNameOf(m.teamBId, m.teamBDescription), isMe: this.store.isMyTeam(m.teamBId) };
+    return sideOf(m, this.store.myTeamIds()) === 'B' ? { left: b, right: a } : { left: a, right: b };
+  });
+
+  protected selectSet(setIndex: number): void {
+    this.chosenSetIndex.set(setIndex);
   }
 
   protected readonly nextRound = computed(() => {

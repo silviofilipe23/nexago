@@ -1,0 +1,76 @@
+<section class="pbp">
+  <span class="pbp-kicker">Cada ponto, como a mesa marcou</span>
+  <h2 class="pbp-title">Ponto a ponto</h2>
+
+  @if (sets().length > 1) {
+    <div class="pbp-tabs" role="tablist" aria-label="Sets da partida">
+      @for (s of sets(); track s.setIndex) {
+        <button
+          type="button"
+          role="tab"
+          class="pbp-tab"
+          [class.pbp-tab--on]="s.setIndex === selectedSetIndex()"
+          [attr.aria-selected]="s.setIndex === selectedSetIndex()"
+          (click)="setSelected.emit(s.setIndex)"
+        >
+          <span class="pbp-tab-name">Set {{ s.setNumber }}</span>
+          <span class="pbp-tab-score">{{ s.score.left }}–{{ s.score.right }}</span>
+        </button>
+      }
+    </div>
+  }
+
+  @if (selectedSet(); as set) {
+    @if (columns(); as cols) {
+      <div class="pbp-heads">
+        <span class="pbp-head">
+          {{ cols.left.name }}
+          @if (cols.left.isMe) {
+            <span class="pbp-you">· você</span>
+          }
+        </span>
+        <span class="pbp-head pbp-head--right">
+          {{ cols.right.name }}
+          @if (cols.right.isMe) {
+            <span class="pbp-you">· você</span>
+          }
+        </span>
+      </div>
+    }
+
+    @if (set.blocks.length === 0) {
+      <p class="pbp-note">Este set entrou pelo placar final — a mesa não marcou ponto a ponto nele.</p>
+    } @else {
+      <ol class="pbp-timeline">
+        @for (block of set.blocks; track $index) {
+          <li class="pbp-block" [class.pbp-block--right]="!block.fromLeft" [class.pbp-block--longest]="block.longest">
+            <span class="pbp-block-tag">{{ block.label }} · {{ block.time }}</span>
+            @for (p of block.points; track $index) {
+              <span class="pbp-point" [class.pbp-point--closing]="p.closesSet">
+                <span class="pbp-score">{{ p.left }}–{{ p.right }}</span>
+                @if (p.closesSet) {
+                  <span class="pbp-flag" data-kind="fechou">fechou o set</span>
+                } @else if (p.annotation) {
+                  <span class="pbp-flag" [attr.data-kind]="p.annotation">{{ p.annotation }}</span>
+                }
+              </span>
+            }
+          </li>
+        }
+      </ol>
+
+      @if (set.missingCount > 0) {
+        <p class="pbp-note">
+          +{{ set.missingCount }} {{ set.missingCount === 1 ? 'ponto sem registro' : 'pontos sem registro' }}
+          @if (set.recordedRange; as range) {
+            — a mesa marcou de {{ range.from.left }}–{{ range.from.right }} a {{ range.to.left }}–{{ range.to.right }}
+          }
+        </p>
+      }
+
+      @if (summary(); as line) {
+        <p class="pbp-summary">{{ line }}</p>
+      }
+    }
+  }
+</section>

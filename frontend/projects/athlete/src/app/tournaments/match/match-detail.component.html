@@ -139,6 +139,16 @@
             </section>
           }
 
+          @if (showPointByPoint()) {
+            <app-match-point-by-point
+              [sets]="pointByPointSets()"
+              [selectedSetIndex]="selectedSetIndex()"
+              [columns]="pointByPointColumns()"
+              [summary]="selectedSetSummary()"
+              (setSelected)="selectSet($event)"
+            />
+          }
+
           <section class="md-card">
             <span class="md-kicker">Como cada dupla chegou até aqui</span>
             <h2 class="md-card-title">Campanha no torneio</h2>

@@ -452,8 +452,7 @@ service cloud.firestore {
     // grava `sportOnboarding.levelLocked.{SPORT_CODE}` na 1ª inscrição
     // ativa. Defaults `{}` dos dois lados: doc sem o mapa também passa.
     function levelLockedUnchanged() {
-      return request.resource.data.get('sportOnboarding', {}).get('levelLocked', {}) ==
-        resource.data.get('sportOnboarding', {}).get('levelLocked', {});
+      return levelLockedOf(request.resource.data) == levelLockedOf(resource.data);
     }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&

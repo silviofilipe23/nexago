@@ -435,6 +435,40 @@ await expect(
   ),
 );
 
+// A propriedade de segurança crítica é o inverso do caso acima: um esporte
+// JÁ TRAVADO em que o dono tenta se destravar (direto no valor, ou por
+// baixo — reescrevendo `sportOnboarding` inteiro sem a chave `levelLocked`,
+// caminho de um app antigo/merge que "esquece" o mapa). As duas formas têm
+// de continuar negadas mesmo se `athleteLevelsNotDowngraded()` ou
+// `levelLockedUnchanged()` forem refatoradas no futuro.
+await seed(lockedUser);
+await expect(
+  'dono não pode destravar sportOnboarding.levelLocked.VOLEI_PRAIA (true → false)',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelLocked.VOLEI_PRAIA': false,
+    }),
+  ),
+);
+
+await seed(lockedUser);
+await expect(
+  'dono não pode apagar o mapa levelLocked reescrevendo sportOnboarding sem a chave',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      sportOnboarding: {
+        version: 1,
+        primarySportId: 'VOLEI_PRAIA',
+        secondarySportIds: [],
+        levelsBySport: { VOLEI_PRAIA: 'intermediario' },
+        // Sem `levelLocked`: simula um client que reenvia o objeto inteiro
+        // sem conhecer a flag e derruba o mapa no merge implícito do
+        // updateDoc (o campo top-level `sportOnboarding` é substituído).
+      },
+    }),
+  ),
+);
+
 await seed(lockedUser);
 await expect(
   'dono pode regravar levelLocked idêntico ao mexer noutro campo',
@@ -446,11 +480,15 @@ await expect(
   ),
 );
 
-// Super admin pode rebaixar mesmo com o esporte locked (canal de suporte) —
-// bypassa tanto athleteLevelsNotDowngraded() quanto levelLockedUnchanged().
+// Super admin pode rebaixar mesmo com o esporte locked E mexer no próprio
+// levelLocked (canal de suporte) — o payload toca os dois campos que o
+// dono nunca poderia tocar juntos, provando o bypass de
+// athleteLevelsNotDowngraded() E de levelLockedUnchanged() de verdade (não
+// só o primeiro — um payload que só mexesse em levelsBySport não
+// exercitaria levelLockedUnchanged() nenhuma vez).
 await seed(multiSportUser);
 await expect(
-  'super admin rebaixa nível mesmo com lock (bypass)',
+  'super admin rebaixa nível e destrava o esporte no mesmo update (bypass)',
   assertSucceeds(
     updateDoc(
       doc(
@@ -460,7 +498,10 @@ await expect(
         'users',
         UID,
       ),
-      { 'sportOnboarding.levelsBySport.FUTEVOLEI': 'iniciante_1' },
+      {
+        'sportOnboarding.levelsBySport.FUTEVOLEI': 'iniciante_1',
+        'sportOnboarding.levelLocked.FUTEVOLEI': false,
+      },
     ),
   ),
 );

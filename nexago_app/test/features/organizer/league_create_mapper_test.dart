@@ -132,6 +132,43 @@ void main() {
       expect(loaded.draft.categories.first.prizes.first.valueCents, 9000);
     });
 
+    test('categoria: level Avançado 1/2 grava e roundtripa (escada de 7)', () {
+      final draft = LeagueCreateDraft(
+        name: 'Copa',
+        seasonStartAt: DateTime(2026, 2, 1),
+        seasonEndAt: DateTime(2026, 10, 1),
+        categories: const [
+          TournamentCategoryDraft(
+            id: 'c1',
+            skillLevel: TournamentSkillLevel.avancado1,
+          ),
+          TournamentCategoryDraft(
+            id: 'c2',
+            skillLevel: TournamentSkillLevel.avancado2,
+          ),
+        ],
+      );
+
+      final data = LeagueCreateMapper.toFirestore(
+        draft: draft,
+        managerId: 'm',
+        publish: true,
+      );
+      final categories = data['categories'] as List;
+      expect(categories[0]['level'], 'Avançado 1');
+      expect(categories[1]['level'], 'Avançado 2');
+
+      final loaded = LeagueCreateMapper.fromFirestore(data, 'league-y');
+      expect(
+        loaded.draft.categories[0].skillLevel,
+        TournamentSkillLevel.avancado1,
+      );
+      expect(
+        loaded.draft.categories[1].skillLevel,
+        TournamentSkillLevel.avancado2,
+      );
+    });
+
     test('fromFirestore restores draft and step', () {
       final data = {
         'name': 'Circuito Verão',

@@ -386,6 +386,12 @@ abstract final class LeagueCreateMapper {
       'intermediário 2' ||
       'intermediario 2' ||
       'intermediario_2' => TournamentSkillLevel.intermediario2,
+      'avançado 1' ||
+      'avancado 1' ||
+      'avancado_1' => TournamentSkillLevel.avancado1,
+      'avançado 2' ||
+      'avancado 2' ||
+      'avancado_2' => TournamentSkillLevel.avancado2,
       'open' || 'livre' => TournamentSkillLevel.open,
       _ => TournamentSkillLevel.open,
     };

@@ -138,6 +138,8 @@ class RankingTeamPlayers {
     this.player2Id,
     this.teamName,
     this.gender,
+    this.teamSize,
+    this.memberUids = const [],
   });
 
   final String teamId;
@@ -145,6 +147,12 @@ class RankingTeamPlayers {
   final String? player2Id;
   final String? teamName;
   final String? gender;
+
+  /// 3–5 nas equipes nomeadas (trio/quarteto/quinteto); dupla legada não grava.
+  final int? teamSize;
+
+  /// Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2).
+  final List<String> memberUids;
 }
 
 /// Documento agregado em `teamRankings/{teamId}`.

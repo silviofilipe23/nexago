@@ -4,8 +4,8 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
 
-/// Ranks unificados da escada de 5 (rank 4 sem uso — numeração fixa).
-const _levelRanks = [0, 1, 2, 3, 5];
+/// Ranks unificados da escada de 7.
+const _levelRanks = [0, 1, 2, 3, 4, 5, 6];
 
 /// Sentinela interno — `Navigator.pop(context, null)` seria indistinguível
 /// de fechar a folha sem escolher nada, então "Todos os níveis" usa esse

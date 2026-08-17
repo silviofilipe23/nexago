@@ -92,7 +92,7 @@ abstract final class AthleteOnboardingOptions {
     ),
   ];
 
-  /// Escada única de 5 níveis, a mesma para todos os esportes — espelho de
+  /// Escada única de 7 níveis, a mesma para todos os esportes — espelho de
   /// `AthleteProfileOptions.levels`.
   static const List<OnboardingLevelOption> levels = [
     OnboardingLevelOption(
@@ -110,6 +110,14 @@ abstract final class AthleteOnboardingOptions {
     OnboardingLevelOption(
       label: 'Intermediário 2',
       description: 'Jogo forte, disputo torneios e vou bem neles.',
+    ),
+    OnboardingLevelOption(
+      label: 'Avançado 1',
+      description: 'Nível alto, disputo torneios regionais com destaque.',
+    ),
+    OnboardingLevelOption(
+      label: 'Avançado 2',
+      description: 'Nível muito alto, brigo pelas primeiras posições.',
     ),
     OnboardingLevelOption(
       label: 'Open',

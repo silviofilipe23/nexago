@@ -18,6 +18,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     this.showChangeAction = false,
     this.alreadyRegistered = false,
     this.levelBlocked = false,
+    this.belowMinLevel = false,
     this.ageBlocked = false,
     this.ageBlockLabel = '',
     this.genderBlocked = false,
@@ -33,6 +34,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   final bool alreadyRegistered;
   /// Categoria abaixo do nível do atleta (anti-sandbagging): bloqueada.
   final bool levelBlocked;
+  /// Quando [levelBlocked], distingue o motivo: atleta abaixo do PISO
+  /// (`minLevel`) da categoria, não acima do teto. Muda o selo exibido.
+  final bool belowMinLevel;
   /// Categoria fora da faixa etária do atleta (ou sem data de nascimento).
   final bool ageBlocked;
   final String ageBlockLabel;
@@ -198,7 +202,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
       return ageBlockLabel.isNotEmpty ? ageBlockLabel : 'FORA DA FAIXA ETÁRIA';
     }
     if (levelBlocked) {
-      return CategoryLevelEligibility.blockBadgeLabel();
+      return belowMinLevel
+          ? CategoryLevelEligibility.minLevelBadgeLabel()
+          : CategoryLevelEligibility.blockBadgeLabel();
     }
     if (genderBlocked) {
       return CategoryGenderEligibility.blockBadgeLabel();

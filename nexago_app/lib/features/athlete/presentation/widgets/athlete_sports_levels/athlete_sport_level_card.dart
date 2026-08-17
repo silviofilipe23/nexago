@@ -161,7 +161,7 @@ class AthleteSportLevelCard extends StatelessWidget {
                         ),
                         // Igualdade por rank: nível legado ainda não migrado
                         // ("Intermediário") acende o degrau equivalente da
-                        // escada de 5 ("Int. 1").
+                        // escada de 7 ("Int. 1").
                         selected: selectedLevel == levelLabels[i] ||
                             (AthleteProfileOptions.levelRank(selectedLevel) !=
                                     null &&

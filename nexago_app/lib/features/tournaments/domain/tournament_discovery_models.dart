@@ -140,6 +140,7 @@ class TournamentCategoryOffer {
     this.maxTeams = 0,
     this.spotsTotal = 0,
     this.level = '',
+    this.minLevel = '',
     this.ageBand = '',
     this.ageRestrictionMode = '',
     this.ageMinYears,
@@ -173,6 +174,10 @@ class TournamentCategoryOffer {
   /// Legado / agregação; alinhado a [maxTeams] quando o Firestore envia `maxTeams`.
   final int spotsTotal;
   final String level;
+
+  /// Piso de nível da categoria (`categories[].minLevel`) — abaixo dele o
+  /// atleta é barrado mesmo cabendo no teto de [level]. Vazio = sem piso.
+  final String minLevel;
 
   /// Restrição etária (espelha `categories[].ageRestriction`/`ageBand`).
   final String ageBand;

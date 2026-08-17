@@ -6,7 +6,7 @@ abstract final class AthleteSportsLevelsLabels {
 
   static const List<String> levelLabels = AthleteProfileOptions.levels;
 
-  /// Labels de nível (escada única de 5 para todos os esportes).
+  /// Labels de nível (escada única de 7 para todos os esportes).
   static List<String> levelLabelsFor(String firestoreSportId) {
     return AthleteProfileOptions.levels;
   }
@@ -19,6 +19,8 @@ abstract final class AthleteSportsLevelsLabels {
     'Iniciante 2': 'Inic. 2',
     'Intermediário 1': 'Int. 1',
     'Intermediário 2': 'Int. 2',
+    'Avançado 1': 'Av. 1',
+    'Avançado 2': 'Av. 2',
   };
 
   static String abbreviationFor(String levelLabel) {

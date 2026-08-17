@@ -79,9 +79,9 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
   final hasLevelFilter = quick.isNotEmpty || filters.levels.isNotEmpty;
   if (hasLevelFilter && !_profileHasDefinedLevel(profile)) return false;
 
-  // Chips e filtro avançado usam os rótulos finos da escada de 5
-  // (Iniciante 1/2, Intermediário 1/2, Open); comparar direto, sem reduzir
-  // a bucket, senão nenhum nível fino nunca casa com o filtro.
+  // Chips e filtro avançado usam os rótulos finos da escada de 7
+  // (Iniciante 1/2, Intermediário 1/2, Avançado 1/2, Open); comparar direto,
+  // sem reduzir a bucket, senão nenhum nível fino nunca casa com o filtro.
   final resolved = resolveAthleteLevelLabel(profile);
   if (quick.isNotEmpty) {
     if (resolved.toLowerCase() != quick.toLowerCase()) return false;
@@ -330,7 +330,7 @@ int computeDiscoverCompatibilityScore({
   return (level + location + objective + reputation).clamp(0, 100);
 }
 
-/// Label de nível no Descobrir — o próprio label da escada de 5 (nada de
+/// Label de nível no Descobrir — o próprio label da escada de 7 (nada de
 /// escala numérica paralela: uma só nomenclatura de nível em todo o app).
 String discoverLevelDisplayLabel(
   AthleteProfile profile, {

@@ -1,9 +1,12 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
+import {HttpsError} from "firebase-functions/v2/https";
 import {
+  assertAdminOrPromotingOrganizer,
   levelHistoryAuditFields,
   planLevelChange,
   planLevelChangeAuthorization,
+  planOrganizerPromotionDirection,
 } from "./athlete-level-admin";
 import {parseLadderConfig} from "./rating-config";
 import type {AthleteRatingState} from "./rating-ladder";
@@ -144,8 +147,9 @@ describe("planLevelChange — quando NÃO realinha", () => {
 });
 
 /**
- * Base "tudo certo" para o caminho do organizador: dono do torneio, atleta
- * inscrito, subindo de nível (`iniciante_1` → `intermediario_1`).
+ * Base "tudo certo" para a FASE 1 (fatos já resolvidos) do caminho do
+ * organizador: dono do torneio, torneio do MESMO esporte do request, atleta
+ * inscrito. Direção não entra aqui — foi extraída pra `planOrganizerPromotionDirection`.
  */
 function authParams(
   overrides: Partial<Parameters<typeof planLevelChangeAuthorization>[0]> = {},
@@ -155,35 +159,30 @@ function authParams(
     tournamentId: "t1",
     tournamentManagerId: "org-1",
     callerUid: "org-1",
+    tournamentSportCode: "VOLEI_PRAIA",
+    requestSportCode: "VOLEI_PRAIA",
     athleteHasActiveRegistration: true,
-    currentLevel: "iniciante_1",
-    targetLevel: "intermediario_1",
     ...overrides,
   };
 }
 
 describe("planLevelChangeAuthorization", () => {
-  it("admin sempre autorizado — mesmo sem tournamentId e mesmo descendo", () => {
+  it("admin sempre autorizado — mesmo sem tournamentId e mesmo esporte divergente", () => {
     const result = planLevelChangeAuthorization(
       authParams({
         isAdmin: true,
         tournamentId: "",
         tournamentManagerId: null,
+        tournamentSportCode: "BEACH_TENNIS",
+        requestSportCode: "VOLEI_PRAIA",
         athleteHasActiveRegistration: false,
-        currentLevel: "open",
-        targetLevel: "iniciante_1",
       }),
     );
     assert.deepEqual(result, {mode: "admin"});
   });
 
-  it("organizador promovendo atleta inscrito no próprio torneio: autorizado", () => {
+  it("organizador promovendo atleta inscrito no próprio torneio, mesmo esporte: autorizado", () => {
     const result = planLevelChangeAuthorization(authParams());
-    assert.deepEqual(result, {mode: "organizer"});
-  });
-
-  it("organizador sem nível atual (seed): autorizado (não há degrau pra violar)", () => {
-    const result = planLevelChangeAuthorization(authParams({currentLevel: null}));
     assert.deepEqual(result, {mode: "organizer"});
   });
 
@@ -217,7 +216,26 @@ describe("planLevelChangeAuthorization", () => {
     assert.equal((result as {code: string}).code, "permission-denied");
   });
 
-  it("atleta sem inscrição ativa no torneio: permission-denied", () => {
+  // C1 (fix pós-review): sem checar esporte, um organizador dono de um
+  // torneio de BEACH TENNIS conseguia promover um atleta em VOLEI_QUADRA só
+  // por ele estar inscrito nesse torneio — furo de anti-sandbagging real.
+  it("esporte do torneio diverge do esporte do request: permission-denied", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({tournamentSportCode: "BEACH_TENNIS", requestSportCode: "VOLEI_QUADRA"}),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+    assert.match((result as {message: string}).message, /esporte/i);
+  });
+
+  it("torneio de esporte sem equivalente no perfil (tournamentSportCode null): permission-denied", () => {
+    const result = planLevelChangeAuthorization(authParams({tournamentSportCode: null}));
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+    assert.match((result as {message: string}).message, /esporte/i);
+  });
+
+  it("atleta sem inscrição ativa no torneio (mesmo esporte, dono certo): permission-denied", () => {
     const result = planLevelChangeAuthorization(
       authParams({athleteHasActiveRegistration: false}),
     );
@@ -229,44 +247,240 @@ describe("planLevelChangeAuthorization", () => {
     );
   });
 
-  it("tenta manter o mesmo nível: failed-precondition com a mensagem exata", () => {
-    const result = planLevelChangeAuthorization(
-      authParams({currentLevel: "intermediario_1", targetLevel: "intermediario_1"}),
-    );
-    assert.equal(result.mode, "denied");
-    assert.equal((result as {code: string}).code, "failed-precondition");
-    assert.equal(
-      (result as {message: string}).message,
-      "Organizador só pode promover — o nível de um atleta nunca desce.",
-    );
-  });
-
-  it("tenta rebaixar: failed-precondition com a mesma mensagem exata", () => {
-    const result = planLevelChangeAuthorization(
-      authParams({currentLevel: "avancado_1", targetLevel: "iniciante_2"}),
-    );
-    assert.equal(result.mode, "denied");
-    assert.equal((result as {code: string}).code, "failed-precondition");
-    assert.equal(
-      (result as {message: string}).message,
-      "Organizador só pode promover — o nível de um atleta nunca desce.",
-    );
-  });
-
-  it("direção errada é checada DEPOIS de dono/inscrição (mensagem certa por prioridade)", () => {
-    // Nem dono nem inscrito, e também tentando rebaixar — o motivo relatado é
-    // o de propriedade, não o de direção (checagens em cascata, a mais básica
-    // primeiro).
+  it("esporte errado é checado ANTES da inscrição (mensagem certa por prioridade)", () => {
+    // Nem esporte bate nem tem inscrição — o motivo relatado é o de esporte,
+    // mais fundamental na cascata.
     const result = planLevelChangeAuthorization(
       authParams({
-        tournamentManagerId: "outro-uid",
+        tournamentSportCode: "BEACH_TENNIS",
+        requestSportCode: "VOLEI_QUADRA",
         athleteHasActiveRegistration: false,
-        currentLevel: "avancado_1",
-        targetLevel: "iniciante_2",
       }),
     );
     assert.equal(result.mode, "denied");
-    assert.equal((result as {code: string}).code, "permission-denied");
+    assert.match((result as {message: string}).message, /esporte/i);
+  });
+});
+
+describe("planOrganizerPromotionDirection", () => {
+  it("subindo: autorizado", () => {
+    assert.deepEqual(
+      planOrganizerPromotionDirection({currentLevel: "iniciante_1", targetLevel: "intermediario_1"}),
+      {ok: true},
+    );
+  });
+
+  it("sem nível atual (seed): autorizado — não há degrau anterior pra violar", () => {
+    assert.deepEqual(
+      planOrganizerPromotionDirection({currentLevel: null, targetLevel: "iniciante_1"}),
+      {ok: true},
+    );
+  });
+
+  it("tenta manter o mesmo nível: negado com a mensagem exata", () => {
+    const result = planOrganizerPromotionDirection({
+      currentLevel: "intermediario_1",
+      targetLevel: "intermediario_1",
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      message: "Organizador só pode promover — o nível de um atleta nunca desce.",
+    });
+  });
+
+  it("tenta rebaixar: negado com a mesma mensagem exata", () => {
+    const result = planOrganizerPromotionDirection({
+      currentLevel: "avancado_1",
+      targetLevel: "iniciante_2",
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      message: "Organizador só pode promover — o nível de um atleta nunca desce.",
+    });
+  });
+});
+
+/**
+ * Mock de Firestore mínimo pra `assertAdminOrPromotingOrganizer`, no mesmo
+ * espírito do `mockDb` de `tournament-level-lock.test.ts`. Registra CADA
+ * caminho lido em `reads` — é a prova de que a fase 1 nunca toca `users/*`
+ * (I1 do review: antes, `setAthleteLevel` lia `users/{uid}` ANTES de
+ * autorizar, e um caller sem privilégio nenhum conseguia usar
+ * `failed-precondition` vs. `permission-denied` como oráculo de quais uids
+ * existem).
+ */
+function mockOrganizerAuthDb(seed: {
+  tournaments?: Record<string, Record<string, unknown> | null>;
+  inscriptionsExist?: boolean;
+} = {}) {
+  const tournaments = {...(seed.tournaments ?? {})};
+  const inscriptionsExist = seed.inscriptionsExist ?? false;
+  const reads: string[] = [];
+
+  return {
+    reads,
+    doc: (path: string) => ({
+      get: async () => {
+        reads.push(path);
+        if (path.startsWith("tournaments/")) {
+          const data = tournaments[path.slice("tournaments/".length)] ?? null;
+          return {exists: data != null, data: () => data};
+        }
+        // Nenhum teste deveria bater aqui (isso é `users/{uid}` ou outro doc
+        // que a fase 1 não tem motivo pra ler) — devolve "inexistente" em vez
+        // de travar; `reads` acima já denuncia a violação.
+        return {exists: false, data: () => undefined};
+      },
+    }),
+    collection: (path: string) => ({
+      where: () => ({
+        where: () => ({
+          limit: () => ({
+            get: async () => {
+              reads.push(`query:${path}`);
+              return {empty: !inscriptionsExist};
+            },
+          }),
+        }),
+      }),
+    }),
+  };
+}
+
+describe("assertAdminOrPromotingOrganizer — fase 1", () => {
+  const fakeOrganizerCaller = async () => ({isAdmin: false, actorLabel: "org-1"});
+
+  it("admin: autorizado sem tocar o Firestore nenhuma vez", async () => {
+    const db = mockOrganizerAuthDb();
+    const result = await assertAdminOrPromotingOrganizer({
+      db: db as never,
+      callerUid: "admin-1",
+      tournamentId: "",
+      athleteUid: "atleta-1",
+      sportCode: "VOLEI_PRAIA",
+      resolveCallerPrivilege: async () => ({isAdmin: true, actorLabel: "admin@nexago.com"}),
+    });
+    assert.deepEqual(result, {mode: "admin", actorLabel: "admin@nexago.com"});
+    assert.deepEqual(db.reads, []);
+  });
+
+  it("sem tournamentId e não-admin: permission-denied, zero leituras no Firestore", async () => {
+    const db = mockOrganizerAuthDb();
+    await assert.rejects(
+      () =>
+        assertAdminOrPromotingOrganizer({
+          db: db as never,
+          callerUid: "org-1",
+          tournamentId: "",
+          athleteUid: "atleta-1",
+          sportCode: "VOLEI_PRAIA",
+          resolveCallerPrivilege: fakeOrganizerCaller,
+        }),
+      (err: unknown) => err instanceof HttpsError && err.code === "permission-denied",
+    );
+    assert.deepEqual(db.reads, []);
+  });
+
+  it("caller não é dono: permission-denied, leu só o torneio — nunca users/{uid}", async () => {
+    const db = mockOrganizerAuthDb({
+      tournaments: {t1: {managerId: "outro-uid", sport: "beachVolleyball"}},
+    });
+    await assert.rejects(
+      () =>
+        assertAdminOrPromotingOrganizer({
+          db: db as never,
+          callerUid: "org-1",
+          tournamentId: "t1",
+          athleteUid: "atleta-1",
+          sportCode: "VOLEI_PRAIA",
+          resolveCallerPrivilege: fakeOrganizerCaller,
+        }),
+      (err: unknown) => err instanceof HttpsError && err.code === "permission-denied",
+    );
+    assert.deepEqual(db.reads, ["tournaments/t1"]);
+  });
+
+  // C1: esporte do torneio precisa bater com o do request — sem essa
+  // checagem, o dono de um torneio de BEACH TENNIS promoveria em VOLEI_PRAIA.
+  it("esporte do torneio diverge do request: permission-denied, nem consulta inscrições", async () => {
+    const db = mockOrganizerAuthDb({
+      tournaments: {t1: {managerId: "org-1", sport: "beachTennis"}},
+      inscriptionsExist: true, // mesmo que estivesse inscrito, não importa
+    });
+    await assert.rejects(
+      () =>
+        assertAdminOrPromotingOrganizer({
+          db: db as never,
+          callerUid: "org-1",
+          tournamentId: "t1",
+          athleteUid: "atleta-1",
+          sportCode: "VOLEI_PRAIA",
+          resolveCallerPrivilege: fakeOrganizerCaller,
+        }),
+      (err: unknown) =>
+        err instanceof HttpsError && err.code === "permission-denied" && /esporte/i.test(err.message),
+    );
+    // Não chegou a rodar a query de inscrições — só o doc do torneio.
+    assert.deepEqual(db.reads, ["tournaments/t1"]);
+  });
+
+  it("torneio de esporte sem equivalente no perfil: permission-denied", async () => {
+    const db = mockOrganizerAuthDb({
+      tournaments: {t1: {managerId: "org-1", sport: "futebol"}},
+    });
+    await assert.rejects(() =>
+      assertAdminOrPromotingOrganizer({
+        db: db as never,
+        callerUid: "org-1",
+        tournamentId: "t1",
+        athleteUid: "atleta-1",
+        sportCode: "VOLEI_PRAIA",
+        resolveCallerPrivilege: fakeOrganizerCaller,
+      }),
+    );
+  });
+
+  it("dono + esporte batendo + inscrito: autoriza organizador, nunca leu users/{uid}", async () => {
+    const db = mockOrganizerAuthDb({
+      tournaments: {t1: {managerId: "org-1", sport: "beachVolleyball"}},
+      inscriptionsExist: true,
+    });
+    const result = await assertAdminOrPromotingOrganizer({
+      db: db as never,
+      callerUid: "org-1",
+      tournamentId: "t1",
+      athleteUid: "atleta-1",
+      sportCode: "VOLEI_PRAIA",
+      resolveCallerPrivilege: fakeOrganizerCaller,
+    });
+    assert.deepEqual(result, {mode: "organizer", actorLabel: "org-1"});
+    assert.ok(
+      db.reads.every((path) => !path.startsWith("users/")),
+      `fase 1 não deveria ler users/*, mas leu: ${db.reads.join(", ")}`,
+    );
+  });
+
+  it("dono + esporte batendo + SEM inscrição: permission-denied, ainda sem tocar users/{uid}", async () => {
+    const db = mockOrganizerAuthDb({
+      tournaments: {t1: {managerId: "org-1", sport: "beachVolleyball"}},
+      inscriptionsExist: false,
+    });
+    await assert.rejects(
+      () =>
+        assertAdminOrPromotingOrganizer({
+          db: db as never,
+          callerUid: "org-1",
+          tournamentId: "t1",
+          athleteUid: "atleta-1",
+          sportCode: "VOLEI_PRAIA",
+          resolveCallerPrivilege: fakeOrganizerCaller,
+        }),
+      (err: unknown) =>
+        err instanceof HttpsError &&
+        err.code === "permission-denied" &&
+        /não tem inscrição ativa/.test(err.message),
+    );
+    assert.ok(db.reads.every((path) => !path.startsWith("users/")));
   });
 });
 

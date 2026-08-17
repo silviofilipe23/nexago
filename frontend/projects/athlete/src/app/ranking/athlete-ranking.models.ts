@@ -36,6 +36,9 @@ export interface RankingParticipant {
   trend: number;
   /** Uma foto no modo Individual, duas no de Duplas — a linha é o time, não um atleta. */
   avatars: readonly RankingAvatar[];
+  /** Rota do perfil aberta ao clicar na(s) foto(s): atleta no Individual, equipe nas Duplas.
+   *  `null` quando não há perfil pra abrir (atleta sem espelho público, dupla incompleta). */
+  profileLink: readonly string[] | null;
 }
 
 export interface RankingSelfEntry {

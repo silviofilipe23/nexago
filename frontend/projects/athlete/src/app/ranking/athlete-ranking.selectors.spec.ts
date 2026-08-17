@@ -7,6 +7,11 @@ import {
   rankParticipants,
   searchRanking,
   teamFormatOf,
+  athleteProfileLink,
+  hasSearchQuery,
+  rankParticipants,
+  searchRanking,
+  teamProfileLink,
   type RankingSlice,
 } from './athlete-ranking.selectors';
 
@@ -20,6 +25,7 @@ function participant(partial: Partial<RankingParticipant> & Pick<RankingParticip
     format: null,
     trend: 0,
     avatars: [{ url: null, initials: 'AT' }],
+    profileLink: null,
     ...partial,
   };
 }
@@ -189,6 +195,37 @@ describe('searchRanking', () => {
     const ranked = rankParticipants(sample(), ALL_SPORTS);
 
     expect(searchRanking(ranked, '   ')).toEqual([]);
+  });
+});
+
+describe('athleteProfileLink', () => {
+  it('leva ao perfil público do atleta', () => {
+    expect(athleteProfileLink('uid-123', true)).toEqual(['/atletas', 'uid-123']);
+  });
+
+  it('não vira link sem espelho público', () => {
+    // Linha órfã: `athleteRankings` sobrevive à exclusão do atleta e a rota só teria
+    // "perfil publico nao encontrado" pra mostrar.
+    expect(athleteProfileLink('uid-123', false)).toBeNull();
+  });
+
+  it('não vira link sem id', () => {
+    expect(athleteProfileLink('', true)).toBeNull();
+  });
+});
+
+describe('teamProfileLink', () => {
+  it('leva ao perfil da dupla', () => {
+    expect(teamProfileLink('team-9', true)).toEqual(['/equipes', 'team-9']);
+  });
+
+  it('não vira link para dupla incompleta', () => {
+    // `TeamPublicProfileComponent` recusa carregar quem ainda procura parceiro.
+    expect(teamProfileLink('team-9', false)).toBeNull();
+  });
+
+  it('não vira link sem id', () => {
+    expect(teamProfileLink('', true)).toBeNull();
   });
 });
 

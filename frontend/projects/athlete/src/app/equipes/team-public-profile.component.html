@@ -7,11 +7,11 @@
     <header class="tp-page-header">
       <div class="tp-page-header-titles">
         <h1>Perfil da equipe</h1>
-        <div class="tp-page-header-sub">Visto a partir de equipes</div>
+        <div class="tp-page-header-sub">Visto a partir de {{ origin().label }}</div>
       </div>
       <div class="tp-page-header-spacer"></div>
       <div class="tp-page-header-actions">
-        <a [routerLink]="backPath()" class="tp-back-link">
+        <a [routerLink]="origin().path" class="tp-back-link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
           <span>Voltar</span>
         </a>
@@ -119,7 +119,7 @@
     <div class="tp-notfound">
       <p class="tp-empty-title">Equipe não encontrada</p>
       <p class="tp-empty-sub">Esta equipe pode não existir mais ou o link está incorreto.</p>
-      <a routerLink="/equipes" class="tp-btn-ghost">Voltar a equipes</a>
+      <a [routerLink]="origin().path" class="tp-btn-ghost">Voltar a {{ origin().label }}</a>
     </div>
   }
 </app-at-panel-shell>

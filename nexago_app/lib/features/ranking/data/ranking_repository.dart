@@ -63,12 +63,21 @@ class RankingRepository {
     final snap = await _teams.doc(id).get();
     if (!snap.exists) return null;
     final data = snap.data() ?? {};
+    final rawSize = data['teamSize'];
+    final rawMembers = data['memberUids'];
     return RankingTeamPlayers(
       teamId: id,
       player1Id: _readStr(data['player1Id']),
       player2Id: _readStr(data['player2Id']),
       teamName: _readStr(data['teamName']),
       gender: _readStr(data['gender']),
+      teamSize: rawSize is num && rawSize >= 3 ? rawSize.toInt() : null,
+      memberUids: rawMembers is List
+          ? [
+              for (final uid in rawMembers)
+                if (uid is String && uid.trim().isNotEmpty) uid.trim(),
+            ]
+          : const [],
     );
   }
 

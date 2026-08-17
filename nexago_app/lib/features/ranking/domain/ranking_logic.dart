@@ -207,6 +207,34 @@ List<TeamRankingRow> filterTeamRowsByGender(
   return assignTeamRanks(filtered);
 }
 
+/// Formato do time: `teamSize` (3–5, equipes nomeadas) vence; sem ele o
+/// tamanho do elenco (`memberUids`) decide. Dupla legada não grava nenhum
+/// dos dois — cai em dupla. Nunca devolve `all` (é valor de filtro, não de
+/// time). Paridade com `teamFormatOf` do portal web.
+RankingFormatFilter rankingTeamFormat({
+  int? teamSize,
+  required int memberCount,
+}) {
+  final size = teamSize ?? memberCount;
+  if (size >= 5) return RankingFormatFilter.quinteto;
+  if (size == 4) return RankingFormatFilter.quarteto;
+  if (size == 3) return RankingFormatFilter.trio;
+  return RankingFormatFilter.dupla;
+}
+
+/// Mesmo contrato do filtro de gênero: recorte renumera; time sem formato
+/// conhecido (doc ausente) só aparece com o filtro em `all`.
+List<TeamRankingRow> filterTeamRowsByFormat(
+  List<TeamRankingRow> rows,
+  RankingFormatFilter filter,
+  Map<String, RankingFormatFilter?> formatByTeamId,
+) {
+  if (filter == RankingFormatFilter.all) return rows;
+  final filtered =
+      rows.where((row) => formatByTeamId[row.teamId] == filter).toList();
+  return assignTeamRanks(filtered);
+}
+
 List<RankingListEntry> filterRankingEntriesBySearch(
   List<RankingListEntry> entries,
   String query,

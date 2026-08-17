@@ -107,6 +107,40 @@
           }
         </select>
       </label>
+
+      <label class="rk-filter-btn">
+        <span>{{ genderLabel(genderFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select
+          class="rk-native-select"
+          aria-label="Gênero"
+          [value]="genderFilter()"
+          (change)="setGender($any($event.target).value)"
+        >
+          @for (g of genderOptions; track g) {
+            <option [value]="g">{{ genderLabel(g) }}</option>
+          }
+        </select>
+      </label>
+
+      <!-- Formato só existe no ranking de times: linha individual não tem dupla/trio/…,
+           então no modo Individual o filtro some (e volta pra "Todos" ao trocar de modo). -->
+      @if (isMode('doubles')) {
+        <label class="rk-filter-btn">
+          <span>{{ formatLabel(formatFilter()) }}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <select
+            class="rk-native-select"
+            aria-label="Formato"
+            [value]="formatFilter()"
+            (change)="setFormat($any($event.target).value)"
+          >
+            @for (f of formatOptions; track f) {
+              <option [value]="f">{{ formatLabel(f) }}</option>
+            }
+          </select>
+        </label>
+      }
     </div>
 
     <div class="rk-main-grid">

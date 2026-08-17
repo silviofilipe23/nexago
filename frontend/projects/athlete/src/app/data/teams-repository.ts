@@ -12,6 +12,10 @@ export interface ArenaTeam {
   player2Id: string;
   teamName: string | null;
   gender: string | null;
+  /** 3–5 nas equipes nomeadas (trio/quarteto/quinteto); dupla legada não grava. */
+  teamSize: number | null;
+  /** Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2). */
+  memberUids: readonly string[];
   createdAt: Date | null;
 }
 
@@ -21,18 +25,27 @@ function teamsCol(db: Firestore, projectId: string) {
 
 function teamFromDoc(id: string, data: Record<string, unknown>): ArenaTeam {
   const createdAtRaw = data['createdAt'] as { toDate?: () => Date } | undefined;
+  const memberUidsRaw = data['memberUids'];
   return {
     id,
     player1Id: typeof data['player1Id'] === 'string' ? data['player1Id'] : '',
     player2Id: typeof data['player2Id'] === 'string' ? data['player2Id'] : '',
     teamName: typeof data['teamName'] === 'string' && data['teamName'].trim() ? data['teamName'].trim() : null,
     gender: typeof data['gender'] === 'string' && data['gender'].trim() ? data['gender'].trim() : null,
+    teamSize: typeof data['teamSize'] === 'number' && data['teamSize'] >= 3 ? data['teamSize'] : null,
+    memberUids: Array.isArray(memberUidsRaw) ? memberUidsRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0) : [],
     createdAt: typeof createdAtRaw?.toDate === 'function' ? createdAtRaw.toDate() : null,
   };
 }
 
 export function teamIsLookingForPartner(team: Pick<ArenaTeam, 'player1Id' | 'player2Id'>): boolean {
   return team.player1Id === team.player2Id;
+}
+
+/** uids do elenco — `memberUids` (equipe nomeada) vence; dupla legada cai em player1/2.
+ *  Espelha `extractTeamMemberUids` (`functions/src/tournament-team-category.ts`). */
+export function teamMemberIds(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids'>): readonly string[] {
+  return team.memberUids.length > 0 ? team.memberUids : [team.player1Id, team.player2Id];
 }
 
 export async function fetchTeam(db: Firestore, projectId: string, teamId: string): Promise<ArenaTeam | null> {

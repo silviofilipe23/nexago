@@ -16,6 +16,7 @@ import '../domain/ranking_list_models.dart';
 import '../domain/ranking_logic.dart';
 import '../domain/ranking_providers.dart';
 import 'widgets/ranking_classification_header.dart';
+import 'widgets/ranking_format_filter_chip.dart';
 import 'widgets/ranking_gender_filter_sheet.dart';
 import 'widgets/ranking_how_it_works_sheet.dart';
 import 'widgets/ranking_level_filter_chip.dart';
@@ -64,7 +65,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     required RankingListEntry? userEntry,
   }) {
     final sessionKey =
-        '${filter.mode}|${filter.year}|${filter.gender}|${userEntry?.entityId}|${userEntry?.rank}';
+        '${filter.mode}|${filter.year}|${filter.gender}|${filter.format}|${userEntry?.entityId}|${userEntry?.rank}';
     if (_floatingSessionKey == sessionKey) return;
     _floatingSessionKey = sessionKey;
     _userCardFloating = true;
@@ -224,8 +225,13 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                     RankingModeSegment(
                       mode: filter.mode,
                       onChanged: (mode) {
+                        // Formato só existe no modo de duplas — um "trio" preso
+                        // no Individual esvaziaria a lista sem chip visível.
                         ref.read(rankingPageFilterProvider.notifier).state =
-                            filter.copyWith(mode: mode);
+                            filter.copyWith(
+                          mode: mode,
+                          format: RankingFormatFilter.all,
+                        );
                       },
                     ),
                     SizedBox(height: 12),
@@ -239,6 +245,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                           mode: filter.mode,
                           year: year,
                           gender: filter.gender,
+                          format: filter.format,
                           level: filter.level,
                         );
                       },
@@ -246,12 +253,30 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                     SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: RankingLevelFilterChip(
-                        selectedRank: filter.level,
-                        onChanged: (rank) {
-                          ref.read(rankingPageFilterProvider.notifier).state =
-                              filter.copyWith(level: () => rank);
-                        },
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          RankingLevelFilterChip(
+                            selectedRank: filter.level,
+                            onChanged: (rank) {
+                              ref
+                                  .read(rankingPageFilterProvider.notifier)
+                                  .state =
+                                  filter.copyWith(level: () => rank);
+                            },
+                          ),
+                          if (filter.mode == RankingListMode.teams)
+                            RankingFormatFilterChip(
+                              selected: filter.format,
+                              onChanged: (format) {
+                                ref
+                                    .read(rankingPageFilterProvider.notifier)
+                                    .state =
+                                    filter.copyWith(format: format);
+                              },
+                            ),
+                        ],
                       ),
                     ),
                     SizedBox(height: 20),
@@ -264,7 +289,12 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                           subtitle: _searchQuery.isNotEmpty
                               ? 'Nenhum resultado para "$_searchQuery".'
                               : filter.mode == RankingListMode.teams
-                                  ? 'Nenhuma dupla no ranking para este filtro.'
+                                  // Com filtro de trio+ ativo, "dupla" mentiria.
+                                  ? (filter.format == RankingFormatFilter.all ||
+                                          filter.format ==
+                                              RankingFormatFilter.dupla
+                                      ? 'Nenhuma dupla no ranking para este filtro.'
+                                      : 'Nenhuma equipe no ranking para este filtro.')
                                   : 'Nenhum atleta no ranking para este filtro.',
                         ),
                       )

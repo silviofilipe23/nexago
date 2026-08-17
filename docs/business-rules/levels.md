@@ -21,6 +21,8 @@
 
 **Ranks 0–6 contíguos desde 15/08/2026.** A renumeração ÚNICA (`open` 5→6) foi feita em 15/08/2026 com a base vazia, antes do primeiro torneio operado. A partir daí, a numeração é fixa — **nunca renumerar**. Valores legados são aceitos só em LEITURA, aliasados ao degrau inferior do split: `iniciante`/`basico`→0, `intermediario`→2, `livre`/`Open / federado`→6. Migração: `migrateAthleteRatingLevelRanks` recalcula `athleteRatings.levelRank` pelo CÓDIGO.
 
+**Precondição do dry-run:** antes de rodar `migrateAthleteRatingLevelRanks` (dry-run ou real), inspecionar os docs `ratingLadders/{sportCode}` no Firestore. Um doc com array `levels` SOBRESCREVE a escada padrão de 7 degraus deployada — a migração recalcularia `levelRank` contra a ladder ANTIGA gravada no doc, não contra a escada nova. Atualizar ou remover esses docs antes de rodar a migração.
+
 ## Onde o nível é guardado (fonte única)
 - **Única escrita**: `users/{uid}.sportOnboarding.levelsBySport.{SPORT_CODE} = <código>`. É onde escrevem o app, o portal web do atleta, a engine de rating (promoção/rebaixamento) e o backfill de migração. Default de esporte recém-adicionado: `iniciante_1`.
 - **Sport codes (9)**: `VOLEI_PRAIA`, `VOLEI_QUADRA`, `BEACH_TENNIS`, `FUTEVOLEI`, `FUTEBOL`, `BASQUETE`, `TENIS`, `CORRIDA`, `OUTROS`. Futevôlei virou esporte próprio do perfil (antes era alias de Futebol); torneios de `footvolley` usam o nível `FUTEVOLEI`.
@@ -36,7 +38,7 @@
 
 ## Elegibilidade de categoria (o que o nível decide)
 - Atleta precisa caber na **faixa**: `minLevel <= nível <= level`. `categories[].level` é o **teto** (label; ausente = Open) e `categories[].minLevel` é o **piso** (label; ausente = sem piso). Categoria sem piso não tem limite mínimo; sem teto = Open (rank 6).
-- Numa dupla: o **piso** é validado pelo integrante **mais fraco** (rank mínimo); o **teto**, pelo mais forte (rank máximo). Ex.: dupla (Intermediário 2, Avançado 1) entra em Intermediário 1–Avançado 1 se min(3,4)=3 ≥ 2 ✓ e max(3,4)=4 ≤ 4 ✓.
+- Numa dupla: o **piso** é validado pelo integrante **mais fraco** (rank mínimo); o **teto**, pelo mais forte (rank máximo) — regra completa e exemplo trabalhado na seção [Faixa de nível (minLevel)](#faixa-de-nível-minlevel) abaixo.
 - Categoria sem nível definido (ou "Open") aceita qualquer nível. `categories[].level` guarda o **label** ("Iniciante 1") — formato mantido por retrocompatibilidade; os normalizadores aceitam label e código.
 - Mapeamento esporte do torneio → esporte do perfil: `beachVolleyball`→`VOLEI_PRAIA`, `indoorVolleyball`→`VOLEI_QUADRA`, `footvolley`→`FUTEVOLEI`, `beachTennis`→`BEACH_TENNIS`; sem equivalente → nível global legado.
 

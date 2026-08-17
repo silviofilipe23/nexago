@@ -18,6 +18,7 @@ describe('levelRankOf (vocabulário canônico via @nexago/levels)', () => {
     expect(levelRankOf('basico')).toBe(0);
     expect(levelRankOf('intermediario')).toBe(2);
     expect(levelRankOf('livre')).toBe(6);
+    expect(levelRankOf('Open / federado')).toBe(6);
     expect(levelRankOf('xpto')).toBeNull();
     expect(levelRankOf(null)).toBeNull();
   });
@@ -37,8 +38,9 @@ describe('levelRankOf (vocabulário canônico via @nexago/levels)', () => {
 });
 
 describe('levelBucketOf', () => {
-  // Regressão do bug de thresholds `<=`: com ranks 0,1,2,3,5, os níveis do
+  // Regressão do bug de thresholds `<=`: com ranks não-contíguos, os níveis do
   // meio eram deslocados um degrau pra baixo (intermediario_1 → "Iniciante 2").
+  // Hoje os ranks são 0–6 contíguos (escada de 7), então o mapeamento é exato.
   it('mapeia cada rank EXATAMENTE pro seu label', () => {
     expect(levelBucketOf('iniciante_1')).toBe('Iniciante 1');
     expect(levelBucketOf('iniciante_2')).toBe('Iniciante 2');

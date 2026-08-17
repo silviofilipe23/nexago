@@ -100,6 +100,8 @@ export function levelRank(raw: unknown): number | null {
   // Legados conhecidos.
   if (key === "basico") return LEVEL_RANK.iniciante;
   if (key === "livre") return LEVEL_RANK.open;
+  // normalizeLevelKey tira espaços mas preserva "/" — "Open / federado" vira "open/federado".
+  if (key === "open/federado") return LEVEL_RANK.open;
   return null;
 }
 

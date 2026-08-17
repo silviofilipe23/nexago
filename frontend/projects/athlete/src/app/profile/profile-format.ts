@@ -12,7 +12,7 @@ export function titleCase(input: string): string {
 }
 
 /** Código de nível (`sportProfile.level` / `sportOnboarding.levelsBySport`) → rótulo da
- *  escada de 5 (`data/athlete-level.ts`), a MESMA da listagem/ranking/equipes — legados
+ *  escada de 7 (`data/athlete-level.ts`), a MESMA da listagem/ranking/equipes — legados
  *  caem no degrau equivalente. Código desconhecido passa cru (paridade com o app). */
 export function athleteLevelLabel(code: string | null | undefined): string {
   const trimmed = code?.trim() ?? '';

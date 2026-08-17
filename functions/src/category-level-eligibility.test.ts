@@ -27,7 +27,7 @@ function mockDb(usersByUid: Record<string, Record<string, unknown> | null>) {
 }
 
 describe("category-level-eligibility · níveis", () => {
-  it("rankeia códigos novos e labels (escada de 5 do vôlei)", () => {
+  it("rankeia códigos novos e labels (escada de 7, todos os esportes)", () => {
     assert.equal(levelRank("iniciante_1"), 0);
     assert.equal(levelRank("Iniciante 1"), 0);
     assert.equal(levelRank("iniciante_2"), 1);
@@ -68,6 +68,7 @@ describe("category-level-eligibility · níveis", () => {
     assert.equal(levelRank("open"), 6);
     assert.equal(levelRank("Open"), 6);
     assert.equal(levelRank("livre"), 6);
+    assert.equal(levelRank("Open / federado"), 6);
   });
 
   it("labels e códigos canônicos dos degraus novos", () => {

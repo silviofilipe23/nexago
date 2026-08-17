@@ -361,7 +361,7 @@ export class CategoriaDetalheComponent {
     return `Elenco ${i.participants.length}/${i.teamSize}`;
   }
 
-  /** Selo de força da dupla: soma dos níveis (2–10) e, quando o esporte tem engine de rating
+  /** Selo de força da dupla: soma dos níveis (2–14) e, quando o esporte tem engine de rating
    *  e os dois atletas já saíram do provisional, o rating composto. */
   protected scoreLabel(i: TournamentInscription): string {
     const score = this.scores().get(i.id);

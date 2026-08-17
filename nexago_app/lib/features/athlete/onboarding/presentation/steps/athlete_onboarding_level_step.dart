@@ -38,7 +38,7 @@ class AthleteOnboardingLevelStep extends ConsumerWidget {
             subtitle: 'Garante partidas e torneios no seu nível.',
           ),
           const SizedBox(height: 20),
-          // Escada única de 5 níveis, a mesma para todos os esportes.
+          // Escada única de 7 níveis, a mesma para todos os esportes.
           ...AthleteOnboardingOptions.levels.map((option) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),

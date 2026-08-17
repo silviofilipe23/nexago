@@ -47,6 +47,7 @@ export function levelRankOf(raw: string | null | undefined): number | null {
       return 5;
     case 'open':
     case 'livre':
+    case 'open / federado':
       return 6;
     default:
       return null;

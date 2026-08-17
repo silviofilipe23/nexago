@@ -1313,6 +1313,8 @@ grep -n "avancado_1" functions/src/category-level-eligibility.ts frontend/shared
 
 Anotar no PR: ordem de deploy = functions → rules → `migrateAthleteRatingLevelRanks` (dryRun, CONTAR os afetados e abortar se a premissa "base vazia" falhar → real) → portais web → release do app. O piso só deve ser usado em torneio real depois da calibração (plano 2).
 
+**Precondição do dry-run — verificar ANTES de rodar `migrateAthleteRatingLevelRanks`:** inspecionar os docs `ratingLadders/{sportCode}` no Firestore. Se algum doc carregar um array `levels`, ele SOBRESCREVE a escada padrão de 7 degraus deployada — o dry-run (e a migração real) recalculariam `levelRank` contra a ladder ANTIGA gravada no doc, não contra a escada nova. Atualizar (ou remover) esses docs para a escada de 7 antes de rodar o dry-run.
+
 ---
 
 ## Fora deste plano (plano 2 — calibração, spec §4.5)

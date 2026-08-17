@@ -198,7 +198,7 @@ class _LeagueCategoryEditorSheetState
             const SizedBox(height: 8),
             OrganizerChipSelector(
               horizontalScroll: true,
-              // Escada conforme o esporte da liga (vôlei: 5 níveis).
+              // Escada única de 7 níveis para todos os esportes.
               options: skillLevelOptionsForSport(
                 ref.watch(leagueCreateDraftProvider).sport,
               ),

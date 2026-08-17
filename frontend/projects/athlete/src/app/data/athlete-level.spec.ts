@@ -17,6 +17,7 @@ describe('athlete-level', () => {
       expect(levelRankOf('basico')).toBe(0);
       expect(levelRankOf('intermediario')).toBe(2);
       expect(levelRankOf('livre')).toBe(6);
+      expect(levelRankOf('Open / federado')).toBe(6);
     });
 
     it('accepts display labels (accents, spaces, case)', () => {

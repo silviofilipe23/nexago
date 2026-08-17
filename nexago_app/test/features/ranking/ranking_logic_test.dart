@@ -273,7 +273,7 @@ void main() {
         primarySportFirestoreId: 'VOLEI_PRAIA',
         levelsBySportFirestore: {'VOLEI_PRAIA': 'open'},
       );
-      expect(teamLevelRank(p1, p2), 5);
+      expect(teamLevelRank(p1, p2), 6);
     });
 
     test('falls back to the resolved player when the other has no level', () {

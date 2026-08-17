@@ -7,13 +7,17 @@
  * o rank 6, topo da escada de 7 degraus. `rating-config.ts` (Task 2) já tem
  * a escada nova hardcoded (`VOLLEYBALL_LEVELS`), mas isso sozinho NÃO migra:
  *
- *   (a) docs já gravados em `athleteRatings` com `levelRank === 5` (o Open de
- *       antes — o rank 4 nunca foi usado, então rank 5 só pode ser Open)
- *       continuam com o número velho até alguém escrever neles de novo;
- *   (b) se existir doc em `ratingLadders/{sportCode}` com campo `levels`,
- *       `parseLadderConfig` MESCLA esse doc por cima dos defaults — a escada
- *       nova do código não tem efeito nenhum enquanto o doc não for
- *       sobrescrito também.
+ *   (a) docs já gravados em `artifacts/{projectId}/public/data/athleteRatings`
+ *       (path aninhado — mesmo usado por `athleteRatingsPath()` em
+ *       `functions/src/rating-engine.ts` e por `scripts/set-athlete-level.js`;
+ *       NÃO é a coleção raiz `athleteRatings`, que não existe no modelo de
+ *       dados) com `levelRank === 5` (o Open de antes — o rank 4 nunca foi
+ *       usado, então rank 5 só pode ser Open) continuam com o número velho
+ *       até alguém escrever neles de novo;
+ *   (b) se existir doc em `ratingLadders/{sportCode}` (essa sim é coleção
+ *       raiz — ver `rating-config.ts`) com campo `levels`, `parseLadderConfig`
+ *       MESCLA esse doc por cima dos defaults — a escada nova do código não
+ *       tem efeito nenhum enquanto o doc não for sobrescrito também.
  *
  * Este script cobre os dois pontos. Não mexe em proteção de promoção/
  * rebaixamento: o rebaixamento automático já está atrás de flag
@@ -32,9 +36,9 @@
  * Sem --yes é DRY-RUN: só lista o que mudaria, sem escrever.
  *
  * Idempotência: re-executar depois de aplicar não encontra mais nenhum
- * `athleteRatings` doc com `levelRank == 5` (todos já viraram 6), e o
- * `ratingLadders/{id}.levels` regravado é byte-a-byte o mesmo array — a
- * segunda passada não muda nada.
+ * `artifacts/{projectId}/public/data/athleteRatings` doc com `levelRank == 5`
+ * (todos já viraram 6), e o `ratingLadders/{id}.levels` regravado é
+ * byte-a-byte o mesmo array — a segunda passada não muda nada.
  */
 
 const admin = require("firebase-admin");
@@ -79,8 +83,17 @@ const NEW_LEVELS = [
 
 const RATING_LADDER_DOC_IDS = ["VOLEI_PRAIA", "VOLEI_QUADRA", "default"];
 
+/**
+ * Path aninhado real de `athleteRatings` — mesmo de `athleteRatingsPath()`
+ * em `functions/src/rating-engine.ts` e de `scripts/set-athlete-level.js`.
+ * NÃO é a coleção raiz `athleteRatings` (essa não existe no modelo de dados).
+ */
+function athleteRatingsCollectionPath() {
+  return `artifacts/${projectId}/public/data/athleteRatings`;
+}
+
 async function backfillAthleteRatings() {
-  let query = db.collection("athleteRatings").where("levelRank", "==", 5);
+  let query = db.collection(athleteRatingsCollectionPath()).where("levelRank", "==", 5);
   if (LIMIT > 0) query = query.limit(LIMIT);
   const snap = await query.get();
 

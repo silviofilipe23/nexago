@@ -42,6 +42,17 @@ const baseUser = {
   },
 };
 
+// Mesmo atleta, mas com a 1ª inscrição ativa em VOLEI_PRAIA já disparada:
+// o trigger do backend (Task 1) gravou o lock e a janela de correção
+// fechou para esse esporte — volta a valer o ratchet de sempre.
+const lockedUser = {
+  ...baseUser,
+  sportOnboarding: {
+    ...baseUser.sportOnboarding,
+    levelLocked: { VOLEI_PRAIA: true },
+  },
+};
+
 async function seed(data = baseUser) {
   await testEnv.clearFirestore();
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -110,10 +121,12 @@ await expect(
   ),
 );
 
-// Rebaixar nível global é bloqueado.
+// Rebaixar nível global é bloqueado SEMPRE — campos legados não têm
+// granularidade por esporte, então não acompanham a janela de correção
+// (mesmo sem nenhum levelLocked gravado, como aqui).
 await seed();
 await expect(
-  'rebaixar nível global (Intermediário → Iniciante)',
+  'rebaixar nível global (Intermediário → Iniciante), mesmo sem lock',
   assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), { level: 'Iniciante' }),
   ),
@@ -130,10 +143,10 @@ await expect(
   ),
 );
 
-// Rebaixar nível por esporte é bloqueado.
-await seed();
+// Com o esporte locked (janela fechada), rebaixar continua bloqueado.
+await seed(lockedUser);
 await expect(
-  'rebaixar levelsBySport.VOLEI_PRAIA',
+  'janela fechada (lock): rebaixar levelsBySport.VOLEI_PRAIA é bloqueado',
   assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'iniciante',
@@ -184,6 +197,8 @@ await expect(
 );
 
 // ── Guarda estendida a TODOS os esportes do perfil ────────────────────────
+// Todos os esportes já locked (cenário comum: perfil ativo há tempo, cada
+// um com sua 1ª inscrição já disparada) — testa o ratchet, não a janela.
 const multiSportUser = {
   ...baseUser,
   sportOnboarding: {
@@ -197,9 +212,17 @@ const multiSportUser = {
       TENIS: 'iniciante_2',
       OUTROS: 'intermediario_1',
     },
+    levelLocked: {
+      VOLEI_PRAIA: true,
+      FUTEVOLEI: true,
+      FUTEBOL: true,
+      TENIS: true,
+      OUTROS: true,
+    },
   },
 };
 
+// Com lock, rebaixar qualquer esporte do perfil continua bloqueado.
 for (const [sportId, lower] of [
   ['FUTEVOLEI', 'intermediario_1'],
   ['FUTEBOL', 'intermediario_2'],
@@ -248,6 +271,7 @@ const avancado2User = {
     primarySportId: 'VOLEI_PRAIA',
     secondarySportIds: [],
     levelsBySport: { VOLEI_PRAIA: 'avancado_2' },
+    levelLocked: { VOLEI_PRAIA: true },
   },
 };
 
@@ -260,6 +284,7 @@ const openUser = {
     primarySportId: 'VOLEI_PRAIA',
     secondarySportIds: [],
     levelsBySport: { VOLEI_PRAIA: 'open' },
+    levelLocked: { VOLEI_PRAIA: true },
   },
 };
 
@@ -325,6 +350,18 @@ const allSportsUser = {
   },
 };
 
+// Variante TRAVADA: com a janela de correção (levelLocked), rebaixar um
+// esporte destravado passou a ser PERMITIDO — então os casos de negação
+// deste bloco precisam de um perfil com todos os esportes já travados,
+// senão testariam o oposto do que afirmam.
+const allSportsLockedUser = {
+  ...allSportsUser,
+  sportOnboarding: {
+    ...allSportsUser.sportOnboarding,
+    levelLocked: Object.fromEntries(ALL_SPORTS.map((s) => [s, true])),
+  },
+};
+
 function raisePatch(sportIds, level = 'intermediario_2') {
   return Object.fromEntries(
     sportIds.map((s) => [`sportOnboarding.levelsBySport.${s}`, level]),
@@ -341,9 +378,9 @@ for (const n of [5, 9]) {
   );
 }
 
-await seed(allSportsUser);
+await seed(allSportsLockedUser);
 await expect(
-  'rebaixar 1 esporte é negado pela REGRA, não pelo teto de expressões',
+  'rebaixar 1 esporte travado é negado pela REGRA, não pelo teto de expressões',
   assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'iniciante_1',
@@ -351,9 +388,25 @@ await expect(
   ),
 );
 
-await seed(allSportsUser);
+// ── Janela de correção (levelLocked) ──────────────────────────────────────
+// Task 1 grava o lock só no backend, no gatilho da 1ª inscrição ativa.
+// Enquanto o esporte não tem o lock, o dono pode descer (autocorreção da
+// calibração inicial); uma vez locked, volta o ratchet de sempre. O dono
+// nunca escreve o lock em si — só o backend.
+
+await seed(baseUser); // sem lock: janela aberta para VOLEI_PRAIA
 await expect(
-  'entre 5 esportes alterados, 1 rebaixado é negado pela REGRA',
+  'janela aberta: descer levelsBySport.VOLEI_PRAIA sem lock é permitido',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'iniciante_1',
+    }),
+  ),
+);
+
+await seed(allSportsLockedUser);
+await expect(
+  'entre 5 esportes alterados, 1 rebaixado travado é negado pela REGRA',
   assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       ...raisePatch(ALL_SPORTS.slice(0, 4)),
@@ -362,10 +415,42 @@ await expect(
   ),
 );
 
-// Super admin pode rebaixar (canal de suporte).
+await seed(lockedUser);
+await expect(
+  'janela fechada (lock): subir levelsBySport.VOLEI_PRAIA continua permitido',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelsBySport.VOLEI_PRAIA': 'open',
+    }),
+  ),
+);
+
+await seed(baseUser);
+await expect(
+  'dono não pode gravar sportOnboarding.levelLocked (só o backend escreve)',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelLocked.VOLEI_PRAIA': true,
+    }),
+  ),
+);
+
+await seed(lockedUser);
+await expect(
+  'dono pode regravar levelLocked idêntico ao mexer noutro campo',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      bio: 'atualizando outra coisa',
+      'sportOnboarding.levelLocked': { VOLEI_PRAIA: true },
+    }),
+  ),
+);
+
+// Super admin pode rebaixar mesmo com o esporte locked (canal de suporte) —
+// bypassa tanto athleteLevelsNotDowngraded() quanto levelLockedUnchanged().
 await seed(multiSportUser);
 await expect(
-  'super admin rebaixa nível (bypass)',
+  'super admin rebaixa nível mesmo com lock (bypass)',
   assertSucceeds(
     updateDoc(
       doc(

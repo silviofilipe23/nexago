@@ -338,6 +338,16 @@ service cloud.firestore {
     // escrita dos clientes novos). Downgrade só via super admin (suporte).
     // Primeira definição é livre (campo ausente/valor desconhecido →
     // rank -1); sobrescrever nível conhecido por valor inválido é bloqueado.
+    //
+    // JANELA DE CORREÇÃO (15/08/2026): o ratchet POR ESPORTE só passa a
+    // valer depois que `sportOnboarding.levelLocked.{SPORT_CODE}` vira
+    // `true` — gravado só pelo trigger de backend na 1ª inscrição ativa
+    // naquele esporte (Task 1, `functions/src/tournament-level-lock.ts`).
+    // Antes do lock o dono pode descer livremente naquele esporte
+    // (autocorreção da autoavaliação inicial). Os campos legados globais
+    // (`level`, `sportProfile.level`) NÃO têm granularidade por esporte,
+    // então continuam ratcheted SEMPRE, lock ou não. O dono nunca escreve
+    // o próprio lock — só o backend (`levelLockedUnchanged()` abaixo).
     // Escada de 7 níveis para TODOS os esportes: Iniciante 1/2 (0/1),
     // Intermediário 1/2 (2/3), Avançado 1/2 (4/5), Open (6). Em 15/08/2026
     // open foi renumerado de 5→6 (rank 4, antes vago, passou a Avançado 1)
@@ -358,6 +368,11 @@ service cloud.firestore {
     // dois legados globais cabem, e a negação volta a vir da regra.
     function athleteLevelRanks() {
       return {
+    // O mapa de LOCKS (`sportOnboarding.levelLocked`) segue a mesma receita:
+    // lido de `resource.data` (doc ATUAL — nunca `request.resource.data`,
+    // senão o cliente se autodestrava) UMA VEZ em
+    // `athleteLevelsNotDowngraded()` e passado pronto por parâmetro; o check
+    // de lock curto-circuita ANTES do lookup de rank quando destravado.
         'iniciante': 0, 'Iniciante': 0, 'basico': 0, 'básico': 0,
         'Básico': 0, 'iniciante_1': 0, 'Iniciante 1': 0,
         'iniciante_2': 1, 'Iniciante 2': 1,
@@ -380,18 +395,26 @@ service cloud.firestore {
     function levelsBySportOf(data) {
       return data.get('sportOnboarding', {}).get('levelsBySport', {});
     }
+    function levelLockedOf(data) {
+      return data.get('sportOnboarding', {}).get('levelLocked', {});
+    }
     // Valor inalterado curto-circuita ANTES de rankear: só o campo que mudou
     // paga o custo do lookup (essencial para caber no limite de expressões).
     function levelNotLowered(reqValue, curValue, ranks) {
       return reqValue == curValue ||
         athleteLevelRank(reqValue, ranks) >= athleteLevelRank(curValue, ranks);
     }
-    function sportLevelNotLowered(reqLevels, curLevels, sportId, ranks) {
-      return levelNotLowered(
-        reqLevels.get(sportId, null),
-        curLevels.get(sportId, null),
-        ranks
-      );
+    // Sem lock (ainda não houve 1ª inscrição ativa nesse esporte) o dono
+    // pode descer à vontade — `lockedSports` já foi lido de `resource.data`
+    // em `athleteLevelsNotDowngraded()`, então aqui é só um `.get` barato
+    // que curto-circuita ANTES do lookup de rank quando destravado.
+    function sportLevelNotLowered(reqLevels, curLevels, sportId, ranks, lockedSports) {
+      return !lockedSports.get(sportId, false) ||
+        levelNotLowered(
+          reqLevels.get(sportId, null),
+          curLevels.get(sportId, null),
+          ranks
+        );
     }
     // Guarda TODOS os esportes do perfil (rules não iteram mapas — a lista
     // espelha ATHLETE_SPORT_CODES em functions/src/category-level-eligibility.ts
@@ -402,6 +425,7 @@ service cloud.firestore {
       let ranks = athleteLevelRanks();
       let reqLevels = levelsBySportOf(request.resource.data);
       let curLevels = levelsBySportOf(resource.data);
+      let lockedSports = levelLockedOf(resource.data);
       return levelNotLowered(
           request.resource.data.get('level', null),
           resource.data.get('level', null),
@@ -413,16 +437,23 @@ service cloud.firestore {
           ranks
         ) &&
         (reqLevels == curLevels || (
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'TENIS', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA', ranks) &&
-          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS', ranks)
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'TENIS', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS', ranks, lockedSports)
         ));
+    }
+    // O dono nunca escreve o lock em si — só o trigger de backend (Task 1)
+    // grava `sportOnboarding.levelLocked.{SPORT_CODE}` na 1ª inscrição
+    // ativa. Defaults `{}` dos dois lados: doc sem o mapa também passa.
+    function levelLockedUnchanged() {
+      return request.resource.data.get('sportOnboarding', {}).get('levelLocked', {}) ==
+        resource.data.get('sportOnboarding', {}).get('levelLocked', {});
     }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
@@ -1539,7 +1570,11 @@ service cloud.firestore {
               request.resource.data.phoneVerifiedAt == resource.data.phoneVerifiedAt
             )
           ) &&
-          athleteLevelsNotDowngraded()
+          athleteLevelsNotDowngraded() &&
+          // O lock em si é backend-only (gatilho da 1ª inscrição, Task 1) —
+          // o dono nunca grava/apaga/altera `sportOnboarding.levelLocked`,
+          // nem para se destravar nem para se travar antes da hora.
+          levelLockedUnchanged()
         ) ||
         isSuperAdmin() ||
         isPartnerPreRegistrationUpdateByInviter(userId)

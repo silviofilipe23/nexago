@@ -135,9 +135,6 @@ export class AthleteOnboardingComponent {
   protected readonly nameError = computed(() =>
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
-  protected readonly phoneError = computed(() =>
-    this.touched() && !this.phoneVerified() ? 'Verifique seu WhatsApp' : null,
-  );
   protected readonly birthDateError = computed(() =>
     this.touched() ? validateBirthDate(this.birthDateInput()) : null,
   );
@@ -148,10 +145,13 @@ export class AthleteOnboardingComponent {
     this.touched() && !this.photoFile() ? 'Escolha uma foto pra concluir' : null,
   );
 
+  /** Telefone verificado ficou de fora: o SMS não chega para parte dos
+   *  atletas e travava o cadastro. Quem pula verifica depois no perfil — o
+   *  gate de torneios do servidor (`athlete-tournament-access.ts`) continua
+   *  exigindo `phoneVerified` na inscrição. */
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
-      this.phoneVerified() &&
       validateBirthDate(this.birthDateInput()) == null &&
       this.gender() != null &&
       this.state() !== '' &&

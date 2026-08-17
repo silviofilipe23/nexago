@@ -78,8 +78,17 @@ describe('AthleteOnboardingComponent — obrigatórios do perfil', () => {
 
   afterEach(() => fixture?.destroy());
 
-  it('aceita o perfil quando nome, telefone, nascimento, gênero, UF, cidade e foto estão preenchidos', () => {
+  it('aceita o perfil quando nome, nascimento, gênero, UF, cidade e foto estão preenchidos', () => {
     fillCompleteProfile();
+    expect(onboarding.profileFormValid()).toBeTrue();
+  });
+
+  it('aceita o perfil SEM telefone verificado — SMS que não chega não trava o cadastro', () => {
+    // O gate de torneios do servidor (athlete-tournament-access.ts) continua
+    // exigindo phoneVerified na inscrição; aqui o atleta conclui e verifica
+    // depois no perfil.
+    fillCompleteProfile();
+    onboarding.phoneVerified.set(false);
     expect(onboarding.profileFormValid()).toBeTrue();
   });
 

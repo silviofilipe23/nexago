@@ -95,7 +95,7 @@ npm run delete-test-data -- --project volley-track-dev-4596c --yes
 Apaga em cascata, **na ordem**:
 
 ```
-matches → teams → inscriptions → tournaments → public_profiles → Auth → users
+ranking → matches → teams → inscriptions → tournaments → public_profiles → Auth → users
 ```
 
 Essa ordem **não** é "filho antes do pai" — é "o documento que serve de
@@ -139,6 +139,77 @@ de deixar órfãos que nenhuma execução futura reencontra.
   (é lixo do próprio seed) e apenas **reportada** quando envolve alguém que não
   é seed ou não tem participante — a limpeza não apaga o que não conseguiu
   provar que é de teste.
+
+### O passo `ranking`
+
+Apagar `users`, `public_profiles` e a conta Auth **não** tira o atleta de teste
+das telas de ranking. O ranking "Geral" lê `athleteRankings` direto e, quando o
+perfil não existe mais, cai num nome de fallback (`Atleta ab12cd`) em vez de
+sumir com a linha — era exatamente esse o sintoma dos "atletas fantasma".
+
+Essas coleções são preenchidas por **trigger** quando uma partida encerra, e por
+isso nenhuma delas carrega flag `seedTest*`: precisam de descoberta própria.
+
+| Coleção (sob `artifacts/{pid}/public/data`) | Descoberta por |
+|---|---|
+| `athleteRankings/{uid}` | o próprio uid apagável (id do doc) |
+| `teamRankings/{teamId}` | o próprio teamId (id do doc) |
+| `tournamentCategoryResults` | `tournamentId` **e** `teamId` |
+| `athleteRatings/{uid}_{sportCode}` | campo `athleteId` |
+| `ratingEvents/{sportCode}_{matchId}` | campo `athleteIds` |
+| `leagueAthleteRankings` | campo `athleteId` |
+| `leagueTeamRankings` | campo `teamId` |
+| `tournamentPredictions/{tid}/entries` | torneio seed |
+
+Cada coleção é lida **por inteiro**, e não consultada por dono, porque a decisão
+tem dois lados e o segundo não é consultável (ver "Órfãos"). De quebra, dispensa
+índice e fica consistente com o resto do script, que já lê `tournaments`,
+`inscriptions` e `users` por completo.
+
+Dois detalhes que não são arbitrários:
+
+- **`tournamentCategoryResults` é decidido pelo torneio *e* pela dupla**, porque
+  as duas chaves expiram em momentos diferentes: um torneio apagado à mão pelo
+  console, ou uma inscrição já removida, deixaria o resultado sem caminho de
+  descoberta se houvesse só uma.
+- **`athleteRatings` é lido pelo campo `athleteId`, não pelo id do doc.** O id é
+  `{uid}_{sportCode}` e o conjunto de esportes avaliados muda com a config;
+  depender do id deixaria para trás o rating de qualquer esporte novo.
+
+O passo roda **primeiro** porque é o que depende de mais fontes de descoberta ao
+mesmo tempo — `seedTournamentIds` (morre com `tournaments`), `teamIds` (vem das
+inscrições) e os uids (morrem com `users`). Rodando antes de tudo, as três ainda
+estão de pé.
+
+### Órfãos: os "atletas fantasma"
+
+Além do que é seed **desta** rodada, o passo apaga também o que ficou **órfão**:
+doc de ranking/rating cujo dono (`users/{uid}` ou `teams/{teamId}`) não existe
+mais. São as sobras das execuções anteriores a este passo existir, quando `users`
+era apagado e o ranking ficava para trás — no dev eram **1151 docs**, entre eles
+32 linhas de `athleteRankings` que a tela desenhava como `Atleta ab12cd`.
+
+Nenhuma flag prova que esses docs eram de teste (essas coleções nunca tiveram
+flag), mas ranking de conta inexistente é lixo por definição: a tela não esconde
+a linha sem perfil, ela usa um nome de fallback. Isso inclui o atleta **real**
+que excluiu a própria conta — hoje ele vira o mesmo fantasma, então apagar é o
+comportamento correto nos dois casos.
+
+Detectar órfão exige comparar contra os donos vivos: não existe consulta para
+"dono que não existe". Por isso a leitura cheia de cada coleção. Só entram donos
+efetivamente citados por algum doc — não há varredura especulativa. E vale a
+regra de sempre: doc **sem** dono identificável é mantido, porque aí não dá para
+provar nem que é seed nem que é órfão.
+
+O dry-run separa as duas contagens ("do seed desta rodada" × "órfãos"), então dá
+para ver exatamente o que cada motivo vai levar antes de rodar com `--yes`.
+
+`ratingEvents` tem uma regra a mais: o evento só é apagado quando **todos** os
+seus `athleteIds` são removíveis (seed apagável ou órfão). Um evento que mistura
+removível com atleta que **fica** é apenas **reportado** — apagar o ledger não
+desfaz rating nenhum (`athleteRatings` é o estado, `ratingEvents` é o histórico),
+então sumir com ele só faria um replay administrativo recalcular o rating de quem
+ficou para um valor diferente do que ele realmente jogou.
 
 `tournaments` e `users` são apagados com `recursiveDelete`, não com
 `batch.delete`: os dois têm subcoleções (`staff` e `categoryCommunications` no

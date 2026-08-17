@@ -190,6 +190,157 @@ export function partitionCleanupTargets(input: {
   };
 }
 
+/**
+ * Doc de ranking/rating reduzido ao que decide a limpeza.
+ *
+ * Cobre `athleteRankings`, `teamRankings`, `tournamentCategoryResults`,
+ * `athleteRatings`, `leagueAthleteRankings` e `leagueTeamRankings` — coleções
+ * escritas por TRIGGER a partir das partidas, que por isso nunca carregam flag
+ * `seedTest*` e precisam ser decididas pelo dono.
+ */
+export interface CleanupRankingDoc {
+  /** Caminho completo do doc — é o que o script apaga. */
+  path: string;
+  /** Dono atleta, quando a coleção é por atleta. */
+  athleteId?: string;
+  /** Dona dupla, quando a coleção é por dupla. */
+  teamId?: string;
+  /** Torneio do doc (só `tournamentCategoryResults`). */
+  tournamentId?: string;
+}
+
+/** O que a limpeza de ranking decide apagar, e por qual motivo. */
+export interface RankingCleanupPlan {
+  /** Dono (ou torneio) é seed apagável — sai junto com o resto do seed. */
+  seedRankingPaths: string[];
+  /**
+   * Dono não existe mais: `users/{uid}` / `teams/{teamId}` já foram apagados
+   * e só o doc de ranking sobrou. São os "atletas fantasma" das telas.
+   */
+  orphanRankingPaths: string[];
+}
+
+/**
+ * Decide, doc a doc, o que sai das coleções de ranking/rating.
+ *
+ * Dois motivos independentes para apagar:
+ *
+ * 1. **Seed** — o dono é um atleta/dupla que esta limpeza vai apagar, ou o doc
+ *    é de um torneio seed. Some junto, como o resto do seed.
+ * 2. **Órfão** — o dono já não existe. Nenhuma flag prova que era seed (essas
+ *    coleções nunca tiveram flag), mas um ranking de conta inexistente é lixo
+ *    por definição: a tela não esconde a linha, ela desenha um nome de
+ *    fallback ("Atleta ab12cd"). São as sobras das execuções anteriores a este
+ *    passo existir, quando `users` era apagado e o ranking ficava para trás.
+ *
+ * Seed ganha de órfão na classificação — os dois apagam, a separação existe só
+ * para o relatório distinguir "lixo desta rodada" de "sobra antiga".
+ *
+ * Doc sem dono identificável (campo vazio ou ausente) é MANTIDO: sem dono não
+ * dá para provar nem que é seed nem que é órfão, e a limpeza não apaga o que
+ * não conseguiu provar.
+ */
+export function partitionRankingDocs(input: {
+  docs: CleanupRankingDoc[];
+  deletableAthleteUids: string[];
+  deletableTeamIds: string[];
+  seedTournamentIds: string[];
+  orphanAthleteUids: string[];
+  orphanTeamIds: string[];
+}): RankingCleanupPlan {
+  const toSet = (list: string[]): Set<string> =>
+    new Set(list.map(cleanUid).filter(Boolean));
+
+  const seedAthletes = toSet(input.deletableAthleteUids);
+  const seedTeams = toSet(input.deletableTeamIds);
+  const seedTournaments = toSet(input.seedTournamentIds);
+  const orphanAthletes = toSet(input.orphanAthleteUids);
+  const orphanTeams = toSet(input.orphanTeamIds);
+
+  const seedRankingPaths: string[] = [];
+  const orphanRankingPaths: string[] = [];
+
+  for (const doc of input.docs) {
+    const athleteId = cleanUid(doc.athleteId);
+    const teamId = cleanUid(doc.teamId);
+    const tournamentId = cleanUid(doc.tournamentId);
+
+    const isSeed =
+      (athleteId !== "" && seedAthletes.has(athleteId)) ||
+      (teamId !== "" && seedTeams.has(teamId)) ||
+      (tournamentId !== "" && seedTournaments.has(tournamentId));
+    if (isSeed) {
+      seedRankingPaths.push(doc.path);
+      continue;
+    }
+
+    const isOrphan =
+      (athleteId !== "" && orphanAthletes.has(athleteId)) ||
+      (teamId !== "" && orphanTeams.has(teamId));
+    if (isOrphan) orphanRankingPaths.push(doc.path);
+  }
+
+  return {seedRankingPaths, orphanRankingPaths};
+}
+
+/** Campos de `ratingEvents` usados pela decisão de limpeza. */
+export interface CleanupRatingEvent {
+  id: string;
+  athleteIds?: unknown;
+}
+
+/** O que a limpeza do ledger de rating decide apagar/reportar. */
+export interface RatingEventCleanupPlan {
+  /** Eventos cujos participantes são TODOS removíveis — apagar. */
+  deletableRatingEventIds: string[];
+  /**
+   * Eventos que misturam atleta removível com alguém que fica — apenas
+   * reportar, nunca apagar.
+   */
+  mixedRatingEventIds: string[];
+}
+
+/**
+ * Decide quais docs de `ratingEvents` (o ledger que a engine de rating replaya)
+ * podem sair.
+ *
+ * `removableAthleteUids` é a união dos atletas seed apagáveis com os órfãos
+ * (uid sem `users/{uid}`) — os dois casos que somem desta limpeza.
+ *
+ * Um evento com atleta que FICA é REPORTADO, não apagado: apagar o ledger não
+ * desfaz rating nenhum (`athleteRatings` é o estado, `ratingEvents` é o
+ * histórico), então sumir com o evento só faria o replay administrativo
+ * recalcular o rating de quem ficou para um valor diferente do que ele
+ * realmente jogou. Mesma regra das inscrições órfãs: a limpeza não apaga o que
+ * não conseguiu provar que é descartável por inteiro.
+ */
+export function partitionRatingEvents(input: {
+  events: CleanupRatingEvent[];
+  removableAthleteUids: string[];
+}): RatingEventCleanupPlan {
+  const removableAthletes = new Set(
+    input.removableAthleteUids.map(cleanUid).filter(Boolean),
+  );
+
+  const deletableRatingEventIds: string[] = [];
+  const mixedRatingEventIds: string[] = [];
+
+  for (const event of input.events) {
+    const raw = Array.isArray(event.athleteIds) ? event.athleteIds : [];
+    const athleteIds = raw.map(cleanUid).filter(Boolean);
+    const isRemovableOnly =
+      athleteIds.length > 0 &&
+      athleteIds.every((uid) => removableAthletes.has(uid));
+    if (isRemovableOnly) {
+      deletableRatingEventIds.push(event.id);
+    } else {
+      mixedRatingEventIds.push(event.id);
+    }
+  }
+
+  return {deletableRatingEventIds, mixedRatingEventIds};
+}
+
 /** Campos de `tournaments` usados pela checagem de organizador. */
 export interface CleanupTournament {
   id: string;

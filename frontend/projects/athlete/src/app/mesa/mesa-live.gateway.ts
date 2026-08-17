@@ -7,6 +7,7 @@ import {
   watchPointEvents,
   type LiveMatch,
   type LivePointEvent,
+  type PointWrite,
   type ScoreSet,
 } from '@nexago/live-scoring';
 import { athleteFirestore, athleteLiveScoringContext, athleteProjectId } from '../data/firestore';
@@ -56,7 +57,9 @@ export class MesaLiveGateway {
     return watchPointEvents(ctx, matchId, onChange);
   }
 
-  recordPoint(params: { matchId: string; matchUpdate: Record<string, unknown>; pointEvent: Record<string, unknown> }): Promise<void> {
+  /** `build` roda DENTRO da transação, sobre o doc que ela acabou de ler — é o que impede dois
+   *  toques seguidos de partirem do mesmo placar (ver `recordPointTransaction`). */
+  recordPoint(params: { matchId: string; build: (match: LiveMatch) => PointWrite | null }): Promise<PointWrite | null> {
     const ctx = this.scoring;
     if (!ctx) return Promise.reject(new Error('Firebase não configurado.'));
     return recordPointTransaction(ctx, params);

@@ -35,8 +35,10 @@ export {
 export type { MatchDisplayStatus } from './match-status';
 export { statusOf } from './match-status';
 
-export type { LiveMatch, LivePointEvent, LiveScoringContext } from './live-match-repository';
+export type { LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {
+  buildPointWrite,
+  buildUndoWrite,
   lastUndoablePoint,
   liveMatchFromDoc,
   recordPointTransaction,

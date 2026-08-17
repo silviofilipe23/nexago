@@ -1,5 +1,6 @@
-import { collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
-import type { LiveSet } from './live-scoring';
+import { collection, deleteField, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import { applyPoint, liveSetToMap, undoPoint, type ApplyPointResult, type LiveSet } from './live-scoring';
+import { setsWon } from './match-scoring';
 import { statusOf, type MatchDisplayStatus } from './match-status';
 
 /** Leitura/escrita da MESA AO VIVO — espelha `TournamentMatchesRepository` do app
@@ -155,20 +156,112 @@ export function watchPointEvents(ctx: LiveScoringContext, matchId: string, onCha
   );
 }
 
+/** O que uma marcação escreve: os campos do doc da partida e o evento da timeline, mais o
+ *  resultado do motor pra tela reagir (encerrou a partida? virou o set?). */
+export interface PointWrite {
+  matchUpdate: Record<string, unknown>;
+  pointEvent: Record<string, unknown>;
+  result: ApplyPointResult;
+  /** Set em que a marcação caiu — é o `setIndex` gravado no evento. */
+  setIndex: number;
+}
+
+/** `currentSetIndex` do doc preso ao formato — partida antiga pode trazer índice fora da faixa. */
+function clampedSetIndex(m: Pick<LiveMatch, 'currentSetIndex' | 'bestOf'>): number {
+  return Math.min(Math.max(m.currentSetIndex, 0), m.bestOf - 1);
+}
+
+/** Monta a escrita de UM ponto a partir do doc — as três mesas (organizador, portal do atleta e
+ *  app) gravam exatamente estes campos. Recebe o doc em vez de calcular na tela porque quem
+ *  chama é a transação, com a versão fresca em mãos (ver `recordPointTransaction`).
+ *
+ *  Devolve `null` quando a partida já está encerrada no doc: nesse caso a outra mesa (ou o
+ *  ponto anterior) fechou a partida enquanto esta tela ainda mostrava "ao vivo", e somar ponto
+ *  em partida encerrada reabriria uma chave que o servidor já avançou. */
+export function buildPointWrite(m: LiveMatch, side: 'A' | 'B'): PointWrite | null {
+  if (m.status === 'completed') return null;
+
+  const setIndex = clampedSetIndex(m);
+  const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
+  const wins = setsWon(result.sets, m.bestOf);
+  const current = result.sets[setIndex] ?? null;
+
+  return {
+    matchUpdate: {
+      sets: result.sets.map(liveSetToMap),
+      currentSetIndex: result.currentSetIndex,
+      status: result.winnerId != null ? 'Completed' : 'In Progress',
+      servingTeamId: result.servingTeamId,
+      ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
+      ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
+      resultA: `${wins.a}`,
+      resultB: `${wins.b}`,
+    },
+    pointEvent: { type: 'point', side, setIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
+    result,
+    setIndex,
+  };
+}
+
+/** Escrita do "desfazer": tira o ponto do lado que o marcou, no set do evento desfeito.
+ *  `setIndex` vem da timeline (identifica QUAL ponto sai); o placar sai do doc recebido. */
+export function buildUndoWrite(m: LiveMatch, side: 'A' | 'B', setIndex: number): PointWrite {
+  const result = undoPoint({ sets: m.sets, currentSetIndex: setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
+  const wins = setsWon(result.sets, m.bestOf);
+  const current = result.sets[result.currentSetIndex] ?? null;
+
+  return {
+    matchUpdate: {
+      sets: result.sets.map(liveSetToMap),
+      currentSetIndex: result.currentSetIndex,
+      status: 'In Progress',
+      servingTeamId: result.servingTeamId,
+      winnerId: deleteField(),
+      matchEndedAt: deleteField(),
+      resultA: `${wins.a}`,
+      resultB: `${wins.b}`,
+    },
+    pointEvent: { type: 'undo-point', side, setIndex: result.currentSetIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
+    result: { ...result, winnerId: null },
+    setIndex: result.currentSetIndex,
+  };
+}
+
 /** Transação idêntica à do app (`recordPointTransaction`): atualiza o doc da partida e grava o
  *  evento com `seq = pointEventSeq + 1` no MESMO commit — as rules validam a sequência, então
- *  duas mesas concorrentes não conseguem gravar o mesmo seq. */
-export async function recordPointTransaction(ctx: LiveScoringContext, params: { matchId: string; matchUpdate: Record<string, unknown>; pointEvent: Record<string, unknown> }): Promise<void> {
+ *  duas mesas concorrentes não conseguem gravar o mesmo seq.
+ *
+ *  O placar é montado AQUI DENTRO, pelo `build`, sobre o doc que a transação acabou de ler — e
+ *  nunca a partir do que a tela tem em mãos. Transação do Firestore não tem latency
+ *  compensation: o commit não aparece no cache local, e o listener só recebe a versão nova
+ *  quando a watch stream entrega, o que acontece DEPOIS desta promise resolver. Montando o
+ *  payload na tela, dois toques dentro dessa janela partiam do mesmo placar e gravavam o mesmo
+ *  `scoreA`/`scoreB` — o segundo ainda sobrescrevia `sets` com o valor antigo, então o ponto se
+ *  perdia de verdade (não era só evento repetido na timeline). Lendo aqui, o controle otimista
+ *  do Firestore fecha o resto: se o doc mudar entre a leitura e o commit, a transação REPETE o
+ *  `build` sobre o estado novo. */
+export async function recordPointTransaction(ctx: LiveScoringContext, params: { matchId: string; build: (match: LiveMatch) => PointWrite | null }): Promise<PointWrite | null> {
   const matchRef = doc(matchesCol(ctx), params.matchId);
+  // Holder em vez de `let`: a atribuição acontece dentro do callback da transação, que roda de
+  // novo a cada retry — o valor que interessa é o da última passada.
+  const out: { written: PointWrite | null } = { written: null };
+
   await runTransaction(ctx.db, async (txn) => {
     const snap = await txn.get(matchRef);
     if (!snap.exists()) throw new Error('Partida não encontrada');
-    const currentSeq = intOf((snap.data() as Record<string, unknown>)['pointEventSeq'], 0);
-    const nextSeq = currentSeq + 1;
+    const data = snap.data() as Record<string, unknown>;
+
+    const written = params.build(liveMatchFromDoc(snap.id, data));
+    out.written = written;
+    if (!written) return;
+
+    const nextSeq = intOf(data['pointEventSeq'], 0) + 1;
     const eventRef = doc(collection(matchRef, 'pointEvents'));
-    txn.update(matchRef, { ...params.matchUpdate, pointEventSeq: nextSeq, updatedAt: serverTimestamp() });
-    txn.set(eventRef, { ...params.pointEvent, seq: nextSeq, ts: serverTimestamp() });
+    txn.update(matchRef, { ...written.matchUpdate, pointEventSeq: nextSeq, updatedAt: serverTimestamp() });
+    txn.set(eventRef, { ...written.pointEvent, seq: nextSeq, ts: serverTimestamp() });
   });
+
+  return out.written;
 }
 
 /** Escrita simples de campos permitidos pelas rules (troca de saque, troca de formato). */

@@ -9,6 +9,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../data/match_point_write.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
@@ -67,49 +68,20 @@ class _OrganizerMatchLiveTablePageState
         .valueOrNull;
   }
 
+  /// O placar sai do doc lido DENTRO da transação ([buildPointWrite]), não do snapshot da tela:
+  /// o listener só recebe a versão nova depois da transação resolver, e dois toques dentro dessa
+  /// janela gravavam o mesmo placar duas vezes.
   Future<void> _point(String side) async {
     final match = _currentMatch();
     if (match == null || match.isCompleted) return;
 
-    final result = MatchScoringLogic.applyPoint(
-      sets: match.sets,
-      currentSetIndex: match.currentSetIndex ?? 0,
-      side: side,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
-      bestOf: match.bestOf,
-    );
-
     setState(() => _saving = true);
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
-      final setIdx = match.currentSetIndex ?? 0;
-      final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
 
       await repo.recordPointTransaction(
         matchId: widget.matchId,
-        matchUpdate: {
-          'sets': result.sets.map((s) => s.toMap()).toList(),
-          'currentSetIndex': result.currentSetIndex,
-          'status': result.winnerId != null
-              ? TournamentMatchStatus.completed
-              : TournamentMatchStatus.inProgress,
-          'servingTeamId': result.servingTeamId,
-          if (result.winnerId != null) 'winnerId': result.winnerId,
-          if (result.winnerId != null)
-            'matchEndedAt': FieldValue.serverTimestamp(),
-          if (match.matchStartedAt == null)
-            'matchStartedAt': FieldValue.serverTimestamp(),
-          'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf).a}',
-          'resultB': '${MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf).b}',
-        },
-        pointEvent: {
-          'type': 'point',
-          'side': side,
-          'setIndex': setIdx,
-          'scoreA': current?.a ?? 0,
-          'scoreB': current?.b ?? 0,
-        },
+        build: (fresh) => buildPointWrite(fresh, side),
       );
       // Avanço de chave + ranking são propagados pelo trigger
       // onTournamentMatchCompletedAdvance ao concluir a partida (atômico +
@@ -267,41 +239,16 @@ class _OrganizerMatchLiveTablePageState
     }
 
     final side = lastPoint.side ?? 'A';
-    final bestOf = match.bestOf;
-    final result = MatchScoringLogic.undoPoint(
-      sets: match.sets,
-      currentSetIndex: lastPoint.setIndex,
-      side: side,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
-      bestOf: bestOf,
-    );
+    // Locais finais: a promoção de nulidade não atravessa o closure do `build`.
+    final undoneSetIndex = lastPoint.setIndex;
 
     setState(() => _saving = true);
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
-      final setIdx = result.currentSetIndex;
-      final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
 
       await repo.recordPointTransaction(
         matchId: widget.matchId,
-        matchUpdate: {
-          'sets': result.sets.map((s) => s.toMap()).toList(),
-          'currentSetIndex': result.currentSetIndex,
-          'status': TournamentMatchStatus.inProgress,
-          'servingTeamId': result.servingTeamId,
-          'winnerId': FieldValue.delete(),
-          'matchEndedAt': FieldValue.delete(),
-          'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).a}',
-          'resultB': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).b}',
-        },
-        pointEvent: {
-          'type': 'undo-point',
-          'side': side,
-          'setIndex': setIdx,
-          'scoreA': current?.a ?? 0,
-          'scoreB': current?.b ?? 0,
-        },
+        build: (fresh) => buildUndoWrite(fresh, side, undoneSetIndex),
       );
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,

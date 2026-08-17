@@ -10,6 +10,18 @@ import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_referral_providers.dart';
 import 'athlete_onboarding_draft.dart';
 
+/// Falha ao subir a foto do onboarding. Distingue o erro do Storage do erro de
+/// gravação do perfil: a tela precisa dizer que foi a FOTO que não subiu, senão
+/// o atleta refaz o formulário inteiro atrás de um problema que é só de upload.
+class AthleteOnboardingPhotoUploadException implements Exception {
+  const AthleteOnboardingPhotoUploadException(this.cause);
+
+  final FirebaseException cause;
+
+  @override
+  String toString() => 'AthleteOnboardingPhotoUploadException($cause)';
+}
+
 final athleteOnboardingDraftProvider =
     NotifierProvider<AthleteOnboardingDraftNotifier, AthleteOnboardingDraft>(
   AthleteOnboardingDraftNotifier.new,
@@ -56,6 +68,12 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
   void setBirthDate(String v) => state = state.copyWith(birthDate: v);
   void setGender(String? v) => state = state.copyWith(gender: v);
 
+  /// Trocar a UF invalida a cidade: as duas mudanças saem juntas, senão sobra
+  /// uma cidade de outro estado no rascunho.
+  void setUf(String? v) =>
+      state = state.copyWith(state: v?.trim() ?? '', city: '');
+  void setCity(String? v) => state = state.copyWith(city: v?.trim() ?? '');
+
   void setReferralCode(String v) => state = state.copyWith(referralCode: v);
 
   void setAvatar({required Uint8List bytes, required String contentType}) {
@@ -67,8 +85,10 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
 
   void clearAvatar() => state = state.copyWith(clearAvatar: true);
 
-  /// Persiste o perfil. Retorna aviso se a foto opcional falhar (perfil já salvo).
-  Future<String?> submit() async {
+  /// Persiste o perfil. A foto sobe ANTES do perfil e é obrigatória: se o
+  /// Storage falhar, nada é gravado e o erro sobe pra tela — cadastro sem
+  /// imagem deixaria o atleta sem como ser identificado nas inscrições.
+  Future<void> submit() async {
     final user = ref.read(authProvider).valueOrNull;
     if (user == null) {
       throw StateError('Usuário não autenticado');
@@ -78,34 +98,27 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
     }
 
     final repo = ref.read(athleteProfileRepositoryProvider);
-    final profile = state.toAthleteProfile(uid: user.uid);
 
-    await repo.saveProfile(profile);
+    final String avatarUrl;
+    try {
+      avatarUrl = await repo.uploadAvatar(
+        uid: user.uid,
+        bytes: state.avatarBytes!,
+        contentType: state.avatarContentType!,
+      );
+    } on FirebaseException catch (e) {
+      throw AthleteOnboardingPhotoUploadException(e);
+    }
+
+    await repo.saveProfile(
+      state.toAthleteProfile(uid: user.uid, avatarUrl: avatarUrl),
+    );
 
     ref.read(athleteOnboardingJustCompletedProvider.notifier).state = true;
     ref.read(analyticsServiceProvider).logOnboardingComplete();
     ref.invalidate(athleteProfileProvider);
 
     await _registerReferralIfProvided();
-
-    final bytes = state.avatarBytes;
-    final contentType = state.avatarContentType;
-    if (bytes == null || contentType == null) {
-      return null;
-    }
-
-    try {
-      final url = await repo.uploadAvatar(
-        uid: user.uid,
-        bytes: bytes,
-        contentType: contentType,
-      );
-      await repo.saveProfile(profile.copyWith(avatarUrl: url));
-      ref.invalidate(athleteProfileProvider);
-      return null;
-    } on FirebaseException {
-      return 'Cadastro concluído. A foto não foi enviada — você pode adicionar depois no perfil.';
-    }
   }
 
   /// Registra a indicação (se um código foi informado no onboarding). Não

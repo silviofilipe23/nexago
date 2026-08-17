@@ -14,6 +14,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 import '../../../domain/athlete_profile_options.dart';
+import '../../../presentation/widgets/br_state_city_fields.dart';
 import '../../../phone_verification/presentation/phone_verification_field.dart';
 import '../../domain/athlete_onboarding_draft.dart';
 import '../../domain/athlete_onboarding_options.dart';
@@ -37,11 +38,16 @@ class _AthleteOnboardingProfileStepState
   final _nicknameCtrl = TextEditingController();
   final _birthCtrl = TextEditingController();
   final _referralCodeCtrl = TextEditingController();
+  /// Só o par UF/cidade vive num Form: `BrStateCityFields` traz os próprios
+  /// validators e, sem um Form em volta, eles nunca rodariam — o erro apareceria
+  /// solto embaixo do bloco em vez de no campo que falta.
+  final _locationFormKey = GlobalKey<FormState>();
   bool _submitting = false;
   String? _nameError;
   String? _phoneError;
   String? _birthError;
   bool _genderMissing = false;
+  bool _photoMissing = false;
 
   @override
   void initState() {
@@ -71,6 +77,7 @@ class _AthleteOnboardingProfileStepState
     ref
         .read(athleteOnboardingDraftProvider.notifier)
         .setAvatar(bytes: result.bytes, contentType: result.contentType);
+    if (_photoMissing) setState(() => _photoMissing = false);
   }
 
   void _syncDraftFromControllers() {
@@ -97,15 +104,15 @@ class _AthleteOnboardingProfileStepState
             ? null
             : 'Data inválida (dd/mm/aaaa)';
         _genderMissing = !draft.isGenderValid;
+        _photoMissing = !draft.isPhotoValid;
       });
+      _locationFormKey.currentState?.validate();
       return;
     }
 
     setState(() => _submitting = true);
     try {
-      final photoWarning = await ref
-          .read(athleteOnboardingDraftProvider.notifier)
-          .submit();
+      await ref.read(athleteOnboardingDraftProvider.notifier).submit();
       if (!mounted) return;
       // Deep link pendente (ex.: convite de dupla que trouxe o atleta pro
       // cadastro) é retomado aqui — concluir o onboarding e cair na home
@@ -117,9 +124,16 @@ class _AthleteOnboardingProfileStepState
                 ? AppRoutes.discover
                 : pendingDeepLink,
           );
-      if (photoWarning != null) {
-        showAppSnackBar(context, photoWarning);
+    } on AthleteOnboardingPhotoUploadException catch (e) {
+      if (kDebugMode) {
+        debugPrint('onboarding avatar upload: $e');
       }
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível enviar sua foto. Verifique a conexão e tente de novo.',
+        isError: true,
+      );
     } on FirebaseException catch (e) {
       if (kDebugMode) {
         debugPrint('onboarding profile submit FirebaseException: $e');
@@ -171,7 +185,11 @@ class _AthleteOnboardingProfileStepState
             subtitle: 'Preenche o essencial pra liberar sua conta.',
           ),
           SizedBox(height: 20),
-          _PhotoPickerCard(avatarBytes: draft.avatarBytes, onPick: _pickPhoto),
+          _PhotoPickerCard(
+            avatarBytes: draft.avatarBytes,
+            onPick: _pickPhoto,
+            missing: _photoMissing,
+          ),
           SizedBox(height: 20),
           const AuthFieldLabel(label: 'NOME *'),
           AuthTextField(
@@ -276,6 +294,22 @@ class _AthleteOnboardingProfileStepState
             ),
           ],
           SizedBox(height: 16),
+          Form(
+            key: _locationFormKey,
+            // Sem isto o erro só sairia da tela no próximo envio: com o modo
+            // padrão o campo revalida apenas em `validate()`, e escolher a UF
+            // deixaria o "Selecione o estado" vermelho embaixo do campo já
+            // preenchido — os outros campos do passo limpam o erro na hora.
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: BrStateCityFields(
+              selectedState: draft.state.isEmpty ? null : draft.state,
+              selectedCity: draft.city.isEmpty ? null : draft.city,
+              onStateChanged: notifier.setUf,
+              onCityChanged: notifier.setCity,
+              useEditProfileStyle: true,
+            ),
+          ),
+          SizedBox(height: 16),
           const AuthFieldLabel(label: 'CÓDIGO DE INDICAÇÃO (OPCIONAL)'),
           AuthTextField(
             controller: _referralCodeCtrl,
@@ -298,10 +332,18 @@ class _AthleteOnboardingProfileStepState
 }
 
 class _PhotoPickerCard extends StatelessWidget {
-  const _PhotoPickerCard({required this.avatarBytes, required this.onPick});
+  const _PhotoPickerCard({
+    required this.avatarBytes,
+    required this.onPick,
+    this.missing = false,
+  });
 
   final Uint8List? avatarBytes;
   final VoidCallback onPick;
+
+  /// Submeteu sem foto: a borda e o subtítulo viram erro, no mesmo padrão dos
+  /// outros campos obrigatórios do passo.
+  final bool missing;
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +355,9 @@ class _PhotoPickerCard extends StatelessWidget {
         color: context.themeColors.surfaceRaised.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
+          color: missing
+              ? AppColors.live
+              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
         ),
       ),
       child: Padding(
@@ -337,17 +381,21 @@ class _PhotoPickerCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Foto de perfil (opcional)',
+                    'Foto de perfil *',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
-                    hasPhoto
-                        ? 'Toque em ajustar para recortar de novo'
-                        : 'JPG ou PNG · recorte circular',
+                    missing
+                        ? 'Escolha uma foto pra concluir'
+                        : hasPhoto
+                            ? 'Toque em ajustar para recortar de novo'
+                            : 'JPG ou PNG · recorte circular',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.themeColors.onSurfaceMuted,
+                      color: missing
+                          ? AppColors.live
+                          : context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],

@@ -133,7 +133,7 @@
           <div class="nx-alert" role="alert">{{ err }}</div>
         }
 
-        <div class="ob-photo-row">
+        <div class="ob-photo-row" [class.ob-photo-row--error]="photoError()">
           <input
             #photoInput
             type="file"
@@ -150,8 +150,12 @@
               </span>
             }
             <span class="ob-photo-copy">
-              <span class="ob-photo-title">Foto de perfil <span class="ob-dim">(opcional)</span></span>
-              <span class="ob-photo-hint">JPG, PNG ou WebP · até 2 MB</span>
+              <span class="ob-photo-title">Foto de perfil *</span>
+              @if (photoError(); as e) {
+                <span class="ob-photo-hint ob-photo-hint--error">{{ e }}</span>
+              } @else {
+                <span class="ob-photo-hint">JPG, PNG ou WebP · até 2 MB</span>
+              }
             </span>
           </div>
           <div class="ob-photo-actions">
@@ -241,6 +245,40 @@
             @if (genderError(); as e) {
               <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
             }
+          </div>
+
+          <div class="ob-location-grid">
+            <label class="nx-field">
+              <span class="nx-field-label">Estado *</span>
+              <span class="nx-field-box" [class.nx-field-box--error]="stateError()">
+                <select class="ob-select" (change)="selectState($any($event.target).value)">
+                  <option value="" [selected]="!state()">Selecione</option>
+                  @for (s of brLocations.states; track s.sigla) {
+                    <option [value]="s.sigla" [selected]="s.sigla === state()">{{ s.name }} ({{ s.sigla }})</option>
+                  }
+                </select>
+              </span>
+              @if (stateError(); as e) {
+                <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+              }
+            </label>
+
+            <label class="nx-field">
+              <span class="nx-field-label">Cidade *</span>
+              <span class="nx-field-box" [class.nx-field-box--error]="cityError()">
+                <select class="ob-select" [disabled]="!state()" (change)="city.set($any($event.target).value)">
+                  <option value="" [selected]="!city()">
+                    {{ !state() ? 'Selecione o estado primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}
+                  </option>
+                  @for (c of cityOptions(); track c) {
+                    <option [value]="c" [selected]="c === city()">{{ c }}</option>
+                  }
+                </select>
+              </span>
+              @if (cityError(); as e) {
+                <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+              }
+            </label>
           </div>
         </div>
 

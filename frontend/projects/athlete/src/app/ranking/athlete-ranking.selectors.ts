@@ -45,3 +45,16 @@ export function searchRanking(ranked: readonly RankingRow[], query: string): Ran
 export function hasSearchQuery(query: string): boolean {
   return normalize(query).length > 0;
 }
+
+/** Perfil por trás da foto no modo Individual. `hasPublicProfile` false = linha órfã
+ *  (`athleteRankings` sobrevive à exclusão do atleta): sem espelho em `public_profiles` a
+ *  rota só teria "perfil publico nao encontrado" pra mostrar, então não vira link. */
+export function athleteProfileLink(uid: string, hasPublicProfile: boolean): readonly string[] | null {
+  return uid.length > 0 && hasPublicProfile ? ['/atletas', uid] : null;
+}
+
+/** Perfil por trás das duas fotos no modo Duplas — a linha é o time, não um atleta.
+ *  Dupla incompleta não vira link porque `TeamPublicProfileComponent` recusa carregá-la. */
+export function teamProfileLink(teamId: string, isComplete: boolean): readonly string[] | null {
+  return teamId.length > 0 && isComplete ? ['/equipes', teamId] : null;
+}

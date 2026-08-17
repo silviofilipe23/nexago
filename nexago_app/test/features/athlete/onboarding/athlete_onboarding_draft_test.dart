@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/athlete/domain/profile_access.dart';
+import 'package:nexago_app/features/athlete/domain/profile_completion_models.dart';
 import 'package:nexago_app/features/athlete/onboarding/domain/athlete_onboarding_draft.dart';
 
 /// Rascunho com todos os obrigatórios do passo de perfil preenchidos — os
@@ -57,11 +59,30 @@ void main() {
       expect(draft.otherSportLabels, ['Futebol']);
     });
 
-    test('isProfileValid requires name phone birth gender city state photo', () {
+    test('isProfileValid requires name birth gender city state photo', () {
       const invalid = AthleteOnboardingDraft();
       expect(invalid.isProfileValid, isFalse);
 
       expect(_completeProfileDraft().isProfileValid, isTrue);
+    });
+
+    test('telefone verificado NÃO é mais obrigatório pra concluir o cadastro', () {
+      // SMS não chega pra parte dos atletas e travava o cadastro inteiro.
+      // Sem verificar, o atleta conclui com onboardingCompleted e SEM
+      // phoneVerified — o gate de torneios do servidor continua exigindo a
+      // verificação na hora da inscrição (athlete-tournament-access.ts).
+      final semTelefone =
+          _completeProfileDraft().copyWith(verifiedPhoneNumber: '');
+      expect(semTelefone.isProfileValid, isTrue);
+      expect(
+        semTelefone.canContinueFrom(AthleteOnboardingStep.profile),
+        isTrue,
+      );
+
+      final profile = semTelefone.toAthleteProfile(uid: 'uid-1');
+      expect(profile.phoneVerified, isFalse);
+      expect(profile.phoneNumber, isNull);
+      expect(profile.onboardingCompleted, isTrue);
     });
 
     test('cidade, UF e foto são obrigatórias pra concluir o cadastro', () {
@@ -140,6 +161,39 @@ void main() {
       // `AthleteProfile.toFirestore` grava e que o gate de torneios lê.
       expect(profile.city, 'Aparecida de Goiânia');
       expect(profile.state, 'GO');
+    });
+
+    test('concluir sem telefone NÃO destrava o gate de torneios', () {
+      // A regra que não pode quebrar: destravar o funil de cadastro não pode
+      // destravar torneios. O perfil que sai do onboarding sem SMS precisa
+      // continuar barrado no client (profile_access.dart), espelho do servidor
+      // (athlete-tournament-access.ts) — senão o atleta passa no banner e leva
+      // failed-precondition no meio da inscrição.
+      final semTelefone = _completeProfileDraft()
+          .copyWith(verifiedPhoneNumber: '')
+          .toAthleteProfile(uid: 'uid-1', avatarUrl: 'https://cdn/a.jpg');
+
+      expect(semTelefone.onboardingCompleted, isTrue);
+      expect(isTournamentProfileReady(semTelefone), isFalse);
+      expect(canAccessOfficialTournaments(profile: semTelefone), isFalse);
+      // WhatsApp é a ÚNICA pendência: cidade/UF/foto já saíram do onboarding.
+      expect(tournamentProfileMissingTitles(semTelefone), ['WhatsApp']);
+
+      final completion = ProfileCompletionState.fromProfile(semTelefone);
+      expect(
+        completion.steps
+            .firstWhere((s) => s.step == ProfileCompletionStep.whatsapp)
+            .isDone,
+        isFalse,
+      );
+      expect(completion.canUnlockTournaments, isFalse);
+
+      // Mesmo perfil COM o SMS verificado destrava — prova que o bloqueio
+      // acima é só o telefone, não outro campo esquecido.
+      final comTelefone = _completeProfileDraft()
+          .toAthleteProfile(uid: 'uid-1', avatarUrl: 'https://cdn/a.jpg');
+      expect(isTournamentProfileReady(comTelefone), isTrue);
+      expect(canAccessOfficialTournaments(profile: comTelefone), isTrue);
     });
 
     test('referralCode defaults to empty and is preserved by copyWith', () {

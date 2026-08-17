@@ -85,9 +85,10 @@ class AthleteOnboardingDraft {
 
   bool get isNameValid => name.trim().isNotEmpty;
 
-  /// Telefone verificado por SMS. Não basta ter formato válido: o gate de
-  /// torneios do servidor exige `phoneVerified` (ver
-  /// `athlete-tournament-access.ts`).
+  /// Telefone verificado por SMS. Opcional no cadastro: o SMS não chega para
+  /// parte dos atletas e travava o funil inteiro. Quem pula conclui sem
+  /// `phoneVerified` e verifica depois no perfil — o gate de torneios do
+  /// servidor (`athlete-tournament-access.ts`) continua exigindo na inscrição.
   bool get isPhoneValid => verifiedPhoneNumber.isNotEmpty;
 
   bool get isBirthDateValid => _isBirthDateValid(birthDate);
@@ -104,7 +105,6 @@ class AthleteOnboardingDraft {
 
   bool get isProfileValid =>
       isNameValid &&
-      isPhoneValid &&
       isBirthDateValid &&
       isGenderValid &&
       isCityValid &&

@@ -333,9 +333,17 @@ service cloud.firestore {
     // (iniciante→0, intermediario→2).
     // Lookup por map literal (barato) em vez de cadeias de `in` sobre listas:
     // a guarda roda para 9 esportes por update e a versão com ternários
-    // estourava o limite de expressões avaliadas por request.
-    function athleteLevelRank(value) {
-      let ranks = {
+    // estourava o limite de expressões avaliadas por request. O literal é
+    // montado UMA vez por request (`let ranks` em athleteLevelsNotDowngraded,
+    // que o rules avalia sob demanda e reaproveita) e desce por PARÂMETRO até
+    // cada comparação. Medido no emulador em 17/08/2026: com o literal dentro
+    // da função que rankeia, 5 esportes alterados numa tacada já estouravam o
+    // teto — e QUALQUER negação estourava, mesmo em perfil de um esporte só,
+    // porque o caminho negado ainda paga os ramos `isSuperAdmin()` /
+    // pré-cadastro e o match seguinte. Montando uma vez: 9 esportes mais os
+    // dois legados globais cabem, e a negação volta a vir da regra.
+    function athleteLevelRanks() {
+      return {
         'iniciante': 0, 'Iniciante': 0, 'basico': 0, 'básico': 0,
         'Básico': 0, 'iniciante_1': 0, 'Iniciante 1': 0,
         'iniciante_2': 1, 'Iniciante 2': 1,
@@ -346,6 +354,13 @@ service cloud.firestore {
         'avancado_2': 5, 'Avançado 2': 5,
         'open': 6, 'Open': 6, 'livre': 6, 'Livre': 6, 'Open / federado': 6
       };
+    }
+    // O mapa acima chega PRONTO por parâmetro: quem monta é o `let ranks` de
+    // `athleteLevelsNotDowngraded()`, uma vez por request. Rankear aqui dentro
+    // (versão anterior, com o literal no corpo da função) remontava as 22
+    // entradas a cada chamada — até 22 vezes por update, o que sozinho estoura
+    // o teto de 1000 expressões por request.
+    function athleteLevelRank(value, ranks) {
       return value is string ? ranks.get(value, -1) : -1;
     }
     function levelsBySportOf(data) {
@@ -353,14 +368,15 @@ service cloud.firestore {
     }
     // Valor inalterado curto-circuita ANTES de rankear: só o campo que mudou
     // paga o custo do lookup (essencial para caber no limite de expressões).
-    function levelNotLowered(reqValue, curValue) {
+    function levelNotLowered(reqValue, curValue, ranks) {
       return reqValue == curValue ||
-        athleteLevelRank(reqValue) >= athleteLevelRank(curValue);
+        athleteLevelRank(reqValue, ranks) >= athleteLevelRank(curValue, ranks);
     }
-    function sportLevelNotLowered(reqLevels, curLevels, sportId) {
+    function sportLevelNotLowered(reqLevels, curLevels, sportId, ranks) {
       return levelNotLowered(
         reqLevels.get(sportId, null),
-        curLevels.get(sportId, null)
+        curLevels.get(sportId, null),
+        ranks
       );
     }
     // Guarda TODOS os esportes do perfil (rules não iteram mapas — a lista
@@ -369,26 +385,29 @@ service cloud.firestore {
     // fallback do backend para docs antigos. Mapa inalterado curto-circuita
     // os 9 checks por esporte (caso comum: update sem mexer em nível).
     function athleteLevelsNotDowngraded() {
+      let ranks = athleteLevelRanks();
       let reqLevels = levelsBySportOf(request.resource.data);
       let curLevels = levelsBySportOf(resource.data);
       return levelNotLowered(
           request.resource.data.get('level', null),
-          resource.data.get('level', null)
+          resource.data.get('level', null),
+          ranks
         ) &&
         levelNotLowered(
           request.resource.data.get('sportProfile', {}).get('level', null),
-          resource.data.get('sportProfile', {}).get('level', null)
+          resource.data.get('sportProfile', {}).get('level', null),
+          ranks
         ) &&
         (reqLevels == curLevels || (
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'TENIS') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS')
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'TENIS', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA', ranks) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS', ranks)
         ));
     }
     function isArenaManagerByArenaId(arenaId) {

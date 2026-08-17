@@ -19,9 +19,13 @@
 | `avancado_2` | Avançado 2 | 5 |
 | `open` | Open | 6 |
 
-**Ranks 0–6 contíguos desde 15/08/2026.** A renumeração ÚNICA (`open` 5→6) foi feita em 15/08/2026 com a base vazia, antes do primeiro torneio operado. A partir daí, a numeração é fixa — **nunca renumerar**. Valores legados são aceitos só em LEITURA, aliasados ao degrau inferior do split: `iniciante`/`basico`→0, `intermediario`→2, `livre`/`Open / federado`→6. Migração: `migrateAthleteRatingLevelRanks` recalcula `athleteRatings.levelRank` pelo CÓDIGO.
+**Ranks 0–6 contíguos desde 15/08/2026.** A renumeração ÚNICA (`open` 5→6) foi feita em 15–17/08/2026. A partir daí, a numeração é fixa — **nunca renumerar**. Valores legados são aceitos só em LEITURA, aliasados ao degrau inferior do split: `iniciante`/`basico`→0, `intermediario`→2, `'Avançado'`→`avancado_1`, `livre`/`Open / federado`→6.
 
-**Precondição do dry-run:** antes de rodar `migrateAthleteRatingLevelRanks` (dry-run ou real), inspecionar os docs `ratingLadders/{sportCode}` no Firestore. Um doc com array `levels` SOBRESCREVE a escada padrão de 7 degraus deployada — a migração recalcularia `levelRank` contra a ladder ANTIGA gravada no doc, não contra a escada nova. Atualizar ou remover esses docs antes de rodar a migração.
+Duas ferramentas de migração/realinhamento, com papéis diferentes:
+- `migrateAthleteRatingLevelRanks` (callable) recalcula `athleteRatings.levelRank` pelo CÓDIGO do nível.
+- `functions/scripts/backfill-open-rank-6.js` cobre o realinhamento completo do Open: docs de `artifacts/{projectId}/public/data/athleteRatings` com `levelRank == 5` recebem `levelRank: 6`, rating elevado ao piso de ≥2200 (quando ainda abaixo), zona/observação da escada zeradas e proteção de promoção de 120 dias — além de regravar os arrays `levels` de `ratingLadders/{esporte}`.
+
+**Precondição do dry-run:** antes de rodar qualquer migração (dry-run ou real), inspecionar os docs `ratingLadders/{sportCode}` no Firestore. Um doc com array `levels` SOBRESCREVE a escada padrão de 7 degraus deployada — a migração recalcularia `levelRank` contra a ladder ANTIGA gravada no doc, não contra a escada nova. O `backfill-open-rank-6.js` já regrava esses arrays; para a callable, atualizar ou remover os docs antes.
 
 ## Onde o nível é guardado (fonte única)
 - **Única escrita**: `users/{uid}.sportOnboarding.levelsBySport.{SPORT_CODE} = <código>`. É onde escrevem o app, o portal web do atleta, a engine de rating (promoção/rebaixamento) e o backfill de migração. Default de esporte recém-adicionado: `iniciante_1`.

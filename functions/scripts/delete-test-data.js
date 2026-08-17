@@ -1,7 +1,16 @@
 /* eslint-disable */
 /**
  * Apaga TODOS os dados de teste criados por `seed-test-data.js`, em cascata:
- * matches → teams → inscriptions → tournaments → public_profiles → Auth → users.
+ * ranking → matches → teams → inscriptions → tournaments → public_profiles →
+ * Auth → users.
+ *
+ * "ranking" cobre o que os TRIGGERS criaram a partir do seed e que, por isso,
+ * não carrega flag `seedTest*` nenhuma: `athleteRankings`, `teamRankings`,
+ * `tournamentCategoryResults`, `athleteRatings`, `ratingEvents`,
+ * `leagueAthleteRankings`, `leagueTeamRankings` e as entradas de palpites.
+ * Sem esse passo, apagar `users`/`public_profiles`/Auth NÃO tira o atleta de
+ * teste das telas de ranking — elas leem `athleteRankings` direto e caem num
+ * nome de fallback ("Atleta ab12cd") quando o perfil não existe mais.
  *
  * A ordem NÃO é "filho antes do pai" — é "o índice morre por último". `users`
  * é o documento que guarda os flags (`seedTestAthlete`/`seedTestOrganizer`)
@@ -35,6 +44,8 @@ const {
   chunkList,
   partitionCleanupTargets,
   partitionOrganizerCleanup,
+  partitionRankingDocs,
+  partitionRatingEvents,
 } = require("../lib/test-data-cleanup");
 
 const PROD_PROJECT_ID = "volley-track-2dd3b";
@@ -96,6 +107,43 @@ function teamsPath(pid) {
 }
 function matchesPath(pid) {
   return `artifacts/${pid}/public/data/matches`;
+}
+
+function ratingEventsPath(pid) {
+  return `artifacts/${pid}/public/data/ratingEvents`;
+}
+
+/**
+ * Coleções de ranking/rating e como cada doc aponta para o dono.
+ *
+ * São alimentadas por TRIGGER quando uma partida encerra — nada disso é criado
+ * pelo seed, então nada disso carrega flag `seedTest*`. É por isso que precisam
+ * de tratamento próprio: sem elas, o atleta de teste continua nas telas de
+ * ranking mesmo com `users`, `public_profiles` e Auth já apagados (a tela não
+ * esconde a linha sem perfil, ela desenha "Atleta ab12cd").
+ *
+ * `"@id"` significa que o dono é o próprio id do doc; qualquer outro valor é o
+ * nome do campo que guarda o dono. Os nomes espelham os helpers das functions
+ * — mudar um lado sem o outro silenciosamente para de limpar:
+ * `tournament-ranking.ts:61-71`, `rating-engine.ts:36-42`,
+ * `league-ranking.ts:39-45`.
+ */
+const RANKING_COLLECTIONS = [
+  {name: "athleteRankings", athleteKey: "@id"},
+  {name: "teamRankings", teamKey: "@id"},
+  {name: "tournamentCategoryResults", teamKey: "teamId", tournamentKey: "tournamentId"},
+  {name: "athleteRatings", athleteKey: "athleteId"},
+  {name: "leagueAthleteRankings", athleteKey: "athleteId"},
+  {name: "leagueTeamRankings", teamKey: "teamId"},
+];
+
+/**
+ * Ids dos docs de uma coleção, sem baixar o conteúdo (`select()` sem campos
+ * traz só as referências). É a checagem de "esse dono ainda existe?".
+ */
+async function collectionIds(db, path) {
+  const snap = await db.collection(path).select().get();
+  return new Set(snap.docs.map((d) => d.id));
 }
 
 /** Docs de `matches` dos torneios seed, respeitando o limite do `in`. */
@@ -163,6 +211,12 @@ async function discover(db, projectId) {
     await findSeedMatches(db, projectId, seedTournamentIds) :
     [];
 
+  const ranking = await discoverRanking(db, projectId, {
+    seedTournamentIds,
+    teamIds: plan.teamIds,
+    deletableAthleteUids: plan.deletableAthleteUids,
+  });
+
   // `organizerUids` não sai daqui: só `partitionOrganizerCleanup` precisa da
   // lista crua, e o que os chamadores consomem é o veredito dela
   // (`deletableOrganizerUids` / `preservedOrganizerUids`).
@@ -172,7 +226,151 @@ async function discover(db, projectId) {
     matchIds: matchDocs.map((d) => d.id),
     ...plan,
     ...organizerPlan,
+    ...ranking,
   };
+}
+
+/**
+ * Descobre o que sai das coleções de ranking/rating. Roda DEPOIS de
+ * `partitionCleanupTargets` porque consome o veredito dele:
+ * `deletableAthleteUids` já exclui os atletas seed preservados, então nada
+ * daqui alcança quem a limpeza decidiu manter.
+ *
+ * Lê cada coleção INTEIRA em vez de consultar por dono, porque a decisão tem
+ * dois lados e o segundo não é consultável: além do que é seed desta rodada,
+ * sai também o que ficou ÓRFÃO (dono já apagado, doc de ranking para trás) —
+ * sobra das execuções anteriores a este passo existir. Não há consulta para
+ * "dono que não existe": é preciso ver os donos vivos e comparar. A leitura
+ * cheia também dispensa índice e é consistente com o resto do script, que já
+ * lê `tournaments`, `inscriptions` e `users` por completo.
+ */
+async function discoverRanking(db, projectId, {
+  seedTournamentIds,
+  teamIds,
+  deletableAthleteUids,
+}) {
+  const [rankingDocs, ratingEventDocs, liveUserIds, liveTeamIds, predictionEntryPaths] =
+    await Promise.all([
+      readRankingDocs(db, projectId),
+      readRatingEvents(db, projectId),
+      collectionIds(db, "users"),
+      collectionIds(db, teamsPath(projectId)),
+      findPredictionEntryPaths(db, seedTournamentIds),
+    ]);
+
+  // Órfão = dono referenciado por algum doc de ranking que não existe mais.
+  // Só entram donos efetivamente citados: não há varredura especulativa.
+  const orphansOf = (ids, live) => [
+    ...new Set(ids.filter((id) => id && !live.has(id))),
+  ];
+  const orphanAthleteUids = orphansOf(
+    rankingDocs.map((d) => d.athleteId), liveUserIds,
+  );
+  const orphanTeamIds = orphansOf(rankingDocs.map((d) => d.teamId), liveTeamIds);
+
+  const rankingPlan = partitionRankingDocs({
+    docs: rankingDocs,
+    deletableAthleteUids,
+    deletableTeamIds: teamIds,
+    seedTournamentIds,
+    orphanAthleteUids,
+    orphanTeamIds,
+  });
+
+  // `ratingEvents` é decidido pelo elenco inteiro do evento, não por dono
+  // único: some só quando NINGUÉM ali sobrevive à limpeza — seed apagável ou
+  // atleta já inexistente. Os órfãos vêm do próprio ledger, e não de
+  // `rankingDocs`: um atleta pode ter evento de rating sem nunca ter pontuado.
+  const eventAthleteUids = ratingEventDocs.flatMap((e) =>
+    Array.isArray(e.athleteIds) ? e.athleteIds.map(String) : [],
+  );
+  const ratingEventPlan = partitionRatingEvents({
+    events: ratingEventDocs,
+    removableAthleteUids: [
+      ...deletableAthleteUids,
+      ...orphansOf(eventAthleteUids, liveUserIds),
+    ],
+  });
+
+  return {
+    ...rankingPlan,
+    ...ratingEventPlan,
+    predictionEntryPaths,
+    orphanAthleteCount: orphanAthleteUids.length,
+  };
+}
+
+/**
+ * Lê as coleções de ranking/rating e reduz cada doc ao dono, no formato que
+ * `partitionRankingDocs` decide.
+ *
+ * `athleteRatings` entra pelo campo `athleteId`, não pelo id do doc: o id é
+ * `{uid}_{sportCode}` e o conjunto de esportes avaliados muda com a config
+ * (`RATED_SPORT_CODES`) — depender do id deixaria para trás o rating de
+ * qualquer esporte novo.
+ */
+async function readRankingDocs(db, projectId) {
+  const perCollection = await Promise.all(
+    RANKING_COLLECTIONS.map(async (col) => {
+      const snap = await db
+        .collection(`artifacts/${projectId}/public/data/${col.name}`)
+        .get();
+      return snap.docs.map((doc) => {
+        const data = doc.data();
+        const owner = (key) => {
+          if (!key) return "";
+          return key === "@id" ? doc.id : String(data[key] ?? "");
+        };
+        return {
+          path: doc.ref.path,
+          athleteId: owner(col.athleteKey),
+          teamId: owner(col.teamKey),
+          tournamentId: owner(col.tournamentKey),
+        };
+      });
+    }),
+  );
+  return perCollection.flat();
+}
+
+/** Ledger de rating, com o elenco de cada evento. */
+async function readRatingEvents(db, projectId) {
+  const snap = await db.collection(ratingEventsPath(projectId)).get();
+  return snap.docs.map((doc) => ({id: doc.id, athleteIds: doc.data().athleteIds}));
+}
+
+/**
+ * Entradas do ranking de palpites dos torneios seed
+ * (`tournamentPredictions/{tid}/entries/{uid}`).
+ *
+ * A coleção é top-level indexada pelo torneio, então nada dela sai junto com o
+ * `recursiveDelete` de `tournaments/{id}` — sem este passo, o ranking de
+ * palpites do torneio seed fica para sempre no projeto.
+ *
+ * Cobre só os torneios seed: um palpite de atleta seed num torneio REAL não é
+ * alcançável sem índice de collection group em `entries`, e a limpeza já não
+ * apaga o que não consegue provar que é lixo do seed.
+ */
+async function findPredictionEntryPaths(db, tournamentIds) {
+  const paths = [];
+  for (const tid of tournamentIds) {
+    const snap = await db.collection(`tournamentPredictions/${tid}/entries`).get();
+    for (const doc of snap.docs) paths.push(doc.ref.path);
+  }
+  return paths;
+}
+
+/** Quebra uma lista de caminhos por nome de coleção, para o relatório. */
+function countByCollection(paths) {
+  const counts = new Map();
+  for (const path of paths) {
+    // `artifacts/{pid}/public/data/{coleção}/{docId}` — a coleção é o penúltimo
+    // segmento, o que também vale para qualquer outro caminho de doc.
+    const parts = path.split("/");
+    const name = parts[parts.length - 2] ?? path;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1]);
 }
 
 function printReport(d) {
@@ -184,6 +382,48 @@ function printReport(d) {
   console.log(`  tournaments ............. ${d.seedTournamentIds.length}`);
   console.log(`  atletas seed (apagáveis)  ${d.deletableAthleteUids.length}`);
   console.log(`  organizadores seed (apagáveis) ${d.deletableOrganizerUids.length}`);
+  console.log("\nRanking e rating (docs de trigger, sem flag de seed):");
+  console.log(`  do seed desta rodada .... ${d.seedRankingPaths.length}`);
+  console.log(
+    `  órfãos (dono já apagado)  ${d.orphanRankingPaths.length}` +
+      ` — ${d.orphanAthleteCount} atleta(s) fantasma`,
+  );
+  for (const [name, count] of countByCollection(
+    [...d.seedRankingPaths, ...d.orphanRankingPaths],
+  )) {
+    console.log(`      ${name.padEnd(26)} ${count}`);
+  }
+  console.log(`  ratingEvents ............ ${d.deletableRatingEventIds.length}`);
+  console.log(`  palpites (entries) ...... ${d.predictionEntryPaths.length}`);
+
+  if (d.orphanRankingPaths.length) {
+    console.log(
+      `\nÓRFÃOS: ${d.orphanRankingPaths.length} doc(s) de ranking/rating cujo dono` +
+        " (users/{uid} ou",
+    );
+    console.log(
+      "teams/{teamId}) não existe mais — sobra de limpezas anteriores a este passo",
+    );
+    console.log(
+      "existir. São eles que a tela desenha como \"Atleta ab12cd\". Serão apagados.",
+    );
+  }
+
+  if (d.mixedRatingEventIds.length) {
+    console.log(
+      `\nratingEvents NÃO TOCADOS: ${d.mixedRatingEventIds.length} evento(s) misturam atleta`,
+    );
+    console.log(
+      "removível (seed ou órfão) com atleta que FICA. Apagar o ledger não desfaz rating",
+    );
+    console.log(
+      "nenhum e faria o replay recalcular o rating de quem ficou — ficam como estão:",
+    );
+    for (const id of d.mixedRatingEventIds.slice(0, 20)) console.log(`  - ${id}`);
+    if (d.mixedRatingEventIds.length > 20) {
+      console.log(`  ... e mais ${d.mixedRatingEventIds.length - 20}`);
+    }
+  }
 
   if (d.orphanSeedInscriptionIds.length) {
     console.log(
@@ -241,9 +481,9 @@ function printReport(d) {
 }
 
 /**
- * `orphanUnknownInscriptionIds` de propósito NÃO entra aqui: essas inscrições
- * são reportadas, nunca apagadas — contá-las faria o script prometer trabalho
- * e depois não apagar nada.
+ * `orphanUnknownInscriptionIds` e `mixedRatingEventIds` de propósito NÃO
+ * entram aqui: esses docs são reportados, nunca apagados — contá-los faria o
+ * script prometer trabalho e depois não apagar nada.
  */
 function nothingToDo(d) {
   return (
@@ -253,7 +493,14 @@ function nothingToDo(d) {
     d.teamIds.length === 0 &&
     d.seedTournamentIds.length === 0 &&
     d.deletableAthleteUids.length === 0 &&
-    d.deletableOrganizerUids.length === 0
+    d.deletableOrganizerUids.length === 0 &&
+    // Ranking e rating sobrevivem a tudo o resto: num projeto sem seed nenhum
+    // ainda pode haver órfão de execução antiga para apagar, e nesse caso o
+    // script TEM trabalho a fazer mesmo com todas as contagens acima zeradas.
+    d.seedRankingPaths.length === 0 &&
+    d.orphanRankingPaths.length === 0 &&
+    d.deletableRatingEventIds.length === 0 &&
+    d.predictionEntryPaths.length === 0
   );
 }
 
@@ -324,19 +571,53 @@ async function deleteAuthAccounts(auth, uids, log) {
 }
 
 /**
+ * Primeiro passo da cascata: ranking, rating e palpites.
+ *
+ * Vem ANTES de tudo porque é o passo cuja descoberta depende de mais fontes ao
+ * mesmo tempo — `seedTournamentIds` (morre com `tournaments`), `teamIds`
+ * (vem das inscrições, morre com `inscriptions`) e os uids (morrem com
+ * `users`). Rodando primeiro, todas as três ainda estão de pé; rodando depois
+ * de `inscriptions`, por exemplo, um processo morto no meio deixaria
+ * `teamRankings` órfão que nenhum rerun reencontra.
+ *
+ * Nenhuma dessas coleções tem subcoleção (`entries` de palpites é a subcoleção,
+ * e é ela que estamos apagando), então `batch.delete` basta — não há o risco de
+ * subcoleção órfã que obriga `tournaments`/`users` a usarem `recursiveDelete`.
+ */
+async function deleteRankingArtifacts(db, d, log) {
+  const paths = [
+    ...d.seedRankingPaths,
+    ...d.orphanRankingPaths,
+    ...d.deletableRatingEventIds.map(
+      (id) => `${ratingEventsPath(d.projectId)}/${id}`,
+    ),
+    ...d.predictionEntryPaths,
+  ];
+
+  const total = await deleteRefs(db, paths.map((path) => db.doc(path)));
+  log(
+    `\nranking/rating/palpites: ${total} docs apagados` +
+      ` (${d.orphanRankingPaths.length} órfãos de execuções antigas)`,
+  );
+}
+
+/**
  * Cascata: o índice (`users`) morre por último.
  *
  * `discover()` reencontra tudo a partir dos flags em `users/{uid}`
  * (`seedTestAthlete`/`seedTestOrganizer`) e do `tournamentId` em cada
  * `matches`/inscription. Enquanto `users` existir, um rerun depois de uma
  * interrupção redescobre exatamente o que falta (apagar doc inexistente é
- * no-op). Por isso a ordem é matches → teams → inscriptions → tournaments →
- * public_profiles → Auth → users — e não "filho antes do pai" ingênuo, que
- * apagaria `users` (o índice) antes de `public_profiles`/Auth, ou
+ * no-op). Por isso a ordem é ranking → matches → teams → inscriptions →
+ * tournaments → public_profiles → Auth → users — e não "filho antes do pai"
+ * ingênuo, que apagaria `users` (o índice) antes de `public_profiles`/Auth, ou
  * `inscriptions` (de onde `teamIds` é lido) antes de `teams`.
  *
  * Cada fronteira é recuperável — se o processo morrer logo depois de um
  * passo, o rerun ainda descobre o resto:
+ *   - depois de ranking: nada foi tirado das fontes de descoberta
+ *     (tournaments/inscriptions/users seguem intactos) — o rerun redescobre
+ *     tudo igual e reapaga por cima (no-op para o que já sumiu).
  *   - depois de matches: teams/inscriptions/tournaments/users continuam
  *     achável por seedTournamentIds/flags: nada mudou na descoberta.
  *   - depois de teams: os teams já apagados não existem mais para
@@ -361,6 +642,8 @@ async function deleteAuthAccounts(auth, uids, log) {
  */
 async function applyCleanup(db, auth, d) {
   const log = console.log;
+
+  await deleteRankingArtifacts(db, d, log);
 
   const matchRefs = d.matchIds.map((id) => db.doc(`${matchesPath(d.projectId)}/${id}`));
   log(`\nmatches: ${await deleteRefs(db, matchRefs)} apagados`);

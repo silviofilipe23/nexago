@@ -6,6 +6,8 @@ import {
   inscriptionParticipantUids,
   partitionCleanupTargets,
   partitionOrganizerCleanup,
+  partitionRankingDocs,
+  partitionRatingEvents,
 } from "./test-data-cleanup";
 
 describe("test-data-cleanup", () => {
@@ -257,6 +259,208 @@ describe("partitionCleanupTargets — tournamentId pendurado", () => {
     assert.deepEqual(plan.preservedAthleteUids, ["s1"]);
     assert.deepEqual(plan.deletableAthleteUids, []);
     assert.deepEqual(plan.orphanSeedInscriptionIds, ["i1"]);
+  });
+});
+
+describe("partitionRatingEvents", () => {
+  it("apaga evento cujos atletas são todos seed apagáveis", () => {
+    const plan = partitionRatingEvents({
+      events: [{id: "VOLEI_PRAIA_m1", athleteIds: ["s1", "s2", "s3", "s4"]}],
+      removableAthleteUids: ["s1", "s2", "s3", "s4"],
+    });
+
+    assert.deepEqual(plan.deletableRatingEventIds, ["VOLEI_PRAIA_m1"]);
+    assert.deepEqual(plan.mixedRatingEventIds, []);
+  });
+
+  it("reporta (não apaga) evento que mistura atleta seed com atleta real", () => {
+    const plan = partitionRatingEvents({
+      events: [{id: "VOLEI_PRAIA_m1", athleteIds: ["s1", "REAL", "s2", "s3"]}],
+      removableAthleteUids: ["s1", "s2", "s3"],
+    });
+
+    assert.deepEqual(plan.deletableRatingEventIds, []);
+    assert.deepEqual(plan.mixedRatingEventIds, ["VOLEI_PRAIA_m1"]);
+  });
+
+  it("atleta seed PRESERVADO conta como de fora — o evento não é apagado", () => {
+    // `removableAthleteUids` já exclui os preservados; o evento de um torneio
+    // real onde um seed preservado jogou não pode sumir com a limpeza.
+    const plan = partitionRatingEvents({
+      events: [{id: "VOLEI_PRAIA_m1", athleteIds: ["s1", "preservado"]}],
+      removableAthleteUids: ["s1"],
+    });
+
+    assert.deepEqual(plan.deletableRatingEventIds, []);
+    assert.deepEqual(plan.mixedRatingEventIds, ["VOLEI_PRAIA_m1"]);
+  });
+
+  it("apaga evento 100% de atletas órfãos (sobra de execução antiga)", () => {
+    // Órfãos entram em `removableAthleteUids` junto com os seed: o evento não
+    // tem mais nenhum dono vivo para o replay proteger.
+    const plan = partitionRatingEvents({
+      events: [{id: "VOLEI_PRAIA_m1", athleteIds: ["orfao1", "orfao2"]}],
+      removableAthleteUids: ["orfao1", "orfao2"],
+    });
+
+    assert.deepEqual(plan.deletableRatingEventIds, ["VOLEI_PRAIA_m1"]);
+    assert.deepEqual(plan.mixedRatingEventIds, []);
+  });
+
+  it("evento sem athleteIds utilizável é reportado, não apagado", () => {
+    const plan = partitionRatingEvents({
+      events: [
+        {id: "e1", athleteIds: []},
+        {id: "e2"},
+        {id: "e3", athleteIds: ["", null, 42]},
+      ],
+      removableAthleteUids: ["s1"],
+    });
+
+    assert.deepEqual(plan.deletableRatingEventIds, []);
+    assert.deepEqual(plan.mixedRatingEventIds, ["e1", "e2", "e3"]);
+  });
+
+  it("sem atleta removível nenhum, nada é apagado", () => {
+    const plan = partitionRatingEvents({
+      events: [{id: "e1", athleteIds: ["s1"]}],
+      removableAthleteUids: [],
+    });
+
+    assert.deepEqual(plan.deletableRatingEventIds, []);
+    assert.deepEqual(plan.mixedRatingEventIds, ["e1"]);
+  });
+
+  it("sem eventos, devolve tudo vazio", () => {
+    const plan = partitionRatingEvents({events: [], removableAthleteUids: ["s1"]});
+
+    assert.deepEqual(plan.deletableRatingEventIds, []);
+    assert.deepEqual(plan.mixedRatingEventIds, []);
+  });
+});
+
+describe("partitionRankingDocs", () => {
+  const base = {
+    deletableAthleteUids: [],
+    deletableTeamIds: [],
+    seedTournamentIds: [],
+    orphanAthleteUids: [],
+    orphanTeamIds: [],
+  };
+
+  it("apaga por dono seed — atleta, dupla ou torneio", () => {
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [
+        {path: "PB/athleteRankings/s1", athleteId: "s1"},
+        {path: "PB/teamRankings/tm1", teamId: "tm1"},
+        {path: "PB/tournamentCategoryResults/seed1_c_tm9", teamId: "tm9", tournamentId: "seed1"},
+      ],
+      deletableAthleteUids: ["s1"],
+      deletableTeamIds: ["tm1"],
+      seedTournamentIds: ["seed1"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, [
+      "PB/athleteRankings/s1",
+      "PB/teamRankings/tm1",
+      "PB/tournamentCategoryResults/seed1_c_tm9",
+    ]);
+    assert.deepEqual(plan.orphanRankingPaths, []);
+  });
+
+  it("apaga por dono morto — é o fantasma das execuções antigas", () => {
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [
+        {path: "PB/athleteRankings/orfao", athleteId: "orfao"},
+        {path: "PB/teamRankings/tmMorto", teamId: "tmMorto"},
+      ],
+      orphanAthleteUids: ["orfao"],
+      orphanTeamIds: ["tmMorto"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, []);
+    assert.deepEqual(plan.orphanRankingPaths, [
+      "PB/athleteRankings/orfao",
+      "PB/teamRankings/tmMorto",
+    ]);
+  });
+
+  it("mantém doc de atleta vivo que não é seed", () => {
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [{path: "PB/athleteRankings/REAL", athleteId: "REAL"}],
+      deletableAthleteUids: ["s1"],
+      orphanAthleteUids: ["orfao"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, []);
+    assert.deepEqual(plan.orphanRankingPaths, []);
+  });
+
+  it("atleta seed PRESERVADO não aparece em nenhuma das listas", () => {
+    // Preservado tem `users/{uid}` vivo (logo não é órfão) e ficou de fora de
+    // `deletableAthleteUids` — o ranking dele sobrevive junto com a conta.
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [{path: "PB/athleteRankings/preservado", athleteId: "preservado"}],
+      deletableAthleteUids: ["s1"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, []);
+    assert.deepEqual(plan.orphanRankingPaths, []);
+  });
+
+  it("seed ganha de órfão quando o doc cai nos dois", () => {
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [{path: "PB/athleteRankings/s1", athleteId: "s1"}],
+      deletableAthleteUids: ["s1"],
+      orphanAthleteUids: ["s1"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, ["PB/athleteRankings/s1"]);
+    assert.deepEqual(plan.orphanRankingPaths, []);
+  });
+
+  it("resultado de torneio seed sai mesmo com a dupla ainda viva", () => {
+    // A inscrição pode ter sido removida à mão: a dupla não entra em
+    // `deletableTeamIds`, e é o `tournamentId` que salva a descoberta.
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [
+        {path: "PB/tournamentCategoryResults/seed1_c_tmViva", teamId: "tmViva", tournamentId: "seed1"},
+      ],
+      seedTournamentIds: ["seed1"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, [
+      "PB/tournamentCategoryResults/seed1_c_tmViva",
+    ]);
+  });
+
+  it("doc sem dono identificável é mantido", () => {
+    const plan = partitionRankingDocs({
+      ...base,
+      docs: [
+        {path: "PB/tournamentCategoryResults/lixo"},
+        {path: "PB/athleteRankings/vazio", athleteId: "  "},
+      ],
+      deletableAthleteUids: ["s1"],
+      orphanAthleteUids: ["orfao"],
+      orphanTeamIds: ["tmMorto"],
+    });
+
+    assert.deepEqual(plan.seedRankingPaths, []);
+    assert.deepEqual(plan.orphanRankingPaths, []);
+  });
+
+  it("sem docs, devolve tudo vazio", () => {
+    const plan = partitionRankingDocs({...base, docs: []});
+
+    assert.deepEqual(plan.seedRankingPaths, []);
+    assert.deepEqual(plan.orphanRankingPaths, []);
   });
 });
 

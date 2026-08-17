@@ -131,6 +131,52 @@ void main() {
     );
   });
 
+  testWidgets('LiveTableStartingServe pergunta e devolve a dupla escolhida', (
+    tester,
+  ) async {
+    final chosen = <String>[];
+    await tester.pumpWidget(
+      wrap(
+        LiveTableStartingServe(
+          teamA: team('Marcos / Victor'),
+          teamB: team('Igor / João'),
+          onChoose: chosen.add,
+        ),
+      ),
+    );
+
+    expect(find.text('Quem começa sacando?'), findsOneWidget);
+    expect(find.text('Marcos / Victor'), findsOneWidget);
+    expect(find.text('Igor / João'), findsOneWidget);
+
+    await tester.tap(find.text('Igor / João'));
+    await tester.pump();
+
+    expect(chosen, ['B']);
+  });
+
+  test('liveTableIsServing não acende SAQUE em ninguém sem saque definido', () {
+    final match = TournamentMatch(
+      id: 'm1',
+      tournamentId: 't1',
+      categoryId: 'cat-1',
+      round: 1,
+      matchType: 'wb',
+      poolId: '',
+      teamAId: 'a',
+      teamBId: 'b',
+      status: TournamentMatchStatus.inProgress,
+      resultA: '',
+      resultB: '',
+      isGroupMatch: false,
+      matchNumber: 1,
+    );
+
+    // Sem isto o app afirmava que a dupla A estava sacando só porque o campo nasce vazio.
+    expect(liveTableIsServing(match, sideA: true), isFalse);
+    expect(liveTableIsServing(match, sideA: false), isFalse);
+  });
+
   test('liveTableTitleLabel uses category and round', () {
     final match = TournamentMatch(
       id: 'm1',

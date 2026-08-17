@@ -11,6 +11,7 @@ import {
   lastUndoablePoint,
   liveSetToMap,
   matchWinnerSide,
+  needsStartingServe,
   setsWonOf,
   undoPoint,
   validateScoreSubmission,
@@ -72,7 +73,7 @@ interface FeedRowView {
   selector: 'app-mesa-live',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, NxPageLoadingComponent, NxSpinnerComponent],
-  host: { '[class.mesa-present]': 'present()' },
+  host: { '[class.mesa-present]': 'present()', '[class.mesa-asking]': 'askingServe()' },
   template: `
     @if (!loaded()) {
       <div class="mesa-state"><app-nx-page-loading title="Carregando partida…" subtitle="Conectando à mesa ao vivo" /></div>
@@ -116,6 +117,23 @@ interface FeedRowView {
         <span class="mesa-grow"></span>
         <button type="button" class="mesa-chip mesa-chip--tap" [disabled]="saving() || status() === 'completed'" (click)="toggleFormat()">{{ bestOfLabel() }}</button>
       </div>
+
+      @if (askingServe()) {
+        <div class="mesa-ask">
+          <span class="mesa-eyebrow">Quem começa sacando?</span>
+          @for (side of sidesInOrder(); track side) {
+            <button
+              type="button"
+              class="mesa-askbtn"
+              [disabled]="saving()"
+              [attr.aria-label]="'Saque inicial para ' + label(side)"
+              (click)="chooseServe(side)"
+            >
+              <span class="mesa-badge">{{ side }}</span>{{ label(side) }}
+            </button>
+          }
+        </div>
+      }
 
       @for (side of sidesInOrder(); track side) {
         <!-- O −1 é irmão do painel, não filho: botão dentro de botão é HTML inválido, e o toque
@@ -323,6 +341,56 @@ interface FeedRowView {
       color: var(--nx-text);
       overflow: hidden;
       overscroll-behavior: none;
+    }
+    /* A pergunta do saque entra como uma linha própria, entre os sets e o painel de cima. Fica
+       ANTES do bloco do modo exibição de propósito: as duas regras têm a mesma especificidade e
+       ali o layout de exibição (1fr auto 1fr) tem que ganhar por ordem. */
+    :host(.mesa-asking) {
+      grid-template-rows: auto auto auto 1fr auto 1fr auto;
+    }
+
+    .mesa-ask {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--nx-orange-tint);
+      border-bottom: 1px solid rgba(255, 106, 26, 0.32);
+      overflow-x: auto;
+      scrollbar-width: none;
+      min-width: 0;
+    }
+    .mesa-ask::-webkit-scrollbar {
+      display: none;
+    }
+    .mesa-ask .mesa-eyebrow {
+      color: var(--nx-orange-400);
+      flex-shrink: 0;
+    }
+    /* Alvo de mesário na areia: 40px de altura mesmo numa faixa temporária. */
+    .mesa-askbtn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 0 12px;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 106, 26, 0.42);
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .mesa-askbtn:active {
+      background: var(--nx-orange-tint);
+    }
+    .mesa-askbtn:disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
 
     .mesa-state {
@@ -1328,6 +1396,15 @@ export class MesaLiveComponent {
     return null;
   });
 
+  /** A pergunta de abertura do saque — regra em `needsStartingServe`, compartilhada com a mesa do
+   *  organizador e a do app. Some no modo exibição: ali a tela está virada para os atletas e não
+   *  aceita toque de mesário. */
+  protected readonly askingServe = computed(() => {
+    const m = this.match();
+    if (!m || this.present()) return false;
+    return needsStartingServe({ servingTeamId: m.servingTeamId, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId });
+  });
+
   protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady());
 
   /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto). */
@@ -1489,6 +1566,23 @@ export class MesaLiveComponent {
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);
+    }
+  }
+
+  /** Abre o saque na dupla escolhida. Não inicia a partida nem marca ponto: grava só o campo,
+   *  como o "Saque" das ferramentas — daí em diante o rally resolve sozinho. */
+  protected async chooseServe(side: MesaSide): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || !this.askingServe()) return;
+    const teamId = side === 'A' ? m.teamAId : m.teamBId;
+    if (!teamId) return;
+    this.saving.set(true);
+    try {
+      await this.gateway.updateFields(m.id, { servingTeamId: teamId });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
+    } finally {
+      this.saving.set(false);
     }
   }
 

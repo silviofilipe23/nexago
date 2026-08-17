@@ -11,6 +11,7 @@ import {
   formatElapsedMmSs,
   lastUndoablePoint,
   liveSetToMap,
+  needsStartingServe,
   recordPointTransaction,
   setPointHint,
   setRulesLabel,
@@ -103,6 +104,23 @@ interface FeedRowView {
                 </span>
               }
             </div>
+
+            @if (askingServe()) {
+              <div class="og-mesa-ask">
+                <span class="og-mesa-ask-lbl">Quem começa sacando?</span>
+                @for (side of SIDES; track side) {
+                  <button
+                    type="button"
+                    class="og-mesa-askbtn"
+                    [disabled]="saving()"
+                    [attr.aria-label]="'Saque inicial para ' + sideLabel(side)"
+                    (click)="chooseServe(side)"
+                  >
+                    {{ truncate(sideLabel(side), 22) }}
+                  </button>
+                }
+              </div>
+            }
 
             <div class="og-mesa-board">
               <div class="og-mesa-side">
@@ -297,6 +315,46 @@ interface FeedRowView {
     }
     .og-mesa-set[data-state='upcoming'] .val {
       color: var(--nx-text-mute);
+    }
+    .og-mesa-ask {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid color-mix(in srgb, var(--nx-orange-500) 32%, var(--nx-line));
+      background: color-mix(in srgb, var(--nx-orange-500) 7%, transparent);
+    }
+    .og-mesa-ask-lbl {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-orange-500);
+    }
+    /* Alvo de mesário na quadra: 40px de altura mesmo numa faixa temporária. */
+    .og-mesa-askbtn {
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid color-mix(in srgb, var(--nx-orange-500) 42%, var(--nx-line));
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .og-mesa-askbtn:not(:disabled):hover {
+      border-color: var(--nx-orange-500);
+    }
+    .og-mesa-askbtn:disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
     .og-mesa-board {
       display: flex;
@@ -634,6 +692,20 @@ export class MesaAoVivoComponent {
     return null;
   });
 
+  protected readonly SIDES = ['A', 'B'] as const;
+
+  protected sideLabel(side: 'A' | 'B'): string {
+    return side === 'A' ? this.teamALabel() : this.teamBLabel();
+  }
+
+  /** A pergunta de abertura do saque — mesma regra (`needsStartingServe`) da mesa do portal do
+   *  atleta e da mesa I1 do app, pra que as três perguntem na mesma janela. */
+  protected readonly askingServe = computed(() => {
+    const m = this.match();
+    if (!m) return false;
+    return needsStartingServe({ servingTeamId: m.servingTeamId, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId });
+  });
+
   protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady());
 
   /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto) — alvo do
@@ -820,6 +892,23 @@ export class MesaAoVivoComponent {
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);
+    }
+  }
+
+  /** Abre o saque na dupla escolhida. Não inicia a partida nem marca ponto: grava só o campo,
+   *  como o "Trocar saque" — daí em diante o rally resolve sozinho. */
+  protected async chooseServe(side: 'A' | 'B'): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || !this.askingServe()) return;
+    const teamId = side === 'A' ? m.teamAId : m.teamBId;
+    if (!teamId) return;
+    this.saving.set(true);
+    try {
+      await updateMatchFields(this.scoring, m.id, { servingTeamId: teamId });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
+    } finally {
+      this.saving.set(false);
     }
   }
 

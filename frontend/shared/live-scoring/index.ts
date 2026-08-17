@@ -24,6 +24,7 @@ export {
   elapsedSecondsFromStart,
   formatElapsedMmSs,
   liveSetToMap,
+  needsStartingServe,
   playedSetsCount,
   setPointHint,
   setRulesLabel,

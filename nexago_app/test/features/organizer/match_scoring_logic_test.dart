@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_scoring_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_set.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 
 void main() {
   group('MatchScoringLogic', () {
@@ -330,6 +331,50 @@ void main() {
         expect(result.completed, isFalse);
         expect(result.winnerId, isNull);
         expect(result.currentSetIndex, 1);
+      });
+    });
+
+    /// Espelha `needsStartingServe` de `live-scoring.ts` (portais web): quem ABRE o saque é o
+    /// único momento que o rally não resolve, e as três mesas têm que perguntar na mesma janela.
+    group('needsStartingServe', () {
+      bool needs({
+        String servingTeamId = '',
+        String status = TournamentMatchStatus.scheduled,
+        String teamAId = 'teamA',
+        String teamBId = 'teamB',
+      }) {
+        return MatchScoringLogic.needsStartingServe(
+          servingTeamId: servingTeamId,
+          status: status,
+          teamAId: teamAId,
+          teamBId: teamBId,
+        );
+      }
+
+      test('pergunta na partida agendada, antes do primeiro ponto', () {
+        expect(needs(), isTrue);
+      });
+
+      test('pergunta também com a partida já ao vivo', () {
+        expect(needs(status: TournamentMatchStatus.inProgress), isTrue);
+      });
+
+      test('cala quando o saque já tem dono', () {
+        expect(needs(servingTeamId: 'teamB'), isFalse);
+      });
+
+      test('trata saque em branco como sem dono', () {
+        expect(needs(servingTeamId: '   '), isTrue);
+      });
+
+      test('cala na partida encerrada e na cancelada', () {
+        expect(needs(status: TournamentMatchStatus.completed), isFalse);
+        expect(needs(status: TournamentMatchStatus.canceled), isFalse);
+      });
+
+      test('cala enquanto a chave não definiu os dois lados', () {
+        expect(needs(teamBId: ''), isFalse);
+        expect(needs(teamAId: ''), isFalse);
       });
     });
   });

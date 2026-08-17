@@ -989,6 +989,120 @@ class LiveTableQuickScoreEntry extends StatelessWidget {
   }
 }
 
+/// Faixa de abertura do saque: aparece enquanto `MatchScoringLogic.needsStartingServe` for
+/// verdadeiro e sai da tela na escolha. Mesmo desenho das mesas web — pergunta entre a régua de
+/// sets e o placar, respondida com um toque no nome da dupla.
+class LiveTableStartingServe extends StatelessWidget {
+  const LiveTableStartingServe({
+    super.key,
+    required this.teamA,
+    required this.teamB,
+    required this.onChoose,
+    this.enabled = true,
+  });
+
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+
+  /// Recebe `'A'` ou `'B'` — o mesmo lado que o resto da mesa usa.
+  final ValueChanged<String> onChoose;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.brand.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.brand.withValues(alpha: 0.24)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Quem começa sacando?',
+              style: AppTypography.soraRegular(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+                color: AppColors.brand,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _StartingServeOption(
+                    label: teamA.label,
+                    enabled: enabled,
+                    onTap: () => onChoose('A'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _StartingServeOption(
+                    label: teamB.label,
+                    enabled: enabled,
+                    onTap: () => onChoose('B'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StartingServeOption extends StatelessWidget {
+  const _StartingServeOption({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceCard,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          // Alvo de mesário na areia, mesmo numa faixa temporária.
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.brand.withValues(alpha: 0.42)),
+          ),
+          child: Text(
+            label,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: context.themeColors.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 typedef LiveTableQuickScoreSubmit =
     Future<void> Function(List<TournamentMatchSet> sets, int bestOf);
 
@@ -2139,7 +2253,10 @@ String liveTableServingTeamLabel(TournamentMatch match) {
 
 bool liveTableIsServing(TournamentMatch match, {required bool sideA}) {
   final servingId = match.servingTeamId.trim();
-  if (servingId.isEmpty) return sideA;
+  // Campo vazio significa que NINGUÉM abriu o saque ainda — quem pergunta é
+  // `LiveTableStartingServe`. Antes daqui o app assumia a dupla A e acendia um SAQUE que o
+  // mesário nunca definiu.
+  if (servingId.isEmpty) return false;
   return sideA ? servingId == match.teamAId : servingId == match.teamBId;
 }
 

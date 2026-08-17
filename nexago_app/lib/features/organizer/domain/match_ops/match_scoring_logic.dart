@@ -1,5 +1,6 @@
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
+import '../../../tournaments/domain/tournament_match_status.dart';
 
 /// Um problema encontrado na validação de placar completo / lançamento rápido.
 class QuickScoreValidationIssue {
@@ -397,6 +398,26 @@ abstract final class MatchScoringLogic {
       return 'set point em $remaining';
     }
     return null;
+  }
+
+  /// Quem ABRE o saque é o único momento que o rally não resolve: do 1º ponto em diante
+  /// `servingTeamId` é sempre quem marcou. Enquanto ninguém está com o saque a mesa pergunta —
+  /// inclusive com a partida já ao vivo, porque o mesário pode ter iniciado e só depois lembrado.
+  /// Cala em partida encerrada/cancelada e enquanto a chave não definiu os dois lados (não existe
+  /// teamId pra gravar). Espelha `needsStartingServe` de `live-scoring.ts`: as três mesas
+  /// (app, organizador e portal do atleta) têm que perguntar na MESMA janela.
+  static bool needsStartingServe({
+    required String servingTeamId,
+    required String status,
+    required String teamAId,
+    required String teamBId,
+  }) {
+    if (TournamentMatchStatus.isCompleted(status) ||
+        TournamentMatchStatus.isCanceled(status)) {
+      return false;
+    }
+    if (teamAId.trim().isEmpty || teamBId.trim().isEmpty) return false;
+    return servingTeamId.trim().isEmpty;
   }
 
   static String formatPointEventTime(DateTime ts) {

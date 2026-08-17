@@ -1,6 +1,10 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {planLevelChange} from "./athlete-level-admin";
+import {
+  levelHistoryAuditFields,
+  planLevelChange,
+  planLevelChangeAuthorization,
+} from "./athlete-level-admin";
 import {parseLadderConfig} from "./rating-config";
 import type {AthleteRatingState} from "./rating-ladder";
 
@@ -136,5 +140,163 @@ describe("planLevelChange — quando NÃO realinha", () => {
       currentRating: rating({levelCode: "iniciante_2", levelRank: 1}),
     });
     assert.equal(result.ratingNext, null);
+  });
+});
+
+/**
+ * Base "tudo certo" para o caminho do organizador: dono do torneio, atleta
+ * inscrito, subindo de nível (`iniciante_1` → `intermediario_1`).
+ */
+function authParams(
+  overrides: Partial<Parameters<typeof planLevelChangeAuthorization>[0]> = {},
+) {
+  return {
+    isAdmin: false,
+    tournamentId: "t1",
+    tournamentManagerId: "org-1",
+    callerUid: "org-1",
+    athleteHasActiveRegistration: true,
+    currentLevel: "iniciante_1",
+    targetLevel: "intermediario_1",
+    ...overrides,
+  };
+}
+
+describe("planLevelChangeAuthorization", () => {
+  it("admin sempre autorizado — mesmo sem tournamentId e mesmo descendo", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({
+        isAdmin: true,
+        tournamentId: "",
+        tournamentManagerId: null,
+        athleteHasActiveRegistration: false,
+        currentLevel: "open",
+        targetLevel: "iniciante_1",
+      }),
+    );
+    assert.deepEqual(result, {mode: "admin"});
+  });
+
+  it("organizador promovendo atleta inscrito no próprio torneio: autorizado", () => {
+    const result = planLevelChangeAuthorization(authParams());
+    assert.deepEqual(result, {mode: "organizer"});
+  });
+
+  it("organizador sem nível atual (seed): autorizado (não há degrau pra violar)", () => {
+    const result = planLevelChangeAuthorization(authParams({currentLevel: null}));
+    assert.deepEqual(result, {mode: "organizer"});
+  });
+
+  it("sem tournamentId e sem admin: permission-denied", () => {
+    const result = planLevelChangeAuthorization(authParams({tournamentId: ""}));
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+    assert.match(
+      (result as {message: string}).message,
+      /Apenas administradores/,
+    );
+  });
+
+  it("caller não é dono do torneio: permission-denied", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({tournamentManagerId: "outro-uid"}),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+    assert.match(
+      (result as {message: string}).message,
+      /não é o organizador responsável/,
+    );
+  });
+
+  it("torneio sem dono identificável (managerId ausente): permission-denied", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({tournamentManagerId: null}),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+  });
+
+  it("atleta sem inscrição ativa no torneio: permission-denied", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({athleteHasActiveRegistration: false}),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+    assert.match(
+      (result as {message: string}).message,
+      /não tem inscrição ativa/,
+    );
+  });
+
+  it("tenta manter o mesmo nível: failed-precondition com a mensagem exata", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({currentLevel: "intermediario_1", targetLevel: "intermediario_1"}),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "failed-precondition");
+    assert.equal(
+      (result as {message: string}).message,
+      "Organizador só pode promover — o nível de um atleta nunca desce.",
+    );
+  });
+
+  it("tenta rebaixar: failed-precondition com a mesma mensagem exata", () => {
+    const result = planLevelChangeAuthorization(
+      authParams({currentLevel: "avancado_1", targetLevel: "iniciante_2"}),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "failed-precondition");
+    assert.equal(
+      (result as {message: string}).message,
+      "Organizador só pode promover — o nível de um atleta nunca desce.",
+    );
+  });
+
+  it("direção errada é checada DEPOIS de dono/inscrição (mensagem certa por prioridade)", () => {
+    // Nem dono nem inscrito, e também tentando rebaixar — o motivo relatado é
+    // o de propriedade, não o de direção (checagens em cascata, a mais básica
+    // primeiro).
+    const result = planLevelChangeAuthorization(
+      authParams({
+        tournamentManagerId: "outro-uid",
+        athleteHasActiveRegistration: false,
+        currentLevel: "avancado_1",
+        targetLevel: "iniciante_2",
+      }),
+    );
+    assert.equal(result.mode, "denied");
+    assert.equal((result as {code: string}).code, "permission-denied");
+  });
+});
+
+describe("levelHistoryAuditFields", () => {
+  it("admin: reason admin_manual, note = motivo digitado, actor backoffice:{uid}, sem tournamentId", () => {
+    const fields = levelHistoryAuditFields({
+      mode: "admin",
+      callerUid: "admin-1",
+      note: "Nível declarado não condizia com o nível real observado em quadra.",
+      tournamentId: "",
+    });
+    assert.deepEqual(fields, {
+      reason: "admin_manual",
+      note: "Nível declarado não condizia com o nível real observado em quadra.",
+      actor: "backoffice:admin-1",
+    });
+  });
+
+  it("organizador: reason organizer_promotion, actor organizer:{uid}, tournamentId presente", () => {
+    const fields = levelHistoryAuditFields({
+      mode: "organizer",
+      callerUid: "org-1",
+      note: "",
+      tournamentId: "t1",
+    });
+    assert.deepEqual(fields, {
+      reason: "organizer_promotion",
+      note: null,
+      actor: "organizer:org-1",
+      tournamentId: "t1",
+    });
   });
 });

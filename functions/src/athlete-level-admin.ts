@@ -24,6 +24,7 @@
 
 import {getAuth} from "firebase-admin/auth";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
+import type {Firestore} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {callerCanAccessBackoffice} from "./auth-roles";
@@ -33,7 +34,7 @@ import {
   levelDisplayLabel,
   levelRank,
 } from "./category-level-eligibility";
-import {getFirebaseProjectId} from "./firebase-paths";
+import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
   RATED_SPORT_CODES,
@@ -146,6 +147,113 @@ export function planLevelChange(params: {
   };
 }
 
+export type LevelChangeAuthorizationResult =
+  | {mode: "admin"}
+  | {mode: "organizer"}
+  | {mode: "denied"; code: "permission-denied" | "failed-precondition"; message: string};
+
+/**
+ * Decisão pura de autorização de `setAthleteLevel`: admin da plataforma
+ * (qualquer torneio, qualquer direção, sem `tournamentId`) OU organizador
+ * dono de um torneio em que o atleta tem inscrição ATIVA — achado da Task 1:
+ * cancelamento é hard delete do doc em `artifacts/.../inscriptions`, não há
+ * campo de status, então "ativa" == doc existe — e só para SUBIR de nível.
+ *
+ * Checagens em cascata da mais básica pra mais específica (tournamentId →
+ * dono → inscrição → direção): quem falha num degrau de baixo nunca chega a
+ * "rebaixamento", então a mensagem devolvida é sempre a do motivo mais
+ * fundamental, não a última checada.
+ *
+ * Sem I/O de propósito — quem chama (`assertAdminOrPromotingOrganizer`)
+ * resolve os fatos (claims, doc do torneio, query de inscrições) e só então
+ * decide aqui, testável sem Firestore/Auth.
+ */
+export function planLevelChangeAuthorization(params: {
+  isAdmin: boolean;
+  tournamentId: string;
+  tournamentManagerId: string | null;
+  callerUid: string;
+  athleteHasActiveRegistration: boolean;
+  currentLevel: string | null;
+  targetLevel: string;
+}): LevelChangeAuthorizationResult {
+  const {
+    isAdmin,
+    tournamentId,
+    tournamentManagerId,
+    callerUid,
+    athleteHasActiveRegistration,
+    currentLevel,
+    targetLevel,
+  } = params;
+
+  if (isAdmin) return {mode: "admin"};
+
+  if (!tournamentId) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message: "Apenas administradores da plataforma podem alterar o nível de um atleta.",
+    };
+  }
+
+  if (!tournamentManagerId || tournamentManagerId !== callerUid) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message: "Você não é o organizador responsável por este torneio.",
+    };
+  }
+
+  if (!athleteHasActiveRegistration) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message: "Este atleta não tem inscrição ativa neste torneio.",
+    };
+  }
+
+  // `currentRank == null` (esporte sem nível declarado ainda) não é violação:
+  // não há degrau anterior pra "descer" — organizador pode semear o 1º nível.
+  const currentRank = levelRank(currentLevel);
+  const targetRank = levelRank(targetLevel);
+  if (currentRank != null && targetRank != null && targetRank <= currentRank) {
+    return {
+      mode: "denied",
+      code: "failed-precondition",
+      message: "Organizador só pode promover — o nível de um atleta nunca desce.",
+    };
+  }
+
+  return {mode: "organizer"};
+}
+
+/**
+ * Metadados de auditoria (`reason`/`note`/`actor`/`tournamentId`) do
+ * `levelHistory` — os únicos campos que mudam entre o caminho admin e o do
+ * organizador. O resto do doc (rating/RD/partidas) vem do `plan` de
+ * `planLevelChange`, sem duplicar aquela lógica aqui.
+ */
+export function levelHistoryAuditFields(params: {
+  mode: "admin" | "organizer";
+  callerUid: string;
+  note: string;
+  tournamentId: string;
+}): {reason: string; note: string | null; actor: string; tournamentId?: string} {
+  const {mode, callerUid, note, tournamentId} = params;
+  if (mode === "admin") {
+    return {reason: "admin_manual", note, actor: `backoffice:${callerUid}`};
+  }
+  // Organizador não é obrigado a digitar motivo (o gate real é a inscrição +
+  // a direção, validados antes de chegar aqui) — `note` fica `null` se vazio.
+  return {
+    reason: "organizer_promotion",
+    note: note || null,
+    actor: `organizer:${callerUid}`,
+    tournamentId,
+  };
+}
+
 function levelsBySportOf(data: Record<string, unknown> | undefined): Record<string, string> {
   const onboarding = data?.["sportOnboarding"];
   const bySport =
@@ -185,6 +293,62 @@ async function assertBackofficeCaller(callerUid: string | undefined): Promise<st
     );
   }
   return caller.email ?? callerUid;
+}
+
+/**
+ * Resolve fatos (claims do caller, doc do torneio, query de inscrições) e
+ * delega a decisão a `planLevelChangeAuthorization` — lança `HttpsError` no
+ * código/mensagem exatos que ela devolveu. Só toca Firestore/Auth quando
+ * precisa: admin nunca lê torneio/inscrição; sem `tournamentId`/dono errado
+ * nunca chega a consultar inscrições.
+ */
+async function assertAdminOrPromotingOrganizer(params: {
+  db: Firestore;
+  callerUid: string;
+  tournamentId: string;
+  athleteUid: string;
+  currentLevel: string | null;
+  targetLevel: string;
+}): Promise<{mode: "admin" | "organizer"; actorLabel: string}> {
+  const {db, callerUid, tournamentId, athleteUid, currentLevel, targetLevel} = params;
+
+  const caller = await getAuth().getUser(callerUid);
+  const isAdmin = callerCanAccessBackoffice(caller);
+
+  let tournamentManagerId: string | null = null;
+  let athleteHasActiveRegistration = false;
+
+  if (!isAdmin && tournamentId) {
+    const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+    const managerId = tournamentSnap.data()?.["managerId"];
+    tournamentManagerId = typeof managerId === "string" && managerId.trim() ? managerId : null;
+
+    if (tournamentManagerId === callerUid) {
+      const inscriptionSnap = await db
+        .collection(artifactsInscriptionsPath(getFirebaseProjectId()))
+        .where("tournamentId", "==", tournamentId)
+        .where("participantUids", "array-contains", athleteUid)
+        .limit(1)
+        .get();
+      athleteHasActiveRegistration = !inscriptionSnap.empty;
+    }
+  }
+
+  const decision = planLevelChangeAuthorization({
+    isAdmin,
+    tournamentId,
+    tournamentManagerId,
+    callerUid,
+    athleteHasActiveRegistration,
+    currentLevel,
+    targetLevel,
+  });
+
+  if (decision.mode === "denied") {
+    throw new HttpsError(decision.code, decision.message);
+  }
+
+  return {mode: decision.mode, actorLabel: caller.email ?? callerUid};
 }
 
 function requireUid(raw: unknown): string {
@@ -264,17 +428,35 @@ export const getAthleteLevelState = onCall(async (request) => {
 });
 
 /**
- * Troca o nível declarado de um atleta em um esporte — inclusive para BAIXO.
- * Escreve rating (quando há o que realinhar), perfil e auditoria, nessa ordem,
- * e avisa o atleta. O motivo é interno: fica no `levelHistory`, não vai na
- * notificação.
+ * Troca o nível declarado de um atleta em um esporte. Dois caminhos:
+ *
+ * - **Admin da plataforma** (sem `tournamentId`): inclusive para BAIXO, como
+ *   sempre foi — comportamento byte-idêntico ao de antes desta função ganhar
+ *   o segundo caminho.
+ * - **Organizador** (`tournamentId` obrigatório): só pode SUBIR, e só quando
+ *   é dono do torneio E o atleta tem inscrição ativa nele — ele acabou de ver
+ *   o atleta jogar, é a melhor fonte de verdade disponível enquanto a escada
+ *   Glicko não acumulou volume. Motivo é opcional (o gate real é
+ *   dono+inscrito+direção, checados em `assertAdminOrPromotingOrganizer`).
+ *
+ * Escreve rating (quando há o que realinhar), perfil e auditoria, nessa
+ * ordem. Notifica o atleta só no caminho admin — a promoção do organizador
+ * fica fora do escopo desta rodada (ver report da task).
  */
 export const setAthleteLevel = onCall(async (request) => {
-  const actorLabel = await assertBackofficeCaller(request.auth?.uid);
-  const callerUid = request.auth!.uid;
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
 
   const raw = request.data as
-    | {uid?: unknown; sportCode?: unknown; level?: unknown; reason?: unknown}
+    | {
+        uid?: unknown;
+        sportCode?: unknown;
+        level?: unknown;
+        reason?: unknown;
+        tournamentId?: unknown;
+      }
     | undefined;
 
   const uid = requireUid(raw?.uid);
@@ -286,13 +468,7 @@ export const setAthleteLevel = onCall(async (request) => {
   if (!(LEVEL_CODES as readonly string[]).includes(level)) {
     throw new HttpsError("invalid-argument", "Nível inválido.");
   }
-  const reason = typeof raw?.reason === "string" ? raw.reason.trim() : "";
-  if (reason.length < LEVEL_CHANGE_REASON_MIN || reason.length > LEVEL_CHANGE_REASON_MAX) {
-    throw new HttpsError(
-      "invalid-argument",
-      `O motivo precisa ter de ${LEVEL_CHANGE_REASON_MIN} a ${LEVEL_CHANGE_REASON_MAX} caracteres.`,
-    );
-  }
+  const tournamentId = typeof raw?.tournamentId === "string" ? raw.tournamentId.trim() : "";
 
   const db = getFirestore();
   const userRef = db.doc(`users/${uid}`);
@@ -304,6 +480,28 @@ export const setAthleteLevel = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Este usuário ainda não tem perfil de atleta.");
   }
   const currentLevel = levelsBySportOf(userSnap.data())[sportCode] ?? null;
+
+  const auth = await assertAdminOrPromotingOrganizer({
+    db,
+    callerUid,
+    tournamentId,
+    athleteUid: uid,
+    currentLevel,
+    targetLevel: level,
+  });
+
+  // Motivo digitado é obrigatório só no caminho admin (formulário do
+  // backoffice); o organizador não tem esse campo — o gate real dele já foi
+  // checado acima.
+  const rawReason = typeof raw?.reason === "string" ? raw.reason.trim() : "";
+  if (auth.mode === "admin") {
+    if (rawReason.length < LEVEL_CHANGE_REASON_MIN || rawReason.length > LEVEL_CHANGE_REASON_MAX) {
+      throw new HttpsError(
+        "invalid-argument",
+        `O motivo precisa ter de ${LEVEL_CHANGE_REASON_MIN} a ${LEVEL_CHANGE_REASON_MAX} caracteres.`,
+      );
+    }
+  }
 
   // Esporte fora da escada não tem doc de rating para realinhar.
   const rated = (RATED_SPORT_CODES as readonly string[]).includes(sportCode);
@@ -358,25 +556,25 @@ export const setAthleteLevel = onCall(async (request) => {
       sportCode,
       fromLevel: plan.fromLevel,
       toLevel: level,
-      reason: "admin_manual",
-      note: reason,
       rating: state ? Math.round(state.rating) : null,
       rd: state ? Math.round(state.rd) : null,
       ratedMatches: state ? state.ratedMatches : null,
-      actor: `backoffice:${callerUid}`,
-      actorLabel,
+      actorLabel: auth.actorLabel,
+      ...levelHistoryAuditFields({mode: auth.mode, callerUid, note: rawReason, tournamentId}),
       createdAt: FieldValue.serverTimestamp(),
     });
   }
 
   logger.info(
     `athlete-level: ${uid} em ${sportCode} ${plan.fromLevel ?? "(sem nível)"} → ${level} ` +
-      `(${plan.direction}) por ${actorLabel}`,
+      `(${plan.direction}) por ${auth.actorLabel} [${auth.mode}]`,
   );
 
   // O motivo é interno (staff para staff) — a notificação não o repete.
+  // Promoção pelo organizador NÃO notifica o atleta neste ciclo (fora do
+  // escopo desta task — ver report).
   let notified = false;
-  if (profileChanged) {
+  if (profileChanged && auth.mode === "admin") {
     try {
       await deliverNotificationToUser({
         userId: uid,

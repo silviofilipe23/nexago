@@ -289,6 +289,9 @@ function mockDb() {
   };
 }
 
+/** Path do doc `athleteRatings` usado nos testes de `applyLadderActions`. */
+const RATING_REF_PATH = "athleteRatings/a1_VOLEI_PRAIA";
+
 describe("applyLadderActions · flags de rollout", () => {
   it("shadowMode suprime qualquer efeito externo (estado pendente persiste)", async () => {
     const db = mockDb();
@@ -299,7 +302,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "match",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
     assert.equal(db.writes.length, 0);
     assert.equal(final.ladderState, "promotion_pending");
     assert.equal(final.levelCode, "intermediario_1");
@@ -314,7 +323,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "match",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
     assert.equal(db.writes.length, 0);
     assert.equal(final.ladderState, "promotion_pending");
   });
@@ -328,7 +343,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "match",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
 
     assert.equal(final.levelCode, "intermediario_2");
     assert.equal(final.ladderState, "stable");
@@ -345,6 +366,20 @@ describe("applyLadderActions · flags de rollout", () => {
     assert.equal(history.data.reason, "promotion");
     assert.equal(history.data.toLevel, "intermediario_2");
     assert.equal(history.data.actor, "rating_engine");
+
+    const ratingWriteIndex = db.writes.findIndex((w) => w.path === RATING_REF_PATH);
+    const userWriteIndex = db.writes.findIndex((w) => w.path === "users/a1");
+    assert.ok(ratingWriteIndex >= 0, "athleteRatings deveria ter sido escrito");
+    assert.equal(
+      (db.writes[ratingWriteIndex].data as {levelCode?: string}).levelCode,
+      "intermediario_2",
+    );
+    assert.ok(
+      ratingWriteIndex < userWriteIndex,
+      "athleteRatings precisa ser gravado ANTES de users/{uid}: é a invariante de " +
+        "ordem que o guard anti-eco de onUserWrittenTrackLevelChanges assume ao " +
+        "comparar current.levelCode === newLevel.code",
+    );
   });
 
   it("auto-rebaixamento aplica o degrau abaixo com auditoria", async () => {
@@ -361,7 +396,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "daily",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
 
     assert.equal(final.levelCode, "iniciante_2");
     assert.equal(final.ladderState, "stable");
@@ -370,6 +411,28 @@ describe("applyLadderActions · flags de rollout", () => {
     assert.equal(history.data.reason, "relegation");
     assert.equal(history.data.fromLevel, "intermediario_1");
     assert.equal(history.data.toLevel, "iniciante_2");
+
+    // F1 (code review): rebaixamento AUTOMÁTICO da engine precisa deixar
+    // `athleteRatings.levelCode` já no nível novo ANTES de `users/{uid}`
+    // mudar — senão o trigger `onUserWrittenTrackLevelChanges`, que reage à
+    // escrita de `users/{uid}`, pode ler `athleteRatings` ainda no nível
+    // ANTIGO (corrida vencida pelo write de `users/{uid}`) e classificar o
+    // rebaixamento da engine como downgrade do PRÓPRIO atleta — gravando um
+    // `levelHistory` espúrio com `reason: "self_correction"` e
+    // `actor: userId`, atribuindo ao atleta um rebaixamento que não foi dele.
+    const ratingWriteIndex = db.writes.findIndex((w) => w.path === RATING_REF_PATH);
+    const userWriteIndex = db.writes.findIndex((w) => w.path === "users/a1");
+    assert.ok(ratingWriteIndex >= 0, "athleteRatings deveria ter sido escrito");
+    assert.equal(
+      (db.writes[ratingWriteIndex].data as {levelCode?: string}).levelCode,
+      "iniciante_2",
+    );
+    assert.ok(
+      ratingWriteIndex < userWriteIndex,
+      "athleteRatings precisa ser gravado ANTES de users/{uid} — essa é a ordem " +
+        "que o script admin (athlete-level-admin.ts) já usa e que o guard " +
+        "anti-eco do trigger de levelsBySport pressupõe",
+    );
   });
 });
 

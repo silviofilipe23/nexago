@@ -313,7 +313,7 @@ export const evaluateRatingLadderDaily = onSchedule(
           if (!hasActions && !stateChanged && !inflated) continue;
 
           const final = hasActions
-            ? await applyLadderActions(db, evaluation, config, now)
+            ? await applyLadderActions(db, evaluation, config, now, doc.ref)
             : evaluation.next;
           await doc.ref.set(
             {...ratingStateToDoc(final), ...inflationFields},

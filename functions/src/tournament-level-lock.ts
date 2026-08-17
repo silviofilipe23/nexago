@@ -106,7 +106,9 @@ export function inscriptionNewlyActiveAthleteUids(
   return inscriptionAthleteUids(after).filter((uid) => !beforeUids.has(uid));
 }
 
-function isLevelLocked(
+/** `true` quando `users/{uid}.sportOnboarding.levelLocked.{sportCode}` já é
+ *  `true` — exportada para não duplicar a leitura do shape em teste/trigger. */
+export function isLevelLocked(
   userData: Record<string, unknown> | undefined,
   sportCode: string,
 ): boolean {
@@ -117,9 +119,12 @@ function isLevelLocked(
   return (locked as Record<string, unknown>)[sportCode] === true;
 }
 
-/** Trava o nível de UM atleta num esporte — idempotente, só escreve se ainda
- *  não estiver travado (economiza writes numa dupla/equipe inteira). */
-async function lockLevelForUid(
+/**
+ * Trava o nível de UM atleta num esporte — idempotente, só escreve se ainda
+ * não estiver travado (economiza writes numa dupla/equipe inteira: ler antes
+ * de escrever é a garantia do brief).
+ */
+export async function lockLevelForUid(
   db: Firestore,
   uid: string,
   sportCode: string,
@@ -132,6 +137,40 @@ async function lockLevelForUid(
   await userRef.set(
     {sportOnboarding: {levelLocked: {[sportCode]: true}}},
     {merge: true},
+  );
+}
+
+/**
+ * Corpo assíncrono do trigger, extraído para ser testável sem o wrapper do
+ * `onDocumentWritten` (nenhum outro trigger deste repo é testado através do
+ * wrapper — só a lógica que ele chama). Resolve o torneio → sportCode
+ * (esporte sem equivalente = não trava nada) e trava cada uid.
+ */
+export async function lockLevelsForTournamentRegistration(
+  db: Firestore,
+  params: {tournamentId: string; uids: string[]; registrationId?: string},
+): Promise<void> {
+  const {tournamentId, uids, registrationId} = params;
+  if (uids.length === 0) return;
+
+  const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+  if (!tournamentSnap.exists) return;
+
+  const sportCode = tournamentSportToLevelSportCode(tournamentSnap.data()?.sport);
+  if (!sportCode) return; // esporte sem equivalente no perfil — não trava nada.
+
+  await Promise.all(
+    uids.map((uid) =>
+      lockLevelForUid(db, uid, sportCode).catch((err) => {
+        logger.error("tournament-level-lock: falha ao travar nível do atleta", {
+          uid,
+          sportCode,
+          tournamentId,
+          registrationId,
+          err,
+        });
+      }),
+    ),
   );
 }
 
@@ -148,27 +187,12 @@ export const onInscriptionWrittenLockLevels = onDocumentWritten(
     const uids = inscriptionNewlyActiveAthleteUids(before, after);
     if (uids.length === 0) return;
 
-    const db = getFirestore();
     try {
-      const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
-      if (!tournamentSnap.exists) return;
-
-      const sportCode = tournamentSportToLevelSportCode(tournamentSnap.data()?.sport);
-      if (!sportCode) return; // esporte sem equivalente no perfil — não trava nada.
-
-      await Promise.all(
-        uids.map((uid) =>
-          lockLevelForUid(db, uid, sportCode).catch((err) => {
-            logger.error("tournament-level-lock: falha ao travar nível do atleta", {
-              uid,
-              sportCode,
-              tournamentId,
-              registrationId: event.params.registrationId,
-              err,
-            });
-          }),
-        ),
-      );
+      await lockLevelsForTournamentRegistration(getFirestore(), {
+        tournamentId,
+        uids,
+        registrationId: event.params.registrationId,
+      });
     } catch (err) {
       logger.error("tournament-level-lock: falha ao processar inscrição", {
         tournamentId,

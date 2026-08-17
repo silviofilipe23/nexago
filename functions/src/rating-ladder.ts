@@ -1,4 +1,9 @@
-import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {
+  FieldValue,
+  Timestamp,
+  type DocumentReference,
+  type Firestore,
+} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
@@ -287,12 +292,24 @@ const SPORTS_LEVELS_URL = "/athlete/profile/sports-levels";
  * persistir em `athleteRatings`. Promoção/rebaixamento escrevem APENAS
  * `sportOnboarding.levelsBySport[sportCode]` (nunca o `level` global) +
  * auditoria em `levelHistory`.
+ *
+ * `ratingRef` é o doc `athleteRatings/{athleteId}_{sportCode}` do PRÓPRIO
+ * chamador (ele grava o estado final de novo ao final, com o resto do
+ * `state` que muda depois daqui — ex. `notifiedAt`). A gravação aqui é
+ * proposital e não redundante: precisa acontecer ANTES do `users/{athleteId}`
+ * abaixo. `onUserWrittenTrackLevelChanges` (rating-triggers.ts) usa
+ * `athleteRatings.levelCode === newLevel.code` pra distinguir a própria
+ * engine (ou o script admin) de uma auto-correção do atleta — essa
+ * distinção só funciona se a ORDEM das escritas for uma invariante real, não
+ * um acidente de timing entre dois `await` numa função. O script admin já
+ * escreve nessa ordem (rating antes de users); aqui replicamos.
  */
 export async function applyLadderActions(
   db: Firestore,
   evaluation: LadderEvaluation,
   config: RatingLadderConfig,
   now: Date,
+  ratingRef: DocumentReference,
 ): Promise<AthleteRatingState> {
   let state = evaluation.next;
   const flags = config.flags;
@@ -313,6 +330,9 @@ export async function applyLadderActions(
 
   if (appliedLevelChange) {
     const {athleteId, sportCode} = state;
+    // Precisa vir ANTES do write de `users/{athleteId}` — ver doc do topo da
+    // função.
+    await ratingRef.set(ratingStateToDoc(state), {merge: true});
     await db.doc(`users/${athleteId}`).set(
       {
         sportOnboarding: {

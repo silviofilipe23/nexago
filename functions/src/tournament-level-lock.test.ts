@@ -5,7 +5,77 @@ import {
   inscriptionAthleteUids,
   inscriptionBecameActive,
   inscriptionNewlyActiveAthleteUids,
+  isLevelLocked,
+  lockLevelForUid,
+  lockLevelsForTournamentRegistration,
 } from "./tournament-level-lock";
+
+/** Merge raso recursivo (simula `SetOptions.merge: true` do Firestore, que
+ *  mescla objetos aninhados — um merge raso de um nível apagaria
+ *  `sportOnboarding` inteiro em vez de só acrescentar `levelLocked`). */
+function deepMerge(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {...base};
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = result[key];
+    if (
+      value != null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      existing != null &&
+      typeof existing === "object" &&
+      !Array.isArray(existing)
+    ) {
+      result[key] = deepMerge(
+        existing as Record<string, unknown>,
+        value as Record<string, unknown>,
+      );
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+/** Mock de Firestore com `tournaments/{id}` e `users/{uid}` — mesmo padrão de
+ *  `mockDb` em category-level-eligibility.test.ts, com `.set()` gravando em
+ *  `writes` E refletindo (merge profundo) de volta no mapa, pra provar
+ *  idempotência entre chamadas sequenciais no mesmo teste. */
+function mockDb(seed: {
+  tournaments?: Record<string, Record<string, unknown> | null>;
+  users?: Record<string, Record<string, unknown> | null>;
+} = {}) {
+  const tournaments = {...(seed.tournaments ?? {})};
+  const users = {...(seed.users ?? {})};
+  const writes: Array<{path: string; data: Record<string, unknown>; options: unknown}> = [];
+
+  function collectionAndId(
+    path: string,
+  ): [Record<string, Record<string, unknown> | null>, string] | null {
+    if (path.startsWith("tournaments/")) return [tournaments, path.slice("tournaments/".length)];
+    if (path.startsWith("users/")) return [users, path.slice("users/".length)];
+    return null;
+  }
+
+  return {
+    writes,
+    users,
+    doc: (path: string) => ({
+      get: async () => {
+        const hit = collectionAndId(path);
+        const data = hit ? hit[0][hit[1]] ?? null : null;
+        return {exists: data != null, data: () => data};
+      },
+      set: async (data: Record<string, unknown>, options?: unknown) => {
+        writes.push({path, data, options});
+        const hit = collectionAndId(path);
+        if (hit) hit[0][hit[1]] = deepMerge((hit[0][hit[1]] ?? {}) as Record<string, unknown>, data);
+      },
+    }),
+  };
+}
 
 describe("inscriptionBecameActive", () => {
   it("criada (before ausente, after presente) -> true", () => {
@@ -135,5 +205,130 @@ describe("inscriptionNewlyActiveAthleteUids", () => {
       inscriptionNewlyActiveAthleteUids({tournamentId: "t1", participantUids: ["u1"]}, undefined),
       [],
     );
+  });
+});
+
+describe("isLevelLocked", () => {
+  it("levelLocked.{sport} === true -> true", () => {
+    assert.equal(
+      isLevelLocked({sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}}}, "VOLEI_PRAIA"),
+      true,
+    );
+  });
+
+  it("levelLocked existe mas não pro esporte pedido -> false", () => {
+    assert.equal(
+      isLevelLocked({sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}}}, "BEACH_TENNIS"),
+      false,
+    );
+  });
+
+  it("sportOnboarding sem levelLocked -> false", () => {
+    assert.equal(isLevelLocked({sportOnboarding: {levelsBySport: {}}}, "VOLEI_PRAIA"), false);
+  });
+
+  it("sportOnboarding ausente -> false", () => {
+    assert.equal(isLevelLocked({}, "VOLEI_PRAIA"), false);
+  });
+
+  it("userData ausente (uid sem doc/doc vazio) -> false", () => {
+    assert.equal(isLevelLocked(undefined, "VOLEI_PRAIA"), false);
+  });
+});
+
+describe("lockLevelForUid", () => {
+  it("já travado: nenhuma escrita", async () => {
+    const db = mockDb({
+      users: {u1: {sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}}}},
+    });
+    await lockLevelForUid(db as never, "u1", "VOLEI_PRAIA");
+    assert.equal(db.writes.length, 0);
+  });
+
+  it("ainda não travado: uma escrita com merge:true gravando levelLocked.{sport}", async () => {
+    const db = mockDb({users: {u1: {}}});
+    await lockLevelForUid(db as never, "u1", "VOLEI_PRAIA");
+    assert.equal(db.writes.length, 1);
+    assert.equal(db.writes[0].path, "users/u1");
+    assert.deepEqual(db.writes[0].data, {
+      sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}},
+    });
+    assert.deepEqual(db.writes[0].options, {merge: true});
+  });
+
+  it("uid sem doc de usuário nenhum: trata como não travado, escreve", async () => {
+    const db = mockDb({users: {}});
+    await lockLevelForUid(db as never, "u-novo", "VOLEI_PRAIA");
+    assert.equal(db.writes.length, 1);
+    assert.equal(db.writes[0].path, "users/u-novo");
+  });
+
+  it("idempotente: chamar duas vezes seguidas só escreve uma vez", async () => {
+    const db = mockDb({users: {u1: {}}});
+    await lockLevelForUid(db as never, "u1", "VOLEI_PRAIA");
+    await lockLevelForUid(db as never, "u1", "VOLEI_PRAIA");
+    assert.equal(db.writes.length, 1);
+  });
+
+  it("esportes diferentes do mesmo atleta não se pisam", async () => {
+    const db = mockDb({
+      users: {u1: {sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}}}},
+    });
+    await lockLevelForUid(db as never, "u1", "BEACH_TENNIS");
+    assert.equal(db.writes.length, 1);
+    assert.deepEqual(db.writes[0].data, {
+      sportOnboarding: {levelLocked: {BEACH_TENNIS: true}},
+    });
+  });
+});
+
+describe("lockLevelsForTournamentRegistration", () => {
+  it("torneio inexistente: zero escritas", async () => {
+    const db = mockDb({tournaments: {}, users: {u1: {}}});
+    await lockLevelsForTournamentRegistration(db as never, {
+      tournamentId: "t-inexistente",
+      uids: ["u1"],
+    });
+    assert.equal(db.writes.length, 0);
+  });
+
+  it("esporte sem equivalente no perfil (tournamentSportToLevelSportCode -> null): zero escritas", async () => {
+    const db = mockDb({
+      tournaments: {t1: {sport: "futebol"}},
+      users: {u1: {}},
+    });
+    await lockLevelsForTournamentRegistration(db as never, {
+      tournamentId: "t1",
+      uids: ["u1"],
+    });
+    assert.equal(db.writes.length, 0);
+  });
+
+  it("sem uids: nem chega a ler o torneio", async () => {
+    const db = mockDb({tournaments: {t1: {sport: "beachVolleyball"}}});
+    await lockLevelsForTournamentRegistration(db as never, {
+      tournamentId: "t1",
+      uids: [],
+    });
+    assert.equal(db.writes.length, 0);
+  });
+
+  it("esporte reconhecido: trava só quem ainda não está travado", async () => {
+    const db = mockDb({
+      tournaments: {t1: {sport: "beachVolleyball"}},
+      users: {
+        u1: {},
+        u2: {sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}}},
+      },
+    });
+    await lockLevelsForTournamentRegistration(db as never, {
+      tournamentId: "t1",
+      uids: ["u1", "u2"],
+    });
+    assert.equal(db.writes.length, 1);
+    assert.equal(db.writes[0].path, "users/u1");
+    assert.deepEqual(db.writes[0].data, {
+      sportOnboarding: {levelLocked: {VOLEI_PRAIA: true}},
+    });
   });
 });

@@ -16,7 +16,7 @@ export {
   validateScoreSubmission,
 } from './match-scoring';
 
-export type { ApplyPointResult, LiveSet } from './live-scoring';
+export type { ApplyPointResult, BestOfChangeResult, LiveSet } from './live-scoring';
 export {
   applyBestOfChange,
   applyPoint,

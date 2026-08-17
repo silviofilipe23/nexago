@@ -67,10 +67,6 @@ class _OrganizerMatchLiveTablePageState
         .valueOrNull;
   }
 
-  String _servingTeamIdAfterPoint(TournamentMatch match, String side) {
-    return side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
-  }
-
   Future<void> _point(String side) async {
     final match = _currentMatch();
     if (match == null || match.isCompleted) return;
@@ -89,7 +85,6 @@ class _OrganizerMatchLiveTablePageState
       final repo = ref.read(tournamentMatchesRepositoryProvider);
       final setIdx = match.currentSetIndex ?? 0;
       final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
-      final servingTeamId = _servingTeamIdAfterPoint(match, side);
 
       await repo.recordPointTransaction(
         matchId: widget.matchId,
@@ -99,7 +94,7 @@ class _OrganizerMatchLiveTablePageState
           'status': result.winnerId != null
               ? TournamentMatchStatus.completed
               : TournamentMatchStatus.inProgress,
-          'servingTeamId': servingTeamId,
+          'servingTeamId': result.servingTeamId,
           if (result.winnerId != null) 'winnerId': result.winnerId,
           if (result.winnerId != null)
             'matchEndedAt': FieldValue.serverTimestamp(),
@@ -272,12 +267,15 @@ class _OrganizerMatchLiveTablePageState
     }
 
     final side = lastPoint.side ?? 'A';
+    final bestOf = match.bestOf;
     final result = MatchScoringLogic.undoPoint(
       sets: match.sets,
       currentSetIndex: lastPoint.setIndex,
       side: side,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      bestOf: bestOf,
     );
-    final bestOf = match.bestOf;
 
     setState(() => _saving = true);
     try {
@@ -291,6 +289,7 @@ class _OrganizerMatchLiveTablePageState
           'sets': result.sets.map((s) => s.toMap()).toList(),
           'currentSetIndex': result.currentSetIndex,
           'status': TournamentMatchStatus.inProgress,
+          'servingTeamId': result.servingTeamId,
           'winnerId': FieldValue.delete(),
           'matchEndedAt': FieldValue.delete(),
           'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).a}',

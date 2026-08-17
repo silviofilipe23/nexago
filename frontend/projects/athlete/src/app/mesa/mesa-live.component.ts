@@ -1493,7 +1493,7 @@ export class MesaLiveComponent {
           sets: result.sets.map(liveSetToMap),
           currentSetIndex: result.currentSetIndex,
           status: result.winnerId != null ? 'Completed' : 'In Progress',
-          servingTeamId: side === 'A' ? m.teamAId : m.teamBId,
+          servingTeamId: result.servingTeamId,
           ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
           ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
           resultA: `${wins.a}`,
@@ -1540,7 +1540,7 @@ export class MesaLiveComponent {
     if (!m || !last || this.saving() || m.status === 'completed') return;
 
     const side = last.side ?? 'A';
-    const result = undoPoint({ sets: m.sets, currentSetIndex: last.setIndex, side });
+    const result = undoPoint({ sets: m.sets, currentSetIndex: last.setIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
     const wins = setsWonOf(result.sets, m.bestOf);
     const current = result.sets[result.currentSetIndex] ?? null;
 
@@ -1554,6 +1554,7 @@ export class MesaLiveComponent {
           sets: result.sets.map(liveSetToMap),
           currentSetIndex: result.currentSetIndex,
           status: 'In Progress',
+          servingTeamId: result.servingTeamId,
           winnerId: deleteField(),
           matchEndedAt: deleteField(),
           resultA: `${wins.a}`,

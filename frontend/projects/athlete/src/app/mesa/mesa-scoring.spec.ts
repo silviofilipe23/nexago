@@ -1,4 +1,4 @@
-import { applyPoint, lastUndoablePoint, setsWonOf, undoPoint, validateScoreSubmission, type LivePointEvent, type LiveSet } from '@nexago/live-scoring';
+import { applyPoint, lastUndoablePoint, setsWonOf, undoPoint, validateScoreSubmission, type ApplyPointResult, type LivePointEvent, type LiveSet } from '@nexago/live-scoring';
 
 /** O motor da mesa é compartilhado com o portal do organizador (`@nexago/live-scoring`) e já
  *  tem os casos de regra lá. Aqui provamos o que ESTA tela faz com ele: a sequência real de
@@ -7,8 +7,8 @@ import { applyPoint, lastUndoablePoint, setsWonOf, undoPoint, validateScoreSubmi
 describe('mesa (portal do atleta) — escrita de placar', () => {
   const ids = { teamAId: 'time-a', teamBId: 'time-b' };
 
-  function playSet(sets: LiveSet[], currentSetIndex: number, side: 'A' | 'B', times: number): { sets: LiveSet[]; currentSetIndex: number; winnerId: string | null } {
-    let state = { sets, currentSetIndex, winnerId: null as string | null };
+  function playSet(sets: LiveSet[], currentSetIndex: number, side: 'A' | 'B', times: number): ApplyPointResult {
+    let state: ApplyPointResult = { sets, currentSetIndex, winnerId: null, servingTeamId: '' };
     for (let i = 0; i < times; i++) {
       state = applyPoint({ sets: state.sets, currentSetIndex: state.currentSetIndex, side, ...ids, bestOf: 3 });
     }
@@ -34,9 +34,22 @@ describe('mesa (portal do atleta) — escrita de placar', () => {
     const opened = applyPoint({ sets: first.sets, currentSetIndex: first.currentSetIndex, side: 'B', ...ids, bestOf: 3 });
     expect(opened.sets.length).toBe(2);
 
-    const undone = undoPoint({ sets: opened.sets, currentSetIndex: opened.currentSetIndex, side: 'B' });
+    const undone = undoPoint({ sets: opened.sets, currentSetIndex: opened.currentSetIndex, side: 'B', ...ids, bestOf: 3 });
     expect(undone.sets.length).toBe(1);
     expect(undone.currentSetIndex).toBe(0);
+  });
+
+  /** A mesa grava o saque que o motor devolve: ao fechar o set ele volta a ficar sem dono pra
+   *  faixa "Quem começa sacando?" reaparecer, e o undo desfaz isso junto com o placar. */
+  it('o set que fecha deixa o saque sem dono, e desfazer o ponto seguinte devolve a pergunta', () => {
+    const first = playSet([], 0, 'A', 21);
+    expect(first.servingTeamId).toBe('');
+
+    const opened = applyPoint({ sets: first.sets, currentSetIndex: first.currentSetIndex, side: 'B', ...ids, bestOf: 3 });
+    expect(opened.servingTeamId).toBe('time-b');
+
+    const undone = undoPoint({ sets: opened.sets, currentSetIndex: opened.currentSetIndex, side: 'B', ...ids, bestOf: 3 });
+    expect(undone.servingTeamId).toBe('');
   });
 
   it('dois "desfazer" seguidos não revertem o mesmo ponto duas vezes', () => {

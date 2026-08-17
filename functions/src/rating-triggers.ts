@@ -26,10 +26,12 @@ import {
 } from "./rating-config";
 import {
   applyLadderActions,
+  classifyLevelRankChange,
   evaluateLadderTransition,
   expectedLevelRankFor,
   ratingStateFromDoc,
   ratingStateToDoc,
+  selfCorrectionRatingUpdate,
   type AthleteRatingState,
 } from "./rating-ladder";
 import {
@@ -105,14 +107,23 @@ function levelsBySportOf(
 }
 
 /**
- * Self-upgrade: o atleta ainda pode SUBIR o próprio nível pelo app. Este
- * trigger detecta a subida em `sportOnboarding.levelsBySport`, audita em
- * `levelHistory` e re-seeda o rating para `max(atual, initialRating do novo
- * nível)` com RD resetado + proteção — o guard anti-flap contra a escada.
+ * Auto-correção do nível declarado (`sportOnboarding.levelsBySport`), nos
+ * dois sentidos:
  *
- * Escritas da própria engine/migração são ignoradas: promoção grava
- * `athleteRatings.levelCode` na mesma leva (igualdade → skip) e a migração
- * mapeia para o mesmo rank (rank não sobe → skip).
+ * - SUBIDA (self-upgrade, sempre permitida): audita em `levelHistory` e
+ *   re-seeda o rating para `max(atual, initialRating do novo nível)` com RD
+ *   resetado + proteção — o guard anti-flap contra a escada.
+ * - DESCIDA (self-correction, só possível durante a janela de calibração —
+ *   antes de `sportOnboarding.levelLocked.{sportCode}`; as rules garantem
+ *   isso, não este trigger): audita em `levelHistory` e, SÓ quando o atleta
+ *   ainda não jogou partida rateada (`ratedMatches === 0`), reseeda para o
+ *   piso do novo degrau. Com partidas já rateadas o rating fica como está —
+ *   o Glicko já é uma medida melhor que o nível autodeclarado.
+ *
+ * Escritas da própria engine/migração são ignoradas: promoção/rebaixamento
+ * automáticos e o script administrativo gravam `athleteRatings.levelCode`
+ * ANTES de gravar `levelsBySport` (mesma leva → igualdade → skip), e a
+ * migração de renumeração mapeia para o mesmo rank (rank não muda → skip).
  */
 export const onUserWrittenTrackLevelChanges = onDocumentWritten(
   "users/{userId}",
@@ -135,9 +146,8 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
       const beforeRank = levelRank(rawBefore);
       const afterRank = levelRank(rawAfter);
       if (afterRank == null) continue;
-      // Rename de migração (mesmo rank) ou rebaixamento da engine: não é
-      // self-upgrade.
-      if (beforeRank != null && afterRank <= beforeRank) continue;
+      const change = classifyLevelRankChange(beforeRank, afterRank);
+      if (change === "none") continue; // rename de migração (mesmo rank).
 
       try {
         const config = await loadRatingLadderConfig(db, sportCode);
@@ -152,45 +162,71 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
           ? ratingStateFromDoc(userId, sportCode, snap.data() as Record<string, unknown>)
           : null;
 
-        // Promoção da própria engine: levelCode já está no novo nível.
+        // Escrita da própria engine (promoção/rebaixamento automático) ou de
+        // um script administrativo: `athleteRatings` já está no nível novo.
         if (current && current.levelCode === newLevel.code) continue;
 
-        const base =
-          current ?? seedRatingState(userId, sportCode, config, rawAfter);
-        const now = new Date();
-        const upgraded: AthleteRatingState = {
-          ...base,
-          rating: Math.max(base.rating, newLevel.initialRating),
-          rd: config.glicko.initialRd,
-          levelCode: newLevel.code,
-          levelRank: newLevel.rank,
-          zone: "stable",
-          ladderState: "stable",
-          observationStartedAt: null,
-          observationMatches: 0,
-          notifiedAt: null,
-          protectedUntil: new Date(
-            now.getTime() + config.ladder.promotionProtectionDays * 86_400_000,
-          ),
-        };
-        await ratingRef.set(ratingStateToDoc(upgraded));
-        await db.collection(`users/${userId}/levelHistory`).add({
-          sportCode,
-          fromLevel: rawBefore || null,
-          toLevel: newLevel.code,
-          reason: "self_upgrade",
-          rating: Math.round(upgraded.rating),
-          rd: Math.round(upgraded.rd),
-          ratedMatches: upgraded.ratedMatches,
-          actor: userId,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-        logger.info(
-          `rating: self-upgrade de ${userId} em ${sportCode} → ${newLevel.code}`,
-        );
+        if (change === "upgrade") {
+          const base =
+            current ?? seedRatingState(userId, sportCode, config, rawAfter);
+          const now = new Date();
+          const upgraded: AthleteRatingState = {
+            ...base,
+            rating: Math.max(base.rating, newLevel.initialRating),
+            rd: config.glicko.initialRd,
+            levelCode: newLevel.code,
+            levelRank: newLevel.rank,
+            zone: "stable",
+            ladderState: "stable",
+            observationStartedAt: null,
+            observationMatches: 0,
+            notifiedAt: null,
+            protectedUntil: new Date(
+              now.getTime() + config.ladder.promotionProtectionDays * 86_400_000,
+            ),
+          };
+          await ratingRef.set(ratingStateToDoc(upgraded));
+          await db.collection(`users/${userId}/levelHistory`).add({
+            sportCode,
+            fromLevel: rawBefore || null,
+            toLevel: newLevel.code,
+            reason: "self_upgrade",
+            rating: Math.round(upgraded.rating),
+            rd: Math.round(upgraded.rd),
+            ratedMatches: upgraded.ratedMatches,
+            actor: userId,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          logger.info(
+            `rating: self-upgrade de ${userId} em ${sportCode} → ${newLevel.code}`,
+          );
+        } else {
+          const corrected = selfCorrectionRatingUpdate(
+            current,
+            newLevel,
+            config.glicko.initialRd,
+          );
+          if (corrected) {
+            await ratingRef.set(ratingStateToDoc(corrected));
+          }
+          await db.collection(`users/${userId}/levelHistory`).add({
+            sportCode,
+            fromLevel: rawBefore || null,
+            toLevel: newLevel.code,
+            reason: "self_correction",
+            rating: current ? Math.round(current.rating) : null,
+            rd: current ? Math.round(current.rd) : null,
+            ratedMatches: current ? current.ratedMatches : 0,
+            actor: userId,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          logger.info(
+            `rating: self-correction de ${userId} em ${sportCode} → ${newLevel.code}`,
+          );
+        }
       } catch (error) {
         logger.error(
-          `rating: falha ao processar self-upgrade de ${userId} em ${sportCode}`,
+          `rating: falha ao processar mudança de nível (${change}) de ${userId} em ${sportCode}`,
           error,
         );
       }

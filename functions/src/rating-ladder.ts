@@ -434,6 +434,48 @@ export function expectedLevelRankFor(
   return resolveLadderLevel(config, levelCode).rank;
 }
 
+export type LevelRankChangeKind = "upgrade" | "downgrade" | "none";
+
+/**
+ * Classifica a mudança de rank declarado em `sportOnboarding.levelsBySport`.
+ * Esporte novo no perfil (`beforeRank` ausente) conta como upgrade — é a
+ * primeira declaração, não uma correção. Mesmo rank (rename/legado, ex.:
+ * "avancado1" → "avancado_1") não é nem upgrade nem downgrade.
+ */
+export function classifyLevelRankChange(
+  beforeRank: number | null,
+  afterRank: number,
+): LevelRankChangeKind {
+  if (beforeRank == null || afterRank > beforeRank) return "upgrade";
+  if (afterRank < beforeRank) return "downgrade";
+  return "none";
+}
+
+/**
+ * Efeito no rating de uma correção pré-lock (o atleta baixa o próprio nível
+ * na janela de calibração — só possível para BAIXO, upgrade segue o fluxo
+ * normal). Reseeda rating/RD/levelRank para o piso do novo degrau somente
+ * quando o atleta ainda não jogou partida rateada (`ratedMatches === 0`):
+ * com partidas já rateadas o rating fica como está (o Glicko já é uma medida
+ * melhor que o nível autodeclarado) — só a auditoria em `levelHistory` muda,
+ * gravada pelo chamador. `null` = nada a escrever em `athleteRatings`
+ * (também cobre o caso de não existir doc ainda: nada a reseedar).
+ */
+export function selfCorrectionRatingUpdate(
+  current: AthleteRatingState | null,
+  newLevel: Pick<RatingLadderLevel, "code" | "rank" | "initialRating">,
+  initialRd: number,
+): AthleteRatingState | null {
+  if (!current || current.ratedMatches !== 0) return null;
+  return {
+    ...current,
+    rating: newLevel.initialRating,
+    rd: initialRd,
+    levelCode: newLevel.code,
+    levelRank: newLevel.rank,
+  };
+}
+
 export function ratingStateFromDoc(
   athleteId: string,
   sportCode: string,

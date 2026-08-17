@@ -5,9 +5,11 @@ import {
   applyLadderActions,
   applyPromotion,
   applyRelegation,
+  classifyLevelRankChange,
   computeZone,
   evaluateLadderTransition,
   expectedLevelRankFor,
+  selfCorrectionRatingUpdate,
   type AthleteRatingState,
 } from "./rating-ladder";
 
@@ -410,5 +412,51 @@ describe("expectedLevelRankFor", () => {
     assert.equal(expectedLevelRankFor(config, "avancado_1"), 4);
     assert.equal(expectedLevelRankFor(config, "livre"), 6); // legado → open
     assert.equal(expectedLevelRankFor(config, ""), 0); // desconhecido → piso
+  });
+});
+
+describe("classifyLevelRankChange", () => {
+  it("esporte novo no perfil (beforeRank ausente) conta como upgrade", () => {
+    assert.equal(classifyLevelRankChange(null, 0), "upgrade");
+  });
+  it("rank sobe -> upgrade", () => {
+    assert.equal(classifyLevelRankChange(2, 4), "upgrade");
+  });
+  it("rank desce -> downgrade", () => {
+    assert.equal(classifyLevelRankChange(4, 2), "downgrade");
+  });
+  it("mesmo rank (rename/legado) -> none", () => {
+    assert.equal(classifyLevelRankChange(2, 2), "none");
+  });
+});
+
+describe("selfCorrectionRatingUpdate", () => {
+  const newLevel = {code: "iniciante_1", rank: 0, initialRating: 1200};
+
+  it("ratedMatches === 0: reseeda rating/RD/levelCode/levelRank para o piso do novo degrau", () => {
+    const current = state({
+      levelCode: "intermediario_1",
+      levelRank: 2,
+      rating: 1600,
+      rd: 90,
+      ratedMatches: 0,
+    });
+    const next = selfCorrectionRatingUpdate(current, newLevel, 300);
+    assert.deepEqual(next, {
+      ...current,
+      rating: 1200,
+      rd: 300,
+      levelCode: "iniciante_1",
+      levelRank: 0,
+    });
+  });
+
+  it("ratedMatches > 0: não mexe no rating (null — só a auditoria muda)", () => {
+    const current = state({ratedMatches: 5});
+    assert.equal(selfCorrectionRatingUpdate(current, newLevel, 300), null);
+  });
+
+  it("sem athleteRatings (current null): nada a reseedar", () => {
+    assert.equal(selfCorrectionRatingUpdate(null, newLevel, 300), null);
   });
 });

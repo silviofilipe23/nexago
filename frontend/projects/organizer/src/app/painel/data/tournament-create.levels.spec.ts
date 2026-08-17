@@ -1,4 +1,13 @@
-import { SKILL_LEVEL_LABEL, emptyCategoryDraft, emptyTournamentDraft, skillLevelOptionsForSport, type SkillLevel } from './tournament-create.model';
+import {
+  CATEGORY_LEVEL_PRESETS,
+  SKILL_LEVEL_LABEL,
+  categoryTags,
+  emptyCategoryDraft,
+  emptyTournamentDraft,
+  skillLevelOptionsForSport,
+  suggestCategoryName,
+  type SkillLevel,
+} from './tournament-create.model';
 import { categoryFromMap, categoryToMap } from './tournament-create-mapper';
 
 describe('skillLevelOptionsForSport', () => {
@@ -40,5 +49,24 @@ describe('minSkillLevel (mín. de nível da categoria)', () => {
     const map = categoryToMap(emptyCategoryDraft('c1'), emptyTournamentDraft());
     delete map['minLevel'];
     expect(categoryFromMap(map)?.minSkillLevel).toBeNull();
+  });
+});
+
+describe('nome/tags do preset Open (min === max)', () => {
+  const openPreset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Open')!;
+  const elitePreset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Elite')!;
+
+  it('preset Open nomeia só "Open", sem "mín. Open" duplicado', () => {
+    const cat = { ...emptyCategoryDraft('c1'), skillLevel: openPreset.max, minSkillLevel: openPreset.min };
+    expect(suggestCategoryName(cat)).toContain('Open');
+    expect(suggestCategoryName(cat)).not.toContain('mín.');
+    expect(categoryTags(cat)).toContain('Open');
+    expect(categoryTags(cat).some((t) => t.startsWith('mín.'))).toBe(false);
+  });
+
+  it('preset Elite mantém "mín. Avançado 1" (min !== max)', () => {
+    const cat = { ...emptyCategoryDraft('c1'), skillLevel: elitePreset.max, minSkillLevel: elitePreset.min };
+    expect(suggestCategoryName(cat)).toContain('mín. Avançado 1');
+    expect(categoryTags(cat)).toContain('mín. Avançado 1');
   });
 });

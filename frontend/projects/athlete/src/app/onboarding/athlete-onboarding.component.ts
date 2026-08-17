@@ -4,6 +4,7 @@ import { BrLocationsService } from '@nexago/br-locations';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+import { LEVEL_OPTIONS } from '@nexago/levels';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { sanitizeReturnUrl } from '../auth/redirect-url';
@@ -25,27 +26,10 @@ import { peekPartnerInviteContext, takePartnerInviteContext } from '../shared/pa
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
 
-export interface LevelOption {
-  code: string;
-  label: string;
-  desc: string;
-}
-
 export interface GoalOption {
   code: string;
   label: string;
 }
-
-/** Escada única de 5 níveis (iniciante_1 < iniciante_2 < intermediario_1 < intermediario_2 < open),
- *  mesmos código e labels lidos por firestore.rules / category-level-eligibility.ts /
- *  athlete_profile_options.dart — aplicada a qualquer esporte escolhido. */
-const LEVELS: LevelOption[] = [
-  { code: 'iniciante_1', label: 'Iniciante 1', desc: 'Estou começando ou jogo pouco tempo.' },
-  { code: 'iniciante_2', label: 'Iniciante 2', desc: 'Jogo com regularidade mas ainda não conheço as regras.' },
-  { code: 'intermediario_1', label: 'Intermediário 1', desc: 'Jogo com regularidade e conheço as regras.' },
-  { code: 'intermediario_2', label: 'Intermediário 2', desc: 'Boa técnica e bastante experiência de quadra.' },
-  { code: 'open', label: 'Open', desc: 'Participo de torneios e busco performance.' },
-];
 
 const DEFAULT_LEVEL = 'intermediario_1';
 
@@ -88,7 +72,7 @@ export class AthleteOnboardingComponent {
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly sports = SPORT_CATALOG;
-  protected readonly levels = LEVELS;
+  protected readonly levels = LEVEL_OPTIONS;
   protected readonly goals = GOALS;
   protected readonly genders = GENDERS;
 

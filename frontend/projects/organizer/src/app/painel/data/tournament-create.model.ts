@@ -396,8 +396,13 @@ export function suggestCategoryName(category: TournamentCategoryDraft): string {
     parts.push(GENDER_LABEL[category.gender]);
   }
   if (category.ageBand !== 'open') parts.push(AGE_BAND_LABEL[category.ageBand]);
-  if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
-  if (category.minSkillLevel) parts.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+  if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
+    // Faixa de um único degrau (preset "Open": min = max) — rótulo simples, sem "mín.".
+    parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  } else {
+    if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+    if (category.minSkillLevel) parts.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+  }
   return parts.join(' ').trim();
 }
 
@@ -407,8 +412,13 @@ export function categoryTags(category: TournamentCategoryDraft): string[] {
     : (genderCompositionShort(category) ?? GENDER_SHORT[category.gender]);
   const tags = [genderTag, DISPUTE_LABEL[category.dispute]];
   if (category.ageBand !== 'open') tags.push(AGE_BAND_LABEL[category.ageBand]);
-  if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
-  if (category.minSkillLevel) tags.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+  if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
+    // Faixa de um único degrau (preset "Open": min = max) — rótulo simples, sem "mín.".
+    tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  } else {
+    if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+    if (category.minSkillLevel) tags.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+  }
   return tags;
 }
 

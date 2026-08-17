@@ -226,6 +226,9 @@ abstract final class LeagueStageTournamentFactory {
       },
       'ageBand': category.ageBand.name,
       'level': skillLevelLabel(category.skillLevel),
+      // Faixa de nível herdada da liga — o app não a edita, só preserva o
+      // que já estava no doc (ver `minLevel` em LeagueStageCategoryDraft).
+      'minLevel': category.minLevel.isEmpty ? null : category.minLevel,
       'maxTeams': category.spots,
       'spotsTotal': category.spots,
       'spotsLeft': category.spots,
@@ -269,6 +272,9 @@ abstract final class LeagueStageTournamentFactory {
       },
       'ageBand': category.ageBand.name,
       'level': skillLevelLabel(category.skillLevel),
+      // Faixa de nível gravada pelo portal web — o app não a edita, só
+      // preserva o que já estava no doc (ver `minLevel` em TournamentCategoryDraft).
+      'minLevel': category.minLevel.isEmpty ? null : category.minLevel,
       'maxTeams': category.spots,
       'spotsTotal': category.spots,
       'spotsLeft': category.spots,

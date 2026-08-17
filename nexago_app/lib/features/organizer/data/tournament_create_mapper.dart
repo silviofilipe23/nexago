@@ -245,6 +245,7 @@ abstract final class TournamentCreateMapper {
       genderFree: (map['genderMode'] as String?) == 'free',
       menCount: _compositionCount(map['genderComposition'], 'men'),
       womenCount: _compositionCount(map['genderComposition'], 'women'),
+      minLevel: (map['minLevel'] as String?) ?? '',
     );
   }
 
@@ -464,6 +465,9 @@ abstract final class TournamentCreateMapper {
       'ageBand': category.ageBand.name,
       'ageRestriction': _ageRestrictionToMap(category),
       'level': skillLevelLabel(category.skillLevel),
+      // Faixa de nível gravada pelo portal web — o app não a edita, só
+      // preserva o que já estava no doc (ver `minLevel` em TournamentCategoryDraft).
+      'minLevel': category.minLevel.isEmpty ? null : category.minLevel,
       'maxTeams': category.spots,
       'spotsTotal': category.spots,
       'spotsLeft': category.spots,

@@ -134,6 +134,7 @@ class TournamentCategoryDraft {
     this.genderFree = false,
     this.menCount,
     this.womenCount,
+    this.minLevel = '',
   });
 
   final String id;
@@ -172,6 +173,12 @@ class TournamentCategoryDraft {
   final int? menCount;
   final int? womenCount;
 
+  /// Faixa de nível (label, ex.: "Avançado 1") gravada pelo portal web em
+  /// `minLevel` — piso da categoria (`''` = sem piso). O editor do app não
+  /// oferece esse campo — ele existe só para o roundtrip de edição preservar
+  /// o que o portal gravou (mesmo contrato de [genderFree]/[menCount]).
+  final String minLevel;
+
   TournamentCategoryDraft copyWith({
     String? id,
     String? name,
@@ -198,6 +205,7 @@ class TournamentCategoryDraft {
     bool? genderFree,
     int? menCount,
     int? womenCount,
+    String? minLevel,
   }) {
     return TournamentCategoryDraft(
       id: id ?? this.id,
@@ -224,6 +232,7 @@ class TournamentCategoryDraft {
       genderFree: genderFree ?? this.genderFree,
       menCount: menCount ?? this.menCount,
       womenCount: womenCount ?? this.womenCount,
+      minLevel: minLevel ?? this.minLevel,
     );
   }
 }

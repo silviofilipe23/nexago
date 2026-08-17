@@ -595,4 +595,89 @@ void main() {
       expect(category.containsKey('genderComposition'), isFalse);
     });
   });
+
+  group('minLevel (faixa de nível) — roundtrip de edição pelo app', () {
+    test('fromFirestore preserva minLevel gravado pelo portal web', () {
+      final parsed = TournamentCreateMapper.fromFirestore(
+        {
+          'name': 'Faixa Avançado',
+          'city': 'Goiânia',
+          'locationName': 'Arena',
+          'startAt': Timestamp.fromDate(DateTime(2026, 5, 10)),
+          'endAt': Timestamp.fromDate(DateTime(2026, 5, 11)),
+          'categories': [
+            {
+              'id': 'cat-elite',
+              'categoryName': 'Elite',
+              'maxTeams': 16,
+              'level': 'Open',
+              'minLevel': 'Avançado 1',
+            },
+          ],
+        },
+        'elite-1',
+      );
+
+      expect(parsed.draft.categories.single.minLevel, 'Avançado 1');
+    });
+
+    test('categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)', () {
+      final parsed = TournamentCreateMapper.fromFirestore(
+        {
+          'name': 'Faixa Avançado',
+          'city': 'Goiânia',
+          'locationName': 'Arena',
+          'startAt': Timestamp.fromDate(DateTime(2026, 5, 10)),
+          'endAt': Timestamp.fromDate(DateTime(2026, 5, 11)),
+          'categories': [
+            {
+              'id': 'cat-elite',
+              'categoryName': 'Elite',
+              'maxTeams': 16,
+              'level': 'Open',
+              'minLevel': 'Avançado 1',
+            },
+          ],
+        },
+        'elite-1',
+      );
+
+      final map = TournamentCreateMapper.toFirestore(
+        draft: parsed.draft,
+        managerId: 'uid',
+        publish: false,
+        isUpdate: true,
+        existingListingStatus: 'open',
+      );
+
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['minLevel'], 'Avançado 1');
+    });
+
+    test('minLevel ausente reidrata como \'\' e regrava null (categoria sem piso)', () {
+      final parsed = TournamentCreateMapper.fromFirestore(
+        {
+          'name': 'Livre',
+          'city': 'Goiânia',
+          'locationName': 'Arena',
+          'startAt': Timestamp.fromDate(DateTime(2026, 5, 10)),
+          'endAt': Timestamp.fromDate(DateTime(2026, 5, 11)),
+          'categories': [
+            {'id': 'cat-livre', 'categoryName': 'Livre', 'maxTeams': 16},
+          ],
+        },
+        'livre-1',
+      );
+
+      expect(parsed.draft.categories.single.minLevel, '');
+
+      final map = TournamentCreateMapper.toFirestore(
+        draft: parsed.draft,
+        managerId: 'uid',
+        publish: true,
+      );
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['minLevel'], isNull);
+    });
+  });
 }

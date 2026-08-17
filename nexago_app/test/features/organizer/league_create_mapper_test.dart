@@ -169,6 +169,33 @@ void main() {
       );
     });
 
+    test('categoria com minLevel sobrevive a um re-save do app (fromFirestore → toFirestore)', () {
+      final loaded = LeagueCreateMapper.fromFirestore({
+        'name': 'Circuito Elite',
+        'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
+        'seasonEndAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
+        'categories': [
+          {
+            'id': 'c1',
+            'categoryName': 'Elite',
+            'maxTeams': 16,
+            'level': 'Open',
+            'minLevel': 'Avançado 1',
+          },
+        ],
+      }, 'league-elite');
+
+      expect(loaded.draft.categories.single.minLevel, 'Avançado 1');
+
+      final data = LeagueCreateMapper.toFirestore(
+        draft: loaded.draft,
+        managerId: 'm',
+        publish: true,
+      );
+      final category = (data['categories'] as List).single as Map<String, dynamic>;
+      expect(category['minLevel'], 'Avançado 1');
+    });
+
     test('fromFirestore restores draft and step', () {
       final data = {
         'name': 'Circuito Verão',

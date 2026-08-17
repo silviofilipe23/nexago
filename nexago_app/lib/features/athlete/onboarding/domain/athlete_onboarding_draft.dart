@@ -28,6 +28,8 @@ class AthleteOnboardingDraft {
     this.verifiedPhoneNumber = '',
     this.birthDate = '',
     this.gender,
+    this.city = '',
+    this.state = '',
     this.avatarBytes,
     this.avatarContentType,
     this.referralCode = '',
@@ -46,6 +48,14 @@ class AthleteOnboardingDraft {
   final String verifiedPhoneNumber;
   final String birthDate;
   final String? gender;
+
+  /// Cidade e UF (sigla) escolhidas na lista do IBGE. Obrigatórias: o gate de
+  /// torneios do servidor (`athlete-tournament-access.ts`) já exigia as duas
+  /// depois do cadastro — pedir aqui evita o atleta esbarrar no bloqueio na
+  /// primeira inscrição.
+  final String city;
+  final String state;
+
   final Uint8List? avatarBytes;
   final String? avatarContentType;
 
@@ -84,8 +94,22 @@ class AthleteOnboardingDraft {
 
   bool get isGenderValid => gender != null && gender!.isNotEmpty;
 
+  bool get isCityValid => city.trim().isNotEmpty;
+
+  bool get isStateValid => state.trim().isNotEmpty;
+
+  /// Foto escolhida (ainda em memória). Obrigatória: é o que identifica o
+  /// atleta nas listas de inscrição, na mesa e no ranking.
+  bool get isPhotoValid => avatarBytes != null && avatarContentType != null;
+
   bool get isProfileValid =>
-      isNameValid && isPhoneValid && isBirthDateValid && isGenderValid;
+      isNameValid &&
+      isPhoneValid &&
+      isBirthDateValid &&
+      isGenderValid &&
+      isCityValid &&
+      isStateValid &&
+      isPhotoValid;
 
   static bool _isBirthDateValid(String raw) {
     final m = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(raw.trim());
@@ -109,6 +133,8 @@ class AthleteOnboardingDraft {
     String? verifiedPhoneNumber,
     String? birthDate,
     String? gender,
+    String? city,
+    String? state,
     Uint8List? avatarBytes,
     String? avatarContentType,
     bool clearAvatar = false,
@@ -124,6 +150,8 @@ class AthleteOnboardingDraft {
       verifiedPhoneNumber: verifiedPhoneNumber ?? this.verifiedPhoneNumber,
       birthDate: birthDate ?? this.birthDate,
       gender: gender ?? this.gender,
+      city: city ?? this.city,
+      state: state ?? this.state,
       avatarBytes: clearAvatar ? null : (avatarBytes ?? this.avatarBytes),
       avatarContentType:
           clearAvatar ? null : (avatarContentType ?? this.avatarContentType),
@@ -155,8 +183,8 @@ class AthleteOnboardingDraft {
       avatarUrl: avatarUrl,
       sport: primary,
       level: level ?? '',
-      city: '',
-      state: null,
+      city: city.trim(),
+      state: state.trim().isEmpty ? null : state.trim().toUpperCase(),
       // Só em memória: `toFirestore` não grava telefone (é a Cloud Function
       // que grava). Vai no perfil porque `saveProfile` deriva
       // `isProfileComplete`/`onboardingCompleted` a partir destes campos.

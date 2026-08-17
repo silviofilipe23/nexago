@@ -1,5 +1,22 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/onboarding/domain/athlete_onboarding_draft.dart';
+
+/// Rascunho com todos os obrigatórios do passo de perfil preenchidos — os
+/// testes derivam dele com `copyWith` pra isolar UM campo faltando.
+AthleteOnboardingDraft _completeProfileDraft() {
+  return AthleteOnboardingDraft(
+    name: 'Marcelo Antunes',
+    verifiedPhoneNumber: '+5511987654321',
+    birthDate: '15/03/1990',
+    gender: 'Masculino',
+    city: 'Goiânia',
+    state: 'GO',
+    avatarBytes: Uint8List.fromList(const [1, 2, 3]),
+    avatarContentType: 'image/jpeg',
+  );
+}
 
 void main() {
   group('AthleteOnboardingDraft', () {
@@ -40,17 +57,26 @@ void main() {
       expect(draft.otherSportLabels, ['Futebol']);
     });
 
-    test('isProfileValid requires name phone birth gender', () {
+    test('isProfileValid requires name phone birth gender city state photo', () {
       const invalid = AthleteOnboardingDraft();
       expect(invalid.isProfileValid, isFalse);
 
-      const valid = AthleteOnboardingDraft(
-        name: 'Marcelo Antunes',
-        verifiedPhoneNumber: '+5511987654321',
-        birthDate: '15/03/1990',
-        gender: 'Masculino',
+      expect(_completeProfileDraft().isProfileValid, isTrue);
+    });
+
+    test('cidade, UF e foto são obrigatórias pra concluir o cadastro', () {
+      // Cada um sozinho derruba o passo: o atleta precisa ser identificável
+      // (foto) e localizável (cidade/UF) — o gate de torneios do servidor
+      // (athlete-tournament-access.ts) já exigia os dois depois do cadastro.
+      expect(_completeProfileDraft().copyWith(city: '').isProfileValid, isFalse);
+      expect(
+        _completeProfileDraft().copyWith(state: '').isProfileValid,
+        isFalse,
       );
-      expect(valid.isProfileValid, isTrue);
+      expect(
+        _completeProfileDraft().copyWith(clearAvatar: true).isProfileValid,
+        isFalse,
+      );
     });
 
     test('per-field validators isolate what is missing', () {
@@ -59,6 +85,9 @@ void main() {
       expect(empty.isPhoneValid, isFalse);
       expect(empty.isBirthDateValid, isFalse);
       expect(empty.isGenderValid, isFalse);
+      expect(empty.isCityValid, isFalse);
+      expect(empty.isStateValid, isFalse);
+      expect(empty.isPhotoValid, isFalse);
 
       const onlyName = AthleteOnboardingDraft(name: '  Ana  ');
       expect(onlyName.isNameValid, isTrue);
@@ -89,6 +118,8 @@ void main() {
         verifiedPhoneNumber: '+5511987654321',
         birthDate: '15/03/1990',
         gender: 'Feminino',
+        city: '  Aparecida de Goiânia  ',
+        state: 'go',
       );
 
       final profile = draft.toAthleteProfile(uid: 'uid-1');
@@ -105,7 +136,10 @@ void main() {
       expect(profile.gender, 'Feminino');
       expect(profile.primarySportFirestoreId, 'VOLEI_PRAIA');
       expect(profile.onboardingCompleted, isTrue);
-      expect(profile.city, '');
+      // A cidade sai limpa e a UF em caixa alta: é o formato que
+      // `AthleteProfile.toFirestore` grava e que o gate de torneios lê.
+      expect(profile.city, 'Aparecida de Goiânia');
+      expect(profile.state, 'GO');
     });
 
     test('referralCode defaults to empty and is preserved by copyWith', () {

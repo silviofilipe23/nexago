@@ -1,7 +1,10 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
+import type {Firestore} from "firebase-admin/firestore";
+import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   effectivePointsFromStageResults,
+  loadTeamAthleteIds,
   parseCountingStagesMode,
   placementPoints,
   pointsForBucket,
@@ -252,6 +255,54 @@ describe("effectivePointsFromStageResults", () => {
         "best_3_of_5",
       ),
       150,
+    );
+  });
+});
+
+describe("loadTeamAthleteIds", () => {
+  const projectId = "proj-test";
+  const teamPath = (teamId: string) =>
+    `artifacts/${projectId}/public/data/teams/${teamId}`;
+  const db = (fake: FakeFirestore) => fake as unknown as Firestore;
+
+  it("usa memberUids quando existir (equipe trio/quarteto/quinteto)", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(teamPath("team-1"), {
+      memberUids: ["cap", "m2", "m3", "m4"],
+      player1Id: "cap",
+      player2Id: "m2",
+    });
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-1"),
+      ["cap", "m2", "m3", "m4"],
+    );
+  });
+
+  it("deduplica e ignora entradas vazias de memberUids", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(teamPath("team-1"), {
+      memberUids: ["cap", " ", "cap", "m2"],
+    });
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-1"),
+      ["cap", "m2"],
+    );
+  });
+
+  it("cai em player1Id/player2Id na dupla legada sem memberUids", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(teamPath("team-1"), {player1Id: "p1", player2Id: "p2"});
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-1"),
+      ["p1", "p2"],
+    );
+  });
+
+  it("retorna vazio para doc inexistente", async () => {
+    const fake = new FakeFirestore();
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-x"),
+      [],
     );
   });
 });

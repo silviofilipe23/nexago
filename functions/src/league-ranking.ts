@@ -1,6 +1,7 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import {isMatchCompleted} from "./match-status";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath} from "./firebase-paths";
+import {extractTeamMemberUids} from "./tournament-team-category";
 
 const DEFAULT_LEAGUE_POINTS: Record<string, number> = {
   "1": 450,
@@ -379,13 +380,7 @@ export async function loadTeamAthleteIds(
 ): Promise<string[]> {
   const snap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   if (!snap.exists) return [];
-  const data = snap.data() ?? {};
-  const ids = new Set<string>();
-  const player1Id = (data.player1Id as string | undefined)?.trim();
-  const player2Id = (data.player2Id as string | undefined)?.trim();
-  if (player1Id) ids.add(player1Id);
-  if (player2Id && player2Id !== player1Id) ids.add(player2Id);
-  return [...ids];
+  return extractTeamMemberUids(snap.data());
 }
 
 export async function loadPaidTeamIds(

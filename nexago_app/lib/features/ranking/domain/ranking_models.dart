@@ -136,13 +136,46 @@ class RankingTeamPlayers {
     required this.teamId,
     this.player1Id,
     this.player2Id,
+    this.memberIds = const [],
     this.teamName,
     this.gender,
   });
 
+  /// Espelha `extractTeamMemberUids` (functions): `memberUids` vence (equipes
+  /// trio/quarteto/quinteto guardam o elenco inteiro nele e espelham só os 2
+  /// primeiros em player1/player2); dupla legada cai em player1Id/player2Id.
+  factory RankingTeamPlayers.fromDoc(String teamId, Map<String, dynamic> data) {
+    final memberIds = <String>[];
+    void push(dynamic raw) {
+      final id = _readStr(raw);
+      if (id != null && !memberIds.contains(id)) memberIds.add(id);
+    }
+
+    final rawMembers = data['memberUids'];
+    if (rawMembers is List) {
+      rawMembers.forEach(push);
+    }
+    if (memberIds.isEmpty) {
+      push(data['player1Id']);
+      push(data['player2Id']);
+    }
+
+    return RankingTeamPlayers(
+      teamId: teamId,
+      player1Id: _readStr(data['player1Id']),
+      player2Id: _readStr(data['player2Id']),
+      memberIds: memberIds,
+      teamName: _readStr(data['teamName']),
+      gender: _readStr(data['gender']),
+    );
+  }
+
   final String teamId;
   final String? player1Id;
   final String? player2Id;
+
+  /// Elenco completo — ver [RankingTeamPlayers.fromDoc].
+  final List<String> memberIds;
   final String? teamName;
   final String? gender;
 }

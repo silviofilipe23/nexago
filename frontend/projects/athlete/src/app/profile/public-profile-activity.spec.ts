@@ -12,7 +12,7 @@ import {
 } from './public-profile-activity';
 
 function makeTeam(overrides: Partial<ArenaTeam> = {}): ArenaTeam {
-  return { id: 'teamB', player1Id: 'u1', player2Id: 'u2', teamName: null, gender: null, createdAt: null, ...overrides };
+  return { id: 'teamB', player1Id: 'u1', player2Id: 'u2', memberIds: ['u1', 'u2'], teamName: null, gender: null, createdAt: null, ...overrides };
 }
 
 function profileMap(entries: Record<string, string>): Map<string, AthletePublicProfile> {

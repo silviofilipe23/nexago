@@ -240,7 +240,7 @@ export class AthleteRankingComponent {
         const results = await fetchTournamentCategoryResultsByYear(db, projectId, this.currentYear);
         const teamIds = [...new Set(results.map((r) => r.teamId).filter((id) => id))];
         const teams = await fetchTeamsByIds(db, projectId, teamIds);
-        const profileIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+        const profileIds = [...teams.values()].flatMap((t) => t.memberIds);
         const profiles = await fetchPublicProfilesByIds(db, profileIds);
 
         const pointsByTeam = new Map<string, number[]>();
@@ -260,7 +260,7 @@ export class AthleteRankingComponent {
           for (const [teamId, points] of pointsByTeam) {
             const team = teams.get(teamId);
             if (!team) continue;
-            for (const athleteId of [team.player1Id, team.player2Id]) {
+            for (const athleteId of team.memberIds) {
               (pointsByAthlete.get(athleteId) ?? pointsByAthlete.set(athleteId, []).get(athleteId)!).push(...points);
             }
           }

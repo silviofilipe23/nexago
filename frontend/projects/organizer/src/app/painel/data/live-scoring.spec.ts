@@ -1,4 +1,4 @@
-import { applyBestOfChange, applyPoint, canReduceBestOf, setPointHint, undoPoint } from '@nexago/live-scoring';
+import { applyBestOfChange, applyPoint, canReduceBestOf, needsStartingServe, setPointHint, undoPoint } from '@nexago/live-scoring';
 
 /** Casos espelhados de `match_scoring_logic_test.dart` (app) — a mesa web tem que fechar set,
  *  virar set decisivo e declarar vencedor exatamente como a mesa I1 do Flutter. */
@@ -107,6 +107,39 @@ describe('live-scoring', () => {
     });
     it('usa target 15 no set decisivo de MD3', () => {
       expect(setPointHint(14, 10, 2, 3)).toBe('set point em 1');
+    });
+  });
+
+  /** Quem abre o saque é o ÚNICO momento que o rally não resolve: do 1º ponto em diante
+   *  `servingTeamId` é sempre quem marcou. As três mesas (organizador, portal do atleta e app)
+   *  têm que perguntar na mesma janela — por isso a regra mora aqui e não em cada tela. */
+  describe('needsStartingServe', () => {
+    const teams = { teamAId: 'time-a', teamBId: 'time-b' };
+
+    it('pergunta na partida agendada, antes do primeiro ponto', () => {
+      expect(needsStartingServe({ servingTeamId: '', status: 'scheduled', ...teams })).toBeTrue();
+    });
+
+    it('pergunta também com a partida já ao vivo — o mesário pode ter iniciado e só depois lembrado', () => {
+      expect(needsStartingServe({ servingTeamId: '', status: 'in_progress', ...teams })).toBeTrue();
+    });
+
+    it('cala quando o saque já tem dono', () => {
+      expect(needsStartingServe({ servingTeamId: 'time-b', status: 'in_progress', ...teams })).toBeFalse();
+    });
+
+    it('trata saque em branco como sem dono — é assim que o doc nasce', () => {
+      expect(needsStartingServe({ servingTeamId: '   ', status: 'in_progress', ...teams })).toBeTrue();
+    });
+
+    it('cala na partida encerrada e na cancelada', () => {
+      expect(needsStartingServe({ servingTeamId: '', status: 'completed', ...teams })).toBeFalse();
+      expect(needsStartingServe({ servingTeamId: '', status: 'canceled', ...teams })).toBeFalse();
+    });
+
+    it('cala enquanto a chave não definiu os dois lados — não há teamId pra gravar', () => {
+      expect(needsStartingServe({ servingTeamId: '', status: 'scheduled', teamAId: 'time-a', teamBId: '' })).toBeFalse();
+      expect(needsStartingServe({ servingTeamId: '', status: 'scheduled', teamAId: '', teamBId: 'time-b' })).toBeFalse();
     });
   });
 });

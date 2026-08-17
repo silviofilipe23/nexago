@@ -245,6 +245,86 @@ describe('MesaLiveComponent', () => {
     expect(el().textContent).toContain('Aguardando as duas duplas');
   });
 
+  function askButtons(): HTMLButtonElement[] {
+    return Array.from(el().querySelectorAll<HTMLButtonElement>('.mesa-askbtn'));
+  }
+
+  function askButtonFor(team: string): HTMLButtonElement {
+    const btn = askButtons().find((b) => (b.getAttribute('aria-label') ?? '').includes(team));
+    if (!btn) throw new Error(`A mesa não oferece o saque inicial para "${team}"`);
+    return btn;
+  }
+
+  describe('quem começa sacando', () => {
+    it('pergunta enquanto ninguém está com o saque, com as duas duplas como resposta', () => {
+      gateway.push(liveMatch({ servingTeamId: '', status: 'scheduled', sets: [], matchStartedAt: null }));
+      fixture.detectChanges();
+
+      expect(el().textContent).toContain('Quem começa sacando?');
+      expect(askButtons().length).toBe(2);
+    });
+
+    it('escolher grava o saque da dupla escolhida — e não marca ponto nenhum', async () => {
+      gateway.push(liveMatch({ servingTeamId: '', status: 'scheduled', sets: [], matchStartedAt: null }));
+      fixture.detectChanges();
+
+      askButtonFor('Carla / Duda').click();
+      await fixture.whenStable();
+
+      expect(gateway.fields).toEqual([{ matchId: 'm1', fields: { servingTeamId: 'time-b' } }]);
+      expect(gateway.points.length).toBe(0);
+      expect(gateway.started.length).toBe(0);
+    });
+
+    it('com o saque já definido a pergunta sai da tela', () => {
+      gateway.push(liveMatch({ servingTeamId: 'time-a' }));
+      fixture.detectChanges();
+
+      expect(el().textContent).not.toContain('Quem começa sacando?');
+      expect(askButtons().length).toBe(0);
+    });
+
+    it('modo exibição não pergunta — a tela está virada para os atletas', () => {
+      gateway.push(liveMatch({ servingTeamId: '', status: 'scheduled', sets: [], matchStartedAt: null }));
+      fixture.detectChanges();
+
+      el().querySelector<HTMLButtonElement>('[aria-label="Modo exibição para os atletas"]')!.click();
+      fixture.detectChanges();
+
+      expect(askButtons().length).toBe(0);
+    });
+
+    /** A mesa é um grid de linhas fixas e a faixa entra como uma linha NOVA. Sem acertar
+     *  `grid-template-rows` os dois painéis de dupla (as linhas `1fr`) saem de lugar e o placar
+     *  quebra — dá pra ver medindo o grid de verdade no navegador. */
+    it('a faixa abre uma linha própria no grid, sem deslocar os painéis das duplas', () => {
+      gateway.push(liveMatch({ servingTeamId: 'time-a' }));
+      fixture.detectChanges();
+      const withoutAsk = getComputedStyle(el()).gridTemplateRows.split(' ');
+
+      gateway.push(liveMatch({ servingTeamId: '', status: 'scheduled', sets: [], matchStartedAt: null }));
+      fixture.detectChanges();
+      const withAsk = getComputedStyle(el()).gridTemplateRows.split(' ');
+
+      expect(withoutAsk.length).toBe(6);
+      expect(withAsk.length).toBe(7);
+
+      // O que quebraria de fato: as duas linhas `1fr` saírem dos painéis das duplas. Com a faixa
+      // na tela os dois painéis continuam dividindo a sobra em partes iguais.
+      const panels = Array.from(el().querySelectorAll('.mesa-sidewrap')).map((p) => p.getBoundingClientRect().height);
+      expect(panels.length).toBe(2);
+      expect(Math.abs(panels[0]! - panels[1]!)).toBeLessThan(1);
+      expect(panels[0]!).toBeGreaterThan(60);
+    });
+
+    it('partida encerrada não pergunta mais, mesmo sem saque no doc', () => {
+      gateway.push(liveMatch({ servingTeamId: '', status: 'completed', sets: [{ a: 21, b: 15 }, { a: 21, b: 18 }], winnerId: 'time-a' }));
+      fixture.detectChanges();
+
+      expect(askButtons().length).toBe(0);
+    });
+  });
+
   it('placar por sets só envia quando o placar decide a partida', async () => {
     gateway.push(liveMatch({ status: 'completed', sets: [{ a: 21, b: 15 }], winnerId: 'time-a' }));
     fixture.detectChanges();

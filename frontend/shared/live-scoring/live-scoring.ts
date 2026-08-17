@@ -1,4 +1,5 @@
 import { DEFAULT_SET_POINTS, MIN_ADVANTAGE, isSetWon, matchWinnerSide, setWinnerSide, setsWon, targetPointsForSet, type ScoreSet } from './match-scoring';
+import type { MatchDisplayStatus } from './match-status';
 
 /** Porta fiel da parte PONTO A PONTO de `match_scoring_logic.dart` (mesa ao vivo I1 do app):
  *  aplicar/desfazer ponto, troca de formato e os hints de set point. As regras de set
@@ -119,6 +120,18 @@ export function setPointHint(scoreA: number, scoreB: number, setIndex: number, b
   if (leader < target - 5) return null;
   const remaining = target - leader;
   return remaining > 1 && remaining <= 5 ? `set point em ${remaining}` : null;
+}
+
+/** Quem ABRE o saque é o único momento que o rally não resolve: do 1º ponto em diante
+ *  `servingTeamId` é sempre quem marcou. Enquanto ninguém está com o saque a mesa pergunta —
+ *  inclusive com a partida já ao vivo, porque o mesário pode ter iniciado e só depois lembrado.
+ *  Cala em partida encerrada/cancelada e enquanto a chave não definiu os dois lados (não existe
+ *  teamId pra gravar). Mora aqui, e não em cada tela, porque as três mesas (organizador, portal
+ *  do atleta e app) têm que perguntar na MESMA janela — espelhado em `match_scoring_logic.dart`. */
+export function needsStartingServe(params: { servingTeamId: string; status: MatchDisplayStatus; teamAId: string; teamBId: string }): boolean {
+  if (params.status === 'completed' || params.status === 'canceled') return false;
+  if (params.teamAId.trim() === '' || params.teamBId.trim() === '') return false;
+  return params.servingTeamId.trim() === '';
 }
 
 /** "07:32" — espelha `formatElapsedMmSs` (minutos podem passar de 60: "75:10"). */

@@ -17,6 +17,7 @@ class AthleteSportLevelCard extends StatelessWidget {
     required this.onMakePrimary,
     this.lockedLevelRank = -1,
     this.enabled = true,
+    this.levelLocked = true,
   });
 
   final AthleteSportEnrollment enrollment;
@@ -26,9 +27,17 @@ class AthleteSportLevelCard extends StatelessWidget {
   final VoidCallback onMakePrimary;
 
   /// Rank do nível já salvo (regra "nível só sobe"): chips abaixo dele ficam
-  /// bloqueados visualmente. `-1` = sem nível salvo (tudo liberado).
+  /// bloqueados visualmente quando [levelLocked] é `true`. `-1` = sem nível
+  /// salvo (tudo liberado).
   final int lockedLevelRank;
   final bool enabled;
+
+  /// Janela de calibração: `true` quando este esporte já travou (1ª
+  /// inscrição ativa) — os chips abaixo do salvo mostram cadeado, igual à UI
+  /// de sempre. `false` = pré-lock: nenhum chip fica bloqueado e o aviso da
+  /// janela aparece abaixo dos chips. Default `true` preserva o comportamento
+  /// atual para quem ainda não passa este parâmetro.
+  final bool levelLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -169,9 +178,10 @@ class AthleteSportLevelCard extends StatelessWidget {
                                 AthleteProfileOptions.levelRank(
                                     levelLabels[i])),
                     // Abaixo do nível salvo (ranks 0–6 contíguos, escada de 7):
-                    // visual bloqueado, mas o tap segue ativo para a página
-                    // explicar a regra.
-                    locked:
+                    // visual bloqueado só depois do lock (janela de
+                    // calibração) — o tap segue ativo para a página explicar
+                    // a regra.
+                    locked: levelLocked &&
                         (AthleteProfileOptions.levelRank(levelLabels[i]) ??
                                 0) <
                             lockedLevelRank,
@@ -181,6 +191,19 @@ class AthleteSportLevelCard extends StatelessWidget {
                   ),
               ],
             ),
+            if (!levelLocked) ...[
+              SizedBox(height: 10),
+              Text(
+                'Até a sua primeira inscrição neste esporte você pode '
+                'ajustar o nível livremente — depois ele só sobe.',
+                style: AppTypography.soraRegular(
+                  fontWeight: FontWeight.w500,
+                  color: context.themeColors.onSurfaceMuted,
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ],
         ),
       ),

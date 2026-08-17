@@ -57,4 +57,57 @@ void main() {
       }
     },
   );
+
+  const _windowHint =
+      'Até a sua primeira inscrição neste esporte você pode ajustar o '
+      'nível livremente — depois ele só sobe.';
+
+  testWidgets(
+    'pré-lock (levelLocked: false): nenhum chip abaixo do salvo mostra '
+    'cadeado, e o aviso da janela aparece',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          AthleteSportLevelCard(
+            enrollment: _enrollment,
+            totalGames: 3,
+            selectedLevel: 'Intermediário 1',
+            // Rank de "Intermediário 1" = 2: com o lock ligado os chips
+            // "Inic. 1"/"Inic. 2" mostrariam cadeado — aqui não devem.
+            lockedLevelRank: 2,
+            levelLocked: false,
+            onLevelSelected: (_) {},
+            onMakePrimary: () {},
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.lock_outline_rounded), findsNothing);
+      expect(find.text(_windowHint), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'pós-lock (levelLocked: true, default): chips abaixo do salvo mostram '
+    'cadeado, e o aviso da janela some',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          AthleteSportLevelCard(
+            enrollment: _enrollment,
+            totalGames: 3,
+            selectedLevel: 'Intermediário 1',
+            lockedLevelRank: 2,
+            onLevelSelected: (_) {},
+            onMakePrimary: () {},
+          ),
+        ),
+      );
+
+      // Iniciante 1 (rank 0) e Iniciante 2 (rank 1) ficam abaixo do rank 2
+      // salvo -> 2 cadeados.
+      expect(find.byIcon(Icons.lock_outline_rounded), findsNWidgets(2));
+      expect(find.text(_windowHint), findsNothing);
+    },
+  );
 }

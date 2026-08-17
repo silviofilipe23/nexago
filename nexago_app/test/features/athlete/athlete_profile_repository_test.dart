@@ -150,6 +150,83 @@ void main() {
     );
   });
 
+  group(
+    'AthleteProfileRepository.saveProfile — janela de calibração '
+    '(sportOnboarding.levelLocked)',
+    () {
+      const downgrade = AthleteProfile(
+        id: 'u1',
+        name: 'Ana Souza',
+        sport: 'Vôlei de praia',
+        level: 'Iniciante 1',
+        city: 'Goiânia',
+        state: 'GO',
+        primarySportFirestoreId: 'VOLEI_PRAIA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'iniciante_1'},
+      );
+
+      test(
+        'esporte travado: descida em levelsBySport é revertida pro nível '
+        'salvo (ratchet "nível só sobe" de sempre)',
+        () async {
+          final firestore = _FakeFirestore(
+            existingUsers: {
+              'u1': {
+                'fullName': 'Ana Souza',
+                'roles': ['athlete'],
+                'sportOnboarding': {
+                  'levelsBySport': {'VOLEI_PRAIA': 'avancado_1'},
+                  'levelLocked': {'VOLEI_PRAIA': true},
+                },
+              },
+            },
+          );
+          final repo = AthleteProfileRepository(
+            firestore,
+            functions: _FakeFirebaseFunctions(),
+          );
+
+          await repo.saveProfile(downgrade);
+
+          final onboarding =
+              firestore.lastWrite('u1')!['sportOnboarding'] as Map;
+          final levels = onboarding['levelsBySport'] as Map;
+          expect(levels['VOLEI_PRAIA'], 'avancado_1');
+        },
+      );
+
+      test(
+        'esporte sem lock (janela ainda aberta): descida em levelsBySport '
+        'é aceita — o clamp não desfaz a autocorreção do notifier',
+        () async {
+          final firestore = _FakeFirestore(
+            existingUsers: {
+              'u1': {
+                'fullName': 'Ana Souza',
+                'roles': ['athlete'],
+                'sportOnboarding': {
+                  'levelsBySport': {'VOLEI_PRAIA': 'avancado_1'},
+                  // Sem 'levelLocked': 1ª inscrição ainda não aconteceu.
+                },
+              },
+            },
+          );
+          final repo = AthleteProfileRepository(
+            firestore,
+            functions: _FakeFirebaseFunctions(),
+          );
+
+          await repo.saveProfile(downgrade);
+
+          final onboarding =
+              firestore.lastWrite('u1')!['sportOnboarding'] as Map;
+          final levels = onboarding['levelsBySport'] as Map;
+          expect(levels['VOLEI_PRAIA'], 'iniciante_1');
+        },
+      );
+    },
+  );
+
   group('AthleteProfileRepository.saveProfile — galeria de destaque', () {
     test('grava highlightPhotoUrls no doc', () async {
       final firestore = _FakeFirestore(existingUsers: {});

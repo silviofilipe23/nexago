@@ -38,6 +38,7 @@ class AthleteProfile {
     this.isProfileComplete = false,
     this.useBiometric = false,
     this.levelsBySportFirestore = const {},
+    this.levelLocked = const {},
     this.notificationPreferences = AthleteNotificationPreferences.defaults,
     this.privacyPreferences = AthletePrivacyPreferences.defaults,
     this.publicProfileEnabled = true,
@@ -81,6 +82,12 @@ class AthleteProfile {
   final bool useBiometric;
   /// Nível por esporte em `sportOnboarding.levelsBySport` (código FS → código nível).
   final Map<String, String> levelsBySportFirestore;
+  /// Janela de calibração (Task 1–2 do plano): `sportOnboarding.levelLocked`
+  /// em `users/{uid}` — código FS → `true` quando o ratchet "nível só sobe"
+  /// já vale para aquele esporte (1ª inscrição ativa). Gravado SÓ pelo
+  /// trigger de backend (`tournament-level-lock.ts`); o client nunca escreve
+  /// este campo (ver [toFirestore] — a chave nunca entra no payload).
+  final Map<String, bool> levelLocked;
   final AthleteNotificationPreferences notificationPreferences;
   final AthletePrivacyPreferences privacyPreferences;
   /// Alinhado com web (`athlete_profiles`); derivado de [privacyPreferences].
@@ -156,6 +163,7 @@ class AthleteProfile {
     List<String> secondarySportFirestoreIds = const [];
     String? otherSportNote;
     Map<String, String> levelsBySportFirestore = const {};
+    Map<String, bool> levelLocked = const {};
 
     if (sportOnboarding is Map) {
       final rawPrimary = sportOnboarding['primarySportId'] as String?;
@@ -209,6 +217,20 @@ class AthleteProfile {
       if (note is String && note.trim().isNotEmpty) {
         otherSportNote = note.trim();
       }
+
+      final lockedRaw = sportOnboarding['levelLocked'];
+      if (lockedRaw is Map) {
+        final parsedLocked = <String, bool>{};
+        for (final entry in lockedRaw.entries) {
+          final sportKey = entry.key.toString().trim();
+          if (sportKey.isNotEmpty && entry.value == true) {
+            parsedLocked[sportKey] = true;
+          }
+        }
+        if (parsedLocked.isNotEmpty) {
+          levelLocked = parsedLocked;
+        }
+      }
     }
 
     if (sportProfile is Map) {
@@ -259,6 +281,7 @@ class AthleteProfile {
       isProfileComplete: isProfileComplete,
       useBiometric: data['useBiometric'] == true,
       levelsBySportFirestore: levelsBySportFirestore,
+      levelLocked: levelLocked,
       notificationPreferences: AthleteNotificationPreferences.fromFirestore(
         data['notificationPreferences'],
       ),
@@ -497,6 +520,7 @@ class AthleteProfile {
     bool? isProfileComplete,
     bool? useBiometric,
     Map<String, String>? levelsBySportFirestore,
+    Map<String, bool>? levelLocked,
     AthleteNotificationPreferences? notificationPreferences,
     AthletePrivacyPreferences? privacyPreferences,
     bool? publicProfileEnabled,
@@ -542,6 +566,7 @@ class AthleteProfile {
       useBiometric: useBiometric ?? this.useBiometric,
       levelsBySportFirestore:
           levelsBySportFirestore ?? this.levelsBySportFirestore,
+      levelLocked: levelLocked ?? this.levelLocked,
       notificationPreferences:
           notificationPreferences ?? this.notificationPreferences,
       privacyPreferences: privacyPreferences ?? this.privacyPreferences,

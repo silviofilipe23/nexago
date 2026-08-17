@@ -86,14 +86,23 @@ class AthleteSportsLevelsDraft {
     );
   }
 
-  AthleteSportsLevelsDraft addSport(String appSportId) {
+  /// Escolha obrigatória: [levelLabel] é o nível que o atleta escolheu
+  /// explicitamente (sheet da página) para o esporte novo — sem default
+  /// silencioso. Nível vazio/desconhecido ou esporte já matriculado é um
+  /// no-op (`this` inalterado, ver `identical()` em
+  /// `AthleteSportsLevelsNotifier.addSport`).
+  AthleteSportsLevelsDraft addSport(String appSportId, String levelLabel) {
+    final level = AthleteProfileOptions.normalizeLevel(levelLabel);
+    if (level.isEmpty || AthleteProfileOptions.levelRank(level) == null) {
+      return this;
+    }
     if (enrolledAppSportIds.contains(appSportId)) return this;
     if (primaryAppSportId == null || primaryAppSportId!.isEmpty) {
       return copyWith(
         primaryAppSportId: appSportId,
         levelByAppSportId: {
           ...levelByAppSportId,
-          appSportId: defaultLevel,
+          appSportId: level,
         },
       );
     }
@@ -101,7 +110,7 @@ class AthleteSportsLevelsDraft {
       otherAppSportIds: {...otherAppSportIds, appSportId},
       levelByAppSportId: {
         ...levelByAppSportId,
-        appSportId: defaultLevel,
+        appSportId: level,
       },
     );
   }

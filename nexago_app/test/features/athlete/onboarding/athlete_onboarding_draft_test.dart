@@ -50,6 +50,25 @@ void main() {
       );
     });
 
+    test(
+      'canContinueFrom requires an explicitly chosen level on step 2 — sem '
+      'default silencioso (escolha obrigatória)',
+      () {
+        const draft = AthleteOnboardingDraft();
+        expect(draft.level, isNull);
+        expect(
+          draft.canContinueFrom(AthleteOnboardingStep.level),
+          isFalse,
+        );
+
+        final withLevel = draft.copyWith(level: 'Iniciante 1');
+        expect(
+          withLevel.canContinueFrom(AthleteOnboardingStep.level),
+          isTrue,
+        );
+      },
+    );
+
     test('otherSportLabels excludes primary sport', () {
       const draft = AthleteOnboardingDraft(
         primarySportId: 'beach_volleyball',

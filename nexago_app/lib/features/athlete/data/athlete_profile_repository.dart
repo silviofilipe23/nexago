@@ -257,13 +257,22 @@ String? _normalizedGenderForFirestore(String? raw) {
   return trimmed;
 }
 
-/// Evita que `set(merge)` rebaixe níveis e dispare `athleteLevelsNotDowngraded`.
+/// Evita que `set(merge)` rebaixe níveis travados e dispare
+/// `athleteLevelsNotDowngraded` nas rules.
 ///
 /// Os campos legados `level`/`sportProfile.level` não são mais emitidos pelo
 /// `toFirestore` (a escrita canônica é só `sportOnboarding.levelsBySport`);
 /// campo AUSENTE no payload já preserva o valor sob merge, então os clamps
 /// legados só agem se algum caminho ainda incluir o campo (defesa barata —
 /// remover quando os legados aposentarem de vez).
+///
+/// JANELA DE CORREÇÃO (Task 4, espelho do `sportLevelNotLowered` das rules):
+/// o clamp por esporte em `levelsBySport` só entra em ação quando
+/// `sportOnboarding.levelLocked.{sportId}` já é `true` no doc EXISTENTE — sem
+/// isso o notifier (`AthleteSportsLevelsNotifier.updateLevel`) já decidiu
+/// aceitar a descida, e este clamp não pode desfazer essa escolha sob o tapete
+/// no save (senão a UI mostraria a descida e o próximo reload reverteria
+/// sozinho, sem nenhum aviso).
 void _preserveAthleteLevelsOnUpdate({
   required Map<String, dynamic> data,
   required Map<String, dynamic> existing,
@@ -310,9 +319,14 @@ void _preserveAthleteLevelsOnUpdate({
     final existingLevels = existingOnboarding['levelsBySport'];
     final requestLevels = requestOnboarding['levelsBySport'];
     if (existingLevels is Map && requestLevels is Map) {
+      final lockedRaw = existingOnboarding['levelLocked'];
+      final lockedMap = lockedRaw is Map ? lockedRaw : const {};
       final merged = Map<String, dynamic>.from(requestLevels);
       for (final entry in existingLevels.entries) {
         final sportId = entry.key.toString();
+        // Janela de correção: sem lock para este esporte, a descida é
+        // legítima — nada a clampar.
+        if (lockedMap[sportId] != true) continue;
         final existingCode = entry.value?.toString().trim() ?? '';
         if (existingCode.isEmpty) continue;
         final existingRank =

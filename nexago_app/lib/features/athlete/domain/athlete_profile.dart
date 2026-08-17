@@ -410,6 +410,18 @@ class AthleteProfile {
       if (primaryFs != null && primaryFs.isNotEmpty) primaryFs,
       ...secondarySportFirestoreIds,
     ];
+    // AVISO (Task 4, escolha obrigatória): o `'iniciante_1'` abaixo é um
+    // backstop defensivo pra docs LEGADOS — hoje nenhum fluxo do app deixa um
+    // esporte matriculado chegar aqui sem `levelsBySport` já preenchido
+    // (`AthleteSportsLevelsMapper.toProfile`/`enrollmentsFromDraft` sempre
+    // grava o nível explícito escolhido no sheet de adicionar esporte).
+    // `secondarySportFirestoreIds` também só populado por esse mesmo caminho
+    // hoje — `AthleteOnboardingDraftNotifier.toggleOtherSport` existe mas não
+    // tem NENHUM call site na presentation, então o onboarding nunca produz
+    // esporte secundário. Se uma etapa de "outros esportes" for reintroduzida
+    // no onboarding, ela precisa perguntar o nível de cada esporte
+    // explicitamente (mesmo sheet/step desta task) — senão esse default
+    // silencioso volta a valer pela porta dos fundos.
     for (final sportId in enrolledIds) {
       if (!levelsBySport.containsKey(sportId) || levelsBySport[sportId]!.isEmpty) {
         levelsBySport[sportId] =

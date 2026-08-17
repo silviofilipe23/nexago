@@ -466,11 +466,16 @@ class _ReadyBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 6),
+        // Texto único, sem condicional em "algum esporte destravado": ratchet
+        // e janela de correção coexistem por design (Task 4), e um texto que
+        // vale pros dois estados não pode contradizer o aviso do card abaixo
+        // (que é, esse sim, condicional a `levelLocked`). Ver fix pós-review
+        // no report da Task 4.
         Text(
           'Seu nível é atualizado automaticamente com base nos seus '
-          'resultados em torneios. Você pode subir de nível manualmente, '
-          'mas não reduzir — para corrigir um nível errado, fale com o '
-          'suporte.',
+          'resultados em torneios. Até a sua primeira inscrição em cada '
+          'esporte, você pode ajustar o nível livremente — depois disso ele '
+          'só sobe; para corrigir um nível já travado, fale com o suporte.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: context.themeColors.onSurfaceMuted,
             height: 1.35,

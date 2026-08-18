@@ -595,6 +595,9 @@ export class AtInviteAnnouncerComponent {
   // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
   protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
   private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+  /** Convite sob confirmação — junto com `levelConfirmationResolve`, é o que o effect de
+   *  limpeza (F6, review) usa pra saber se `current()` mudou POR BAIXO do dialog aberto. */
+  private levelConfirmationInviteId: string | null = null;
 
   protected readonly titleId = `at-invite-title-${nextId++}`;
   protected readonly bodyId = `at-invite-body-${nextId++}`;
@@ -661,6 +664,26 @@ export class AtInviteAnnouncerComponent {
       if (this.current() == null) return;
       const timer = setInterval(() => this.now.set(Date.now()), CLOCK_TICK_MS);
       onCleanup(() => clearInterval(timer));
+    });
+
+    // F6 (review): o dialog de confirmação de nível vive DENTRO do mesmo `@if (current(); as
+    // item)` do resto do modal — se o convite sob confirmação resolver/for retirado em outra
+    // aba enquanto o dialog está aberto aqui, `current()` muda (pra outro convite ou pra
+    // `null`) e o `@if` externo desmonta o dialog sem que `confirmLevelPrompt`/
+    // `adjustLevelPrompt` jamais rodem. `ensureLevelConfirmed` trata QUALQUER
+    // `levelConfirmationResolve` pendente como "confirmação em andamento" — sem assentar esse
+    // resolver órfão, o PRÓXIMO aceite da SESSÃO INTEIRA (de outro convite, ou do mesmo depois
+    // de reaparecer) ficaria travado em `false` silencioso pra sempre. Assenta como
+    // `adjustLevelPrompt` assentaria (recusa), sempre que o convite sob confirmação sai da
+    // frente.
+    effect(() => {
+      const currentInviteId = this.current()?.invite.id ?? null;
+      if (!this.levelConfirmationResolve) return;
+      if (currentInviteId === this.levelConfirmationInviteId) return;
+      this.levelConfirmationPrompt.set(null);
+      this.levelConfirmationResolve(false);
+      this.levelConfirmationResolve = null;
+      this.levelConfirmationInviteId = null;
     });
 
     // Depois do render, e não durante: o diálogo do termo LGPD devolve a rolagem ao ser
@@ -776,6 +799,7 @@ export class AtInviteAnnouncerComponent {
     }
     if (!prompt) return true;
     this.levelConfirmationPrompt.set(prompt);
+    this.levelConfirmationInviteId = item.invite.id;
     return new Promise<boolean>((resolve) => {
       this.levelConfirmationResolve = resolve;
     });
@@ -785,6 +809,7 @@ export class AtInviteAnnouncerComponent {
     this.levelConfirmationPrompt.set(null);
     this.levelConfirmationResolve?.(true);
     this.levelConfirmationResolve = null;
+    this.levelConfirmationInviteId = null;
   }
 
   /** "Ajustar nível": para de anunciar o convite (mesmo gesto de "Ver detalhes") antes de
@@ -795,6 +820,7 @@ export class AtInviteAnnouncerComponent {
     this.levelConfirmationPrompt.set(null);
     this.levelConfirmationResolve?.(false);
     this.levelConfirmationResolve = null;
+    this.levelConfirmationInviteId = null;
     if (item) this.stopAnnouncing(item.invite.id);
     void this.router.navigate(['/perfil/esportes']);
   }

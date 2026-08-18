@@ -19,6 +19,7 @@ interface OnboardingInternals {
   state: WritableSignal<string>;
   city: WritableSignal<string>;
   photoFile: WritableSignal<File | null>;
+  selectedLevelCode: WritableSignal<string>;
   profileFormValid: Signal<boolean>;
   selectState(uf: string): void;
 }
@@ -41,7 +42,7 @@ describe('AthleteOnboardingComponent — obrigatórios do perfil', () => {
     };
   }
 
-  /** Preenche tudo o que o passo 4 exige — cada teste tira UM campo. */
+  /** Preenche tudo o que o passo 4 exige (+ o nível do passo 2) — cada teste tira UM campo. */
   function fillCompleteProfile(): void {
     onboarding.name.set('Marcelo Antunes');
     onboarding.phoneVerified.set(true);
@@ -50,6 +51,7 @@ describe('AthleteOnboardingComponent — obrigatórios do perfil', () => {
     onboarding.state.set('GO');
     onboarding.city.set('Goiânia');
     onboarding.photoFile.set(new File([new Blob(['foto'])], 'foto.jpg', { type: 'image/jpeg' }));
+    onboarding.selectedLevelCode.set('intermediario_1');
   }
 
   beforeEach(async () => {
@@ -107,6 +109,14 @@ describe('AthleteOnboardingComponent — obrigatórios do perfil', () => {
   it('recusa sem cidade', () => {
     fillCompleteProfile();
     onboarding.city.set('');
+    expect(onboarding.profileFormValid()).toBeFalse();
+  });
+
+  // F7 (review): `levelChosen` (passo 2) só travava o botão "Continuar" daquele passo — a
+  // invariante não valia na escrita de verdade. `profileFormValid()` agora inclui o nível.
+  it('recusa sem nível escolhido (invariante da escolha obrigatória vale na escrita, não só no botão do passo 2)', () => {
+    fillCompleteProfile();
+    onboarding.selectedLevelCode.set('');
     expect(onboarding.profileFormValid()).toBeFalse();
   });
 

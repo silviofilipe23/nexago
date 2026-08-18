@@ -285,6 +285,41 @@ describe('AtInviteAnnouncerComponent', () => {
     expect(responder.accept).toHaveBeenCalledWith('i1');
   });
 
+  // F6 (review pós-calibração de nível): o dialog de confirmação de nível é gated pelo MESMO
+  // `@if (current(); as item)` do resto do modal — se o convite sob confirmação some de
+  // `invites.pending()` (resolvido/retirado em outra aba) enquanto o dialog está aberto aqui,
+  // o `@if` desmonta tudo sem que `confirmLevelPrompt`/`adjustLevelPrompt` jamais rodem, e o
+  // `levelConfirmationResolve` da Promise pendente fica órfão. Sem o fix, `ensureLevelConfirmed`
+  // trata QUALQUER resolver pendente como "confirmação em andamento" e o PRÓXIMO aceite da
+  // sessão inteira (de um convite diferente) ficaria travado em `false` silencioso pra sempre.
+  it('convite sob confirmação some (current() vira null) com o dialog de nível aberto: assenta o resolver órfão e não trava o próximo aceite', async () => {
+    responder.resolveLevelPrompt.and.resolveTo({ levelLabel: 'Iniciante 1', sportLabel: 'Vôlei de praia' });
+
+    await build([item('i1')]);
+    await click('accept');
+    await confirmLgpd();
+    expect(levelDialog()).not.toBeNull();
+
+    // i1 sai de `pending` (ex.: aceito/recusado em outra aba) enquanto o dialog de nível
+    // segue aberto aqui — current() vira null e o `@if` externo desmonta tudo, inclusive o
+    // dialog, sem que `confirmLevelPrompt`/`adjustLevelPrompt` jamais rodem.
+    pending.set([]);
+    await fixture.whenStable();
+    expect(dialog()).toBeNull();
+    expect(levelDialog()).toBeNull();
+
+    // Convite NOVO chega depois. Sem o fix, o resolver órfão de i1 faz `ensureLevelConfirmed`
+    // devolver `false` pra sempre — este aceite ficaria mudo (sem chamar accept, sem navegar).
+    responder.resolveLevelPrompt.and.resolveTo(null);
+    pending.set([item('i2')]);
+    await fixture.whenStable();
+    await click('accept');
+    await confirmLgpd();
+
+    expect(responder.accept).toHaveBeenCalledWith('i2');
+    expect(markAnswered).toHaveBeenCalledWith('i2');
+  });
+
   it('falha ao confirmar o nível: bloqueia, avisa e não aceita', async () => {
     const toastError = spyOn(TestBed.inject(NxToastService), 'error');
     responder.resolveLevelPrompt.and.rejectWith(new Error('fetch falhou'));

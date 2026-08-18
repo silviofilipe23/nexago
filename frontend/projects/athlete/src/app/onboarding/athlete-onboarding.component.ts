@@ -143,7 +143,12 @@ export class AthleteOnboardingComponent {
       this.gender() != null &&
       this.state() !== '' &&
       this.city() !== '' &&
-      this.photoFile() != null,
+      this.photoFile() != null &&
+      // F7 (review): a escolha obrigatória de nível (`levelChosen`) até aqui só era
+      // aplicada pelo `[disabled]` do botão "Continuar" do passo 2 — a invariante não
+      // valia na escrita de verdade (`submitProfile`). Entrar aqui fecha em `submitProfile`
+      // (`if (!profileFormValid()) return`), não só na UI do passo 2.
+      this.levelChosen(),
   );
 
   private initialName(): string {

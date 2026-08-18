@@ -114,12 +114,14 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <og-pill tone="dim" [title]="scoreHint(i)">{{ scoreLabel(i) }}</og-pill>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
               </div>
-              <!-- Ver athlete-level-promotion.ts: só aparece pra atleta com nível declarado
-                   abaixo de Open — o organizador que acabou de ver alguém jogar é a melhor
-                   fonte disponível enquanto o rating não tem volume de partidas (Task 8 do
-                   plano de calibração). O backend (setAthleteLevel) é o gate real: dono do
-                   torneio, mesmo esporte e inscrição ativa — a UI só evita oferecer o que já
-                   sabe que vai falhar (repetir/descer o degrau). -->
+              <!-- Ver athlete-level-promotion.ts: aparece pra quem tem degrau pra subir — quem
+                   já está no topo (Open) some da lista, e quem AINDA NÃO tem nível declarado
+                   nesse esporte ganha os 7 degraus inteiros (semear é o mesmo caminho de
+                   promover, pro backend — c034b9e0). O organizador que acabou de ver alguém
+                   jogar é a melhor fonte disponível enquanto o rating não tem volume de
+                   partidas (Task 8 do plano de calibração). O backend (setAthleteLevel) é o
+                   gate real: dono do torneio, mesmo esporte e inscrição ativa — a UI só evita
+                   oferecer o que já sabe que vai falhar (repetir/descer o degrau). -->
               @if (promotableFor(i); as promotable) {
                 @if (promotable.length) {
                   <div class="og-categoria-promote">
@@ -478,10 +480,13 @@ export class CategoriaDetalheComponent {
     return SHORT_DATE.format(d);
   }
 
-  /** Atletas da dupla com degrau pra subir nesse esporte — `[]` (nenhum atleta some da lista)
-   *  quando todos já estão em Open ou sem nível declarado. Não gate na categoria estar
-   *  concluída/chave fechada: o backend (dono do torneio + inscrição ativa + só sobe) já é o
-   *  gate real, e travar aqui bloquearia a promoção de fim de dia sem ganhar segurança. */
+  /** Atletas da dupla com degrau pra subir nesse esporte — só some da lista quem já está em
+   *  Open; quem ainda não tem nível declarado ganha os 7 degraus inteiros (ver
+   *  `promotableLevelOptions`: `currentRank == null` devolve TODOS os degraus, não `[]` —
+   *  semear o 1º nível de um esporte é o mesmo caminho de promover, pro backend). Não gate na
+   *  categoria estar concluída/chave fechada: o backend (dono do torneio + inscrição ativa + só
+   *  sobe) já é o gate real, e travar aqui bloquearia a promoção de fim de dia sem ganhar
+   *  segurança. */
   protected promotableFor(i: TournamentInscription): { uid: string; name: string; options: readonly LevelOption[] }[] {
     const sportCode = this.sportCode();
     // Guarda simétrica à de `promote()`: sem sportCode mapeado, `setAthleteLevel` nunca

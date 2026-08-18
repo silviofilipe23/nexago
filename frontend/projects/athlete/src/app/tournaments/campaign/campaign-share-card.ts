@@ -63,6 +63,12 @@ interface CampaignSkin {
   badgeInk: string;
   wordmarkNexa: string;
   wordmarkGo: string;
+  /** Placa arredondada atrás da marca. `null` quando a marca já contrasta com o fundo.
+   *
+   *  Existe por um motivo concreto: `/brand/logo.png` é um "N" LARANJA, e no card do campeão —
+   *  fundo laranja — ele simplesmente desaparecia. A placa preta é o mesmo tratamento do
+   *  protótipo. Nos cards escuros a marca contrasta sozinha e a placa fica de fora. */
+  markPlate: string | null;
   /** Aro das fotos. */
   ring: string;
 }
@@ -80,6 +86,7 @@ const SKINS: Record<CampaignPlacement, CampaignSkin> = {
     badgeInk: ORANGE,
     wordmarkNexa: '#0a0a0a',
     wordmarkGo: '#0a0a0a',
+    markPlate: '#0a0a0a',
     ring: 'rgba(10, 10, 10, 0.28)',
   },
   'runner-up': {
@@ -94,6 +101,7 @@ const SKINS: Record<CampaignPlacement, CampaignSkin> = {
     badgeInk: '#e6eaef',
     wordmarkNexa: INK,
     wordmarkGo: ORANGE,
+    markPlate: null,
     ring: 'rgba(255, 255, 255, 0.18)',
   },
   third: {
@@ -108,6 +116,7 @@ const SKINS: Record<CampaignPlacement, CampaignSkin> = {
     badgeInk: '#e8b98a',
     wordmarkNexa: INK,
     wordmarkGo: ORANGE,
+    markPlate: null,
     ring: 'rgba(255, 255, 255, 0.18)',
   },
   none: {
@@ -122,6 +131,7 @@ const SKINS: Record<CampaignPlacement, CampaignSkin> = {
     badgeInk: '#ffb184',
     wordmarkNexa: INK,
     wordmarkGo: ORANGE,
+    markPlate: null,
     ring: 'rgba(255, 255, 255, 0.18)',
   },
 };
@@ -174,11 +184,21 @@ export function campaignPanelLayoutOf(rowCount: number): CampaignPanelLayout {
   return { top: PANEL_BOTTOM - height, height, pitch };
 }
 
-// Mesmos gradientes dos avatares dos cards do portal.
+/**
+ * Placeholder das fotos: neutros escuros, como nos quatro protótipos — NÃO o gradiente colorido
+ * de `.duo-avatar` que o pôster de partida usa.
+ *
+ * Dois motivos. No card do CAMPEÃO o fundo é laranja, e o gradiente laranja→magenta do portal
+ * brigava com ele. E nos quatro o retrato não deve competir com o título, que é o elemento
+ * principal desta arte — coisa que não vale no pôster de partida, onde as fotos SÃO o assunto.
+ */
 const AVATAR_GRAD: [string, string][] = [
-  ['#ff6a1a', '#c2185b'],
-  ['#2bd17e', '#1e7a4d'],
+  ['#2b3b50', '#18222f'],
+  ['#3d3a34', '#26241f'],
 ];
+
+/** Iniciais sobre o placeholder neutro: cinza claro, não branco puro. */
+const AVATAR_INITIAL_INK = '#c9ced6';
 
 /** Foto circular com aro; sem foto, iniciais sobre o gradiente do avatar dos cards. */
 function drawAvatar(
@@ -214,7 +234,7 @@ function drawAvatar(
     g.addColorStop(1, c2);
     ctx.fillStyle = g;
     ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = AVATAR_INITIAL_INK;
     ctx.font = sora(700, r * 0.62);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -265,7 +285,15 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, skin: CampaignSkin): void {
 /** Marca + wordmark à esquerda, intervalo de datas à direita. Sem a marca (asset que falhou), o
  *  wordmark volta pra margem em vez de deixar o buraco dela — mesma regra do pôster de partida. */
 function drawHeader(ctx: CanvasRenderingContext2D, data: CampaignShareData, logo: HTMLImageElement | null, skin: CampaignSkin): void {
-  if (logo) ctx.drawImage(logo, M, LOGO_TOP, LOGO_SIZE, LOGO_SIZE);
+  if (logo) {
+    if (skin.markPlate) {
+      ctx.beginPath();
+      ctx.roundRect(M - 8, LOGO_TOP - 8, LOGO_SIZE + 16, LOGO_SIZE + 16, 18);
+      ctx.fillStyle = skin.markPlate;
+      ctx.fill();
+    }
+    ctx.drawImage(logo, M, LOGO_TOP, LOGO_SIZE, LOGO_SIZE);
+  }
   drawWordmark(ctx, logo ? M + LOGO_SIZE + LOGO_GAP : M, 138, 60, skin.wordmarkNexa, skin.wordmarkGo);
 
   if (data.dateRangeLabel) {

@@ -36,9 +36,35 @@ Duas ferramentas de migração/realinhamento, com papéis diferentes:
 
 ## Nível declarado — regra "só sobe"
 - O atleta pode subir de nível a qualquer momento, com confirmação explícita ("o nível só pode subir; para reduzir, fale com o suporte").
-- Nunca pode descer sozinho — downgrade é operação de suporte/super admin.
-- Aplicado em 3 camadas: UI (app "Esportes e níveis" e portal web `/perfil/esportes` bloqueiam visualmente os níveis abaixo do salvo), lógica do cliente, e as rules do Firestore (`athleteLevelsNotDowngraded`) — que recusam o update inteiro do doc se qualquer nível regredir. A guarda das rules cobre **os 9 esportes** + os campos legados `level`/`sportProfile.level` (clientes antigos ainda os escrevem); rewrite de MESMO rank é permitido (app antigo regravando código legado).
-- **Por quê**: sem o ratchet, o atleta rebaixava o próprio nível na véspera de uma inscrição pra caber numa categoria mais fácil — furava o anti-sandbagging.
+- Nunca pode descer sozinho — downgrade é operação de suporte/super admin — **exceto dentro da janela de correção por esporte** (antes da 1ª inscrição ativa naquele esporte; ver [Calibração de nível](#calibração-de-nível-janela-de-correção) abaixo).
+- Aplicado em 3 camadas: UI (app "Esportes e níveis" e portal web `/perfil/esportes` bloqueiam visualmente os níveis abaixo do salvo, exceto durante a janela), lógica do cliente, e as rules do Firestore (`athleteLevelsNotDowngraded`) — que recusam o update inteiro do doc se qualquer nível regredir NUM ESPORTE JÁ TRAVADO. A guarda das rules cobre **os 9 esportes** + os campos legados `level`/`sportProfile.level` (clientes antigos ainda os escrevem, sempre ratcheted, janela ou não); rewrite de MESMO rank é permitido (app antigo regravando código legado).
+- **Por quê**: sem o ratchet, o atleta rebaixava o próprio nível na véspera de uma inscrição pra caber numa categoria mais fácil — furava o anti-sandbagging. A janela de correção (abaixo) existe para não punir quem só errou a autoavaliação inicial e ainda não jogou valendo.
+
+## Calibração de nível (janela de correção)
+Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma chance de corrigir a autoavaliação inicial, esporte por esporte, sem reabrir o furo de sandbagging que o ratchet existe para fechar.
+
+- **Escolha obrigatória**: nenhum fluxo que define o nível declarado — onboarding do app, "adicionar esporte" do app, onboarding do portal web, "adicionar esporte" do portal web — pode default um nível em silêncio. O atleta sempre escolhe explicitamente antes de o esporte entrar em `levelsBySport`.
+- **A janela**: por esporte, enquanto `sportOnboarding.levelLocked.{SPORT_CODE}` não é `true`, o próprio atleta pode DESCER o nível declarado daquele esporte livremente (autocorreção, sem passar por suporte). Assim que o lock é gravado, o ratchet "só sobe" volta a valer para sempre naquele esporte — não existe reabertura pelo atleta; um administrador ainda pode ajustar via bypass de super admin.
+- **O que fecha a janela — `levelLocked`**: gravado só pelo trigger de backend `onInscriptionWrittenLockLevels` (`functions/src/tournament-level-lock.ts`), nunca pelo cliente — as rules recusam qualquer update do dono que mude `sportOnboarding.levelLocked` (predicado `levelLockedUnchanged()`).
+  - Dispara na **1ª inscrição ATIVA** do atleta naquele esporte: tanto uma inscrição nova (solo, dupla, equipe) quanto o atleta **entrando** numa reserva que já existia — aceitar convite de parceiro, ou "attach" pelo organizador. Os dois casos passam por validação de elegibilidade de categoria no momento em que acontecem, então os dois merecem travar (sem isso, aceitar convite seria uma porta lateral pra nunca travar).
+  - **Entrar na lista de espera também tranca** (ruling do controlador): a fila já passou pela validação de elegibilidade com o nível declarado; deixar descer enquanto espera vaga reabriria o furo justamente no caso em que o atleta sabe que vai jogar.
+  - **"Ativa" = o doc de inscrição existe.** A coleção de inscrições (`artifacts/{appId}/public/data/inscriptions`) não tem campo de status persistido: cancelamento — pelo atleta, pelo organizador, ou por pedido de cancelamento aprovado — é sempre exclusão (hard delete) do documento; a auditoria vai para uma coleção à parte. Por isso **cancelar nunca destrava**: o flag `levelLocked` só é gravado como `true`, nunca apagado ou revertido.
+  - Campos legados de nível global (`level`, `sportProfile.level`) não têm granularidade por esporte — continuam ratcheted sempre, com ou sem janela.
+- **Correção pré-lock e o rating**: uma descida dentro da janela grava `levelHistory` com `reason: "self_correction"` (é auditoria, não é um "upgrade" automático) e só re-semeia o rating Glicko do esporte (rating/RD para o nível novo) quando o atleta ainda não tem nenhuma partida rateada (`ratedMatches === 0`). Com histórico de partidas, corrigir o nível DECLARADO não mexe no rating calculado.
+- **Confirmação na 1ª inscrição**: antes de a 1ª inscrição de um esporte disparar o lock, o atleta vê um último aviso — "Você vai se inscrever como {nível} em {esporte}. Após a inscrição, o nível só poderá subir." — com a opção de seguir ou ir ajustar o nível primeiro. Cobre TODO ponto de entrada que cria ou ativa uma inscrição nas duas superfícies, inclusive aceitar convite de parceiro (o caminho mais usado, e o que mais fácil escapa de um wiring incompleto):
+  - **App**: tela de inscrição em torneio e tela de aceite de convite de parceiro.
+  - **Portal web do atleta**: fluxo de inscrição (solo/dupla/equipe, e aceite de convite embutido na própria tela), aceite rápido pelo painel, aceite pela Agenda, e o modal automático de convite ao entrar no portal — 4 pontos distintos.
+- **Promoção pelo organizador**: `setAthleteLevel` ganhou um segundo caminho além do admin de plataforma — o ORGANIZADOR dono do torneio (`managerId`) pode subir o nível de um atleta no esporte do próprio torneio, desde que o atleta tenha inscrição ativa nele.
+  - Esporte do torneio precisa bater com o esporte do pedido — sem essa checagem, o organizador de um torneio de esporte A promoveria o atleta em QUALQUER esporte B só por ele estar inscrito nesse torneio.
+  - Só pode SUBIR — **exceto** quando o atleta ainda não tem nível declarado naquele esporte: nesse caso o organizador pode semear qualquer degrau (não há "descer" de um nível que não existe).
+  - Auditado em `levelHistory` com `reason: "organizer_promotion"`, `tournamentId` e `actor: "organizer:{uid}"`.
+  - Staff/mesário NÃO pode promover (ruling deliberada) — só o dono do torneio responde por essa ação, irreversível sem suporte; delegar para a mesa fica como follow-up se o dono pedir.
+  - Não notifica o atleta promovido nesta rodada (fora de escopo).
+
+### Pendências de rollout (registrar, não executar)
+- **Ordem de deploy**: `firebase deploy --only firestore:indexes` PRIMEIRO — índice composto novo em `inscriptions` (`tournamentId ASC` + `participantUids CONTAINS`) — → depois functions (trigger novo `onInscriptionWrittenLockLevels`) → rules → portais web → release do app. Fora de ordem, o trigger ou as rules podem rodar contra um índice ou uma função ainda ausente.
+- **Backfill pendente**: o trigger só tranca inscrições NOVAS a partir do deploy. Se a base já tiver inscrições ativas no momento do deploy, esses atletas ficam destravados naquele esporte (podem descer o nível à vontade) até fazerem uma nova inscrição. Marcar `levelLocked` retroativo para os esportes já inscritos exige um script admin avulso — não construído nesta rodada; decisão de fazer (e quando) fica com o dono.
+- Ainda em aberto do plano anterior: inspecionar os docs `ratingLadders/{sportCode}` antes de rodar `migrateAthleteRatingLevelRanks` (ver seção "Escada única" acima) — um doc com `levels` sobrescreve a escada padrão e a migração recalcularia contra a ladder antiga.
 
 ## Elegibilidade de categoria (o que o nível decide)
 - Atleta precisa caber na **faixa**: `minLevel <= nível <= level`. `categories[].level` é o **teto** (label; ausente = Open) e `categories[].minLevel` é o **piso** (label; ausente = sem piso). Categoria sem piso não tem limite mínimo; sem teto = Open (rank 6).
@@ -82,7 +108,8 @@ Duas ferramentas de migração/realinhamento, com papéis diferentes:
 - Card de "zona" da engine (só esportes rateados com dado suficiente): estável, zona de acesso, zona de reclassificação, ou "consolidando".
 
 ## Regras
-- Nível nunca desce por ação do próprio atleta.
+- Nível nunca desce por ação do próprio atleta — exceto dentro da janela de correção por esporte, antes da 1ª inscrição ativa naquele esporte (`levelLocked`, ver Calibração de nível acima).
+- Cancelar inscrição nunca destrava um esporte já travado — o lock só é gravado, nunca desfeito.
 - Elegibilidade de categoria: o **piso** (minLevel) é validado pelo integrante mais fraco (rank mínimo); o **teto** (level) pelo mais forte (rank máximo).
 - Nível e rating são sempre por esporte — não existe um valor único cruzando esportes (o `level` global é legado, só fallback de leitura).
 - A escada é uma só (7 níveis) para todos os esportes; rating automático só nos esportes de `RATED_SPORT_CODES`.

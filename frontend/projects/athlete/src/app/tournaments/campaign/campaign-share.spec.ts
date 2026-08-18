@@ -1,5 +1,13 @@
 import type { TournamentMatch } from '../../data/matches-repository';
-import { campaignPlacementOf, campaignRowsOf, fitCampaignRows, type CampaignRow } from './campaign-share';
+import {
+  campaignPlacementOf,
+  campaignRowsOf,
+  campaignShareDataOf,
+  fitCampaignRows,
+  type CampaignPlayer,
+  type CampaignRow,
+  type CampaignShareInput,
+} from './campaign-share';
 
 function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>): TournamentMatch {
   return {
@@ -265,5 +273,90 @@ describe('fitCampaignRows', () => {
     const rows = Array.from({ length: 5 }, (_, i) => winRow(`KO ${i + 1}`));
     expect(fitCampaignRows(rows, 3).rows.length).toBe(3);
     expect(fitCampaignRows(rows, 3).hiddenCount).toBe(2);
+  });
+});
+
+const PLAYERS: [CampaignPlayer, CampaignPlayer] = [
+  { initial: 'BR', photo: null },
+  { initial: 'DB', photo: null },
+];
+
+function input(partial: Partial<CampaignShareInput> = {}): CampaignShareInput {
+  return {
+    matches: [],
+    categoryId: 'c1',
+    myTeamIds: MINE,
+    duoNameOf: NAME_OF,
+    teamName: 'Bruninho / Diego Barros',
+    players: PLAYERS,
+    categoryName: 'Masculino B',
+    teamSize: null,
+    tournamentName: 'Circuito NexaGO · Etapa Goiânia',
+    locationName: 'Arena Vila Nova',
+    startAt: new Date('2026-04-25T12:00:00Z'),
+    endAt: new Date('2026-04-26T22:00:00Z'),
+    ...partial,
+  };
+}
+
+describe('campaignShareDataOf', () => {
+  it('monta o card do campeão com números e trajetória', () => {
+    const matches = [
+      match({ id: 'g1', teamAId: 'mine', teamBId: 'a', status: 'Completed', winnerId: 'mine', round: 0, sets: [{ a: 21, b: 15 }, { a: 21, b: 18 }] }),
+      ko('f', 'Final', 3, 'mine'),
+    ];
+    const data = campaignShareDataOf(input({ matches }));
+    expect(data.placement).toBe('champion');
+    expect(data.categoryLine).toBe('Masculino B · Duplas');
+    expect(data.teamName).toBe('Bruninho / Diego Barros');
+    expect(data.wins).toBe(2);
+    expect(data.losses).toBe(0);
+    expect(data.setsWon).toBe(4);
+    expect(data.setsLost).toBe(0);
+    expect(data.trajectory.rows.length).toBe(2);
+    expect(data.trajectory.hiddenCount).toBe(0);
+  });
+
+  it('conta derrotas e calcula o aproveitamento', () => {
+    const matches = [
+      ko('g1', 'knockout', 1, 'mine'),
+      ko('g2', 'knockout', 2, 'mine'),
+      ko('g3', 'knockout', 3, 'them'),
+    ];
+    const data = campaignShareDataOf(input({ matches }));
+    expect(data.wins).toBe(2);
+    expect(data.losses).toBe(1);
+    expect(data.winRateLabel).toBe('Aprov. 67%');
+  });
+
+  it('devolve null de aproveitamento sem partida encerrada', () => {
+    expect(campaignShareDataOf(input()).winRateLabel).toBeNull();
+  });
+
+  // O mês abreviado sai de tabela própria, NUNCA de `toLocaleDateString`: o pt-BR do navegador
+  // devolve "abr." COM ponto, e o protótipo escreve "ABR". É a mesma divergência já registrada
+  // entre o app (Dart) e a web.
+  it('formata intervalo de datas dentro do mesmo mês', () => {
+    expect(campaignShareDataOf(input()).dateRangeLabel).toBe('25–26 ABR 2026');
+  });
+
+  it('formata evento de um dia só', () => {
+    const data = campaignShareDataOf(input({ endAt: null }));
+    expect(data.dateRangeLabel).toBe('25 ABR 2026');
+  });
+
+  it('formata intervalo que cruza o mês', () => {
+    const data = campaignShareDataOf(input({ startAt: new Date('2026-04-30T12:00:00Z'), endAt: new Date('2026-05-02T22:00:00Z') }));
+    expect(data.dateRangeLabel).toBe('30 ABR – 02 MAI 2026');
+  });
+
+  it('omite a data sem início declarado', () => {
+    expect(campaignShareDataOf(input({ startAt: null })).dateRangeLabel).toBeNull();
+  });
+
+  it('conta só as partidas da categoria pedida', () => {
+    const matches = [ko('f', 'Final', 3, 'mine'), ko('outra', 'Final', 3, 'mine', { categoryId: 'c2' })];
+    const data = campaignShareDataOf(input({ matches }));
+    expect(data.wins).toBe(1);
   });
 });

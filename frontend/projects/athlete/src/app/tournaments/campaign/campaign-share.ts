@@ -1,5 +1,5 @@
 import { matchClosedSets, matchIsCompleted, matchSetWins, type TournamentMatch } from '../../data/matches-repository';
-import { isFinalMatchTypeOf, knockoutRounds } from '../focus/focus-journey';
+import { isFinalMatchTypeOf, knockoutRounds, tournamentNumbersOf } from '../focus/focus-journey';
 import { byScheduleTime, groupLabelOf, knockoutLabelOf, outcomeOf, roundDisplayNumberOf, sideOf } from '../tournament-live.selectors';
 
 /**
@@ -205,4 +205,120 @@ export function fitCampaignRows(rows: readonly CampaignRow[], maxRows = CAMPAIGN
 
   const hiddenCount = working.length - maxRows;
   return { rows: working.slice(hiddenCount), hiddenCount };
+}
+
+/** Declarado aqui, não importado de `match-share-card.ts`: as duas artes não se acoplam. É o
+ *  princípio que `share-canvas.ts` enuncia — infraestrutura é compartilhada, desenho não. */
+export interface CampaignPlayer {
+  initial: string;
+  photo: string | null;
+}
+
+export interface CampaignShareData {
+  placement: CampaignPlacement;
+  /** "Masculino B · Duplas". */
+  categoryLine: string;
+  teamName: string;
+  players: [CampaignPlayer, CampaignPlayer];
+  wins: number;
+  losses: number;
+  setsWon: number;
+  setsLost: number;
+  /** "Aprov. 83%"; `null` sem partida encerrada — estado que o portão das entradas já impede,
+   *  mas que a função não tem por que inventar. */
+  winRateLabel: string | null;
+  trajectory: CampaignTrajectory;
+  tournamentName: string;
+  locationName: string | null;
+  /** "25–26 ABR 2026"; `null` sem `startAt`. */
+  dateRangeLabel: string | null;
+}
+
+export interface CampaignShareInput {
+  matches: readonly TournamentMatch[];
+  categoryId: string;
+  myTeamIds: ReadonlySet<string>;
+  duoNameOf: (teamId: string, fallback: string | null) => string;
+  teamName: string;
+  players: [CampaignPlayer, CampaignPlayer];
+  categoryName: string;
+  /** `null` = dupla clássica. Categoria de equipe não recebe o botão nesta entrega. */
+  teamSize: number | null;
+  tournamentName: string;
+  locationName: string | null;
+  startAt: Date | null;
+  endAt: Date | null;
+}
+
+/**
+ * Meses em tabela própria, NUNCA `toLocaleDateString('pt-BR', { month: 'short' })`.
+ *
+ * O motivo é concreto: o short do pt-BR devolve "abr." COM ponto, e o protótipo escreve "ABR".
+ * É a mesma divergência que já separa o app (Dart, com ponto) da web neste projeto. Tabela fixa
+ * também blinda contra mudança de ICU entre versões de navegador.
+ */
+const MONTHS_ABBR = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
+/** Data em São Paulo, decomposta. O torneio é do fuso do evento, não do navegador de quem abre. */
+const SP_DATE = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
+
+function saoPauloParts(d: Date): { day: string; month: number; year: string } {
+  const parts = SP_DATE.formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return { day: get('day'), month: Number(get('month')), year: get('year') };
+}
+
+/** "25–26 ABR 2026", "30 ABR – 02 MAI 2026", "25 ABR 2026". `null` sem `startAt`: o cabeçalho
+ *  omite a data em vez de afirmar uma errada. */
+export function campaignDateRangeLabelOf(startAt: Date | null, endAt: Date | null): string | null {
+  if (!startAt) return null;
+  const from = saoPauloParts(startAt);
+  const fromMonth = MONTHS_ABBR[from.month - 1] ?? '';
+  if (!endAt) return `${from.day} ${fromMonth} ${from.year}`;
+
+  const to = saoPauloParts(endAt);
+  const toMonth = MONTHS_ABBR[to.month - 1] ?? '';
+  if (from.day === to.day && from.month === to.month && from.year === to.year) {
+    return `${from.day} ${fromMonth} ${from.year}`;
+  }
+  if (from.month === to.month && from.year === to.year) {
+    return `${from.day}–${to.day} ${fromMonth} ${from.year}`;
+  }
+  if (from.year === to.year) {
+    return `${from.day} ${fromMonth} – ${to.day} ${toMonth} ${from.year}`;
+  }
+  return `${from.day} ${fromMonth} ${from.year} – ${to.day} ${toMonth} ${to.year}`;
+}
+
+/** Tudo que a arte precisa, derivado de uma vez. Parâmetros crus, nunca o store: é o que deixa
+ *  esta função testável sem `TestBed` — mesma escolha de `journeyStepsOf`. */
+export function campaignShareDataOf(input: CampaignShareInput): CampaignShareData {
+  const categoryMatches = input.matches.filter((m) => m.categoryId === input.categoryId);
+  const rows = campaignRowsOf(input.matches, input.categoryId, input.myTeamIds, input.duoNameOf);
+
+  // Vitórias e derrotas saem das linhas ANTES do encaixe: colapsar o grupo não pode mudar o
+  // cartel do atleta, só o que aparece no painel.
+  const wins = rows.filter((r) => r.kind === 'match' && r.outcome === 'win').length;
+  const losses = rows.length - wins;
+
+  // `tournamentNumbersOf` recebe as partidas da CATEGORIA. Na Trajetória ela recebe o torneio
+  // inteiro de propósito (os números de lá são do atleta no evento); aqui o card é de uma
+  // campanha só, e somar outra categoria inflaria os sets.
+  const numbers = tournamentNumbersOf(categoryMatches, input.myTeamIds);
+
+  return {
+    placement: campaignPlacementOf(input.matches, input.categoryId, input.myTeamIds),
+    categoryLine: `${input.categoryName} · ${input.teamSize == null ? 'Duplas' : 'Equipes'}`,
+    teamName: input.teamName,
+    players: input.players,
+    wins,
+    losses,
+    setsWon: numbers.setsWon,
+    setsLost: numbers.setsLost,
+    winRateLabel: rows.length > 0 ? `Aprov. ${Math.round((wins / rows.length) * 100)}%` : null,
+    trajectory: fitCampaignRows(rows),
+    tournamentName: input.tournamentName,
+    locationName: input.locationName,
+    dateRangeLabel: campaignDateRangeLabelOf(input.startAt, input.endAt),
+  };
 }

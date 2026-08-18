@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { matchClosedSets, matchIsLive, matchSetWins, type TournamentMatch } from '../../../data/matches-repository';
 import type { TournamentPrize } from '../../../data/tournaments-repository';
 import { isDoubleElimination } from '../../bracket-tree';
+import { campaignShareDataOf, type CampaignShareData } from '../../campaign/campaign-share';
+import { CampaignShareDialogComponent } from '../../campaign/campaign-share-dialog.component';
 import { shortCourtLabelOf, timeLabelOf } from '../../tournament-format';
 import {
   byScheduleTime,
@@ -461,12 +463,11 @@ function formatBRL(value: number): string {
  *
  * Fora do escopo por decisão de produto (ver o brief da Task 8): projeção de ranking, XP/nível,
  * aproveitamento ou erros (nenhuma estatística ponto a ponto é coletada), "últimos 5" ou scouting
- * dos adversários (exigiria histórico entre torneios que esta seção não carrega), e botão de
- * compartilhar (trabalho futuro deliberado).
+ * dos adversários (exigiria histórico entre torneios que esta seção não carrega).
  */
 @Component({
   selector: 'app-focus-journey',
-  imports: [RouterLink],
+  imports: [RouterLink, CampaignShareDialogComponent],
   templateUrl: './focus-journey.component.html',
   styleUrl: './focus-journey.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -478,6 +479,46 @@ export class FocusJourneyComponent {
    *  (`focus-views.ts`) sobre por que essa indireção existe: nada aqui depende do relógio, então
    *  fica de fora do `ctx` e nunca precisa entrar nele. */
   private readonly ctx = computed(() => focusViewContextOf(this.store));
+
+  protected readonly shareOpen = signal(false);
+
+  /**
+   * Tudo que o card de campanha precisa, ou `null` quando falta o torneio, a categoria em foco ou
+   * o time do atleta nela.
+   */
+  protected readonly campaignData = computed<CampaignShareData | null>(() => {
+    const tournament = this.store.tournament();
+    const category = this.store.focusCategory();
+    const categoryId = this.store.focusCategoryId();
+    const teamId = this.store.myTeamIdInFocus();
+    if (!tournament || !category || !categoryId || !teamId) return null;
+    return campaignShareDataOf({
+      matches: this.store.matches(),
+      categoryId,
+      myTeamIds: this.store.myTeamIds(),
+      duoNameOf: (id, fallback) => this.store.duoNameOf(id, fallback),
+      teamName: this.store.duoNameOf(teamId),
+      players: this.store.duoPlayersOf(teamId),
+      categoryName: category.categoryName,
+      teamSize: category.teamSize,
+      tournamentName: tournament.name,
+      locationName: tournament.location || null,
+      startAt: tournament.startAt,
+      endAt: tournament.endAt,
+    });
+  });
+
+  /**
+   * O card só é oferecido com pelo menos uma partida ENCERRADA na categoria — antes disso não há
+   * campanha nenhuma para contar — e nunca em categoria de EQUIPE (trio+): o desenho tem lugar
+   * para dois atletas, e `duoPlayersOf` devolve exatamente dois. Melhor não oferecer do que sair
+   * com o elenco pela metade.
+   */
+  protected readonly canShareCampaign = computed(() => {
+    const category = this.store.focusCategory();
+    if (!category || category.teamSize != null) return false;
+    return (this.campaignData()?.trajectory.rows.length ?? 0) > 0;
+  });
 
   protected readonly winsToTitle = computed(() =>
     winsToTitleOf(this.store.matches(), this.store.focusCategoryId() ?? '', this.store.myTeamIds()),

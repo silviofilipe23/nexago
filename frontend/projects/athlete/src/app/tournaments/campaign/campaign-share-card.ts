@@ -145,6 +145,35 @@ const ROW_PITCH_COMFORT = 130;
 /** O piso do degrau 2 do transbordo: acima de `CAMPAIGN_ROWS_COMFORT` linhas o passo aperta. */
 const ROW_PITCH_TIGHT = 104;
 
+/** Onde termina o bloco de cima: centro das fotos + o disco externo que `drawAvatar` desenha
+ *  (`r + 9`). O painel cresce pra cima e NÃO pode passar daqui. */
+export const CAMPAIGN_HERO_BOTTOM = 556 + 95;
+
+/** Respiro mínimo entre as fotos e o topo do painel. */
+export const CAMPAIGN_PANEL_GAP = 24;
+
+export interface CampaignPanelLayout {
+  top: number;
+  height: number;
+  pitch: number;
+}
+
+/**
+ * Geometria do painel para um número de linhas — função pura, sem canvas, exportada para ser
+ * verificável.
+ *
+ * O painel é ancorado no rodapé e cresce pra cima, então cada linha a mais empurra o topo em
+ * direção às fotos do atleta. `campaign-share-card.spec.ts` percorre 1..`CAMPAIGN_ROWS_MAX` e
+ * falha se o topo invadir `CAMPAIGN_HERO_BOTTOM` — é o que amarra `CAMPAIGN_ROWS_COMFORT` e
+ * `CAMPAIGN_ROWS_MAX` (`campaign-share.ts`) a esta geometria em vez de deixar os dois números
+ * soltos. A primeira versão trazia 7 e 9, e nos dois casos o painel passava por cima das fotos.
+ */
+export function campaignPanelLayoutOf(rowCount: number): CampaignPanelLayout {
+  const pitch = rowCount <= CAMPAIGN_ROWS_COMFORT ? ROW_PITCH_COMFORT : ROW_PITCH_TIGHT;
+  const height = PANEL_HEAD_H + rowCount * pitch + PANEL_PAD_BOTTOM;
+  return { top: PANEL_BOTTOM - height, height, pitch };
+}
+
 // Mesmos gradientes dos avatares dos cards do portal.
 const AVATAR_GRAD: [string, string][] = [
   ['#ff6a1a', '#c2185b'],
@@ -347,9 +376,7 @@ function drawRow(ctx: CanvasRenderingContext2D, row: CampaignRow, cy: number, le
  *  cima não pode invadir esse espaço. */
 function drawPanel(ctx: CanvasRenderingContext2D, data: CampaignShareData): number {
   const rows = data.trajectory.rows;
-  const pitch = rows.length <= CAMPAIGN_ROWS_COMFORT ? ROW_PITCH_COMFORT : ROW_PITCH_TIGHT;
-  const height = PANEL_HEAD_H + rows.length * pitch + PANEL_PAD_BOTTOM;
-  const top = PANEL_BOTTOM - height;
+  const { top, height, pitch } = campaignPanelLayoutOf(rows.length);
   const left = M + PANEL_PAD_X;
   const right = W - M - PANEL_PAD_X;
 

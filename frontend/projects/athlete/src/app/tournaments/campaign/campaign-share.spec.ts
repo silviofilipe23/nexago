@@ -249,14 +249,16 @@ describe('fitCampaignRows', () => {
   it('corta as mais antigas e reporta quantas ficaram de fora', () => {
     const rows = Array.from({ length: 13 }, (_, i) => winRow(`KO ${i + 1}`));
     const fitted = fitCampaignRows(rows);
-    expect(fitted.rows.length).toBe(9);
-    expect(fitted.hiddenCount).toBe(4);
+    expect(fitted.rows.length).toBe(8);
+    expect(fitted.hiddenCount).toBe(5);
     // Corta pelo começo: o fim da campanha é a parte que conta a história.
-    expect(fitted.rows[0]!.kind === 'match' && fitted.rows[0]!.phaseLabel).toBe('KO 5');
-    expect(fitted.rows[8]!.kind === 'match' && fitted.rows[8]!.phaseLabel).toBe('KO 13');
+    expect(fitted.rows[0]!.kind === 'match' && fitted.rows[0]!.phaseLabel).toBe('KO 6');
+    expect(fitted.rows[7]!.kind === 'match' && fitted.rows[7]!.phaseLabel).toBe('KO 13');
   });
 
-  it('colapsa o grupo ANTES de cortar', () => {
+  // O resumo do grupo é a linha MAIS ANTIGA de todas, então ele também é cortável quando nem
+  // colapsado cabe. Manter o começo da campanha à custa do fim inverteria a regra do corte.
+  it('corta até o resumo do grupo quando nem ele cabe, e conta os jogos perdidos', () => {
     const rows = [
       winRow('Grupo A · J1', true),
       winRow('Grupo A · J2', true),
@@ -264,8 +266,24 @@ describe('fitCampaignRows', () => {
       ...Array.from({ length: 8 }, (_, i) => winRow(`KO ${i + 1}`)),
     ];
     const fitted = fitCampaignRows(rows);
+    expect(fitted.rows.length).toBe(8);
+    expect(fitted.rows.every((r) => r.kind === 'match')).toBe(true);
+    // 11 jogos ao todo, 8 na tela: os 3 do grupo saíram junto com o resumo.
+    expect(fitted.hiddenCount).toBe(3);
+  });
+
+  // `hiddenCount` conta JOGOS, não linhas: aqui o resumo sobrevive e vale por 3.
+  it('conta o resumo do grupo como os jogos que ele representa', () => {
+    const rows = [
+      winRow('Grupo A · J1', true),
+      winRow('Grupo A · J2', true),
+      winRow('Grupo A · J3', true),
+      ...Array.from({ length: 7 }, (_, i) => winRow(`KO ${i + 1}`)),
+    ];
+    const fitted = fitCampaignRows(rows);
+    // 10 jogos → colapsa pra 8 linhas (resumo + 7 KO) e tudo continua representado.
+    expect(fitted.rows.length).toBe(8);
     expect(fitted.rows[0]!.kind).toBe('group-summary');
-    expect(fitted.rows.length).toBe(9);
     expect(fitted.hiddenCount).toBe(0);
   });
 

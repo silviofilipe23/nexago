@@ -152,17 +152,29 @@ export function campaignRowsOf(
     });
 }
 
-/** Quantas linhas o painel comporta no passo do protótipo. Acima disso a arte encolhe o passo. */
-export const CAMPAIGN_ROWS_COMFORT = 7;
+/** Quantas linhas o painel comporta no passo do protótipo (o card do campeão tem 6). Acima
+ *  disso a arte aperta o passo. */
+export const CAMPAIGN_ROWS_COMFORT = 6;
 
-/** O teto absoluto: quantas linhas cabem com o passo já no piso. Passar daqui exige cortar. */
-export const CAMPAIGN_ROWS_MAX = 9;
+/** O teto absoluto: quantas linhas cabem com o passo já no piso. Passar daqui exige cortar.
+ *
+ *  Os dois números não são gosto: `campaignPanelLayoutOf` (`campaign-share-card.ts`) deriva a
+ *  altura do painel deles, e `campaign-share-card.spec.ts` falha se qualquer um deixar o painel
+ *  invadir as fotos do atleta. Mexer aqui sem rodar aquele spec quebra o card em silêncio — foi
+ *  exatamente o que aconteceu na primeira versão, com 7 e 9. */
+export const CAMPAIGN_ROWS_MAX = 8;
 
 export interface CampaignTrajectory {
   rows: CampaignRow[];
-  /** Jogos que não couberam no painel. `0` quando tudo coube — o cabeçalho só declara o corte
-   *  quando ele existe. */
+  /** JOGOS que não couberam no painel — não linhas. A distinção importa porque a linha de resumo
+   *  vale pelo grupo inteiro: se ela própria for cortada, saem 3 jogos de uma vez, e o cabeçalho
+   *  precisa dizer 3. `0` quando tudo coube. */
   hiddenCount: number;
+}
+
+/** Quantos JOGOS uma linha representa: a de partida vale 1, a de resumo vale o grupo todo. */
+function gamesInRow(row: CampaignRow): number {
+  return row.kind === 'match' ? 1 : row.games;
 }
 
 /**
@@ -171,8 +183,9 @@ export interface CampaignTrajectory {
  * 1. **Colapsa a fase de grupos numa linha só** ("Grupo A", "3 jogos · 2V 1D"). O mata-mata é a
  *    parte que conta a história; o grupo vira contexto. Só colapsa com 2+ partidas de grupo — com
  *    uma só, a troca não economiza linha nenhuma e apagaria um adversário à toa.
- * 2. **Corta as mais ANTIGAS** e devolve `hiddenCount`, pra que o cabeçalho do painel declare
- *    "+N JOGOS".
+ * 2. **Corta as mais ANTIGAS** e devolve `hiddenCount` em JOGOS, pra que o cabeçalho do painel
+ *    declare "+N FORA". A própria linha de resumo é cortável: ela é a mais antiga de todas, e
+ *    manter o começo da campanha à custa do fim inverteria a regra.
  *
  * O corte é declarado de propósito. `fitFont` encolhe até o piso e devolve o texto inteiro do
  * jeito que estiver — encolher nunca garantiu encaixe nesta base, e um corte silencioso faria o
@@ -203,8 +216,9 @@ export function fitCampaignRows(rows: readonly CampaignRow[], maxRows = CAMPAIGN
 
   if (working.length <= maxRows) return { rows: working, hiddenCount: 0 };
 
-  const hiddenCount = working.length - maxRows;
-  return { rows: working.slice(hiddenCount), hiddenCount };
+  const kept = working.slice(working.length - maxRows);
+  const keptGames = kept.reduce((total, row) => total + gamesInRow(row), 0);
+  return { rows: kept, hiddenCount: rows.length - keptGames };
 }
 
 /** Declarado aqui, não importado de `match-share-card.ts`: as duas artes não se acoplam. É o

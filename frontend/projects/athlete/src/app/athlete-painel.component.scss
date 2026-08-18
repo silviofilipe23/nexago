@@ -919,3 +919,67 @@
 .at-sync-error {
   margin-bottom: 18px;
 }
+
+/* ——— Card de campanha (até 5 dias depois do torneio) ——— */
+.at-campaign-card {
+  /* `flex-direction` é declarado de propósito: `.at-card` é um flex COLUMN, e sem esta linha o
+     card empilhava e centralizava tudo — herdar a direção do bloco base é o erro fácil aqui. */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.at-campaign-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.at-campaign-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  opacity: 0.72;
+
+  span + span::before {
+    content: '·';
+    margin-right: 10px;
+    opacity: 0.6;
+  }
+}
+
+.at-campaign-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  color: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.22);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  /* No celular o botão já quebra pra segunda linha; largura total dá um alvo de toque decente
+     em vez de um botão solto no meio do card. O `@media` fica ANINHADO no seletor de propósito:
+     declarado antes da regra base ele seria descartado. */
+  @media (max-width: 560px) {
+    width: 100%;
+    justify-content: center;
+  }
+}

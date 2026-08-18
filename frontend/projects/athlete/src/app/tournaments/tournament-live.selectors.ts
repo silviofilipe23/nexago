@@ -46,8 +46,16 @@ export function isMyMatch(m: Pick<TournamentMatch, 'teamAId' | 'teamBId'>, myTea
 
 export type MatchOutcome = 'win' | 'loss' | null;
 
-/** Resultado sob a ótica do atleta. `null` enquanto a partida não terminou. */
-export function outcomeOf(m: TournamentMatch, myTeamIds: ReadonlySet<string>): MatchOutcome {
+/** Resultado sob a ótica do atleta. `null` enquanto a partida não terminou.
+ *
+ *  O parâmetro é o subconjunto de campos que a função realmente lê, e não `TournamentMatch`
+ *  inteiro, para que a HOME possa reaproveitá-la: lá as partidas chegam como `ArenaMatch`
+ *  (`teams-repository`), um tipo mais magro do mesmo documento. Todos os chamadores que passam
+ *  `TournamentMatch` continuam válidos. */
+export function outcomeOf(
+  m: Pick<TournamentMatch, 'status' | 'winnerId' | 'teamAId' | 'teamBId'>,
+  myTeamIds: ReadonlySet<string>,
+): MatchOutcome {
   if (!matchIsCompleted(m) || !m.winnerId) return null;
   const side = sideOf(m, myTeamIds);
   if (side === null) return null;

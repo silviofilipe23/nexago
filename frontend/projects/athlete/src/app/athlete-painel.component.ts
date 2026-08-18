@@ -39,7 +39,13 @@ import {
   type AthleteTournamentRegistration,
 } from './data/tournament-registrations-repository';
 import { athleteFunctions } from './data/functions';
-import { fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
+import { fetchTournament, fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
+import { fetchMatchesForTournament } from './data/matches-repository';
+import { fetchTeamsByIds } from './data/teams-repository';
+import { campaignShareDataOf, type CampaignShareData } from './tournaments/campaign/campaign-share';
+import { CampaignShareDialogComponent } from './tournaments/campaign/campaign-share-dialog.component';
+import { recentCampaignsOf, type RecentCampaign } from './tournaments/campaign/recent-campaigns';
+import { duoNameOf, duoPlayersOf } from './tournaments/duo-identity';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
 import { FocusDayService } from './tournaments/focus/focus-day.service';
 
@@ -405,6 +411,7 @@ function communityMessage(item: CommunityFeedItem): string {
     NxBlockingDialogComponent,
     NxInlineMessageComponent,
     LgpdConsentDialogComponent,
+    CampaignShareDialogComponent,
   ],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
@@ -432,9 +439,105 @@ export class AthletePainelComponent {
   protected readonly respondingInviteId = signal<string | null>(null);
   /** Relógio de 1 min: mantém "Hoje/Amanhã" e o corte de reserva passada corretos
    *  numa aba deixada aberta. */
+  // ——— Card de campanha (até 5 dias depois do torneio) ———
+
+  /**
+   * As campanhas recentes do atleta, derivadas SÓ do que a home já carregou: inscrições, resumos
+   * de torneio e as partidas encerradas das equipes dele. Nenhuma consulta nova no boot.
+   *
+   * Isso só é possível porque a colocação é decidida pelo `matchType` da partida — os campos que
+   * `ArenaMatch` não tem (`round`, `poolId`, `bestOf`) não entram na conta. A imagem em si, que
+   * precisa deles, é montada sob demanda em `openCampaignShare`.
+   */
+  protected readonly recentCampaigns = computed<RecentCampaign[]>(() => {
+    const summaries = this.tournamentSummariesState();
+    return recentCampaignsOf({
+      registrations: this.registrationsState(),
+      tournamentsById: summaries,
+      categoryNameOf: (tournamentId, categoryId) =>
+        summaries.get(tournamentId)?.categories.find((c) => c.id === categoryId)?.categoryName ?? null,
+      matches: this.completedMatchesState(),
+      myTeamIds: this.myTeamIdsState(),
+      now: this.now(),
+    });
+  });
+
+  protected readonly campaignShareData = signal<CampaignShareData | null>(null);
+  protected readonly campaignShareBusy = signal<string | null>(null);
+
+  protected campaignLabelOf(campaign: RecentCampaign): string {
+    switch (campaign.placement) {
+      case 'champion':
+        return 'Campeão';
+      case 'runner-up':
+        return 'Vice-campeão';
+      case 'third':
+        return 'Terceiro lugar';
+      default:
+        return 'Sua campanha';
+    }
+  }
+
+  /**
+   * Monta a imagem sob demanda: partidas completas, equipes e perfis daquele torneio. São três
+   * consultas, pagas só por quem toca no botão — colocá-las no boot faria toda a home esperar por
+   * um card que aparece cinco dias por torneio.
+   */
+  protected async openCampaignShare(campaign: RecentCampaign): Promise<void> {
+    if (this.campaignShareBusy()) return;
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) return;
+
+    this.campaignShareBusy.set(campaign.categoryId);
+    try {
+      const [tournament, matches] = await Promise.all([
+        fetchTournament(db, campaign.tournamentId),
+        fetchMatchesForTournament(db, projectId, campaign.tournamentId),
+      ]);
+      if (!tournament) {
+        this.toasts.error('Não foi possível montar sua campanha agora.');
+        return;
+      }
+
+      const teamIds = [...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id.length > 0))];
+      const teams = await fetchTeamsByIds(db, projectId, teamIds);
+      const profiles = await fetchPublicProfilesByIds(
+        db,
+        [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]).filter((id) => id.length > 0),
+      );
+
+      const category = tournament.categories.find((c) => c.id === campaign.categoryId) ?? null;
+      this.campaignShareData.set(
+        campaignShareDataOf({
+          matches,
+          categoryId: campaign.categoryId,
+          myTeamIds: this.myTeamIdsState(),
+          duoNameOf: (id, fallback) => duoNameOf(teams, profiles, id, fallback),
+          teamName: duoNameOf(teams, profiles, campaign.teamId),
+          players: duoPlayersOf(teams, profiles, campaign.teamId),
+          categoryName: category?.categoryName ?? campaign.categoryName ?? 'Categoria',
+          teamSize: category?.teamSize ?? null,
+          tournamentName: tournament.name,
+          locationName: tournament.location || null,
+          startAt: tournament.startAt,
+          endAt: tournament.endAt,
+        }),
+      );
+    } catch {
+      this.toasts.error('Não foi possível montar sua campanha agora.');
+    } finally {
+      this.campaignShareBusy.set(null);
+    }
+  }
+
   private readonly now = signal(new Date());
   /** Partidas de torneio CONCLUÍDAS dos times do atleta (fonte real de jogos/vitórias). */
   private readonly completedMatchesState = signal<ArenaMatch[]>([]);
+  /** Inscrições e resumos ficam em estado porque o card de campanha da home deriva deles — a
+   *  busca já acontecia em `loadMyTournaments`, só o resultado é que se perdia. */
+  private readonly registrationsState = signal<readonly AthleteTournamentRegistration[]>([]);
+  private readonly tournamentSummariesState = signal<ReadonlyMap<string, TournamentSummary>>(new Map());
   private readonly myTeamIdsState = signal<ReadonlySet<string>>(new Set());
   private readonly communityState = signal<CommunityFeedItem[]>([]);
   private readonly missionsDoneState = signal<ReadonlySet<string>>(new Set());
@@ -666,6 +769,9 @@ export class AthletePainelComponent {
         this.rankingState.set(null);
         this.completedMatchesState.set([]);
         this.myTeamIdsState.set(new Set());
+        this.registrationsState.set([]);
+        this.tournamentSummariesState.set(new Map());
+        this.campaignShareData.set(null);
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
@@ -795,6 +901,8 @@ export class AthletePainelComponent {
       const ids = [...new Set(registrations.map((r) => r.tournamentId).filter(Boolean))];
       const summaries = await fetchTournamentSummariesByIds(db, ids);
       if (this.auth.user()?.uid !== uid) return;
+      this.registrationsState.set(registrations);
+      this.tournamentSummariesState.set(summaries);
 
       await this.setInProgressRegistrations(registrations, summaries, uid);
       if (this.auth.user()?.uid !== uid) return;

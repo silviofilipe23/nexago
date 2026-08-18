@@ -10,6 +10,15 @@ import { byScheduleTime, groupLabelOf, knockoutLabelOf, outcomeOf, roundDisplayN
  */
 export type CampaignPlacement = 'champion' | 'runner-up' | 'third' | 'none';
 
+/**
+ * O mínimo que decide uma colocação. Declarado como subconjunto, e não como `TournamentMatch`
+ * inteiro, porque a HOME do atleta reaproveita `campaignPlacementOf` com o `ArenaMatch` que ela
+ * já carrega (`teams-repository`) — um tipo mais magro do mesmo documento, sem `round`, `poolId`
+ * nem `bestOf`. Nada aqui depende desses campos ausentes, e é justamente por decidir SÓ pelo
+ * `matchType` que essa economia é possível.
+ */
+export type PlacementMatch = Pick<TournamentMatch, 'categoryId' | 'matchType' | 'status' | 'winnerId' | 'teamAId' | 'teamBId'>;
+
 /** A disputa de 3º lugar, com a grafia exata dos dois geradores
  *  (`functions/src/category-bracket-builders.ts`). */
 function isThirdPlaceMatchTypeOf(m: Pick<TournamentMatch, 'matchType'>): boolean {
@@ -43,7 +52,7 @@ function isThirdPlaceMatchTypeOf(m: Pick<TournamentMatch, 'matchType'>): boolean
  * simplesmente errada.
  */
 export function campaignPlacementOf(
-  matches: readonly TournamentMatch[],
+  matches: readonly PlacementMatch[],
   categoryId: string,
   myTeamIds: ReadonlySet<string>,
 ): CampaignPlacement {

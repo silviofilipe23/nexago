@@ -9,6 +9,13 @@ import { fetchTeamsByIds, type ArenaTeam } from '../data/teams-repository';
 import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../data/tournament-announcements-repository';
 import { fetchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
+import {
+  duoAvatarsOf,
+  duoInitialsOf,
+  duoNameOf,
+  duoPlayersOf,
+  type DuoPlayer as DuoPlayerType,
+} from './duo-identity';
 import { defaultTabOf, liveMatchesOf, myDayTimeline, myMatches, nextMatchOf, visibleTabsOf, type TournamentTabId } from './tournament-live.selectors';
 
 function createFirestore(): Firestore | null {
@@ -18,28 +25,10 @@ function createFirestore(): Firestore | null {
   return getFirestore(app);
 }
 
-function initialsOf(name: string): string {
-  const parts = name
-    .replace(/\s*[&/]\s*/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length === 0) return '—';
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '—';
-}
-
-function firstNameOf(full: string | undefined): string | null {
-  const name = full?.trim().split(/\s+/)[0];
-  return name ? name : null;
-}
-
-/** O que um círculo de avatar renderiza: a foto quando existe, senão as iniciais. */
-export interface DuoPlayer {
-  initial: string;
-  photo: string | null;
-}
+// `DuoPlayer` e as regras de nome/retrato da dupla moram em `./duo-identity`, compartilhadas com
+// a HOME do atleta (que monta o card de campanha sem entrar na rota do torneio). Re-exportado
+// aqui porque onze arquivos já importam o tipo deste módulo.
+export type { DuoPlayer } from './duo-identity';
 
 /** Intervalos do relógio: 1s enquanto alguma tela mostra placar ao vivo (o cronômetro "0:52 em
  *  quadra" precisa disso), 60s no resto do tempo — a contagem regressiva do card de próxima
@@ -300,44 +289,21 @@ export class TournamentLiveStore {
 
   /** "Marcelo / Enzo" — nome cadastrado da equipe, senão os primeiros nomes da dupla. */
   duoNameOf(teamId: string, fallback: string | null = null): string {
-    if (!teamId) return fallback ?? 'A definir';
-    const team = this.teams().get(teamId);
-    if (!team) return fallback ?? 'Dupla';
-    if (team.teamName) return team.teamName;
-    const profiles = this.profiles();
-    const p1 = firstNameOf(profiles.get(team.player1Id)?.displayName);
-    const p2 = firstNameOf(profiles.get(team.player2Id)?.displayName);
-    if (!p1 && !p2) return fallback ?? 'Dupla';
-    // Dupla ainda procurando parceiro grava o mesmo uid nos dois slots.
-    if (team.player1Id === team.player2Id) return p1 ?? fallback ?? 'Dupla';
-    return `${p1 ?? 'Atleta'} / ${p2 ?? 'Atleta'}`;
+    return duoNameOf(this.teams(), this.profiles(), teamId, fallback);
   }
 
   duoInitialsOf(teamId: string): [string, string] {
-    const team = this.teams().get(teamId);
-    if (!team) return ['—', '—'];
-    const profiles = this.profiles();
-    const p1 = profiles.get(team.player1Id)?.displayName;
-    const p2 = profiles.get(team.player2Id)?.displayName;
-    return [p1 ? initialsOf(p1).slice(0, 2) : '—', p2 ? initialsOf(p2).slice(0, 2) : '—'];
+    return duoInitialsOf(this.teams(), this.profiles(), teamId);
   }
 
   duoAvatarsOf(teamId: string): [string | null, string | null] {
-    const team = this.teams().get(teamId);
-    if (!team) return [null, null];
-    const profiles = this.profiles();
-    return [profiles.get(team.player1Id)?.avatarUrl ?? null, profiles.get(team.player2Id)?.avatarUrl ?? null];
+    return duoAvatarsOf(this.teams(), this.profiles(), teamId);
   }
 
   /** Foto + inicial de cada atleta da dupla, na ordem player1/player2 — o par que os cards
    *  de partida renderizam. */
-  duoPlayersOf(teamId: string): [DuoPlayer, DuoPlayer] {
-    const initials = this.duoInitialsOf(teamId);
-    const avatars = this.duoAvatarsOf(teamId);
-    return [
-      { initial: initials[0], photo: avatars[0] },
-      { initial: initials[1], photo: avatars[1] },
-    ];
+  duoPlayersOf(teamId: string): [DuoPlayerType, DuoPlayerType] {
+    return duoPlayersOf(this.teams(), this.profiles(), teamId);
   }
 
   isMyTeam(teamId: string): boolean {

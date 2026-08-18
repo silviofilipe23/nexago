@@ -299,3 +299,20 @@ export function truncateName(name: string, max = TEAM_NAME_MAX): string {
   if (trimmed.length <= max) return trimmed;
   return `${trimmed.slice(0, max - 1).trimEnd()}…`;
 }
+
+/** Rótulo de dupla com cada atleta em no máximo dois nomes:
+ *  `"João Pedro Lopes Silva / Ana Carolina Souza"` → `"João Pedro / Ana Carolina"`.
+ *
+ *  O rótulo nasce em `teamNamesFrom` como `"Atleta1 / Atleta2"`, e nome completo estoura a
+ *  coluna do confronto nas listas (o corte por caractere de `truncateName` comia o segundo
+ *  atleta inteiro). Nome CUSTOM de equipe (sem `" / "`) passa intacto: cortar "Amigos do Vôlei
+ *  de Praia" em "Amigos do" mudaria o nome em vez de encurtá-lo — quem exibe resolve o excesso
+ *  com reticências no CSS e o nome cheio no `title`. */
+export function compactTeamLabel(label: string, maxNames = 2): string {
+  const parts = label.split(' / ');
+  if (parts.length < 2) return label.trim();
+  return parts
+    .map((part) => part.trim().split(/\s+/).slice(0, maxNames).join(' '))
+    .filter((part) => part.length > 0)
+    .join(' / ');
+}

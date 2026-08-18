@@ -1,5 +1,15 @@
 # Presets de categoria, pesos geométricos e escada de 7 níveis — Design
 
+## Emendas (18/08 — reconciliação com a faixa de nível já mergeada na main)
+
+Outra sessão implementou a faixa de nível (`categories[].minLevel` + elegibilidade por faixa fechada) em paralelo. Decisões do dono na reconciliação:
+
+1. **D5 substituído**: a entrada da dupla NÃO é mais decidida só pelo mais forte — **todos os integrantes** precisam caber na faixa `[minLevel, level]` (regra da main mantida; mais dura e já deployada). Dupla mista fora da faixa só joga no Livre.
+2. **D6 reduzido**: com a regra acima, "parceiro abaixo do piso" não existe mais (ele nem entra). Da D6 sobrevive apenas: **no Livre ninguém recebe o bucket "grupos"** — só pontua quem chega ao mata-mata.
+3. **D3 ajustado — armazenamento**: a faixa é materializada em `categories[].level` (teto, label) + `categories[].minLevel` (piso, label; `null`/ausente = sem piso, regra legada). O preset **não é gravado**: é DERIVADO da faixa exata (`presetFromRange(minRank, maxRank)`, autoritativo nas functions) — derivação é à prova de adulteração para os pesos da fase 3. Categoria cuja faixa não casa com preset algum (legado/custom da janela em que o wizard permitia) vale na leitura e pontua com peso 1.0.
+4. **Sem faixa custom, confirmado**: o modo "Personalizado" do wizard sai na fase 2. Categorias já criadas com faixa custom continuam válidas (item 3).
+5. **Open/Elite ficam como NESTA spec** (Open 4–6 faixa-ponte; Elite só rank 6, ×1.2). A main implementou a orientação invertida (`CATEGORY_LEVEL_PRESETS` com Elite 4–6 e Open 6) — os chips serão corrigidos na fase 2; categorias já criadas mantêm a faixa gravada (min/max), só o rótulo dos chips muda para novas.
+
 **Data:** 2026-08-17
 **Status:** aprovado em conversa (junção de duas sessões: "Ranking score status" + "Pesos de pontuação por categoria")
 **Escopo:** ranking geral nexaGO, escada de níveis, elegibilidade de categoria. O ranking de liga mantém tabela própria e fica fora dos pesos.

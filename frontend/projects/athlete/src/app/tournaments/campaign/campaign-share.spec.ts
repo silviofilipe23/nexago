@@ -1,5 +1,5 @@
 import type { TournamentMatch } from '../../data/matches-repository';
-import { campaignPlacementOf } from './campaign-share';
+import { campaignPlacementOf, campaignRowsOf } from './campaign-share';
 
 function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>): TournamentMatch {
   return {
@@ -118,5 +118,81 @@ describe('campaignPlacementOf', () => {
   it('devolve terceiro na dupla eliminação (vice WB × vice LB)', () => {
     const matches = [ko('wbf', 'WB', 3, 'them'), ko('tp', 'Third Place', 1, 'mine')];
     expect(campaignPlacementOf(matches, 'c1', MINE)).toBe('third');
+  });
+});
+
+const NAME_OF = (teamId: string, fallback: string | null) => (teamId ? `Dupla ${teamId}` : (fallback ?? 'A definir'));
+
+describe('campaignRowsOf', () => {
+  it('monta uma linha por partida encerrada, em ordem cronológica', () => {
+    const matches = [
+      match({ id: 'g2', teamAId: 'mine', teamBId: 'b', status: 'Completed', winnerId: 'mine', round: 1, scheduleTime: new Date('2026-04-25T13:00:00Z'), sets: [{ a: 21, b: 15 }, { a: 21, b: 18 }] }),
+      match({ id: 'g1', teamAId: 'mine', teamBId: 'a', status: 'Completed', winnerId: 'mine', round: 0, scheduleTime: new Date('2026-04-25T12:00:00Z'), sets: [{ a: 21, b: 10 }, { a: 21, b: 12 }] }),
+    ];
+    const rows = campaignRowsOf(matches, 'c1', MINE, NAME_OF);
+    expect(rows.map((r) => r.kind)).toEqual(['match', 'match']);
+    expect(rows.map((r) => (r.kind === 'match' ? r.opponentName : ''))).toEqual(['Dupla a', 'Dupla b']);
+  });
+
+  it('deixa de fora pendente, ao vivo e cancelada', () => {
+    const matches = [
+      match({ id: 'ok', teamAId: 'mine', status: 'Completed', winnerId: 'mine', sets: [{ a: 21, b: 15 }, { a: 21, b: 18 }] }),
+      match({ id: 'pend', teamAId: 'mine', status: 'Scheduled' }),
+      match({ id: 'live', teamAId: 'mine', status: 'In Progress', sets: [{ a: 11, b: 9 }] }),
+      match({ id: 'canc', teamAId: 'mine', status: 'Canceled' }),
+    ];
+    expect(campaignRowsOf(matches, 'c1', MINE, NAME_OF).length).toBe(1);
+  });
+
+  it('deixa de fora partida encerrada sem vencedor gravado', () => {
+    const matches = [match({ id: 'x', teamAId: 'mine', status: 'Completed', winnerId: null, sets: [{ a: 21, b: 15 }] })];
+    expect(campaignRowsOf(matches, 'c1', MINE, NAME_OF)).toEqual([]);
+  });
+
+  // A ÓTICA DO ATLETA: `sets` é sempre cru (lado A primeiro). Lido direto, o atleta do lado B
+  // pareceria ter perdido o set que venceu — é a lição que `mySetsLabelOf` já carrega.
+  it('inverte placar e parciais quando o atleta é o lado B', () => {
+    const asA = match({ id: 'a', teamAId: 'mine', teamBId: 'them', status: 'Completed', winnerId: 'mine', sets: [{ a: 21, b: 15 }, { a: 18, b: 21 }, { a: 15, b: 12 }] });
+    const asB = match({ id: 'b', teamAId: 'them', teamBId: 'mine', status: 'Completed', winnerId: 'mine', sets: [{ a: 15, b: 21 }, { a: 21, b: 18 }, { a: 12, b: 15 }] });
+
+    const rowA = campaignRowsOf([asA], 'c1', MINE, NAME_OF)[0]!;
+    const rowB = campaignRowsOf([asB], 'c1', MINE, NAME_OF)[0]!;
+    if (rowA.kind !== 'match' || rowB.kind !== 'match') throw new Error('esperava linhas de partida');
+
+    expect(rowA.setScore).toBe('2–1');
+    expect(rowA.partials).toEqual(['21-15', '18-21', '15-12']);
+    expect(rowB.setScore).toBe('2–1');
+    expect(rowB.partials).toEqual(['21-15', '18-21', '15-12']);
+    expect(rowB.opponentName).toBe('Dupla them');
+  });
+
+  // O prefixo do grupo VOLTA no card: a tela do Focus corta "Grupo A ·" porque a seção já se
+  // intitula assim, mas numa imagem solta esse contexto não existe.
+  it('rotula fase de grupo com grupo e jogo', () => {
+    const matches = [
+      match({ id: 'g1', poolId: 'pool-a', teamAId: 'mine', status: 'Completed', winnerId: 'mine', round: 0, sets: [{ a: 21, b: 15 }] }),
+      match({ id: 'g2', poolId: 'pool-a', teamAId: 'x', teamBId: 'y', round: 1 }),
+    ];
+    const row = campaignRowsOf(matches, 'c1', MINE, NAME_OF)[0]!;
+    expect(row.phaseLabel).toBe('Grupo A · J1');
+    expect(row.kind === 'match' && row.isGroup).toBe(true);
+  });
+
+  it('rotula mata-mata pela fase', () => {
+    const matches = [ko('sf', 'knockout', 1, 'mine'), ko('f', 'Final', 2, 'mine')];
+    const rows = campaignRowsOf(matches, 'c1', MINE, NAME_OF);
+    expect(rows.map((r) => r.phaseLabel)).toEqual(['Semifinal', 'Final']);
+  });
+
+  // Decisão do dono: o card usa o rótulo do app, não "Repescagem" do protótipo — o card nunca
+  // discorda da tela.
+  it('mantém o rótulo do app na chave dos perdedores', () => {
+    const rows = campaignRowsOf([ko('lb', 'LB', 2, 'mine')], 'c1', MINE, NAME_OF);
+    expect(rows[0]!.phaseLabel).toBe('LB · Rodada 2');
+  });
+
+  it('marca derrota', () => {
+    const rows = campaignRowsOf([ko('qf', 'knockout', 1, 'them')], 'c1', MINE, NAME_OF);
+    expect(rows[0]!.kind === 'match' && rows[0]!.outcome).toBe('loss');
   });
 });

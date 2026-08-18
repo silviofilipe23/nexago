@@ -480,6 +480,79 @@ await expect(
   ),
 );
 
+// ── Marcador de escrita privilegiada (levelChangeBy) ──────────────────────
+// F4 (review pós-calibração de nível, 2ª volta): `setAthleteLevel` (admin/organizador) grava
+// `sportOnboarding.levelChangeBy` na MESMA escrita que muda `levelsBySport`, pra o trigger
+// `onUserWrittenTrackLevelChanges` (rating-triggers.ts) distinguir essa escrita de uma
+// autocorreção do próprio atleta — e depois o backend apaga o marcador. Mesmo padrão de
+// `levelLockedUnchanged()` acima: o dono nunca grava, altera nem apaga esse campo.
+
+await seed(baseUser); // sem marcador
+await expect(
+  'dono não pode gravar sportOnboarding.levelChangeBy (só o backend escreve)',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelChangeBy': 'admin',
+    }),
+  ),
+);
+
+// Doc com o marcador já presente (janela entre a escrita privilegiada e o backend limpar) — o
+// dono não pode alterar o VALOR nem "limpar" por conta própria enquanto ele existe.
+const privilegedMarkerUser = {
+  ...baseUser,
+  sportOnboarding: { ...baseUser.sportOnboarding, levelChangeBy: 'admin' },
+};
+
+await seed(privilegedMarkerUser);
+await expect(
+  'dono não pode trocar o valor de sportOnboarding.levelChangeBy já presente',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      'sportOnboarding.levelChangeBy': 'organizer',
+    }),
+  ),
+);
+
+await seed(privilegedMarkerUser);
+await expect(
+  'dono não pode apagar sportOnboarding.levelChangeBy reescrevendo sportOnboarding sem a chave',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      sportOnboarding: {
+        version: 1,
+        primarySportId: 'VOLEI_PRAIA',
+        secondarySportIds: [],
+        levelsBySport: { VOLEI_PRAIA: 'intermediario' },
+        // Sem `levelChangeBy`: mesmo golpe testado acima para `levelLocked` —
+        // reescrever o objeto inteiro sem a chave derruba o campo no merge implícito.
+      },
+    }),
+  ),
+);
+
+// Propriedade central: uma escrita legítima do dono que NÃO toca levelChangeBy continua
+// passando mesmo com o marcador presente no doc — "deixar como está" nunca é bloqueado, só
+// "mudar o valor" é.
+await seed(privilegedMarkerUser);
+await expect(
+  'dono pode salvar o próprio perfil sem tocar levelChangeBy, mesmo com o marcador presente',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), { bio: 'atualizando outra coisa' }),
+  ),
+);
+
+await seed(privilegedMarkerUser);
+await expect(
+  'dono pode regravar levelChangeBy idêntico ao mexer noutro campo',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      bio: 'atualizando outra coisa',
+      'sportOnboarding.levelChangeBy': 'admin',
+    }),
+  ),
+);
+
 // Super admin pode rebaixar mesmo com o esporte locked E mexer no próprio
 // levelLocked (canal de suporte) — o payload toca os dois campos que o
 // dono nunca poderia tocar juntos, provando o bypass de
@@ -546,6 +619,18 @@ await expect(
   assertFails(
     updateDoc(doc(inviterDb(), 'users', STUB_UID), {
       'sportOnboarding.levelLocked.VOLEI_PRAIA': true,
+    }),
+  ),
+);
+
+// Mesmo raciocínio do F10 acima, agora para o marcador (F4, 2ª volta): o convidador não é o
+// backend — não pode estampar `levelChangeBy` no pré-cadastro da vítima.
+await seedPartnerStub();
+await expect(
+  'convidador NÃO pode alterar sportOnboarding.levelChangeBy do pré-cadastro do parceiro',
+  assertFails(
+    updateDoc(doc(inviterDb(), 'users', STUB_UID), {
+      'sportOnboarding.levelChangeBy': 'admin',
     }),
   ),
 );

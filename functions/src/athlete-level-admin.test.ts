@@ -350,20 +350,27 @@ describe("effectiveCurrentLevelForSport", () => {
 // do nível — senão o atleta, ainda destravado até o trigger assíncrono rodar, podia se
 // autocorrigir pra baixo e desfazer a promoção que o organizador acabou de confirmar.
 describe("levelProfileWriteFields", () => {
-  it("organizador: grava levelsBySport E levelLocked no mesmo objeto (fecha a janela)", () => {
+  it("organizador: grava levelsBySport, levelLocked E levelChangeBy: 'organizer' no mesmo objeto (fecha a janela)", () => {
     assert.deepEqual(
       levelProfileWriteFields({mode: "organizer", sportCode: "VOLEI_PRAIA", level: "intermediario_1"}),
       {
         levelsBySport: {VOLEI_PRAIA: "intermediario_1"},
         levelLocked: {VOLEI_PRAIA: true},
+        levelChangeBy: "organizer",
       },
     );
   });
 
-  it("admin: só levelsBySport — comportamento anterior preservado (byte-idêntico)", () => {
+  // F4 (review): sem `levelChangeBy`, `onUserWrittenTrackLevelChanges` não tinha como distinguir
+  // um rebaixamento manual do admin (sem `athleteRatings` prévio) de um self-correction genuíno
+  // do atleta — o marcador é o sinal, presente nos dois caminhos privilegiados.
+  it("admin: levelsBySport E levelChangeBy: 'admin' — sem levelLocked (só o organizador fecha a janela)", () => {
     assert.deepEqual(
       levelProfileWriteFields({mode: "admin", sportCode: "VOLEI_PRAIA", level: "intermediario_1"}),
-      {levelsBySport: {VOLEI_PRAIA: "intermediario_1"}},
+      {
+        levelsBySport: {VOLEI_PRAIA: "intermediario_1"},
+        levelChangeBy: "admin",
+      },
     );
   });
 });

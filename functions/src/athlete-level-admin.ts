@@ -346,7 +346,14 @@ export function effectiveCurrentLevelForSport(
  * `onInscriptionWrittenLockLevels` usa pra travar. Não há motivo pra esperar o trigger quando a
  * prova já está em mãos.
  *
- * Caminho admin fica byte-idêntico ao de antes: só `levelsBySport`.
+ * `levelChangeBy` (achado do review, F4): marcador TRANSIENTE gravado nos dois caminhos —
+ * `"admin"` ou `"organizer"` — pra `onUserWrittenTrackLevelChanges` (rating-triggers.ts)
+ * distinguir "esta escrita em `levelsBySport` é privilegiada" de "isto é o próprio atleta
+ * mexendo no perfil", sem depender de `athleteRatings` existir (que sempre foi um proxy
+ * ambíguo: um self-correction genuíno dentro da janela — o caso mais comum, atleta que nunca
+ * jogou partida rateada — também não tem doc de rating). O trigger lê o marcador na MESMA
+ * escrita e o apaga em seguida; as rules (`levelChangeByUnchanged()` em `firestore.rules`)
+ * impedem o cliente de gravá-lo ou preservá-lo por conta própria.
  */
 export function levelProfileWriteFields(params: {
   mode: "admin" | "organizer";
@@ -354,7 +361,10 @@ export function levelProfileWriteFields(params: {
   level: string;
 }): Record<string, unknown> {
   const {mode, sportCode, level} = params;
-  const sportOnboarding: Record<string, unknown> = {levelsBySport: {[sportCode]: level}};
+  const sportOnboarding: Record<string, unknown> = {
+    levelsBySport: {[sportCode]: level},
+    levelChangeBy: mode,
+  };
   if (mode === "organizer") {
     sportOnboarding.levelLocked = {[sportCode]: true};
   }

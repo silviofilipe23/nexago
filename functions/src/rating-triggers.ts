@@ -94,20 +94,22 @@ async function superAdminOrThrow(uid: string | undefined): Promise<string> {
 }
 
 /**
- * `false` quando não há doc em `athleteRatings` (`current == null`) pra corrigir — achado do
- * review (F4). Um rebaixamento em `levelsBySport` sem `athleteRatings` prévio é AMBÍGUO: tanto
- * um self-correction autêntico do atleta (que nunca jogou partida rateada — o caso mais comum
- * da janela de calibração) quanto um rebaixamento MANUAL do admin via `setAthleteLevel` (mesmo
- * suporte remedy documentado no topo de athlete-level-admin.ts) produzem o MESMO shape de
- * escrita em `users/{uid}`, porque sem doc de rating não há o que pré-escrever pra ativar o
- * guard anti-eco de cima (`current.levelCode === newLevel.code`). Sem essa distinção, o
- * caminho admin duplicava a auditoria: a entrada correta `admin_manual` (gravada por
- * `setAthleteLevel`) ficava ao lado de uma `self_correction` espúria, com `actor: <uid do
- * atleta>` — atribuição falsa. Sem doc de rating não há realinhamento (`selfCorrectionRatingUpdate`
- * já devolve `null` pra `current == null`), então suprimir a auditoria aqui não perde estado.
+ * `false` quando a escrita veio de um caminho PRIVILEGIADO (`levelChangeBy` presente no doc
+ * AFTER) — achado do review (F4), 2ª volta. A guarda original usava "existe doc em
+ * `athleteRatings`" como proxy pra "isto não é o atleta se autocorrigindo", mas esse proxy era
+ * ambíguo NOS DOIS SENTIDOS: um self-correction autêntico dentro da janela de calibração — o
+ * caso mais comum, atleta que nunca jogou partida rateada — também não tem doc de rating, então
+ * a guarda original suprimia a auditoria do EVENTO MAIS COMUM da própria feature. O sinal certo
+ * não é "há rating pra corrigir", é "quem escreveu": `levelProfileWriteFields`
+ * (athlete-level-admin.ts) estampa `sportOnboarding.levelChangeBy: "admin" | "organizer"` nos
+ * dois caminhos privilegiados, na MESMA escrita que muda `levelsBySport`; o cliente nunca grava
+ * esse campo (rules, `levelChangeByUnchanged()`). Sem o marcador, a escrita só pode ter vindo do
+ * próprio atleta — audita sempre, com ou sem doc de rating. Sem doc de rating não há
+ * realinhamento (`selfCorrectionRatingUpdate` já devolve `null` pra `current == null`), então
+ * auditar aqui não inventa estado de rating nenhum, só a entrada de auditoria.
  */
-export function shouldAuditSelfCorrectionDowngrade(current: AthleteRatingState | null): boolean {
-  return current != null;
+export function shouldAuditSelfCorrectionDowngrade(isPrivilegedWrite: boolean): boolean {
+  return !isPrivilegedWrite;
 }
 
 function levelsBySportOf(
@@ -124,6 +126,30 @@ function levelsBySportOf(
 }
 
 /**
+ * Lê `sportOnboarding.levelChangeBy` do doc — marcador transiente que só os caminhos
+ * privilegiados de `setAthleteLevel` gravam (`levelProfileWriteFields`, athlete-level-admin.ts).
+ * Exportada só pra teste; o trigger consome via `isPrivilegedLevelChangeWrite`.
+ */
+export function levelChangeByOf(data: Record<string, unknown> | undefined): unknown {
+  const onboarding = data?.["sportOnboarding"];
+  if (onboarding != null && typeof onboarding === "object") {
+    return (onboarding as Record<string, unknown>)["levelChangeBy"];
+  }
+  return undefined;
+}
+
+/**
+ * `true` quando o doc AFTER carrega o marcador de escrita privilegiada — admin ou organizador,
+ * tanto faz qual: os dois já gravam a própria entrada de auditoria (`admin_manual` /
+ * `organizer_promotion`), então os dois pedem o MESMO tratamento aqui (suprimir a auditoria
+ * `self_correction`/`self_upgrade` duplicada e depois limpar o marcador).
+ */
+export function isPrivilegedLevelChangeWrite(after: Record<string, unknown> | undefined): boolean {
+  const raw = levelChangeByOf(after);
+  return typeof raw === "string" && raw.length > 0;
+}
+
+/**
  * Auto-correção do nível declarado (`sportOnboarding.levelsBySport`), nos
  * dois sentidos:
  *
@@ -132,20 +158,28 @@ function levelsBySportOf(
  *   resetado + proteção — o guard anti-flap contra a escada.
  * - DESCIDA (self-correction, só possível durante a janela de calibração —
  *   antes de `sportOnboarding.levelLocked.{sportCode}`; as rules garantem
- *   isso, não este trigger): audita em `levelHistory` SE já existir doc em
- *   `athleteRatings` pro esporte (`shouldAuditSelfCorrectionDowngrade`, F4 do
- *   review — sem doc não dá pra distinguir um self-correction autêntico de
- *   um rebaixamento manual do admin sem rating pra pré-escrever, e auditar
- *   os dois geraria uma entrada `self_correction` espúria ao lado da
- *   `admin_manual` correta) e, dentro disso, SÓ quando o atleta ainda não
- *   jogou partida rateada (`ratedMatches === 0`), reseeda para o piso do
- *   novo degrau. Com partidas já rateadas o rating fica como está —
- *   o Glicko já é uma medida melhor que o nível autodeclarado.
+ *   isso, não este trigger): audita em `levelHistory` SEMPRE que a escrita
+ *   NÃO for privilegiada (`shouldAuditSelfCorrectionDowngrade`, F4 do review
+ *   — 2ª volta: o sinal é `sportOnboarding.levelChangeBy`, não mais "existe
+ *   doc em `athleteRatings`", proxy que apagava a auditoria do caso mais
+ *   comum da janela — atleta sem partida rateada ainda) e, dentro disso, SÓ
+ *   quando o atleta ainda não jogou partida rateada (`ratedMatches === 0`),
+ *   reseeda para o piso do novo degrau. Com partidas já rateadas o rating
+ *   fica como está — o Glicko já é uma medida melhor que o nível
+ *   autodeclarado.
  *
  * Escritas da própria engine/migração são ignoradas: promoção/rebaixamento
  * automáticos e o script administrativo gravam `athleteRatings.levelCode`
  * ANTES de gravar `levelsBySport` (mesma leva → igualdade → skip), e a
  * migração de renumeração mapeia para o mesmo rank (rank não muda → skip).
+ *
+ * `levelChangeBy` é TRANSIENTE: se presente no AFTER, esta função limpa o
+ * campo no final (`FieldValue.delete()`) numa escrita separada em
+ * `users/{userId}`. Essa escrita re-dispara este MESMO trigger, mas sem
+ * risco de loop: ela só toca `levelChangeBy`, então `levelsBySport` fica
+ * idêntico entre before/after na reentrada e todo `sportCode` cai no
+ * `continue` de "sem mudança de nível" logo no topo do laço, antes de
+ * qualquer leitura de marcador.
  */
 export const onUserWrittenTrackLevelChanges = onDocumentWritten(
   "users/{userId}",
@@ -159,6 +193,7 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
     const userId = event.params.userId;
     const db = getFirestore();
     const projectId = getFirebaseProjectId();
+    const isPrivilegedWrite = isPrivilegedLevelChangeWrite(after);
 
     for (const sportCode of RATED_SPORT_CODES) {
       const rawBefore = String(beforeLevels[sportCode] ?? "").trim();
@@ -231,7 +266,7 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
           if (corrected) {
             await ratingRef.set(ratingStateToDoc(corrected));
           }
-          if (shouldAuditSelfCorrectionDowngrade(current)) {
+          if (shouldAuditSelfCorrectionDowngrade(isPrivilegedWrite)) {
             await db.collection(`users/${userId}/levelHistory`).add({
               sportCode,
               fromLevel: rawBefore || null,
@@ -254,6 +289,16 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
           error,
         );
       }
+    }
+
+    // Limpa o marcador transiente por último, numa escrita à parte — ver o
+    // porquê de não fazer loop no docstring da função. `.update()` com
+    // dot-path (não `.set()`) pra não pisar em nenhum outro campo de
+    // `sportOnboarding` escrito entre o evento e agora.
+    if (isPrivilegedWrite) {
+      await db.doc(`users/${userId}`).update({
+        "sportOnboarding.levelChangeBy": FieldValue.delete(),
+      });
     }
   },
 );

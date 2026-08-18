@@ -398,6 +398,9 @@ service cloud.firestore {
     function levelLockedOf(data) {
       return data.get('sportOnboarding', {}).get('levelLocked', {});
     }
+    function levelChangeByOf(data) {
+      return data.get('sportOnboarding', {}).get('levelChangeBy', null);
+    }
     // Valor inalterado curto-circuita ANTES de rankear: só o campo que mudou
     // paga o custo do lookup (essencial para caber no limite de expressões).
     function levelNotLowered(reqValue, curValue, ranks) {
@@ -453,6 +456,15 @@ service cloud.firestore {
     // ativa. Defaults `{}` dos dois lados: doc sem o mapa também passa.
     function levelLockedUnchanged() {
       return levelLockedOf(request.resource.data) == levelLockedOf(resource.data);
+    }
+    // Mesmo padrão de `levelLockedUnchanged()` acima: `sportOnboarding.levelChangeBy` é o
+    // marcador transiente que `setAthleteLevel` (admin/organizador, `levelProfileWriteFields`
+    // em athlete-level-admin.ts) grava na MESMA escrita que muda `levelsBySport`, pra
+    // `onUserWrittenTrackLevelChanges` (rating-triggers.ts) distinguir essa escrita de uma
+    // autocorreção do próprio atleta — e depois o backend o apaga. O dono nunca grava, apaga
+    // nem preserva um valor próprio nesse campo (F4 do review, 2ª volta).
+    function levelChangeByUnchanged() {
+      return levelChangeByOf(request.resource.data) == levelChangeByOf(resource.data);
     }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
@@ -1573,15 +1585,19 @@ service cloud.firestore {
           // O lock em si é backend-only (gatilho da 1ª inscrição, Task 1) —
           // o dono nunca grava/apaga/altera `sportOnboarding.levelLocked`,
           // nem para se destravar nem para se travar antes da hora.
-          levelLockedUnchanged()
+          levelLockedUnchanged() &&
+          // O marcador de escrita privilegiada também é backend-only (F4 do
+          // review, 2ª volta) — mesmo motivo do lock acima.
+          levelChangeByUnchanged()
         ) ||
         isSuperAdmin() ||
         // F10 (review): este branch é um `||` alternativo ao do dono — sem
         // `levelLockedUnchanged()` aqui, o convidador de um pré-cadastro de
         // parceiro (stub sem conta ainda) podia alterar
         // `sportOnboarding.levelLocked` da vítima na mesma tacada, campo que
-        // é backend-only em QUALQUER outro branch desta regra.
-        (isPartnerPreRegistrationUpdateByInviter(userId) && levelLockedUnchanged())
+        // é backend-only em QUALQUER outro branch desta regra. Mesmo raciocínio
+        // estende `levelChangeByUnchanged()` pra este branch (F4, 2ª volta).
+        (isPartnerPreRegistrationUpdateByInviter(userId) && levelLockedUnchanged() && levelChangeByUnchanged())
       );
       
       // Deletar: apenas super admin pode deletar usuários (e apenas outros, não a si mesmo)

@@ -309,6 +309,58 @@ function levelsBySportOf(data: Record<string, unknown> | undefined): Record<stri
   return out;
 }
 
+/**
+ * Nível "efetivo" do atleta pro esporte, com o MESMO fallback usado pelo resto do backend
+ * (`resolveAthleteLevelRank` em category-level-eligibility.ts, autoritativa pra elegibilidade de
+ * categoria): per-sport primeiro, `level` legado global depois. Existe SÓ pra alimentar a
+ * checagem de direção do caminho organizador (`planOrganizerPromotionDirection`) — achado do
+ * review (F5): sem o fallback, um atleta cujo nível só existe no campo legado tinha
+ * `currentLevel` `null` ali, virava "seed" (sem degrau anterior pra violar) e o organizador
+ * conseguia setar um alvo ABAIXO do rank que `resolveAthleteLevelRank` já considerava dele.
+ *
+ * Não usada no restante de `setAthleteLevel` (o `currentLevel` que alimenta `planLevelChange` —
+ * `fromLevel`, direção exibida, realinhamento de rating — continua só per-sport, preservando o
+ * comportamento byte-idêntico do caminho admin documentado no topo do arquivo).
+ */
+export function effectiveCurrentLevelForSport(
+  data: Record<string, unknown> | undefined,
+  sportCode: string,
+): string | null {
+  const perSport = levelsBySportOf(data)[sportCode];
+  if (perSport) return perSport;
+  const legacy = data?.["level"];
+  return typeof legacy === "string" && legacy.trim() ? legacy.trim() : null;
+}
+
+/**
+ * Corpo de `sportOnboarding` da escrita de perfil de `setAthleteLevel` — o nível novo sempre, e
+ * o lock da janela de calibração SÓ no caminho organizador (achado do review, F1).
+ *
+ * Sem isto, o organizador promovia e o atleta — ainda destravado, já que o lock só é gravado
+ * pelo trigger assíncrono `onInscriptionWrittenLockLevels` (`tournament-level-lock.ts`) reagindo
+ * à MESMA inscrição — podia abrir "Esportes e níveis" e se autocorrigir pra baixo antes desse
+ * trigger rodar, desfazendo a promoção que o organizador acabou de confirmar ("o nível nunca
+ * desce"). A justificativa pra travar aqui, síncrono, já está provada dentro da autorização: o
+ * caminho organizador só chega até aqui depois de `assertAdminOrPromotingOrganizer` verificar
+ * `athleteHasActiveRegistration` PRA ESTE esporte (`:398`) — exatamente a condição que
+ * `onInscriptionWrittenLockLevels` usa pra travar. Não há motivo pra esperar o trigger quando a
+ * prova já está em mãos.
+ *
+ * Caminho admin fica byte-idêntico ao de antes: só `levelsBySport`.
+ */
+export function levelProfileWriteFields(params: {
+  mode: "admin" | "organizer";
+  sportCode: string;
+  level: string;
+}): Record<string, unknown> {
+  const {mode, sportCode, level} = params;
+  const sportOnboarding: Record<string, unknown> = {levelsBySport: {[sportCode]: level}};
+  if (mode === "organizer") {
+    sportOnboarding.levelLocked = {[sportCode]: true};
+  }
+  return sportOnboarding;
+}
+
 function primarySportOf(data: Record<string, unknown> | undefined): string | null {
   const onboarding = data?.["sportOnboarding"];
   const raw =
@@ -566,7 +618,12 @@ export const setAthleteLevel = onCall(async (request) => {
   // Direção só é validável agora que o nível atual foi lido — e só importa
   // pro organizador; admin sempre pôde ir em qualquer direção.
   if (auth.mode === "organizer") {
-    const direction = planOrganizerPromotionDirection({currentLevel, targetLevel: level});
+    // F5 (review): fallback pro legado global, igual ao resto do backend — `currentLevel`
+    // (usado no resto desta função) fica só per-sport de propósito, não aqui.
+    const direction = planOrganizerPromotionDirection({
+      currentLevel: effectiveCurrentLevelForSport(userSnap.data(), sportCode),
+      targetLevel: level,
+    });
     if (!direction.ok) {
       throw new HttpsError("failed-precondition", direction.message);
     }
@@ -627,7 +684,7 @@ export const setAthleteLevel = onCall(async (request) => {
   if (profileChanged) {
     await userRef.set(
       {
-        sportOnboarding: {levelsBySport: {[sportCode]: level}},
+        sportOnboarding: levelProfileWriteFields({mode: auth.mode, sportCode, level}),
         updatedAt: FieldValue.serverTimestamp(),
       },
       {merge: true},

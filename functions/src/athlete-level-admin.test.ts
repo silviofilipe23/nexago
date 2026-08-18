@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {HttpsError} from "firebase-functions/v2/https";
 import {
   assertAdminOrPromotingOrganizer,
+  effectiveCurrentLevelForSport,
   levelHistoryAuditFields,
+  levelProfileWriteFields,
   planLevelChange,
   planLevelChangeAuthorization,
   planOrganizerPromotionDirection,
@@ -297,6 +299,72 @@ describe("planOrganizerPromotionDirection", () => {
       ok: false,
       message: "Organizador só pode promover — o nível de um atleta nunca desce.",
     });
+  });
+});
+
+// F5 (review): a checagem de direção do organizador precisa resolver o nível atual do MESMO
+// jeito que o resto do backend (`resolveAthleteLevelRank`, category-level-eligibility.ts) —
+// per-sport primeiro, legado global depois. Sem o fallback, um atleta só com `level` legado
+// tinha `currentLevel` null pra `planOrganizerPromotionDirection`, virava "seed" e o
+// organizador conseguia setar um alvo ABAIXO do rank que a elegibilidade de categoria já
+// considerava dele.
+describe("effectiveCurrentLevelForSport", () => {
+  it("per-sport presente: usa o valor per-sport, ignora o legado", () => {
+    const data = {
+      level: "Iniciante 1",
+      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "avancado_1"}},
+    };
+    assert.equal(effectiveCurrentLevelForSport(data, "VOLEI_PRAIA"), "avancado_1");
+  });
+
+  it("atleta legado-only: sem per-sport, cai pro `level` global", () => {
+    const data = {level: "Avançado 1", sportOnboarding: {levelsBySport: {}}};
+    assert.equal(effectiveCurrentLevelForSport(data, "VOLEI_PRAIA"), "Avançado 1");
+  });
+
+  it("nem per-sport nem legado: null (seed genuíno, sem degrau anterior)", () => {
+    assert.equal(effectiveCurrentLevelForSport({sportOnboarding: {levelsBySport: {}}}, "VOLEI_PRAIA"), null);
+    assert.equal(effectiveCurrentLevelForSport(undefined, "VOLEI_PRAIA"), null);
+  });
+
+  it("legado em branco/whitespace conta como ausente", () => {
+    assert.equal(effectiveCurrentLevelForSport({level: "   "}, "VOLEI_PRAIA"), null);
+  });
+
+  it("atleta legado-only tentando entrar ABAIXO do próprio rank: organizador é barrado", () => {
+    // Reprodução do achado: sem o fallback, `currentLevel` seria null (seed) e um alvo
+    // Iniciante 1 (abaixo do Avançado 1 legado) seria aceito — não pode.
+    const data = {level: "Avançado 1", sportOnboarding: {levelsBySport: {}}};
+    const result = planOrganizerPromotionDirection({
+      currentLevel: effectiveCurrentLevelForSport(data, "VOLEI_PRAIA"),
+      targetLevel: "iniciante_1",
+    });
+    assert.deepEqual(result, {
+      ok: false,
+      message: "Organizador só pode promover — o nível de um atleta nunca desce.",
+    });
+  });
+});
+
+// F1 (review): a promoção do organizador precisa fechar a janela de calibração NO MESMO write
+// do nível — senão o atleta, ainda destravado até o trigger assíncrono rodar, podia se
+// autocorrigir pra baixo e desfazer a promoção que o organizador acabou de confirmar.
+describe("levelProfileWriteFields", () => {
+  it("organizador: grava levelsBySport E levelLocked no mesmo objeto (fecha a janela)", () => {
+    assert.deepEqual(
+      levelProfileWriteFields({mode: "organizer", sportCode: "VOLEI_PRAIA", level: "intermediario_1"}),
+      {
+        levelsBySport: {VOLEI_PRAIA: "intermediario_1"},
+        levelLocked: {VOLEI_PRAIA: true},
+      },
+    );
+  });
+
+  it("admin: só levelsBySport — comportamento anterior preservado (byte-idêntico)", () => {
+    assert.deepEqual(
+      levelProfileWriteFields({mode: "admin", sportCode: "VOLEI_PRAIA", level: "intermediario_1"}),
+      {levelsBySport: {VOLEI_PRAIA: "intermediario_1"}},
+    );
   });
 });
 

@@ -93,6 +93,23 @@ async function superAdminOrThrow(uid: string | undefined): Promise<string> {
   return uid;
 }
 
+/**
+ * `false` quando não há doc em `athleteRatings` (`current == null`) pra corrigir — achado do
+ * review (F4). Um rebaixamento em `levelsBySport` sem `athleteRatings` prévio é AMBÍGUO: tanto
+ * um self-correction autêntico do atleta (que nunca jogou partida rateada — o caso mais comum
+ * da janela de calibração) quanto um rebaixamento MANUAL do admin via `setAthleteLevel` (mesmo
+ * suporte remedy documentado no topo de athlete-level-admin.ts) produzem o MESMO shape de
+ * escrita em `users/{uid}`, porque sem doc de rating não há o que pré-escrever pra ativar o
+ * guard anti-eco de cima (`current.levelCode === newLevel.code`). Sem essa distinção, o
+ * caminho admin duplicava a auditoria: a entrada correta `admin_manual` (gravada por
+ * `setAthleteLevel`) ficava ao lado de uma `self_correction` espúria, com `actor: <uid do
+ * atleta>` — atribuição falsa. Sem doc de rating não há realinhamento (`selfCorrectionRatingUpdate`
+ * já devolve `null` pra `current == null`), então suprimir a auditoria aqui não perde estado.
+ */
+export function shouldAuditSelfCorrectionDowngrade(current: AthleteRatingState | null): boolean {
+  return current != null;
+}
+
 function levelsBySportOf(
   data: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
@@ -115,9 +132,14 @@ function levelsBySportOf(
  *   resetado + proteção — o guard anti-flap contra a escada.
  * - DESCIDA (self-correction, só possível durante a janela de calibração —
  *   antes de `sportOnboarding.levelLocked.{sportCode}`; as rules garantem
- *   isso, não este trigger): audita em `levelHistory` e, SÓ quando o atleta
- *   ainda não jogou partida rateada (`ratedMatches === 0`), reseeda para o
- *   piso do novo degrau. Com partidas já rateadas o rating fica como está —
+ *   isso, não este trigger): audita em `levelHistory` SE já existir doc em
+ *   `athleteRatings` pro esporte (`shouldAuditSelfCorrectionDowngrade`, F4 do
+ *   review — sem doc não dá pra distinguir um self-correction autêntico de
+ *   um rebaixamento manual do admin sem rating pra pré-escrever, e auditar
+ *   os dois geraria uma entrada `self_correction` espúria ao lado da
+ *   `admin_manual` correta) e, dentro disso, SÓ quando o atleta ainda não
+ *   jogou partida rateada (`ratedMatches === 0`), reseeda para o piso do
+ *   novo degrau. Com partidas já rateadas o rating fica como está —
  *   o Glicko já é uma medida melhor que o nível autodeclarado.
  *
  * Escritas da própria engine/migração são ignoradas: promoção/rebaixamento
@@ -209,20 +231,22 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
           if (corrected) {
             await ratingRef.set(ratingStateToDoc(corrected));
           }
-          await db.collection(`users/${userId}/levelHistory`).add({
-            sportCode,
-            fromLevel: rawBefore || null,
-            toLevel: newLevel.code,
-            reason: "self_correction",
-            rating: current ? Math.round(current.rating) : null,
-            rd: current ? Math.round(current.rd) : null,
-            ratedMatches: current ? current.ratedMatches : 0,
-            actor: userId,
-            createdAt: FieldValue.serverTimestamp(),
-          });
-          logger.info(
-            `rating: self-correction de ${userId} em ${sportCode} → ${newLevel.code}`,
-          );
+          if (shouldAuditSelfCorrectionDowngrade(current)) {
+            await db.collection(`users/${userId}/levelHistory`).add({
+              sportCode,
+              fromLevel: rawBefore || null,
+              toLevel: newLevel.code,
+              reason: "self_correction",
+              rating: current ? Math.round(current.rating) : null,
+              rd: current ? Math.round(current.rd) : null,
+              ratedMatches: current ? current.ratedMatches : 0,
+              actor: userId,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+            logger.info(
+              `rating: self-correction de ${userId} em ${sportCode} → ${newLevel.code}`,
+            );
+          }
         }
       } catch (error) {
         logger.error(

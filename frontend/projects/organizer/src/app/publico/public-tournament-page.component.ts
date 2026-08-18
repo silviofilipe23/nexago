@@ -113,6 +113,11 @@ const STATUS_LABEL: Record<string, string> = {
           </span>
           <span class="pub-foot-brand">nexaGO</span>
         </footer>
+      } @else if (store.error()) {
+        <section class="pub-empty">
+          <h1>Não foi possível carregar agora</h1>
+          <p>Confira sua conexão — a página se atualiza sozinha quando voltar.</p>
+        </section>
       } @else {
         <p class="pub-note">Carregando torneio…</p>
       }

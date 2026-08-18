@@ -81,6 +81,7 @@ function fakeStore(
     tournament?: OrganizerTournament | null;
     matches?: TournamentMatch[];
     notFound?: boolean;
+    error?: boolean;
   } = {},
 ) {
   return {
@@ -89,7 +90,7 @@ function fakeStore(
     matches: signal(over.matches ?? []),
     loading: signal(false),
     notFound: signal(over.notFound ?? false),
-    error: signal(false),
+    error: signal(over.error ?? false),
   };
 }
 
@@ -172,5 +173,12 @@ describe('PublicTournamentPageComponent', () => {
   it('avisa quando o torneio ainda não tem jogos lançados', async () => {
     const fixture = await render(fakeStore({ tournament: tournament(), matches: [] }));
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Os jogos aparecem aqui');
+  });
+
+  it('avisa erro de leitura quando falha antes do primeiro torneio carregado', async () => {
+    const fixture = await render(fakeStore({ error: true, tournament: null }));
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Não foi possível carregar agora');
+    expect(text).not.toContain('Carregando torneio…');
   });
 });

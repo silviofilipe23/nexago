@@ -1,14 +1,28 @@
 // Constantes e helpers de ranking (paridade com `ranking.types.ts`).
 
+/// Tabela base ×10 (fase 3), paridade de valores com a tabela autoritativa
+/// em `functions/src/tournament-ranking.ts` (1000/800/600/500, quartas 330).
 const pointsByPlace = <int, int>{
-  1: 100,
-  2: 80,
-  3: 60,
-  4: 50,
-  5: 33,
-  6: 33,
-  7: 33,
-  8: 33,
+  1: 1000,
+  2: 800,
+  3: 600,
+  4: 500,
+  5: 330,
+  6: 330,
+  7: 330,
+  8: 330,
+};
+
+/// Pesos por preset de categoria (fase 3) — exibição apenas, espelho de
+/// `CATEGORY_PRESETS` em `functions/src/category-presets.ts`. O cálculo real
+/// roda no backend; esta const nunca deve influenciar pontuação no app.
+const categoryPresetWeights = <String, double>{
+  'Elite': 1.2,
+  'Open': 1.0,
+  'Avançado': 0.5,
+  'Intermediário': 0.25,
+  'Iniciante': 0.125,
+  'Livre': 0.125,
 };
 
 const placesWithPoints = [1, 2, 3, 4, 5, 6, 7, 8];

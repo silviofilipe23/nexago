@@ -214,11 +214,53 @@ void main() {
   });
 
   group('getPointsByPlaceFromTotal', () {
-    test('sums to total distributed', () {
+    // NOTA (fase 3, tarefa 5): esta função pertence à tabela custom de LIGA
+    // (rankingPointsBaseSum=446), propositalmente fora do escopo da fase 3
+    // — "ranking de liga mantém tabela própria e fica fora dos pesos" (spec
+    // 2026-08-17-category-presets-ranking-weights-design.md). Como ela usa
+    // `pointsByPlace` como peso relativo normalizado por esse baseSum fixo,
+    // a tabela ×10 (1000/800/.../330) faz os pesos 2..8 somarem 3220 — acima
+    // do baseSum 446 — e o clamp de map[1] satura em 0. Não é regressão de
+    // produto: nenhuma tela chama esta função hoje (grep em lib/), e o único
+    // uso real do irmão `getPointsForPlaceFromLeagueConfig`
+    // (league_create_ranking_page.dart) nunca cai no fallback pra
+    // `pointsByPlace`, pois `effectiveRankingPoints` sempre popula 1..4 via
+    // `defaultLeagueRankingPoints`. Documentando o comportamento atual em vez
+    // de inventar uma invariante que a função não cumpre mais.
+    test('com pointsByPlace ×10 e baseSum legado, satura em map[1]=0', () {
       const total = 446;
       final map = getPointsByPlaceFromTotal(total);
-      expect(map.values.fold(0, (a, b) => a + b), total);
-      expect(map[1], greaterThan(0));
+      expect(map[1], 0);
+      expect(map.values.fold(0, (a, b) => a + b), 3220);
+    });
+
+    test('total 0 continua zerando todas as posições', () {
+      final map = getPointsByPlaceFromTotal(0);
+      expect(map.values.every((v) => v == 0), isTrue);
+    });
+  });
+
+  group('getPointsForPlace', () {
+    test('tabela base ×10 (fase 3): 1º/2º/3º/4º e quartas (5º-8º)', () {
+      expect(getPointsForPlace(1), 1000);
+      expect(getPointsForPlace(2), 800);
+      expect(getPointsForPlace(3), 600);
+      expect(getPointsForPlace(4), 500);
+      expect(getPointsForPlace(5), 330);
+      expect(getPointsForPlace(6), 330);
+      expect(getPointsForPlace(7), 330);
+      expect(getPointsForPlace(8), 330);
+    });
+  });
+
+  group('categoryPresetWeights', () {
+    test('espelha os pesos de CATEGORY_PRESETS (fase 3, exibição apenas)', () {
+      expect(categoryPresetWeights['Elite'], 1.2);
+      expect(categoryPresetWeights['Open'], 1.0);
+      expect(categoryPresetWeights['Avançado'], 0.5);
+      expect(categoryPresetWeights['Intermediário'], 0.25);
+      expect(categoryPresetWeights['Iniciante'], 0.125);
+      expect(categoryPresetWeights['Livre'], 0.125);
     });
   });
 

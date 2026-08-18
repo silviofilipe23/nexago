@@ -24,6 +24,7 @@ A colocação é atribuída automaticamente quando uma partida é concluída (me
 ## Ranking geral nexaGO
 - Tabela de pontos por colocação: **1º = 100, 2º = 80, 3º = 60, 4º = 50, quartas (5º–8º) = 33, grupos = 10**.
 - Cada torneio pode ter um peso (`rankingWeight`, padrão 1.0) que multiplica os pontos — permite dar mais valor a torneios maiores.
+- Multiplicadores por preset de categoria chegam na fase 3 (ver [spec de pesos](../superpowers/specs/2026-08-17-category-presets-ranking-weights-design.md)).
 - Pontuação vale para o atleta **e** para a dupla; um atleta que joga mais de uma categoria/dupla no ano tem os pontos somados juntos, sem distinção de categoria.
 - Cálculo da pontuação total: **todo resultado conta, sem descarte**. `pointsByYear[ano]` soma tudo que foi conquistado naquele ano e a soma "geral" é a soma dos anos — é literalmente todo resultado já conquistado.
 - No app, o atleta pode ver dois modos: **Geral** (todos os anos) e **Por ano** (só os resultados daquele ano). Tem filtro por gênero (masculino/feminino/misto) e por atletas/duplas, além de busca por nome.

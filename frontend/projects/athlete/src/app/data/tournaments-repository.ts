@@ -396,6 +396,13 @@ export function registrationOpensAt(t: Pick<TournamentSummary, 'rawStatus' | 'st
   return t.rawStatus === 'scheduled' ? t.startAt : null;
 }
 
+/** O torneio já acabou pra quem opera: finalizado/concluído pelo organizador ou cancelado.
+ *  Só o status **gravado** conta — nada de `resolveTournamentRawStatus`, que deriva "acabou"
+ *  do `endAt`: um evento que fura o horário previsto sumiria da mesa no meio da rodada. */
+export function tournamentIsFinishedOrCancelled(t: Pick<TournamentSummary, 'rawStatus' | 'isCancelled'>): boolean {
+  return t.isCancelled || t.rawStatus === 'completed' || t.rawStatus === 'ended';
+}
+
 /** Torneios ocultos da listagem pública — rascunho/cancelado (`isPubliclyListedTournament`). */
 function isPubliclyListed(t: Pick<TournamentSummary, 'isDraftOrCancelled'>): boolean {
   return !t.isDraftOrCancelled;

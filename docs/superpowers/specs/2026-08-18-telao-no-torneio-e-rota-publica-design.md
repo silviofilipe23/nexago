@@ -165,15 +165,22 @@ Alterados:
 
 ## Testes
 
-- `public-selectors.spec.ts`: ordem dos resultados, queda para `scheduledAt` sem
-  `matchEndedAt`, limite, e partida não encerrada fora da lista.
-- Spec do store: com `watchTournament`/`watchMatches` dublados — doc inexistente vira
-  `notFound`; snapshot alimenta `matches`; **nenhuma leitura de perfil é disparada**.
-- Spec da página: renderiza quadra ao vivo, fila e resultados a partir de fixtures; estados
-  vazio e não encontrado.
-- Spec da aba Telão: sem seletor de evento, e o torneio vem do input da rota.
+- `public-selectors.spec.ts`: quadra ao vivo / próxima / livre, ordem e formatação da fila,
+  ordem dos resultados, queda para `scheduledAt` sem `matchEndedAt`, desempate por número do
+  jogo e limites.
+- Spec da página, com o store dublado por `overrideComponent`: renderiza quadra ao vivo, fila
+  e resultados a partir de fixtures; estados vazio e não encontrado; **e um teste que trava a
+  ausência de valor financeiro na tela**.
+- Spec do card de quadra: placar do set corrente ao vivo, horário da próxima, quadra livre.
+- `app.routes.spec.ts`: a aba do torneio existe, `/painel/telao` redireciona, a rota pública
+  **não tem guard** e a TV continua com um.
 - `telaoConfigFromRaw`: doc sem `showPublicQr` resulta em `true`.
+- `publicTournamentUrl`: monta o link sem barra duplicada.
 - TestBed **zoneless** (`provideZonelessChangeDetection()`) em todos — sem isso, NG0908.
+
+O store em si não ganha spec: é uma casca de dois `onSnapshot`, como `TelaoDataService`, que
+também não tem. A garantia de que nada bate em `public_profiles` vem do desenho (o store não
+importa `teams-repository`) e da verificação deslogada no navegador, olhando a aba de rede.
 
 ## Riscos
 

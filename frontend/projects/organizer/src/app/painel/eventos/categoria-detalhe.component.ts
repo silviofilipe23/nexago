@@ -1,12 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { tournamentSportToLevelSportCode } from '@nexago/levels';
+import { LEVEL_OPTIONS, tournamentSportToLevelSportCode, type LevelOption } from '@nexago/levels';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { MIN_TEAMS_FOR_BRACKET, countBracketEligible } from '../data/bracket-eligibility';
+import { promotableLevelOptions } from '../data/athlete-level-promotion';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
-import { teamLevelScore, teamLevelsSummary, teamScoreLabel, type AthleteRatingLite, type TeamLevelScore } from '../data/team-level-score';
+import { promoteAthleteLevel } from '../data/organizer-ops.service';
+import { levelCodeFor, teamLevelScore, teamLevelsSummary, teamScoreLabel, type AthleteRatingLite, type TeamLevelScore } from '../data/team-level-score';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -24,7 +27,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 @Component({
   selector: 'og-categoria-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent],
   host: {
     /** Largura do slot = maior elenco da lista (1–5); nomes ficam alinhados sem reservar 5 à toa. */
     '[style.--cat-avatar-n]': 'maxAvatarStack()',
@@ -56,6 +59,9 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       } @else if (!tournament() || !category()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Categoria não encontrada.</div>
       } @else {
+        @if (feedback(); as fb) {
+          <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+        }
         <div class="og-kpi-row">
           <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">{{ unitLabel() }}</div>
@@ -105,6 +111,34 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <og-pill tone="dim" [title]="scoreHint(i)">{{ scoreLabel(i) }}</og-pill>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
               </div>
+              <!-- Ver athlete-level-promotion.ts: só aparece pra atleta com nível declarado
+                   abaixo de Open — o organizador que acabou de ver alguém jogar é a melhor
+                   fonte disponível enquanto o rating não tem volume de partidas (Task 8 do
+                   plano de calibração). O backend (setAthleteLevel) é o gate real: dono do
+                   torneio, mesmo esporte e inscrição ativa — a UI só evita oferecer o que já
+                   sabe que vai falhar (repetir/descer o degrau). -->
+              @if (promotableFor(i); as promotable) {
+                @if (promotable.length) {
+                  <div class="og-categoria-promote">
+                    @for (p of promotable; track p.uid) {
+                      <span class="og-categoria-promote-item">
+                        <span class="og-categoria-promote-name">{{ p.name }}</span>
+                        <select #lvl class="og-categoria-promote-select" [attr.aria-label]="'Nível para promover ' + p.name">
+                          @for (opt of p.options; track opt.code) {
+                            <option [value]="opt.code">{{ opt.label }}</option>
+                          }
+                        </select>
+                        <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="promote(p.uid, p.name, lvl.value)">
+                          @if (busyKey() === 'promote:' + p.uid) {
+                            <app-nx-spinner [size]="12" />
+                          }
+                          {{ busyKey() === 'promote:' + p.uid ? 'Promovendo…' : 'Promover nível' }}
+                        </button>
+                      </span>
+                    }
+                  </div>
+                }
+              }
             } @empty {
               <p class="og-empty">Nenhuma inscrição ainda</p>
             }
@@ -219,6 +253,39 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       color: var(--nx-text-mute);
       text-align: right;
     }
+    .og-categoria-promote {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 0 0 12px 44px;
+    }
+    .og-categoria-promote-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+    }
+    .og-categoria-promote-name {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+      white-space: nowrap;
+    }
+    .og-categoria-promote-select {
+      height: 28px;
+      padding: 0 6px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-1);
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      cursor: pointer;
+    }
   `,
 })
 export class CategoriaDetalheComponent {
@@ -234,6 +301,12 @@ export class CategoriaDetalheComponent {
   protected readonly matches = signal<TournamentMatch[]>([]);
   /** Rating técnico por uid — vazio nos esportes sem engine de rating. */
   private readonly ratings = signal<Map<string, AthleteRatingLite>>(new Map());
+
+  /** Estado da ação "Promover nível" — `busyKey` é `'promote:' + uid`, então duas duplas nunca
+   *  disputam o mesmo spinner. */
+  protected readonly busy = signal(false);
+  protected readonly busyKey = signal<string | null>(null);
+  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
     () => this.tournament()?.categories.find((c) => c.id === this.catId()) ?? null,
@@ -400,5 +473,50 @@ export class CategoriaDetalheComponent {
 
   protected shortDate(d: Date): string {
     return SHORT_DATE.format(d);
+  }
+
+  /** Atletas da dupla com degrau pra subir nesse esporte — `[]` (nenhum atleta some da lista)
+   *  quando todos já estão em Open ou sem nível declarado. Não gate na categoria estar
+   *  concluída/chave fechada: o backend (dono do torneio + inscrição ativa + só sobe) já é o
+   *  gate real, e travar aqui bloquearia a promoção de fim de dia sem ganhar segurança. */
+  protected promotableFor(i: TournamentInscription): { uid: string; name: string; options: readonly LevelOption[] }[] {
+    const sportCode = this.sportCode();
+    return i.participants
+      .map((p) => ({ uid: p.uid, name: p.name, options: promotableLevelOptions(levelCodeFor(p, sportCode)) }))
+      .filter((p) => p.options.length > 0);
+  }
+
+  protected promote(uid: string, name: string, levelCode: string): void {
+    const sportCode = this.sportCode();
+    const t = this.tournament();
+    if (!levelCode || !sportCode || !t || this.busy()) return;
+    const label = LEVEL_OPTIONS.find((o) => o.code === levelCode)?.label ?? levelCode;
+    if (!confirm(`Promover ${name} para ${label}? O nível de um atleta nunca desce.`)) return;
+    void this.run(
+      `promote:${uid}`,
+      () => promoteAthleteLevel({ uid, sportCode, level: levelCode, tournamentId: t.id }),
+      `${name} promovido para ${label}.`,
+    );
+  }
+
+  private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
+    this.busy.set(true);
+    this.busyKey.set(key);
+    this.feedback.set(null);
+    try {
+      await action();
+      this.feedback.set({ ok: true, message: okMessage });
+      const tid = this.id();
+      const cid = this.catId();
+      if (tid && cid) {
+        this.loading.set(true);
+        await this.load(tid, cid);
+      }
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Não foi possível promover o nível.' });
+    } finally {
+      this.busy.set(false);
+      this.busyKey.set(null);
+    }
   }
 }

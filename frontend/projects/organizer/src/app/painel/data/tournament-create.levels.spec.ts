@@ -65,6 +65,13 @@ describe('presets seguem a spec: Open é a faixa-ponte 4–6 e Elite é só o to
   });
 });
 
+describe('emptyCategoryDraft — faixa inicial da categoria nova', () => {
+  it('categoria recém-criada nasce num preset real (Livre), nunca em faixa legada', () => {
+    const draft = emptyCategoryDraft('c1');
+    expect(CATEGORY_LEVEL_PRESETS.some((p) => p.min === draft.minSkillLevel && p.max === draft.skillLevel)).toBe(true);
+  });
+});
+
 describe('nome/tags do preset de um único degrau (min === max)', () => {
   const openPreset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Open')!;
   const elitePreset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Elite')!;

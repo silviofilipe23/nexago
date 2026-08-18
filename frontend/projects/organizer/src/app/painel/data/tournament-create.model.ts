@@ -121,7 +121,9 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     womenCount: 1,
     ageBand: 'open',
     skillLevel: 'open',
-    minSkillLevel: null,
+    // Preset "Livre" (iniciante1–open) — categoria nova nasce com chip ativo e piso EXPLÍCITO,
+    // nunca em `null` (marca reservada pra faixa legada — ver `CATEGORY_LEVEL_PRESETS`).
+    minSkillLevel: 'iniciante1',
     ageReference: 'tournamentStart',
     ageCustomEnabled: false,
     ageMinYears: null,

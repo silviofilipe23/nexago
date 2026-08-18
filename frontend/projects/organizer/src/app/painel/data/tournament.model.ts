@@ -50,6 +50,8 @@ export interface TelaoConfig {
   showStreak: boolean;
   /** Modo GRANDE FINAL: final/grand final/3º lugar assumem a tela inteira. */
   showFinalMode: boolean;
+  /** QR de acompanhamento no rodapé do telão — leva à página pública `/t/{id}`. */
+  showPublicQr: boolean;
 }
 
 /** Espelha `TournamentMatchOpsConfig` (Flutter): jornada e durações do dia de jogo. */

@@ -44,6 +44,46 @@ void main() {
     });
   });
 
+  group('categoryLevelPresets', () {
+    test('presets de faixa espelham a tabela canônica', () {
+      final byLabel = {for (final p in categoryLevelPresets) p.label: p};
+      expect(byLabel['Open']!.minLevel, 'Avançado 1');
+      expect(byLabel['Open']!.maxSkillLevel, TournamentSkillLevel.open);
+      expect(byLabel['Elite']!.minLevel, 'Open');
+      expect(byLabel['Elite']!.maxSkillLevel, TournamentSkillLevel.open);
+      expect(byLabel['Livre']!.minLevel, 'Iniciante 1');
+      expect(byLabel['Avançado']!.maxSkillLevel, TournamentSkillLevel.avancado2);
+      expect(categoryLevelPresets, hasLength(6));
+    });
+  });
+
+  group('activeCategoryLevelPreset', () {
+    test('casa faixa exata e devolve null pra legado', () {
+      final draft = emptyCategoryDraft('c1').copyWith(
+        skillLevel: TournamentSkillLevel.open,
+        minLevel: 'Avançado 1',
+      );
+      expect(activeCategoryLevelPreset(draft), 'Open');
+      expect(
+        activeCategoryLevelPreset(draft.copyWith(minLevel: '')),
+        isNull, // sem piso = legado, nunca um preset
+      );
+      expect(
+        activeCategoryLevelPreset(draft.copyWith(minLevel: 'Open')),
+        'Elite',
+      );
+    });
+  });
+
+  group('emptyCategoryDraft', () {
+    test('categoria nova nasce num preset real (Livre), nunca em faixa legada', () {
+      final draft = emptyCategoryDraft('c1');
+      expect(activeCategoryLevelPreset(draft), 'Livre');
+      expect(draft.minLevel, 'Iniciante 1');
+      expect(draft.skillLevel, TournamentSkillLevel.open);
+    });
+  });
+
   group('labels de disputa de equipe', () {
     test('categoryDisputeLabel mapeia trio/quarteto/quinteto', () {
       expect(categoryDisputeLabel(TournamentCategoryDispute.trio), 'Trio');
@@ -239,6 +279,12 @@ void main() {
       expect(draft.registrationClosesAt, DateTime(2026, 6, 6));
       // Fim padrão = início quando não informado.
       expect(draft.endAt, DateTime(2026, 6, 6));
+      // Categoria expressa também nasce no preset Livre (mesmo invariante
+      // do editor manual) em vez de faixa legada sem piso.
+      expect(
+        activeCategoryLevelPreset(draft.categories.single),
+        'Livre',
+      );
     });
 
     test('keeps a valid multi-day range and clamps inverted end', () {

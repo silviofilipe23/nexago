@@ -214,6 +214,73 @@ List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
       TournamentSkillLevel.open,
     ];
 
+/// Presets de faixa de nível (paridade com CATEGORY_LEVEL_PRESETS do portal
+/// e CATEGORY_PRESETS das functions — spec emendada 18/08). O teto usa o
+/// enum do draft (`skillLevel`); o piso usa label porque
+/// `categories[].minLevel` guarda o label cru.
+class CategoryLevelPreset {
+  const CategoryLevelPreset({
+    required this.label,
+    required this.minLevel,
+    required this.maxSkillLevel,
+  });
+  final String label;
+  final String minLevel;
+  final TournamentSkillLevel maxSkillLevel;
+}
+
+const categoryLevelPresets = <CategoryLevelPreset>[
+  CategoryLevelPreset(
+    label: 'Iniciante',
+    minLevel: 'Iniciante 1',
+    maxSkillLevel: TournamentSkillLevel.iniciante2,
+  ),
+  CategoryLevelPreset(
+    label: 'Intermediário',
+    minLevel: 'Intermediário 1',
+    maxSkillLevel: TournamentSkillLevel.intermediario2,
+  ),
+  CategoryLevelPreset(
+    label: 'Avançado',
+    minLevel: 'Avançado 1',
+    maxSkillLevel: TournamentSkillLevel.avancado2,
+  ),
+  CategoryLevelPreset(
+    label: 'Open',
+    minLevel: 'Avançado 1',
+    maxSkillLevel: TournamentSkillLevel.open,
+  ),
+  CategoryLevelPreset(
+    label: 'Elite',
+    minLevel: 'Open',
+    maxSkillLevel: TournamentSkillLevel.open,
+  ),
+  CategoryLevelPreset(
+    label: 'Livre',
+    minLevel: 'Iniciante 1',
+    maxSkillLevel: TournamentSkillLevel.open,
+  ),
+];
+
+/// Preset ativo do draft (faixa exata) — null para faixa legada/sem piso.
+/// Elite (Open/Open) e Livre (Iniciante 1/Open) têm pares distintos, então a
+/// busca linear é inequívoca.
+String? activeCategoryLevelPreset(TournamentCategoryDraft draft) {
+  for (final preset in categoryLevelPresets) {
+    if (draft.minLevel == preset.minLevel &&
+        draft.skillLevel == preset.maxSkillLevel) {
+      return preset.label;
+    }
+  }
+  return null;
+}
+
+/// Categoria nova (id novo, nenhum campo preenchido ainda) — nasce SEMPRE no
+/// preset "Livre" (Iniciante 1–Open), nunca em faixa legada (`minLevel: ''`).
+/// Mesmo fix do portal web (commit b230a30d): um chip precisa nascer ativo.
+TournamentCategoryDraft emptyCategoryDraft(String id) =>
+    TournamentCategoryDraft(id: id, minLevel: 'Iniciante 1');
+
 String formatCents(int cents) => formatBRLFromCents(cents);
 
 String formatReais(double value) => formatBRL(value);
@@ -427,8 +494,7 @@ TournamentCreateDraft buildExpressTournamentDraft({
     ),
     registrationClosesAt: startAt,
     categories: [
-      TournamentCategoryDraft(
-        id: reference.microsecondsSinceEpoch.toString(),
+      emptyCategoryDraft(reference.microsecondsSinceEpoch.toString()).copyWith(
         gender: gender,
         spots: spots,
         bracketSystem: TournamentBracketSystem.groupsThenKnockout,

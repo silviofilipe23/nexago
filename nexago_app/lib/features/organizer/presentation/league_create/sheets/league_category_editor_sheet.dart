@@ -47,8 +47,9 @@ class _LeagueCategoryEditorSheetState
     final draft = ref.read(leagueCreateDraftProvider);
     _category =
         widget.existing ??
-        TournamentCategoryDraft(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
+        emptyCategoryDraft(
+          DateTime.now().microsecondsSinceEpoch.toString(),
+        ).copyWith(
           priceCents: draft.defaultPriceCents,
           useDefaultPrice: true,
           dispute: TournamentCategoryDispute.dupla,
@@ -193,6 +194,39 @@ class _LeagueCategoryEditorSheetState
                 () => _category = _category.copyWith(ageBand: value),
               ),
             ),
+            const SizedBox(height: 16),
+            const OrganizerSectionLabel('FAIXA DE NÍVEL'),
+            const SizedBox(height: 8),
+            OrganizerChipSelector<String?>(
+              horizontalScroll: true,
+              options: [
+                for (final preset in categoryLevelPresets) preset.label,
+              ],
+              selected: activeCategoryLevelPreset(_category),
+              labelBuilder: (label) => label ?? '',
+              onSelected: (label) {
+                if (label == null) return;
+                final preset = categoryLevelPresets.firstWhere(
+                  (p) => p.label == label,
+                );
+                setState(
+                  () => _category = _category.copyWith(
+                    skillLevel: preset.maxSkillLevel,
+                    minLevel: preset.minLevel,
+                  ),
+                );
+              },
+            ),
+            if (activeCategoryLevelPreset(_category) == null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Faixa personalizada (legado) — escolha um preset para '
+                'alterar.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             const OrganizerSectionLabel('NÍVEL'),
             const SizedBox(height: 8),

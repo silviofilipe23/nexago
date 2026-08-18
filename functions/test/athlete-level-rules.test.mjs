@@ -506,6 +506,50 @@ await expect(
   ),
 );
 
+// F10 (review): `isPartnerPreRegistrationUpdateByInviter` é um `||` ALTERNATIVO ao branch do
+// dono — sem `levelLockedUnchanged()` nele, o convidador de um pré-cadastro de parceiro (doc
+// stub, sem conta própria ainda) podia alterar `sportOnboarding.levelLocked` da vítima na
+// mesma tacada, campo que é backend-only em QUALQUER outro branch desta regra. Nenhum teste
+// deste arquivo cobria este branch antes.
+const STUB_UID = 'partner-stub-uid';
+const INVITER_UID = 'inviter-uid-1';
+const partnerStubUser = {
+  roles: ['athlete'],
+  fullName: 'Convidado Pendente',
+  email: 'convidado@test.dev',
+  partnerInviteStatus: 'pending',
+  invitedByUid: INVITER_UID,
+};
+
+async function seedPartnerStub() {
+  await testEnv.clearFirestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'users', STUB_UID), partnerStubUser);
+  });
+}
+
+function inviterDb() {
+  return testEnv.authenticatedContext(INVITER_UID, {}).firestore();
+}
+
+await seedPartnerStub();
+await expect(
+  'convidador atualiza o pré-cadastro do parceiro sem tocar levelLocked: permitido',
+  assertSucceeds(
+    updateDoc(doc(inviterDb(), 'users', STUB_UID), { city: 'Goiânia' }),
+  ),
+);
+
+await seedPartnerStub();
+await expect(
+  'convidador NÃO pode alterar sportOnboarding.levelLocked do pré-cadastro do parceiro',
+  assertFails(
+    updateDoc(doc(inviterDb(), 'users', STUB_UID), {
+      'sportOnboarding.levelLocked.VOLEI_PRAIA': true,
+    }),
+  ),
+);
+
 await testEnv.cleanup();
 
 if (failures > 0) {

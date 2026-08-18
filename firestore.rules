@@ -1576,7 +1576,12 @@ service cloud.firestore {
           levelLockedUnchanged()
         ) ||
         isSuperAdmin() ||
-        isPartnerPreRegistrationUpdateByInviter(userId)
+        // F10 (review): este branch é um `||` alternativo ao do dono — sem
+        // `levelLockedUnchanged()` aqui, o convidador de um pré-cadastro de
+        // parceiro (stub sem conta ainda) podia alterar
+        // `sportOnboarding.levelLocked` da vítima na mesma tacada, campo que
+        // é backend-only em QUALQUER outro branch desta regra.
+        (isPartnerPreRegistrationUpdateByInviter(userId) && levelLockedUnchanged())
       );
       
       // Deletar: apenas super admin pode deletar usuários (e apenas outros, não a si mesmo)

@@ -388,7 +388,9 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
   // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
-  if (shouldAwardGroupsBucket) {
+  // Livre não concede participação (D6 emendada): só pontua quem chega
+  // ao mata-mata — fecha o farm de "aparecer e levar o bucket groups".
+  if (shouldAwardGroupsBucket && preset?.key !== "livre") {
     const knockoutTeamIds = await loadKnockoutTeamIds(
       db,
       projectId,

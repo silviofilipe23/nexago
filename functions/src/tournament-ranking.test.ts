@@ -274,6 +274,36 @@ describe("tryAwardGlobalRankingForMatch", () => {
     )!;
     assert.equal(champion.pointsEarned, 1000);
   });
+
+  it("Livre não concede bucket groups (mas mata-mata segue pontuando)", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      categories: [{categoryName: "C1", level: "Open", minLevel: "Iniciante 1"}],
+    });
+    db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tC`, {player1Id: "c1"});
+    db.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i1`, {
+      tournamentId: "T1",
+      categoryId: "C1",
+      teamId: "tC",
+      isPaid: true,
+    });
+
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    // Fora do mata-mata: Livre não concede o bucket "groups" (D6 emendada).
+    assert.equal(
+      db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`),
+      undefined,
+    );
+
+    // Colocação normal (perdedor da final) segue pontuando, com peso Livre (0.125).
+    const runnerUp = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tB`,
+    )!;
+    assert.equal(runnerUp.finalPlace, 2);
+    assert.equal(runnerUp.pointsEarned, 100);
+  });
 });
 
 describe("isGlobalRankingEligible", () => {

@@ -428,7 +428,7 @@ await expect(
 await seed(baseUser);
 await expect(
   'dono não pode gravar sportOnboarding.levelLocked (só o backend escreve)',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelLocked.VOLEI_PRAIA': true,
     }),
@@ -444,7 +444,7 @@ await expect(
 await seed(lockedUser);
 await expect(
   'dono não pode destravar sportOnboarding.levelLocked.VOLEI_PRAIA (true → false)',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelLocked.VOLEI_PRAIA': false,
     }),
@@ -454,7 +454,7 @@ await expect(
 await seed(lockedUser);
 await expect(
   'dono não pode apagar o mapa levelLocked reescrevendo sportOnboarding sem a chave',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       sportOnboarding: {
         version: 1,
@@ -490,7 +490,7 @@ await expect(
 await seed(baseUser); // sem marcador
 await expect(
   'dono não pode gravar sportOnboarding.levelChangeBy (só o backend escreve)',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelChangeBy': 'admin',
     }),
@@ -507,7 +507,7 @@ const privilegedMarkerUser = {
 await seed(privilegedMarkerUser);
 await expect(
   'dono não pode trocar o valor de sportOnboarding.levelChangeBy já presente',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       'sportOnboarding.levelChangeBy': 'organizer',
     }),
@@ -517,7 +517,7 @@ await expect(
 await seed(privilegedMarkerUser);
 await expect(
   'dono não pode apagar sportOnboarding.levelChangeBy reescrevendo sportOnboarding sem a chave',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(ownerDb(), 'users', UID), {
       sportOnboarding: {
         version: 1,
@@ -616,7 +616,7 @@ await expect(
 await seedPartnerStub();
 await expect(
   'convidador NÃO pode alterar sportOnboarding.levelLocked do pré-cadastro do parceiro',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(inviterDb(), 'users', STUB_UID), {
       'sportOnboarding.levelLocked.VOLEI_PRAIA': true,
     }),
@@ -628,7 +628,7 @@ await expect(
 await seedPartnerStub();
 await expect(
   'convidador NÃO pode alterar sportOnboarding.levelChangeBy do pré-cadastro do parceiro',
-  assertFails(
+  assertDeniedByRule(
     updateDoc(doc(inviterDb(), 'users', STUB_UID), {
       'sportOnboarding.levelChangeBy': 'admin',
     }),

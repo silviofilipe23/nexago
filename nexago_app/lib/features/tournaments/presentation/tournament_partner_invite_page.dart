@@ -130,17 +130,28 @@ class _TournamentPartnerInvitePageState
   /// ou pediu para ajustar o nível — nesse caso já navega para "Esportes e
   /// níveis"); `_acceptInvite` NÃO deve chamar `acceptInvite` nesse caso.
   ///
-  /// Usa `resolveLevelConfirmationPrompt` com `athleteProfileProvider.future`
-  /// (não `.valueOrNull`): perfil ainda carregando não pode virar "sem
-  /// perfil" — isso faria o gate pular em silêncio. Erro no stream bloqueia
-  /// a aceitação com o aviso genérico já usado pelas outras ações desta tela.
-  Future<bool> _ensureLevelConfirmed(String? tournamentSport) async {
+  /// Usa `resolveLevelConfirmationPromptForTournament` com
+  /// `athleteProfileProvider.future` (não `.valueOrNull`) E o torneio buscado
+  /// FRESCO por `tournamentId` (não o `TournamentDetail?` já resolvido pela
+  /// árvore de widgets) — fix pós-review (F2): no branch de ERRO de
+  /// `tournamentAsync.when(...)` no `build()`, `_buildWizard` é chamado com
+  /// `tournament: null`, e passar isso direto pra cá fazia
+  /// `needsLevelConfirmation` tratar "não sei o esporte" como "esporte sem
+  /// equivalente no perfil" — pulava a confirmação em SILÊNCIO exatamente no
+  /// aceite que pode travar a janela. Perfil (ou torneio) ainda carregando
+  /// também não pode virar "sem perfil"/"sem esporte" — isso faria o gate
+  /// pular em silêncio. Erro em qualquer um dos dois bloqueia a aceitação
+  /// com o aviso genérico já usado pelas outras ações desta tela.
+  Future<bool> _ensureLevelConfirmed(String tournamentId) async {
     final LevelConfirmationPrompt? prompt;
     try {
-      prompt = await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
-        ref.read(athleteProfileProvider.future),
-        tournamentSport: tournamentSport,
-      );
+      prompt = await CategoryLevelEligibility
+          .resolveLevelConfirmationPromptForTournament(
+            ref.read(athleteProfileProvider.future),
+            ref
+                .read(tournamentDetailProvider(tournamentId).future)
+                .then((t) => t?.sport),
+          );
     } catch (_) {
       if (!mounted) return false;
       showAppSnackBar(
@@ -170,7 +181,6 @@ class _TournamentPartnerInvitePageState
   Future<void> _acceptInvite({
     required TournamentPartnerInvite invite,
     TournamentCategoryOffer? category,
-    TournamentDetail? tournament,
   }) async {
     if (_accepting) return;
 
@@ -192,7 +202,7 @@ class _TournamentPartnerInvitePageState
     // (`tournament-level-lock.ts`) como caminho que trava `levelLocked` na
     // 1ª inscrição ATIVA do esporte. Sem este gate aqui, quem entra numa
     // dupla via convite nunca via o último aviso (achado do review, C1).
-    if (!await _ensureLevelConfirmed(tournament?.sport)) return;
+    if (!await _ensureLevelConfirmed(invite.tournamentId)) return;
 
     setState(() => _accepting = true);
 
@@ -259,7 +269,6 @@ class _TournamentPartnerInvitePageState
   void _onContinueFromConfirm({
     required TournamentPartnerInvite invite,
     required TournamentCategoryOffer? category,
-    required TournamentDetail? tournament,
   }) {
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
       _showProfileAccessBlocked();
@@ -270,15 +279,12 @@ class _TournamentPartnerInvitePageState
       setState(() => _wizardStep = _PartnerInviteWizardStep.uniform);
       return;
     }
-    unawaited(
-      _acceptInvite(invite: invite, category: category, tournament: tournament),
-    );
+    unawaited(_acceptInvite(invite: invite, category: category));
   }
 
   void _onContinueFromUniform({
     required TournamentPartnerInvite invite,
     required TournamentCategoryOffer category,
-    required TournamentDetail? tournament,
   }) {
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
       _showProfileAccessBlocked();
@@ -292,9 +298,7 @@ class _TournamentPartnerInvitePageState
       showAppSnackBar(context, error, isError: true);
       return;
     }
-    unawaited(
-      _acceptInvite(invite: invite, category: category, tournament: tournament),
-    );
+    unawaited(_acceptInvite(invite: invite, category: category));
   }
 
   Future<void> _decline() async {
@@ -485,7 +489,6 @@ class _TournamentPartnerInvitePageState
                     : () => _onContinueFromUniform(
                         invite: invite,
                         category: category,
-                        tournament: tournament,
                       ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
@@ -575,7 +578,6 @@ class _TournamentPartnerInvitePageState
               onPrimary: () => _onContinueFromConfirm(
                 invite: invite,
                 category: category,
-                tournament: tournament,
               ),
               onDecline: _decline,
             ),

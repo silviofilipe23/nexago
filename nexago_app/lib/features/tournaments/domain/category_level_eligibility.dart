@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../athlete/domain/athlete_firestore_codes.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_profile_options.dart';
@@ -146,6 +148,52 @@ abstract final class CategoryLevelEligibility {
           AthleteFirestoreCodes.sportFirestoreToLabel(sportCode) ??
               tournamentSport ??
               '',
+    );
+  }
+
+  /// Como [resolveLevelConfirmationPrompt], mas também AGUARDA o `Future` do
+  /// ESPORTE DO TORNEIO em vez de aceitar um valor já resolvido pelo
+  /// chamador — fix pós-review (calibração de nível, F2).
+  ///
+  /// `TournamentPartnerInvitePage._ensureLevelConfirmed` descobria o esporte
+  /// de um `AsyncValue<TournamentDetail?>` que, no branch de ERRO da árvore
+  /// de widgets, vira `null` — e `needsLevelConfirmation` trata "não sei o
+  /// esporte" IGUAL a "esporte sem equivalente no perfil": pula a
+  /// confirmação em SILÊNCIO, bem no aceite que pode ser a 1ª inscrição
+  /// ativa do atleta naquele esporte (a que tranca a janela de calibração).
+  /// Mesma classe de furo que o portal web corrigiu com
+  /// `resolveLevelConfirmationPromptForTournament` (buscar o torneio
+  /// FRESCO), e a mesma técnica que este arquivo já usa pro PERFIL (ver nota
+  /// acima).
+  ///
+  /// [tournamentSportFuture] busca o esporte de novo (ex.:
+  /// `ref.read(tournamentDetailProvider(id).future).then((t) => t?.sport)`)
+  /// em vez de confiar no snapshot congelado da árvore de widgets — um
+  /// provider vivo resolve o valor já emitido na hora, ou tenta de novo se
+  /// ainda não emitiu. Erro real em QUALQUER um dos dois `Future`s ainda
+  /// propaga pro chamador — quem decide bloquear a submissão é quem chama.
+  ///
+  /// Aguarda os dois em PARALELO (`Future.wait`, não `await` sequencial):
+  /// aguardar um primeiro e só depois anexar o outro deixaria o segundo sem
+  /// handler durante o `await` do primeiro — se ele for rejeitado nesse
+  /// intervalo, o Dart marca a rejeição como não tratada mesmo sendo
+  /// relançada depois. `Future.wait` (a estática, não o `.wait` de record —
+  /// esse embrulha o erro em `ParallelWaitError`) anexa os handlers nos dois
+  /// de uma vez e relança o erro ORIGINAL, sem essa janela nem embrulho.
+  static Future<LevelConfirmationPrompt?>
+  resolveLevelConfirmationPromptForTournament(
+    Future<AthleteProfile?> profileFuture,
+    Future<String?> tournamentSportFuture,
+  ) async {
+    AthleteProfile? profile;
+    String? tournamentSport;
+    await Future.wait<void>([
+      profileFuture.then((p) => profile = p),
+      tournamentSportFuture.then((s) => tournamentSport = s),
+    ]);
+    return resolveLevelConfirmationPrompt(
+      Future.value(profile),
+      tournamentSport: tournamentSport,
     );
   }
 

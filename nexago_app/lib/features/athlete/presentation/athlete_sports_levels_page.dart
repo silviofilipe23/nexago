@@ -6,12 +6,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_profile_options.dart';
-import '../domain/athlete_sports_levels_labels.dart';
 import '../domain/athlete_sports_levels_providers.dart';
 import '../onboarding/domain/athlete_onboarding_options.dart';
+import '../onboarding/presentation/widgets/onboarding_level_tile.dart';
 import 'widgets/athlete_level_zone_card.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_add_chip.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_level_card.dart';
@@ -209,7 +208,10 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
         return StatefulBuilder(
           builder: (ctx, setState) {
             return SafeArea(
-              child: Padding(
+              // Escada inteira ganhou descrição por degrau (spec §4.5a, achado do
+              // review F8) — 7 tiles cheios não cabem sempre sem rolar, então o
+              // sheet (já `isScrollControlled`) fica scrollável.
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -233,21 +235,21 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
                       ),
                     ),
                     SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: AthleteProfileOptions.levels.map((option) {
-                        final isSelected = selected == option;
-                        return _NewSportLevelChip(
-                          label: AthleteSportsLevelsLabels.abbreviationFor(
-                            option,
-                          ),
-                          selected: isSelected,
-                          onTap: () => setState(() => selected = option),
-                        );
-                      }).toList(),
-                    ),
-                    SizedBox(height: 20),
+                    // `OnboardingLevelOption` (mesmo dado do onboarding, reaproveitado
+                    // aqui) já tem a descrição por degrau que a spec pede pro atleta
+                    // se reconhecer — antes só o rótulo abreviado aparecia.
+                    ...AthleteOnboardingOptions.levels.map((option) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OnboardingLevelTile(
+                          option: option,
+                          selected: selected == option.label,
+                          onTap: () =>
+                              setState(() => selected = option.label),
+                        ),
+                      );
+                    }),
+                    SizedBox(height: 12),
                     FilledButton(
                       onPressed: selected == null
                           ? null
@@ -557,43 +559,3 @@ class _ReadyBody extends StatelessWidget {
   }
 }
 
-/// Chip de nível do sheet "adicionar esporte" — igual ao chip do card
-/// (`_LevelChip` em `athlete_sport_level_card.dart`), mas nunca com cadeado:
-/// esporte novo não tem nível salvo ainda, então nada aqui pode estar
-/// bloqueado.
-class _NewSportLevelChip extends StatelessWidget {
-  const _NewSportLevelChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.brand : context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Text(
-            label,
-            style: AppTypography.mono(
-              fontWeight: FontWeight.w700,
-              color: selected
-                  ? context.themeColors.canvas
-                  : context.themeColors.onSurfaceMuted,
-              fontSize: 11,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

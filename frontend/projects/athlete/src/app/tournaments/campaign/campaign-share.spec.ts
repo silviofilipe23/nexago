@@ -1,5 +1,5 @@
 import type { TournamentMatch } from '../../data/matches-repository';
-import { campaignPlacementOf, campaignRowsOf } from './campaign-share';
+import { campaignPlacementOf, campaignRowsOf, fitCampaignRows, type CampaignRow } from './campaign-share';
 
 function match(partial: Partial<TournamentMatch> & Pick<TournamentMatch, 'id'>): TournamentMatch {
   return {
@@ -194,5 +194,76 @@ describe('campaignRowsOf', () => {
   it('marca derrota', () => {
     const rows = campaignRowsOf([ko('qf', 'knockout', 1, 'them')], 'c1', MINE, NAME_OF);
     expect(rows[0]!.kind === 'match' && rows[0]!.outcome).toBe('loss');
+  });
+});
+
+function winRow(phase: string, isGroup = false): CampaignRow {
+  return { kind: 'match', outcome: 'win', isGroup, phaseLabel: phase, opponentName: 'Dupla x', setScore: '2–0', partials: ['21-15', '21-18'] };
+}
+
+function lossRow(phase: string, isGroup = false): CampaignRow {
+  return { kind: 'match', outcome: 'loss', isGroup, phaseLabel: phase, opponentName: 'Dupla y', setScore: '0–2', partials: ['15-21', '18-21'] };
+}
+
+describe('fitCampaignRows', () => {
+  it('não mexe numa campanha que cabe', () => {
+    const rows = [winRow('Grupo A · J1', true), winRow('Quartas'), winRow('Semifinal'), winRow('Final')];
+    const fitted = fitCampaignRows(rows);
+    expect(fitted.rows).toEqual(rows);
+    expect(fitted.hiddenCount).toBe(0);
+  });
+
+  it('colapsa a fase de grupos quando passa do teto', () => {
+    const rows = [
+      winRow('Grupo A · J1', true),
+      lossRow('Grupo A · J2', true),
+      winRow('Grupo A · J3', true),
+      winRow('Oitavas'),
+      winRow('Quartas'),
+      winRow('Semifinal'),
+      winRow('Final'),
+      winRow('LB · Rodada 1'),
+      winRow('LB · Rodada 2'),
+      winRow('LB · Rodada 3'),
+    ];
+    const fitted = fitCampaignRows(rows);
+    expect(fitted.rows.length).toBe(8);
+    expect(fitted.rows[0]).toEqual({ kind: 'group-summary', phaseLabel: 'Grupo A', games: 3, wins: 2, losses: 1 });
+    expect(fitted.hiddenCount).toBe(0);
+  });
+
+  it('não colapsa um grupo de uma partida só (não economiza linha)', () => {
+    const rows = [winRow('Grupo A · J1', true), ...Array.from({ length: 9 }, (_, i) => winRow(`KO ${i}`))];
+    const fitted = fitCampaignRows(rows);
+    expect(fitted.rows[0]!.kind).toBe('match');
+  });
+
+  it('corta as mais antigas e reporta quantas ficaram de fora', () => {
+    const rows = Array.from({ length: 13 }, (_, i) => winRow(`KO ${i + 1}`));
+    const fitted = fitCampaignRows(rows);
+    expect(fitted.rows.length).toBe(9);
+    expect(fitted.hiddenCount).toBe(4);
+    // Corta pelo começo: o fim da campanha é a parte que conta a história.
+    expect(fitted.rows[0]!.kind === 'match' && fitted.rows[0]!.phaseLabel).toBe('KO 5');
+    expect(fitted.rows[8]!.kind === 'match' && fitted.rows[8]!.phaseLabel).toBe('KO 13');
+  });
+
+  it('colapsa o grupo ANTES de cortar', () => {
+    const rows = [
+      winRow('Grupo A · J1', true),
+      winRow('Grupo A · J2', true),
+      winRow('Grupo A · J3', true),
+      ...Array.from({ length: 8 }, (_, i) => winRow(`KO ${i + 1}`)),
+    ];
+    const fitted = fitCampaignRows(rows);
+    expect(fitted.rows[0]!.kind).toBe('group-summary');
+    expect(fitted.rows.length).toBe(9);
+    expect(fitted.hiddenCount).toBe(0);
+  });
+
+  it('respeita um teto passado à mão', () => {
+    const rows = Array.from({ length: 5 }, (_, i) => winRow(`KO ${i + 1}`));
+    expect(fitCampaignRows(rows, 3).rows.length).toBe(3);
+    expect(fitCampaignRows(rows, 3).hiddenCount).toBe(2);
   });
 });

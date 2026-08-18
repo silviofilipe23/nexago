@@ -151,3 +151,58 @@ export function campaignRowsOf(
       };
     });
 }
+
+/** Quantas linhas o painel comporta no passo do protótipo. Acima disso a arte encolhe o passo. */
+export const CAMPAIGN_ROWS_COMFORT = 7;
+
+/** O teto absoluto: quantas linhas cabem com o passo já no piso. Passar daqui exige cortar. */
+export const CAMPAIGN_ROWS_MAX = 9;
+
+export interface CampaignTrajectory {
+  rows: CampaignRow[];
+  /** Jogos que não couberam no painel. `0` quando tudo coube — o cabeçalho só declara o corte
+   *  quando ele existe. */
+  hiddenCount: number;
+}
+
+/**
+ * Encaixa a campanha no painel, em dois degraus, nesta ordem.
+ *
+ * 1. **Colapsa a fase de grupos numa linha só** ("Grupo A", "3 jogos · 2V 1D"). O mata-mata é a
+ *    parte que conta a história; o grupo vira contexto. Só colapsa com 2+ partidas de grupo — com
+ *    uma só, a troca não economiza linha nenhuma e apagaria um adversário à toa.
+ * 2. **Corta as mais ANTIGAS** e devolve `hiddenCount`, pra que o cabeçalho do painel declare
+ *    "+N JOGOS".
+ *
+ * O corte é declarado de propósito. `fitFont` encolhe até o piso e devolve o texto inteiro do
+ * jeito que estiver — encolher nunca garantiu encaixe nesta base, e um corte silencioso faria o
+ * card mentir sobre o tamanho da campanha.
+ *
+ * O degrau intermediário do desenho — encolher o passo entre linhas — NÃO mora aqui: é decisão da
+ * arte, que compara o total com `CAMPAIGN_ROWS_COMFORT`.
+ */
+export function fitCampaignRows(rows: readonly CampaignRow[], maxRows = CAMPAIGN_ROWS_MAX): CampaignTrajectory {
+  if (rows.length <= maxRows) return { rows: [...rows], hiddenCount: 0 };
+
+  const groupRows = rows.filter((r) => r.kind === 'match' && r.isGroup);
+  let working: CampaignRow[] = [...rows];
+
+  if (groupRows.length >= 2) {
+    const wins = groupRows.filter((r) => r.kind === 'match' && r.outcome === 'win').length;
+    const first = groupRows[0]!;
+    const summary: CampaignRow = {
+      kind: 'group-summary',
+      // O rótulo da linha é "Grupo A · J1"; o resumo fica com o grupo, sem o jogo.
+      phaseLabel: (first.kind === 'match' ? first.phaseLabel.split(' · ')[0] : null) ?? 'Grupo',
+      games: groupRows.length,
+      wins,
+      losses: groupRows.length - wins,
+    };
+    working = [summary, ...rows.filter((r) => !(r.kind === 'match' && r.isGroup))];
+  }
+
+  if (working.length <= maxRows) return { rows: working, hiddenCount: 0 };
+
+  const hiddenCount = working.length - maxRows;
+  return { rows: working.slice(hiddenCount), hiddenCount };
+}

@@ -1,4 +1,6 @@
+import type { TournamentSummary } from './tournaments-repository';
 import {
+  filterOngoingStaffTournaments,
   sortStaffTournaments,
   staffRoleForTournament,
   staffRoleLabel,
@@ -75,6 +77,38 @@ describe('tournament-staff-repository', () => {
       ] as MyStaffTournament[];
       sortStaffTournaments(entries);
       expect(entries.map((e) => e.tournamentId)).toEqual(['a', 'b']);
+    });
+  });
+
+  describe('filterOngoingStaffTournaments', () => {
+    const entries = [
+      { tournamentId: 'rolando' },
+      { tournamentId: 'finalizado' },
+      { tournamentId: 'cancelado' },
+      { tournamentId: 'sem-doc' },
+    ] as MyStaffTournament[];
+
+    type Status = Pick<TournamentSummary, 'rawStatus' | 'isCancelled'>;
+    const tournaments = new Map<string, Status>([
+      ['rolando', { rawStatus: 'live', isCancelled: false }],
+      ['finalizado', { rawStatus: 'completed', isCancelled: false }],
+      ['cancelado', { rawStatus: 'ended', isCancelled: true }],
+    ]);
+
+    it('esconde o que já finalizou ou foi cancelado', () => {
+      const ids = filterOngoingStaffTournaments(entries, tournaments).map((e) => e.tournamentId);
+      expect(ids).not.toContain('finalizado');
+      expect(ids).not.toContain('cancelado');
+    });
+
+    it('mantém o torneio em andamento e o que não deu pra ler', () => {
+      // Leitura falha/doc ausente não pode esvaziar a mesa no dia do evento.
+      const ids = filterOngoingStaffTournaments(entries, tournaments).map((e) => e.tournamentId);
+      expect(ids).toEqual(['rolando', 'sem-doc']);
+    });
+
+    it('sem status nenhum, devolve tudo', () => {
+      expect(filterOngoingStaffTournaments(entries, new Map()).length).toBe(entries.length);
     });
   });
 

@@ -26,7 +26,7 @@ import {
   type MyBooking,
 } from './data/my-bookings-repository';
 import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
-import { staffRoleLabel, watchMyStaffTournaments, type MyStaffTournament } from './data/tournament-staff-repository';
+import { staffRoleLabel, watchMyOngoingStaffTournaments, type MyStaffTournament } from './data/tournament-staff-repository';
 import { PartnerInvitesService } from './data/partner-invites.service';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
@@ -821,10 +821,10 @@ export class AthletePainelComponent {
         () => this.missionsDoneState.set(new Set()),
       );
 
-      const stopStaff = watchMyStaffTournaments(
+      const stopStaff = watchMyOngoingStaffTournaments(
         this.firestore,
         user.uid,
-        (entries) => this.staffTournamentsState.set(entries),
+        (view) => this.staffTournamentsState.set(view.ongoing),
         () => this.staffTournamentsState.set([]),
       );
 

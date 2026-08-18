@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { athleteFirestore } from '../data/firestore';
-import { staffRoleLabel, watchMyStaffTournaments, type MyStaffTournament } from '../data/tournament-staff-repository';
+import { staffRoleLabel, watchMyOngoingStaffTournaments, type MyStaffTournament } from '../data/tournament-staff-repository';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 
@@ -20,17 +20,25 @@ const DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', 
       <div class="mt-body">
         <header class="mt-head">
           <h1 class="mt-title">Mesa</h1>
-          <p class="mt-sub">Torneios que você opera. Abra um para lançar os placares das partidas.</p>
+          <p class="mt-sub">Torneios em andamento que você opera. Abra um para lançar os placares das partidas.</p>
         </header>
 
         @if (loading()) {
           <app-nx-page-loading title="Carregando seus torneios…" subtitle="Buscando onde você está na equipe" />
         } @else if (entries().length === 0) {
           <div class="mt-card mt-empty">
-            <p class="mt-empty-title">Você ainda não é equipe de nenhum torneio.</p>
-            <p class="mt-empty-sub">
-              Quando um organizador te adicionar como mesário, o torneio aparece aqui e a mesa abre direto.
-            </p>
+            @if (hasFinishedOnly()) {
+              <p class="mt-empty-title">Nenhum torneio em andamento.</p>
+              <p class="mt-empty-sub">
+                Os torneios que você operou já foram finalizados ou cancelados. O próximo aparece aqui assim
+                que o organizador te colocar na equipe.
+              </p>
+            } @else {
+              <p class="mt-empty-title">Você ainda não é equipe de nenhum torneio.</p>
+              <p class="mt-empty-sub">
+                Quando um organizador te adicionar como mesário, o torneio aparece aqui e a mesa abre direto.
+              </p>
+            }
           </div>
         } @else {
           <div class="mt-list">
@@ -154,6 +162,8 @@ export class MesaTournamentsComponent {
   private readonly db = athleteFirestore();
 
   protected readonly entries = signal<MyStaffTournament[]>([]);
+  /** Só torneio encerrado no espelho: a lista vazia não é "nunca fui equipe". */
+  protected readonly hasFinishedOnly = signal(false);
   protected readonly loading = signal(true);
 
   protected readonly accountLabel = computed(() => this.auth.user()?.displayName?.trim() || 'Atleta');
@@ -164,14 +174,16 @@ export class MesaTournamentsComponent {
       const db = this.db;
       if (!uid || !db) {
         this.entries.set([]);
+        this.hasFinishedOnly.set(false);
         this.loading.set(false);
         return;
       }
-      const unsub = watchMyStaffTournaments(
+      const unsub = watchMyOngoingStaffTournaments(
         db,
         uid,
-        (entries) => {
-          this.entries.set(entries);
+        (view) => {
+          this.entries.set(view.ongoing);
+          this.hasFinishedOnly.set(view.ongoing.length === 0 && view.all.length > 0);
           this.loading.set(false);
         },
         () => this.loading.set(false),

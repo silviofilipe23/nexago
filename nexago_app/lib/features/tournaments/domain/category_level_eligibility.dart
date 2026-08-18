@@ -96,6 +96,26 @@ abstract final class CategoryLevelEligibility {
     );
   }
 
+  /// Janela de calibração (plano de calibração de nível, Task 6): a PRIMEIRA
+  /// inscrição do atleta em um esporte merece um último aviso antes de
+  /// travar o ratchet "nível só sobe" — [AthleteProfile.levelLocked] é
+  /// gravado pelo backend na 1ª inscrição ATIVA daquele esporte.
+  ///
+  /// `true` quando o esporte do torneio mapeia para um código de esporte do
+  /// perfil E esse código ainda não está travado (`levelLocked[code] != true`).
+  /// `false` quando já travado, quando o esporte do torneio não tem
+  /// equivalente no perfil (sem janela de calibração aplicável) ou quando o
+  /// perfil é nulo.
+  static bool needsLevelConfirmation(
+    AthleteProfile? profile, {
+    String? tournamentSport,
+  }) {
+    if (profile == null) return false;
+    final sportCode = tournamentSportToLevelSportCode(tournamentSport);
+    if (sportCode == null) return false;
+    return profile.levelLocked[sportCode] != true;
+  }
+
   /// Mensagem curta para o card quando a categoria está abaixo do nível do atleta.
   static String blockBadgeLabel() => 'ABAIXO DO SEU NÍVEL';
 

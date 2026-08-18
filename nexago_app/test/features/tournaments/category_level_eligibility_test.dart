@@ -15,6 +15,7 @@ TournamentCategoryOffer _offer(String level, {String minLevel = ''}) =>
 AthleteProfile _athlete(
   String level, {
   Map<String, String> levelsBySportFirestore = const {},
+  Map<String, bool> levelLocked = const {},
 }) =>
     AthleteProfile(
       id: 'a',
@@ -23,6 +24,7 @@ AthleteProfile _athlete(
       level: level,
       city: 'Goiânia',
       levelsBySportFirestore: levelsBySportFirestore,
+      levelLocked: levelLocked,
     );
 
 void main() {
@@ -307,6 +309,62 @@ void main() {
       expect(
         CategoryLevelEligibility.blockMessage(_athlete('Open')),
         contains('Open'),
+      );
+    });
+  });
+
+  group('needsLevelConfirmation', () {
+    test('esporte mapeado e ainda não travado → precisa confirmar', () {
+      final a = _athlete('open', levelLocked: {'VOLEI_QUADRA': true});
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'beachVolleyball',
+        ),
+        isTrue,
+      );
+    });
+
+    test('esporte já travado (levelLocked true) → não precisa confirmar', () {
+      final a = _athlete('open', levelLocked: {'VOLEI_PRAIA': true});
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'beachVolleyball',
+        ),
+        isFalse,
+      );
+    });
+
+    test('esporte do torneio sem equivalente no perfil → não precisa confirmar', () {
+      final a = _athlete('open');
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'xadrez',
+        ),
+        isFalse,
+      );
+    });
+
+    test('perfil nulo → não precisa confirmar', () {
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          null,
+          tournamentSport: 'beachVolleyball',
+        ),
+        isFalse,
+      );
+    });
+
+    test('mapa levelLocked vazio (nunca travou) → precisa confirmar', () {
+      final a = _athlete('iniciante');
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'footvolley',
+        ),
+        isTrue,
       );
     });
   });

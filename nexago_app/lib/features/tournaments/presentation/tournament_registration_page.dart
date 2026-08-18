@@ -20,6 +20,8 @@ import '../../arenas/data/payment_service.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/payment_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
+import '../../athlete/domain/athlete_firestore_codes.dart';
+import '../../athlete/domain/athlete_profile_options.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/profile_access.dart'
     show formatMissingProfileStepsForAccess;
@@ -47,6 +49,7 @@ import '../domain/tournament_registration_providers.dart';
 import 'widgets/tournament_registration/tournament_registration_category_card.dart';
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_hero_card.dart';
+import 'widgets/tournament_registration/level_confirmation_sheet.dart';
 import 'widgets/tournament_registration/tournament_registration_partner_step.dart';
 import 'widgets/tournament_registration/tournament_cancellation_request_sheet.dart';
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
@@ -581,6 +584,47 @@ class _TournamentRegistrationPageState
     return accepted;
   }
 
+  /// Última chance de revisar o nível antes de travar o ratchet "nível só
+  /// sobe" (plano de calibração de nível, Task 6): só aparece quando esta é
+  /// a PRIMEIRA inscrição do atleta naquele esporte
+  /// (`levelLocked[sportCode] != true`); depois de travado, nunca mais.
+  /// Retorna false se o atleta não confirmou (fechou o sheet ou pediu para
+  /// ajustar o nível — nesse caso já navega para "Esportes e níveis").
+  Future<bool> _ensureLevelConfirmed(String? tournamentSport) async {
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    if (!CategoryLevelEligibility.needsLevelConfirmation(
+      profile,
+      tournamentSport: tournamentSport,
+    )) {
+      return true;
+    }
+    final rank = CategoryLevelEligibility.athleteLevelRank(
+      profile,
+      tournamentSport: tournamentSport,
+    );
+    final sportCode =
+        CategoryLevelEligibility.tournamentSportToLevelSportCode(
+      tournamentSport,
+    );
+    final sportLabel =
+        AthleteFirestoreCodes.sportFirestoreToLabel(sportCode) ??
+            tournamentSport ??
+            '';
+    final confirmed = await showLevelConfirmationSheet(
+      context,
+      levelLabel: AthleteProfileOptions.labelForRank(rank),
+      sportLabel: sportLabel,
+    );
+    if (!mounted) return false;
+    if (confirmed != true) {
+      if (confirmed == false) {
+        context.pushNamed(AppRouteNames.athleteSportsLevels);
+      }
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _sendInvite(TournamentDetail tournament) async {
     final cat = _category;
     final partner = _selectedPartner;
@@ -693,6 +737,7 @@ class _TournamentRegistrationPageState
       if (teamName == null || !mounted) return false;
     }
     if (!await _ensureLgpdConsent() || !mounted) return false;
+    if (!await _ensureLevelConfirmed(tournament.sport)) return false;
     setState(() => _submitting = true);
     try {
       final service = ref.read(tournamentPartnerInviteServiceProvider);

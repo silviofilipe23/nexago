@@ -206,7 +206,6 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                   selected: activeCategoryLevelPreset(_category),
                   labelBuilder: (label) => label ?? '',
                   onSelected: (label) {
-                    if (label == null) return;
                     final preset = categoryLevelPresets.firstWhere(
                       (p) => p.label == label,
                     );
@@ -228,21 +227,6 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
-                const OrganizerSectionLabel('NÍVEL'),
-                const SizedBox(height: 8),
-                OrganizerChipSelector(
-                  horizontalScroll: true,
-                  // Escada única de 7 níveis para todos os esportes.
-                  options: skillLevelOptionsForSport(
-                    ref.watch(tournamentCreateDraftProvider).sport,
-                  ),
-                  selected: _category.skillLevel,
-                  labelBuilder: skillLevelLabel,
-                  onSelected: (value) => setState(
-                    () => _category = _category.copyWith(skillLevel: value),
-                  ),
-                ),
                 const SizedBox(height: 20),
                 OrganizerCategoryFormatSection(
                   bracketSystem: _category.bracketSystem,

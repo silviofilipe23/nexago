@@ -205,6 +205,35 @@ describe("tryAwardGlobalRankingForMatch", () => {
     assert.equal(aggB.totalPoints, 1000);
   });
 
+  it("doc não carimbado com resultados na escala antiga migra on-write ao ganhar novo prêmio (fase 3)", async () => {
+    const db = seededDb();
+    // Doc sobrevivente da era ×1 (pré-fase 3): sem `scaleVersion`, pontos na
+    // escala antiga — simula exatamente o que fica na janela deploy→script
+    // (mode A da corrida documentada no cabeçalho de
+    // backfill-ranking-scale-x10.js) até o script rodar.
+    db.seedDoc(`${teamRankingsPath(PROJECT)}/tA`, {
+      teamId: "tA",
+      results: [
+        {tournamentId: "T-old", categoryId: "C-old", finalPlace: 3, points: 60, year: 2025},
+      ],
+      totalPoints: 60,
+      tournamentsCount: 1,
+      pointsByYear: {"2025": 60},
+    });
+
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+
+    const teamAgg = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
+    const results = teamAgg.results as Array<{tournamentId: string; points: number}>;
+    assert.equal(results.length, 2);
+    // Entrada antiga reescalada ×10 (60 → 600) ANTES do merge da nova (1000).
+    const oldEntry = results.find((r) => r.tournamentId === "T-old")!;
+    assert.equal(oldEntry.points, 600);
+    assert.deepEqual(teamAgg.pointsByYear, {"2025": 600, "2026": 1000});
+    assert.equal(teamAgg.totalPoints, 1600);
+    assert.equal(teamAgg.scaleVersion, RANKING_SCALE_VERSION);
+  });
+
   it("times pagos fora do mata-mata pontuam pela fase de grupos", async () => {
     const db = seededDb();
     db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tC`, {player1Id: "c1"});
@@ -244,6 +273,23 @@ describe("tryAwardGlobalRankingForMatch", () => {
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
     )!;
     assert.equal(champion.pointsEarned, 2000);
+  });
+
+  it("rankingWeight <= 0 é saneado para 1 (Livre não paga como Elite)", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      rankingWeight: 0,
+      categories: [{categoryName: "C1", level: "Open", minLevel: "Iniciante 1"}],
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const champion = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
+    )!;
+    // round(1000 × 0.125 (Livre) × 1 (rankingWeight 0 saneado p/ 1) × 1 (10
+    // pagas)) = 125 — sem o saneamento, o guard do produto composto em
+    // `globalPointsForAward` colapsava multiplier=0 pra 1 e pagava 1000.
+    assert.equal(champion.pointsEarned, 125);
   });
 
   it("preset Open (peso 1) não altera os pontos base", async () => {

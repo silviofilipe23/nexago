@@ -38,7 +38,7 @@ A colocação é atribuída automaticamente quando uma partida é concluída (me
   - <4 duplas pagas: 25%
 - **Restrição para Livre**: ninguém recebe pontos do bucket "grupos" — só pontua quem chega ao mata-mata. Essa regra vale nos dois motores (geral e liga).
 - **Gate de participação**: torneio avulso com <10 duplas pagas não gera pontos. Etapa de liga é isenta do gate, mas fica sujeita ao modulador de chave.
-- **Migração de escala**: em 18/08/2026, o histórico de colocações foi reescalado ×10 via script idempotente (`scaleVersion: 2` gravado em documentos novos). Resultados anteriores permanecem com a escala antiga para auditoria.
+- **Migração de escala**: em 18/08/2026, o histórico de colocações foi reescalado ×10 via script idempotente (`scaleVersion: 2` gravado em todo documento migrado). Os PONTOS do histórico não ficam na escala antiga — o script reescreve `pointsEarned`/`results[].points` e os agregados no lugar; o que permanece "antigo" são as REGRAS: a migração é só de escala numérica, sem aplicar retroativamente pesos de preset ou modulador de chave que não existiam quando o resultado foi gravado.
 - Pontuação vale para o atleta **e** para a dupla; um atleta que joga mais de uma categoria/dupla no ano tem os pontos somados juntos, sem distinção de categoria.
 - Cálculo da pontuação total: **todo resultado conta, sem descarte**. `pointsByYear[ano]` soma tudo que foi conquistado naquele ano e a soma "geral" é a soma dos anos — é literalmente todo resultado já conquistado.
 - No app, o atleta pode ver dois modos: **Geral** (todos os anos) e **Por ano** (só os resultados daquele ano). Tem filtro por gênero (masculino/feminino/misto) e por atletas/duplas, além de busca por nome.

@@ -66,6 +66,7 @@ class _RankingHowItWorksSheet extends StatelessWidget {
             const SizedBox(height: 10),
             for (final entry in categoryPresetWeights.entries)
               _WeightRow(category: entry.key, weight: entry.value),
+            const _WeightRow(category: 'Outras categorias', weight: 1.0),
             const SizedBox(height: 8),
             Text(
               'No Livre, só pontua quem chega ao mata-mata. Chaves com menos '

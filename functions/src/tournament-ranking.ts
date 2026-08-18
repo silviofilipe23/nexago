@@ -218,7 +218,19 @@ async function upsertGlobalRankingDoc(
   const ref = db.collection(params.collectionPath).doc(params.docId);
   const snap = await ref.get();
   const prev = snap.data() ?? {};
-  const results = parseResults(prev.results);
+  let results = parseResults(prev.results);
+
+  // Migração on-write (paridade com backfill-ranking-scale-x10.js): se o doc
+  // existe mas ainda não foi carimbado na escala atual, reescala ×10 os
+  // `results[].points` ANTIGOS antes de mesclar a nova entrada. Sem isso, a
+  // janela deploy→script deixava o doc com pontos ×1 (antigos) e ×10 (novo)
+  // misturados, e mesmo assim carimbado com scaleVersion:2 — escapando pra
+  // sempre da varredura do script (mode A da corrida documentada no cabeçalho
+  // do backfill). Torna a janela deploy→script inofensiva.
+  const prevScaleVersion = Number(prev.scaleVersion) || 0;
+  if (snap.exists && prevScaleVersion < RANKING_SCALE_VERSION) {
+    results = results.map((row) => ({...row, points: Math.round(row.points * 10)}));
+  }
 
   const merged = upsertRankingResult(results, params.entry);
   if (merged == null) return false;
@@ -340,13 +352,25 @@ export async function tryAwardGlobalRankingForMatch(
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   if (!tournamentSnap.exists) return {awarded: false, teamsUpdated: 0};
   const tournament = tournamentSnap.data() ?? {};
-  const rankingWeight = Number(tournament.rankingWeight ?? 1);
+  // Saneado na leitura: 0/negativo/NaN caem no default 1, em vez de deixar o
+  // guard do produto composto em `globalPointsForAward` colapsar TUDO pra 1
+  // (Livre pagaria 1000 igual ao topo do Elite). O guard do produto composto
+  // segue como última linha de defesa, não a única.
+  const rawRankingWeight = Number(tournament.rankingWeight ?? 1);
+  const rankingWeight =
+    Number.isFinite(rawRankingWeight) && rawRankingWeight > 0 ? rawRankingWeight : 1;
   const isLeagueStage = String(tournament.leagueId ?? "").trim().length > 0;
   const rankingEnabled = tournament.rankingEnabled !== false;
 
   // Peso do preset NUNCA vem de campo gravado: deriva de level/minLevel da
   // categoria a cada premiação (à prova de adulteração no cliente).
   const category = findCategory(tournament as never, categoryId);
+  if (!category) {
+    logger.warn(
+      `globalRanking: categoria ${categoryId} não encontrada no torneio ${tournamentId} — ` +
+        `usando peso legado (${LEGACY_CATEGORY_WEIGHT})`,
+    );
+  }
   const preset = categoryPreset(category);
   const presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
 

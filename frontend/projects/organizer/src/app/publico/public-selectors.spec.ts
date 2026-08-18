@@ -1,6 +1,12 @@
 import type { TournamentMatch } from '../painel/data/matches-repository';
 import type { OrganizerTournamentCategory, OrganizerTournamentCourt } from '../painel/data/tournament.model';
-import { categoryNameOf, publicCourtRows, publicUpcomingRows, recentResults } from './public-selectors';
+import {
+  applyTeamLabels,
+  categoryNameOf,
+  publicCourtRows,
+  publicUpcomingRows,
+  recentResults,
+} from './public-selectors';
 
 const NOW = Date.UTC(2026, 7, 18, 18, 0, 0); // 18/08/2026 18:00 UTC
 
@@ -128,5 +134,55 @@ describe('categoryNameOf', () => {
   it('devolve string vazia pra categoria desconhecida ou nula', () => {
     expect(categoryNameOf(CATEGORIES, null)).toBe('');
     expect(categoryNameOf(CATEGORIES, 'nao-existe')).toBe('');
+  });
+});
+
+describe('applyTeamLabels', () => {
+  it('mapa vazio devolve as partidas intactas', () => {
+    const matches = [match({ teamAId: 't1', teamBId: 't2' })];
+    expect(applyTeamLabels(matches, new Map())).toEqual(matches);
+  });
+
+  it('rótulo conhecido substitui team1Label/team2Label pelo nome real', () => {
+    const matches = [
+      match({
+        teamAId: 't1',
+        teamBId: 't2',
+        team1Label: 'Vencedor Jogo #12',
+        team2Label: '1º Grupo A',
+      }),
+    ];
+    const labels = new Map([
+      ['t1', 'Ana / Bia'],
+      ['t2', 'Carla / Dani'],
+    ]);
+    const [result] = applyTeamLabels(matches, labels);
+    expect(result.team1Label).toBe('Ana / Bia');
+    expect(result.team2Label).toBe('Carla / Dani');
+  });
+
+  it('partida com só um lado hidratado mantém o outro como estava', () => {
+    const matches = [
+      match({
+        teamAId: 't1',
+        teamBId: 't2',
+        team1Label: 'Vencedor Jogo #12',
+        team2Label: '1º Grupo A',
+      }),
+    ];
+    const labels = new Map([['t1', 'Ana / Bia']]);
+    const [result] = applyTeamLabels(matches, labels);
+    expect(result.team1Label).toBe('Ana / Bia');
+    expect(result.team2Label).toBe('1º Grupo A');
+  });
+
+  it('partida sem teamAId/teamBId (slot indefinido) mantém a descrição original', () => {
+    const matches = [
+      match({ teamAId: '', teamBId: '', team1Label: 'Vencedor Jogo #12', team2Label: 'A definir' }),
+    ];
+    const labels = new Map([['t1', 'Ana / Bia']]);
+    const [result] = applyTeamLabels(matches, labels);
+    expect(result.team1Label).toBe('Vencedor Jogo #12');
+    expect(result.team2Label).toBe('A definir');
   });
 });

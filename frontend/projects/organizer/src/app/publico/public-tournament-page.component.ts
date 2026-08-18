@@ -14,6 +14,7 @@ import { resolveCourtNames } from '../painel/data/matches-repository';
 import { spDayLabel, spTimeLabel } from '../painel/data/schedule-format';
 import { PublicCourtCardComponent } from './public-court-card.component';
 import {
+  applyTeamLabels,
   categoryNameOf,
   publicCourtRows,
   publicUpcomingRows,
@@ -272,7 +273,10 @@ export class PublicTournamentPageComponent {
   private readonly now = signal(Date.now());
 
   private readonly matchesWithCourtNames = computed(() =>
-    resolveCourtNames(this.store.matches(), this.store.tournament()?.courts ?? []),
+    applyTeamLabels(
+      resolveCourtNames(this.store.matches(), this.store.tournament()?.courts ?? []),
+      this.store.teamLabels(),
+    ),
   );
 
   protected readonly matchCount = computed(() => this.store.matches().length);

@@ -82,3 +82,18 @@ export function recentResults(matches: readonly TournamentMatch[], limit = 12): 
     .sort((a, b) => resultTimeOf(b) - resultTimeOf(a) || b.matchNumber - a.matchNumber)
     .slice(0, limit);
 }
+
+/** Troca o rótulo do doc da partida pelo nome real da dupla quando a hidratação já trouxe.
+ *  Slot ainda indefinido (sem `teamId`) mantém a descrição ("Vencedor Jogo #12"). */
+export function applyTeamLabels(
+  matches: readonly TournamentMatch[],
+  labels: ReadonlyMap<string, string>,
+): TournamentMatch[] {
+  if (labels.size === 0) return [...matches];
+  return matches.map((m) => {
+    const a = m.teamAId ? labels.get(m.teamAId) : undefined;
+    const b = m.teamBId ? labels.get(m.teamBId) : undefined;
+    if (!a && !b) return m;
+    return { ...m, team1Label: a ?? m.team1Label, team2Label: b ?? m.team2Label };
+  });
+}

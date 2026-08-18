@@ -1390,7 +1390,10 @@ service cloud.firestore {
     // keywords) — mantido por Cloud Function (onUserWrittenSyncPublicProfile).
     // É o diretório do app: busca de parceiro, ranking, equipes.
     match /public_profiles/{userId} {
-      allow read: if request.auth != null;
+      // Leitura pública: a página de acompanhamento do torneio (`/t/{id}`) roda sem login e
+      // precisa do nome/foto das duplas. A coleção é espelho SEM PII (apelido, nome de
+      // exibição e foto) — e-mail, telefone e nascimento vivem em `users`, que segue fechado.
+      allow read: if true;
       allow write: if false;
     }
 

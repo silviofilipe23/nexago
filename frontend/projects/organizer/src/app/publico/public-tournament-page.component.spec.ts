@@ -82,6 +82,7 @@ function fakeStore(
     matches?: TournamentMatch[];
     notFound?: boolean;
     error?: boolean;
+    teamLabels?: ReadonlyMap<string, string>;
   } = {},
 ) {
   return {
@@ -91,6 +92,7 @@ function fakeStore(
     loading: signal(false),
     notFound: signal(over.notFound ?? false),
     error: signal(over.error ?? false),
+    teamLabels: signal(over.teamLabels ?? new Map<string, string>()),
   };
 }
 
@@ -143,6 +145,35 @@ describe('PublicTournamentPageComponent', () => {
     expect(text).toContain('Quadra 1');
     expect(text).toContain('Ana / Bia');
     expect(text).toContain('Eva / Fabi');
+  });
+
+  it('troca o rótulo cru do doc pelo nome real da dupla já hidratado', async () => {
+    const fixture = await render(
+      fakeStore({
+        tournament: tournament(),
+        matches: [
+          match({
+            id: 'fim',
+            status: 'completed',
+            teamAId: 't1',
+            teamBId: 't2',
+            team1Label: 'Vencedor Jogo #12',
+            team2Label: '1º Grupo A',
+            matchEndedAt: new Date(),
+          }),
+        ],
+        teamLabels: new Map([
+          ['t1', 'Ana / Bia'],
+          ['t2', 'Carla / Dani'],
+        ]),
+      }),
+    );
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Ana / Bia');
+    expect(text).toContain('Carla / Dani');
+    expect(text).not.toContain('Vencedor Jogo #12');
+    expect(text).not.toContain('1º Grupo A');
   });
 
   it('nunca imprime dado financeiro do torneio', async () => {

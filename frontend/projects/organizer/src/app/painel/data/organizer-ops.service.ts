@@ -102,6 +102,21 @@ export function resendRegistrationPayment(registrationId: string): Promise<unkno
   return call('resendRegistrationPayment', { registrationId: registrationId.trim() });
 }
 
+/** Promove o nível de um atleta do torneio (Task 8 do plano de calibração) — mesma callable
+ *  `setAthleteLevel` do backoffice, aqui autorizada pelo caminho ORGANIZER (Task 3):
+ *  `tournamentId` prova que o caller é dono do torneio, `sportCode` tem que ser o esporte
+ *  DESSE torneio (o servidor rejeita divergência) e o atleta precisa ter inscrição ativa nele.
+ *  O servidor também garante a direção (só sobe) — a UI só evita oferecer o que já sabe que
+ *  vai falhar. */
+export function promoteAthleteLevel(params: { uid: string; sportCode: string; level: string; tournamentId: string }): Promise<unknown> {
+  return call('setAthleteLevel', {
+    uid: params.uid.trim(),
+    sportCode: params.sportCode.trim(),
+    level: params.level.trim(),
+    tournamentId: params.tournamentId.trim(),
+  });
+}
+
 /** Responde ao pedido de cancelamento do atleta. Aprovar remove a inscrição e libera
  *  a vaga; a plataforma NÃO estorna — a devolução é combinada fora dela. */
 export function respondCancellationRequest(

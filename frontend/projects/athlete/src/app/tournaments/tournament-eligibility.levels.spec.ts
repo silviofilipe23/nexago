@@ -1,4 +1,11 @@
-import { athleteLevelRank, evaluateCategoryEligibility, tournamentSportToLevelSportCode } from './tournament-eligibility';
+import {
+  athleteLevelRank,
+  evaluateCategoryEligibility,
+  needsLevelConfirmation,
+  resolveLevelConfirmationPrompt,
+  resolveLevelConfirmationPromptForTournament,
+  tournamentSportToLevelSportCode,
+} from './tournament-eligibility';
 import type { MyAthleteProfile } from '../data/my-athlete-profile-repository';
 import type { TournamentCategoryOffer } from '../data/tournaments-repository';
 
@@ -8,6 +15,7 @@ function profile(overrides: Partial<MyAthleteProfile>): MyAthleteProfile {
     birthDate: null,
     level: null,
     levelsBySport: {},
+    levelLocked: {},
     fullName: null,
     nickname: null,
     profilePhotoUrl: null,
@@ -109,5 +117,141 @@ describe('evaluateCategoryEligibility — piso de nível (minLevel)', () => {
     expect(result.status).toBe('belowLevel');
     expect(result.message).toContain('Open');
     expect(result.message).not.toContain('Avançado 2');
+  });
+});
+
+// Task 7 — confirmação de nível na 1ª inscrição do esporte. Espelha
+// `CategoryLevelEligibility.needsLevelConfirmation`/`resolveLevelConfirmationPrompt`
+// (Flutter, Task 6): gate puro + wrapper async que AWAITA o perfil antes de decidir.
+describe('needsLevelConfirmation — gate puro da 1ª inscrição', () => {
+  it('esporte já travado (levelLocked[sportCode] === true) → false, nunca mais pede', () => {
+    const p = profile({ levelsBySport: { VOLEI_PRAIA: 'intermediario_1' }, levelLocked: { VOLEI_PRAIA: true } });
+    expect(needsLevelConfirmation(p, 'beachVolleyball')).toBeFalse();
+  });
+
+  it('esporte mapeado e destravado → true', () => {
+    const p = profile({ levelsBySport: { VOLEI_PRAIA: 'intermediario_1' }, levelLocked: {} });
+    expect(needsLevelConfirmation(p, 'beachVolleyball')).toBeTrue();
+  });
+
+  it('esporte do torneio sem equivalente no perfil (sportCode null) → false', () => {
+    const p = profile({});
+    expect(needsLevelConfirmation(p, 'xadrez')).toBeFalse();
+    expect(needsLevelConfirmation(p, null)).toBeFalse();
+  });
+
+  it('perfil nulo → false (sem dado não dá pra confirmar; backend segue autoritativo)', () => {
+    expect(needsLevelConfirmation(null, 'beachVolleyball')).toBeFalse();
+  });
+});
+
+describe('resolveLevelConfirmationPrompt — awaita o Future do perfil antes de decidir (espelha o fix I1 da Task 6)', () => {
+  it('não decide enquanto o Future do perfil está pendente — só resolve depois do profileFuture resolver', async () => {
+    let resolveProfile!: (p: MyAthleteProfile | null) => void;
+    const pending = new Promise<MyAthleteProfile | null>((resolve) => {
+      resolveProfile = resolve;
+    });
+    let settled = false;
+    const promptFuture = resolveLevelConfirmationPrompt(pending, 'beachVolleyball').then((v: unknown) => {
+      settled = true;
+      return v;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBeFalse();
+
+    resolveProfile(profile({ levelsBySport: { VOLEI_PRAIA: 'iniciante_1' }, levelLocked: {} }));
+    const result = await promptFuture;
+
+    expect(settled).toBeTrue();
+    expect(result).toEqual({ levelLabel: 'Iniciante 1', sportLabel: 'Vôlei de praia' });
+  });
+
+  it('esporte travado → null (sem prompt)', async () => {
+    const p = profile({ levelsBySport: { VOLEI_PRAIA: 'intermediario_1' }, levelLocked: { VOLEI_PRAIA: true } });
+    const result = await resolveLevelConfirmationPrompt(Promise.resolve(p), 'beachVolleyball');
+    expect(result).toBeNull();
+  });
+
+  it('perfil ausente (Future resolve null) → null', async () => {
+    const result = await resolveLevelConfirmationPrompt(Promise.resolve(null), 'beachVolleyball');
+    expect(result).toBeNull();
+  });
+
+  it('erro no Future propaga pro chamador — quem decide bloquear é quem chama', async () => {
+    const boom = Promise.reject(new Error('fetch falhou'));
+    await expectAsync(resolveLevelConfirmationPrompt(boom, 'beachVolleyball')).toBeRejectedWithError('fetch falhou');
+  });
+});
+
+// Fix pós-review (I1): 3 dos 6 pontos de entrada descobrem o esporte do torneio pelo cache de
+// `PartnerInvitesService.pending()`, cujo contrato deixa `tournament: null` enquanto o fetch
+// paralelo ainda não voltou (`partner-invites.service.ts:24-27`). Ler esse valor direto tratava
+// "ainda não sei o esporte" como "sem esporte mapeado" e pulava o gate em silêncio — a MESMA
+// falha que a Task 6 (Flutter) cometeu no aceite de convite, só que na resolução do TORNEIO em
+// vez da do PERFIL. `resolveLevelConfirmationPromptForTournament` busca os dois FRESCOS.
+describe('resolveLevelConfirmationPromptForTournament — awaita perfil E torneio antes de decidir', () => {
+  it('não decide enquanto qualquer um dos dois Futures está pendente', async () => {
+    let resolveProfile!: (p: MyAthleteProfile | null) => void;
+    let resolveTournament!: (t: { sport: string | null } | null) => void;
+    const profileFuture = new Promise<MyAthleteProfile | null>((resolve) => {
+      resolveProfile = resolve;
+    });
+    const tournamentFuture = new Promise<{ sport: string | null } | null>((resolve) => {
+      resolveTournament = resolve;
+    });
+    let settled = false;
+    const promptFuture = resolveLevelConfirmationPromptForTournament(profileFuture, tournamentFuture).then(
+      (v: unknown) => {
+        settled = true;
+        return v;
+      },
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBeFalse();
+
+    // Perfil chega primeiro; sem o torneio ainda não decide.
+    resolveProfile(profile({ levelsBySport: { VOLEI_PRAIA: 'iniciante_1' }, levelLocked: {} }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBeFalse();
+
+    resolveTournament({ sport: 'beachVolleyball' });
+    const result = await promptFuture;
+
+    expect(settled).toBeTrue();
+    expect(result).toEqual({ levelLabel: 'Iniciante 1', sportLabel: 'Vôlei de praia' });
+  });
+
+  it('torneio travado (esporte já com levelLocked) → null', async () => {
+    const p = profile({ levelsBySport: { VOLEI_PRAIA: 'intermediario_1' }, levelLocked: { VOLEI_PRAIA: true } });
+    const result = await resolveLevelConfirmationPromptForTournament(
+      Promise.resolve(p),
+      Promise.resolve({ sport: 'beachVolleyball' }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it('torneio genuinamente ausente (fetch fresco resolve null, ex.: torneio apagado) → null, sem travar', async () => {
+    const p = profile({ levelsBySport: { VOLEI_PRAIA: 'iniciante_1' }, levelLocked: {} });
+    const result = await resolveLevelConfirmationPromptForTournament(Promise.resolve(p), Promise.resolve(null));
+    expect(result).toBeNull();
+  });
+
+  it('falha ao buscar o TORNEIO propaga pro chamador (quem decide bloquear é quem chama)', async () => {
+    const boom = Promise.reject(new Error('torneio: fetch falhou'));
+    await expectAsync(
+      resolveLevelConfirmationPromptForTournament(Promise.resolve(profile({})), boom),
+    ).toBeRejectedWithError('torneio: fetch falhou');
+  });
+
+  it('falha ao buscar o PERFIL propaga pro chamador', async () => {
+    const boom = Promise.reject(new Error('perfil: fetch falhou'));
+    await expectAsync(
+      resolveLevelConfirmationPromptForTournament(boom, Promise.resolve({ sport: 'beachVolleyball' })),
+    ).toBeRejectedWithError('perfil: fetch falhou');
   });
 });

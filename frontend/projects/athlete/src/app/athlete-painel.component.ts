@@ -49,6 +49,10 @@ import { recentCampaignsOf, type RecentCampaign } from './tournaments/campaign/r
 import { duoNameOf, duoPlayersOf } from './tournaments/duo-identity';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
 import { FocusDayService } from './tournaments/focus/focus-day.service';
+import {
+  resolveLevelConfirmationPromptForTournament,
+  type LevelConfirmationPrompt,
+} from './tournaments/tournament-eligibility';
 
 type DashboardTone = 'accent' | 'success' | 'warning' | 'neutral';
 type ChartTab = 'Jogos' | 'Vitórias';
@@ -984,10 +988,65 @@ export class AthletePainelComponent {
     if (invite) void this.submitAcceptInvite(invite);
   }
 
+  // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
+  /** Mesmo gate/copy da tela de inscrição (`tournament-registration-shell.component.ts`) —
+   *  o aceite rápido daqui é OUTRO caminho pra 1ª inscrição ativa do atleta no esporte
+   *  (trigger de backend, `tournament-level-lock.ts`), não só o fluxo de auto-inscrição. */
+  protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
+  private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+
+  /** Ponto de resolução do prompt de nível — campo (não método), pra dar lugar de troca em
+   *  teste sem bater no Firestore real (mesmo padrão do `fetchLevelGateProfile` do shell).
+   *  Busca perfil E torneio FRESCOS: nunca o cache de `PartnerInvitesService.pending()`, que
+   *  documentadamente pode trazer `tournament: null` enquanto o fetch paralelo do torneio
+   *  ainda não voltou (fix pós-review I1 — ler esse cache tratava "ainda não sei o esporte"
+   *  como "sem esporte mapeado" e pulava a confirmação em silêncio). */
+  protected resolveLevelPrompt = (tournamentId: string): Promise<LevelConfirmationPrompt | null> => {
+    const db = this.firestore;
+    const uid = this.auth.user()?.uid;
+    if (!db || !uid) return Promise.reject(new Error('Sem sessão ou conexão com o Firestore.'));
+    return resolveLevelConfirmationPromptForTournament(fetchMyAthleteProfile(db, uid), fetchTournament(db, tournamentId));
+  };
+
+  private async ensureLevelConfirmed(invite: PendingInviteItem): Promise<boolean> {
+    // Uma confirmação já pendente não pode ser sobrescrita — um segundo clique no CTA antes do
+    // dialog renderizar perderia o resolver da primeira chamada, que nunca mais resolveria.
+    if (this.levelConfirmationResolve) return false;
+    let prompt: LevelConfirmationPrompt | null;
+    try {
+      prompt = await this.resolveLevelPrompt(invite.tournamentId);
+    } catch {
+      this.toasts.error(
+        'Não foi possível confirmar seu nível',
+        'Não conseguimos verificar seu nível agora. Tente novamente em instantes.',
+      );
+      return false;
+    }
+    if (!prompt) return true;
+    this.levelConfirmationPrompt.set(prompt);
+    return new Promise<boolean>((resolve) => {
+      this.levelConfirmationResolve = resolve;
+    });
+  }
+
+  protected confirmLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(true);
+    this.levelConfirmationResolve = null;
+  }
+
+  protected adjustLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(false);
+    this.levelConfirmationResolve = null;
+    void this.router.navigate(['/perfil/esportes']);
+  }
+
   /** Aceite rápido — sem uniforme aqui (o backend aceita sem, coleta depois na inscrição;
    *  é o mesmo comportamento de "Salvar uniforme" na tela de inscrição). */
   private async submitAcceptInvite(invite: PendingInviteItem): Promise<void> {
     if (this.respondingInviteId()) return;
+    if (!(await this.ensureLevelConfirmed(invite))) return;
     this.respondingInviteId.set(invite.id);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, undefined, { lgpdAccepted: true });

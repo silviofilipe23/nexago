@@ -47,6 +47,7 @@ import '../domain/tournament_registration_providers.dart';
 import 'widgets/tournament_registration/tournament_registration_category_card.dart';
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_hero_card.dart';
+import 'widgets/tournament_registration/level_confirmation_sheet.dart';
 import 'widgets/tournament_registration/tournament_registration_partner_step.dart';
 import 'widgets/tournament_registration/tournament_cancellation_request_sheet.dart';
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
@@ -581,6 +582,52 @@ class _TournamentRegistrationPageState
     return accepted;
   }
 
+  /// Última chance de revisar o nível antes de travar o ratchet "nível só
+  /// sobe" (plano de calibração de nível, Task 6): só aparece quando esta é
+  /// a PRIMEIRA inscrição do atleta naquele esporte
+  /// (`levelLocked[sportCode] != true`); depois de travado, nunca mais.
+  /// Retorna false se o atleta não confirmou (fechou o sheet ou pediu para
+  /// ajustar o nível — nesse caso já navega para "Esportes e níveis").
+  ///
+  /// Usa `resolveLevelConfirmationPrompt` com `athleteProfileProvider.future`
+  /// (não `.valueOrNull`): o perfil ainda carregando não pode ser lido como
+  /// "sem perfil" — isso faria o gate pular em silêncio (achado do review,
+  /// I1). Qualquer erro no stream cai no mesmo aviso genérico já usado pelas
+  /// outras ações desta tela e BLOQUEIA a submissão (nunca decide o gate com
+  /// o perfil ausente).
+  Future<bool> _ensureLevelConfirmed(String? tournamentSport) async {
+    final LevelConfirmationPrompt? prompt;
+    try {
+      prompt = await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+        ref.read(athleteProfileProvider.future),
+        tournamentSport: tournamentSport,
+      );
+    } catch (_) {
+      if (!mounted) return false;
+      showAppSnackBar(
+        context,
+        'Não foi possível confirmar seu nível. Tente novamente.',
+        isError: true,
+      );
+      return false;
+    }
+    if (!mounted) return false;
+    if (prompt == null) return true;
+    final confirmed = await showLevelConfirmationSheet(
+      context,
+      levelLabel: prompt.levelLabel,
+      sportLabel: prompt.sportLabel,
+    );
+    if (!mounted) return false;
+    if (confirmed != true) {
+      if (confirmed == false) {
+        context.pushNamed(AppRouteNames.athleteSportsLevels);
+      }
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _sendInvite(TournamentDetail tournament) async {
     final cat = _category;
     final partner = _selectedPartner;
@@ -693,6 +740,7 @@ class _TournamentRegistrationPageState
       if (teamName == null || !mounted) return false;
     }
     if (!await _ensureLgpdConsent() || !mounted) return false;
+    if (!await _ensureLevelConfirmed(tournament.sport)) return false;
     setState(() => _submitting = true);
     try {
       final service = ref.read(tournamentPartnerInviteServiceProvider);

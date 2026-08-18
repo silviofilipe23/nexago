@@ -36,7 +36,12 @@ import {
   type TournamentCategoryOffer,
   type TournamentSummary,
 } from '../../data/tournaments-repository';
-import { evaluateCategoryEligibility, partnerMatchesRequiredGender } from '../tournament-eligibility';
+import {
+  evaluateCategoryEligibility,
+  partnerMatchesRequiredGender,
+  resolveLevelConfirmationPrompt,
+  type LevelConfirmationPrompt,
+} from '../tournament-eligibility';
 import {
   categoryRequiresUniform,
   defaultJerseyNameForAthlete,
@@ -48,7 +53,7 @@ import {
 } from '../tournament-uniform';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
-import { NxInlineMessageComponent, NxToastService } from '../../shared/feedback';
+import { NxBlockingDialogComponent, NxInlineMessageComponent, NxToastService } from '../../shared/feedback';
 import {
   formatMissingStepsList,
   readPartnerLinkInviteMarker,
@@ -135,6 +140,7 @@ interface CategoryStatus {
     NxSpinnerComponent,
     InvitePartnerDialogComponent,
     NxInlineMessageComponent,
+    NxBlockingDialogComponent,
     LgpdConsentBoxComponent,
     RegistrationShareDialogComponent,
   ],
@@ -182,6 +188,25 @@ export class TournamentRegistrationShellComponent {
   protected readonly profile = signal<MyAthleteProfile | null>(null);
   protected readonly myRegistrations = signal<AthleteTournamentRegistration[]>([]);
   protected readonly enrolledCounts = signal<Map<string, number>>(new Map());
+
+  // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
+  /** Dialog aberto quando `resolveLevelConfirmationPrompt` decide que esta seria a 1ª
+   *  inscrição ativa do atleta no esporte do torneio — última chance de ajustar o nível
+   *  antes de travar pra sempre (`levelLocked`, gravado por trigger de backend). */
+  protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
+  private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+  /** Ponto de fetch do perfil pro gate — campo (não método), pra dar um lugar de troca em
+   *  teste sem bater no Firestore real. Sempre um fetch FRESCO: a decisão "já travou?" não
+   *  pode usar nem o signal `profile` (fica `null` em erro por design, permissivo pras outras
+   *  checagens de elegibilidade) nem um valor stale — só o resultado atual, awaitado de
+   *  verdade (mirror do fix I1 da Task 6/Flutter). Sem sessão OU sem Firestore é a MESMA
+   *  falha de resolução pro gate: rejeita, quem chama bloqueia — nunca decide no escuro. */
+  protected fetchLevelGateProfile = (): Promise<MyAthleteProfile | null> => {
+    const db = this.firestore;
+    const uid = this.auth.user()?.uid;
+    if (!db || !uid) return Promise.reject(new Error('Sem sessão ou conexão com o Firestore.'));
+    return fetchMyAthleteProfile(db, uid);
+  };
 
   /** Inscrição na categoria selecionada — deriva da lista (que ganha a recém-criada). */
   protected readonly registration = computed<AthleteTournamentRegistration | null>(() => {
@@ -559,6 +584,48 @@ export class TournamentRegistrationShellComponent {
     }
   }
 
+  /** Último checkpoint antes de criar a 1ª inscrição/aceite (mesma posição que o app Flutter
+   *  usa: depois do termo LGPD, antes do `setState`/signal que trava o botão em "enviando").
+   *  `true` → segue a submissão (nada pra confirmar, ou o atleta confirmou). `false` → NÃO
+   *  cria nada; ou a busca do perfil falhou (bloqueia, não decide no escuro) ou o atleta
+   *  escolheu "Ajustar nível" (o dialog já disparou a navegação). */
+  private async ensureLevelConfirmed(): Promise<boolean> {
+    // Uma confirmação já pendente não pode ser sobrescrita — um segundo clique no CTA antes do
+    // dialog renderizar perderia o resolver da primeira chamada, que nunca mais resolveria.
+    if (this.levelConfirmationResolve) return false;
+    const tournamentSport = this.listing()?.sport ?? null;
+    let prompt: LevelConfirmationPrompt | null;
+    try {
+      prompt = await resolveLevelConfirmationPrompt(this.fetchLevelGateProfile(), tournamentSport);
+    } catch {
+      this.toasts.error(
+        'Não foi possível confirmar seu nível',
+        'Não conseguimos verificar seu nível agora. Tente novamente em instantes.',
+      );
+      return false;
+    }
+    if (!prompt) return true;
+    this.levelConfirmationPrompt.set(prompt);
+    return new Promise<boolean>((resolve) => {
+      this.levelConfirmationResolve = resolve;
+    });
+  }
+
+  protected confirmLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(true);
+    this.levelConfirmationResolve = null;
+  }
+
+  /** "Ajustar nível": nada é submetido — o dialog fecha e leva pra tela onde o nível se
+   *  edita, mesma rota que `/perfil` já usa pra "Gerenciar esportes e níveis". */
+  protected adjustLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(false);
+    this.levelConfirmationResolve = null;
+    void this.router.navigate(['/perfil/esportes']);
+  }
+
   private async loadRoster(reg: AthleteTournamentRegistration, myUid: string | null): Promise<void> {
     const db = this.firestore;
     if (!db) return;
@@ -672,6 +739,7 @@ export class TournamentRegistrationShellComponent {
       );
       return;
     }
+    if (!(await this.ensureLevelConfirmed())) return;
     this.registering.set(true);
     try {
       const result = await registerSolo(athleteFunctions(), tournamentId, category.id, undefined, { lgpdAccepted: true });
@@ -738,6 +806,7 @@ export class TournamentRegistrationShellComponent {
       );
       return;
     }
+    if (!(await this.ensureLevelConfirmed())) return;
     const teamName = this.teamNameNormalized();
     this.registering.set(true);
     try {
@@ -1010,6 +1079,7 @@ export class TournamentRegistrationShellComponent {
       inviteeUniform = toUniformInput(selection!);
     }
 
+    if (!(await this.ensureLevelConfirmed())) return;
     this.acceptingInvite.set(true);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform, { lgpdAccepted: true });

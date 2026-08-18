@@ -26,10 +26,12 @@ import {
 } from "./rating-config";
 import {
   applyLadderActions,
+  classifyLevelRankChange,
   evaluateLadderTransition,
   expectedLevelRankFor,
   ratingStateFromDoc,
   ratingStateToDoc,
+  selfCorrectionRatingUpdate,
   type AthleteRatingState,
 } from "./rating-ladder";
 import {
@@ -91,6 +93,25 @@ async function superAdminOrThrow(uid: string | undefined): Promise<string> {
   return uid;
 }
 
+/**
+ * `false` quando a escrita veio de um caminho PRIVILEGIADO (`levelChangeBy` presente no doc
+ * AFTER) — achado do review (F4), 2ª volta. A guarda original usava "existe doc em
+ * `athleteRatings`" como proxy pra "isto não é o atleta se autocorrigindo", mas esse proxy era
+ * ambíguo NOS DOIS SENTIDOS: um self-correction autêntico dentro da janela de calibração — o
+ * caso mais comum, atleta que nunca jogou partida rateada — também não tem doc de rating, então
+ * a guarda original suprimia a auditoria do EVENTO MAIS COMUM da própria feature. O sinal certo
+ * não é "há rating pra corrigir", é "quem escreveu": `levelProfileWriteFields`
+ * (athlete-level-admin.ts) estampa `sportOnboarding.levelChangeBy: "admin" | "organizer"` nos
+ * dois caminhos privilegiados, na MESMA escrita que muda `levelsBySport`; o cliente nunca grava
+ * esse campo (rules, `levelChangeByUnchanged()`). Sem o marcador, a escrita só pode ter vindo do
+ * próprio atleta — audita sempre, com ou sem doc de rating. Sem doc de rating não há
+ * realinhamento (`selfCorrectionRatingUpdate` já devolve `null` pra `current == null`), então
+ * auditar aqui não inventa estado de rating nenhum, só a entrada de auditoria.
+ */
+export function shouldAuditSelfCorrectionDowngrade(isPrivilegedWrite: boolean): boolean {
+  return !isPrivilegedWrite;
+}
+
 function levelsBySportOf(
   data: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
@@ -105,14 +126,60 @@ function levelsBySportOf(
 }
 
 /**
- * Self-upgrade: o atleta ainda pode SUBIR o próprio nível pelo app. Este
- * trigger detecta a subida em `sportOnboarding.levelsBySport`, audita em
- * `levelHistory` e re-seeda o rating para `max(atual, initialRating do novo
- * nível)` com RD resetado + proteção — o guard anti-flap contra a escada.
+ * Lê `sportOnboarding.levelChangeBy` do doc — marcador transiente que só os caminhos
+ * privilegiados de `setAthleteLevel` gravam (`levelProfileWriteFields`, athlete-level-admin.ts).
+ * Exportada só pra teste; o trigger consome via `isPrivilegedLevelChangeWrite`.
+ */
+export function levelChangeByOf(data: Record<string, unknown> | undefined): unknown {
+  const onboarding = data?.["sportOnboarding"];
+  if (onboarding != null && typeof onboarding === "object") {
+    return (onboarding as Record<string, unknown>)["levelChangeBy"];
+  }
+  return undefined;
+}
+
+/**
+ * `true` quando o doc AFTER carrega o marcador de escrita privilegiada — admin ou organizador,
+ * tanto faz qual: os dois já gravam a própria entrada de auditoria (`admin_manual` /
+ * `organizer_promotion`), então os dois pedem o MESMO tratamento aqui (suprimir a auditoria
+ * `self_correction`/`self_upgrade` duplicada e depois limpar o marcador).
+ */
+export function isPrivilegedLevelChangeWrite(after: Record<string, unknown> | undefined): boolean {
+  const raw = levelChangeByOf(after);
+  return typeof raw === "string" && raw.length > 0;
+}
+
+/**
+ * Auto-correção do nível declarado (`sportOnboarding.levelsBySport`), nos
+ * dois sentidos:
  *
- * Escritas da própria engine/migração são ignoradas: promoção grava
- * `athleteRatings.levelCode` na mesma leva (igualdade → skip) e a migração
- * mapeia para o mesmo rank (rank não sobe → skip).
+ * - SUBIDA (self-upgrade, sempre permitida): audita em `levelHistory` e
+ *   re-seeda o rating para `max(atual, initialRating do novo nível)` com RD
+ *   resetado + proteção — o guard anti-flap contra a escada.
+ * - DESCIDA (self-correction, só possível durante a janela de calibração —
+ *   antes de `sportOnboarding.levelLocked.{sportCode}`; as rules garantem
+ *   isso, não este trigger): audita em `levelHistory` SEMPRE que a escrita
+ *   NÃO for privilegiada (`shouldAuditSelfCorrectionDowngrade`, F4 do review
+ *   — 2ª volta: o sinal é `sportOnboarding.levelChangeBy`, não mais "existe
+ *   doc em `athleteRatings`", proxy que apagava a auditoria do caso mais
+ *   comum da janela — atleta sem partida rateada ainda) e, dentro disso, SÓ
+ *   quando o atleta ainda não jogou partida rateada (`ratedMatches === 0`),
+ *   reseeda para o piso do novo degrau. Com partidas já rateadas o rating
+ *   fica como está — o Glicko já é uma medida melhor que o nível
+ *   autodeclarado.
+ *
+ * Escritas da própria engine/migração são ignoradas: promoção/rebaixamento
+ * automáticos e o script administrativo gravam `athleteRatings.levelCode`
+ * ANTES de gravar `levelsBySport` (mesma leva → igualdade → skip), e a
+ * migração de renumeração mapeia para o mesmo rank (rank não muda → skip).
+ *
+ * `levelChangeBy` é TRANSIENTE: se presente no AFTER, esta função limpa o
+ * campo no final (`FieldValue.delete()`) numa escrita separada em
+ * `users/{userId}`. Essa escrita re-dispara este MESMO trigger, mas sem
+ * risco de loop: ela só toca `levelChangeBy`, então `levelsBySport` fica
+ * idêntico entre before/after na reentrada e todo `sportCode` cai no
+ * `continue` de "sem mudança de nível" logo no topo do laço, antes de
+ * qualquer leitura de marcador.
  */
 export const onUserWrittenTrackLevelChanges = onDocumentWritten(
   "users/{userId}",
@@ -126,6 +193,7 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
     const userId = event.params.userId;
     const db = getFirestore();
     const projectId = getFirebaseProjectId();
+    const isPrivilegedWrite = isPrivilegedLevelChangeWrite(after);
 
     for (const sportCode of RATED_SPORT_CODES) {
       const rawBefore = String(beforeLevels[sportCode] ?? "").trim();
@@ -135,9 +203,8 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
       const beforeRank = levelRank(rawBefore);
       const afterRank = levelRank(rawAfter);
       if (afterRank == null) continue;
-      // Rename de migração (mesmo rank) ou rebaixamento da engine: não é
-      // self-upgrade.
-      if (beforeRank != null && afterRank <= beforeRank) continue;
+      const change = classifyLevelRankChange(beforeRank, afterRank);
+      if (change === "none") continue; // rename de migração (mesmo rank).
 
       try {
         const config = await loadRatingLadderConfig(db, sportCode);
@@ -152,48 +219,86 @@ export const onUserWrittenTrackLevelChanges = onDocumentWritten(
           ? ratingStateFromDoc(userId, sportCode, snap.data() as Record<string, unknown>)
           : null;
 
-        // Promoção da própria engine: levelCode já está no novo nível.
+        // Escrita da própria engine (promoção/rebaixamento automático) ou de
+        // um script administrativo: `athleteRatings` já está no nível novo.
         if (current && current.levelCode === newLevel.code) continue;
 
-        const base =
-          current ?? seedRatingState(userId, sportCode, config, rawAfter);
-        const now = new Date();
-        const upgraded: AthleteRatingState = {
-          ...base,
-          rating: Math.max(base.rating, newLevel.initialRating),
-          rd: config.glicko.initialRd,
-          levelCode: newLevel.code,
-          levelRank: newLevel.rank,
-          zone: "stable",
-          ladderState: "stable",
-          observationStartedAt: null,
-          observationMatches: 0,
-          notifiedAt: null,
-          protectedUntil: new Date(
-            now.getTime() + config.ladder.promotionProtectionDays * 86_400_000,
-          ),
-        };
-        await ratingRef.set(ratingStateToDoc(upgraded));
-        await db.collection(`users/${userId}/levelHistory`).add({
-          sportCode,
-          fromLevel: rawBefore || null,
-          toLevel: newLevel.code,
-          reason: "self_upgrade",
-          rating: Math.round(upgraded.rating),
-          rd: Math.round(upgraded.rd),
-          ratedMatches: upgraded.ratedMatches,
-          actor: userId,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-        logger.info(
-          `rating: self-upgrade de ${userId} em ${sportCode} → ${newLevel.code}`,
-        );
+        if (change === "upgrade") {
+          const base =
+            current ?? seedRatingState(userId, sportCode, config, rawAfter);
+          const now = new Date();
+          const upgraded: AthleteRatingState = {
+            ...base,
+            rating: Math.max(base.rating, newLevel.initialRating),
+            rd: config.glicko.initialRd,
+            levelCode: newLevel.code,
+            levelRank: newLevel.rank,
+            zone: "stable",
+            ladderState: "stable",
+            observationStartedAt: null,
+            observationMatches: 0,
+            notifiedAt: null,
+            protectedUntil: new Date(
+              now.getTime() + config.ladder.promotionProtectionDays * 86_400_000,
+            ),
+          };
+          await ratingRef.set(ratingStateToDoc(upgraded));
+          await db.collection(`users/${userId}/levelHistory`).add({
+            sportCode,
+            fromLevel: rawBefore || null,
+            toLevel: newLevel.code,
+            reason: "self_upgrade",
+            rating: Math.round(upgraded.rating),
+            rd: Math.round(upgraded.rd),
+            ratedMatches: upgraded.ratedMatches,
+            actor: userId,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          logger.info(
+            `rating: self-upgrade de ${userId} em ${sportCode} → ${newLevel.code}`,
+          );
+        } else {
+          const corrected = selfCorrectionRatingUpdate(
+            current,
+            newLevel,
+            config.glicko.initialRd,
+          );
+          if (corrected) {
+            await ratingRef.set(ratingStateToDoc(corrected));
+          }
+          if (shouldAuditSelfCorrectionDowngrade(isPrivilegedWrite)) {
+            await db.collection(`users/${userId}/levelHistory`).add({
+              sportCode,
+              fromLevel: rawBefore || null,
+              toLevel: newLevel.code,
+              reason: "self_correction",
+              rating: current ? Math.round(current.rating) : null,
+              rd: current ? Math.round(current.rd) : null,
+              ratedMatches: current ? current.ratedMatches : 0,
+              actor: userId,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+            logger.info(
+              `rating: self-correction de ${userId} em ${sportCode} → ${newLevel.code}`,
+            );
+          }
+        }
       } catch (error) {
         logger.error(
-          `rating: falha ao processar self-upgrade de ${userId} em ${sportCode}`,
+          `rating: falha ao processar mudança de nível (${change}) de ${userId} em ${sportCode}`,
           error,
         );
       }
+    }
+
+    // Limpa o marcador transiente por último, numa escrita à parte — ver o
+    // porquê de não fazer loop no docstring da função. `.update()` com
+    // dot-path (não `.set()`) pra não pisar em nenhum outro campo de
+    // `sportOnboarding` escrito entre o evento e agora.
+    if (isPrivilegedWrite) {
+      await db.doc(`users/${userId}`).update({
+        "sportOnboarding.levelChangeBy": FieldValue.delete(),
+      });
     }
   },
 );
@@ -277,7 +382,7 @@ export const evaluateRatingLadderDaily = onSchedule(
           if (!hasActions && !stateChanged && !inflated) continue;
 
           const final = hasActions
-            ? await applyLadderActions(db, evaluation, config, now)
+            ? await applyLadderActions(db, evaluation, config, now, doc.ref)
             : evaluation.next;
           await doc.ref.set(
             {...ratingStateToDoc(final), ...inflationFields},

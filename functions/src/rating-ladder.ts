@@ -1,4 +1,9 @@
-import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {
+  FieldValue,
+  Timestamp,
+  type DocumentReference,
+  type Firestore,
+} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
@@ -287,12 +292,24 @@ const SPORTS_LEVELS_URL = "/athlete/profile/sports-levels";
  * persistir em `athleteRatings`. Promoção/rebaixamento escrevem APENAS
  * `sportOnboarding.levelsBySport[sportCode]` (nunca o `level` global) +
  * auditoria em `levelHistory`.
+ *
+ * `ratingRef` é o doc `athleteRatings/{athleteId}_{sportCode}` do PRÓPRIO
+ * chamador (ele grava o estado final de novo ao final, com o resto do
+ * `state` que muda depois daqui — ex. `notifiedAt`). A gravação aqui é
+ * proposital e não redundante: precisa acontecer ANTES do `users/{athleteId}`
+ * abaixo. `onUserWrittenTrackLevelChanges` (rating-triggers.ts) usa
+ * `athleteRatings.levelCode === newLevel.code` pra distinguir a própria
+ * engine (ou o script admin) de uma auto-correção do atleta — essa
+ * distinção só funciona se a ORDEM das escritas for uma invariante real, não
+ * um acidente de timing entre dois `await` numa função. O script admin já
+ * escreve nessa ordem (rating antes de users); aqui replicamos.
  */
 export async function applyLadderActions(
   db: Firestore,
   evaluation: LadderEvaluation,
   config: RatingLadderConfig,
   now: Date,
+  ratingRef: DocumentReference,
 ): Promise<AthleteRatingState> {
   let state = evaluation.next;
   const flags = config.flags;
@@ -313,6 +330,9 @@ export async function applyLadderActions(
 
   if (appliedLevelChange) {
     const {athleteId, sportCode} = state;
+    // Precisa vir ANTES do write de `users/{athleteId}` — ver doc do topo da
+    // função.
+    await ratingRef.set(ratingStateToDoc(state), {merge: true});
     await db.doc(`users/${athleteId}`).set(
       {
         sportOnboarding: {
@@ -432,6 +452,48 @@ export function expectedLevelRankFor(
   levelCode: unknown,
 ): number {
   return resolveLadderLevel(config, levelCode).rank;
+}
+
+export type LevelRankChangeKind = "upgrade" | "downgrade" | "none";
+
+/**
+ * Classifica a mudança de rank declarado em `sportOnboarding.levelsBySport`.
+ * Esporte novo no perfil (`beforeRank` ausente) conta como upgrade — é a
+ * primeira declaração, não uma correção. Mesmo rank (rename/legado, ex.:
+ * "avancado1" → "avancado_1") não é nem upgrade nem downgrade.
+ */
+export function classifyLevelRankChange(
+  beforeRank: number | null,
+  afterRank: number,
+): LevelRankChangeKind {
+  if (beforeRank == null || afterRank > beforeRank) return "upgrade";
+  if (afterRank < beforeRank) return "downgrade";
+  return "none";
+}
+
+/**
+ * Efeito no rating de uma correção pré-lock (o atleta baixa o próprio nível
+ * na janela de calibração — só possível para BAIXO, upgrade segue o fluxo
+ * normal). Reseeda rating/RD/levelRank para o piso do novo degrau somente
+ * quando o atleta ainda não jogou partida rateada (`ratedMatches === 0`):
+ * com partidas já rateadas o rating fica como está (o Glicko já é uma medida
+ * melhor que o nível autodeclarado) — só a auditoria em `levelHistory` muda,
+ * gravada pelo chamador. `null` = nada a escrever em `athleteRatings`
+ * (também cobre o caso de não existir doc ainda: nada a reseedar).
+ */
+export function selfCorrectionRatingUpdate(
+  current: AthleteRatingState | null,
+  newLevel: Pick<RatingLadderLevel, "code" | "rank" | "initialRating">,
+  initialRd: number,
+): AthleteRatingState | null {
+  if (!current || current.ratedMatches !== 0) return null;
+  return {
+    ...current,
+    rating: newLevel.initialRating,
+    rd: initialRd,
+    levelCode: newLevel.code,
+    levelRank: newLevel.rank,
+  };
 }
 
 export function ratingStateFromDoc(

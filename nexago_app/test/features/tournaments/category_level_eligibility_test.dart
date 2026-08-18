@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/category_level_eligibility.dart';
@@ -15,6 +17,7 @@ TournamentCategoryOffer _offer(String level, {String minLevel = ''}) =>
 AthleteProfile _athlete(
   String level, {
   Map<String, String> levelsBySportFirestore = const {},
+  Map<String, bool> levelLocked = const {},
 }) =>
     AthleteProfile(
       id: 'a',
@@ -23,6 +26,7 @@ AthleteProfile _athlete(
       level: level,
       city: 'Goiânia',
       levelsBySportFirestore: levelsBySportFirestore,
+      levelLocked: levelLocked,
     );
 
 void main() {
@@ -75,16 +79,21 @@ void main() {
   });
 
   group('piso de nível (minLevel)', () {
-    test('piso: atleta abaixo do minLevel é barrado, dentro da faixa entra', () {
+    test('piso: atleta abaixo do minLevel é barrado, dentro da faixa entra',
+        () {
       final elite = _offer('Open', minLevel: 'Avançado 1');
-      expect(CategoryLevelEligibility.isCategoryEligibleForLevel(elite, 3), false);
-      expect(CategoryLevelEligibility.isCategoryEligibleForLevel(elite, 4), true);
-      expect(CategoryLevelEligibility.isCategoryEligibleForLevel(elite, 6), true);
+      expect(
+          CategoryLevelEligibility.isCategoryEligibleForLevel(elite, 3), false);
+      expect(
+          CategoryLevelEligibility.isCategoryEligibleForLevel(elite, 4), true);
+      expect(
+          CategoryLevelEligibility.isCategoryEligibleForLevel(elite, 6), true);
     });
 
     test('offer sem minLevel se comporta como hoje', () {
       final livre = _offer('Open', minLevel: '');
-      expect(CategoryLevelEligibility.isCategoryEligibleForLevel(livre, 0), true);
+      expect(
+          CategoryLevelEligibility.isCategoryEligibleForLevel(livre, 0), true);
     });
 
     test('categoryMinLevelRank: ausente/desconhecido → 0 (sem piso)', () {
@@ -110,7 +119,8 @@ void main() {
 
   group('categoryLevelRank', () {
     test('lê o nível da categoria', () {
-      expect(CategoryLevelEligibility.categoryLevelRank(_offer('Iniciante')), 0);
+      expect(
+          CategoryLevelEligibility.categoryLevelRank(_offer('Iniciante')), 0);
       expect(
         CategoryLevelEligibility.categoryLevelRank(_offer('Intermediário')),
         2,
@@ -308,6 +318,228 @@ void main() {
         CategoryLevelEligibility.blockMessage(_athlete('Open')),
         contains('Open'),
       );
+    });
+  });
+
+  group('needsLevelConfirmation', () {
+    test('esporte mapeado e ainda não travado → precisa confirmar', () {
+      final a = _athlete('open', levelLocked: {'VOLEI_QUADRA': true});
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'beachVolleyball',
+        ),
+        isTrue,
+      );
+    });
+
+    test('esporte já travado (levelLocked true) → não precisa confirmar', () {
+      final a = _athlete('open', levelLocked: {'VOLEI_PRAIA': true});
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'beachVolleyball',
+        ),
+        isFalse,
+      );
+    });
+
+    test('esporte do torneio sem equivalente no perfil → não precisa confirmar',
+        () {
+      final a = _athlete('open');
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'xadrez',
+        ),
+        isFalse,
+      );
+    });
+
+    test('perfil nulo → não precisa confirmar', () {
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          null,
+          tournamentSport: 'beachVolleyball',
+        ),
+        isFalse,
+      );
+    });
+
+    test('mapa levelLocked vazio (nunca travou) → precisa confirmar', () {
+      final a = _athlete('iniciante');
+      expect(
+        CategoryLevelEligibility.needsLevelConfirmation(
+          a,
+          tournamentSport: 'footvolley',
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('resolveLevelConfirmationPrompt', () {
+    // Achado do review (I1): ler `athleteProfileProvider.valueOrNull`
+    // decide com `null` tanto quando o perfil está ausente quanto quando o
+    // stream SÓ AINDA NÃO EMITIU — o gate pulava em silêncio no segundo
+    // caso. Este teste prova que a função espera o Future resolver ANTES
+    // de decidir, em vez de tratar "ainda pendente" como "sem perfil".
+    test(
+      'aguarda o Future resolver antes de decidir — não decide com o perfil '
+      'ainda carregando',
+      () async {
+        final completer = Completer<AthleteProfile?>();
+        var resolved = false;
+
+        final future = CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+          completer.future,
+          tournamentSport: 'beachVolleyball',
+        )..then((_) => resolved = true);
+
+        // "Perfil ainda carregando": o Future não completou. Se a função
+        // decidisse com um snapshot `null` nesse instante (regressão I1),
+        // já teria resolvido aqui — não deve.
+        await Future<void>.delayed(Duration.zero);
+        expect(resolved, isFalse);
+
+        completer.complete(_athlete('iniciante_1'));
+        final prompt = await future;
+
+        expect(resolved, isTrue);
+        expect(prompt, isNotNull);
+        expect(prompt!.levelLabel, 'Iniciante 1');
+        expect(prompt.sportLabel, 'Vôlei de praia');
+      },
+    );
+
+    test('esporte ainda não travado → prompt com nível e esporte em PT',
+        () async {
+      final a = _athlete(
+        'open',
+        levelsBySportFirestore: {'FUTEVOLEI': 'avancado_1'},
+      );
+      final prompt =
+          await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+        Future.value(a),
+        tournamentSport: 'footvolley',
+      );
+      expect(prompt, isNotNull);
+      expect(prompt!.levelLabel, 'Avançado 1');
+      expect(prompt.sportLabel, 'Futevôlei');
+    });
+
+    test('esporte já travado → null (não pede confirmação)', () async {
+      final a = _athlete('open', levelLocked: {'VOLEI_PRAIA': true});
+      final prompt =
+          await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+        Future.value(a),
+        tournamentSport: 'beachVolleyball',
+      );
+      expect(prompt, isNull);
+    });
+
+    test('perfil realmente ausente (Future resolve com null) → null', () async {
+      final prompt =
+          await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+        Future.value(null),
+        tournamentSport: 'beachVolleyball',
+      );
+      expect(prompt, isNull);
+    });
+
+    test('erro no Future propaga pro chamador (quem decide bloquear)',
+        () async {
+      Future<AthleteProfile?> failing() async {
+        throw StateError('stream com erro');
+      }
+
+      await expectLater(
+        CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+          failing(),
+          tournamentSport: 'beachVolleyball',
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+  });
+
+  // Fix pós-review (calibração de nível, F2): `TournamentPartnerInvitePage` descobria o
+  // esporte de um `AsyncValue<TournamentDetail?>` que, no branch de ERRO da árvore de widgets,
+  // vira `null` — e `needsLevelConfirmation` tratava "não sei o esporte" IGUAL a "esporte sem
+  // equivalente no perfil", pulando a confirmação em SILÊNCIO bem no aceite que pode ser a 1ª
+  // inscrição ativa (a que tranca a janela). `resolveLevelConfirmationPromptForTournament`
+  // busca o esporte FRESCO em vez de aceitar o valor já resolvido (possivelmente nulo por
+  // erro) pelo chamador.
+  group('resolveLevelConfirmationPromptForTournament', () {
+    test(
+      'esporte destravado: pede confirmação com o esporte buscado fresco',
+      () async {
+        final a = _athlete('iniciante_1');
+        final prompt = await CategoryLevelEligibility
+            .resolveLevelConfirmationPromptForTournament(
+          Future.value(a),
+          Future.value('beachVolleyball'),
+        );
+        expect(prompt, isNotNull);
+        expect(prompt!.levelLabel, 'Iniciante 1');
+        expect(prompt.sportLabel, 'Vôlei de praia');
+      },
+    );
+
+    test(
+      'esporte genuinamente ausente (Future resolve com null, ex.: torneio '
+      'apagado) → null, sem travar em silêncio um caso diferente',
+      () async {
+        final a = _athlete('iniciante_1');
+        final prompt = await CategoryLevelEligibility
+            .resolveLevelConfirmationPromptForTournament(
+          Future.value(a),
+          Future.value(null),
+        );
+        expect(prompt, isNull);
+      },
+    );
+
+    test(
+      'falha ao buscar o esporte do torneio (branch de erro do provider) '
+      'propaga pro chamador — NÃO vira "sem esporte" em silêncio',
+      () async {
+        Future<String?> failing() async {
+          throw StateError('busca do torneio falhou');
+        }
+
+        await expectLater(
+          CategoryLevelEligibility.resolveLevelConfirmationPromptForTournament(
+            Future.value(_athlete('iniciante_1')),
+            failing(),
+          ),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
+
+    test('falha ao buscar o perfil também propaga pro chamador', () async {
+      Future<AthleteProfile?> failing() async {
+        throw StateError('perfil com erro');
+      }
+
+      await expectLater(
+        CategoryLevelEligibility.resolveLevelConfirmationPromptForTournament(
+          failing(),
+          Future.value('beachVolleyball'),
+        ),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('esporte já travado: null, mesmo buscando fresco', () async {
+      final a = _athlete('open', levelLocked: {'VOLEI_PRAIA': true});
+      final prompt = await CategoryLevelEligibility
+          .resolveLevelConfirmationPromptForTournament(
+        Future.value(a),
+        Future.value('beachVolleyball'),
+      );
+      expect(prompt, isNull);
     });
   });
 }

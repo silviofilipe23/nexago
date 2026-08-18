@@ -9,6 +9,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_sports_levels_providers.dart';
+import '../onboarding/domain/athlete_onboarding_options.dart';
+import '../onboarding/presentation/widgets/onboarding_level_tile.dart';
 import 'widgets/athlete_level_zone_card.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_add_chip.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_level_card.dart';
@@ -59,7 +61,11 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
             level: level,
             onConfirm: () => notifier.updateLevel(appSportId, level),
           ),
-          onAddSport: notifier.addSport,
+          onAddSport: (option) => _onAddSport(
+            context,
+            option: option,
+            onConfirm: (level) => notifier.addSport(option.id, level),
+          ),
           onMakePrimary: (appSportId) => _confirmMakePrimary(
             context,
             sportLabel: _labelForSport(ui, appSportId),
@@ -131,8 +137,11 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
     );
   }
 
-  /// Regra "nível só sobe": abaixo do salvo → explica o bloqueio; acima →
-  /// confirma antes de aplicar (a mudança não pode ser desfeita pelo atleta).
+  /// Janela de calibração: antes da 1ª inscrição ativa no esporte, o atleta
+  /// ajusta o nível livremente (sem confirmação — nada é definitivo ainda).
+  /// Depois do lock, exatamente a regra "nível só sobe" de sempre: abaixo do
+  /// salvo → explica o bloqueio; acima → confirma antes de aplicar (a
+  /// mudança não pode ser desfeita pelo atleta).
   Future<void> _onLevelSelected(
     BuildContext context, {
     required AthleteSportsLevelsUiState ui,
@@ -143,6 +152,11 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
     final current = ui.draft.levelByAppSportId[appSportId];
     if (AthleteProfileOptions.normalizeLevel(current) ==
         AthleteProfileOptions.normalizeLevel(level)) {
+      return;
+    }
+
+    if (!ui.isLevelLockedFor(appSportId)) {
+      onConfirm();
       return;
     }
 
@@ -159,6 +173,106 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
       levelLabel: AthleteProfileOptions.normalizeLevel(level),
     );
     if (confirmed) onConfirm();
+  }
+
+  /// Escolha obrigatória: abre o seletor de nível antes de matricular o
+  /// esporte novo — nenhum nível é preselecionado, e "Adicionar esporte" só
+  /// libera depois de um chip escolhido. Cancelar não adiciona nada.
+  Future<void> _onAddSport(
+    BuildContext context, {
+    required OnboardingSportOption option,
+    required ValueChanged<String> onConfirm,
+  }) async {
+    final level = await _pickLevelForNewSport(
+      context,
+      sportLabel: option.label,
+    );
+    if (level == null) return;
+    onConfirm(level);
+  }
+
+  Future<String?> _pickLevelForNewSport(
+    BuildContext context, {
+    required String sportLabel,
+  }) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.themeColors.surfaceRaised,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        String? selected;
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return SafeArea(
+              // Escada inteira ganhou descrição por degrau (spec §4.5a, achado do
+              // review F8) — 7 tiles cheios não cabem sempre sem rolar, então o
+              // sheet (já `isScrollControlled`) fica scrollável.
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Qual é o seu nível em $sportLabel?',
+                      style: t.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: ctx.themeColors.onSurface,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Escolha um nível para adicionar o esporte. Até a sua '
+                      'primeira inscrição, você pode ajustar livremente — '
+                      'depois ele só sobe.',
+                      style: t.textTheme.bodySmall?.copyWith(
+                        color: ctx.themeColors.onSurfaceMuted,
+                        height: 1.35,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    // `OnboardingLevelOption` (mesmo dado do onboarding, reaproveitado
+                    // aqui) já tem a descrição por degrau que a spec pede pro atleta
+                    // se reconhecer — antes só o rótulo abreviado aparecia.
+                    ...AthleteOnboardingOptions.levels.map((option) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OnboardingLevelTile(
+                          option: option,
+                          selected: selected == option.label,
+                          onTap: () =>
+                              setState(() => selected = option.label),
+                        ),
+                      );
+                    }),
+                    SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: selected == null
+                          ? null
+                          : () => Navigator.of(ctx).pop(selected),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: ctx.themeColors.canvas,
+                      ),
+                      child: Text('Adicionar esporte'),
+                    ),
+                    SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: Text('Cancelar'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<bool> _confirmLevelChange(
@@ -310,7 +424,7 @@ class _ReadyBody extends StatelessWidget {
 
   final AthleteSportsLevelsUiState ui;
   final void Function(String appSportId, String level) onLevelSelected;
-  final void Function(String appSportId) onAddSport;
+  final void Function(OnboardingSportOption option) onAddSport;
   final void Function(String appSportId) onMakePrimary;
 
   @override
@@ -354,11 +468,16 @@ class _ReadyBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 6),
+        // Texto único, sem condicional em "algum esporte destravado": ratchet
+        // e janela de correção coexistem por design (Task 4), e um texto que
+        // vale pros dois estados não pode contradizer o aviso do card abaixo
+        // (que é, esse sim, condicional a `levelLocked`). Ver fix pós-review
+        // no report da Task 4.
         Text(
           'Seu nível é atualizado automaticamente com base nos seus '
-          'resultados em torneios. Você pode subir de nível manualmente, '
-          'mas não reduzir — para corrigir um nível errado, fale com o '
-          'suporte.',
+          'resultados em torneios. Até a sua primeira inscrição em cada '
+          'esporte, você pode ajustar o nível livremente — depois disso ele '
+          'só sobe; para corrigir um nível já travado, fale com o suporte.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: context.themeColors.onSurfaceMuted,
             height: 1.35,
@@ -391,6 +510,7 @@ class _ReadyBody extends StatelessWidget {
                             e.levelLabel,
                     lockedLevelRank: ui.lockedLevelRankFor(e.appSportId) ?? -1,
                     enabled: canEdit,
+                    levelLocked: ui.isLevelLockedFor(e.appSportId),
                     onLevelSelected: (level) =>
                         onLevelSelected(e.appSportId, level),
                     onMakePrimary: () => onMakePrimary(e.appSportId),
@@ -428,7 +548,7 @@ class _ReadyBody extends StatelessWidget {
               return AthleteSportAddChip(
                 option: option,
                 enabled: canEdit,
-                onTap: () => onAddSport(option.id),
+                onTap: () => onAddSport(option),
               );
             }).toList(),
           ),
@@ -438,3 +558,4 @@ class _ReadyBody extends StatelessWidget {
     );
   }
 }
+

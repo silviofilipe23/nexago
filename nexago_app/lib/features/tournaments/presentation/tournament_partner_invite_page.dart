@@ -18,6 +18,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../data/tournament_partner_invite_service.dart';
+import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -32,6 +33,7 @@ import 'widgets/tournament_partner_invite/partner_invite_hero_card.dart';
 import 'widgets/tournament_partner_invite/partner_invite_metrics_row.dart';
 import 'widgets/lgpd_consent_sheet.dart';
 import 'widgets/tournament_partner_invite/partner_invite_tournament_card.dart';
+import 'widgets/tournament_registration/level_confirmation_sheet.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 
 enum _PartnerInviteWizardStep { confirm, uniform }
@@ -120,6 +122,62 @@ class _TournamentPartnerInvitePageState
     }
   }
 
+  /// Última chance de revisar o nível antes de travar o ratchet "nível só
+  /// sobe" (plano de calibração de nível, Task 6) — mesma regra e mesma
+  /// sheet de `TournamentRegistrationPage._ensureLevelConfirmed`, aplicada
+  /// aqui porque aceitar um convite TAMBÉM pode ser a 1ª inscrição ativa do
+  /// atleta naquele esporte. Retorna false se não confirmou (fechou o sheet
+  /// ou pediu para ajustar o nível — nesse caso já navega para "Esportes e
+  /// níveis"); `_acceptInvite` NÃO deve chamar `acceptInvite` nesse caso.
+  ///
+  /// Usa `resolveLevelConfirmationPromptForTournament` com
+  /// `athleteProfileProvider.future` (não `.valueOrNull`) E o torneio buscado
+  /// FRESCO por `tournamentId` (não o `TournamentDetail?` já resolvido pela
+  /// árvore de widgets) — fix pós-review (F2): no branch de ERRO de
+  /// `tournamentAsync.when(...)` no `build()`, `_buildWizard` é chamado com
+  /// `tournament: null`, e passar isso direto pra cá fazia
+  /// `needsLevelConfirmation` tratar "não sei o esporte" como "esporte sem
+  /// equivalente no perfil" — pulava a confirmação em SILÊNCIO exatamente no
+  /// aceite que pode travar a janela. Perfil (ou torneio) ainda carregando
+  /// também não pode virar "sem perfil"/"sem esporte" — isso faria o gate
+  /// pular em silêncio. Erro em qualquer um dos dois bloqueia a aceitação
+  /// com o aviso genérico já usado pelas outras ações desta tela.
+  Future<bool> _ensureLevelConfirmed(String tournamentId) async {
+    final LevelConfirmationPrompt? prompt;
+    try {
+      prompt = await CategoryLevelEligibility
+          .resolveLevelConfirmationPromptForTournament(
+            ref.read(athleteProfileProvider.future),
+            ref
+                .read(tournamentDetailProvider(tournamentId).future)
+                .then((t) => t?.sport),
+          );
+    } catch (_) {
+      if (!mounted) return false;
+      showAppSnackBar(
+        context,
+        'Não foi possível confirmar seu nível. Tente novamente.',
+        isError: true,
+      );
+      return false;
+    }
+    if (!mounted) return false;
+    if (prompt == null) return true;
+    final confirmed = await showLevelConfirmationSheet(
+      context,
+      levelLabel: prompt.levelLabel,
+      sportLabel: prompt.sportLabel,
+    );
+    if (!mounted) return false;
+    if (confirmed != true) {
+      if (confirmed == false) {
+        context.pushNamed(AppRouteNames.athleteSportsLevels);
+      }
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _acceptInvite({
     required TournamentPartnerInvite invite,
     TournamentCategoryOffer? category,
@@ -137,6 +195,14 @@ class _TournamentPartnerInvitePageState
       if (!accepted || !mounted) return;
       setState(() => _lgpdAccepted = true);
     }
+
+    // Aceitar um convite é, para quem convidou, uma das duas formas de
+    // ativar a inscrição (a outra é `_registerSolo` na tela de inscrição) —
+    // `acceptTournamentPartnerInvite` é nomeada no trigger de backend
+    // (`tournament-level-lock.ts`) como caminho que trava `levelLocked` na
+    // 1ª inscrição ATIVA do esporte. Sem este gate aqui, quem entra numa
+    // dupla via convite nunca via o último aviso (achado do review, C1).
+    if (!await _ensureLevelConfirmed(invite.tournamentId)) return;
 
     setState(() => _accepting = true);
 
@@ -509,8 +575,10 @@ class _TournamentPartnerInvitePageState
               enabled: access.canAccess,
               primaryLoading: _accepting,
               declineLoading: _declining,
-              onPrimary: () =>
-                  _onContinueFromConfirm(invite: invite, category: category),
+              onPrimary: () => _onContinueFromConfirm(
+                invite: invite,
+                category: category,
+              ),
               onDecline: _decline,
             ),
           ),

@@ -31,8 +31,6 @@ export interface GoalOption {
   label: string;
 }
 
-const DEFAULT_LEVEL = 'intermediario_1';
-
 /** Mesmos códigos de athlete_firestore_codes.dart. */
 const GOALS: GoalOption[] = [
   { code: 'RESERVAR_ARENA', label: 'Reservar arena' },
@@ -79,7 +77,9 @@ export class AthleteOnboardingComponent {
   protected readonly step = signal<ObStep>(1);
 
   protected readonly selectedSportCode = signal<string>(SPORT_CATALOG[0]!.code);
-  protected readonly selectedLevelCode = signal<string>(DEFAULT_LEVEL);
+  /** Nasce vazio — nada de default silencioso. O atleta precisa escolher um
+   *  nível explicitamente antes de avançar (`levelChosen` trava o passo 2). */
+  protected readonly selectedLevelCode = signal<string>('');
   protected readonly selectedGoalCodes = signal<ReadonlySet<string>>(
     new Set(['JOGAR_DIVERSAO', 'COMPETIR']),
   );
@@ -87,6 +87,9 @@ export class AthleteOnboardingComponent {
   protected readonly selectedSport = computed(
     () => this.sports.find((s) => s.code === this.selectedSportCode()) ?? this.sports[0]!,
   );
+
+  /** Gate do passo 2 (nível) — vazio bloqueia "Continuar". */
+  protected readonly levelChosen = computed(() => this.selectedLevelCode() !== '');
 
   protected readonly name = signal(this.initialName());
   protected readonly nickname = signal('');
@@ -140,7 +143,12 @@ export class AthleteOnboardingComponent {
       this.gender() != null &&
       this.state() !== '' &&
       this.city() !== '' &&
-      this.photoFile() != null,
+      this.photoFile() != null &&
+      // F7 (review): a escolha obrigatória de nível (`levelChosen`) até aqui só era
+      // aplicada pelo `[disabled]` do botão "Continuar" do passo 2 — a invariante não
+      // valia na escrita de verdade (`submitProfile`). Entrar aqui fecha em `submitProfile`
+      // (`if (!profileFormValid()) return`), não só na UI do passo 2.
+      this.levelChosen(),
   );
 
   private initialName(): string {

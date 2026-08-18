@@ -391,11 +391,11 @@ export async function applyMatchRatingUpdate(
   // Efeitos externos da escada (nível/auditoria/notificação) fora da transação.
   for (const {evaluation} of outcome.evaluations) {
     if (evaluation.actions.length === 0) continue;
-    const finalState = await applyLadderActions(db, evaluation, config, now);
-    await db
+    const ratingRef = db
       .collection(athleteRatingsPath(projectId))
-      .doc(athleteRatingDocId(finalState.athleteId, sportCode))
-      .set(ratingStateToDoc(finalState), {merge: true});
+      .doc(athleteRatingDocId(evaluation.next.athleteId, sportCode));
+    const finalState = await applyLadderActions(db, evaluation, config, now, ratingRef);
+    await ratingRef.set(ratingStateToDoc(finalState), {merge: true});
   }
   return {processed: true};
 }

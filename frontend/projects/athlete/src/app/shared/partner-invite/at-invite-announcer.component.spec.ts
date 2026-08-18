@@ -7,7 +7,7 @@ import { PartnerInvitesService, type PendingPartnerInvite } from '../../data/par
 import { TournamentRegistrationError } from '../../data/tournament-registrations-repository';
 import type { TournamentPartnerInvite } from '../../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../../data/tournaments-repository';
-import { NxToastService } from '../feedback';
+import { NxBlockingDialogComponent, NxToastService } from '../feedback';
 import { LgpdConsentDialogComponent } from '../lgpd/lgpd-consent-dialog.component';
 import { AtInviteAnnouncerComponent } from './at-invite-announcer.component';
 import { PartnerInviteResponder } from './partner-invite-responder';
@@ -39,6 +39,7 @@ function item(id: string, overrides: Partial<TournamentPartnerInvite> = {}): Pen
       city: 'Aparecida',
       startAt: new Date(2026, 5, 20, 8, 0),
       paymentMode: 'appPixCard',
+      sport: 'beachVolleyball',
       categories: [{ id: invite.categoryId, categoryName: 'Masc. Intermediário', entryFee: 360, teamSize: null }],
     } as unknown as TournamentSummary,
   };
@@ -73,6 +74,20 @@ describe('AtInviteAnnouncerComponent', () => {
     await fixture.whenStable();
   }
 
+  function levelDialog() {
+    return fixture.debugElement.query(By.directive(NxBlockingDialogComponent));
+  }
+
+  async function confirmLevel(): Promise<void> {
+    levelDialog().componentInstance.primary.emit();
+    await fixture.whenStable();
+  }
+
+  async function adjustLevel(): Promise<void> {
+    levelDialog().componentInstance.secondary.emit();
+    await fixture.whenStable();
+  }
+
   async function build(invites: PendingPartnerInvite[]): Promise<void> {
     pending.set(invites);
     fixture = TestBed.createComponent(AtInviteAnnouncerComponent);
@@ -83,9 +98,15 @@ describe('AtInviteAnnouncerComponent', () => {
     sessionStorage.clear();
     pending = signal<PendingPartnerInvite[]>([]);
     markAnswered = jasmine.createSpy('markAnswered');
-    responder = jasmine.createSpyObj<PartnerInviteResponder>('PartnerInviteResponder', ['accept', 'decline']);
+    responder = jasmine.createSpyObj<PartnerInviteResponder>('PartnerInviteResponder', [
+      'accept',
+      'decline',
+      'resolveLevelPrompt',
+    ]);
     responder.accept.and.resolveTo();
     responder.decline.and.resolveTo();
+    // Sem nada a confirmar por padrão — os specs de nível abaixo sobrescrevem por teste.
+    responder.resolveLevelPrompt.and.resolveTo(null);
 
     await TestBed.configureTestingModule({
       imports: [AtInviteAnnouncerComponent],
@@ -208,6 +229,108 @@ describe('AtInviteAnnouncerComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/torneios', 't-i1', 'inscricao'], {
       queryParams: { categoria: 'c-i1' },
     });
+  });
+
+  // Task 7 — confirmação de nível na 1ª inscrição do esporte, via `PartnerInviteResponder`
+  // (a mesma costura injetável que já cobre aceite/recusa sem rede).
+  it('esporte destravado: pede confirmação de nível antes de aceitar de verdade', async () => {
+    responder.resolveLevelPrompt.and.resolveTo({ levelLabel: 'Iniciante 1', sportLabel: 'Vôlei de praia' });
+
+    await build([item('i1')]);
+    await click('accept');
+    await confirmLgpd();
+
+    // Fix pós-review (I1): o responder recebe o tournamentId (não um sport já resolvido) e
+    // busca o torneio fresco — nunca o cache de `PartnerInvitesService.pending()`.
+    expect(responder.resolveLevelPrompt).toHaveBeenCalledWith('t-i1');
+    expect(responder.accept).not.toHaveBeenCalled();
+    expect(levelDialog()).not.toBeNull();
+    expect(levelDialog().componentInstance.heading()).toBe('Confirme seu nível');
+    expect(levelDialog().componentInstance.body()).toBe(
+      'Você vai se inscrever como Iniciante 1 em Vôlei de praia. Após a inscrição, o nível só poderá subir.',
+    );
+
+    await confirmLevel();
+
+    expect(responder.accept).toHaveBeenCalledWith('i1');
+    expect(markAnswered).toHaveBeenCalledWith('i1');
+    expect(navigate).toHaveBeenCalledWith(['/torneios', 't-i1', 'inscricao'], {
+      queryParams: { categoria: 'c-i1' },
+    });
+  });
+
+  it('"Ajustar nível" não aceita o convite e navega pra /perfil/esportes', async () => {
+    responder.resolveLevelPrompt.and.resolveTo({ levelLabel: 'Iniciante 1', sportLabel: 'Vôlei de praia' });
+
+    await build([item('i1')]);
+    await click('accept');
+    await confirmLgpd();
+    await adjustLevel();
+
+    expect(responder.accept).not.toHaveBeenCalled();
+    expect(markAnswered).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/perfil/esportes']);
+    expect(dialog()).toBeNull();
+    expect(levelDialog()).toBeNull();
+  });
+
+  it('esporte já travado: aceita direto, sem mostrar o dialog de nível', async () => {
+    responder.resolveLevelPrompt.and.resolveTo(null);
+
+    await build([item('i1')]);
+    await click('accept');
+    await confirmLgpd();
+
+    expect(levelDialog()).toBeNull();
+    expect(responder.accept).toHaveBeenCalledWith('i1');
+  });
+
+  // F6 (review pós-calibração de nível): o dialog de confirmação de nível é gated pelo MESMO
+  // `@if (current(); as item)` do resto do modal — se o convite sob confirmação some de
+  // `invites.pending()` (resolvido/retirado em outra aba) enquanto o dialog está aberto aqui,
+  // o `@if` desmonta tudo sem que `confirmLevelPrompt`/`adjustLevelPrompt` jamais rodem, e o
+  // `levelConfirmationResolve` da Promise pendente fica órfão. Sem o fix, `ensureLevelConfirmed`
+  // trata QUALQUER resolver pendente como "confirmação em andamento" e o PRÓXIMO aceite da
+  // sessão inteira (de um convite diferente) ficaria travado em `false` silencioso pra sempre.
+  it('convite sob confirmação some (current() vira null) com o dialog de nível aberto: assenta o resolver órfão e não trava o próximo aceite', async () => {
+    responder.resolveLevelPrompt.and.resolveTo({ levelLabel: 'Iniciante 1', sportLabel: 'Vôlei de praia' });
+
+    await build([item('i1')]);
+    await click('accept');
+    await confirmLgpd();
+    expect(levelDialog()).not.toBeNull();
+
+    // i1 sai de `pending` (ex.: aceito/recusado em outra aba) enquanto o dialog de nível
+    // segue aberto aqui — current() vira null e o `@if` externo desmonta tudo, inclusive o
+    // dialog, sem que `confirmLevelPrompt`/`adjustLevelPrompt` jamais rodem.
+    pending.set([]);
+    await fixture.whenStable();
+    expect(dialog()).toBeNull();
+    expect(levelDialog()).toBeNull();
+
+    // Convite NOVO chega depois. Sem o fix, o resolver órfão de i1 faz `ensureLevelConfirmed`
+    // devolver `false` pra sempre — este aceite ficaria mudo (sem chamar accept, sem navegar).
+    responder.resolveLevelPrompt.and.resolveTo(null);
+    pending.set([item('i2')]);
+    await fixture.whenStable();
+    await click('accept');
+    await confirmLgpd();
+
+    expect(responder.accept).toHaveBeenCalledWith('i2');
+    expect(markAnswered).toHaveBeenCalledWith('i2');
+  });
+
+  it('falha ao confirmar o nível: bloqueia, avisa e não aceita', async () => {
+    const toastError = spyOn(TestBed.inject(NxToastService), 'error');
+    responder.resolveLevelPrompt.and.rejectWith(new Error('fetch falhou'));
+
+    await build([item('i1')]);
+    await click('accept');
+    await confirmLgpd();
+
+    expect(responder.accept).not.toHaveBeenCalled();
+    expect(levelDialog()).toBeNull();
+    expect(toastError).toHaveBeenCalled();
   });
 
   it('cancelar o termo volta pro modal sem responder', async () => {

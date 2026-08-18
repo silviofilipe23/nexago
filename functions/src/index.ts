@@ -82,6 +82,7 @@ import {
 } from "./organizer-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
+import {onInscriptionWrittenLockLevels} from "./tournament-level-lock";
 import {
   createArenaRecurringBooking,
   cancelArenaRecurringBooking,
@@ -214,6 +215,7 @@ export {
   onTournamentMatchCompletedAdvance,
   deleteOwnAccount,
   onTournamentInscriptionWriteSyncCollectedCents,
+  onInscriptionWrittenLockLevels,
   createArenaRecurringBooking,
   cancelArenaRecurringBooking,
   cancelArenaRecurringOccurrence,

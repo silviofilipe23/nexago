@@ -71,10 +71,24 @@ service cloud.firestore {
         request.resource.data.listingStatus is string &&
         isValidTournamentListingStatus(request.resource.data.listingStatus);
     }
+    function tournamentManagerId(tournamentId) {
+      return get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.managerId;
+    }
     function isTournamentOwner(tournamentId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
-        get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.managerId == request.auth.uid;
+        tournamentManagerId(tournamentId) == request.auth.uid;
+    }
+    /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).
+     *  Duas invariantes que valem para os dois: ninguém se adiciona, e o dono nunca vira
+     *  staff do próprio torneio — o acesso dele já vem de `managerId`, e um doc de staff no
+     *  nome dele apareceria como membro removível na lista. */
+    function canManageTournamentStaff(tournamentId, staffUserId) {
+      return request.auth != null &&
+        staffUserId != request.auth.uid &&
+        exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
+        tournamentManagerId(tournamentId) != staffUserId &&
+        (isSuperAdmin() || tournamentManagerId(tournamentId) == request.auth.uid);
     }
     function isTournamentStaff(tournamentId, allowedRoles) {
       return request.auth != null &&
@@ -1813,13 +1827,16 @@ service cloud.firestore {
           canManageTournament(tournamentId) ||
           request.auth.uid == staffUserId
         );
-        // Somente o dono do torneio gerencia a equipe; dono não pode ser staff de si mesmo.
+        // Dono e super admin gerenciam a equipe (ver `canManageTournamentStaff`); sem
+        // convite/aceite, o acesso é imediato — daí `status` só aceitar 'active'.
         allow create, update: if request.auth != null &&
-          isTournamentOwner(tournamentId) &&
-          staffUserId != request.auth.uid &&
+          canManageTournamentStaff(tournamentId, staffUserId) &&
           request.resource.data.role in ['manager', 'scorer'] &&
           request.resource.data.status == 'active';
-        allow delete: if request.auth != null && isTournamentOwner(tournamentId);
+        // Remover não passa pela guarda do dono: se um doc de staff no nome dele existir
+        // (lixo de uma escrita anterior), alguém precisa conseguir apagar.
+        allow delete: if request.auth != null &&
+          (isTournamentOwner(tournamentId) || isSuperAdmin());
       }
 
       match /categoryCommunications/{commId} {

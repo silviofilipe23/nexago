@@ -338,19 +338,21 @@ export function skillLevelOptionsForSport(sport: TournamentSport): SkillLevel[] 
 
 export interface CategoryLevelPreset {
   label: string;
-  min: SkillLevel | null;
+  min: SkillLevel;
   max: SkillLevel;
 }
 
-/** Faixas prontas de nível (spec §4.3). "Livre" é a categoria totalmente
- *  aberta — o nome "Open" fica reservado pro degrau de elite. */
+/** Faixas prontas de nível (spec emendada 18/08). "Open" é a faixa-ponte
+ *  4–6 que fecha chave com topo pequeno; "Elite" é só o degrau Open (topo).
+ *  "Livre" grava piso EXPLÍCITO iniciante1 — `minLevel` ausente no doc é
+ *  marca de categoria LEGADA (regra antiga só-teto), nunca um preset. */
 export const CATEGORY_LEVEL_PRESETS: readonly CategoryLevelPreset[] = [
   { label: 'Iniciante', min: 'iniciante1', max: 'iniciante2' },
   { label: 'Intermediário', min: 'intermediario1', max: 'intermediario2' },
   { label: 'Avançado', min: 'avancado1', max: 'avancado2' },
-  { label: 'Open', min: 'open', max: 'open' },
-  { label: 'Elite', min: 'avancado1', max: 'open' },
-  { label: 'Livre', min: null, max: 'open' },
+  { label: 'Open', min: 'avancado1', max: 'open' },
+  { label: 'Elite', min: 'open', max: 'open' },
+  { label: 'Livre', min: 'iniciante1', max: 'open' },
 ];
 
 export const BRACKET_FORMAT_FIRESTORE: Record<TournamentBracketSystem, string> = {
@@ -397,7 +399,7 @@ export function suggestCategoryName(category: TournamentCategoryDraft): string {
   }
   if (category.ageBand !== 'open') parts.push(AGE_BAND_LABEL[category.ageBand]);
   if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
-    // Faixa de um único degrau (preset "Open": min = max) — rótulo simples, sem "mín.".
+    // Faixa de um único degrau (preset "Elite": min = max) — rótulo simples, sem "mín.".
     parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   } else {
     if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
@@ -413,7 +415,7 @@ export function categoryTags(category: TournamentCategoryDraft): string[] {
   const tags = [genderTag, DISPUTE_LABEL[category.dispute]];
   if (category.ageBand !== 'open') tags.push(AGE_BAND_LABEL[category.ageBand]);
   if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
-    // Faixa de um único degrau (preset "Open": min = max) — rótulo simples, sem "mín.".
+    // Faixa de um único degrau (preset "Elite": min = max) — rótulo simples, sem "mín.".
     tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   } else {
     if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);

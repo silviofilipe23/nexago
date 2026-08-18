@@ -9,6 +9,7 @@ import {
   removeFromCategory,
   resendRegistrationPayment,
   respondCancellationRequest,
+  revertRegistrationPayment,
 } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
@@ -38,6 +39,9 @@ interface PendingConfirm {
   title: string;
   message: string;
   confirmLabel: string;
+  /** Botão vermelho; padrão. `false` fica pra ação que não apaga nada — reverter
+   *  pagamento mexe em dinheiro, mas a inscrição continua onde está. */
+  destructive?: boolean;
   /** Texto exigido no diálogo; `run` recebe o que foi digitado (vazio quando não há prompt). */
   prompt?: ConfirmPrompt;
   run: (value: string) => void;
@@ -47,6 +51,10 @@ interface PendingConfirm {
  *  (`organizer_category_ops_service.dart`): confirmar pagamento manual, mover pra lista de
  *  espera, remover da categoria e reenviar cobrança — todas via Cloud Functions com validação
  *  no servidor. O torneio vem da rota (`/painel/eventos/:id/inscricoes`).
+ *
+ *  A exceção é "Reverter pagamento", que ainda só existe aqui: desfaz a baixa manual quando o
+ *  organizador confirma na dupla errada. Só a baixa dele é reversível — pagamento recebido pela
+ *  plataforma tem dinheiro numa conta e sai por estorno, não por edição de doc.
  *
  *  Este componente cuida de dados, filtros e ações; o desenho da lista é do
  *  `og-inscricoes-list`. Os contadores por situação vivem nas próprias abas de filtro — a fila
@@ -160,7 +168,7 @@ interface PendingConfirm {
         [title]="c.title"
         [message]="c.message"
         [confirmLabel]="c.confirmLabel"
-        [destructive]="true"
+        [destructive]="c.destructive ?? true"
         [busy]="busy()"
         [prompt]="c.prompt ?? null"
         (confirmed)="c.run($event)"
@@ -388,6 +396,9 @@ export class InscricoesComponent {
           categoriaId: insc.categoryId,
           categoria,
           pay,
+          // Só a baixa que o organizador lançou é reversível — e só faz sentido oferecer
+          // desfazer o que está valendo como "Pago" agora.
+          canRevertPayment: pay === 'pago' && insc.paidByOrganizer,
           payTitle:
             pay === 'conferir'
               ? 'Os atletas declararam ter pago o Pix do organizador. Confira o recebimento e confirme.'
@@ -515,6 +526,25 @@ export class InscricoesComponent {
       case 'resend':
         void this.run(`resend:${row.id}`, () => resendRegistrationPayment(row.id), `Cobrança reenviada pra ${row.name}.`);
         return;
+      // Desfazer a baixa não apaga a inscrição nem libera a vaga, mas mexe em dinheiro
+      // (sai da arrecadação) e o atleta é avisado — vale a confirmação.
+      case 'revert-payment':
+        this.pendingConfirm.set({
+          title: 'Reverter pagamento',
+          message:
+            `A confirmação de pagamento de ${row.name} é desfeita e a inscrição volta ao ` +
+            'estado anterior. A vaga continua com a dupla; o valor sai da arrecadação do ' +
+            'torneio e o atleta é avisado.',
+          confirmLabel: 'Reverter pagamento',
+          destructive: false,
+          run: () =>
+            void this.run(
+              `revert-payment:${row.id}`,
+              () => revertRegistrationPayment(row.id),
+              (result) => revertedMessage(row.name, result.outcome),
+            ),
+        });
+        return;
       case 'waitlist':
         void this.run(`waitlist:${row.id}`, () => moveToWaitlist(row.id), `${row.name} movido pra lista de espera.`);
         return;
@@ -619,6 +649,23 @@ export class InscricoesComponent {
     const slug = normalizeSearch(name).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'torneio';
     downloadFile(`inscricoes-${slug}.csv`, new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
     this.feedback.set({ ok: true, message: `${lines.length} inscrições exportadas.` });
+  }
+}
+
+/** O estado pra onde a inscrição volta depende do que havia ANTES da baixa (declaração dos
+ *  atletas, fila, parcela já paga) — quem sabe isso é o servidor, então a mensagem segue o
+ *  `outcome` dele em vez de adivinhar pela linha na tela. */
+function revertedMessage(name: string, outcome: string | undefined): string {
+  const base = `Pagamento de ${name} revertido.`;
+  switch (outcome) {
+    case 'toVerify':
+      return `${base} A inscrição voltou para “A conferir” — a declaração dos atletas continua valendo.`;
+    case 'waitlist':
+      return `${base} A inscrição voltou para a lista de espera.`;
+    case 'paid':
+      return `${base} A inscrição voltou ao pagamento que já constava antes da confirmação.`;
+    default:
+      return `${base} A inscrição voltou para “Pendente”.`;
   }
 }
 

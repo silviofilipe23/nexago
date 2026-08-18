@@ -41,6 +41,15 @@ export function confirmRegistrationPayment(registrationId: string): Promise<unkn
   return call('organizerConfirmRegistrationPayment', { registrationId: registrationId.trim() });
 }
 
+/** Desfaz a baixa manual de pagamento (o organizador confirmou na dupla errada). O servidor
+ *  recusa pagamento recebido pela plataforma e devolve a inscrição ao estado anterior à
+ *  confirmação — `outcome` diz qual: pendente, a conferir, fila ou o pagamento que já constava. */
+export function revertRegistrationPayment(
+  registrationId: string,
+): Promise<{ ok?: boolean; outcome?: 'pending' | 'toVerify' | 'waitlist' | 'paid' }> {
+  return call('organizerRevertRegistrationPayment', { registrationId: registrationId.trim() });
+}
+
 export function moveToWaitlist(registrationId: string): Promise<unknown> {
   return call('organizerMoveToWaitlist', { registrationId: registrationId.trim() });
 }

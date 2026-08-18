@@ -225,6 +225,16 @@ interface PhoneLinks {
                           {{ busyKey() === 'resend:' + r.id ? 'Reenviando…' : 'Reenviar cobrança' }}
                         </button>
                       }
+                    } @else if (r.canRevertPayment) {
+                      <!-- Contraparte de "Confirmar pagamento": só aparece na baixa que o
+                           organizador lançou. Pagamento recebido pela plataforma não tem
+                           botão — o dinheiro está numa conta e sai por estorno. -->
+                      <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="emitAction('revert-payment', r)">
+                        @if (busyKey() === 'revert-payment:' + r.id) {
+                          <app-nx-spinner [size]="12" />
+                        }
+                        {{ busyKey() === 'revert-payment:' + r.id ? 'Revertendo…' : 'Reverter pagamento' }}
+                      </button>
                     }
                     @if (r.pay !== 'espera') {
                       <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="emitAction('waitlist', r)">

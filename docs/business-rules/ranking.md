@@ -22,9 +22,23 @@ A colocação é atribuída automaticamente quando uma partida é concluída (me
 - Corrigir o vencedor de uma partida já processada refaz a colocação (idempotente por torneio+categoria).
 
 ## Ranking geral nexaGO
-- Tabela de pontos por colocação: **1º = 100, 2º = 80, 3º = 60, 4º = 50, quartas (5º–8º) = 33, grupos = 10**.
-- Cada torneio pode ter um peso (`rankingWeight`, padrão 1.0) que multiplica os pontos — permite dar mais valor a torneios maiores.
-- Multiplicadores por preset de categoria chegam na fase 3 (ver [spec de pesos](../superpowers/specs/2026-08-17-category-presets-ranking-weights-design.md)).
+- **Tabela-base por colocação**: 1º = 1000, 2º = 800, 3º = 600, 4º = 500, quartas (5º–8º) = 330, grupos = 100.
+- **Pesos por preset de categoria** (derivados da faixa, nunca gravados):
+  - Elite: 1.2 (campeão 1200)
+  - Open: 1.0 (1000)
+  - Avançado: 0.5 (500)
+  - Intermediário: 0.25 (250)
+  - Iniciante: 0.125 (125)
+  - Livre: 0.125 (125)
+  - Legada/custom: 1.0
+- **Fórmula de cálculo**: base × peso do preset × `rankingWeight` do torneio × modulador de chave, arredondado uma vez. Cada torneio pode ter um `rankingWeight` (padrão 1.0) que multiplica os pontos — permite dar mais valor a torneios maiores.
+- **Modulador de chave** (aplicado conforme número de duplas pagas na categoria):
+  - ≥8 duplas pagas: 100%
+  - 4–7 duplas pagas: 60%
+  - <4 duplas pagas: 25%
+- **Restrição para Livre**: ninguém recebe pontos do bucket "grupos" — só pontua quem chega ao mata-mata. Essa regra vale nos dois motores (geral e liga).
+- **Gate de participação**: torneio avulso com <10 duplas pagas não gera pontos. Etapa de liga é isenta do gate, mas fica sujeita ao modulador de chave.
+- **Migração de escala**: em 18/08/2026, o histórico de colocações foi reescalado ×10 via script idempotente (`scaleVersion: 2` gravado em documentos novos). Resultados anteriores permanecem com a escala antiga para auditoria.
 - Pontuação vale para o atleta **e** para a dupla; um atleta que joga mais de uma categoria/dupla no ano tem os pontos somados juntos, sem distinção de categoria.
 - Cálculo da pontuação total: **todo resultado conta, sem descarte**. `pointsByYear[ano]` soma tudo que foi conquistado naquele ano e a soma "geral" é a soma dos anos — é literalmente todo resultado já conquistado.
 - No app, o atleta pode ver dois modos: **Geral** (todos os anos) e **Por ano** (só os resultados daquele ano). Tem filtro por gênero (masculino/feminino/misto) e por atletas/duplas, além de busca por nome.
@@ -34,6 +48,7 @@ A colocação é atribuída automaticamente quando uma partida é concluída (me
 - Escopo por `liga + categoria`: um atleta/dupla tem uma posição por categoria dentro de cada liga, além da posição no ranking geral.
 - Só pontua se a etapa (torneio) estiver vinculada a uma liga (`tournaments.leagueId`) e a liga existir.
 - Tabela de pontos própria por liga (`leagues.rankingPointsByPlace`), configurável pelo organizador ao criar a liga; padrão quando não customizada: **1º = 450, 2º = 280, 3º = 180, 4º = 120, quartas = 80, grupos = 40** — bem mais alto que o ranking geral, pra valorizar o circuito estruturado.
+- **Restrição para Livre**: como no ranking geral, categoria Livre não recebe pontos do bucket "grupos" — só pontua no mata-mata.
 - Modo de contagem de etapas, escolhido na criação da liga:
   - **4 melhores de 6 etapas** (padrão) — descarta os 2 piores resultados da dupla.
   - **3 melhores de 5 etapas** — descarta os 2 piores.

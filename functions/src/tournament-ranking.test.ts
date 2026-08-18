@@ -10,6 +10,7 @@ import {
   finalPlaceForAward,
   globalPointsForAward,
   isGlobalRankingEligible,
+  RANKING_SCALE_VERSION,
   teamRankingsPath,
   tournamentCategoryResultsPath,
   tryAwardGlobalRankingForMatch,
@@ -41,6 +42,10 @@ describe("finalPlaceForAward / globalPointsForAward", () => {
 });
 
 describe("motor fase 3 — base ×10 e peso do preset", () => {
+  it("RANKING_SCALE_VERSION carimba a base ×10 atual", () => {
+    assert.strictEqual(RANKING_SCALE_VERSION, 2);
+  });
+
   it("tabela-base reescalada ×10", () => {
     assert.deepStrictEqual(DEFAULT_GLOBAL_POINTS, {
       "1": 1000, "2": 800, "3": 600, "4": 500, quarters: 330, groups: 100,
@@ -149,25 +154,30 @@ describe("tryAwardGlobalRankingForMatch", () => {
     assert.equal(champion.finalPlace, 1);
     assert.equal(champion.pointsEarned, 1000);
     assert.equal(champion.year, 2026);
+    assert.equal(champion.scaleVersion, RANKING_SCALE_VERSION);
 
     const runnerUp = db.store.get(
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tB`,
     )!;
     assert.equal(runnerUp.finalPlace, 2);
     assert.equal(runnerUp.pointsEarned, 800);
+    assert.equal(runnerUp.scaleVersion, RANKING_SCALE_VERSION);
 
     const teamAgg = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
     assert.equal(teamAgg.totalPoints, 1000);
     assert.equal(teamAgg.tournamentsCount, 1);
     assert.deepEqual(teamAgg.pointsByYear, {"2026": 1000});
+    assert.equal(teamAgg.scaleVersion, RANKING_SCALE_VERSION);
 
     for (const uid of ["a1", "a2"]) {
       const athleteAgg = db.store.get(`${athleteRankingsPath(PROJECT)}/${uid}`)!;
       assert.equal(athleteAgg.totalPoints, 1000, uid);
+      assert.equal(athleteAgg.scaleVersion, RANKING_SCALE_VERSION, uid);
     }
     for (const uid of ["b1", "b2"]) {
       const athleteAgg = db.store.get(`${athleteRankingsPath(PROJECT)}/${uid}`)!;
       assert.equal(athleteAgg.totalPoints, 800, uid);
+      assert.equal(athleteAgg.scaleVersion, RANKING_SCALE_VERSION, uid);
     }
   });
 

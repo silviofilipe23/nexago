@@ -51,6 +51,15 @@ export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
   groups: 100,
 };
 
+/**
+ * Carimbo de escala gravado em `tournamentCategoryResults` e nos docs de
+ * `athleteRankings`/`teamRankings` — versão 2 = base ×10 (fase 3, este
+ * arquivo). Docs escritos pelo motor a partir daqui já nascem carimbados;
+ * `functions/scripts/backfill-ranking-scale-x10.js` usa este mesmo valor
+ * como marca de idempotência ao migrar o histórico pré-×10.
+ */
+export const RANKING_SCALE_VERSION = 2;
+
 /** Menos de 10 duplas pagas = desafio: não pontua no ranking global. */
 export const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
 
@@ -222,6 +231,7 @@ async function upsertGlobalRankingDoc(
       totalPoints: aggregates.totalPoints,
       tournamentsCount: aggregates.tournamentsCount,
       pointsByYear: aggregates.pointsByYear,
+      scaleVersion: RANKING_SCALE_VERSION,
       lastUpdated: FieldValue.serverTimestamp(),
     },
     {merge: true},
@@ -267,6 +277,7 @@ async function awardGlobalPlacement(
     pointsEarned: points,
     year: params.year,
     completedAt: Timestamp.fromDate(params.completedAt),
+    scaleVersion: RANKING_SCALE_VERSION,
   });
 
   const entry: GlobalRankingResultEntry = {

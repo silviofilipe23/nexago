@@ -26,7 +26,8 @@ import {
   type MyBooking,
 } from './data/my-bookings-repository';
 import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
-import { staffRoleLabel, watchMyOngoingStaffTournaments, type MyStaffTournament } from './data/tournament-staff-repository';
+import { staffRoleLabel } from './data/tournament-staff-repository';
+import { StaffTournamentsService } from './data/staff-tournaments.service';
 import { PartnerInvitesService } from './data/partner-invites.service';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
@@ -542,10 +543,11 @@ export class AthletePainelComponent {
   private readonly communityState = signal<CommunityFeedItem[]>([]);
   private readonly missionsDoneState = signal<ReadonlySet<string>>(new Set());
   private readonly myTournamentsState = signal<MyTournamentItem[]>([]);
-  /** Torneios em que o atleta é EQUIPE (mesário/gestor) — espelho `users/{uid}/tournamentStaff`.
-   *  Fica no topo do painel, e não na coluna lateral, porque no celular a lateral cai pro fim
-   *  da página: no dia do evento a mesa não pode depender de rolagem. */
-  private readonly staffTournamentsState = signal<MyStaffTournament[]>([]);
+  /** Torneios em que o atleta é EQUIPE (mesário/gestor). Vem do mesmo store que acende a Mesa
+   *  no menu — um listener por sessão, e card e menu nunca discordam.
+   *  O card fica no topo do painel, e não na coluna lateral, porque no celular a lateral cai
+   *  pro fim da página: no dia do evento a mesa não pode depender de rolagem. */
+  private readonly staffTournamentsState = inject(StaffTournamentsService).ongoing;
   /** Inscrições que ainda têm próximo passo (falta dupla/pagamento/uniforme) — o card de
    *  acompanhamento no topo. Sai da lista assim que a inscrição fecha. */
   private readonly inProgressRegistrationsState = signal<readonly RegistrationProgress[]>([]);
@@ -775,7 +777,6 @@ export class AthletePainelComponent {
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
-        this.staffTournamentsState.set([]);
         this.inProgressRegistrationsState.set([]);
         this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
@@ -821,13 +822,6 @@ export class AthletePainelComponent {
         () => this.missionsDoneState.set(new Set()),
       );
 
-      const stopStaff = watchMyOngoingStaffTournaments(
-        this.firestore,
-        user.uid,
-        (view) => this.staffTournamentsState.set(view.ongoing),
-        () => this.staffTournamentsState.set([]),
-      );
-
       void this.loadMatchHistory(user.uid);
       void this.loadRegistrationsAndTournaments(user.uid);
       void this.loadProfilePhoto(user.uid);
@@ -836,7 +830,6 @@ export class AthletePainelComponent {
         stopBookings();
         stopCommunity();
         stopMissions();
-        stopStaff();
       });
     });
   }

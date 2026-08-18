@@ -17,6 +17,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { PartnerInvitesService } from '../data/partner-invites.service';
+import { StaffTournamentsService } from '../data/staff-tournaments.service';
 import { NxBannerComponent } from '../shared/feedback';
 import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
@@ -67,6 +68,11 @@ export class AtPanelShellComponent {
    *  tela, não só quando a Agenda está montada e passa o próprio valor, e pra acender no
    *  instante em que o convite chega. */
   protected readonly agendaPendingCount = inject(PartnerInvitesService).pendingCount;
+
+  /** Torneios em andamento que o atleta opera — acende o item "Mesa". Vem do store pelo mesmo
+   *  motivo dos convites: entrar na equipe é gesto do organizador e o menu tem de acender no
+   *  instante em que isso acontece, em qualquer tela. */
+  protected readonly staffCount = inject(StaffTournamentsService).count;
 
   constructor() {
     const syncOnline = () => this.offline.set(!navigator.onLine);

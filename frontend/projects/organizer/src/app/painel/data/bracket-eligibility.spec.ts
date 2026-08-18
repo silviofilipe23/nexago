@@ -15,6 +15,7 @@ function inscription(overrides: Partial<TournamentInscription> = {}): Tournament
     participantNames: [],
     paymentStatus: 'paid',
     paid: true,
+    paidByOrganizer: false,
     needsVerification: false,
     sharePaidCount: 0,
     partnerPending: false,

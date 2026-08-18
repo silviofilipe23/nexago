@@ -11,6 +11,10 @@ import { chunkIds, fetchTeamsByIds, teamNamesFrom } from './teams-repository';
  *  `tournament-brackets.component.ts` faz no athlete — e deriva `paymentStatus` a partir dos
  *  booleanos reais (`isPaid`/`waitlist`). */
 
+/** Espelha `ORGANIZER_DIRECT_PAYMENT_METHOD` das Cloud Functions
+ *  (`organizer-category-ops-payments.ts`): marca a baixa lançada pelo organizador. */
+const ORGANIZER_DIRECT_PAYMENT_METHOD = 'organizer_direct';
+
 export interface InscriptionParticipant {
   uid: string;
   name: string;
@@ -54,6 +58,10 @@ export interface TournamentInscription {
   /** Os atletas declararam ter pago direto no Pix do organizador e ninguém conferiu ainda.
    *  `isPaid` já é `true` nesse estado — a vaga vale —, mas nenhum webhook viu o dinheiro. */
   needsVerification: boolean;
+  /** A baixa do pagamento foi lançada pelo organizador (`paymentMethod: organizer_direct`),
+   *  e não recebida pela plataforma. É a única que ele pode reverter: dinheiro que entrou
+   *  pelo Pix do app existe numa conta e sai por estorno, não por edição de doc. */
+  paidByOrganizer: boolean;
   /** Quantos atletas da inscrição já quitaram a própria parte (`sharePaidUids`) — em pagamento
    *  pelo app é dinheiro recebido; no modo direto é declaração do atleta. Serve pra explicar
    *  por que a inscrição está parada em "Pendente". */
@@ -110,6 +118,8 @@ interface RawInscription {
   declaredPaidAt: Date | null;
   /** Gravado por `organizerConfirmRegistrationPayment` — a baixa manual do organizador. */
   paymentVerifiedByOrganizer: boolean;
+  /** `organizer_direct` = baixa manual; ausente = pagamento recebido pela plataforma. */
+  paymentMethod: string | null;
   lgpdAcceptedUids: string[];
   uniformPlayer1: InscriptionUniformSlot;
   uniformPlayer2: InscriptionUniformSlot;
@@ -211,6 +221,7 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
       : [],
     declaredPaidAt: toDate(data['declaredPaidAt']),
     paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] === true,
+    paymentMethod: optionalStr(data['paymentMethod'])?.toLowerCase() ?? null,
     lgpdAcceptedUids: Array.isArray(data['lgpdAcceptedUids'])
       ? data['lgpdAcceptedUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
       : [],
@@ -350,6 +361,7 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       participantNames,
       paymentStatus,
       paid: r.isPaid,
+      paidByOrganizer: r.paymentMethod === ORGANIZER_DIRECT_PAYMENT_METHOD,
       needsVerification,
       sharePaidCount: r.sharePaidUids.filter((uid) => uids.includes(uid)).length,
       partnerPending: r.partnerPending,

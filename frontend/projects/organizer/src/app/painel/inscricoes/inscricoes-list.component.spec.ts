@@ -1,7 +1,12 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
-import { normalizeSearch, type InscricaoAthlete, type InscricaoRow } from './inscricoes.model';
+import {
+  normalizeSearch,
+  type InscricaoAction,
+  type InscricaoAthlete,
+  type InscricaoRow,
+} from './inscricoes.model';
 
 function athlete(over: Partial<InscricaoAthlete> = {}): InscricaoAthlete {
   return { name: 'Ana Paula', photoUrl: null, lgpdAccepted: true, phone: '', ...over };
@@ -17,6 +22,7 @@ function row(over: Partial<InscricaoRow> = {}): InscricaoRow {
     pay: 'pago',
     payNote: null,
     payTitle: '',
+    canRevertPayment: false,
     roster: null,
     cancelPending: false,
     cancelReason: '',
@@ -196,6 +202,49 @@ describe('OgInscricoesListComponent', () => {
 
       expect(el.querySelector('.og-insc-drawer')).toBeNull();
       expect((el.querySelector('.og-insc-row') as HTMLElement).textContent).not.toContain('98240');
+    });
+  });
+
+  /** Reverter é a contraparte de "Confirmar pagamento": só existe na baixa que o organizador
+   *  lançou. Dinheiro recebido pela plataforma está numa conta e sai por estorno — oferecer o
+   *  botão ali seria prometer um desfazer que o servidor recusa. */
+  describe('reverter pagamento', () => {
+    async function actionsOf(over: Partial<InscricaoRow>): Promise<string[]> {
+      fixture.componentRef.setInput('rows', [row(over)]);
+      fixture.componentRef.setInput('openId', 'i1');
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+      return [...el.querySelectorAll('.og-insc-actions button')].map((b) => b.textContent?.trim() ?? '');
+    }
+
+    it('aparece na baixa lançada pelo organizador', async () => {
+      expect(await actionsOf({ canRevertPayment: true })).toContain('Reverter pagamento');
+    });
+
+    it('não aparece quando o pagamento veio pela plataforma', async () => {
+      expect(await actionsOf({ canRevertPayment: false })).not.toContain('Reverter pagamento');
+    });
+
+    it('não aparece em quem ainda não está pago — lá o botão é o de confirmar', async () => {
+      const acoes = await actionsOf({ pay: 'pendente', canRevertPayment: true });
+
+      expect(acoes).not.toContain('Reverter pagamento');
+      expect(acoes).toContain('Confirmar pagamento');
+    });
+
+    it('emite a ação com a linha da gaveta', async () => {
+      const emitted: InscricaoAction[] = [];
+      fixture.componentInstance.action.subscribe((a) => emitted.push(a));
+      await actionsOf({ canRevertPayment: true });
+      const el = fixture.nativeElement as HTMLElement;
+      const button = [...el.querySelectorAll('.og-insc-actions button')].find(
+        (b) => b.textContent?.trim() === 'Reverter pagamento',
+      ) as HTMLButtonElement;
+
+      button.click();
+
+      expect(emitted.map((a) => a.kind)).toEqual(['revert-payment']);
+      expect(emitted[0].row.id).toBe('i1');
     });
   });
 

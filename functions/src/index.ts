@@ -54,6 +54,7 @@ import {onArenaReviewCreatedAwardXp} from "./arena-review-gamification";
 import {
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
+  organizerRevertRegistrationPayment,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,
   sendCategoryCommunication,
@@ -190,6 +191,7 @@ export {
   onArenaReviewCreatedAwardXp,
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
+  organizerRevertRegistrationPayment,
   organizerCreateTeamRegistration,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,

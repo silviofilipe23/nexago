@@ -26,6 +26,8 @@ import {
   registrationShareable,
   type RegistrationShareData,
 } from '../registration/registration-share';
+import { campaignShareDataOf, type CampaignShareData } from '../campaign/campaign-share';
+import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.component';
 import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
 import { TournamentLiveStore } from '../tournament-live.store';
 import { registrationRosterView } from './registration-roster-cta';
@@ -71,6 +73,9 @@ export interface RegistrationCard {
   canCancel: boolean;
   /** Inscrição fechada e paga — só aí o card compartilhável pode sair dizendo "confirmada". */
   canShare: boolean;
+  /** A campanha desta categoria pode virar imagem: há partida encerrada e não é categoria de
+   *  equipe. Diferente de `canShare`, que é do card de INSCRIÇÃO. */
+  canShareCampaign: boolean;
   /** Com pagamento o caminho é pedir ao organizador — estes três estados. */
   cancellationState: 'none' | 'pending' | 'declined';
   cancellationResponseNote: string;
@@ -88,7 +93,7 @@ export const REFUND_PENDING_NOTICE =
  *  inscrição, então não precisa de estado vazio de "você não está inscrito". */
 @Component({
   selector: 'app-registration-tab',
-  imports: [RouterLink, NxBlockingDialogComponent, RegistrationShareDialogComponent],
+  imports: [RouterLink, NxBlockingDialogComponent, RegistrationShareDialogComponent, CampaignShareDialogComponent],
   templateUrl: './registration-tab.component.html',
   styleUrl: './registration-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -143,6 +148,7 @@ export class RegistrationTabComponent {
       uniformRequired: category?.uniformType != null && category.uniformType !== 'none',
       canCancel: registrationCancellable(r),
       canShare: registrationShareable(r),
+      canShareCampaign: !isTeam && this.campaignDataOf(r.categoryId, r.teamId) != null,
       cancellationState: r.cancellationRequest?.status ?? 'none',
       cancellationResponseNote: r.cancellationRequest?.responseNote ?? '',
     };
@@ -228,6 +234,46 @@ export class RegistrationTabComponent {
       if (displayName) return displayName;
     }
     return 'Atleta';
+  }
+
+  protected readonly campaignTargetId = signal<string | null>(null);
+
+  /** Os dados do card da categoria, ou `null` quando não há campanha para contar (nenhuma
+   *  partida encerrada) ou falta o time da inscrição. */
+  private campaignDataOf(categoryId: string, teamId: string | null): CampaignShareData | null {
+    const tournament = this.store.tournament();
+    const category = tournament?.categories.find((c) => c.id === categoryId) ?? null;
+    if (!tournament || !category || !teamId) return null;
+    const data = campaignShareDataOf({
+      matches: this.store.matches(),
+      categoryId,
+      myTeamIds: this.store.myTeamIds(),
+      duoNameOf: (id, fallback) => this.store.duoNameOf(id, fallback),
+      teamName: this.store.duoNameOf(teamId),
+      players: this.store.duoPlayersOf(teamId),
+      categoryName: category.categoryName,
+      teamSize: category.teamSize,
+      tournamentName: tournament.name,
+      locationName: tournament.location || null,
+      startAt: tournament.startAt,
+      endAt: tournament.endAt,
+    });
+    return data.trajectory.rows.length > 0 ? data : null;
+  }
+
+  protected readonly campaignData = computed<CampaignShareData | null>(() => {
+    const id = this.campaignTargetId();
+    if (!id) return null;
+    const registration = this.store.myRegistrations().find((r) => r.id === id);
+    return registration ? this.campaignDataOf(registration.categoryId, registration.teamId) : null;
+  });
+
+  protected openCampaignShare(card: RegistrationCard): void {
+    this.campaignTargetId.set(card.id);
+  }
+
+  protected closeCampaignShare(): void {
+    this.campaignTargetId.set(null);
   }
 
   protected openShare(card: RegistrationCard): void {

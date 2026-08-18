@@ -110,14 +110,25 @@ export function loadBrandMark(): Promise<HTMLImageElement | null> {
   return loadImage(BRAND_MARK_SRC);
 }
 
-/** "nexaGO" com o GO laranja; devolve o X onde o texto terminou. */
-export function drawWordmark(ctx: CanvasRenderingContext2D, x: number, baseline: number, size: number): number {
+/** "nexaGO" com o GO laranja; devolve o X onde o texto terminou.
+ *
+ *  As cores são parametrizadas porque o card de campanha do CAMPEÃO tem fundo laranja — ali o
+ *  "GO" laranja sobre laranja simplesmente sumia. Os padrões são exatamente o que sempre foi
+ *  desenhado, então nenhum chamador existente muda. */
+export function drawWordmark(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  baseline: number,
+  size: number,
+  nexaColor: string = INK,
+  goColor: string = ORANGE,
+): number {
   ctx.font = sora(800, size);
   ctx.textAlign = 'left';
-  ctx.fillStyle = INK;
+  ctx.fillStyle = nexaColor;
   ctx.fillText('nexa', x, baseline);
   const nexaW = ctx.measureText('nexa').width;
-  ctx.fillStyle = ORANGE;
+  ctx.fillStyle = goColor;
   ctx.fillText('GO', x + nexaW, baseline);
   return x + nexaW + ctx.measureText('GO').width;
 }

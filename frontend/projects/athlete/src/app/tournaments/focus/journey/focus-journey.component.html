@@ -23,7 +23,15 @@
   }
 
   <section class="jr-card">
-    <h2 class="jr-card__title">Caminho até a final</h2>
+    <header class="jr-card__head">
+      <h2 class="jr-card__title">Caminho até a final</h2>
+      @if (canShareCampaign()) {
+        <button type="button" class="jr-share" (click)="shareOpen.set(true)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+          Compartilhar campanha
+        </button>
+      }
+    </header>
     @if (steps().length === 0) {
       <p class="jr-empty">Sua chave ainda não foi sorteada.</p>
     } @else {
@@ -160,5 +168,9 @@
         }
       </ul>
     </section>
+  }
+
+  @if (shareOpen() && campaignData(); as data) {
+    <app-campaign-share-dialog [data]="data" (closed)="shareOpen.set(false)" />
   }
 </div>

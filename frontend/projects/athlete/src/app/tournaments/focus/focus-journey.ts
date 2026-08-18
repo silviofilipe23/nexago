@@ -102,7 +102,13 @@ export function pendingKnockoutsOf(myKnockouts: readonly TournamentMatch[], myTe
  *  de duplas. */
 const MAX_HAPPY_PATH = 32;
 
-function isFinalMatchTypeOf(m: TournamentMatch): boolean {
+/** A final da categoria — em eliminação simples e a grande final da dupla eliminação, que o
+ *  gerador grava com o mesmo `matchType: 'Final'` (`category-bracket-builders.ts`).
+ *
+ *  Exportada e compartilhada de propósito: é a mesma regra que `campaignPlacementOf`
+ *  (`campaign/campaign-share.ts`) usa para coroar o campeão. Copiar essa checagem já deixou duas
+ *  funções deste arquivo em desacordo entre rounds de review — não repita. */
+export function isFinalMatchTypeOf(m: Pick<TournamentMatch, 'matchType'>): boolean {
   const t = m.matchType.trim().toLowerCase();
   return t === 'final' || t === 'grand final' || t === 'grand_final';
 }

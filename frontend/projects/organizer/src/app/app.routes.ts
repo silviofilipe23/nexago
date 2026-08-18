@@ -32,6 +32,14 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/signup.component').then((m) => m.SignupComponent),
   },
   {
+    // Página pública de acompanhamento — SEM guard, de propósito: é o link que o público
+    // abre pelo QR do telão. Lê só coleções com `allow read: if true`.
+    path: 't/:tournamentId',
+    title: 'Acompanhe ao vivo — NexaGO',
+    loadComponent: () =>
+      import('./publico/public-tournament-page.component').then((m) => m.PublicTournamentPageComponent),
+  },
+  {
     // Fora do shell do painel: fica aberta na TV da arena em tela cheia. Sem organizerGuard
     // de propósito — staff logado sem a role organizer também pode exibir o telão.
     path: 'telao/:tournamentId',

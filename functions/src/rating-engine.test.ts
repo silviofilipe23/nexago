@@ -197,6 +197,28 @@ describe("applyMatchRatingUpdate", () => {
     assert.equal(missing.reason, "tournament_not_found");
   });
 
+  // Incidente 18/08 (Copa Goiás): winnerId com o id do TORNEIO fazia
+  // `won` ser falso dos dois lados — derrota de Glicko para os 4 atletas.
+  it("vencedor fora dos dois lados não move rating nem grava evento", async () => {
+    const db = seededDb();
+    const result = await applyMatchRatingUpdate(db as never, PROJECT, {
+      matchId: "m1",
+      match: match({winnerId: "T1"}),
+    });
+    assert.equal(result.processed, false);
+    assert.equal(result.reason, "winner_not_in_match");
+
+    assert.equal(
+      db.store.get(
+        `${ratingEventsPath(PROJECT)}/${ratingEventId("VOLEI_PRAIA", "m1")}`,
+      ),
+      undefined,
+    );
+    for (const uid of ["a1", "a2", "b1", "b2"]) {
+      assert.equal(ratingDocOf(db, uid), undefined, uid);
+    }
+  });
+
   it("flag ratingEnabled=false desliga a engine (kill switch)", async () => {
     const db = seededDb();
     db.seedDoc("ratingLadders/VOLEI_PRAIA", {flags: {ratingEnabled: false}});

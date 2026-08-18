@@ -17,6 +17,7 @@ import {
   isMatchCanceled,
   isMatchCompleted,
   isMatchInProgress,
+  isWinnerInMatch,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
@@ -667,6 +668,15 @@ export const declareMatchWalkover = onCall(async (request) => {
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
+
+  // O vencedor tem que ser um dos dois lados: `winnerId` corrompido premia
+  // colocação a um time que não jogou e quebra ranking e rating.
+  if (!isWinnerInMatch(winnerTeamId, data.teamAId, data.teamBId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "winnerTeamId não corresponde a nenhuma das equipes da partida",
+    );
+  }
 
   const loserId =
     data.teamAId === winnerTeamId ? data.teamBId : data.teamAId;

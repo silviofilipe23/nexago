@@ -1,5 +1,6 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
-import {isMatchCompleted} from "./match-status";
+import * as logger from "firebase-functions/logger";
+import {isMatchCompleted, isWinnerInMatch} from "./match-status";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath} from "./firebase-paths";
 import {extractTeamMemberUids} from "./tournament-team-category";
 
@@ -149,6 +150,20 @@ function winnerAndLoser(match: Record<string, unknown>): {
 
   const teamAId = (match.teamAId as string | undefined)?.trim() ?? "";
   const teamBId = (match.teamBId as string | undefined)?.trim() ?? "";
+  // Vencedor fora dos dois lados: NENHUMA colocação é concedida. Deduzir o
+  // perdedor por eliminação premiaria um time que não jogou a partida (e o
+  // outro lado levaria a colocação do perdedor sem ter perdido).
+  if (!isWinnerInMatch(winnerId, teamAId, teamBId)) {
+    logger.warn(
+      "league-ranking: winnerId fora da partida — colocação não concedida " +
+        `(match=${(match.id as string | undefined) ?? "?"}, ` +
+        `torneio=${(match.tournamentId as string | undefined) ?? "?"}, ` +
+        `categoria=${(match.categoryId as string | undefined) ?? "?"}, ` +
+        `winnerId=${winnerId}, teamAId=${teamAId}, teamBId=${teamBId})`,
+    );
+    return null;
+  }
+
   const loserId = winnerId === teamAId ? teamBId : teamAId;
   if (!loserId) return null;
 

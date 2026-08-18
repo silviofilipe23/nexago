@@ -5,6 +5,7 @@ import {
   isMatchCompleted,
   isMatchInProgress,
   isMatchScheduled,
+  isWinnerInMatch,
   normalizeMatchStatusKey,
 } from "./match-status";
 
@@ -31,5 +32,35 @@ describe("match-status", () => {
     assert.equal(isMatchInProgress("in_progress"), true);
     assert.equal(isMatchScheduled("scheduled"), true);
     assert.equal(isMatchScheduled("Scheduled"), true);
+  });
+});
+
+describe("isWinnerInMatch", () => {
+  it("accepts the winner on either side", () => {
+    assert.equal(isWinnerInMatch("tA", "tA", "tB"), true);
+    assert.equal(isWinnerInMatch("tB", "tA", "tB"), true);
+  });
+
+  it("rejects an id that is on neither side", () => {
+    // Incidente 18/08 (Copa Goiás): winnerId gravado com o id do TORNEIO.
+    assert.equal(isWinnerInMatch("tournament-1", "tA", "tB"), false);
+  });
+
+  it("rejects an empty or missing winner", () => {
+    assert.equal(isWinnerInMatch("", "tA", "tB"), false);
+    assert.equal(isWinnerInMatch("   ", "tA", "tB"), false);
+    assert.equal(isWinnerInMatch(undefined, "tA", "tB"), false);
+    assert.equal(isWinnerInMatch(null, "tA", "tB"), false);
+  });
+
+  it("never matches an empty side (bye/TBD)", () => {
+    assert.equal(isWinnerInMatch("", "", "tB"), false);
+    assert.equal(isWinnerInMatch("tB", "", "tB"), true);
+    assert.equal(isWinnerInMatch("tA", "tA", ""), true);
+  });
+
+  it("ignores surrounding whitespace", () => {
+    assert.equal(isWinnerInMatch(" tA ", "tA", "tB"), true);
+    assert.equal(isWinnerInMatch("tB", "tA", " tB "), true);
   });
 });

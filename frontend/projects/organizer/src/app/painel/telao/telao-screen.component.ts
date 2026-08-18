@@ -626,15 +626,23 @@ export class TelaoScreenComponent {
     const clockTimer = setInterval(() => this.now.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => clearInterval(clockTimer));
 
-    // QR do link público: gera uma vez por torneio, não a cada tique do relógio.
-    effect(() => {
+    // QR do link público: gera uma vez por torneio, não a cada tique do relógio. Guarda contra
+    // resolução fora de ordem — se id/flag mudarem de novo antes da promessa atual resolver, o
+    // `.then()` velho não pode sobrescrever o valor mais novo.
+    effect((onCleanup) => {
       const id = this.svc.tournamentId();
       const show = this.cfg()?.showPublicQr ?? true;
+      let stale = false;
+      onCleanup(() => {
+        stale = true;
+      });
       if (!id || !show) {
         this.publicQr.set(null);
         return;
       }
-      void shareQrSvgDataUrl(publicTournamentUrl(location.origin, id)).then((url) => this.publicQr.set(url));
+      void shareQrSvgDataUrl(publicTournamentUrl(location.origin, id)).then((url) => {
+        if (!stale) this.publicQr.set(url);
+      });
     });
 
     // Rotação automática: avança a página da grade quando há mais quadras do que cabem.

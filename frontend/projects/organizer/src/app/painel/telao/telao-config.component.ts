@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { resolveCourtNames } from '../data/matches-repository';
 import { formatCourtLabel, spTimeLabel } from '../data/schedule-format';
+import { shareQrSvgDataUrl } from '../data/share-qr';
 import { effectiveTelaoConfig, saveTelaoConfig } from '../data/tournaments-repository';
 import type { TelaoConfig } from '../data/tournament.model';
+import { publicTournamentUrl } from '../../publico/public-link';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -11,7 +13,14 @@ import { TelaoScreenComponent } from './telao-screen.component';
 import { TelaoStageComponent } from './telao-stage.component';
 import { courtNowOf } from './telao-selectors';
 
-type TelaoToggleKey = 'showUpcoming' | 'showCall' | 'showAvatars' | 'autoRotate' | 'showStreak' | 'showFinalMode';
+type TelaoToggleKey =
+  | 'showUpcoming'
+  | 'showCall'
+  | 'showAvatars'
+  | 'autoRotate'
+  | 'showStreak'
+  | 'showFinalMode'
+  | 'showPublicQr';
 
 const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showUpcoming', title: 'Próximos jogos', desc: 'Fila lateral com horário e quadra' },
@@ -20,6 +29,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'autoRotate', title: 'Rotação automática', desc: 'Alterna as quadras exibidas a cada 20 s' },
   { key: 'showStreak', title: 'Em chamas', desc: 'Destaque na dupla com 3+ pontos seguidos — cresce com a sequência' },
   { key: 'showFinalMode', title: 'Modo Grande Final', desc: 'Final e 3º lugar assumem a tela inteira, com tela de campeões no fim' },
+  { key: 'showPublicQr', title: 'QR de acompanhamento', desc: 'O público aponta a câmera e vê os jogos ao vivo no celular' },
 ];
 
 /** `eventos/:id/telao` — configuração do telão do torneio: quadras, o que aparece e a
@@ -89,6 +99,20 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
               {{ copied() ? 'Link copiado ✓' : 'Copiar link do telão' }}
             </button>
           </og-card>
+
+          <og-card kicker="Público" title="Acompanhamento público">
+            <p class="og-telao-cfg-tv">
+              Quem está na arena aponta a câmera pro QR do telão e acompanha os jogos no celular — sem login, sem app. Você
+              também pode mandar o link direto no grupo.
+            </p>
+            @if (publicQr(); as qr) {
+              <img class="og-telao-cfg-qr" [src]="qr" alt="QR do link público do torneio" />
+            }
+            <code class="og-telao-cfg-url">{{ publicUrl() }}</code>
+            <button type="button" class="og-ghost-btn og-telao-cfg-tv-btn" (click)="copyPublicLink()">
+              {{ copiedPublic() ? 'Link copiado ✓' : 'Copiar link público' }}
+            </button>
+          </og-card>
         </aside>
 
         <section class="og-telao-cfg-preview">
@@ -128,6 +152,22 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
     }
     .og-telao-cfg-tv-btn {
       margin-top: 12px;
+    }
+    .og-telao-cfg-qr {
+      display: block;
+      width: 132px;
+      height: 132px;
+      margin: 10px 0;
+      border-radius: var(--nx-r-2);
+      background: #fff;
+      padding: 6px;
+    }
+    .og-telao-cfg-url {
+      display: block;
+      overflow-wrap: anywhere;
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      color: var(--nx-text-dim);
     }
     .og-telao-cfg-courts {
       display: flex;
@@ -233,6 +273,10 @@ export class TelaoConfigComponent {
   protected readonly copied = signal(false);
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
+  protected readonly copiedPublic = signal(false);
+  private copiedPublicTimer: ReturnType<typeof setTimeout> | null = null;
+  protected readonly publicQr = signal<string | null>(null);
+
   /** Relógio de baixa frequência só pro status das quadras (AO VIVO / próximo horário). */
   private readonly now = signal(Date.now());
 
@@ -264,11 +308,25 @@ export class TelaoConfigComponent {
   constructor() {
     effect(() => this.svc.tournamentId.set(this.id()));
 
+    // QR do link público: idem ao efeito da TV — a guarda evita que uma promessa velha
+    // sobrescreva o resultado de uma resolução mais recente (id/torneio trocando rápido).
+    effect((onCleanup) => {
+      const url = publicTournamentUrl(location.origin, this.id());
+      let stale = false;
+      onCleanup(() => {
+        stale = true;
+      });
+      void shareQrSvgDataUrl(url).then((dataUrl) => {
+        if (!stale) this.publicQr.set(dataUrl);
+      });
+    });
+
     const statusTimer = setInterval(() => this.now.set(Date.now()), 30_000);
     const destroyRef = inject(DestroyRef);
     destroyRef.onDestroy(() => {
       clearInterval(statusTimer);
       if (this.copiedTimer) clearTimeout(this.copiedTimer);
+      if (this.copiedPublicTimer) clearTimeout(this.copiedPublicTimer);
     });
   }
 
@@ -310,5 +368,17 @@ export class TelaoConfigComponent {
 
   protected openFullscreen(): void {
     window.open(this.telaoUrl(), '_blank');
+  }
+
+  protected publicUrl(): string {
+    return publicTournamentUrl(location.origin, this.id());
+  }
+
+  protected copyPublicLink(): void {
+    void navigator.clipboard.writeText(this.publicUrl()).then(() => {
+      this.copiedPublic.set(true);
+      if (this.copiedPublicTimer) clearTimeout(this.copiedPublicTimer);
+      this.copiedPublicTimer = setTimeout(() => this.copiedPublic.set(false), 2000);
+    });
   }
 }

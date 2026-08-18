@@ -222,7 +222,7 @@ function inputToDatetime(v: string): Date | null {
                 <og-form-field label="Faixa de nível">
                   <og-select-chips [options]="levelPresetOptions" [active]="activeLevelPreset() ?? ''" (changed)="setCatLevelPreset($event)" />
                 </og-form-field>
-                @if (cat().minSkillLevel != null) {
+                @if (cat().minSkillLevel != null && cat().minSkillLevel !== 'iniciante1') {
                   <p class="og-wizard-hint">Piso de nível: atletas sem nível declarado não conseguem se inscrever nesta categoria.</p>
                 }
                 @if (activeLevelPreset() === null) {

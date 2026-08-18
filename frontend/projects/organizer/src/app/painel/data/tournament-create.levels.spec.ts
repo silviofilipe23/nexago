@@ -90,3 +90,23 @@ describe('nome/tags do preset de um único degrau (min === max)', () => {
     expect(categoryTags(cat)).toContain('mín. Avançado 1');
   });
 });
+
+describe('piso rank 0 (iniciante1) é silencioso — preset "Livre" (categoria nova)', () => {
+  it('categoria recém-criada (Livre) não ganha ruído "mín. Iniciante 1" no nome', () => {
+    const draft = emptyCategoryDraft('c1');
+    expect(draft.minSkillLevel).toBe('iniciante1');
+    expect(suggestCategoryName(draft)).not.toContain('mín.');
+    expect(suggestCategoryName(draft)).toBe('Masculino');
+  });
+
+  it('categoria recém-criada (Livre) não ganha ruído "mín. Iniciante 1" nas tags', () => {
+    const draft = emptyCategoryDraft('c1');
+    expect(categoryTags(draft).some((t) => t.startsWith('mín.'))).toBe(false);
+  });
+
+  it('piso explícito acima de iniciante1 (ex.: Iniciante 2) segue aparecendo', () => {
+    const cat = { ...emptyCategoryDraft('c1'), skillLevel: 'open' as const, minSkillLevel: 'iniciante2' as const };
+    expect(suggestCategoryName(cat)).toContain('mín. Iniciante 2');
+    expect(categoryTags(cat)).toContain('mín. Iniciante 2');
+  });
+});

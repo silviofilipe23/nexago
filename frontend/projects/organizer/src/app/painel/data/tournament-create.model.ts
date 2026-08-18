@@ -405,7 +405,10 @@ export function suggestCategoryName(category: TournamentCategoryDraft): string {
     parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   } else {
     if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
-    if (category.minSkillLevel) parts.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+    // Piso rank 0 (iniciante1) é o preset "Livre" — piso padrão, sem ruído no nome.
+    if (category.minSkillLevel && category.minSkillLevel !== 'iniciante1') {
+      parts.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+    }
   }
   return parts.join(' ').trim();
 }
@@ -421,7 +424,10 @@ export function categoryTags(category: TournamentCategoryDraft): string[] {
     tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
   } else {
     if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
-    if (category.minSkillLevel) tags.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+    // Piso rank 0 (iniciante1) é o preset "Livre" — piso padrão, sem ruído na tag.
+    if (category.minSkillLevel && category.minSkillLevel !== 'iniciante1') {
+      tags.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+    }
   }
   return tags;
 }

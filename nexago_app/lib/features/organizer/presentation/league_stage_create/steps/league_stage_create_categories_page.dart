@@ -63,6 +63,7 @@ class _LeagueStageCreateCategoriesPageState
       dispute: category.dispute,
       ageBand: category.ageBand,
       skillLevel: category.skillLevel,
+      minLevel: category.minLevel,
       priceCents: category.priceCents,
       useDefaultPrice: true,
     );

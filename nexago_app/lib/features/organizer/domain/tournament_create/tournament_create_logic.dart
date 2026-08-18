@@ -297,7 +297,26 @@ String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
   return '$spots $unit';
 }
 
+/// Rótulo de nível para nome/tags (paridade com `criar-torneio`/`criar-liga`
+/// no portal web). Quando a faixa bate um preset nomeado
+/// (`activeCategoryLevelPreset`), usa o rótulo do preset — assim Elite
+/// (Open–Open) deixa de ser sinônimo de Livre (Iniciante 1–Open): antes das
+/// duas só sobrava "Masculino". Livre é o preset padrão (piso rank 0) e
+/// fica deliberadamente sem ruído, igual hoje. Faixa legada (sem preset —
+/// `minLevel` vazio ou combinação antiga) preserva o comportamento de
+/// sempre: só o teto, quando não é Open.
+String? _categoryLevelNamePart(TournamentCategoryDraft category) {
+  final preset = activeCategoryLevelPreset(category);
+  if (preset != null) {
+    return preset == 'Livre' ? null : preset;
+  }
+  return category.skillLevel != TournamentSkillLevel.open
+      ? skillLevelLabel(category.skillLevel)
+      : null;
+}
+
 String suggestCategoryName(TournamentCategoryDraft category) {
+  final levelPart = _categoryLevelNamePart(category);
   final parts = <String>[
     // Equipe (trio+): o formato lidera o nome, e "Livre" substitui o gênero
     // (mesma sugestão do portal — "Trio Misto Sub-17").
@@ -308,8 +327,7 @@ String suggestCategoryName(TournamentCategoryDraft category) {
       categoryGenderLabel(category.gender),
     if (category.ageBand != TournamentAgeBand.open)
       ageBandLabel(category.ageBand),
-    if (category.skillLevel != TournamentSkillLevel.open)
-      skillLevelLabel(category.skillLevel),
+    if (levelPart != null) levelPart,
   ];
   return parts.join(' ').trim();
 }
@@ -339,13 +357,13 @@ String categoryFormatCardLabel(TournamentCategoryDraft category) {
 }
 
 List<String> categoryTags(TournamentCategoryDraft category) {
+  final levelPart = _categoryLevelNamePart(category);
   return [
     categoryGenderShort(category.gender),
     categoryDisputeShort(category.dispute),
     if (category.ageBand != TournamentAgeBand.open)
       ageBandLabel(category.ageBand),
-    if (category.skillLevel != TournamentSkillLevel.open)
-      skillLevelLabel(category.skillLevel),
+    if (levelPart != null) levelPart,
   ];
 }
 

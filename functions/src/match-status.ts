@@ -31,3 +31,20 @@ export function isMatchScheduled(status: unknown): boolean {
 export function isMatchCanceled(status: unknown): boolean {
   return normalizeMatchStatusKey(status) === "canceled";
 }
+
+/**
+ * O vencedor precisa ser um dos dois lados da partida. Guarda contra
+ * `winnerId` corrompido (id de torneio/categoria/time de outra chave), que de
+ * outro modo passa calado e premia colocação a um time que não jogou.
+ */
+export function isWinnerInMatch(
+  winnerId: unknown,
+  teamAId: unknown,
+  teamBId: unknown,
+): boolean {
+  const winner = String(winnerId ?? "").trim();
+  if (!winner) return false;
+  const sideA = String(teamAId ?? "").trim();
+  const sideB = String(teamBId ?? "").trim();
+  return winner === sideA || winner === sideB;
+}

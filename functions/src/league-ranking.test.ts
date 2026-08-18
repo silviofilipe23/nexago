@@ -215,6 +215,41 @@ describe("resolveLeaguePlacementsFromMatch", () => {
     );
     assert.deepEqual(awards, [{teamId: "team-b", bucket: "quarters"}]);
   });
+
+  // Incidente 18/08 (Copa Goiás): a disputa de 3º lugar tinha winnerId igual ao
+  // id do TORNEIO. Sem guarda, o loser virava teamAId e o 3º lugar era premiado
+  // a um time inexistente — com dois times marcados em 4º na mesma categoria.
+  it("nega colocação quando o vencedor não é nenhum dos dois lados", () => {
+    const strayWinner = {winnerId: "tournament-copa-goias"};
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "Third Place", ...strayWinner}),
+        {hasThirdPlaceMatch: true},
+      ),
+      [],
+    );
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "Final", ...strayWinner}),
+        noThirdPlace,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "Semifinal", ...strayWinner}),
+        noThirdPlace,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "LB", round: 2, ...strayWinner}),
+        {...noThirdPlace, isDoubleElimination: true, maxLbRound: 2},
+      ),
+      [],
+    );
+  });
 });
 
 describe("effectivePointsFromStageResults", () => {

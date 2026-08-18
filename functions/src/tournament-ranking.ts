@@ -32,12 +32,15 @@ import {findCategory} from "./tournament-registration-guards";
  * de PROPORÇÕES com `pointsByPlace` de
  * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 330
  * aos lugares 5-8). Pontos = base × `pointsMultiplier`, onde
- * `pointsMultiplier = presetWeight × tournaments/{id}.rankingWeight`
- * (`rankingWeight` default 1.0, grade do torneio). `presetWeight` NUNCA é lido
- * de um campo gravado: deriva de `categoryPreset(category)` a partir de
- * `level`/`minLevel` da categoria a cada premiação — categoria sem preset
- * reconhecido (legada) cai em `LEGACY_CATEGORY_WEIGHT` (1). Arredondamento
- * acontece uma única vez, no fim (`globalPointsForAward`).
+ * `pointsMultiplier = presetWeight × tournaments/{id}.rankingWeight ×
+ * bracketSizeFactor(paidTeamsCount)` (`rankingWeight` default 1.0, grade do
+ * torneio). `presetWeight` NUNCA é lido de um campo gravado: deriva de
+ * `categoryPreset(category)` a partir de `level`/`minLevel` da categoria a
+ * cada premiação — categoria sem preset reconhecido (legada) cai em
+ * `LEGACY_CATEGORY_WEIGHT` (1). `bracketSizeFactor` (D7) protege o topo do
+ * ranking de chaves minúsculas premiando pódio cheio: some sozinho quando as
+ * duplas pagas da categoria chegam a 8. Arredondamento acontece uma única
+ * vez, no fim (`globalPointsForAward`).
  */
 export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
   "1": 1000,
@@ -62,6 +65,18 @@ export function isGlobalRankingEligible(params: {
     params.rankingEnabled &&
     params.paidTeamsCount >= MIN_TEAMS_FOR_GLOBAL_RANKING
   );
+}
+
+/**
+ * Modulador por tamanho de chave (D7): protege o ranking de chaves
+ * minúsculas no topo (Elite de 3 duplas valendo pódio cheio). Baseado nas
+ * duplas PAGAS da categoria — mesma contagem do gate de desafio. Some
+ * sozinho quando as chaves enchem.
+ */
+export function bracketSizeFactor(paidTeamsCount: number): number {
+  if (paidTeamsCount >= 8) return 1;
+  if (paidTeamsCount >= 4) return 0.6;
+  return 0.25;
 }
 
 export function tournamentCategoryResultsPath(projectId: string): string {
@@ -323,7 +338,6 @@ export async function tryAwardGlobalRankingForMatch(
   const category = findCategory(tournament as never, categoryId);
   const preset = categoryPreset(category);
   const presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
-  const pointsMultiplier = presetWeight * rankingWeight;
 
   const completedAt = parseMatchPlayedAt(match);
   const year = completedAt.getFullYear();
@@ -362,6 +376,8 @@ export async function tryAwardGlobalRankingForMatch(
     return {awarded: false, teamsUpdated: 0};
   }
 
+  const pointsMultiplier =
+    presetWeight * rankingWeight * bracketSizeFactor(paidTeamIds.size);
   const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt};
   let teamsUpdated = 0;
   for (const award of placements) {

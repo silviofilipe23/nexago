@@ -5,6 +5,7 @@ import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   aggregateRankingResults,
   athleteRankingsPath,
+  bracketSizeFactor,
   DEFAULT_GLOBAL_POINTS,
   finalPlaceForAward,
   globalPointsForAward,
@@ -329,5 +330,33 @@ describe("gate de desafios no fluxo de premiação", () => {
     assert.equal(result.awarded, true);
     const champion = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!;
     assert.equal(champion.finalPlace, 1);
+  });
+});
+
+describe("modulador por tamanho de chave", () => {
+  it("degraus do fator", () => {
+    assert.strictEqual(bracketSizeFactor(8), 1);
+    assert.strictEqual(bracketSizeFactor(12), 1);
+    assert.strictEqual(bracketSizeFactor(7), 0.6);
+    assert.strictEqual(bracketSizeFactor(4), 0.6);
+    assert.strictEqual(bracketSizeFactor(3), 0.25);
+    assert.strictEqual(bracketSizeFactor(0), 0.25);
+  });
+
+  it("etapa de liga com 3 duplas pagas e categoria Elite aplica o fator 0.25 ao multiplier", async () => {
+    const db = seededDb({paidTeams: 3});
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      leagueId: "L1",
+      categories: [{categoryName: "C1", level: "Open", minLevel: "Open"}],
+    });
+    const result = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(result.awarded, true);
+
+    // round(1000 × 1.2 (Elite) × 0.25 (3 duplas pagas, <4)) = 300.
+    const champion = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
+    )!;
+    assert.strictEqual(champion.pointsEarned, 300);
   });
 });

@@ -5,6 +5,7 @@ import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   aggregateRankingResults,
   athleteRankingsPath,
+  DEFAULT_GLOBAL_POINTS,
   finalPlaceForAward,
   globalPointsForAward,
   isGlobalRankingEligible,
@@ -23,18 +24,38 @@ describe("finalPlaceForAward / globalPointsForAward", () => {
     assert.equal(finalPlaceForAward({teamId: "t", bucket: "quarters"}), 5);
     assert.equal(finalPlaceForAward({teamId: "t", bucket: "groups"}), 9);
 
-    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1), 100);
-    assert.equal(globalPointsForAward({teamId: "t", place: 2}, 1), 80);
-    assert.equal(globalPointsForAward({teamId: "t", place: 3}, 1), 60);
-    assert.equal(globalPointsForAward({teamId: "t", place: 4}, 1), 50);
-    assert.equal(globalPointsForAward({teamId: "t", bucket: "quarters"}, 1), 33);
-    assert.equal(globalPointsForAward({teamId: "t", bucket: "groups"}, 1), 10);
+    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1), 1000);
+    assert.equal(globalPointsForAward({teamId: "t", place: 2}, 1), 800);
+    assert.equal(globalPointsForAward({teamId: "t", place: 3}, 1), 600);
+    assert.equal(globalPointsForAward({teamId: "t", place: 4}, 1), 500);
+    assert.equal(globalPointsForAward({teamId: "t", bucket: "quarters"}, 1), 330);
+    assert.equal(globalPointsForAward({teamId: "t", bucket: "groups"}, 1), 100);
   });
 
   it("aplica rankingWeight (peso por grade) com saneamento", () => {
-    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1.5), 150);
-    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 0), 100);
-    assert.equal(globalPointsForAward({teamId: "t", place: 1}, Number.NaN), 100);
+    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1.5), 1500);
+    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 0), 1000);
+    assert.equal(globalPointsForAward({teamId: "t", place: 1}, Number.NaN), 1000);
+  });
+});
+
+describe("motor fase 3 — base ×10 e peso do preset", () => {
+  it("tabela-base reescalada ×10", () => {
+    assert.deepStrictEqual(DEFAULT_GLOBAL_POINTS, {
+      "1": 1000, "2": 800, "3": 600, "4": 500, quarters: 330, groups: 100,
+    });
+  });
+  it("multiplier composto arredonda uma vez no final", () => {
+    // Intermediário (0.25) nas quartas: 330 × 0.25 = 82.5 → 83
+    assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "quarters"}, 0.25), 83);
+    // Iniciante (0.125) nos grupos: 100 × 0.125 = 12.5 → 13
+    assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "groups"}, 0.125), 13);
+    // Elite (1.2) campeão: 1000 × 1.2 = 1200 — âncora da spec
+    assert.strictEqual(globalPointsForAward({teamId: "t", place: 1}, 1.2), 1200);
+  });
+  it("multiplier inválido cai em 1 (paridade com o guard antigo)", () => {
+    assert.strictEqual(globalPointsForAward({teamId: "t", place: 1}, NaN), 1000);
+    assert.strictEqual(globalPointsForAward({teamId: "t", place: 1}, 0), 1000);
   });
 });
 
@@ -125,27 +146,27 @@ describe("tryAwardGlobalRankingForMatch", () => {
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
     )!;
     assert.equal(champion.finalPlace, 1);
-    assert.equal(champion.pointsEarned, 100);
+    assert.equal(champion.pointsEarned, 1000);
     assert.equal(champion.year, 2026);
 
     const runnerUp = db.store.get(
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tB`,
     )!;
     assert.equal(runnerUp.finalPlace, 2);
-    assert.equal(runnerUp.pointsEarned, 80);
+    assert.equal(runnerUp.pointsEarned, 800);
 
     const teamAgg = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
-    assert.equal(teamAgg.totalPoints, 100);
+    assert.equal(teamAgg.totalPoints, 1000);
     assert.equal(teamAgg.tournamentsCount, 1);
-    assert.deepEqual(teamAgg.pointsByYear, {"2026": 100});
+    assert.deepEqual(teamAgg.pointsByYear, {"2026": 1000});
 
     for (const uid of ["a1", "a2"]) {
       const athleteAgg = db.store.get(`${athleteRankingsPath(PROJECT)}/${uid}`)!;
-      assert.equal(athleteAgg.totalPoints, 100, uid);
+      assert.equal(athleteAgg.totalPoints, 1000, uid);
     }
     for (const uid of ["b1", "b2"]) {
       const athleteAgg = db.store.get(`${athleteRankingsPath(PROJECT)}/${uid}`)!;
-      assert.equal(athleteAgg.totalPoints, 80, uid);
+      assert.equal(athleteAgg.totalPoints, 800, uid);
     }
   });
 
@@ -156,7 +177,7 @@ describe("tryAwardGlobalRankingForMatch", () => {
     assert.equal(rerun.teamsUpdated, 0);
 
     const teamAgg = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
-    assert.equal(teamAgg.totalPoints, 100);
+    assert.equal(teamAgg.totalPoints, 1000);
     assert.equal((teamAgg.results as unknown[]).length, 1);
   });
 
@@ -168,9 +189,9 @@ describe("tryAwardGlobalRankingForMatch", () => {
     const teamA = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!;
     assert.equal(teamA.finalPlace, 2);
     const aggA = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
-    assert.equal(aggA.totalPoints, 80);
+    assert.equal(aggA.totalPoints, 800);
     const aggB = db.store.get(`${teamRankingsPath(PROJECT)}/tB`)!;
-    assert.equal(aggB.totalPoints, 100);
+    assert.equal(aggB.totalPoints, 1000);
   });
 
   it("times pagos fora do mata-mata pontuam pela fase de grupos", async () => {
@@ -191,7 +212,7 @@ describe("tryAwardGlobalRankingForMatch", () => {
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`,
     )!;
     assert.equal(groupsTeam.finalPlace, 9);
-    assert.equal(groupsTeam.pointsEarned, 10);
+    assert.equal(groupsTeam.pointsEarned, 100);
   });
 
   it("partida de grupo não concede colocação", async () => {
@@ -211,7 +232,46 @@ describe("tryAwardGlobalRankingForMatch", () => {
     const champion = db.store.get(
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
     )!;
-    assert.equal(champion.pointsEarned, 200);
+    assert.equal(champion.pointsEarned, 2000);
+  });
+
+  it("preset Open (peso 1) não altera os pontos base", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      categories: [{categoryName: "C1", level: "Open", minLevel: "Avançado 1"}],
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const champion = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
+    )!;
+    assert.equal(champion.pointsEarned, 1000);
+  });
+
+  it("preset Elite (peso 1.2) multiplica os pontos", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      categories: [{categoryName: "C1", level: "Open", minLevel: "Open"}],
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const champion = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
+    )!;
+    assert.equal(champion.pointsEarned, 1200);
+  });
+
+  it("categoria sem minLevel (legada) não deriva preset: peso 1", async () => {
+    const db = seededDb();
+    db.seedDoc("tournaments/T1", {
+      sport: "beachVolleyball",
+      categories: [{categoryName: "C1", level: "Open"}],
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const champion = db.store.get(
+      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
+    )!;
+    assert.equal(champion.pointsEarned, 1000);
   });
 });
 

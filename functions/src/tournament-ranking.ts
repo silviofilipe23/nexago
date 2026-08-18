@@ -19,6 +19,8 @@ import {
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
+import {categoryPreset, LEGACY_CATEGORY_WEIGHT} from "./category-presets";
+import {findCategory} from "./tournament-registration-guards";
 
 /**
  * Ranking global por pontos (estilo federação) — preenche o schema que o app
@@ -26,17 +28,24 @@ import {artifactsPublicDataBase} from "./firebase-paths";
  * reutilizando a resolução de colocações da engine de liga mas SEM o gate de
  * `leagueId`: todo torneio pontua.
  *
- * Tabela autoritativa (paridade com `pointsByPlace` de
- * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 33
- * aos lugares 5-8). `tournaments/{id}.rankingWeight` (default 1.0) multiplica.
+ * Tabela autoritativa base 1000 (fase 3 — ×10 da base histórica 100, paridade
+ * de PROPORÇÕES com `pointsByPlace` de
+ * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 330
+ * aos lugares 5-8). Pontos = base × `pointsMultiplier`, onde
+ * `pointsMultiplier = presetWeight × tournaments/{id}.rankingWeight`
+ * (`rankingWeight` default 1.0, grade do torneio). `presetWeight` NUNCA é lido
+ * de um campo gravado: deriva de `categoryPreset(category)` a partir de
+ * `level`/`minLevel` da categoria a cada premiação — categoria sem preset
+ * reconhecido (legada) cai em `LEGACY_CATEGORY_WEIGHT` (1). Arredondamento
+ * acontece uma única vez, no fim (`globalPointsForAward`).
  */
 export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
-  "1": 100,
-  "2": 80,
-  "3": 60,
-  "4": 50,
-  quarters: 33,
-  groups: 10,
+  "1": 1000,
+  "2": 800,
+  "3": 600,
+  "4": 500,
+  quarters: 330,
+  groups: 100,
 };
 
 /** Menos de 10 duplas pagas = desafio: não pontua no ranking global. */
@@ -75,7 +84,7 @@ export function finalPlaceForAward(award: LeaguePlacementAward): number {
 
 export function globalPointsForAward(
   award: LeaguePlacementAward,
-  rankingWeight: number,
+  multiplier: number,
 ): number {
   const base =
     award.place != null
@@ -83,9 +92,9 @@ export function globalPointsForAward(
       : award.bucket != null
         ? DEFAULT_GLOBAL_POINTS[award.bucket] ?? 0
         : 0;
-  const weight =
-    Number.isFinite(rankingWeight) && rankingWeight > 0 ? rankingWeight : 1;
-  return Math.max(0, Math.round(base * weight));
+  const safeMultiplier =
+    Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  return Math.max(0, Math.round(base * safeMultiplier));
 }
 
 export interface GlobalRankingResultEntry {
@@ -212,14 +221,14 @@ async function awardGlobalPlacement(
     tournamentId: string;
     categoryId: string;
     award: LeaguePlacementAward;
-    rankingWeight: number;
+    pointsMultiplier: number;
     year: number;
     completedAt: Date;
   },
 ): Promise<boolean> {
   const {tournamentId, categoryId, award} = params;
   const teamId = award.teamId;
-  const points = globalPointsForAward(award, params.rankingWeight);
+  const points = globalPointsForAward(award, params.pointsMultiplier);
   if (points <= 0) return false;
   const finalPlace = finalPlaceForAward(award);
 
@@ -309,6 +318,13 @@ export async function tryAwardGlobalRankingForMatch(
   const isLeagueStage = String(tournament.leagueId ?? "").trim().length > 0;
   const rankingEnabled = tournament.rankingEnabled !== false;
 
+  // Peso do preset NUNCA vem de campo gravado: deriva de level/minLevel da
+  // categoria a cada premiação (à prova de adulteração no cliente).
+  const category = findCategory(tournament as never, categoryId);
+  const preset = categoryPreset(category);
+  const presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
+  const pointsMultiplier = presetWeight * rankingWeight;
+
   const completedAt = parseMatchPlayedAt(match);
   const year = completedAt.getFullYear();
 
@@ -346,7 +362,7 @@ export async function tryAwardGlobalRankingForMatch(
     return {awarded: false, teamsUpdated: 0};
   }
 
-  const baseParams = {tournamentId, categoryId, rankingWeight, year, completedAt};
+  const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt};
   let teamsUpdated = 0;
   for (const award of placements) {
     if (await awardGlobalPlacement(db, projectId, {...baseParams, award})) {

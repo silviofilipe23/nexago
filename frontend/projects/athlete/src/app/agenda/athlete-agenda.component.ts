@@ -19,8 +19,10 @@ import {
 } from '../data/tournament-registrations-repository';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
+import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
+import { NxBlockingDialogComponent } from '../shared/feedback';
 import { LgpdConsentDialogComponent } from '../shared/lgpd/lgpd-consent-dialog.component';
 import { UniformFormComponent } from '../tournaments/registration/uniform-form.component';
 import {
@@ -30,6 +32,7 @@ import {
   validateUniformSelection,
   type UniformSelection,
 } from '../tournaments/tournament-uniform';
+import { resolveLevelConfirmationPrompt, type LevelConfirmationPrompt } from '../tournaments/tournament-eligibility';
 import { REVIEW_ALREADY_SENT_MESSAGE } from '../data/arena-reviews-repository';
 import { PendingArenaReviewService } from '../data/pending-arena-review.service';
 import { ArenaReviewDialogComponent } from './review/arena-review-dialog.component';
@@ -338,7 +341,7 @@ export function clubParticipationToEvent(p: MyClubParticipation, now: Date = new
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, ArenaReviewDialogComponent, LgpdConsentDialogComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent, NxBlockingDialogComponent, ArenaReviewDialogComponent, LgpdConsentDialogComponent],
   templateUrl: './athlete-agenda.component.html',
   styleUrl: './athlete-agenda.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -698,8 +701,50 @@ export class AthleteAgendaComponent {
     this.inviteUniform.set(next);
   }
 
+  // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
+  /** Mesmo gate/copy da tela de inscrição — o aceite de convite pela Agenda também é um
+   *  caminho pra 1ª inscrição ativa do atleta no esporte (trigger de backend,
+   *  `tournament-level-lock.ts`), não só o fluxo de auto-inscrição. */
+  protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
+  private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+
+  private async ensureLevelConfirmed(request: AgendaPendingRequest): Promise<boolean> {
+    const db = this.firestore;
+    const uid = this.auth.user()?.uid;
+    // Sport vem do MESMO store que já resolve o torneio pro card (`PartnerInvitesService`) —
+    // nenhuma consulta nova.
+    const tournamentSport = this.partnerInvites.pending().find((p) => p.invite.id === request.id)?.tournament?.sport ?? null;
+    let prompt: LevelConfirmationPrompt | null;
+    try {
+      if (!db || !uid) throw new Error('Sem sessão ou conexão com o Firestore.');
+      prompt = await resolveLevelConfirmationPrompt(fetchMyAthleteProfile(db, uid), tournamentSport);
+    } catch {
+      this.showNotice('Não conseguimos confirmar seu nível agora. Tente novamente em instantes.');
+      return false;
+    }
+    if (!prompt) return true;
+    this.levelConfirmationPrompt.set(prompt);
+    return new Promise<boolean>((resolve) => {
+      this.levelConfirmationResolve = resolve;
+    });
+  }
+
+  protected confirmLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(true);
+    this.levelConfirmationResolve = null;
+  }
+
+  protected adjustLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(false);
+    this.levelConfirmationResolve = null;
+    void this.router.navigate(['/perfil/esportes']);
+  }
+
   private async submitAccept(request: AgendaPendingRequest, inviteeUniform: UniformInput | undefined): Promise<void> {
     const id = request.id;
+    if (!(await this.ensureLevelConfirmed(request))) return;
     this.acceptingId.set(id);
     try {
       await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform, {

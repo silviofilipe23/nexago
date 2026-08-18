@@ -14,7 +14,8 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { PartnerInvitesService, type PendingPartnerInvite } from '../../data/partner-invites.service';
 import { TournamentRegistrationError } from '../../data/tournament-registrations-repository';
-import { NxToastService } from '../feedback';
+import type { LevelConfirmationPrompt } from '../../tournaments/tournament-eligibility';
+import { NxBlockingDialogComponent, NxToastService } from '../feedback';
 import { LgpdConsentDialogComponent } from '../lgpd/lgpd-consent-dialog.component';
 import {
   inviteAgeLabel,
@@ -71,11 +72,22 @@ interface InviteRow {
  */
 @Component({
   selector: 'app-at-invite-announcer',
-  imports: [LgpdConsentDialogComponent],
+  imports: [LgpdConsentDialogComponent, NxBlockingDialogComponent],
   template: `
     @if (current(); as item) {
       @if (askingLgpd()) {
         <app-lgpd-consent-dialog (confirmed)="confirmLgpdAndAccept()" (cancelled)="askingLgpd.set(false)" />
+      } @else if (levelConfirmationPrompt(); as prompt) {
+        <app-nx-blocking-dialog
+          tone="info"
+          role="dialog"
+          heading="Confirme seu nível"
+          [body]="'Você vai se inscrever como ' + prompt.levelLabel + ' em ' + prompt.sportLabel + '. Após a inscrição, o nível só poderá subir.'"
+          primaryLabel="Confirmar e continuar"
+          secondaryLabel="Ajustar nível"
+          (primary)="confirmLevelPrompt()"
+          (secondary)="adjustLevelPrompt()"
+        />
       } @else {
         <div class="scrim">
           <div
@@ -580,6 +592,10 @@ export class AtInviteAnnouncerComponent {
   protected readonly busy = signal(false);
   protected readonly askingLgpd = signal(false);
 
+  // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
+  protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
+  private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+
   protected readonly titleId = `at-invite-title-${nextId++}`;
   protected readonly bodyId = `at-invite-body-${nextId++}`;
 
@@ -738,9 +754,50 @@ export class AtInviteAnnouncerComponent {
     this.announced.update((current) => new Set(current).add(inviteId));
   }
 
+  /** Mesmo gate/copy da tela de inscrição — aceitar pelo anúncio automático também é um
+   *  caminho pra 1ª inscrição ativa do atleta no esporte (trigger de backend,
+   *  `tournament-level-lock.ts`). Delegado ao `PartnerInviteResponder` (mesma costura
+   *  testável sem rede que já cobre aceite/recusa). */
+  private async ensureLevelConfirmed(item: PendingPartnerInvite): Promise<boolean> {
+    let prompt: LevelConfirmationPrompt | null;
+    try {
+      prompt = await this.responder.resolveLevelPrompt(item.tournament?.sport ?? null);
+    } catch {
+      this.toasts.error(
+        'Não foi possível confirmar seu nível',
+        'Não conseguimos verificar seu nível agora. Tente novamente em instantes.',
+      );
+      return false;
+    }
+    if (!prompt) return true;
+    this.levelConfirmationPrompt.set(prompt);
+    return new Promise<boolean>((resolve) => {
+      this.levelConfirmationResolve = resolve;
+    });
+  }
+
+  protected confirmLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(true);
+    this.levelConfirmationResolve = null;
+  }
+
+  /** "Ajustar nível": para de anunciar o convite (mesmo gesto de "Ver detalhes") antes de
+   *  navegar — senão o modal reapareceria por cima da tela de Esportes e níveis assim que
+   *  o efeito de foco rodasse de novo. */
+  protected adjustLevelPrompt(): void {
+    const item = this.current();
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(false);
+    this.levelConfirmationResolve = null;
+    if (item) this.stopAnnouncing(item.invite.id);
+    void this.router.navigate(['/perfil/esportes']);
+  }
+
   /** Aceite sem uniforme — o backend coleta na inscrição, pra onde o atleta vai em seguida. */
   private async submitAccept(item: PendingPartnerInvite): Promise<void> {
     if (this.busy()) return;
+    if (!(await this.ensureLevelConfirmed(item))) return;
     this.busy.set(true);
     try {
       await this.responder.accept(item.invite.id);

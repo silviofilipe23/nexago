@@ -383,6 +383,7 @@ export class PanelShellComponent {
           ? [{ label: 'Uniformes', icon: 'shirt' as OgIconName, link: `${base}/uniformes` }]
           : []),
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },
+        { label: 'Telão', icon: 'tv', link: `${base}/telao` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
         { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
       ];
@@ -407,7 +408,6 @@ export class PanelShellComponent {
         matchPrefixes: ['/painel/novo-evento', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'],
       },
       { label: 'Financeiro', icon: 'cash', link: '/painel/financeiro' },
-      { label: 'Telão', icon: 'tv', link: '/painel/telao' },
       { label: 'Links', icon: 'share', link: '/painel/links' },
     ];
   });

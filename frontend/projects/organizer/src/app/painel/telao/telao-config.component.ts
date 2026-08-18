@@ -1,13 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
-import { map } from 'rxjs';
-import { AuthService } from '../../auth/auth.service';
-import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
 import { resolveCourtNames } from '../data/matches-repository';
 import { formatCourtLabel, spTimeLabel } from '../data/schedule-format';
-import { effectiveTelaoConfig, listMyTournaments, saveTelaoConfig } from '../data/tournaments-repository';
-import type { OrganizerTournament, TelaoConfig } from '../data/tournament.model';
+import { effectiveTelaoConfig, saveTelaoConfig } from '../data/tournaments-repository';
+import type { TelaoConfig } from '../data/tournament.model';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -27,113 +22,89 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showFinalMode', title: 'Modo Grande Final', desc: 'Final e 3º lugar assumem a tela inteira, com tela de campeões no fim' },
 ];
 
-const STATUS_LABEL: Record<OrganizerTournament['status'], string> = {
-  inscricoes: 'inscrições abertas',
-  andamento: 'em andamento',
-  concluido: 'concluído',
-  cancelado: 'cancelado',
-};
-
-/** Ordem do seletor: em andamento primeiro (é o que se transmite), depois inscrições, depois
- *  o resto — dentro de cada grupo, mais recente primeiro (ordem que `listMyTournaments` dá). */
-const STATUS_ORDER: Record<OrganizerTournament['status'], number> = { andamento: 0, inscricoes: 1, concluido: 2, cancelado: 3 };
-
-/** `/painel/telao` — configuração do telão: evento exibido, quadras, o que aparece e a
+/** `eventos/:id/telao` — configuração do telão do torneio: quadras, o que aparece e a
  *  pré-visualização ao vivo (a MESMA arte da TV, escalada). Config gravada em
  *  `tournaments/{id}.bigScreen`; a TV reage sem recarregar. */
 @Component({
   selector: 'og-telao-config',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TelaoDataService],
-  imports: [NxPageLoadingComponent, OgCardComponent, OgIconComponent, OgPageHeaderComponent, TelaoScreenComponent, TelaoStageComponent],
+  imports: [OgCardComponent, OgIconComponent, OgPageHeaderComponent, TelaoScreenComponent, TelaoStageComponent],
   template: `
     <og-page-header title="Telão ao vivo" subtitle="Exiba os jogos das quadras num painel na arena — placar em tempo real e chamada dos próximos jogos">
-      <button type="button" class="og-ghost-btn" [disabled]="!selectedId()" (click)="copyLink()">
+      <button type="button" class="og-ghost-btn" (click)="copyLink()">
         {{ copied() ? 'Link copiado ✓' : 'Copiar link' }}
       </button>
-      <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="!selectedId()" (click)="openFullscreen()">
+      <button type="button" class="og-mini-btn og-mini-btn-primary" (click)="openFullscreen()">
         Abrir telão em tela cheia
       </button>
     </og-page-header>
 
     <div class="og-content">
-      @if (loading()) {
-        <app-nx-page-loading title="Carregando telão…" />
-      } @else if (tournaments().length === 0) {
-        <og-card kicker="Telão ao vivo" title="Nenhum evento pra exibir">
-          <p class="og-telao-cfg-empty">Crie um torneio (ou uma etapa de liga) pra transmitir os jogos no telão da arena.</p>
-        </og-card>
-      } @else {
-        <div class="og-telao-cfg">
-          <aside class="og-telao-cfg-side">
-            <og-card kicker="Fonte dos jogos" title="Evento exibido">
-              <select class="og-select-el" [value]="selectedId() ?? ''" (change)="selectEvento($any($event.target).value)" aria-label="Evento exibido no telão">
-                @for (t of tournamentOptions(); track t.id) {
-                  <option [value]="t.id">{{ t.name }} · {{ t.statusLabel }}</option>
+      <div class="og-telao-cfg">
+        <aside class="og-telao-cfg-side">
+          <og-card kicker="Fonte dos jogos" title="Quadras no telão">
+            @if (courtRows().length > 0) {
+              <div class="og-telao-cfg-courts">
+                @for (row of courtRows(); track row.id) {
+                  <label class="og-telao-cfg-court" [class.checked]="row.checked">
+                    <input type="checkbox" [checked]="row.checked" (change)="toggleCourt(row.id)" />
+                    <span class="og-telao-cfg-court-check"><og-icon name="check" [size]="12" [strokeWidth]="3" /></span>
+                    <span class="og-telao-cfg-court-name">{{ row.name }}</span>
+                    <span class="og-telao-cfg-court-status" [class.live]="row.live">{{ row.status }}</span>
+                  </label>
                 }
-              </select>
+              </div>
+            } @else {
+              <p class="og-telao-cfg-empty">Este torneio ainda não tem quadras cadastradas.</p>
+            }
+          </og-card>
 
-              @if (courtRows().length > 0) {
-                <div class="og-telao-cfg-courts-label">Quadras no telão</div>
-                <div class="og-telao-cfg-courts">
-                  @for (row of courtRows(); track row.id) {
-                    <label class="og-telao-cfg-court" [class.checked]="row.checked">
-                      <input type="checkbox" [checked]="row.checked" (change)="toggleCourt(row.id)" />
-                      <span class="og-telao-cfg-court-check"><og-icon name="check" [size]="12" [strokeWidth]="3" /></span>
-                      <span class="og-telao-cfg-court-name">{{ row.name }}</span>
-                      <span class="og-telao-cfg-court-status" [class.live]="row.live">{{ row.status }}</span>
-                    </label>
-                  }
+          <og-card kicker="Exibição" title="O que aparece">
+            @for (t of toggles; track t.key) {
+              <div class="og-toggle-row">
+                <div class="og-toggle-row-text">
+                  <div class="og-toggle-row-title">{{ t.title }}</div>
+                  <div class="og-toggle-row-desc">{{ t.desc }}</div>
                 </div>
-              }
-            </og-card>
+                <button
+                  type="button"
+                  class="og-toggle"
+                  [class.on]="cfg()?.[t.key]"
+                  role="switch"
+                  [attr.aria-checked]="cfg()?.[t.key] ?? false"
+                  [attr.aria-label]="t.title"
+                  (click)="toggleFlag(t.key)"
+                ></button>
+              </div>
+            }
+          </og-card>
 
-            <og-card kicker="Exibição" title="O que aparece">
-              @for (t of toggles; track t.key) {
-                <div class="og-toggle-row">
-                  <div class="og-toggle-row-text">
-                    <div class="og-toggle-row-title">{{ t.title }}</div>
-                    <div class="og-toggle-row-desc">{{ t.desc }}</div>
-                  </div>
-                  <button
-                    type="button"
-                    class="og-toggle"
-                    [class.on]="cfg()?.[t.key]"
-                    role="switch"
-                    [attr.aria-checked]="cfg()?.[t.key] ?? false"
-                    [attr.aria-label]="t.title"
-                    (click)="toggleFlag(t.key)"
-                  ></button>
-                </div>
-              }
-            </og-card>
+          <og-card kicker="TV da arena" title="Exibir na TV">
+            <p class="og-telao-cfg-tv">
+              Na TV (ou no computador ligado ao painel), faça login neste portal e abra o link do telão — ele entra em tela cheia e
+              atualiza sozinho a cada ponto lançado.
+            </p>
+            <button type="button" class="og-ghost-btn og-telao-cfg-tv-btn" (click)="copyLink()">
+              {{ copied() ? 'Link copiado ✓' : 'Copiar link do telão' }}
+            </button>
+          </og-card>
+        </aside>
 
-            <og-card kicker="TV da arena" title="Exibir na TV">
-              <p class="og-telao-cfg-tv">
-                Na TV (ou no computador ligado ao painel), faça login neste portal e abra o link do telão — ele entra em tela cheia e
-                atualiza sozinho a cada ponto lançado.
-              </p>
-              <button type="button" class="og-ghost-btn og-telao-cfg-tv-btn" [disabled]="!selectedId()" (click)="copyLink()">
-                {{ copied() ? 'Link copiado ✓' : 'Copiar link do telão' }}
-              </button>
-            </og-card>
-          </aside>
-
-          <section class="og-telao-cfg-preview">
-            <header class="og-telao-cfg-preview-head">
-              <span class="og-telao-cfg-preview-kicker">Pré-visualização · 1920×1080</span>
-              <span class="og-telao-cfg-preview-title">Telão ao vivo</span>
-              <span class="og-telao-cfg-preview-spacer"></span>
-              @if (transmitting()) {
-                <span class="og-pill og-pill-green"><span class="og-dot og-dot-pulse"></span>Transmitindo</span>
-              }
-            </header>
-            <og-telao-stage class="og-telao-cfg-stage">
-              <og-telao-screen />
-            </og-telao-stage>
-          </section>
-        </div>
-      }
+        <section class="og-telao-cfg-preview">
+          <header class="og-telao-cfg-preview-head">
+            <span class="og-telao-cfg-preview-kicker">Pré-visualização · 1920×1080</span>
+            <span class="og-telao-cfg-preview-title">Telão ao vivo</span>
+            <span class="og-telao-cfg-preview-spacer"></span>
+            @if (transmitting()) {
+              <span class="og-pill og-pill-green"><span class="og-dot og-dot-pulse"></span>Transmitindo</span>
+            }
+          </header>
+          <og-telao-stage class="og-telao-cfg-stage">
+            <og-telao-screen />
+          </og-telao-stage>
+        </section>
+      </div>
     </div>
   `,
   styles: `
@@ -157,14 +128,6 @@ const STATUS_ORDER: Record<OrganizerTournament['status'], number> = { andamento:
     }
     .og-telao-cfg-tv-btn {
       margin-top: 12px;
-    }
-    .og-telao-cfg-courts-label {
-      margin: 18px 0 10px;
-      font-family: var(--nx-font-mono);
-      font-size: 11px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--nx-text-dim);
     }
     .og-telao-cfg-courts {
       display: flex;
@@ -260,35 +223,18 @@ const STATUS_ORDER: Record<OrganizerTournament['status'], number> = { andamento:
   `,
 })
 export class TelaoConfigComponent {
-  private readonly auth = inject(AuthService);
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   protected readonly svc = inject(TelaoDataService);
+
+  /** Preenchido pelo router (`withComponentInputBinding`) a partir de `eventos/:id/telao`. */
+  readonly id = input.required<string>();
 
   protected readonly toggles = TOGGLES;
 
-  protected readonly loading = signal(true);
-  protected readonly tournaments = signal<OrganizerTournament[]>([]);
   protected readonly copied = signal(false);
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Relógio de baixa frequência só pro status das quadras (AO VIVO / próximo horário). */
   private readonly now = signal(Date.now());
-
-  private readonly eventoParam = toSignal(this.route.queryParamMap.pipe(map((p) => p.get('evento'))), { initialValue: null });
-
-  protected readonly tournamentOptions = computed(() =>
-    [...this.tournaments()]
-      .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
-      .map((t) => ({ id: t.id, name: t.name, statusLabel: STATUS_LABEL[t.status] })),
-  );
-
-  protected readonly selectedId = computed<string | null>(() => {
-    const param = this.eventoParam();
-    const options = this.tournamentOptions();
-    if (param && options.some((t) => t.id === param)) return param;
-    return options[0]?.id ?? null;
-  });
 
   /** Config efetiva vinda do doc AO VIVO (o preview e a TV veem a mesma coisa). */
   protected readonly cfg = computed<TelaoConfig | null>(() => {
@@ -316,7 +262,7 @@ export class TelaoConfigComponent {
   });
 
   constructor() {
-    effect(() => this.svc.tournamentId.set(this.selectedId()));
+    effect(() => this.svc.tournamentId.set(this.id()));
 
     const statusTimer = setInterval(() => this.now.set(Date.now()), 30_000);
     const destroyRef = inject(DestroyRef);
@@ -324,25 +270,6 @@ export class TelaoConfigComponent {
       clearInterval(statusTimer);
       if (this.copiedTimer) clearTimeout(this.copiedTimer);
     });
-
-    const uid = this.auth.user()?.uid;
-    if (!uid) {
-      this.loading.set(false);
-      return;
-    }
-    void this.load(uid);
-  }
-
-  private async load(uid: string): Promise<void> {
-    try {
-      this.tournaments.set(await listMyTournaments(uid));
-    } finally {
-      this.loading.set(false);
-    }
-  }
-
-  protected selectEvento(id: string): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams: { evento: id }, queryParamsHandling: 'merge' });
   }
 
   protected toggleCourt(courtId: string): void {
@@ -363,20 +290,17 @@ export class TelaoConfigComponent {
   }
 
   private save(config: TelaoConfig): void {
-    const id = this.selectedId();
-    if (!id) return;
+    const id = this.id();
     // O listener do doc devolve a mudança na hora (latency compensation) — sem estado otimista.
     void saveTelaoConfig(id, config);
   }
 
-  protected telaoUrl(): string | null {
-    const id = this.selectedId();
-    return id ? `${location.origin}/telao/${id}` : null;
+  protected telaoUrl(): string {
+    return `${location.origin}/telao/${this.id()}`;
   }
 
   protected copyLink(): void {
     const url = this.telaoUrl();
-    if (!url) return;
     void navigator.clipboard.writeText(url).then(() => {
       this.copied.set(true);
       if (this.copiedTimer) clearTimeout(this.copiedTimer);
@@ -385,7 +309,6 @@ export class TelaoConfigComponent {
   }
 
   protected openFullscreen(): void {
-    const url = this.telaoUrl();
-    if (url) window.open(url, '_blank');
+    window.open(this.telaoUrl(), '_blank');
   }
 }

@@ -96,11 +96,6 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/links/links.component').then((m) => m.LinksComponent),
       },
       {
-        path: 'telao',
-        title: 'Telão ao vivo — NexaGO Organizador',
-        loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
-      },
-      {
         path: 'config',
         title: 'Configurações — NexaGO Organizador',
         loadComponent: () => import('./painel/config/config.component').then((m) => m.ConfigComponent),
@@ -137,6 +132,7 @@ export const routes: Routes = [
       // Rotas antigas (pré-cascata) — telas globais que agora vivem no contexto do torneio.
       { path: 'inscricoes', redirectTo: 'eventos' },
       { path: 'comunicacao', redirectTo: 'eventos' },
+      { path: 'telao', redirectTo: 'eventos' },
       {
         path: 'chaveamento',
         children: [
@@ -169,6 +165,11 @@ export const routes: Routes = [
             path: 'agendamento',
             title: 'Agendamento — NexaGO Organizador',
             loadComponent: () => import('./painel/chaveamento/agendamento.component').then((m) => m.AgendamentoComponent),
+          },
+          {
+            path: 'telao',
+            title: 'Telão ao vivo — NexaGO Organizador',
+            loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
           },
           {
             path: 'comunicacao',

@@ -170,17 +170,24 @@ Margem lateral 72, igual à do pôster de partida.
 funcionarem com número diferente de jogos: com 4 linhas sobra respiro no meio, com 6 o painel
 encosta no bloco de cima.
 
-### Transbordo — o painel cabe ~7 linhas
+### Transbordo — o painel cabe 6 linhas no passo largo, 8 no apertado
 
-O passo entre linhas sai do protótipo; no espaço que sobra entre o bloco de cima e o rodapé, isso
-dá 7 linhas (o número exato se fixa na implementação, medindo contra a arte de referência). Uma
-campanha real passa disso (grupos + mata-mata, ou DE com várias rodadas de LB). Três degraus,
+**Valores confirmados na implementação.** O painel cresce para cima a partir do rodapé, e a borda
+inferior das fotos do atleta fica em y=651. No passo do protótipo (130px) a sétima linha já
+invade as fotos; no passo apertado (104px) a nona também. Daí 6 e 8, e não os 7 e 9 que esta spec
+estimou antes de a arte existir — `campaign-share-card.spec.ts` percorre 1..8 e falha se alguém
+mexer nos tetos sem refazer a conta.
+
+Uma campanha real passa disso (grupos + mata-mata, ou DE com várias rodadas de LB). Três degraus,
 nesta ordem:
 
 1. Acima de 7 linhas, a **fase de grupos colapsa numa linha só**: `GRUPO A · 3 JOGOS`, com `2V 1D`
    no lugar do placar. O mata-mata é a parte que conta a história.
 2. Ainda passando, o **passo entre linhas encolhe** até um piso.
-3. No limite, **corta as mais antigas** e o cabeçalho do painel passa a dizer `+N JOGOS`.
+3. No limite, **corta as mais antigas** e o cabeçalho do painel passa a dizer `+N FORA`. O `N`
+   conta **jogos, não linhas**: a linha de resumo vale pelo grupo inteiro, e ela própria é
+   cortável — é a mais antiga de todas, e manter o começo da campanha à custa do fim inverteria a
+   regra do corte.
 
 O terceiro degrau é explícito de propósito: `fitFont` encolhe até o piso e devolve o texto inteiro
 do jeito que estiver — encolher sozinho nunca garantiu encaixe neste projeto, e um corte silencioso

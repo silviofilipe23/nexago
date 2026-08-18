@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
-import { athleteFirestore } from '../data/firestore';
-import { staffRoleLabel, watchMyOngoingStaffTournaments, type MyStaffTournament } from '../data/tournament-staff-repository';
+import { StaffTournamentsService } from '../data/staff-tournaments.service';
+import { staffRoleLabel, type MyStaffTournament } from '../data/tournament-staff-repository';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 
@@ -159,38 +159,15 @@ const DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', 
 })
 export class MesaTournamentsComponent {
   private readonly auth = inject(AuthService);
-  private readonly db = athleteFirestore();
+  /** Mesma lista que acende a Mesa no menu: o item não pode abrir uma tela que discorda dele. */
+  private readonly staff = inject(StaffTournamentsService);
 
-  protected readonly entries = signal<MyStaffTournament[]>([]);
+  protected readonly entries = this.staff.ongoing;
+  protected readonly loading = this.staff.loading;
   /** Só torneio encerrado no espelho: a lista vazia não é "nunca fui equipe". */
-  protected readonly hasFinishedOnly = signal(false);
-  protected readonly loading = signal(true);
+  protected readonly hasFinishedOnly = computed(() => this.entries().length === 0 && this.staff.all().length > 0);
 
   protected readonly accountLabel = computed(() => this.auth.user()?.displayName?.trim() || 'Atleta');
-
-  constructor() {
-    effect((onCleanup) => {
-      const uid = this.auth.user()?.uid;
-      const db = this.db;
-      if (!uid || !db) {
-        this.entries.set([]);
-        this.hasFinishedOnly.set(false);
-        this.loading.set(false);
-        return;
-      }
-      const unsub = watchMyOngoingStaffTournaments(
-        db,
-        uid,
-        (view) => {
-          this.entries.set(view.ongoing);
-          this.hasFinishedOnly.set(view.ongoing.length === 0 && view.all.length > 0);
-          this.loading.set(false);
-        },
-        () => this.loading.set(false),
-      );
-      onCleanup(() => unsub());
-    });
-  }
 
   protected roleLabel(entry: MyStaffTournament): string {
     return staffRoleLabel(entry.role);

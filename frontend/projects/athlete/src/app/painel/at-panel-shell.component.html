@@ -62,6 +62,19 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.9 3.6-7 8-7s8 3.1 8 7" /></svg>
         <span>Perfil</span>
       </a>
+
+      @if (staffCount() > 0) {
+        <!-- Só pra quem é equipe de algum torneio EM ANDAMENTO: a maioria dos atletas nunca
+             opera nada, e o menu não é lugar de item que abre tela vazia. -->
+        <div class="at-nav-label at-nav-label--section">Operação</div>
+        <a routerLink="/mesa" routerLinkActive="at-nav-item--active" class="at-nav-item">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M12 5v14M7 10h1M16 10h1" /></svg>
+          <span>Mesa</span>
+          @if (staffCount() > 1) {
+            <span class="at-nav-badge">{{ staffCount() }}</span>
+          }
+        </a>
+      }
     </nav>
 
     <div class="at-sidebar-spacer"></div>
@@ -125,6 +138,14 @@
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
       <span>Competir</span>
     </a>
+    @if (staffCount() > 0) {
+      <!-- Sexto item, só pra quem opera: no dia do evento o mesário está no CELULAR, onde a
+           sidebar não existe — sem isto a mesa só se alcança voltando pro Início. -->
+      <a routerLink="/mesa" routerLinkActive="at-bottom-nav-item--active" class="at-bottom-nav-item">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M12 5v14M7 10h1M16 10h1" /></svg>
+        <span>Mesa</span>
+      </a>
+    }
     <a routerLink="/perfil" routerLinkActive="at-bottom-nav-item--active" class="at-bottom-nav-item">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.9 3.6-7 8-7s8 3.1 8 7" /></svg>
       <span>Perfil</span>

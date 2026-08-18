@@ -94,6 +94,11 @@
   margin-bottom: 8px;
 }
 
+/** Segunda seção da nav (Operação): precisa respirar depois do último item da anterior. */
+.at-nav-label--section {
+  margin-top: 18px;
+}
+
 .at-nav-item {
   display: flex;
   align-items: center;
@@ -297,6 +302,8 @@
     font-family: var(--nx-font-display);
     font-weight: 600;
     font-size: 10.5px;
+    // Quem opera torneio ganha um sexto item (Mesa): o rótulo aperta, mas não quebra linha.
+    white-space: nowrap;
   }
 
   .at-bottom-nav-item--active {
@@ -317,5 +324,14 @@
     border-radius: 50%;
     background: var(--nx-orange-500);
     box-shadow: 0 0 0 2px #070708;
+  }
+}
+
+// Celular estreito com os seis itens (a Mesa entra pra quem opera): 320px / 6 ≈ 53px por
+// item, e "Reservar" não cabe a 10.5px.
+@media (max-width: 380px) {
+  .at-bottom-nav-item {
+    font-size: 9.5px;
+    letter-spacing: -0.01em;
   }
 }

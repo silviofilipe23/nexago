@@ -31,19 +31,45 @@ const ROLE_REF: { role: TournamentStaffRole }[] = [{ role: 'manager' }, { role: 
 const SEARCH_DEBOUNCE_MS = 350;
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
+/** Espelha `canManageTournamentStaff` em `firestore.rules`: gerenciam a equipe o dono do
+ *  torneio e o super admin dando suporte a torneio alheio. Enquanto o torneio ou o usuário
+ *  não resolveram, ninguém gerencia — a tela abre em leitura e só libera os botões depois. */
+export function canManageTournamentStaff(params: {
+  isSuperAdmin: boolean;
+  uid: string | undefined;
+  managerId: string | null | undefined;
+}): boolean {
+  const { isSuperAdmin, uid, managerId } = params;
+  if (!uid || !managerId) return false;
+  return isSuperAdmin || managerId === uid;
+}
+
+/** Quem a busca de candidato NÃO pode oferecer: quem já está na equipe, quem está buscando e
+ *  o dono do torneio. O dono só entra nessa conta quando quem busca é o super admin — as
+ *  rules recusam o dono como staff de si mesmo, e sem isso a tela ofereceria um nome que
+ *  estoura em erro de permissão na hora de adicionar. */
+export function staffCandidateExclusions(params: {
+  memberUids: readonly string[];
+  uid: string | undefined;
+  managerId: string | null | undefined;
+}): string[] {
+  const { memberUids, uid, managerId } = params;
+  return [...new Set([...memberUids, ...(uid ? [uid] : []), ...(managerId ? [managerId] : [])])];
+}
+
 /** Equipe do torneio em contexto (nível 2 da cascata) — gestores e mesários com acesso à
  *  operação, mesmo modelo do app (`organizer_tournament_staff_page.dart`):
  *  `tournaments/{id}/staff/{uid}`, só `manager`/`scorer`, adição direta sem convite/aceite
  *  (as rules só aceitam `status: 'active'` na escrita). Busca de candidato é por nome/apelido
  *  em `public_profiles` (mesmo índice `hasAthleteRole + keywords` do app) — não por e-mail.
- *  Só o dono do torneio (`managerId`) gerencia; quem não é dono vê a lista em modo leitura. */
+ *  Dono do torneio e super admin gerenciam; os demais veem a lista em modo leitura. */
 @Component({
   selector: 'og-equipe',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent, NxSkeletonComponent],
   template: `
     <og-page-header title="Equipe" [subtitle]="headerSubtitle()">
-      @if (isOwner()) {
+      @if (canManage()) {
         <button type="button" class="og-mini-btn og-mini-btn-primary" (click)="toggleAdd()">
           <og-icon name="plus" [size]="14" />
           {{ adding() ? 'Fechar' : 'Adicionar membro' }}
@@ -70,7 +96,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       @if (feedback(); as fb) {
         <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
       }
-      @if (!loading() && !isOwner()) {
+      @if (!loading() && !canManage()) {
         <div class="og-banner">Somente o organizador do torneio pode gerenciar a equipe.</div>
       }
 
@@ -165,7 +191,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                     <span style="flex:1.3;min-width:0" class="og-equipe-name" [title]="nameOf(m)">{{ nameOf(m) }}</span>
                     <span style="width:100px"><og-pill [tone]="roleTone[m.role]">{{ roleLabel[m.role] }}</og-pill></span>
                     <span style="width:90px" class="og-equipe-since">{{ sinceOf(m) }}</span>
-                    @if (isOwner()) {
+                    @if (canManage()) {
                       <button type="button" class="og-ghost-btn" (click)="toggleActions(m.uid)">{{ actionsFor() === m.uid ? 'Fechar' : 'Ações' }}</button>
                       @if (actionsFor() === m.uid) {
                         <div class="og-equipe-actions">
@@ -367,11 +393,13 @@ export class EquipeComponent {
 
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly isOwner = computed(() => {
-    const t = this.tournament();
-    const uid = this.auth.user()?.uid;
-    return !!t && !!uid && t.managerId === uid;
-  });
+  protected readonly canManage = computed(() =>
+    canManageTournamentStaff({
+      isSuperAdmin: this.auth.isSuperAdmin(),
+      uid: this.auth.user()?.uid,
+      managerId: this.tournament()?.managerId,
+    }),
+  );
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -454,8 +482,11 @@ export class EquipeComponent {
     if (!tid) return;
     this.searching.set(true);
     try {
-      const uid = this.auth.user()?.uid;
-      const excluded = [...this.members().map((m) => m.uid), ...(uid ? [uid] : [])];
+      const excluded = staffCandidateExclusions({
+        memberUids: this.members().map((m) => m.uid),
+        uid: this.auth.user()?.uid,
+        managerId: this.tournament()?.managerId,
+      });
       const results = await searchStaffCandidates(term, excluded);
       this.candidates.set(results);
     } finally {

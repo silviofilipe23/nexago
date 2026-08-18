@@ -18,6 +18,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../data/tournament_partner_invite_service.dart';
+import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -32,6 +33,7 @@ import 'widgets/tournament_partner_invite/partner_invite_hero_card.dart';
 import 'widgets/tournament_partner_invite/partner_invite_metrics_row.dart';
 import 'widgets/lgpd_consent_sheet.dart';
 import 'widgets/tournament_partner_invite/partner_invite_tournament_card.dart';
+import 'widgets/tournament_registration/level_confirmation_sheet.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 
 enum _PartnerInviteWizardStep { confirm, uniform }
@@ -120,9 +122,55 @@ class _TournamentPartnerInvitePageState
     }
   }
 
+  /// Última chance de revisar o nível antes de travar o ratchet "nível só
+  /// sobe" (plano de calibração de nível, Task 6) — mesma regra e mesma
+  /// sheet de `TournamentRegistrationPage._ensureLevelConfirmed`, aplicada
+  /// aqui porque aceitar um convite TAMBÉM pode ser a 1ª inscrição ativa do
+  /// atleta naquele esporte. Retorna false se não confirmou (fechou o sheet
+  /// ou pediu para ajustar o nível — nesse caso já navega para "Esportes e
+  /// níveis"); `_acceptInvite` NÃO deve chamar `acceptInvite` nesse caso.
+  ///
+  /// Usa `resolveLevelConfirmationPrompt` com `athleteProfileProvider.future`
+  /// (não `.valueOrNull`): perfil ainda carregando não pode virar "sem
+  /// perfil" — isso faria o gate pular em silêncio. Erro no stream bloqueia
+  /// a aceitação com o aviso genérico já usado pelas outras ações desta tela.
+  Future<bool> _ensureLevelConfirmed(String? tournamentSport) async {
+    final LevelConfirmationPrompt? prompt;
+    try {
+      prompt = await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+        ref.read(athleteProfileProvider.future),
+        tournamentSport: tournamentSport,
+      );
+    } catch (_) {
+      if (!mounted) return false;
+      showAppSnackBar(
+        context,
+        'Não foi possível confirmar seu nível. Tente novamente.',
+        isError: true,
+      );
+      return false;
+    }
+    if (!mounted) return false;
+    if (prompt == null) return true;
+    final confirmed = await showLevelConfirmationSheet(
+      context,
+      levelLabel: prompt.levelLabel,
+      sportLabel: prompt.sportLabel,
+    );
+    if (!mounted) return false;
+    if (confirmed != true) {
+      if (confirmed == false) {
+        context.pushNamed(AppRouteNames.athleteSportsLevels);
+      }
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _acceptInvite({
     required TournamentPartnerInvite invite,
     TournamentCategoryOffer? category,
+    TournamentDetail? tournament,
   }) async {
     if (_accepting) return;
 
@@ -137,6 +185,14 @@ class _TournamentPartnerInvitePageState
       if (!accepted || !mounted) return;
       setState(() => _lgpdAccepted = true);
     }
+
+    // Aceitar um convite é, para quem convidou, uma das duas formas de
+    // ativar a inscrição (a outra é `_registerSolo` na tela de inscrição) —
+    // `acceptTournamentPartnerInvite` é nomeada no trigger de backend
+    // (`tournament-level-lock.ts`) como caminho que trava `levelLocked` na
+    // 1ª inscrição ATIVA do esporte. Sem este gate aqui, quem entra numa
+    // dupla via convite nunca via o último aviso (achado do review, C1).
+    if (!await _ensureLevelConfirmed(tournament?.sport)) return;
 
     setState(() => _accepting = true);
 
@@ -203,6 +259,7 @@ class _TournamentPartnerInvitePageState
   void _onContinueFromConfirm({
     required TournamentPartnerInvite invite,
     required TournamentCategoryOffer? category,
+    required TournamentDetail? tournament,
   }) {
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
       _showProfileAccessBlocked();
@@ -213,12 +270,15 @@ class _TournamentPartnerInvitePageState
       setState(() => _wizardStep = _PartnerInviteWizardStep.uniform);
       return;
     }
-    unawaited(_acceptInvite(invite: invite, category: category));
+    unawaited(
+      _acceptInvite(invite: invite, category: category, tournament: tournament),
+    );
   }
 
   void _onContinueFromUniform({
     required TournamentPartnerInvite invite,
     required TournamentCategoryOffer category,
+    required TournamentDetail? tournament,
   }) {
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
       _showProfileAccessBlocked();
@@ -232,7 +292,9 @@ class _TournamentPartnerInvitePageState
       showAppSnackBar(context, error, isError: true);
       return;
     }
-    unawaited(_acceptInvite(invite: invite, category: category));
+    unawaited(
+      _acceptInvite(invite: invite, category: category, tournament: tournament),
+    );
   }
 
   Future<void> _decline() async {
@@ -423,6 +485,7 @@ class _TournamentPartnerInvitePageState
                     : () => _onContinueFromUniform(
                         invite: invite,
                         category: category,
+                        tournament: tournament,
                       ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
@@ -509,8 +572,11 @@ class _TournamentPartnerInvitePageState
               enabled: access.canAccess,
               primaryLoading: _accepting,
               declineLoading: _declining,
-              onPrimary: () =>
-                  _onContinueFromConfirm(invite: invite, category: category),
+              onPrimary: () => _onContinueFromConfirm(
+                invite: invite,
+                category: category,
+                tournament: tournament,
+              ),
               onDecline: _decline,
             ),
           ),

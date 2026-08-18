@@ -20,8 +20,6 @@ import '../../arenas/data/payment_service.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/payment_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
-import '../../athlete/domain/athlete_firestore_codes.dart';
-import '../../athlete/domain/athlete_profile_options.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/profile_access.dart'
     show formatMissingProfileStepsForAccess;
@@ -590,30 +588,35 @@ class _TournamentRegistrationPageState
   /// (`levelLocked[sportCode] != true`); depois de travado, nunca mais.
   /// Retorna false se o atleta não confirmou (fechou o sheet ou pediu para
   /// ajustar o nível — nesse caso já navega para "Esportes e níveis").
+  ///
+  /// Usa `resolveLevelConfirmationPrompt` com `athleteProfileProvider.future`
+  /// (não `.valueOrNull`): o perfil ainda carregando não pode ser lido como
+  /// "sem perfil" — isso faria o gate pular em silêncio (achado do review,
+  /// I1). Qualquer erro no stream cai no mesmo aviso genérico já usado pelas
+  /// outras ações desta tela e BLOQUEIA a submissão (nunca decide o gate com
+  /// o perfil ausente).
   Future<bool> _ensureLevelConfirmed(String? tournamentSport) async {
-    final profile = ref.read(athleteProfileProvider).valueOrNull;
-    if (!CategoryLevelEligibility.needsLevelConfirmation(
-      profile,
-      tournamentSport: tournamentSport,
-    )) {
-      return true;
+    final LevelConfirmationPrompt? prompt;
+    try {
+      prompt = await CategoryLevelEligibility.resolveLevelConfirmationPrompt(
+        ref.read(athleteProfileProvider.future),
+        tournamentSport: tournamentSport,
+      );
+    } catch (_) {
+      if (!mounted) return false;
+      showAppSnackBar(
+        context,
+        'Não foi possível confirmar seu nível. Tente novamente.',
+        isError: true,
+      );
+      return false;
     }
-    final rank = CategoryLevelEligibility.athleteLevelRank(
-      profile,
-      tournamentSport: tournamentSport,
-    );
-    final sportCode =
-        CategoryLevelEligibility.tournamentSportToLevelSportCode(
-      tournamentSport,
-    );
-    final sportLabel =
-        AthleteFirestoreCodes.sportFirestoreToLabel(sportCode) ??
-            tournamentSport ??
-            '';
+    if (!mounted) return false;
+    if (prompt == null) return true;
     final confirmed = await showLevelConfirmationSheet(
       context,
-      levelLabel: AthleteProfileOptions.labelForRank(rank),
-      sportLabel: sportLabel,
+      levelLabel: prompt.levelLabel,
+      sportLabel: prompt.sportLabel,
     );
     if (!mounted) return false;
     if (confirmed != true) {

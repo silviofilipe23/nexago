@@ -1,3 +1,4 @@
+import '../../athlete/domain/athlete_firestore_codes.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_profile_options.dart';
 import 'tournament_discovery_models.dart';
@@ -116,6 +117,38 @@ abstract final class CategoryLevelEligibility {
     return profile.levelLocked[sportCode] != true;
   }
 
+  /// Aguarda [profileFuture] (ex.: `athleteProfileProvider.future`) e monta
+  /// os textos já prontos pra sheet de confirmação de nível — ou `null`
+  /// quando `needsLevelConfirmation` decide que não precisa (já travado, sem
+  /// esporte equivalente, ou perfil realmente ausente).
+  ///
+  /// Existe pra fechar um furo de corrida (achado do review de calibração de
+  /// nível, I1): ler `athleteProfileProvider.valueOrNull` decide com `null`
+  /// tanto quando o perfil está genuinamente ausente quanto quando o stream
+  /// SÓ AINDA NÃO EMITIU (carregando) — os dois casos colapsam no mesmo
+  /// `null` e o gate pula em silêncio no segundo. Passar o `Future` (não o
+  /// snapshot) força esperar a primeira emissão antes de decidir; um
+  /// `Future` já resolvido (`Future.value(profile)`) funciona igual — a
+  /// diferença só importa quando ele ainda está pendente.
+  static Future<LevelConfirmationPrompt?> resolveLevelConfirmationPrompt(
+    Future<AthleteProfile?> profileFuture, {
+    String? tournamentSport,
+  }) async {
+    final profile = await profileFuture;
+    if (!needsLevelConfirmation(profile, tournamentSport: tournamentSport)) {
+      return null;
+    }
+    final rank = athleteLevelRank(profile, tournamentSport: tournamentSport);
+    final sportCode = tournamentSportToLevelSportCode(tournamentSport);
+    return LevelConfirmationPrompt(
+      levelLabel: AthleteProfileOptions.labelForRank(rank),
+      sportLabel:
+          AthleteFirestoreCodes.sportFirestoreToLabel(sportCode) ??
+              tournamentSport ??
+              '',
+    );
+  }
+
   /// Mensagem curta para o card quando a categoria está abaixo do nível do atleta.
   static String blockBadgeLabel() => 'ABAIXO DO SEU NÍVEL';
 
@@ -142,4 +175,16 @@ abstract final class CategoryLevelEligibility {
     final label = AthleteProfileOptions.labelForRank(rank);
     return 'Esta categoria exige nível mínimo $minLabel. Seu nível atual é $label.';
   }
+}
+
+/// Textos já resolvidos para a sheet de confirmação de nível — ver
+/// [CategoryLevelEligibility.resolveLevelConfirmationPrompt].
+class LevelConfirmationPrompt {
+  const LevelConfirmationPrompt({
+    required this.levelLabel,
+    required this.sportLabel,
+  });
+
+  final String levelLabel;
+  final String sportLabel;
 }

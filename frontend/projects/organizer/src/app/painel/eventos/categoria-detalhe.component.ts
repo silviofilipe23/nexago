@@ -54,14 +54,17 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
     </og-page-header>
 
     <div class="og-content">
+      <!-- Fora do gate de loading (mesmo precedente de equipe.component.ts): "Promover nível"
+           recarrega a categoria no sucesso, e o banner tem que sobreviver ao piscar de
+           "Carregando categoria…" durante esse reload, não desaparecer com ele. -->
+      @if (feedback(); as fb) {
+        <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+      }
       @if (loading()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando categoria…</div>
       } @else if (!tournament() || !category()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Categoria não encontrada.</div>
       } @else {
-        @if (feedback(); as fb) {
-          <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
-        }
         <div class="og-kpi-row">
           <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">{{ unitLabel() }}</div>
@@ -481,6 +484,10 @@ export class CategoriaDetalheComponent {
    *  gate real, e travar aqui bloquearia a promoção de fim de dia sem ganhar segurança. */
   protected promotableFor(i: TournamentInscription): { uid: string; name: string; options: readonly LevelOption[] }[] {
     const sportCode = this.sportCode();
+    // Guarda simétrica à de `promote()`: sem sportCode mapeado, `setAthleteLevel` nunca
+    // autoriza o organizador (o backend também exige tournamentSportCode não nulo, igual ao
+    // requestSportCode) — mostrar o botão aqui seria oferecer um clique que nunca funciona.
+    if (!sportCode) return [];
     return i.participants
       .map((p) => ({ uid: p.uid, name: p.name, options: promotableLevelOptions(levelCodeFor(p, sportCode)) }))
       .filter((p) => p.options.length > 0);

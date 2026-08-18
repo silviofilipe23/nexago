@@ -174,9 +174,12 @@ class TournamentCategoryDraft {
   final int? womenCount;
 
   /// Faixa de nível (label, ex.: "Avançado 1") gravada pelo portal web em
-  /// `minLevel` — piso da categoria (`''` = sem piso). O editor do app não
-  /// oferece esse campo — ele existe só para o roundtrip de edição preservar
-  /// o que o portal gravou (mesmo contrato de [genderFree]/[menCount]).
+  /// `minLevel` — piso da categoria (`''` = sem piso, só em categoria
+  /// legada). O editor do app agora expõe esse campo via os chips de preset
+  /// de faixa (`categoryLevelPresets`/`activeCategoryLevelPreset` em
+  /// `tournament_create_logic.dart`) — fora dos 6 presets, o valor só
+  /// sobrevive pelo roundtrip de edição preservando o que outra superfície
+  /// gravou (mesmo contrato de [genderFree]/[menCount]).
   final String minLevel;
 
   TournamentCategoryDraft copyWith({

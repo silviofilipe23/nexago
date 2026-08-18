@@ -48,8 +48,9 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
     final draft = ref.read(tournamentCreateDraftProvider);
     _category =
         widget.existing ??
-        TournamentCategoryDraft(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
+        emptyCategoryDraft(
+          DateTime.now().microsecondsSinceEpoch.toString(),
+        ).copyWith(
           priceCents: draft.defaultPriceCents,
           useDefaultPrice: true,
         );
@@ -195,20 +196,37 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const OrganizerSectionLabel('NÍVEL'),
+                const OrganizerSectionLabel('FAIXA DE NÍVEL'),
                 const SizedBox(height: 8),
-                OrganizerChipSelector(
+                OrganizerChipSelector<String?>(
                   horizontalScroll: true,
-                  // Escada única de 7 níveis para todos os esportes.
-                  options: skillLevelOptionsForSport(
-                    ref.watch(tournamentCreateDraftProvider).sport,
-                  ),
-                  selected: _category.skillLevel,
-                  labelBuilder: skillLevelLabel,
-                  onSelected: (value) => setState(
-                    () => _category = _category.copyWith(skillLevel: value),
-                  ),
+                  options: [
+                    for (final preset in categoryLevelPresets) preset.label,
+                  ],
+                  selected: activeCategoryLevelPreset(_category),
+                  labelBuilder: (label) => label ?? '',
+                  onSelected: (label) {
+                    final preset = categoryLevelPresets.firstWhere(
+                      (p) => p.label == label,
+                    );
+                    setState(
+                      () => _category = _category.copyWith(
+                        skillLevel: preset.maxSkillLevel,
+                        minLevel: preset.minLevel,
+                      ),
+                    );
+                  },
                 ),
+                if (activeCategoryLevelPreset(_category) == null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Faixa personalizada (legado) — escolha um preset para '
+                    'alterar.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 OrganizerCategoryFormatSection(
                   bracketSystem: _category.bracketSystem,

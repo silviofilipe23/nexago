@@ -28,7 +28,6 @@ import {
   type AgeBand,
   type CategoryDispute,
   type CategoryGender,
-  type SkillLevel,
   type TournamentBestOf,
   type TournamentBracketSystem,
   type TournamentCategoryDraft,
@@ -48,7 +47,6 @@ import {
   normalizeCategoryComposition,
   publishBlockReasonForUnsupportedBrackets,
   registrationWindowError,
-  skillLevelOptionsForSport,
   suggestCategoryName,
   totalPrizeCents,
   totalSpots,
@@ -100,11 +98,6 @@ const STEP_SUBTITLE: Record<TournamentCreateStep, string> = {
 };
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-/** Faixa de nível: opção "Personalizado" abre os seletores finos de min/max. */
-const CUSTOM_PRESET = 'Personalizado';
-/** Nível mínimo: opção que representa "sem piso" (`minSkillLevel: null`). */
-const NO_MIN = 'Sem mínimo';
 
 function dateToInput(d: Date | null): string {
   if (!d) return '';
@@ -227,24 +220,15 @@ function inputToDatetime(v: string): Date | null {
               </div>
               <div style="margin-top:16px">
                 <og-form-field label="Faixa de nível">
-                  <og-select-chips [options]="levelPresetOptions" [active]="activeLevelPresetChip()" (changed)="setCatLevelPreset($event)" />
+                  <og-select-chips [options]="levelPresetOptions" [active]="activeLevelPreset() ?? ''" (changed)="setCatLevelPreset($event)" />
                 </og-form-field>
-                @if (cat().minSkillLevel != null) {
+                @if (cat().minSkillLevel != null && cat().minSkillLevel !== 'iniciante1') {
                   <p class="og-wizard-hint">Piso de nível: atletas sem nível declarado não conseguem se inscrever nesta categoria.</p>
                 }
+                @if (activeLevelPreset() === null) {
+                  <p class="og-wizard-hint">Faixa personalizada (legado): {{ levelRangeLabel() }} — escolha um preset para alterar.</p>
+                }
               </div>
-              @if (customLevelMode() || activeLevelPreset() === 'Personalizado') {
-                <div style="margin-top:12px">
-                  <og-form-field label="Nível mínimo">
-                    <og-select-chips [options]="minSkillOptions()" [active]="minSkillActive()" (changed)="setCatMinSkill($event)" />
-                  </og-form-field>
-                </div>
-                <div style="margin-top:12px">
-                  <og-form-field label="Nível máximo">
-                    <og-select-chips [options]="skillOptions()" [active]="skillLabel[cat().skillLevel]" (changed)="setCatSkill($event)" />
-                  </og-form-field>
-                </div>
-              }
             </og-card>
             <og-card kicker="Vagas & preço" title="Configuração">
               <div class="og-field-grid">
@@ -680,11 +664,6 @@ export class CriarTorneioComponent {
   /** Categoria em edição no builder (cópia de trabalho). */
   protected readonly cat = signal<TournamentCategoryDraft>(emptyCategoryDraft('tmp'));
   protected readonly premioCategoryId = signal<string | null>(null);
-  /** "Personalizado" foi escolhido explicitamente nesta sessão do builder — sem isso, um
-   *  min/max que não bate com nenhum preset (ex.: rascunho salvo assim) também deve abrir
-   *  os seletores finos, mas escolher "Personalizado" sem MUDAR o draft precisa persistir
-   *  mesmo quando ele volta a coincidir com um preset. */
-  protected readonly customLevelMode = signal(false);
 
   private readonly queryParams = toSignal(this.route.queryParamMap);
 
@@ -726,24 +705,22 @@ export class CriarTorneioComponent {
     return Math.round(cents / categoryTeamSize(c));
   });
 
-  protected readonly skillOptions = computed(() => skillLevelOptionsForSport(this.draft().sport).map((s) => SKILL_LEVEL_LABEL[s]));
+  protected readonly levelPresetOptions = CATEGORY_LEVEL_PRESETS.map((p) => p.label);
 
-  protected readonly levelPresetOptions = [...CATEGORY_LEVEL_PRESETS.map((p) => p.label), CUSTOM_PRESET];
-
-  /** Preset cujo (min,max) casa com o draft; senão "Personalizado". */
+  /** Preset cujo (min,max) casa com o draft; `null` = faixa legada (sem preset — nenhum chip
+   *  ativo, mostra a faixa gravada em texto). */
   protected readonly activeLevelPreset = computed(() => {
     const c = this.cat();
     const hit = CATEGORY_LEVEL_PRESETS.find((p) => p.min === c.minSkillLevel && p.max === c.skillLevel);
-    return hit?.label ?? CUSTOM_PRESET;
+    return hit?.label ?? null;
   });
 
-  /** Chip ativo da faixa de nível: "Personalizado" fica selecionado enquanto o organizador
-   *  estiver nesse modo, mesmo que o min/max do draft ainda não tenha divergido de um preset. */
-  protected readonly activeLevelPresetChip = computed(() =>
-    this.customLevelMode() ? CUSTOM_PRESET : this.activeLevelPreset(),
-  );
-
-  protected readonly minSkillOptions = computed(() => [NO_MIN, ...this.skillOptions()]);
+  /** Faixa gravada formatada pro aviso de legado ("Avançado 1–Open"; sem piso → só o teto). */
+  protected readonly levelRangeLabel = computed(() => {
+    const c = this.cat();
+    const max = this.skillLabel[c.skillLevel];
+    return c.minSkillLevel ? `${this.skillLabel[c.minSkillLevel]}–${max}` : max;
+  });
 
   protected readonly stepLabels = STEP_LABELS;
 
@@ -940,36 +917,9 @@ export class CriarTorneioComponent {
     if (band) this.patchCat({ ageBand: band });
   }
 
-  protected setCatSkill(label: string): void {
-    const level = (Object.keys(SKILL_LEVEL_LABEL) as SkillLevel[]).find((s) => SKILL_LEVEL_LABEL[s] === label);
-    if (level) this.patchCat({ skillLevel: level });
-  }
-
   protected setCatLevelPreset(label: string): void {
-    if (label === CUSTOM_PRESET) {
-      // "Personalizado" não regrava nada — só abre os seletores finos.
-      this.customLevelMode.set(true);
-      return;
-    }
     const preset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === label);
-    if (preset) {
-      this.customLevelMode.set(false);
-      this.patchCat({ minSkillLevel: preset.min, skillLevel: preset.max });
-    }
-  }
-
-  protected minSkillActive(): string {
-    const min = this.cat().minSkillLevel;
-    return min ? SKILL_LEVEL_LABEL[min] : NO_MIN;
-  }
-
-  protected setCatMinSkill(label: string): void {
-    if (label === NO_MIN) {
-      this.patchCat({ minSkillLevel: null });
-      return;
-    }
-    const level = (Object.keys(SKILL_LEVEL_LABEL) as SkillLevel[]).find((s) => SKILL_LEVEL_LABEL[s] === label);
-    if (level) this.patchCat({ minSkillLevel: level });
+    if (preset) this.patchCat({ minSkillLevel: preset.min, skillLevel: preset.max });
   }
 
   protected setCatBestOf(label: string): void {
@@ -1041,9 +991,6 @@ export class CriarTorneioComponent {
             this.organizerDefaults,
           ),
     );
-    // Cada categoria aberta começa sem o modo "Personalizado" travado — se o min/max dela bater
-    // com um preset, o chip do preset é que deve aparecer ativo, não o da categoria anterior.
-    this.customLevelMode.set(false);
     this.subView.set('categoria');
   }
 

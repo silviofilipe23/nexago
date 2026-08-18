@@ -52,21 +52,61 @@ describe('minSkillLevel (mín. de nível da categoria)', () => {
   });
 });
 
-describe('nome/tags do preset Open (min === max)', () => {
+describe('presets seguem a spec: Open é a faixa-ponte 4–6 e Elite é só o topo', () => {
+  it('Open casa avancado1–open, Elite casa open–open', () => {
+    const byLabel = new Map(CATEGORY_LEVEL_PRESETS.map((p) => [p.label, p]));
+    expect(byLabel.get('Open')).toEqual({ label: 'Open', min: 'avancado1', max: 'open' });
+    expect(byLabel.get('Elite')).toEqual({ label: 'Elite', min: 'open', max: 'open' });
+  });
+
+  it('Livre grava piso explícito — min null é marca de categoria legada', () => {
+    expect(CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Livre')).toEqual({ label: 'Livre', min: 'iniciante1', max: 'open' });
+    expect(CATEGORY_LEVEL_PRESETS.some((p) => p.min === null)).toBe(false);
+  });
+});
+
+describe('emptyCategoryDraft — faixa inicial da categoria nova', () => {
+  it('categoria recém-criada nasce num preset real (Livre), nunca em faixa legada', () => {
+    const draft = emptyCategoryDraft('c1');
+    expect(CATEGORY_LEVEL_PRESETS.some((p) => p.min === draft.minSkillLevel && p.max === draft.skillLevel)).toBe(true);
+  });
+});
+
+describe('nome/tags do preset de um único degrau (min === max)', () => {
   const openPreset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Open')!;
   const elitePreset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === 'Elite')!;
 
-  it('preset Open nomeia só "Open", sem "mín. Open" duplicado', () => {
-    const cat = { ...emptyCategoryDraft('c1'), skillLevel: openPreset.max, minSkillLevel: openPreset.min };
+  it('preset Elite nomeia só "Open" (label do degrau), sem "mín." duplicado — é o único degrau (min === max)', () => {
+    const cat = { ...emptyCategoryDraft('c1'), skillLevel: elitePreset.max, minSkillLevel: elitePreset.min };
     expect(suggestCategoryName(cat)).toContain('Open');
     expect(suggestCategoryName(cat)).not.toContain('mín.');
     expect(categoryTags(cat)).toContain('Open');
     expect(categoryTags(cat).some((t) => t.startsWith('mín.'))).toBe(false);
   });
 
-  it('preset Elite mantém "mín. Avançado 1" (min !== max)', () => {
-    const cat = { ...emptyCategoryDraft('c1'), skillLevel: elitePreset.max, minSkillLevel: elitePreset.min };
+  it('preset Open (faixa-ponte) mantém "mín. Avançado 1" (min !== max)', () => {
+    const cat = { ...emptyCategoryDraft('c1'), skillLevel: openPreset.max, minSkillLevel: openPreset.min };
     expect(suggestCategoryName(cat)).toContain('mín. Avançado 1');
     expect(categoryTags(cat)).toContain('mín. Avançado 1');
+  });
+});
+
+describe('piso rank 0 (iniciante1) é silencioso — preset "Livre" (categoria nova)', () => {
+  it('categoria recém-criada (Livre) não ganha ruído "mín. Iniciante 1" no nome', () => {
+    const draft = emptyCategoryDraft('c1');
+    expect(draft.minSkillLevel).toBe('iniciante1');
+    expect(suggestCategoryName(draft)).not.toContain('mín.');
+    expect(suggestCategoryName(draft)).toBe('Masculino');
+  });
+
+  it('categoria recém-criada (Livre) não ganha ruído "mín. Iniciante 1" nas tags', () => {
+    const draft = emptyCategoryDraft('c1');
+    expect(categoryTags(draft).some((t) => t.startsWith('mín.'))).toBe(false);
+  });
+
+  it('piso explícito acima de iniciante1 (ex.: Iniciante 2) segue aparecendo', () => {
+    const cat = { ...emptyCategoryDraft('c1'), skillLevel: 'open' as const, minSkillLevel: 'iniciante2' as const };
+    expect(suggestCategoryName(cat)).toContain('mín. Iniciante 2');
+    expect(categoryTags(cat)).toContain('mín. Iniciante 2');
   });
 });

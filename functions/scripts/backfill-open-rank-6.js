@@ -69,12 +69,16 @@
  *
  * Idempotência: re-executar depois de aplicar não encontra mais nenhum
  * `artifacts/{projectId}/public/data/athleteRatings` doc com `levelRank == 5`
- * (todos já viraram 6), e o `ratingLadders/{id}.levels` regravado é
- * byte-a-byte o mesmo array — a segunda passada não muda nada. `zone`,
- * `ladderState` e a janela de observação continuam idempotentes (sempre
- * reescritos para o mesmo valor "stable"/zerado); só `protectedUntil`
- * avança a cada re-execução — reaplicar depois do primeiro `--yes` estende
- * a proteção, o que é inofensivo mas não é necessário.
+ * (todos já viraram 6) nem com rank 6 abaixo do piso (realinhados a 2200),
+ * e o `ratingLadders/{id}.levels` regravado é byte-a-byte o mesmo array.
+ * Na passada de realinhamento o `protectedUntil` existente é preservado
+ * (só é gravado quando ausente); na passada 5→6 ele avança a cada
+ * re-execução — inofensivo, mas desnecessário.
+ *
+ * Caso real (dev, 18/08): a renumeração 5→6 chegou primeiro por outra via
+ * (callable `migrateAthleteRatingLevelRanks`), deixando 19 atletas Open com
+ * rank 6, rating 1900 e `zone: "relegation"` espúria — é a passada de
+ * realinhamento que conserta esse estado.
  */
 
 const admin = require("firebase-admin");
@@ -176,6 +180,53 @@ async function backfillAthleteRatings() {
   return snap.size;
 }
 
+/**
+ * Segunda passada: docs que JÁ foram renumerados para 6 por outra via (a
+ * callable `migrateAthleteRatingLevelRanks` recalcula `levelRank` pelo
+ * código, mas NÃO realinha rating/zona) e ficaram com rating abaixo do piso
+ * do Open — exatamente o estado que deixa `zone: "relegation"` espúria.
+ * Filtra o rating em memória (sem índice composto; a coorte é pequena).
+ * Preserva `protectedUntil` existente; só grava quando ausente.
+ */
+async function realignRenumberedOpens() {
+  const snap = await db
+    .collection(athleteRatingsCollectionPath())
+    .where("levelRank", "==", 6)
+    .get();
+
+  const pending = snap.docs.filter(
+    (doc) => (Number(doc.data().rating) || 0) < OPEN_RATING_FLOOR,
+  );
+
+  const now = new Date();
+  const protectedUntil = admin.firestore.Timestamp.fromDate(
+    new Date(now.getTime() + PROMOTION_PROTECTION_DAYS * DAY_MS),
+  );
+
+  console.log(
+    `\n[athleteRatings] ${pending.length} doc(s) com levelRank == 6 e rating < ${OPEN_RATING_FLOOR}:`,
+  );
+  for (const doc of pending) {
+    const data = doc.data();
+    const rating = Number(data.rating) || 0;
+    const update = {
+      rating: OPEN_RATING_FLOOR,
+      zone: "stable",
+      ladderState: "stable",
+      observationStartedAt: null,
+      observationMatches: 0,
+      notifiedAt: null,
+    };
+    if (data.protectedUntil == null) update.protectedUntil = protectedUntil;
+    console.log(
+      `  ${doc.id}: rating ${rating}→${OPEN_RATING_FLOOR}, zona ${data.zone ?? "-"}→stable` +
+        (data.protectedUntil == null ? ", protectedUntil novo" : ", protectedUntil preservado"),
+    );
+    if (APPLY) await doc.ref.update(update);
+  }
+  return pending.length;
+}
+
 async function backfillRatingLadders() {
   console.log(`\n[ratingLadders] verificando ${RATING_LADDER_DOC_IDS.join(", ")}:`);
   let touched = 0;
@@ -206,10 +257,12 @@ async function run() {
   );
 
   const athletesPending = await backfillAthleteRatings();
+  const realignedPending = await realignRenumberedOpens();
   const laddersPending = await backfillRatingLadders();
 
   console.log("\nResumo:");
-  console.log(`  athleteRatings a migrar: ${athletesPending}`);
+  console.log(`  athleteRatings a migrar (rank 5→6): ${athletesPending}`);
+  console.log(`  athleteRatings a realinhar (rank 6, rating < piso): ${realignedPending}`);
   console.log(`  ratingLadders a sobrescrever: ${laddersPending}`);
   if (!APPLY) {
     console.log("  (dry-run — nada escrito; rode de novo com --yes)");

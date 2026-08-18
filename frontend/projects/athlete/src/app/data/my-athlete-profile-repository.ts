@@ -12,6 +12,11 @@ export interface MyAthleteProfile {
   level: string | null;
   /** `sportOnboarding.levelsBySport` (código do esporte → código do nível). */
   levelsBySport: Record<string, string>;
+  /** `sportOnboarding.levelLocked` — janela de correção (plano de calibração
+   *  de nível): `true` só depois da 1ª inscrição ativa naquele esporte,
+   *  gravado pelo backend (`functions/src/tournament-level-lock.ts`). Esporte
+   *  ausente do mapa == destravado. */
+  levelLocked: Record<string, boolean>;
   fullName: string | null;
   nickname: string | null;
   /** Foto enviada no onboarding (`profilePhotoUrl`) — null quando o atleta não enviou uma. */
@@ -33,11 +38,17 @@ export async function fetchMyAthleteProfile(db: Firestore, uid: string): Promise
     const value = optionalStr(level);
     if (value) levelsBySport[sport] = value;
   }
+  const lockedRaw = sportOnboarding?.['levelLocked'] as Record<string, unknown> | undefined;
+  const levelLocked: Record<string, boolean> = {};
+  for (const [sport, locked] of Object.entries(lockedRaw ?? {})) {
+    if (locked === true) levelLocked[sport] = true;
+  }
   return {
     gender: optionalStr(data['gender']),
     birthDate: optionalStr(data['birthDate']),
     level: optionalStr(data['level']) ?? optionalStr(data['nivel']),
     levelsBySport,
+    levelLocked,
     fullName: optionalStr(data['fullName']) ?? optionalStr(data['name']),
     nickname: optionalStr(data['nickname']),
     profilePhotoUrl: optionalStr(data['profilePhotoUrl']),

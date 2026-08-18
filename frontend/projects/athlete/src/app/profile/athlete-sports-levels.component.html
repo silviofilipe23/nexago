@@ -16,7 +16,9 @@
   } @else {
     <div class="asl-body">
       <p class="asl-rule-hint">
-        O nível só pode subir — a subida é definitiva. Para reduzir, fale com o suporte.
+        Seu nível é atualizado automaticamente com base nos seus resultados em torneios. Até a sua
+        primeira inscrição em cada esporte, você pode ajustar o nível livremente — depois disso
+        ele só sobe; para corrigir um nível já travado, fale com o suporte.
       </p>
 
       @if (notice(); as message) {
@@ -61,11 +63,20 @@
             }
           </div>
 
+          @if (!row.locked) {
+            <p class="asl-window-hint">
+              Até a sua primeira inscrição neste esporte você pode ajustar o nível livremente —
+              depois ele só sobe.
+            </p>
+          }
+
           @if (pendingFor(row.code); as pending) {
             <div class="asl-confirm">
               <p>
                 Confirmar mudança para <strong>{{ levelLabelOf(pending) }}</strong>?
-                A subida de nível é definitiva.
+                @if (row.locked) {
+                  A subida de nível é definitiva.
+                }
               </p>
               <div class="asl-confirm-actions">
                 <button
@@ -94,24 +105,72 @@
         </section>
       }
 
-      @if (availableToAdd().length > 0) {
+      @if (availableToAdd().length > 0 || pendingNewSportCode()) {
         <section class="at-card asl-add-card">
           <h2>Adicionar esporte</h2>
-          <p class="asl-add-hint">
-            Novos esportes entram como {{ levelLabelOf('iniciante_1') }} — depois é só subir.
-          </p>
-          <div class="asl-add-list">
-            @for (entry of availableToAdd(); track entry.code) {
+
+          @if (pendingNewSportCode(); as newSportCode) {
+            <p class="asl-add-hint">
+              Escolha o nível em {{ sportLabelForCode(newSportCode) }} — até a primeira inscrição
+              nesse esporte você pode ajustar livremente.
+            </p>
+            <div
+              class="asl-options"
+              role="radiogroup"
+              [attr.aria-label]="'Nível em ' + sportLabelForCode(newSportCode)"
+            >
+              @for (option of levelOptions; track option.code) {
+                <button
+                  type="button"
+                  class="asl-option"
+                  role="radio"
+                  [class.asl-option--selected]="pendingNewSportLevel() === option.code"
+                  [attr.aria-checked]="pendingNewSportLevel() === option.code"
+                  [disabled]="addingSport()"
+                  (click)="selectNewSportLevel(option.code)"
+                >
+                  <span class="asl-option-label">{{ option.label }}</span>
+                  <span class="asl-option-desc">{{ option.description }}</span>
+                </button>
+              }
+            </div>
+            <div class="asl-confirm-actions">
               <button
                 type="button"
-                class="at-mini-btn asl-add-btn"
-                [disabled]="addingSport()"
-                (click)="addSport(entry.code)"
+                class="at-mini-btn asl-confirm-btn"
+                [disabled]="!canConfirmAddSport() || addingSport()"
+                (click)="confirmAddSport()"
               >
-                + {{ entry.label }}
+                @if (addingSport()) {
+                  <app-nx-spinner [size]="16" />
+                } @else {
+                  Adicionar esporte
+                }
               </button>
-            }
-          </div>
+              <button
+                type="button"
+                class="at-mini-btn asl-cancel-btn"
+                [disabled]="addingSport()"
+                (click)="cancelNewSport()"
+              >
+                Cancelar
+              </button>
+            </div>
+          } @else {
+            <p class="asl-add-hint">Escolha um esporte pra adicionar — o nível é sua escolha.</p>
+            <div class="asl-add-list">
+              @for (entry of availableToAdd(); track entry.code) {
+                <button
+                  type="button"
+                  class="at-mini-btn asl-add-btn"
+                  [disabled]="addingSport()"
+                  (click)="pickNewSport(entry.code)"
+                >
+                  + {{ entry.label }}
+                </button>
+              }
+            </div>
+          }
         </section>
       }
     </div>

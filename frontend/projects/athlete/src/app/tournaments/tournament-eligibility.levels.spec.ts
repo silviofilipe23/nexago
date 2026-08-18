@@ -8,6 +8,7 @@ function profile(overrides: Partial<MyAthleteProfile>): MyAthleteProfile {
     birthDate: null,
     level: null,
     levelsBySport: {},
+    levelLocked: {},
     fullName: null,
     nickname: null,
     profilePhotoUrl: null,

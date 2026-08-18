@@ -6,6 +6,11 @@
 - Lista de Espera
 - Cancelada
 
+Estados conceituais/de exibição, não um campo `status` persistido no documento de inscrição:
+"Pendente"/"Confirmada" derivam do estado do pagamento e "Lista de Espera" de campos próprios da
+vaga; "Cancelada" não é um valor gravado — a inscrição cancelada é excluída (o doc deixa de
+existir, ver `## Regras` abaixo).
+
 ## Regras
 - Inscrição só é confirmada após validação do pagamento.
 - Categoria lotada gera lista de espera.

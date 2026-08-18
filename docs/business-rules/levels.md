@@ -3,7 +3,7 @@
 ## Conceito
 "Nível" é diferente de [ranking](ranking.md): não é sobre colocação em torneios, é sobre a **força do atleta**, usada para decidir em quais categorias ele pode se inscrever (anti-sandbagging). Existem duas camadas, hoje coexistindo:
 
-- **Nível declarado** — escolhido pelo próprio atleta (app ou portal web), só pode subir. É o que vale hoje para elegibilidade de categoria.
+- **Nível declarado** — escolhido pelo próprio atleta (app ou portal web); só pode subir depois que a 1ª inscrição trava o esporte (antes disso, janela de correção — ver [Calibração de nível](#calibração-de-nível-janela-de-correção) abaixo). É o que vale hoje para elegibilidade de categoria.
 - **Rating automático (Glicko-2)** — calculado a partir dos resultados reais em partida, por esporte. Já roda e calcula tudo em produção, mas a promoção/rebaixamento automáticos ainda dependem de flags de rollout (ver seção própria).
 
 ## Escada única (unificada em 24/07/2026, ampliada para 7 em 15/08/2026)
@@ -28,7 +28,7 @@ Duas ferramentas de migração/realinhamento, com papéis diferentes:
 **Precondição do dry-run:** antes de rodar qualquer migração (dry-run ou real), inspecionar os docs `ratingLadders/{sportCode}` no Firestore. Um doc com array `levels` SOBRESCREVE a escada padrão de 7 degraus deployada — a migração recalcularia `levelRank` contra a ladder ANTIGA gravada no doc, não contra a escada nova. O `backfill-open-rank-6.js` já regrava esses arrays; para a callable, atualizar ou remover os docs antes.
 
 ## Onde o nível é guardado (fonte única)
-- **Única escrita**: `users/{uid}.sportOnboarding.levelsBySport.{SPORT_CODE} = <código>`. É onde escrevem o app, o portal web do atleta, a engine de rating (promoção/rebaixamento) e o backfill de migração. Default de esporte recém-adicionado: `iniciante_1`.
+- **Única escrita**: `users/{uid}.sportOnboarding.levelsBySport.{SPORT_CODE} = <código>`. É onde escrevem o app, o portal web do atleta, a engine de rating (promoção/rebaixamento) e o backfill de migração. Desde a calibração de 17–18/08/2026 (ver seção própria), nenhuma superfície de atleta grava um esporte novo sem escolha explícita — não existe mais default silencioso de `iniciante_1` ao adicionar esporte; o backfill de migração (super admin) é a única escrita que ainda semeia `iniciante_1` automaticamente, e só para esportes secundários sem entrada (ver "Migração/backfill" abaixo).
 - **Sport codes (9)**: `VOLEI_PRAIA`, `VOLEI_QUADRA`, `BEACH_TENNIS`, `FUTEVOLEI`, `FUTEBOL`, `BASQUETE`, `TENIS`, `CORRIDA`, `OUTROS`. Futevôlei virou esporte próprio do perfil (antes era alias de Futebol); torneios de `footvolley` usam o nível `FUTEVOLEI`.
 - **Campos legados, só leitura** (não são mais escritos por código novo): `level` (label global), `nivel`, `sportProfile.level` (código), `levelsBySportFirestore` (campo fantasma — nunca foi escrito; os fallbacks de leitura no backend foram removidos), `discoverLevelLabel` (nunca lido; escrita removida).
 - **Cadeia canônica de leitura**: `levelsBySport[sportCode]` → `level` global legado → (só exibição: `nivel` → `sportProfile.level`) → ausente. Ausente resolve para: rank 0 (permissivo) em elegibilidade; "sem nível" em exibição; `null` em filtros de ranking.
@@ -50,7 +50,7 @@ Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma c
   - **Entrar na lista de espera também tranca** (ruling do controlador): a fila já passou pela validação de elegibilidade com o nível declarado; deixar descer enquanto espera vaga reabriria o furo justamente no caso em que o atleta sabe que vai jogar.
   - **"Ativa" = o doc de inscrição existe.** A coleção de inscrições (`artifacts/{appId}/public/data/inscriptions`) não tem campo de status persistido: cancelamento — pelo atleta, pelo organizador, ou por pedido de cancelamento aprovado — é sempre exclusão (hard delete) do documento; a auditoria vai para uma coleção à parte. Por isso **cancelar nunca destrava**: o flag `levelLocked` só é gravado como `true`, nunca apagado ou revertido.
   - Campos legados de nível global (`level`, `sportProfile.level`) não têm granularidade por esporte — continuam ratcheted sempre, com ou sem janela.
-- **Correção pré-lock e o rating**: uma descida dentro da janela grava `levelHistory` com `reason: "self_correction"` (é auditoria, não é um "upgrade" automático) e só re-semeia o rating Glicko do esporte (rating/RD para o nível novo) quando o atleta ainda não tem nenhuma partida rateada (`ratedMatches === 0`). Com histórico de partidas, corrigir o nível DECLARADO não mexe no rating calculado.
+- **Correção pré-lock e o rating**: uma descida dentro da janela grava `levelHistory` com `reason: "self_correction"` (é auditoria, não é um "upgrade" automático) e só re-semeia o rating Glicko do esporte (rating, RD, `levelCode` e `levelRank` todos realinhados pro nível novo) quando o atleta ainda não tem nenhuma partida rateada (`ratedMatches === 0`). Com histórico de partidas, corrigir o nível DECLARADO não mexe no rating calculado.
 - **Confirmação na 1ª inscrição**: antes de a 1ª inscrição de um esporte disparar o lock, o atleta vê um último aviso — "Você vai se inscrever como {nível} em {esporte}. Após a inscrição, o nível só poderá subir." — com a opção de seguir ou ir ajustar o nível primeiro. Cobre TODO ponto de entrada que cria ou ativa uma inscrição nas duas superfícies, inclusive aceitar convite de parceiro (o caminho mais usado, e o que mais fácil escapa de um wiring incompleto):
   - **App**: tela de inscrição em torneio e tela de aceite de convite de parceiro.
   - **Portal web do atleta**: fluxo de inscrição (solo/dupla/equipe, e aceite de convite embutido na própria tela), aceite rápido pelo painel, aceite pela Agenda, e o modal automático de convite ao entrar no portal — 4 pontos distintos.
@@ -95,7 +95,7 @@ Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma c
 
 ## Nível declarado × rating automático
 - Subida manual dispara `onUserWrittenTrackLevelChanges` (observa só `sportOnboarding.levelsBySport`), que realinha o rating do esporte (nunca abaixo do inicial do novo degrau) com proteção de 120 dias.
-- Toda mudança de nível (subida manual `self_upgrade`, promoção/rebaixamento da engine, `migration` do backfill) fica em `users/{uid}/levelHistory` com o motivo.
+- Toda mudança de nível fica em `users/{uid}/levelHistory` com o motivo (`reason`): subida manual (`self_upgrade`), descida dentro da janela de correção (`self_correction`), promoção/rebaixamento automáticos da engine (`promotion`/`relegation`), ajuste manual do backoffice (`admin_manual`), promoção pelo organizador (`organizer_promotion`), e o backfill de migração (`migration`).
 
 ## Migração/backfill (`migrateAthleteLevels`, super admin)
 - Normaliza TODO valor presente em `levelsBySport` (qualquer esporte, qualquer formato legado) pro código canônico do MESMO rank (rank-neutro — não dispara self-upgrade).
@@ -103,8 +103,8 @@ Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma c
 - Campos legados ficam intocados no doc. Idempotente; paginado (`startAfterId` até `done`); `dryRun` só conta. Obs.: seed de esporte rateado com rank > 0 dispara o re-seed de rating do trigger de self-upgrade — esperado e inofensivo (par de entradas `migration`+`self_upgrade` no levelHistory).
 
 ## O que o atleta vê
-- App, "Esportes e níveis": nível atual por esporte (7 chips, um por degrau de nível); níveis abaixo do salvo bloqueados; subir pede confirmação. Barras de nível têm 7 segmentos (um por degrau).
-- Portal web do atleta, `/perfil/esportes`: paridade — ver/subir nível por esporte e adicionar esporte (entra como Iniciante 1).
+- App, "Esportes e níveis": nível atual por esporte (7 chips, um por degrau de nível); níveis abaixo do salvo bloqueados, exceto durante a janela de correção daquele esporte; subir pede confirmação. Barras de nível têm 7 segmentos (um por degrau).
+- Portal web do atleta, `/perfil/esportes`: paridade — ver/subir nível por esporte (mesma exceção da janela) e adicionar esporte, escolhendo o nível explicitamente (sem default — ver "Escolha obrigatória" em Calibração de nível).
 - Card de "zona" da engine (só esportes rateados com dado suficiente): estável, zona de acesso, zona de reclassificação, ou "consolidando".
 
 ## Regras

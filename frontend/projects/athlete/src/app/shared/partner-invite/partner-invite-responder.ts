@@ -6,7 +6,11 @@ import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
 import { fetchMyAthleteProfile } from '../../data/my-athlete-profile-repository';
 import { acceptPartnerInvite, declinePartnerInvite } from '../../data/tournament-registrations-repository';
-import { resolveLevelConfirmationPrompt, type LevelConfirmationPrompt } from '../../tournaments/tournament-eligibility';
+import { fetchTournament } from '../../data/tournaments-repository';
+import {
+  resolveLevelConfirmationPromptForTournament,
+  type LevelConfirmationPrompt,
+} from '../../tournaments/tournament-eligibility';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -39,12 +43,17 @@ export class PartnerInviteResponder {
 
   /** Mesmo gate/copy da tela de inscrição (`tournament-registration-shell.component.ts`) —
    *  aceitar um convite pelo anúncio automático também é um caminho pra 1ª inscrição ativa
-   *  do atleta no esporte (trigger de backend, `tournament-level-lock.ts`). Sem sessão ou
-   *  sem Firestore é falha de resolução: rejeita, quem chama bloqueia. */
-  resolveLevelPrompt(tournamentSport: string | null): Promise<LevelConfirmationPrompt | null> {
+   *  do atleta no esporte (trigger de backend, `tournament-level-lock.ts`). Recebe o
+   *  `tournamentId` (não um `sport` já resolvido) e busca o torneio FRESCO — nunca o cache de
+   *  `PartnerInvitesService.pending()`, que documentadamente pode trazer `tournament: null`
+   *  enquanto o fetch paralelo do torneio ainda não voltou (fix pós-review I1: ler esse cache
+   *  tratava "ainda não sei o esporte" como "sem esporte mapeado" e pulava a confirmação em
+   *  silêncio). Sem sessão, sem Firestore, ou falha em QUALQUER um dos dois fetches é falha de
+   *  resolução: rejeita, quem chama bloqueia. */
+  resolveLevelPrompt(tournamentId: string): Promise<LevelConfirmationPrompt | null> {
     const db = this.firestore;
     const uid = this.auth.user()?.uid;
     if (!db || !uid) return Promise.reject(new Error('Sem sessão ou conexão com o Firestore.'));
-    return resolveLevelConfirmationPrompt(fetchMyAthleteProfile(db, uid), tournamentSport);
+    return resolveLevelConfirmationPromptForTournament(fetchMyAthleteProfile(db, uid), fetchTournament(db, tournamentId));
   }
 }

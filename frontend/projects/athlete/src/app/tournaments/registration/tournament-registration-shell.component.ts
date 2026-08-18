@@ -590,6 +590,9 @@ export class TournamentRegistrationShellComponent {
    *  cria nada; ou a busca do perfil falhou (bloqueia, não decide no escuro) ou o atleta
    *  escolheu "Ajustar nível" (o dialog já disparou a navegação). */
   private async ensureLevelConfirmed(): Promise<boolean> {
+    // Uma confirmação já pendente não pode ser sobrescrita — um segundo clique no CTA antes do
+    // dialog renderizar perderia o resolver da primeira chamada, que nunca mais resolveria.
+    if (this.levelConfirmationResolve) return false;
     const tournamentSport = this.listing()?.sport ?? null;
     let prompt: LevelConfirmationPrompt | null;
     try {

@@ -240,7 +240,9 @@ describe('AtInviteAnnouncerComponent', () => {
     await click('accept');
     await confirmLgpd();
 
-    expect(responder.resolveLevelPrompt).toHaveBeenCalledWith('beachVolleyball');
+    // Fix pós-review (I1): o responder recebe o tournamentId (não um sport já resolvido) e
+    // busca o torneio fresco — nunca o cache de `PartnerInvitesService.pending()`.
+    expect(responder.resolveLevelPrompt).toHaveBeenCalledWith('t-i1');
     expect(responder.accept).not.toHaveBeenCalled();
     expect(levelDialog()).not.toBeNull();
     expect(levelDialog().componentInstance.heading()).toBe('Confirme seu nível');

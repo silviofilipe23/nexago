@@ -78,6 +78,22 @@ export async function resolveLevelConfirmationPrompt(
   return { levelLabel: levelLabelForRank(rank), sportLabel: athleteSportLabel(sportCode) };
 }
 
+/** Como `resolveLevelConfirmationPrompt`, mas também AWAITA o `Promise` do TORNEIO em vez de
+ *  aceitar um `tournamentSport` já resolvido — fix pós-review (I1): 3 dos 6 pontos de entrada
+ *  descobrem o torneio pelo cache de `PartnerInvitesService.pending()`, cujo contrato deixa
+ *  `tournament: null` enquanto o fetch paralelo do torneio ainda não voltou
+ *  (`partner-invites.service.ts:24-27`, `resolveTournaments`). Ler esse cache direto tratava
+ *  "ainda não sei o esporte" como "sem esporte mapeado" e pulava a confirmação em silêncio — a
+ *  MESMA falha que a Task 6 (Flutter) cometeu no aceite de convite, agora na resolução do
+ *  TORNEIO em vez da do PERFIL. Erro em QUALQUER um dos dois `Promise`s propaga pro chamador. */
+export async function resolveLevelConfirmationPromptForTournament(
+  profileFuture: Promise<MyAthleteProfile | null>,
+  tournamentFuture: Promise<{ sport: string | null } | null>,
+): Promise<LevelConfirmationPrompt | null> {
+  const [profile, tournament] = await Promise.all([profileFuture, tournamentFuture]);
+  return resolveLevelConfirmationPrompt(Promise.resolve(profile), tournament?.sport ?? null);
+}
+
 export function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
   const v = raw?.trim().toLowerCase() ?? '';
   if (!v) return null;

@@ -757,11 +757,16 @@ export class AtInviteAnnouncerComponent {
   /** Mesmo gate/copy da tela de inscrição — aceitar pelo anúncio automático também é um
    *  caminho pra 1ª inscrição ativa do atleta no esporte (trigger de backend,
    *  `tournament-level-lock.ts`). Delegado ao `PartnerInviteResponder` (mesma costura
-   *  testável sem rede que já cobre aceite/recusa). */
+   *  testável sem rede que já cobre aceite/recusa), passando o `tournamentId` — o responder
+   *  busca o torneio FRESCO em vez de ler `item.tournament` do cache do
+   *  `PartnerInvitesService`, que pode não ter resolvido ainda (fix pós-review I1). */
   private async ensureLevelConfirmed(item: PendingPartnerInvite): Promise<boolean> {
+    // Uma confirmação já pendente não pode ser sobrescrita — um segundo clique no CTA antes do
+    // dialog renderizar perderia o resolver da primeira chamada, que nunca mais resolveria.
+    if (this.levelConfirmationResolve) return false;
     let prompt: LevelConfirmationPrompt | null;
     try {
-      prompt = await this.responder.resolveLevelPrompt(item.tournament?.sport ?? null);
+      prompt = await this.responder.resolveLevelPrompt(item.invite.tournamentId);
     } catch {
       this.toasts.error(
         'Não foi possível confirmar seu nível',

@@ -82,7 +82,7 @@ class TournamentDetailTodayTab extends ConsumerWidget {
                 AppSpacing.screenH,
                 0,
                 AppSpacing.screenH,
-                AppSpacing.sm + 2,
+                AppSpacing.xxl,
               ),
               child: TournamentMatchCard(
                 viewModel: vm,

@@ -36,6 +36,7 @@ import '../domain/category_gender_eligibility.dart';
 import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_category_spots.dart';
 import '../domain/tournament_detail_logic.dart';
+import '../domain/tournament_invite_announcer.dart';
 import '../domain/tournament_invite_links.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -55,6 +56,7 @@ import 'widgets/tournament_registration/tournament_cancellation_request_sheet.da
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
 import 'widgets/tournament_registration/tournament_registration_price_summary.dart';
+import 'widgets/tournament_registration/tournament_registration_received_invite_card.dart';
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 import 'widgets/tournament_registration/tournament_registration_waiting_step.dart';
@@ -1841,12 +1843,35 @@ class _TournamentRegistrationPageState
           athleteProfile,
           tournamentSport: tournament.sport,
         );
+        // Convite recebido para a categoria escolhida: responder aqui evita
+        // depender de o atleta achar a Agenda ou a notificação.
+        final receivedInvite = receivedInviteForCategory(
+          pending:
+              ref.watch(pendingTournamentPartnerInvitesProvider).valueOrNull ??
+                  const <TournamentPartnerInvite>[],
+          tournamentId: widget.tournamentId,
+          categoryId: _category?.id ?? '',
+        );
         return [
           const NexaSectionHeader(
             title: 'Escolha a categoria',
             padding: EdgeInsets.zero,
           ),
           const SizedBox(height: AppSpacing.lg),
+          if (receivedInvite != null) ...[
+            TournamentRegistrationReceivedInviteCard(
+              title: inviteAnnouncementTitle(receivedInvite),
+              expiryLabel:
+                  tournamentInviteExpiryLabel(receivedInvite.expiresAt),
+              onOpenInvite: () => context.pushNamed(
+                AppRouteNames.tournamentPartnerInvite,
+                pathParameters: <String, String>{
+                  'inviteId': receivedInvite.id,
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           for (final cat in categories) ...[
             Builder(
               builder: (context) {

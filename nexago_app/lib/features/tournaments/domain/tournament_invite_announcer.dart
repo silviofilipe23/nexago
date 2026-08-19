@@ -46,6 +46,27 @@ TournamentPartnerInvite? nextInviteToAnnounce({
   return candidates.first;
 }
 
+/// Convite recebido para uma categoria específica, para o cartão dentro da
+/// tela de inscrição — mesma posição que o portal web usa.
+///
+/// Diferente de [nextInviteToAnnounce], aqui não há corte de sessão: o atleta
+/// está olhando justamente essa categoria, então o convite dela tem de
+/// aparecer mesmo que tenha chegado agora.
+TournamentPartnerInvite? receivedInviteForCategory({
+  required List<TournamentPartnerInvite> pending,
+  required String tournamentId,
+  required String categoryId,
+}) {
+  if (tournamentId.trim().isEmpty || categoryId.trim().isEmpty) return null;
+  for (final invite in pending) {
+    if (!invite.isPending || invite.isExpired) continue;
+    if (invite.tournamentId != tournamentId) continue;
+    if (invite.categoryId != categoryId) continue;
+    return invite;
+  }
+  return null;
+}
+
 /// Título da tela: "Bia te chamou pra dupla" / "…pra equipe Areia Quente".
 String inviteAnnouncementTitle(TournamentPartnerInvite invite) {
   final who = invite.inviterName.trim().isEmpty

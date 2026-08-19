@@ -183,4 +183,72 @@ void main() {
       expect(inviteAnnouncementTitle(teamInvite), 'Bia te chamou pra equipe');
     });
   });
+
+  // O convite recebido também aparece dentro da tela de inscrição, na
+  // categoria em que ele existe — mesmo lugar do portal web.
+  group('receivedInviteForCategory', () {
+    test('acha o convite da categoria selecionada', () {
+      final result = receivedInviteForCategory(
+        pending: [invite('a')],
+        tournamentId: 't1',
+        categoryId: 'c1',
+      );
+
+      expect(result?.id, 'a');
+    });
+
+    test('ignora convite de outra categoria', () {
+      expect(
+        receivedInviteForCategory(
+          pending: [invite('a')],
+          tournamentId: 't1',
+          categoryId: 'outra',
+        ),
+        isNull,
+      );
+    });
+
+    test('ignora convite de outro torneio', () {
+      expect(
+        receivedInviteForCategory(
+          pending: [invite('a')],
+          tournamentId: 'outro',
+          categoryId: 'c1',
+        ),
+        isNull,
+      );
+    });
+
+    test('ignora convite expirado', () {
+      expect(
+        receivedInviteForCategory(
+          pending: [
+            invite('a', expiresAt: sessionStart.subtract(const Duration(days: 1))),
+          ],
+          tournamentId: 't1',
+          categoryId: 'c1',
+        ),
+        isNull,
+      );
+    });
+
+    test('sem torneio ou categoria não devolve nada', () {
+      expect(
+        receivedInviteForCategory(
+          pending: [invite('a')],
+          tournamentId: '',
+          categoryId: 'c1',
+        ),
+        isNull,
+      );
+      expect(
+        receivedInviteForCategory(
+          pending: [invite('a')],
+          tournamentId: 't1',
+          categoryId: '',
+        ),
+        isNull,
+      );
+    });
+  });
 }

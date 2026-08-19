@@ -12,6 +12,8 @@ const DEFAULT_LEAGUE_POINTS: Record<string, number> = {
   "3": 180,
   "4": 120,
   quarters: 80,
+  r16: 60,
+  r32: 45,
   groups: 40,
 };
 
@@ -20,7 +22,7 @@ export type CountingStagesMode =
   | "best_3_of_5"
   | "all_stages";
 
-export type LeaguePlacementBucket = "quarters" | "groups";
+export type LeaguePlacementBucket = "quarters" | "r16" | "r32" | "groups";
 
 export interface LeaguePlacementAward {
   teamId: string;

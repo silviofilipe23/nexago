@@ -24,7 +24,7 @@ describe("finalPlaceForAward / globalPointsForAward", () => {
   it("mapeia colocação → finalPlace e pontos da tabela", () => {
     assert.equal(finalPlaceForAward({teamId: "t", place: 1}), 1);
     assert.equal(finalPlaceForAward({teamId: "t", bucket: "quarters"}), 5);
-    assert.equal(finalPlaceForAward({teamId: "t", bucket: "groups"}), 9);
+    assert.equal(finalPlaceForAward({teamId: "t", bucket: "groups"}), 0);
 
     assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1), 1000);
     assert.equal(globalPointsForAward({teamId: "t", place: 2}, 1), 800);
@@ -46,10 +46,13 @@ describe("motor fase 3 — base ×10 e peso do preset", () => {
     assert.strictEqual(RANKING_SCALE_VERSION, 2);
   });
 
-  it("tabela-base reescalada ×10", () => {
-    assert.deepStrictEqual(DEFAULT_GLOBAL_POINTS, {
-      "1": 1000, "2": 800, "3": 600, "4": 500, quarters: 330, groups: 100,
-    });
+  it("tabela-base reescalada ×10 (pódio e quartas intocados pela escada por fase)", () => {
+    assert.strictEqual(DEFAULT_GLOBAL_POINTS["1"], 1000);
+    assert.strictEqual(DEFAULT_GLOBAL_POINTS["2"], 800);
+    assert.strictEqual(DEFAULT_GLOBAL_POINTS["3"], 600);
+    assert.strictEqual(DEFAULT_GLOBAL_POINTS["4"], 500);
+    assert.strictEqual(DEFAULT_GLOBAL_POINTS.quarters, 330);
+    assert.strictEqual(DEFAULT_GLOBAL_POINTS.groups, 100);
   });
   it("multiplier composto arredonda uma vez no final", () => {
     // Intermediário (0.25) nas quartas: 330 × 0.25 = 82.5 → 83
@@ -251,7 +254,7 @@ describe("tryAwardGlobalRankingForMatch", () => {
     const groupsTeam = db.store.get(
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`,
     )!;
-    assert.equal(groupsTeam.finalPlace, 9);
+    assert.equal(groupsTeam.finalPlace, 0); // participação: sem colocação de mata-mata
     assert.equal(groupsTeam.pointsEarned, 100);
   });
 
@@ -444,5 +447,43 @@ describe("modulador por tamanho de chave", () => {
       `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
     )!;
     assert.strictEqual(champion.pointsEarned, 300);
+  });
+});
+
+describe("escada por fase alcançada — tabela e colocação persistida", () => {
+  it("tabela-base ganha oitavas e 16-avos", () => {
+    assert.deepStrictEqual(DEFAULT_GLOBAL_POINTS, {
+      "1": 1000,
+      "2": 800,
+      "3": 600,
+      "4": 500,
+      quarters: 330,
+      r16: 200,
+      r32: 130,
+      groups: 100,
+    });
+  });
+
+  it("nenhum degrau paga menos que a participação", () => {
+    for (const bucket of ["quarters", "r16", "r32"] as const) {
+      assert.ok(
+        DEFAULT_GLOBAL_POINTS[bucket] >= DEFAULT_GLOBAL_POINTS.groups,
+        `${bucket} abaixo da participação`,
+      );
+    }
+  });
+
+  it("finalPlace guarda o topo da faixa; participação vira 0", () => {
+    assert.strictEqual(finalPlaceForAward({teamId: "t", bucket: "quarters"}), 5);
+    assert.strictEqual(finalPlaceForAward({teamId: "t", bucket: "r16"}), 9);
+    assert.strictEqual(finalPlaceForAward({teamId: "t", bucket: "r32"}), 17);
+    assert.strictEqual(finalPlaceForAward({teamId: "t", bucket: "groups"}), 0);
+    assert.strictEqual(finalPlaceForAward({teamId: "t", place: 2}), 2);
+  });
+
+  it("pontos dos degraus novos com peso de preset", () => {
+    // Intermediário (0.25): 200 × 0.25 = 50 · 130 × 0.25 = 32.5 → 33
+    assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "r16"}, 0.25), 50);
+    assert.strictEqual(globalPointsForAward({teamId: "t", bucket: "r32"}, 0.25), 33);
   });
 });

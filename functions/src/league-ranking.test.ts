@@ -416,3 +416,22 @@ describe("tryAwardLeagueStagePointsForMatch — bucket groups por preset", () =>
     assert.equal(result.teamsUpdated, 3);
   });
 });
+
+describe("escada por fase alcançada — tabela da liga", () => {
+  it("default ganha oitavas e 16-avos", () => {
+    assert.strictEqual(pointsForBucket({}, "r16"), 60);
+    assert.strictEqual(pointsForBucket({}, "r32"), 45);
+  });
+
+  it("tabela customizada SEM os degraus novos cai no default deles", () => {
+    // Liga criada antes desta mudança: só tem as chaves antigas.
+    const antiga = {"1": 500, "2": 300, "3": 200, "4": 150, quarters: 90, groups: 50};
+    assert.strictEqual(pointsForBucket(antiga, "quarters"), 90); // respeita o custom
+    assert.strictEqual(pointsForBucket(antiga, "r16"), 60); // default do degrau novo
+    assert.strictEqual(pointsForBucket(antiga, "r32"), 45);
+  });
+
+  it("degrau customizado é respeitado", () => {
+    assert.strictEqual(pointsForBucket({r16: 70}, "r16"), 70);
+  });
+});

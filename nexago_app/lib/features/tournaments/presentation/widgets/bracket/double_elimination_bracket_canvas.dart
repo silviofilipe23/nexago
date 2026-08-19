@@ -37,12 +37,20 @@ class _DoubleEliminationBracketCanvasState
     extends State<DoubleEliminationBracketCanvas>
     with SingleTickerProviderStateMixin {
   final _transformation = TransformationController();
-  late final AnimationController _animator = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 320),
-  );
+  // Criado no initState: como `late`, o primeiro acesso seria o dispose
+  // quando ninguém toca nos chips — e criar um ticker ali estoura.
+  late final AnimationController _animator;
   Animation<Matrix4>? _cameraTween;
   int? _activeColumn;
+
+  @override
+  void initState() {
+    super.initState();
+    _animator = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+  }
 
   @override
   void dispose() {
@@ -133,7 +141,9 @@ class _DoubleEliminationBracketCanvasState
           child: InteractiveViewer(
             transformationController: _transformation,
             constrained: false,
-            clipBehavior: Clip.none,
+            // A câmera é maior que a viewport: sem recorte o canvas pinta
+            // por cima do cabeçalho e do segmentado da categoria.
+            clipBehavior: Clip.hardEdge,
             alignment: Alignment.topLeft,
             boundaryMargin: const EdgeInsets.all(80),
             minScale: 0.35,

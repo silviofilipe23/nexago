@@ -75,6 +75,10 @@
                     android:scheme="https"
                     android:host="atleta.nexago.com.br"
                     android:pathPrefix="/convite-dupla"/>
+                <data
+                    android:scheme="https"
+                    android:host="atleta.nexago.com.br"
+                    android:pathPrefix="/torneios-convite"/>
             </intent-filter>
             <!-- Deep link custom scheme (dev / fallback) -->
             <intent-filter>

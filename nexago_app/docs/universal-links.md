@@ -9,8 +9,17 @@ HTTPS — enquanto continuarem assim, nenhum link para eles abre o app.
 
 ## O que o app reivindica
 
-Só o prefixo `/convite-dupla` — reivindicar o host inteiro faria toda a web do
-portal do atleta abrir no app.
+Só dois prefixos — reivindicar o host inteiro faria toda a web do portal do
+atleta abrir no app.
+
+| Prefixo | Para quê |
+| --- | --- |
+| `/convite-dupla/:id` | Convite para parceiro **sem conta**: leva ao cadastro e, no fim dele, ao convite. |
+| `/torneios-convite/:id` | Convite **já criado**, compartilhado para cutucar quem ainda não respondeu. |
+
+O portal do atleta ainda não renderiza esses dois paths: quem abrir sem o app
+instalado cai na rota desconhecida da SPA. Vale servir neles uma página de
+"abra no app / baixe o app".
 
 | Onde | Arquivo |
 | --- | --- |

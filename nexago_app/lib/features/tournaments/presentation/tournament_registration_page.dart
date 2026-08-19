@@ -14,6 +14,7 @@ import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_section_header.dart';
+import '../../../core/ui/nexa_share.dart';
 import '../../../core/ui/nexa_segmented_control.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/data/payment_service.dart';
@@ -35,6 +36,7 @@ import '../domain/category_gender_eligibility.dart';
 import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_category_spots.dart';
 import '../domain/tournament_detail_logic.dart';
+import '../domain/tournament_invite_links.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -928,6 +930,34 @@ class _TournamentRegistrationPageState
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  /// Cutuca o parceiro que ainda não respondeu, pelo share sheet do sistema.
+  ///
+  /// O link é absoluto e no host do portal do atleta: quem tem o app cai no
+  /// convite dentro do app, quem não tem cai na web. Antes isto era um
+  /// snackbar exibindo `/torneios-convite/<id>` — um caminho cru, que não é
+  /// endereço nenhum e não dava para compartilhar.
+  Future<void> _shareInviteReminder({
+    required TournamentDetail tournament,
+    required String partnerName,
+    String? teamName,
+  }) async {
+    final url = tournamentPartnerInviteUrl(_inviteId);
+    if (url == null) {
+      showAppSnackBar(context, 'Aguardando envio do convite.');
+      return;
+    }
+    await nexaShareText(
+      context,
+      partnerInviteReminderMessage(
+        partnerName: partnerName,
+        tournamentName: tournament.name,
+        categoryName: _category?.name ?? _category?.id ?? '',
+        url: url,
+        teamName: teamName,
+      ),
+    );
   }
 
   Future<void> _cancelInvite() async {
@@ -1954,9 +1984,6 @@ class _TournamentRegistrationPageState
             ),
           ];
         }
-        final inviteLink = _inviteId != null
-            ? '/torneios-convite/${_inviteId!}'
-            : null;
         final pendingInviteId = _inviteId?.trim() ?? '';
         final inviteAsync = pendingInviteId.isNotEmpty
             ? ref.watch(tournamentPartnerInviteProvider(pendingInviteId))
@@ -1989,16 +2016,11 @@ class _TournamentRegistrationPageState
             reservationHoursLabel: reservationHours,
             isLoading: inviteLoading,
             onContinueBrowsing: _exitRegistration,
-            onResendInvite: () {
-              if (inviteLink != null) {
-                showAppSnackBar(
-                  context,
-                  'Convite pendente. Compartilhe: $inviteLink',
-                );
-              } else {
-                showAppSnackBar(context, 'Aguardando envio do convite.');
-              }
-            },
+            onResendInvite: () => _shareInviteReminder(
+              tournament: tournament,
+              partnerName: partner.name,
+              teamName: invite?.teamName,
+            ),
             onCancelRegistration: _cancelRegistrationFromWaiting,
           ),
         ];

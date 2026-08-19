@@ -44,6 +44,8 @@ class TournamentPartnerInvite {
     this.attachRegistrationId,
     required this.createdAt,
     required this.expiresAt,
+    this.isTeamInvite = false,
+    this.teamName,
   });
 
   final String id;
@@ -59,6 +61,14 @@ class TournamentPartnerInvite {
   final String? attachRegistrationId;
   final DateTime createdAt;
   final DateTime expiresAt;
+
+  /// Categoria de EQUIPE (trio/quarteto/quinteto) — gravado pelo backend em
+  /// `sendTournamentPartnerInvite`. Sem ele toda a copy chamava equipe de
+  /// "dupla".
+  final bool isTeamInvite;
+
+  /// Nome da equipe nomeada pelo capitão; `null` em dupla.
+  final String? teamName;
 
   bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted';
@@ -86,7 +96,14 @@ class TournamentPartnerInvite {
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt: (d['expiresAt'] as Timestamp?)?.toDate() ??
           DateTime.now().add(const Duration(hours: 48)),
+      isTeamInvite: d['isTeamInvite'] == true,
+      teamName: _trimmedOrNull(d['teamName']),
     );
+  }
+
+  static String? _trimmedOrNull(Object? raw) {
+    final value = raw is String ? raw.trim() : '';
+    return value.isEmpty ? null : value;
   }
 }
 

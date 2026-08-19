@@ -53,7 +53,7 @@ void main() {
       // Declarar escala diferente da real desenha o pino no tamanho errado,
       // sem nenhum erro.
       expect(ArenaPinAsset.scale, 3);
-      expect(ArenaPinAsset.displayHeight, greaterThan(0));
+      expect(ArenaPinAsset.displayWidth, greaterThan(0));
     });
   });
 
@@ -70,11 +70,14 @@ void main() {
       expect(image.height, greaterThan(0));
       expect(image.data.sublist(0, 4), [0x89, 0x50, 0x4E, 0x47]);
 
-      // O pino é uma gota: mais alto que largo.
-      expect(image.height, greaterThan(image.width));
+      // A arte é uma quadra deitada: mais larga que alta. Já foi uma gota
+      // (mais alta que larga), e a troca inverteu a proporção — por isso a
+      // medida declarada passou a ser a largura.
+      expect(image.width, greaterThan(image.height));
 
-      // E as medidas têm que bater com a altura de exibição declarada.
-      expect(image.height / ArenaPinAsset.scale, ArenaPinAsset.displayHeight);
+      // E as medidas têm que bater com a largura de exibição declarada:
+      // divergir aqui desenha o pino no tamanho errado, sem erro nenhum.
+      expect(image.width / ArenaPinAsset.scale, ArenaPinAsset.displayWidth);
     });
   });
 }

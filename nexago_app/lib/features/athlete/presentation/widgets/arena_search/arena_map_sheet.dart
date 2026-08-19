@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -8,6 +9,24 @@ import '../../../../arenas/domain/arena_search_filters.dart';
 import 'arena_search_result_tile.dart';
 import 'arena_search_section_header.dart';
 import 'arena_search_signup_cta_card.dart';
+
+/// A lista de arenas deve estar na tela?
+///
+/// Ela não fica sempre visível: sobre o mapa, uma lista permanente rouba a
+/// metade de baixo sem ninguém ter pedido. Aparece quando o atleta digita algo
+/// — ou quando ele toca num pino, que abre o card daquela arena.
+///
+/// Filtro aplicado NÃO abre a lista de propósito: filtrar muda os pinos do
+/// mapa, que é onde o atleta está olhando.
+///
+/// Consequência aceita: arena sem coordenada não tem pino e só aparece na
+/// lista, então ela fica fora da tela até alguém pesquisar pelo nome.
+bool shouldShowArenaList({
+  required String query,
+  required bool hasFocusedArena,
+}) {
+  return hasFocusedArena || query.trim().isNotEmpty;
+}
 
 /// Tudo que a lista precisa saber sobre um resultado além do próprio dado.
 ///
@@ -72,15 +91,15 @@ class ArenaResultsList extends StatelessWidget {
           'ter separado quem tem pino de quem não tem.',
         );
 
-/// Só roda em debug (asserts somem em release).
-static bool _overlaps(
-  List<FilteredArenaSearchResult> a,
-  List<FilteredArenaSearchResult> b,
-) {
-  if (a.isEmpty || b.isEmpty) return false;
-  final ids = a.map((e) => e.result.arena.id).toSet();
-  return b.any((e) => ids.contains(e.result.arena.id));
-}
+  /// Só roda em debug (asserts somem em release).
+  static bool _overlaps(
+    List<FilteredArenaSearchResult> a,
+    List<FilteredArenaSearchResult> b,
+  ) {
+    if (a.isEmpty || b.isEmpty) return false;
+    final ids = a.map((e) => e.result.arena.id).toSet();
+    return b.any((e) => ids.contains(e.result.arena.id));
+  }
 
   /// Resultados que também aparecem como pino no mapa.
   final List<FilteredArenaSearchResult> items;
@@ -193,7 +212,7 @@ static bool _overlaps(
 /// Com [focusedItem] ela vira um card só — o da arena cujo pino foi tocado.
 /// Sem isso, tocar num pino obrigaria a rolar uma lista longa atrás do card
 /// correspondente.
-class ArenaMapSheet extends StatelessWidget {
+class ArenaMapSheet extends StatefulWidget {
   const ArenaMapSheet({
     super.key,
     required this.list,
@@ -215,6 +234,8 @@ class ArenaMapSheet extends StatelessWidget {
 
   final FilteredArenaSearchResult? focusedItem;
   final VoidCallback? onClearFocus;
+
+  /// Altura de descanso — para onde "minimizar" leva o sheet de volta.
   final double initialSize;
 
   /// Altura da barra de navegação do shell, para o último card não nascer
@@ -222,34 +243,155 @@ class ArenaMapSheet extends StatelessWidget {
   final double bottomInset;
 
   @override
+  State<ArenaMapSheet> createState() => _ArenaMapSheetState();
+}
+
+class _ArenaMapSheetState extends State<ArenaMapSheet> {
+  /// Existe só para o botão de minimizar: sem ele não há como recolher o
+  /// sheet por código, apenas arrastando.
+  final DraggableScrollableController _drag = DraggableScrollableController();
+
+  double _extent = 0;
+  bool _scrolledUp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _extent = widget.initialSize;
+  }
+
+  @override
+  void dispose() {
+    _drag.dispose();
+    super.dispose();
+  }
+
+  /// Só faz sentido oferecer "minimizar" quando há o que recolher.
+  bool get _showMinimize => _scrolledUp && _extent > widget.initialSize + 0.02;
+
+  bool _onScroll(UserScrollNotification notification) {
+    // `forward` é o dedo descendo, ou seja, a lista subindo de volta. Arrastar
+    // o sheet para cima conta como `reverse`, então expandir NÃO faz o botão
+    // nascer — ele aparece quando o atleta volta ao topo, que é o momento em
+    // que ele quer sair da lista.
+    final next = switch (notification.direction) {
+      ScrollDirection.forward => true,
+      ScrollDirection.reverse => false,
+      ScrollDirection.idle => _scrolledUp,
+    };
+    if (next != _scrolledUp) setState(() => _scrolledUp = next);
+    return false;
+  }
+
+  bool _onExtent(DraggableScrollableNotification notification) {
+    if ((notification.extent - _extent).abs() < 0.005) return false;
+    setState(() => _extent = notification.extent);
+    return false;
+  }
+
+  Future<void> _minimize() async {
+    setState(() => _scrolledUp = false);
+    if (!_drag.isAttached) return;
+    await _drag.animateTo(
+      widget.initialSize,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final focused = focusedItem;
+    final focused = widget.focusedItem;
     if (focused != null) {
       return _FocusedCard(
         item: focused,
-        searchQuery: searchQuery,
-        selectedSportChip: selectedSportChip,
-        state: stateFor(focused.result.arena.id),
-        bottomInset: bottomInset,
-        onClose: onClearFocus,
-        onOpenArena: () => callbacks.onOpenArena(focused),
-        onToggleFavorite: () => callbacks.onToggleFavorite(focused),
+        searchQuery: widget.searchQuery,
+        selectedSportChip: widget.selectedSportChip,
+        state: widget.stateFor(focused.result.arena.id),
+        bottomInset: widget.bottomInset,
+        onClose: widget.onClearFocus,
+        onOpenArena: () => widget.callbacks.onOpenArena(focused),
+        onToggleFavorite: () => widget.callbacks.onToggleFavorite(focused),
         onReserve: focused.result.hasAvailability
-            ? () => callbacks.onReserve(focused)
+            ? () => widget.callbacks.onReserve(focused)
             : null,
-        onContactUnclaimed: callbacks.onContactUnclaimed,
+        onContactUnclaimed: widget.callbacks.onContactUnclaimed,
       );
     }
 
-    return DraggableScrollableSheet(
-      initialChildSize: initialSize,
-      minChildSize: 0.14,
-      maxChildSize: 0.92,
-      snap: true,
-      snapSizes: const [0.14, 0.32, 0.92],
-      builder: (context, scrollController) {
-        return _SheetSurface(child: list(scrollController));
-      },
+    return Stack(
+      children: [
+        NotificationListener<DraggableScrollableNotification>(
+          onNotification: _onExtent,
+          child: NotificationListener<UserScrollNotification>(
+            onNotification: _onScroll,
+            child: DraggableScrollableSheet(
+              controller: _drag,
+              initialChildSize: widget.initialSize,
+              minChildSize: 0.14,
+              maxChildSize: 0.92,
+              snap: true,
+              snapSizes: const [0.14, 0.32, 0.92],
+              builder: (context, scrollController) {
+                return _SheetSurface(child: widget.list(scrollController));
+              },
+            ),
+          ),
+        ),
+        if (_showMinimize)
+          Positioned(
+            left: 0,
+            right: 0,
+            // Flutua logo acima da borda do sheet, acompanhando o arrasto.
+            bottom: MediaQuery.sizeOf(context).height * _extent + 8,
+            child: Center(child: _MinimizeChip(onTap: _minimize)),
+          ),
+      ],
+    );
+  }
+}
+
+/// A pastilha que recolhe a lista.
+class _MinimizeChip extends StatelessWidget {
+  const _MinimizeChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Material(
+      color: colors.surfaceCard,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      elevation: 4,
+      shadowColor: AppColors.black.withValues(alpha: 0.3),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 7, 14, 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: colors.onSurface,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Minimizar',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

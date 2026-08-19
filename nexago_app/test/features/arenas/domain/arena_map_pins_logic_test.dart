@@ -288,7 +288,7 @@ void main() {
           fittedZoom: 13.5,
           minZoom: 12,
           bounds: bounds,
-          athlete: atleta,
+          fallbackCenter: atleta,
         ),
         isNull,
       );
@@ -300,20 +300,21 @@ void main() {
           fittedZoom: 12,
           minZoom: 12,
           bounds: bounds,
-          athlete: atleta,
+          fallbackCenter: atleta,
         ),
         isNull,
       );
     });
 
-    test('afastado demais volta para o piso, centrado no atleta', () {
-      // O centro da caixa fica entre as cidades distantes — pasto. O único
-      // ponto que interessa ao atleta é onde ele está.
+    test('afastado demais volta para o piso, no ponto de referência', () {
+      // Quem chama escolhe a referência: o atleta na abertura, a arena que
+      // melhor casou numa busca. O centro da caixa não serve para nenhum dos
+      // dois — entre cidades distantes ele é pasto.
       final alvo = arenaMapZoomFloorOverride(
         fittedZoom: 4,
         minZoom: 12,
         bounds: bounds,
-        athlete: atleta,
+        fallbackCenter: atleta,
       );
 
       expect(alvo, isNotNull);
@@ -322,12 +323,12 @@ void main() {
       expect(alvo.longitude, atleta.longitude);
     });
 
-    test('sem posição do atleta, cai no centro dos pinos', () {
+    test('sem referência, cai no centro dos pinos', () {
       final alvo = arenaMapZoomFloorOverride(
         fittedZoom: 4,
         minZoom: 12,
         bounds: bounds,
-        athlete: null,
+        fallbackCenter: null,
       );
 
       expect(alvo!.latitude, bounds.centerLatitude);
@@ -343,7 +344,7 @@ void main() {
             fittedZoom: z,
             minZoom: 12,
             bounds: bounds,
-            athlete: atleta,
+            fallbackCenter: atleta,
           ),
           isNull,
           reason: 'zoom $z',

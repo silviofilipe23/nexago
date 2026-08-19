@@ -145,7 +145,39 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     _searchDebounce = Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       _updateFilters(_filters.copyWith(query: value));
+      _flyToSearchResults();
     });
+  }
+
+  /// Leva o mapa até o que a busca encontrou.
+  ///
+  /// Roda aqui, e não no `build`, porque mexer na câmera é efeito colateral:
+  /// no build ela se moveria em toda reconstrução — exatamente o defeito que
+  /// tiramos ao abandonar o `viewport` declarativo do `MapWidget`.
+  ///
+  /// `_updateFilters` já atualizou `_filters` de forma síncrona, então o
+  /// provider abaixo devolve o resultado do texto novo.
+  void _flyToSearchResults() {
+    if (_filters.query.trim().isEmpty) return;
+
+    final split = _splitFor(ref.read(arenaSearchFilteredProvider(_filters)));
+    // Sem pino não há para onde ir: a busca pode ter achado só arenas sem
+    // coordenada, que existem apenas na lista.
+    if (split.pins.isEmpty) return;
+
+    final melhor = split.pins.first;
+    unawaited(
+      _mapController.fitPins(
+        split.pins,
+        // Resultados espalhados por cidades distantes fariam o enquadramento
+        // afastar demais. Nesse caso vale ir para o primeiro — a busca já vem
+        // ordenada, então ele é o que melhor casou com o texto.
+        fallbackCenter: (
+          latitude: melhor.latitude,
+          longitude: melhor.longitude,
+        ),
+      ),
+    );
   }
 
   Future<void> _pickDate() async {
@@ -580,6 +612,11 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
             .where((e) => e.result.arena.id == _focusedArenaId)
             .firstOrNull;
 
+    final mostraLista = shouldShowArenaList(
+      query: _filters.query,
+      hasFocusedArena: focused != null,
+    );
+
     return Stack(
       children: [
         Positioned.fill(
@@ -603,9 +640,12 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         ),
         Positioned(
           right: 16,
-          // Acima da altura inicial do sheet: um botao atras dele e um botao
-          // que nao existe.
-          bottom: MediaQuery.sizeOf(context).height * _sheetInitialSize + 16,
+          // Acima do sheet quando ele existe — um botão atrás dele é um botão
+          // que não existe. Sem sheet, descem para perto da borda em vez de
+          // flutuarem no meio da tela.
+          bottom: mostraLista
+              ? MediaQuery.sizeOf(context).height * _sheetInitialSize + 16
+              : bottomInset + 16,
           child: ArenaMapControls(
             onFavoritesTap: _openFavoriteArenas,
             onLocationTap: () => unawaited(_openLocation()),
@@ -618,17 +658,18 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         // precisa cobrir os controles laterais e a barra de busca. A área
         // acima do sheet não intercepta toque, então os controles continuam
         // acessíveis enquanto ele está recolhido.
-        ArenaMapSheet(
-          list: (controller) => buildList(controller, separateOffMap: true),
-          stateFor: stateFor,
-          callbacks: callbacks,
-          searchQuery: _filters.query,
-          selectedSportChip: _filters.sportChip,
-          focusedItem: focused,
-          onClearFocus: () => setState(() => _focusedArenaId = null),
-          initialSize: _sheetInitialSize,
-          bottomInset: bottomInset,
-        ),
+        if (mostraLista)
+          ArenaMapSheet(
+            list: (controller) => buildList(controller, separateOffMap: true),
+            stateFor: stateFor,
+            callbacks: callbacks,
+            searchQuery: _filters.query,
+            selectedSportChip: _filters.sportChip,
+            focusedItem: focused,
+            onClearFocus: () => setState(() => _focusedArenaId = null),
+            initialSize: _sheetInitialSize,
+            bottomInset: bottomInset,
+          ),
       ],
     );
   }

@@ -113,7 +113,8 @@ void main() {
       results: [
         _item(_arena(id: 'no-mapa', name: 'Arena do Mapa')),
         _item(
-          _arena(id: 'fora', name: 'Arena Sem Coordenada', lat: null, lng: null),
+          _arena(
+              id: 'fora', name: 'Arena Sem Coordenada', lat: null, lng: null),
         ),
       ],
     );
@@ -213,5 +214,37 @@ void main() {
 
     expect(find.text('Arena Pré-cadastrada'), findsOneWidget);
     expect(find.text('Reservar'), findsNothing);
+  });
+
+  group('shouldShowArenaList', () {
+    test('mapa limpo enquanto ninguém pesquisou', () {
+      expect(
+        shouldShowArenaList(query: '', hasFocusedArena: false),
+        isFalse,
+      );
+    });
+
+    test('digitar traz a lista', () {
+      expect(
+        shouldShowArenaList(query: 'praia', hasFocusedArena: false),
+        isTrue,
+      );
+    });
+
+    test('só espaço não conta como pesquisa', () {
+      // Apagar o texto costuma deixar espaço para trás; sem aparar, a lista
+      // ficaria presa na tela sem nenhuma busca ativa.
+      expect(
+        shouldShowArenaList(query: '   ', hasFocusedArena: false),
+        isFalse,
+      );
+    });
+
+    test('tocar num pino abre o card mesmo sem busca', () {
+      expect(
+        shouldShowArenaList(query: '', hasFocusedArena: true),
+        isTrue,
+      );
+    });
   });
 }

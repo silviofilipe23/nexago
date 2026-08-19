@@ -130,23 +130,24 @@ ArenaMapBounds? arenaMapPinsBounds(List<ArenaMapPin> pins) {
 ///
 /// Enquadrar todos os pinos é bom com arenas na mesma cidade e péssimo quando
 /// há uma em outro estado: o mapa abre em escala continental e o atleta não vê
-/// rua nenhuma. Abaixo de [minZoom] vale mais abrir perto — o que ficar fora
-/// da tela continua na lista do sheet.
+/// rua nenhuma. Abaixo de [minZoom] vale mais ficar perto de um ponto só.
+///
+/// [fallbackCenter] é esse ponto, e quem chama decide qual é: na abertura, a
+/// posição do atleta; numa busca, a arena que melhor casou com o texto. O
+/// centro da caixa não serve para nenhum dos dois — entre duas cidades
+/// distantes ele é literalmente pasto — e fica só como último recurso.
 ({double latitude, double longitude, double zoom})? arenaMapZoomFloorOverride({
   required double? fittedZoom,
   required double minZoom,
   required ArenaMapBounds bounds,
-  ({double latitude, double longitude})? athlete,
+  ({double latitude, double longitude})? fallbackCenter,
 }) {
   if (fittedZoom == null || !fittedZoom.isFinite) return null;
   if (fittedZoom >= minZoom) return null;
 
-  // Com os pinos espalhados, o centro da caixa cai no meio do nada — entre
-  // duas cidades distantes é literalmente pasto. A posição do atleta é o único
-  // ponto que interessa a ele.
   return (
-    latitude: athlete?.latitude ?? bounds.centerLatitude,
-    longitude: athlete?.longitude ?? bounds.centerLongitude,
+    latitude: fallbackCenter?.latitude ?? bounds.centerLatitude,
+    longitude: fallbackCenter?.longitude ?? bounds.centerLongitude,
     zoom: minZoom,
   );
 }

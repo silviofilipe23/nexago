@@ -28,7 +28,10 @@ class ArenaMapController {
   Future<void> Function(double latitude, double longitude, {double? zoom})?
       _flyTo;
   Future<void> Function()? _resetNorth;
-  Future<void> Function(List<ArenaMapPin> pins)? _fitPins;
+  Future<void> Function(
+    List<ArenaMapPin> pins,
+    ({double latitude, double longitude})? fallbackCenter,
+  )? _fitPins;
 
   bool get isReady => _flyTo != null;
 
@@ -38,7 +41,15 @@ class ArenaMapController {
 
   Future<void> resetNorth() async => _resetNorth?.call();
 
-  Future<void> fitPins(List<ArenaMapPin> pins) async => _fitPins?.call(pins);
+  /// Enquadra os pinos.
+  ///
+  /// [fallbackCenter] é para onde a câmera vai quando enquadrar tudo afastaria
+  /// demais — numa busca, a arena que melhor casou; na abertura, o atleta.
+  Future<void> fitPins(
+    List<ArenaMapPin> pins, {
+    ({double latitude, double longitude})? fallbackCenter,
+  }) async =>
+      _fitPins?.call(pins, fallbackCenter);
 
   void _detach() {
     _flyTo = null;
@@ -263,7 +274,10 @@ class _ArenaMapViewState extends State<ArenaMapView> {
     await _fitPins(widget.pins);
   }
 
-  Future<void> _fitPins(List<ArenaMapPin> pins) async {
+  Future<void> _fitPins(
+    List<ArenaMapPin> pins, [
+    ({double latitude, double longitude})? fallbackCenter,
+  ]) async {
     final map = _map;
     if (map == null) return;
 
@@ -292,9 +306,10 @@ class _ArenaMapViewState extends State<ArenaMapView> {
       MbxEdgeInsets(
         top: 140,
         left: 48,
-        // O sheet cobre a parte de baixo: sem essa folga os pinos do sul
-        // nascem escondidos atrás dele.
-        bottom: 260,
+        // Folga só para os controles flutuantes e a atribuição do Mapbox. A
+        // lista não entra na conta: o enquadramento roda uma vez, na abertura,
+        // quando ainda não houve busca e o sheet não está na tela.
+        bottom: 120,
         right: 48,
       ),
       null,
@@ -309,7 +324,7 @@ class _ArenaMapViewState extends State<ArenaMapView> {
       fittedZoom: camera.zoom,
       minZoom: _minFitZoom,
       bounds: bounds,
-      athlete: widget.initialCenter,
+      fallbackCenter: fallbackCenter ?? widget.initialCenter,
     );
     if (floor != null) {
       await _flyTo(floor.latitude, floor.longitude, zoom: floor.zoom);

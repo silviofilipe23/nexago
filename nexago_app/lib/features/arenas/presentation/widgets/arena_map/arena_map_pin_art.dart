@@ -13,16 +13,18 @@ class ArenaPinAsset {
 
   static const String path = 'assets/images/arena_map_pin.png';
 
-  /// Altura do pino na tela, em pontos.
+  /// Largura do pino na tela, em pontos.
   ///
-  /// Escolhido pela sobreposição, não pela legibilidade: acima disso as arenas
-  /// de um mesmo bairro começam a se cobrir. Aqui a palavra "nexaGO" fica no
-  /// limite do legível e o pino se identifica pela cor e pela silhueta.
+  /// A medida é a LARGURA e não a altura porque a arte é uma quadra deitada,
+  /// mais larga que alta. É a largura que determina quanto duas arenas
+  /// vizinhas se cobrem — dimensionar pela altura esconderia esse custo.
   ///
-  /// **Mudar este número exige reexportar o PNG** na altura nova vezes
+  /// Abaixo disso a rede e as linhas da quadra viram mancha.
+  ///
+  /// **Mudar este número exige reexportar o PNG** na largura nova vezes
   /// [scale] — o arquivo é rasterizado no tamanho final, não redimensionado
   /// em tempo de execução.
-  static const double displayHeight = 44;
+  static const double displayWidth = 56;
 
   /// O PNG é exportado com o triplo das medidas de tela.
   static const double scale = 3;

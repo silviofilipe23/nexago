@@ -97,10 +97,15 @@ Future<void> installArenaMapStyle(
       // Sem slot, o Standard pode empilhar o pino atrás de um prédio 3D.
       slot: mapboxPinSlot,
       iconImage: ArenaMapIds.pinImage,
-      // Sem texto no pino, `icon-anchor` volta a mandar na posição — era o
-      // `icon-text-fit` que o anulava. BOTTOM põe a ponta da gota na
-      // coordenada da arena, que é o ponto todo de um marcador.
-      iconAnchor: IconAnchor.BOTTOM,
+      // CENTER, não BOTTOM: a arte é uma quadra apoiada, sem ponta. Ancorar
+      // pela base deixaria a coordenada na borda da frente e a quadra inteira
+      // acima dela — como se a arena estivesse atrás do ponto. Centrada, a
+      // quadra fica sobre o lugar que ela representa.
+      //
+      // (`icon-anchor` só volta a mandar porque o pino não tem texto: com
+      // `icon-text-fit` o ícone é encaixado em volta do texto e a âncora é
+      // ignorada.)
+      iconAnchor: IconAnchor.CENTER,
       iconAllowOverlap: true,
       iconIgnorePlacement: true,
       iconOpacityExpression: arenaPinOpacityExpression(),

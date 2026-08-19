@@ -1087,6 +1087,40 @@ class _TournamentRegistrationPageState
     );
   }
 
+  /// Confirmação antes de declarar o pagamento direto ao organizador.
+  ///
+  /// A declaração é por honra e sem desfazer pelo app: quem clicar sem ter
+  /// pago aciona o organizador à toa. A pergunta diz o valor para o atleta
+  /// conferir contra o comprovante.
+  Future<bool> _confirmDirectPaymentDeclaration(
+    TournamentRegistrationQuote quote,
+  ) async {
+    final payFull = _canPayFull && _paymentType == 'full';
+    final amount = payFull ? quote.displayTotal : quote.shareAmount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar pagamento?'),
+        content: Text(
+          'Você está informando que já pagou ${formatRegistrationMoney(amount)} '
+          'direto ao organizador. Ele será avisado e vai conferir o '
+          'recebimento — não dá para desfazer por aqui.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ainda não paguei'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Já paguei'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true && mounted;
+  }
+
   /// Elenco da equipe para o cartão, com nome e foto de cada integrante.
   ///
   /// Perfil que não carregou não some do elenco: a linha aparece com
@@ -1859,6 +1893,16 @@ class _TournamentRegistrationPageState
           // vaga; o parceiro entra sem taxa depois). Exige só não haver parcela
           // já paga e a inscrição não estar quitada.
           _canPayFull = sharePaidUids.isEmpty && !isFullyPaid;
+          final directState = registrationSnap == null
+              ? DirectPaymentState.idle
+              : resolveDirectPaymentState(
+                  isPaid: registrationSnap.isPaid,
+                  sharePaidUids: registrationSnap.sharePaidUids,
+                  myUid: currentUid,
+                  declaredPaidAt: registrationSnap.declaredPaidAt,
+                  paymentVerifiedByOrganizer:
+                      registrationSnap.paymentVerifiedByOrganizer,
+                );
           final progressLabel = quote != null
               ? registrationDualPaymentProgressLabel(
                   quote: quote,
@@ -1869,6 +1913,10 @@ class _TournamentRegistrationPageState
                   isDirectOrganizerPayment:
                       tournamentUsesDirectOrganizerPayment(tournament) &&
                       registrationRequiresPayment(quote),
+                  directPaymentState:
+                      tournamentUsesDirectOrganizerPayment(tournament)
+                          ? directState
+                          : null,
                 )
               : null;
 
@@ -2484,17 +2532,24 @@ class _TournamentRegistrationPageState
       }
 
       if (tournamentUsesDirectOrganizerPayment(tournament)) {
+        // Declarar não tem desfazer no app e aciona o organizador: o clique
+        // acidental é caro, então vale perguntar antes.
+        if (!await _confirmDirectPaymentDeclaration(quote)) return;
         final result = await ref
             .read(paymentServiceProvider)
             .reserveDirectOrganizerRegistration(registrationId: regId);
         if (!mounted) return;
-        final message = result.bothAthletesReserved
-            ? 'Vaga reservada! Aguarde o organizador confirmar o pagamento.'
-            : 'Vaga reservada. Convide seu parceiro para reservar a dele.';
-        context.goNamed(AppRouteNames.myTournaments);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (context.mounted) showAppSnackBar(context, message);
-        });
+        // Fica na tela: o estado pós-declaração (aguardando parceiro /
+        // aguardando o organizador conferir) é justamente o que o atleta
+        // precisa ver agora. Sair para "Meus torneios" escondia isso.
+        showAppSnackBar(
+          context,
+          result.bothAthletesReserved
+              ? 'Pagamento informado! A vaga está garantida — o organizador vai '
+                    'conferir o recebimento.'
+              : 'Sua parte foi informada. A inscrição fecha quando seu parceiro '
+                    'informar a dele.',
+        );
         return;
       }
 

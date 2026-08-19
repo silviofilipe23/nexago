@@ -77,6 +77,8 @@ class TournamentRegistrationSnapshot {
     this.uniformPlayer1,
     this.uniformPlayer2,
     this.uniformByUid = const {},
+    this.declaredPaidAt,
+    this.paymentVerifiedByOrganizer = false,
   });
 
   final String registrationId;
@@ -104,6 +106,14 @@ class TournamentRegistrationSnapshot {
   final TournamentUniformSelection? uniformPlayer1;
   final TournamentUniformSelection? uniformPlayer2;
   final Map<String, TournamentUniformSelection> uniformByUid;
+
+  /// Quando a declaração "já paguei" entrou (pagamento direto com o
+  /// organizador). Ausente em inscrição anterior a esse fluxo — e é isso que
+  /// distingue "ninguém vai conferir" de "aguardando conferência".
+  final DateTime? declaredPaidAt;
+
+  /// O organizador bateu o extrato e confirmou o recebimento.
+  final bool paymentVerifiedByOrganizer;
 
   /// Uniforme JÁ gravado para este atleta. A tela de inscrição abre a partir
   /// dele — sem isso o cartão mostrava os padrões mesmo para quem tinha
@@ -159,6 +169,8 @@ class TournamentRegistrationSnapshot {
       uniformPlayer1: uniformSelectionFromDoc(data['uniformPlayer1']),
       uniformPlayer2: uniformSelectionFromDoc(data['uniformPlayer2']),
       uniformByUid: uniformByUidFromDoc(data['uniformByUid']),
+      declaredPaidAt: (data['declaredPaidAt'] as Timestamp?)?.toDate(),
+      paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] == true,
     );
   }
 

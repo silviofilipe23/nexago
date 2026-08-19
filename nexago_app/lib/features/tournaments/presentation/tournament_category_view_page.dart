@@ -356,7 +356,13 @@ class _MatchesView extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.xxl),
       children: [
-        if (header != null) header!,
+        // O filtro é uma faixa à parte: separa do primeiro card com o mesmo
+        // respiro que há entre cards, senão os chips colam na lista.
+        if (header != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+            child: header!,
+          ),
         for (final card in sorted)
           Padding(
             padding: const EdgeInsets.fromLTRB(

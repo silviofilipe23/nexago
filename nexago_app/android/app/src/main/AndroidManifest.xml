@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Declarada aqui de propósito, e não só nos manifests de debug/profile
+         que o Flutter gera. Em release ela chegava por merge do manifest das
+         dependências (Firebase, Mapbox): funcionava, mas deixava uma permissão
+         central do app dependendo de quem estivesse no pubspec. Remover uma
+         dessas dependências derrubaria a rede do app inteiro sem nenhum sinal.
+         O app fala com Firestore, Storage e mapas — a rede é requisito dele. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

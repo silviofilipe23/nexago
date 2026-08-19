@@ -59,6 +59,7 @@ dependencies:
   share_plus: ^10.0.0
   qr_flutter: ^4.1.0
   geolocator: ^13.0.2
+  mapbox_maps_flutter: ^2.28.3
   shared_preferences: ^2.5.3
   native_liquid_glass: ^0.2.10
   timezone: ^0.11.0

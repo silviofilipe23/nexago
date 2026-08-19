@@ -18,6 +18,7 @@ import 'core/time/nexago_event_timezone.dart';
 import 'core/auth/auth_providers.dart';
 import 'core/biometric/biometric_app_gate.dart';
 import 'core/deep_link/deep_link_navigation.dart';
+import 'core/map/mapbox_config.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
@@ -37,6 +38,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('pt_BR', null);
   await initializeNexagoEventTimezone();
+
+  // Entrega o token público ao SDK do mapa. Sem token vira no-op e a busca de
+  // arenas cai no fallback em lista (ver `core/map/mapbox_config.dart`).
+  initMapbox();
 
   // Evita registrar o app default duas vezes. Nota: em iOS/Android, **Hot restart (R)**
   // pode quebrar canais nativos (Firebase, shared_preferences → `channel-error`).

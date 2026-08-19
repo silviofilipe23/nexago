@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../arenas/domain/arena_amenities.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
 import '../../../../arenas/domain/arena_search_metadata.dart';
+import 'arena_search_sport_chips.dart';
 
 const _surfaceOptions = ArenaSearchMetadata.surfaceOptions;
 
@@ -50,6 +51,7 @@ class _ArenaSearchFiltersSheet extends StatefulWidget {
 }
 
 class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
+  late ArenaSportChip _sportChip;
   late double _radiusKm;
   late bool _unlimitedRadius;
   late ArenaPriceBand _priceBand;
@@ -62,6 +64,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
   void initState() {
     super.initState();
     final f = widget.initial;
+    _sportChip = f.sportChip;
     _unlimitedRadius = !f.usesRadiusLimit;
     _radiusKm = f.usesRadiusLimit
         ? f.radiusKm.clamp(1.0, ArenaSearchFilters.maxRadiusKm)
@@ -75,6 +78,8 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
 
   void _clear() {
     setState(() {
+      // Mesmo destino do "ver todas": limpar filtro de esporte é mostrar todos.
+      _sportChip = ArenaSportChip.all;
       _unlimitedRadius = false;
       _radiusKm = ArenaSearchFilters.defaultRadiusKm;
       _priceBand = ArenaPriceBand.any;
@@ -87,6 +92,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
 
   ArenaSearchFilters _draftFilters() {
     return widget.initial.copyWith(
+      sportChip: _sportChip,
       radiusKm: _unlimitedRadius
           ? ArenaSearchFilters.unlimitedRadiusKm
           : _radiusKm,
@@ -151,6 +157,12 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                   children: [
+                    const _SectionLabel(label: 'ESPORTE'),
+                    _SportChips(
+                      selected: _sportChip,
+                      onSelected: (chip) => setState(() => _sportChip = chip),
+                    ),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'RAIO DE BUSCA'),
                     _RadiusSlider(
                       value: _radiusKm,
@@ -519,6 +531,31 @@ class _ChipWrap extends StatelessWidget {
           onTap: () => onToggle(label),
         );
       }).toList(),
+    );
+  }
+}
+
+/// Esporte é escolha única, ao contrário de superfície e comodidades: tocar
+/// numa opção troca a anterior em vez de somar.
+class _SportChips extends StatelessWidget {
+  const _SportChips({required this.selected, required this.onSelected});
+
+  final ArenaSportChip selected;
+  final ValueChanged<ArenaSportChip> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final (chip, label, _) in arenaSearchSportOptions)
+          _ArenaFilterChip(
+            label: label,
+            selected: chip == selected,
+            onTap: () => onSelected(chip),
+          ),
+      ],
     );
   }
 }

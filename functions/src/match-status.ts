@@ -48,3 +48,13 @@ export function isWinnerInMatch(
   const sideB = String(teamBId ?? "").trim();
   return winner === sideA || winner === sideB;
 }
+
+/**
+ * Normaliza o tipo da partida: caixa baixa e `_` vira espaço, de modo que
+ * "THIRD_PLACE" e "Third Place" caiam na mesma chave. Mora aqui (e não em
+ * `league-ranking.ts`, de onde veio) porque `bracket-placement-tiers.ts`
+ * também precisa dela — deixá-la lá criaria import circular.
+ */
+export function normalizeMatchType(raw: unknown): string {
+  return String(raw ?? "").trim().toLowerCase().replace(/_/g, " ");
+}

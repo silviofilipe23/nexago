@@ -1,6 +1,6 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {isMatchCompleted, isWinnerInMatch} from "./match-status";
+import {isMatchCompleted, isWinnerInMatch, normalizeMatchType} from "./match-status";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath} from "./firebase-paths";
 import {extractTeamMemberUids} from "./tournament-team-category";
 import {categoryPreset} from "./category-presets";
@@ -51,9 +51,7 @@ function leagueAthleteRankingsPath(projectId: string): string {
 
 
 
-export function normalizeMatchType(raw: unknown): string {
-  return String(raw ?? "").trim().toLowerCase().replace(/_/g, " ");
-}
+export {normalizeMatchType};
 
 function isFinalMatchType(matchType: string): boolean {
   return (

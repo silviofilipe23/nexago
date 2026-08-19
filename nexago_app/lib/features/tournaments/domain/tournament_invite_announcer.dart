@@ -67,6 +67,33 @@ TournamentPartnerInvite? receivedInviteForCategory({
   return null;
 }
 
+/// Convites que EU enviei e seguem pendentes nesta categoria.
+///
+/// O atleta pode convidar mais de uma pessoa — o primeiro aceite derruba os
+/// demais no backend (`markStaleInvitesAfterAccept`), mas até lá todos
+/// precisam aparecer com "cancelar". Antes o app guardava um convite só e os
+/// outros ficavam invisíveis até expirar.
+///
+/// [excludeInviteId] tira da lista o convite que já está em destaque na tela.
+List<TournamentPartnerInvite> sentPendingInvitesFor({
+  required List<TournamentPartnerInvite> invites,
+  required String tournamentId,
+  required String categoryId,
+  String? excludeInviteId,
+}) {
+  if (tournamentId.trim().isEmpty || categoryId.trim().isEmpty) {
+    return const <TournamentPartnerInvite>[];
+  }
+  final result = invites
+      .where((invite) => invite.isPending && !invite.isExpired)
+      .where((invite) => invite.tournamentId == tournamentId)
+      .where((invite) => invite.categoryId == categoryId)
+      .where((invite) => invite.id != excludeInviteId?.trim())
+      .toList();
+  result.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  return result;
+}
+
 /// Título da tela: "Bia te chamou pra dupla" / "…pra equipe Areia Quente".
 String inviteAnnouncementTitle(TournamentPartnerInvite invite) {
   final who = invite.inviterName.trim().isEmpty

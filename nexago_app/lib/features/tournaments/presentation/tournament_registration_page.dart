@@ -57,6 +57,7 @@ import 'widgets/tournament_registration/tournament_registration_cancellation_sec
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
 import 'widgets/tournament_registration/tournament_registration_price_summary.dart';
 import 'widgets/tournament_registration/tournament_registration_received_invite_card.dart';
+import 'widgets/tournament_registration/tournament_registration_sent_invites_list.dart';
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 import 'widgets/tournament_registration/tournament_registration_waiting_step.dart';
@@ -104,6 +105,10 @@ class _TournamentRegistrationPageState
   bool _appliedInitialInvite = false;
   bool _appliedSoloInviteRestore = false;
   bool _paidPopHandled = false;
+
+  /// Convite da lista com cancelamento em voo — trava só a linha dele, não a
+  /// tela inteira.
+  String? _cancelingInviteId;
 
   /// Inscrição cujo uniforme gravado já foi trazido para a tela. Uma vez por
   /// inscrição: depois disso quem manda é o que o atleta está editando, senão
@@ -960,6 +965,34 @@ class _TournamentRegistrationPageState
         teamName: teamName,
       ),
     );
+  }
+
+  /// Cancela UM convite da lista de enviados.
+  ///
+  /// Diferente de [_cancelInvite], não mexe no passo nem na inscrição: o
+  /// convite em destaque segue de pé e a vaga continua reservada — o atleta só
+  /// desistiu de chamar aquela pessoa.
+  Future<void> _cancelSentInvite(TournamentPartnerInvite invite) async {
+    if (_cancelingInviteId != null) return;
+    setState(() => _cancelingInviteId = invite.id);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .cancelInvite(invite.id);
+      if (!mounted) return;
+      final firstName = invite.inviteeName.trim().split(' ').first;
+      showAppSnackBar(
+        context,
+        firstName.isEmpty
+            ? 'Convite cancelado.'
+            : 'Convite para $firstName cancelado.',
+      );
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _cancelingInviteId = null);
+    }
   }
 
   Future<void> _cancelInvite() async {
@@ -2015,6 +2048,17 @@ class _TournamentRegistrationPageState
             : null;
         final invite = inviteAsync?.valueOrNull;
         final inviteLoading = inviteAsync?.isLoading ?? false;
+        // Convidar mais de uma pessoa é caminho legítimo: o primeiro aceite
+        // derruba os demais. O destaque acima é um convite só, então os outros
+        // ficam listados aqui — antes eram invisíveis até expirar.
+        final otherSentInvites = sentPendingInvitesFor(
+          invites:
+              ref.watch(inviterTournamentPartnerInvitesProvider).valueOrNull ??
+                  const <TournamentPartnerInvite>[],
+          tournamentId: widget.tournamentId,
+          categoryId: _category?.id ?? '',
+          excludeInviteId: pendingInviteId,
+        );
         final inviteExpired =
             invite != null && invite.expiresAt.isBefore(DateTime.now());
         final partnerSubtitle = inviteAccepted
@@ -2048,6 +2092,14 @@ class _TournamentRegistrationPageState
             ),
             onCancelRegistration: _cancelRegistrationFromWaiting,
           ),
+          if (otherSentInvites.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            TournamentRegistrationSentInvitesList(
+              invites: otherSentInvites,
+              cancelingInviteId: _cancelingInviteId,
+              onCancel: (invite) => _cancelSentInvite(invite),
+            ),
+          ],
         ];
       case TournamentRegistrationStep.payment:
         final category = _category;

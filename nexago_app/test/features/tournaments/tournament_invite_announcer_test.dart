@@ -251,4 +251,56 @@ void main() {
       );
     });
   });
+
+  // O atleta pode convidar mais de uma pessoa: o primeiro aceite derruba os
+  // demais no backend, mas até lá todos precisam aparecer com "cancelar".
+  group('sentPendingInvitesFor', () {
+    test('lista os convites pendentes da categoria', () {
+      final result = sentPendingInvitesFor(
+        invites: [invite('a'), invite('b')],
+        tournamentId: 't1',
+        categoryId: 'c1',
+      );
+
+      expect(result.map((i) => i.id), ['a', 'b']);
+    });
+
+    test('ordena do mais antigo pro mais novo', () {
+      final result = sentPendingInvitesFor(
+        invites: [
+          invite('novo', createdAt: sessionStart),
+          invite('velho', createdAt: sessionStart.subtract(const Duration(days: 2))),
+        ],
+        tournamentId: 't1',
+        categoryId: 'c1',
+      );
+
+      expect(result.map((i) => i.id), ['velho', 'novo']);
+    });
+
+    test('ignora aceitos, expirados e de outra categoria', () {
+      final result = sentPendingInvitesFor(
+        invites: [
+          invite('aceito', status: 'accepted'),
+          invite('expirado', expiresAt: sessionStart.subtract(const Duration(days: 1))),
+          invite('ok'),
+        ],
+        tournamentId: 't1',
+        categoryId: 'c1',
+      );
+
+      expect(result.map((i) => i.id), ['ok']);
+    });
+
+    test('o convite em destaque sai da lista', () {
+      final result = sentPendingInvitesFor(
+        invites: [invite('a'), invite('b')],
+        tournamentId: 't1',
+        categoryId: 'c1',
+        excludeInviteId: 'a',
+      );
+
+      expect(result.map((i) => i.id), ['b']);
+    });
+  });
 }

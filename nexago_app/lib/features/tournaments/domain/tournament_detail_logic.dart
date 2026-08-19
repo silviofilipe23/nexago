@@ -181,7 +181,17 @@ double _prizeTotalValue(TournamentDetail detail) {
 TournamentCategoryRowStatus tournamentCategoryRowStatus(
   TournamentCategoryOffer offer, {
   int? inscriptionCount,
+  TournamentListingStatus? tournamentStatus,
 }) {
+  // Torneio finalizado: o selo nunca anuncia vaga, mesmo que o organizador não
+  // tenha fechado o doc da categoria.
+  if (tournamentStatus != null && isTournamentTerminal(tournamentStatus)) {
+    return const TournamentCategoryRowStatus(
+      label: 'ENCERRADA',
+      color: AppColors.live,
+      isClosed: true,
+    );
+  }
   if (offer.registrationClosed || offer.isCompleted) {
     return const TournamentCategoryRowStatus(
       label: 'ENCERRADA',

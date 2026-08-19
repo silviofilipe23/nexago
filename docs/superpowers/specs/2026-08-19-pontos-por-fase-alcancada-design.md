@@ -98,12 +98,30 @@ o topo da sua faixa (D5). As duas tabelas de pontos ganham as chaves `r16` e `r3
 entram em rodadas diferentes da LB (intencional, ver `de-plantas-20-24`). O critério
 aqui é *quantas duplas caem em cada rodada*, não quando cada uma entrou.
 
-### D4. A final da LB não conta como eliminação
+### D4. Eliminação é perdedor SEM destino, não "última rodada da LB"
 
-Na dupla eliminação com disputa de 3º lugar — o caso de TODAS as plantas do nexaGO —
-o perdedor da final da LB não está eliminado: vai jogar o 3º lugar. A contagem de
-eliminados por rodada ignora a final da LB, e o pódio continua saindo só da final e
-da disputa de 3º, como o fix de 04/08 (`de-ranking-third-place`) estabeleceu.
+**Emenda de 19/08, durante a implementação.** A primeira versão desta decisão dizia
+para ignorar a final da LB na contagem, porque seu perdedor ainda joga o 3º lugar.
+O teste contra as 25 plantas reprovou isso nas plantas de 4, 5 e 6: ali a disputa de
+3º puxa participantes de rodadas DIFERENTES — na de 4 lugares o 3º é entre o perdedor
+da LB **R1** e o da final da LB; na de 6, entre o perdedor da LB **R2** e o da final.
+"A última rodada da LB é pódio" é falso justamente onde a chave é mais curta.
+
+A regra correta vem da fiação que a chave materializada já grava
+(`category-bracket-builders.ts`): **`loserAdvance` aponta a próxima partida do
+perdedor**. Partida com `loserAdvance` não elimina ninguém; partida sem ele elimina.
+Verificado no dado real do dev: na DE de 22 as rodadas LB r1–r5 somam 18 eliminações
+(22 − 4) e a final da LB aponta para a disputa de 3º.
+
+Duas bordas ficam de fora dessa regra e continuam pelo caminho antigo:
+
+- **DE legada sem disputa de 3º**: nenhum perdedor tem destino, então a final da LB e
+  a anterior são excluídas por rodada — é exatamente onde o resolvedor premia 3º e 4º.
+- **Mata-mata simples**: da semifinal em diante não gera degrau, pelo mesmo motivo.
+
+**Chave sem fiação nenhuma** (materializada por código anterior a esses campos) não é
+adivinhada: o módulo devolve mapas vazios, o motor cai no comportamento legado (tudo
+em `quarters`) e o script de histórico não toca na categoria.
 
 ### D5. Contrato do `finalPlace`
 
@@ -178,6 +196,10 @@ ganha as duas linhas novas. Ambos são exibição — o cálculo continua só no
   novo do módulo passa a cobrir a estrutura das 25, o que reduz esse buraco de lado.
 - **Chave torta no histórico**: torneio antigo com partida sem `winnerId` ou dupla
   fantasma não é re-derivável. Fica intocado e reportado, nunca adivinhado.
+- **Chave sem fiação**: se existir torneio materializado antes de `winnerAdvance`/
+  `loserAdvance` existirem, ele não ganha degrau nenhum (D4) — fica no balde
+  `quarters` de hoje. Silencioso por desenho, mas o relatório do script lista a
+  categoria como não tocada.
 - **Janela de escala mista**: entre o deploy e o script, premiação nova nasce na
   escada nova enquanto o histórico ainda está no balde velho. O script converge
   depois (mesma propriedade do PR #258: recálculo é função pura do dado gravado).

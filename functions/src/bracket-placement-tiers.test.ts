@@ -5,8 +5,20 @@ import {
   tierForTopPosition,
 } from "./bracket-placement-tiers";
 
-/** Atalho: uma partida só precisa de tipo e rodada para o cálculo do degrau. */
-const m = (matchType: string, round: number) => ({matchType, round});
+/**
+ * Atalho de partida. `winnerAdvance` marca que a chave foi materializada com
+ * fiação (o módulo se recusa a inferir degrau sem ela); `loserAdvance` marca
+ * que o perdedor SEGUE VIVO — é o sinal que distingue a final da LB, cujo
+ * perdedor ainda joga o 3º lugar, de uma eliminação de verdade.
+ */
+const m = (matchType: string, round: number, perdedorSegueVivo = false) => ({
+  matchType,
+  round,
+  winnerAdvance: {matchNumber: 999, teamSlot: "teamAId"},
+  ...(perdedorSegueVivo
+    ? {loserAdvance: {matchNumber: 998, teamSlot: "teamAId"}}
+    : {}),
+});
 const many = (n: number, matchType: string, round: number) =>
   Array.from({length: n}, () => m(matchType, round));
 
@@ -33,7 +45,7 @@ describe("placementTiersFromMatches — dupla eliminação de 22 duplas", () => 
     ...many(4, "LB", 3),
     ...many(2, "LB", 4),
     ...many(2, "LB", 5),
-    m("LB", 6),
+    m("LB", 6, true), // final da LB: perdedor vai à disputa de 3º
     m("WB", 5),
     m("THIRD_PLACE", 1),
     m("FINAL", 1),
@@ -64,6 +76,8 @@ describe("placementTiersFromMatches — dupla eliminação legada (sem disputa d
       m("LB", 3),
       m("FINAL", 1),
     ];
+    // Sem disputa de 3º nenhum perdedor segue vivo, então o corte do pódio vem
+    // do resolvedor (maxLbRound e a anterior), não da fiação.
     const tiers = placementTiersFromMatches(matches);
     assert.equal(tiers.lb[3], undefined);
     assert.equal(tiers.lb[2], undefined);
@@ -76,7 +90,8 @@ describe("placementTiersFromMatches — mata-mata simples de 32", () => {
     ...many(16, "knockout", 1),
     ...many(8, "knockout", 2),
     ...many(4, "knockout", 3),
-    ...many(2, "knockout", 4), // semifinais
+    m("knockout", 4, true), // semifinais: perdedor vai à disputa de 3º
+    m("knockout", 4, true),
     m("FINAL", 5),
     m("THIRD_PLACE", 5),
   ];
@@ -102,7 +117,8 @@ describe("placementTiersFromMatches — formatos sem eliminação abaixo do pód
     // Caso real da Copa Goiás feminina: 30 jogos de grupo, 2 semis, final e 3º.
     const matches = [
       ...many(30, "group", 0),
-      ...many(2, "knockout", 1),
+      m("knockout", 1, true),
+      m("knockout", 1, true),
       m("FINAL", 2),
       m("THIRD_PLACE", 2),
     ];
@@ -113,5 +129,19 @@ describe("placementTiersFromMatches — formatos sem eliminação abaixo do pód
 
   it("lista vazia devolve mapas vazios", () => {
     assert.deepEqual(placementTiersFromMatches([]), {lb: {}, knockout: {}});
+  });
+});
+
+describe("placementTiersFromMatches — chave sem fiação", () => {
+  it("sem winnerAdvance/loserAdvance o módulo não inventa degrau", () => {
+    // Chave materializada por código antigo, antes de a fiação ser gravada:
+    // não dá para saber quem seguiu vivo. Mapas vazios fazem o motor cair no
+    // comportamento legado (tudo em `quarters`) em vez de premiar por chute.
+    const matches = [
+      {matchType: "LB", round: 1},
+      {matchType: "LB", round: 2},
+      {matchType: "FINAL", round: 1},
+    ];
+    assert.deepEqual(placementTiersFromMatches(matches), {lb: {}, knockout: {}});
   });
 });

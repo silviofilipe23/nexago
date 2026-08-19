@@ -23,13 +23,42 @@ export interface EliminationTierMap {
   knockout: Record<number, PlacementTierKey>;
 }
 
-function countByRound(
+/**
+ * Uma partida elimina quem perde? Só quando o perdedor NÃO tem para onde ir.
+ * A chave materializada grava `loserAdvance` (ver `category-bracket-builders.ts`)
+ * apontando a próxima partida do perdedor — é assim que a final da LB, cujo
+ * perdedor ainda joga a disputa de 3º, se distingue de uma eliminação de
+ * verdade.
+ *
+ * Contar rodadas em vez de olhar a fiação NÃO funciona: nas plantas pequenas a
+ * disputa de 3º puxa participantes de rodadas diferentes (na de 4 lugares, do
+ * perdedor da LB R1; na de 6, do perdedor da LB R2), então "a última rodada da
+ * LB é pódio" é falso justamente onde a chave é mais curta.
+ */
+function isElimination(match: Record<string, unknown>): boolean {
+  return match.loserAdvance == null;
+}
+
+/**
+ * A chave foi materializada com fiação? Sem nenhum `winnerAdvance`/`loserAdvance`
+ * não dá para saber quem seguiu vivo, e o módulo se recusa a inventar: devolve
+ * mapas vazios, o que faz o motor cair no comportamento legado (tudo em
+ * `quarters`) em vez de premiar por um degrau adivinhado.
+ */
+function hasAdvanceWiring(matches: Array<Record<string, unknown>>): boolean {
+  return matches.some(
+    (match) => match.winnerAdvance != null || match.loserAdvance != null,
+  );
+}
+
+function countEliminationsByRound(
   matches: Array<Record<string, unknown>>,
   predicate: (matchType: string) => boolean,
 ): Map<number, number> {
   const counts = new Map<number, number>();
   for (const match of matches) {
     if (!predicate(normalizeMatchType(match.matchType))) continue;
+    if (!isElimination(match)) continue;
     const round = Number(match.round ?? 0);
     if (!Number.isInteger(round) || round <= 0) continue;
     counts.set(round, (counts.get(round) ?? 0) + 1);
@@ -101,16 +130,21 @@ export function placementTiersFromMatches(
     }
   }
 
-  const lbPodiumFloor = hasThirdPlaceMatch ? maxLbRound : maxLbRound - 1;
+  if (!hasAdvanceWiring(matches)) return {lb: {}, knockout: {}};
+
   const semifinalRound = knockoutFinalRound > 1 ? knockoutFinalRound - 1 : 1;
 
   return {
     lb: tiersFromCounts(
-      countByRound(matches, (type) => type === "lb"),
-      (round) => maxLbRound > 0 && round >= lbPodiumFloor,
+      countEliminationsByRound(matches, (type) => type === "lb"),
+      // Sem disputa de 3º (chave legada), as duas últimas rodadas da LB decidem
+      // 3º e 4º — o resolvedor premia colocação lá, não degrau. Com disputa de
+      // 3º, `loserAdvance` já tirou essas partidas da conta.
+      (round) =>
+        !hasThirdPlaceMatch && maxLbRound > 0 && round >= maxLbRound - 1,
     ),
     knockout: tiersFromCounts(
-      countByRound(matches, (type) => type === "knockout"),
+      countEliminationsByRound(matches, (type) => type === "knockout"),
       (round) => round >= semifinalRound,
     ),
   };

@@ -39,20 +39,34 @@ const DEFAULT_GLOBAL_POINTS = {
   "3": 600,
   "4": 500,
   quarters: 330,
+  r16: 200,
+  r32: 130,
   groups: 100,
 };
 
 /**
- * Inverso de `finalPlaceForAward`: 1-4 são colocação direta, 5 é o carimbo de
- * quartas e 9 o de fase de grupos. Qualquer outro valor devolve `null` — o
- * script prefere deixar a entrada intocada e reportar a que chutar uma base.
+ * Inverso de `finalPlaceForAward` NA ESCADA POR FASE ALCANÇADA (19/08): 1-4 são
+ * colocação direta, 5 é o topo de quartas, 9 o de oitavas, 17 o de 16-avos e 0
+ * é participação (sem colocação de mata-mata). Qualquer outro valor devolve
+ * `null` — o script prefere deixar a entrada intocada e reportar a chutar base.
+ *
+ * ATENÇÃO AO CONTRATO ANTIGO: antes desta escada, `finalPlace: 9` significava
+ * PARTICIPAÇÃO (base 100), não oitavas. Rodar este recálculo sobre dado ainda
+ * não re-derivado promoveria quem caiu na fase de grupos a oitavas (100 → 200).
+ * Por isso `rederive-knockout-placements.js` roda ANTES: é ele quem converte os
+ * `9` antigos em `0` junto com o resto da colocação.
  */
 function basePointsForFinalPlace(finalPlace) {
+  // `Number(null)` é 0, e 0 é participação — sem este guard uma entrada com
+  // colocação AUSENTE viraria "participação" em vez de ser deixada em paz.
+  if (finalPlace == null || finalPlace === "") return null;
   const place = Number(finalPlace);
   if (!Number.isInteger(place)) return null;
+  if (place === 0) return DEFAULT_GLOBAL_POINTS.groups;
   if (place >= 1 && place <= 4) return DEFAULT_GLOBAL_POINTS[String(place)];
   if (place === 5) return DEFAULT_GLOBAL_POINTS.quarters;
-  if (place === 9) return DEFAULT_GLOBAL_POINTS.groups;
+  if (place === 9) return DEFAULT_GLOBAL_POINTS.r16;
+  if (place === 17) return DEFAULT_GLOBAL_POINTS.r32;
   return null;
 }
 

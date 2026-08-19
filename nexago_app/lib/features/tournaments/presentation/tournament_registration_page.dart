@@ -47,6 +47,7 @@ import '../domain/tournament_registration_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
+import '../domain/tournament_team_roster_logic.dart';
 import 'widgets/tournament_registration/tournament_registration_category_card.dart';
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_hero_card.dart';
@@ -56,6 +57,7 @@ import 'widgets/tournament_registration/tournament_cancellation_request_sheet.da
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
 import 'widgets/tournament_registration/tournament_registration_price_summary.dart';
+import 'widgets/tournament_registration/tournament_registration_roster_card.dart';
 import 'widgets/tournament_registration/tournament_registration_received_invite_card.dart';
 import 'widgets/tournament_registration/tournament_registration_sent_invites_list.dart';
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
@@ -105,6 +107,9 @@ class _TournamentRegistrationPageState
   bool _appliedInitialInvite = false;
   bool _appliedSoloInviteRestore = false;
   bool _paidPopHandled = false;
+
+  /// Saída da equipe em voo.
+  bool _leavingTeam = false;
 
   /// Geração do link de convite em voo — trava só o cartão "Convidar por
   /// link".
@@ -1035,6 +1040,88 @@ class _TournamentRegistrationPageState
         teamName: teamName,
       ),
     );
+  }
+
+  /// Elenco da equipe para o cartão, com nome e foto de cada integrante.
+  ///
+  /// Perfil que não carregou não some do elenco: a linha aparece com
+  /// "Você"/"Atleta" (ver [buildTeamRoster]).
+  List<TournamentRosterMember> _teamRoster(
+    TournamentRegistrationSnapshot snap,
+  ) {
+    final profiles = ref
+            .watch(
+              registrationRosterProfilesProvider(snap.participantUids),
+            )
+            .valueOrNull ??
+        const <String, AppUserProfile>{};
+    return buildTeamRoster(
+      participantUids: snap.participantUids,
+      captainUid: snap.captainUid,
+      myUid: ref.watch(authServiceProvider).currentUser?.uid,
+      nameByUid: {
+        for (final entry in profiles.entries)
+          entry.key: appUserDisplayName(entry.value),
+      },
+      photoByUid: {
+        for (final entry in profiles.entries)
+          if (entry.value.profilePhotoUrl?.isNotEmpty ?? false)
+            entry.key: entry.value.profilePhotoUrl!,
+      },
+    );
+  }
+
+  /// Integrante sai da equipe: a vaga reabre e o capitão é avisado.
+  ///
+  /// A callable já existia e nunca tinha sido chamada pela UI — não havia como
+  /// sair de uma equipe pelo app.
+  Future<void> _leaveTeam(TournamentRegistrationSnapshot snap) async {
+    if (_leavingTeam) return;
+    final teamName = snap.teamName?.trim();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sair da equipe?'),
+        content: Text(
+          'Sua vaga em ${teamName?.isNotEmpty == true ? teamName : 'a equipe'} '
+          'será liberada para outro atleta, e o capitão será avisado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sair da equipe'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _leavingTeam = true);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .leaveTeamRegistration(snap.registrationId);
+      if (!mounted) return;
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.goNamed(AppRouteNames.myTournaments);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          showAppSnackBar(context, 'Você saiu da equipe.');
+        }
+      });
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _leavingTeam = false);
+    }
   }
 
   /// Cancela UM convite da lista de enviados.
@@ -2264,6 +2351,38 @@ class _TournamentRegistrationPageState
               contactBusy: _contactingOrganizer,
             ),
           ),
+          // Categoria de EQUIPE: com quem vou jogar, quantas vagas faltam e a
+          // saída de quem ainda não pagou a própria cota.
+          if (registrationSnap != null && registrationSnap.teamSize != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            TournamentRegistrationRosterCard(
+              teamName: registrationSnap.teamName,
+              members: _teamRoster(registrationSnap),
+              remainingSlots: remainingTeamInviteSlots(
+                teamSize: registrationSnap.teamSize,
+                rosterCount: registrationSnap.participantUids.length,
+                pendingInviteCount: sentPendingInvitesFor(
+                  invites: ref
+                          .watch(inviterTournamentPartnerInvitesProvider)
+                          .valueOrNull ??
+                      const <TournamentPartnerInvite>[],
+                  tournamentId: widget.tournamentId,
+                  categoryId: category.id,
+                ).length,
+              ),
+              leaving: _leavingTeam,
+              onLeaveTeam: canLeaveTeamRegistration(
+                teamSize: registrationSnap.teamSize,
+                captainUid: registrationSnap.captainUid ??
+                    registrationSnap.player1Id,
+                myUid: ref.watch(authServiceProvider).currentUser?.uid,
+                isPaid: registrationSnap.isPaid,
+                sharePaidUids: registrationSnap.sharePaidUids,
+              )
+                  ? () => _leaveTeam(registrationSnap)
+                  : null,
+            ),
+          ],
         ];
     }
   }

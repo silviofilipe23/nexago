@@ -71,6 +71,7 @@ class TournamentRegistrationSnapshot {
     this.cancellationRequest,
     this.teamSize,
     this.teamName,
+    this.captainUid,
     this.player1Id,
     this.participantUids = const [],
     this.uniformPlayer1,
@@ -94,6 +95,10 @@ class TournamentRegistrationSnapshot {
 
   /// Nome dado pelo capitão à equipe; `null` em solo/dupla.
   final String? teamName;
+
+  /// Capitão da equipe. Doc antigo pode não trazer — aí quem criou é o
+  /// primeiro participante (ver `buildTeamRoster`).
+  final String? captainUid;
   final String? player1Id;
   final List<String> participantUids;
   final TournamentUniformSelection? uniformPlayer1;
@@ -148,6 +153,7 @@ class TournamentRegistrationSnapshot {
       ),
       teamSize: teamSizeRaw is num ? teamSizeRaw.toInt() : null,
       teamName: _trimmedOrNull(data['teamName']),
+      captainUid: _trimmedOrNull(data['captainUid']),
       player1Id: (player1 != null && player1.isNotEmpty) ? player1 : null,
       participantUids: participants,
       uniformPlayer1: uniformSelectionFromDoc(data['uniformPlayer1']),

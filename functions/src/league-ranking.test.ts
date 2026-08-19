@@ -6,6 +6,7 @@ import {
   effectivePointsFromStageResults,
   loadTeamAthleteIds,
   parseCountingStagesMode,
+  bracketContextFromMatches,
   placementPoints,
   pointsForBucket,
   pointsForPlace,
@@ -433,5 +434,118 @@ describe("escada por fase alcançada — tabela da liga", () => {
 
   it("degrau customizado é respeitado", () => {
     assert.strictEqual(pointsForBucket({r16: 70}, "r16"), 70);
+  });
+});
+
+/**
+ * Atalho de partida da chave materializada: `winnerAdvance` marca a fiação e
+ * `loserAdvance` marca que o perdedor segue vivo (final da LB → disputa de 3º).
+ */
+const chave = (matchType: string, round: number, perdedorSegueVivo = false) => ({
+  matchType,
+  round,
+  winnerAdvance: {matchNumber: 999, teamSlot: "teamAId"},
+  ...(perdedorSegueVivo
+    ? {loserAdvance: {matchNumber: 998, teamSlot: "teamAId"}}
+    : {}),
+});
+const varias = (n: number, matchType: string, round: number) =>
+  Array.from({length: n}, () => chave(matchType, round));
+
+describe("resolvedor com degrau por fase — dupla eliminação de 22", () => {
+  const matches = [
+    ...varias(6, "LB", 1),
+    ...varias(4, "LB", 2),
+    ...varias(4, "LB", 3),
+    ...varias(2, "LB", 4),
+    ...varias(2, "LB", 5),
+    chave("LB", 6, true),
+    chave("THIRD_PLACE", 1),
+    chave("FINAL", 1),
+  ];
+  const context = bracketContextFromMatches(matches);
+
+  const perdaNaLb = (round: number) =>
+    resolveLeaguePlacementsFromMatch(
+      {
+        status: "completed",
+        matchType: "LB",
+        round,
+        teamAId: "vencedor",
+        teamBId: "perdedor",
+        winnerId: "vencedor",
+      },
+      {
+        hasThirdPlaceMatch: context.hasThirdPlaceMatch,
+        isDoubleElimination: context.isDoubleElimination,
+        maxLbRound: context.maxLbRound,
+        knockoutFinalRound: context.knockoutFinalRound,
+        tiers: context.tiers,
+      },
+    );
+
+  it("quem cai na primeira rodada da LB não recebe mais o balde de quartas", () => {
+    assert.deepStrictEqual(perdaNaLb(1), [{teamId: "perdedor", bucket: "r32"}]);
+  });
+
+  it("as rodadas do meio caem em oitavas", () => {
+    assert.deepStrictEqual(perdaNaLb(2), [{teamId: "perdedor", bucket: "r16"}]);
+    assert.deepStrictEqual(perdaNaLb(3), [{teamId: "perdedor", bucket: "r16"}]);
+  });
+
+  it("as duas últimas rodadas antes do pódio continuam em quartas", () => {
+    assert.deepStrictEqual(perdaNaLb(4), [{teamId: "perdedor", bucket: "quarters"}]);
+    assert.deepStrictEqual(perdaNaLb(5), [{teamId: "perdedor", bucket: "quarters"}]);
+  });
+});
+
+describe("resolvedor com degrau por fase — mata-mata simples de 32", () => {
+  it("primeira rodada vira 16-avos e as quartas continuam quartas", () => {
+    const matches = [
+      ...varias(16, "knockout", 1),
+      ...varias(8, "knockout", 2),
+      ...varias(4, "knockout", 3),
+      chave("knockout", 4, true),
+      chave("knockout", 4, true),
+      chave("FINAL", 5),
+      chave("THIRD_PLACE", 5),
+    ];
+    const context = bracketContextFromMatches(matches);
+    const perda = (round: number) =>
+      resolveLeaguePlacementsFromMatch(
+        {
+          status: "completed",
+          matchType: "knockout",
+          round,
+          teamAId: "v",
+          teamBId: "p",
+          winnerId: "v",
+        },
+        {
+          hasThirdPlaceMatch: context.hasThirdPlaceMatch,
+          knockoutFinalRound: context.knockoutFinalRound,
+          tiers: context.tiers,
+        },
+      );
+    assert.deepStrictEqual(perda(1), [{teamId: "p", bucket: "r32"}]);
+    assert.deepStrictEqual(perda(2), [{teamId: "p", bucket: "r16"}]);
+    assert.deepStrictEqual(perda(3), [{teamId: "p", bucket: "quarters"}]);
+  });
+});
+
+describe("resolvedor sem mapa de degraus (compatibilidade)", () => {
+  it("contexto sem `tiers` mantém o comportamento antigo: quartas", () => {
+    const placements = resolveLeaguePlacementsFromMatch(
+      {
+        status: "completed",
+        matchType: "LB",
+        round: 1,
+        teamAId: "v",
+        teamBId: "p",
+        winnerId: "v",
+      },
+      {hasThirdPlaceMatch: true, isDoubleElimination: true, maxLbRound: 6},
+    );
+    assert.deepStrictEqual(placements, [{teamId: "p", bucket: "quarters"}]);
   });
 });

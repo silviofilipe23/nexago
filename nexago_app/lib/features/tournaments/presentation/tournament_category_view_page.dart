@@ -25,9 +25,9 @@ import 'widgets/tournament_detail/tournament_detail_bracket_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_groups_tab.dart';
 import 'widgets/tournament_match_card.dart';
 
-/// Casca da categoria (paridade com o portal web): "Todas as categorias" pra
-/// voltar, nome + meta, e o segmentado Partidas/Grupos/Chave — a mesma
-/// categoria vista de três ângulos adaptativos.
+/// Casca da categoria (paridade com o portal web): o nome da categoria vive
+/// na barra do topo, ao lado do voltar; abaixo ficam a meta e o segmentado
+/// Partidas/Grupos/Chave — a mesma categoria vista de três ângulos adaptativos.
 class TournamentCategoryViewPage extends ConsumerStatefulWidget {
   const TournamentCategoryViewPage({
     super.key,
@@ -215,11 +215,16 @@ class _TournamentCategoryViewPageState
                       onTap: () => context.pop(),
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      'Todas as categorias',
-                      style: AppTypography.labelS
-                          .copyWith(color: colors.onSurfaceMuted),
+                    Expanded(
+                      child: Text(
+                        offer.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.titleM
+                            .copyWith(color: colors.onSurface),
+                      ),
                     ),
+                    const SizedBox(width: AppSpacing.xs),
                   ],
                 ),
               ),
@@ -233,14 +238,6 @@ class _TournamentCategoryViewPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      offer.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.titleL
-                          .copyWith(color: colors.onSurface),
-                    ),
-                    const SizedBox(height: 3),
                     Text(
                       metaParts.join(' · ').toUpperCase(),
                       maxLines: 1,

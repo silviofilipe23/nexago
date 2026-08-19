@@ -1,4 +1,5 @@
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/text/safe_display_text.dart';
 import 'athlete_profile.dart';
 
 /// Nome exibido do atleta: apelido → nome completo → fallback.
@@ -26,7 +27,7 @@ String athleteShortLabel(AthleteProfile profile) {
   final parts =
       display.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.length <= 1) return display;
-  final lastInitial = parts.last[0].toUpperCase();
+  final lastInitial = firstGraphemesUpper(parts.last, 1);
   return '${parts.first} $lastInitial.';
 }
 

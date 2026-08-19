@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/text/safe_display_text.dart';
 
 /// Avatar circular do atleta (foto ou iniciais com borda e sombra da marca).
 class AthleteProfileAvatar extends StatelessWidget {
@@ -161,7 +162,7 @@ class AthleteProfileAvatarInitials extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          initials,
+          sanitizeUtf16(initials),
           style: TextStyle(
             fontSize: size * 0.36,
             fontWeight: FontWeight.w900,

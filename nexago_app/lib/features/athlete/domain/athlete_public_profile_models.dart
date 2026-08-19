@@ -1,3 +1,4 @@
+import '../../../core/profiles/app_user_profile.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_profile_options.dart';
@@ -213,12 +214,5 @@ String formatSocialCount(int count) {
 }
 
 String athleteInitialsFromName(String name) {
-  final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) {
-    return parts.first.length >= 2
-        ? parts.first.substring(0, 2).toUpperCase()
-        : parts.first.toUpperCase();
-  }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  return initialsFromDisplayName(name);
 }

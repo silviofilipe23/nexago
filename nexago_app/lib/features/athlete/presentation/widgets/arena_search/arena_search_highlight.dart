@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/text/safe_display_text.dart';
 import '../../../../../core/theme/app_colors.dart';
 
 TextSpan buildArenaSearchHighlightedName(
@@ -10,29 +11,30 @@ TextSpan buildArenaSearchHighlightedName(
   Color? highlightColor,
 }) {
   final theme = Theme.of(context);
+  final safe = sanitizeUtf16(value);
   final q = query.trim();
   final base = baseStyle ??
       theme.textTheme.titleSmall?.copyWith(
         fontWeight: FontWeight.w800,
       );
   if (q.isEmpty) {
-    return TextSpan(text: value, style: base);
+    return TextSpan(text: safe, style: base);
   }
 
-  final source = value.toLowerCase();
+  final source = safe.toLowerCase();
   final needle = q.toLowerCase();
   final i = source.indexOf(needle);
-  if (i < 0) {
-    return TextSpan(text: value, style: base);
+  if (i < 0 || i + needle.length > safe.length) {
+    return TextSpan(text: safe, style: base);
   }
 
   final end = i + needle.length;
   return TextSpan(
     style: base,
     children: [
-      if (i > 0) TextSpan(text: value.substring(0, i)),
+      if (i > 0) TextSpan(text: sanitizeUtf16(safe.substring(0, i))),
       TextSpan(
-        text: value.substring(i, end),
+        text: sanitizeUtf16(safe.substring(i, end)),
         style: base?.copyWith(
           color: highlightColor ?? AppColors.brand,
           decoration: TextDecoration.underline,
@@ -40,7 +42,8 @@ TextSpan buildArenaSearchHighlightedName(
               (highlightColor ?? AppColors.brand).withValues(alpha: 0.55),
         ),
       ),
-      if (end < value.length) TextSpan(text: value.substring(end)),
+      if (end < safe.length)
+        TextSpan(text: sanitizeUtf16(safe.substring(end))),
     ],
   );
 }

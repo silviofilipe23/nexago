@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../auth/user_roles.dart';
+import '../text/safe_display_text.dart';
 
 /// Perfil em `users/{uid}` (paridade com web `AppUserProfile`).
 class AppUserProfile {
@@ -214,15 +215,14 @@ String appUserInitials(AppUserProfile user) {
 }
 
 String initialsFromDisplayName(String name) {
-  if (name.isEmpty) return '?';
-  final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
+  final parts =
+      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) {
-    return parts.first.length >= 2
-        ? parts.first.substring(0, 2).toUpperCase()
-        : parts.first.toUpperCase();
+    return firstGraphemesUpper(parts.first, 2);
   }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  return '${firstGraphemesUpper(parts.first, 1)}'
+      '${firstGraphemesUpper(parts.last, 1)}';
 }
 
 bool isPartnerListableProfile(AppUserProfile profile) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/profiles/app_user_profile.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/achievements/achievement_catalog.dart';
 import '../../../domain/achievements/achievement_status.dart';
@@ -23,15 +24,7 @@ void showAthleteSettingsComingSoon(BuildContext context) {
 }
 
 String athleteInitialsFromName(String name) {
-  final parts = name.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || parts.first.isEmpty) return '?';
-  if (parts.length == 1) {
-    final p = parts.first;
-    return p.length >= 2
-        ? p.substring(0, 2).toUpperCase()
-        : p[0].toUpperCase();
-  }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  return initialsFromDisplayName(name);
 }
 
 int countAthleteNonCanceledBookings(List<MyBookingItem> bookings) {

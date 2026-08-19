@@ -1,4 +1,10 @@
-import { discoveryFillPercent, discoverySpotsOf, type DiscoverySpotsSource } from './tournament-discovery.spots';
+import {
+  discoveryEnrolledLabel,
+  discoveryFillPercent,
+  discoveryShowsOffer,
+  discoverySpotsOf,
+  type DiscoverySpotsSource,
+} from './tournament-discovery.spots';
 
 /** Torneio recém-criado como o wizard grava: `enrolledCount: 0` e cada categoria com
  *  `spotsLeft` igual à própria capacidade — nenhum dos dois é atualizado depois. */
@@ -75,5 +81,39 @@ describe('discoveryFillPercent', () => {
 
   it('é zero quando o torneio não tem capacidade cadastrada', () => {
     expect(discoveryFillPercent({ filled: 4, total: 0 })).toBe(0);
+  });
+});
+
+describe('discoveryShowsOffer', () => {
+  it('esconde vaga e valor no torneio concluído', () => {
+    expect(discoveryShowsOffer('ended')).toBe(false);
+  });
+
+  it('mantém a oferta enquanto o torneio não encerrou', () => {
+    expect(discoveryShowsOffer('open')).toBe(true);
+    expect(discoveryShowsOffer('almost_full')).toBe(true);
+    expect(discoveryShowsOffer('live')).toBe(true);
+  });
+});
+
+describe('discoveryEnrolledLabel', () => {
+  it('conta duplas no torneio de duplas', () => {
+    expect(discoveryEnrolledLabel(12, 'Dupla')).toBe('12 duplas inscritas');
+  });
+
+  it('concorda no singular', () => {
+    expect(discoveryEnrolledLabel(1, 'Dupla')).toBe('1 dupla inscrita');
+  });
+
+  it('conta atletas no torneio individual', () => {
+    // `filled` conta docs de inscrição: um doc é uma dupla no torneio de duplas e um atleta no
+    // individual — chamar tudo de "dupla" mentiria na metade dos cards.
+    expect(discoveryEnrolledLabel(12, 'Individual')).toBe('12 atletas inscritos');
+    expect(discoveryEnrolledLabel(1, 'Individual')).toBe('1 atleta inscrito');
+  });
+
+  it('diz que ninguém se inscreveu em vez de mostrar zero', () => {
+    expect(discoveryEnrolledLabel(0, 'Dupla')).toBe('Nenhuma dupla inscrita');
+    expect(discoveryEnrolledLabel(0, 'Individual')).toBe('Nenhum atleta inscrito');
   });
 });

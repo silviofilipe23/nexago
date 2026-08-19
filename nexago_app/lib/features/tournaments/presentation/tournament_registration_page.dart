@@ -48,6 +48,7 @@ import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_team_roster_logic.dart';
+import '../domain/uniform_auto_saver.dart';
 import 'widgets/tournament_registration/tournament_registration_category_card.dart';
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_hero_card.dart';
@@ -111,6 +112,15 @@ class _TournamentRegistrationPageState
   /// Saída da equipe em voo.
   bool _leavingTeam = false;
 
+  /// Gravação automática do uniforme: escolher já salva, sem botão.
+  UniformSaveState _uniformSaveState = UniformSaveState.idle;
+  late final UniformAutoSaver _uniformSaver = UniformAutoSaver(
+    save: _writeUniform,
+    onStateChange: (state) {
+      if (mounted) setState(() => _uniformSaveState = state);
+    },
+  );
+
   /// Geração do link de convite em voo — trava só o cartão "Convidar por
   /// link".
   bool _sharingExternalInvite = false;
@@ -147,6 +157,41 @@ class _TournamentRegistrationPageState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduleRegistrationPaidCheck();
     });
+  }
+
+  @override
+  void dispose() {
+    _uniformSaver.dispose();
+    super.dispose();
+  }
+
+  /// Gravação de verdade por trás do auto-save.
+  Future<void> _writeUniform(TournamentUniformSelection selection) async {
+    final regId = _registrationId?.trim() ?? '';
+    if (regId.isEmpty) {
+      throw TournamentPartnerInviteException(
+        'Sua inscrição ainda não foi criada.',
+      );
+    }
+    await ref
+        .read(tournamentPartnerInviteServiceProvider)
+        .setRegistrationUniform(registrationId: regId, uniform: selection);
+  }
+
+  /// Escolheu → grava sozinho. Antes da vaga existir não há onde gravar: aí o
+  /// uniforme viaja junto do convite (`inviterUniform`).
+  void _onUniformChanged(TournamentUniformSelection value) {
+    setState(() => _titularUniform = value);
+    final category = _category;
+    if (category == null) return;
+    if ((_registrationId?.trim() ?? '').isEmpty) return;
+    if (!isUniformSelectionComplete(category: category, selection: value)) {
+      // Meia escolha não vira gravação — e nem vira erro enquanto o atleta
+      // ainda está decidindo.
+      _uniformSaver.cancelPending();
+      return;
+    }
+    _uniformSaver.schedule(value);
   }
 
   void _scheduleInitialCategory(
@@ -386,13 +431,20 @@ class _TournamentRegistrationPageState
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _uniformHydratedRegistrationId == regId) return;
+      final hydrated = hydrateUniformSelection(
+        stored: snap!.uniformFor(uid),
+        defaults: _defaultUniformForCategory(category),
+      );
       setState(() {
         _uniformHydratedRegistrationId = regId;
-        _titularUniform = hydrateUniformSelection(
-          stored: snap!.uniformFor(uid),
-          defaults: _defaultUniformForCategory(category),
-        );
+        _titularUniform = hydrated;
       });
+      // O que veio do servidor já está gravado: semear evita uma escrita
+      // redundante e deixa o selo honesto desde a abertura.
+      final stored = snap.uniformFor(uid);
+      if (isUniformSelectionComplete(category: category, selection: stored)) {
+        _uniformSaver.markSaved(stored);
+      }
     });
   }
 
@@ -915,12 +967,14 @@ class _TournamentRegistrationPageState
     }
   }
 
-  /// Salva o uniforme do atleta na inscrição (pós-inscrição) e volta ao passo
-  /// de pagamento/conclusão.
-  Future<void> _saveUniform(TournamentDetail tournament) async {
-    final regId = _registrationId?.trim();
+  /// Encerra o passo do uniforme.
+  ///
+  /// A escolha já grava sozinha (ver [_uniformSaver]); este botão só garante
+  /// que o debounce não fique pendente e devolve o atleta ao pagamento. Sem
+  /// inscrição não há onde gravar — a escolha viaja junto do convite.
+  void _finishUniformStep() {
     final cat = _category;
-    if (regId == null || regId.isEmpty || cat == null || _submitting) return;
+    if (cat == null) return;
     final msg = validateUniformSelection(
       category: cat,
       selection: _titularUniform,
@@ -929,23 +983,14 @@ class _TournamentRegistrationPageState
       showAppSnackBar(context, msg, isError: true);
       return;
     }
-    setState(() => _submitting = true);
-    try {
-      await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .setRegistrationUniform(
-            registrationId: regId,
-            uniform: _titularUniform,
-          );
-      if (!mounted) return;
-      showAppSnackBar(context, 'Uniforme salvo.');
-      _goToStep(TournamentRegistrationStep.payment);
-    } on TournamentPartnerInviteException catch (e) {
-      if (!mounted) return;
-      await showTournamentPartnerInviteError(context, e);
-    } finally {
-      if (mounted) setState(() => _submitting = false);
+    if ((_registrationId?.trim() ?? '').isNotEmpty) {
+      _uniformSaver.saveNow(_titularUniform);
     }
+    _goToStep(
+      (_registrationId?.trim() ?? '').isNotEmpty
+          ? TournamentRegistrationStep.payment
+          : TournamentRegistrationStep.category,
+    );
   }
 
   /// Convida por LINK quem ainda não tem conta no nexaGO.
@@ -1368,8 +1413,7 @@ class _TournamentRegistrationPageState
               category: cat,
               selection: _titularUniform,
             )) {
-          // Uniforme é informado depois da inscrição: salva no registro.
-          _saveUniform(tournament);
+          _finishUniformStep();
         } else if (cat != null && mounted) {
           final msg = validateUniformSelection(
             category: cat,
@@ -1494,7 +1538,7 @@ class _TournamentRegistrationPageState
                 category: cat,
                 selection: _titularUniform,
               ),
-          ctaLabel: 'Salvar uniforme',
+          ctaLabel: 'Pronto',
           metaLabel: null,
           totalLabel: null,
           ctaSubtitle: null,
@@ -2161,7 +2205,12 @@ class _TournamentRegistrationPageState
             category: uniformCategory,
             selection: _titularUniform,
             leagueBadge: tournament.name.toUpperCase(),
-            onChanged: (value) => setState(() => _titularUniform = value),
+            onChanged: _onUniformChanged,
+            // Sem inscrição não há onde gravar: o selo some em vez de mentir.
+            saveState: (_registrationId?.trim().isNotEmpty ?? false)
+                ? _uniformSaveState
+                : null,
+            onRetrySave: _uniformSaver.retry,
           ),
         ];
       case TournamentRegistrationStep.partner:

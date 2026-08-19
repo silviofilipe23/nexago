@@ -60,7 +60,8 @@ class _RankingHowItWorksSheet extends StatelessWidget {
             _PointsRow(place: '🥈 Vice', points: getPointsForPlace(2)),
             _PointsRow(place: '🥉 3º lugar', points: getPointsForPlace(3)),
             _PointsRow(place: '4º lugar', points: getPointsForPlace(4)),
-            _PointsRow(place: '5º ao 8º', points: getPointsForPlace(5)),
+            for (final faixa in pointsLadderRanges.entries)
+              _PointsRow(place: faixa.key, points: getPointsForPlace(faixa.value)),
             const SizedBox(height: 22),
             _SectionLabel('PESOS POR CATEGORIA'),
             const SizedBox(height: 10),

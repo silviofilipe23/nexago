@@ -118,3 +118,17 @@ TournamentDiscoveryLiveStats computeDiscoveryLiveStats(
         .length,
   );
 }
+
+/// Contagem de inscritos do card de torneio concluído.
+///
+/// A unidade segue o formato: cada inscrição é uma dupla no torneio de duplas e um atleta no
+/// individual, então falar em "duplas" nos dois mentiria na metade dos cards.
+String tournamentEnrolledEntriesLabel(int count, TournamentFormat format) {
+  final n = count < 0 ? 0 : count;
+  if (format == TournamentFormat.individual) {
+    if (n == 0) return 'Nenhum atleta inscrito';
+    return n == 1 ? '1 atleta inscrito' : '$n atletas inscritos';
+  }
+  if (n == 0) return 'Nenhuma dupla inscrita';
+  return n == 1 ? '1 dupla inscrita' : '$n duplas inscritas';
+}

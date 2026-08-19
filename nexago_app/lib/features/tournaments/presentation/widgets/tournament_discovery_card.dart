@@ -1,16 +1,22 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radii.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../data/tournament_inscriptions_repository.dart';
+import '../../domain/tournament_category_spots.dart';
 import '../../domain/tournament_discovery_labels.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_listing_status.dart';
 import 'tournament_category_spots_section.dart';
 
 /// Card de torneio com capa, status, vagas por categoria e CTA (hub Competir).
+///
+/// Torneio concluído troca vagas e preço pela contagem de inscritos: a inscrição já fechou,
+/// e vaga livre e valor ali seriam convite para algo que não existe mais.
 class TournamentDiscoveryCard extends StatelessWidget {
   const TournamentDiscoveryCard({
     super.key,
@@ -47,9 +53,11 @@ class TournamentDiscoveryCard extends StatelessWidget {
     final imageUrl = tournament.imageUrl?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
+    final isFinished = isTournamentTerminal(tournament.status);
     final offers = tournament.categoryOffers;
     final hasCategoryOffers = offers.isNotEmpty;
-    final showSpotsSection = showCategorySpots && hasCategoryOffers;
+    final showSpotsSection =
+        showCategorySpots && hasCategoryOffers && !isFinished;
     final used = (tournament.spotsTotal - tournament.spotsLeft).clamp(
       0,
       999999,
@@ -163,7 +171,12 @@ class TournamentDiscoveryCard extends StatelessWidget {
                           ? tournamentDiscoveryCardDateShort(tournament)
                           : tournament.dateLabel,
                     ),
-                    if (showSpotsSection) ...[
+                    if (isFinished) ...[
+                      SizedBox(height: 14),
+                      _CardDivider(),
+                      SizedBox(height: 14),
+                      _EnrolledEntriesLine(tournament: tournament),
+                    ] else if (showSpotsSection) ...[
                       SizedBox(height: 14),
                       _CardDivider(),
                       SizedBox(height: 14),
@@ -228,7 +241,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       _CardDivider(),
                       SizedBox(height: 14),
                       _TournamentCardFooter(
-                        priceLabel: tournament.priceLabel,
+                        priceLabel: isFinished ? null : tournament.priceLabel,
                         ctaLabel: tournamentDiscoveryCardCtaLabel(
                           isEnrolled: isEnrolled,
                           status: tournament.status,
@@ -255,6 +268,49 @@ class TournamentDiscoveryCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Contagem de inscritos do torneio concluído — o que fica no lugar de vagas e preço.
+///
+/// Lê a mesma contagem viva de `inscriptions` que a seção de vagas por categoria usa; sem
+/// categorias cadastradas, cai no `enrolledCount` derivado do documento do torneio.
+class _EnrolledEntriesLine extends ConsumerWidget {
+  const _EnrolledEntriesLine({required this.tournament});
+
+  final DiscoveryTournament tournament;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countsAsync = ref.watch(
+      tournamentCategoryEnrollmentCountsProvider(tournament.id),
+    );
+    final enrolled = tournamentEnrolledEntries(
+      offers: tournament.categoryOffers,
+      counts: countsAsync.valueOrNull ?? const <String, int>{},
+      countsResolved: countsAsync.hasValue,
+      fallbackEnrolled: tournament.enrolledCount,
+    );
+    final muted = context.themeColors.onSurfaceMuted;
+
+    return Row(
+      children: [
+        Icon(Icons.groups_outlined, size: 15, color: muted),
+        SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            tournamentEnrolledEntriesLabel(enrolled, tournament.format),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              color: muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -341,42 +397,48 @@ class _TournamentCardFooter extends StatelessWidget {
     required this.emphasizeCta,
   });
 
-  final String priceLabel;
+  /// `null` no torneio concluído — sobra o CTA, que leva ao resultado.
+  final String? priceLabel;
   final String ctaLabel;
   final bool emphasizeCta;
 
   @override
   Widget build(BuildContext context) {
+    final price = priceLabel;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'A PARTIR DE',
-                style: AppTypography.mono(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                  color: context.themeColors.onSurfaceMuted,
+        if (price == null)
+          Spacer()
+        else
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'A PARTIR DE',
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
                 ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                priceLabel,
-                style: AppTypography.soraRegular(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.brand,
-                  height: 1,
-                  letterSpacing: -0.5,
+                SizedBox(height: 2),
+                Text(
+                  price,
+                  style: AppTypography.soraRegular(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.brand,
+                    height: 1,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         SizedBox(width: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),

@@ -25,8 +25,8 @@ import 'widgets/tournament_detail/tournament_detail_bracket_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_groups_tab.dart';
 import 'widgets/tournament_match_card.dart';
 
-/// Casca da categoria (paridade com o portal web): o nome da categoria vive
-/// na barra do topo, ao lado do voltar; abaixo ficam a meta e o segmentado
+/// Casca da categoria (paridade com o portal web): nome e meta da categoria
+/// vivem na barra do topo, ao lado do voltar; abaixo fica o segmentado
 /// Partidas/Grupos/Chave — a mesma categoria vista de três ângulos adaptativos.
 class TournamentCategoryViewPage extends ConsumerStatefulWidget {
   const TournamentCategoryViewPage({
@@ -216,12 +216,26 @@ class _TournamentCategoryViewPageState
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(
-                        offer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.titleM
-                            .copyWith(color: colors.onSurface),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            offer.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.titleM
+                                .copyWith(color: colors.onSurface),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            metaParts.join(' · ').toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.monoMeta
+                                .copyWith(color: colors.onSurfaceMuted),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
@@ -231,31 +245,17 @@ class _TournamentCategoryViewPageState
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenH,
-                  AppSpacing.sm,
+                  AppSpacing.md,
                   AppSpacing.screenH,
                   AppSpacing.md,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      metaParts.join(' · ').toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.monoMeta
-                          .copyWith(color: colors.onSurfaceMuted),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    NexaSegmentedControl<TournamentCategoryView>(
-                      segments: [
-                        for (final view in views)
-                          NexaSegment(value: view, label: view.label),
-                      ],
-                      selected: selected,
-                      onChanged: (view) =>
-                          setState(() => _selected = view),
-                    ),
+                child: NexaSegmentedControl<TournamentCategoryView>(
+                  segments: [
+                    for (final view in views)
+                      NexaSegment(value: view, label: view.label),
                   ],
+                  selected: selected,
+                  onChanged: (view) => setState(() => _selected = view),
                 ),
               ),
               Expanded(

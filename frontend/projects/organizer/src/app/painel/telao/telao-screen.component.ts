@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
 import { resolveCourtNames, type TournamentMatch } from '../data/matches-repository';
 import { formatCourtLabel, spDayLabel, spTimeLabel } from '../data/schedule-format';
+import { shareQrSvgDataUrl } from '../data/share-qr';
 import { effectiveTelaoConfig } from '../data/tournaments-repository';
+import { publicTournamentUrl } from '../../publico/public-link';
 import { OgPulseDirective } from './og-pulse.directive';
 import { fallbackTeamDisplay, TelaoDataService } from './telao-data.service';
 import { TelaoCourtCardComponent } from './telao-court-card.component';
@@ -108,16 +110,24 @@ interface TelaoQueueRow {
       }
     </div>
 
-    @if (cfg()?.showCall) {
+    @if (cfg()?.showCall || publicQr()) {
       <footer class="og-telao-bar">
-        @if (call(); as c) {
-          <span class="og-telao-bar-pill">Chamada</span>
-          <span class="og-telao-bar-text" [ogPulse]="c.id">
-            <strong>{{ c.a }}</strong>&ngsp;<em>vs</em>&ngsp;<strong>{{ c.b }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
-            <span class="og-telao-bar-deadline">{{ c.deadline }}</span>
-          </span>
+        @if (cfg()?.showCall) {
+          @if (call(); as c) {
+            <span class="og-telao-bar-pill">Chamada</span>
+            <span class="og-telao-bar-text" [ogPulse]="c.id">
+              <strong>{{ c.a }}</strong>&ngsp;<em>vs</em>&ngsp;<strong>{{ c.b }}</strong>&ngsp;— apresentar-se à {{ c.court }} até
+              <span class="og-telao-bar-deadline">{{ c.deadline }}</span>
+            </span>
+          }
         }
         <span class="og-telao-bar-flex"></span>
+        @if (publicQr(); as qr) {
+          <span class="og-telao-bar-qr">
+            <img class="og-telao-bar-qr-img" [src]="qr" alt="QR do link de acompanhamento do torneio" />
+            <span class="og-telao-bar-qr-text">Acompanhe&ngsp;no celular</span>
+          </span>
+        }
         <span class="og-telao-bar-status" [class.error]="error()">
           {{ error() ? 'Reconectando…' : 'Atualizado em tempo real' }}
           <span class="og-dot" [class.og-dot-red]="error()" [class.og-dot-pulse]="!error()"></span>
@@ -399,6 +409,25 @@ interface TelaoQueueRow {
     .og-telao-bar-status.error .og-dot {
       background: var(--nx-live);
     }
+    .og-telao-bar-qr {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-right: 24px;
+    }
+    .og-telao-bar-qr-img {
+      width: 96px;
+      height: 96px;
+      border-radius: 8px;
+      background: #fff;
+      padding: 4px;
+    }
+    .og-telao-bar-qr-text {
+      max-width: 140px;
+      font-size: 20px;
+      line-height: 1.15;
+      color: var(--nx-text-mute);
+    }
     /* Nova chamada: o texto da barra entra deslizando de baixo. */
     .og-telao-bar-text.og-pulse-run {
       animation: og-telao-rise 260ms var(--nx-ease-out);
@@ -449,6 +478,11 @@ export class TelaoScreenComponent {
 
   protected readonly showAvatars = computed(() => this.cfg()?.showAvatars ?? true);
   protected readonly showQueue = computed(() => this.cfg()?.showUpcoming ?? true);
+
+  /** QR do link público (`/t/{id}`) — resolvido uma vez por torneio. As dependências são
+   *  estáveis (id e flag); NUNCA dependa de um computed que tica com o relógio aqui, senão o
+   *  efeito reinicia pra sempre. */
+  protected readonly publicQr = signal<string | null>(null);
 
   /** Partidas com o nome da quadra resolvido pelo `courtId` (jogos auto-agendados antigos). */
   private readonly matches = computed(() => resolveCourtNames(this.svc.matches(), this.svc.tournament()?.courts ?? []));
@@ -591,6 +625,25 @@ export class TelaoScreenComponent {
   constructor() {
     const clockTimer = setInterval(() => this.now.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => clearInterval(clockTimer));
+
+    // QR do link público: gera uma vez por torneio, não a cada tique do relógio. Guarda contra
+    // resolução fora de ordem — se id/flag mudarem de novo antes da promessa atual resolver, o
+    // `.then()` velho não pode sobrescrever o valor mais novo.
+    effect((onCleanup) => {
+      const id = this.svc.tournamentId();
+      const show = this.cfg()?.showPublicQr ?? true;
+      let stale = false;
+      onCleanup(() => {
+        stale = true;
+      });
+      if (!id || !show) {
+        this.publicQr.set(null);
+        return;
+      }
+      void shareQrSvgDataUrl(publicTournamentUrl(location.origin, id)).then((url) => {
+        if (!stale) this.publicQr.set(url);
+      });
+    });
 
     // Rotação automática: avança a página da grade quando há mais quadras do que cabem.
     effect((onCleanup) => {

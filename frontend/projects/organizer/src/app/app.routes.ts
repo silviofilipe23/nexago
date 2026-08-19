@@ -32,6 +32,14 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/signup.component').then((m) => m.SignupComponent),
   },
   {
+    // Página pública de acompanhamento — SEM guard, de propósito: é o link que o público
+    // abre pelo QR do telão. Lê só coleções com `allow read: if true`.
+    path: 't/:tournamentId',
+    title: 'Acompanhe ao vivo — NexaGO',
+    loadComponent: () =>
+      import('./publico/public-tournament-page.component').then((m) => m.PublicTournamentPageComponent),
+  },
+  {
     // Fora do shell do painel: fica aberta na TV da arena em tela cheia. Sem organizerGuard
     // de propósito — staff logado sem a role organizer também pode exibir o telão.
     path: 'telao/:tournamentId',
@@ -96,11 +104,6 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/links/links.component').then((m) => m.LinksComponent),
       },
       {
-        path: 'telao',
-        title: 'Telão ao vivo — NexaGO Organizador',
-        loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
-      },
-      {
         path: 'config',
         title: 'Configurações — NexaGO Organizador',
         loadComponent: () => import('./painel/config/config.component').then((m) => m.ConfigComponent),
@@ -137,6 +140,7 @@ export const routes: Routes = [
       // Rotas antigas (pré-cascata) — telas globais que agora vivem no contexto do torneio.
       { path: 'inscricoes', redirectTo: 'eventos' },
       { path: 'comunicacao', redirectTo: 'eventos' },
+      { path: 'telao', redirectTo: 'eventos' },
       {
         path: 'chaveamento',
         children: [
@@ -169,6 +173,11 @@ export const routes: Routes = [
             path: 'agendamento',
             title: 'Agendamento — NexaGO Organizador',
             loadComponent: () => import('./painel/chaveamento/agendamento.component').then((m) => m.AgendamentoComponent),
+          },
+          {
+            path: 'telao',
+            title: 'Telão ao vivo — NexaGO Organizador',
+            loadComponent: () => import('./painel/telao/telao-config.component').then((m) => m.TelaoConfigComponent),
           },
           {
             path: 'comunicacao',

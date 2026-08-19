@@ -31,13 +31,15 @@ describe('basePointsForFinalPlace', () => {
     assert.equal(basePointsForFinalPlace(4), 500);
   });
 
-  test('5 é o carimbo de quartas e 9 o de fase de grupos', () => {
+  test('a escada por fase: 5 quartas, 9 oitavas, 17 16-avos, 0 participação', () => {
     assert.equal(basePointsForFinalPlace(5), 330);
-    assert.equal(basePointsForFinalPlace(9), 100);
+    assert.equal(basePointsForFinalPlace(9), 200);
+    assert.equal(basePointsForFinalPlace(17), 130);
+    assert.equal(basePointsForFinalPlace(0), 100);
   });
 
   test('colocação fora da tabela devolve null (entrada não é tocada)', () => {
-    for (const raw of [0, 6, 7, 8, 10, -1, null, undefined, 'x', NaN]) {
+    for (const raw of [6, 7, 8, 10, 18, -1, null, undefined, 'x', NaN]) {
       assert.equal(basePointsForFinalPlace(raw), null, `finalPlace=${String(raw)}`);
     }
   });
@@ -175,8 +177,10 @@ describe('pointsForEntry', () => {
     assert.equal(pointsForEntry(2, ctx), 200);
     assert.equal(pointsForEntry(3, ctx), 150);
     assert.equal(pointsForEntry(4, ctx), 125);
-    assert.equal(pointsForEntry(5, ctx), 83);
-    assert.equal(pointsForEntry(9, ctx), 25);
+    assert.equal(pointsForEntry(5, ctx), 83); // quartas
+    assert.equal(pointsForEntry(9, ctx), 50); // oitavas
+    assert.equal(pointsForEntry(17, ctx), 33); // 16-avos
+    assert.equal(pointsForEntry(0, ctx), 25); // participação
   });
 
   test('âncora da spec: Elite com chave cheia paga 1200 ao campeão', () => {
@@ -192,6 +196,7 @@ describe('pointsForEntry', () => {
 
   test('colocação desconhecida devolve null em vez de zerar a entrada', () => {
     assert.equal(pointsForEntry(7, { weight: 1, rankingWeight: 1, bracketFactor: 1 }), null);
+    assert.equal(pointsForEntry(18, { weight: 1, rankingWeight: 1, bracketFactor: 1 }), null);
   });
 });
 

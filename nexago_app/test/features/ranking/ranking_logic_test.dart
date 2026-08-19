@@ -240,6 +240,31 @@ void main() {
     });
   });
 
+  group('escada por fase alcançada (espelho do backend)', () {
+    test('9º-16º valem 200 e 17º-32º valem 130', () {
+      expect(getPointsForPlace(9), 200);
+      expect(getPointsForPlace(16), 200);
+      expect(getPointsForPlace(17), 130);
+      expect(getPointsForPlace(32), 130);
+    });
+
+    test('pódio e quartas não mudaram', () {
+      expect(getPointsForPlace(1), 1000);
+      expect(getPointsForPlace(5), 330);
+      expect(getPointsForPlace(8), 330);
+    });
+
+    test('além de 32 não há degrau de mata-mata', () {
+      expect(getPointsForPlace(33), 0);
+    });
+
+    test('nenhum degrau paga menos que a participação do backend (100)', () {
+      for (final topo in pointsLadderRanges.values) {
+        expect(getPointsForPlace(topo), greaterThanOrEqualTo(100));
+      }
+    });
+  });
+
   group('getPointsForPlace', () {
     test('tabela base ×10 (fase 3): 1º/2º/3º/4º e quartas (5º-8º)', () {
       expect(getPointsForPlace(1), 1000);

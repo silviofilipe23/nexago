@@ -48,6 +48,8 @@ export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
   "3": 600,
   "4": 500,
   quarters: 330,
+  r16: 200,
+  r32: 130,
   groups: 100,
 };
 
@@ -100,10 +102,24 @@ export function teamRankingsPath(projectId: string): string {
   return `${artifactsPublicDataBase(projectId)}/teamRankings`;
 }
 
-/** Colocação persistida: 1-4 direto; quartas→5; fase de grupos→9. */
+/**
+ * Colocação persistida: 1-4 direto; abaixo do pódio guarda o TOPO da faixa do
+ * degrau (quartas 5, oitavas 9, 16-avos 17). Participação é 0 — "sem colocação
+ * de mata-mata"; era 9 antes da escada por fase alcançada, e o script de
+ * re-derivação converte o histórico.
+ */
 export function finalPlaceForAward(award: LeaguePlacementAward): number {
   if (award.place != null) return award.place;
-  return award.bucket === "quarters" ? 5 : 9;
+  switch (award.bucket) {
+  case "quarters":
+    return 5;
+  case "r16":
+    return 9;
+  case "r32":
+    return 17;
+  default:
+    return 0;
+  }
 }
 
 export function globalPointsForAward(

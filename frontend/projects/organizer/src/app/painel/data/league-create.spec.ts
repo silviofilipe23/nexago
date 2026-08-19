@@ -3,6 +3,8 @@ import {
   effectiveRankingPoints,
   emptyLeagueDraft,
   isCustomRankingTable,
+  LEAGUE_RANKING_POINT_KEYS,
+  LEAGUE_RANKING_POINT_LABEL,
   reviewRankingSummary,
   sanitizeRankingPointsValue,
   withRankingPoint,
@@ -86,5 +88,24 @@ describe('league-create · tabela de pontos do ranking', () => {
       };
       expect(reviewRankingSummary(draft)).toBe('Todas as etapas contam · tabela personalizada');
     });
+  });
+});
+
+describe('escada por fase alcançada na tabela da liga', () => {
+  it('a tabela padrão tem oitavas e 16-avos', () => {
+    expect(DEFAULT_LEAGUE_RANKING_POINTS['r16']).toBe(60);
+    expect(DEFAULT_LEAGUE_RANKING_POINTS['r32']).toBe(45);
+  });
+
+  it('o editor lista os degraus na ordem da escada', () => {
+    expect(LEAGUE_RANKING_POINT_KEYS).toEqual([
+      '1', '2', '3', '4', 'quarters', 'r16', 'r32', 'groups',
+    ]);
+  });
+
+  it('todo degrau tem rótulo com a faixa de colocação', () => {
+    for (const key of LEAGUE_RANKING_POINT_KEYS) {
+      expect(LEAGUE_RANKING_POINT_LABEL[key]).toBeTruthy();
+    }
   });
 });

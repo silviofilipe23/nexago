@@ -109,6 +109,8 @@ export const DEFAULT_LEAGUE_RANKING_POINTS: Record<string, number> = {
   '3': 180,
   '4': 120,
   quarters: 80,
+  r16: 60,
+  r32: 45,
   groups: 40,
 };
 
@@ -145,14 +147,16 @@ export function effectiveRankingPoints(draft: LeagueCreateDraft): Record<string,
 }
 
 /** Chaves da tabela de pontos — mesmo contrato lido pela CF `league-ranking.ts`. */
-export const LEAGUE_RANKING_POINT_KEYS: readonly string[] = ['1', '2', '3', '4', 'quarters', 'groups'];
+export const LEAGUE_RANKING_POINT_KEYS: readonly string[] = ['1', '2', '3', '4', 'quarters', 'r16', 'r32', 'groups'];
 
 export const LEAGUE_RANKING_POINT_LABEL: Record<string, string> = {
   '1': '1º lugar',
   '2': '2º lugar',
   '3': '3º lugar',
   '4': '4º lugar',
-  quarters: 'Quartas',
+  quarters: 'Quartas (5º-8º)',
+  r16: 'Oitavas (9º-16º)',
+  r32: '16-avos (17º-32º)',
   groups: 'Fase de grupos',
 };
 

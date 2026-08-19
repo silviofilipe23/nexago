@@ -17,6 +17,7 @@ export 'tournament_uniform_selection.dart'
         defaultJerseyNameForAthlete,
         defaultUniformSelectionForCategory,
         fillJerseyNameDefaultIfNeeded,
+        hydrateUniformSelection,
         isUniformSelectionComplete,
         kDefaultUniformSizeOptionsTop,
         kUniformChangeDeadlineDays,

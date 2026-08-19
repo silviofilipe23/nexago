@@ -100,6 +100,11 @@ class _TournamentRegistrationPageState
   bool _appliedInitialInvite = false;
   bool _appliedSoloInviteRestore = false;
   bool _paidPopHandled = false;
+
+  /// Inscrição cujo uniforme gravado já foi trazido para a tela. Uma vez por
+  /// inscrição: depois disso quem manda é o que o atleta está editando, senão
+  /// cada snapshot novo desfaria a escolha em andamento.
+  String? _uniformHydratedRegistrationId;
   TournamentUniformSelection _titularUniform = const TournamentUniformSelection(
     sizeTop: 'M',
     jerseyNumber: 10,
@@ -342,6 +347,32 @@ class _TournamentRegistrationPageState
           name: inviteeName,
           rankLabel: '',
           avatarUrl: inviteeAvatar,
+        );
+      });
+    });
+  }
+
+  /// Traz o uniforme JÁ gravado na inscrição para o cartão da tela.
+  ///
+  /// A vaga nasce sem uniforme (`uniform: null`) e a escolha pode ter sido
+  /// feita depois — inclusive por outra superfície. Sem isso o cartão abria nos
+  /// padrões (M/10/sobrenome) mesmo para quem tinha escolhido GG, e salvar
+  /// apagava a escolha real.
+  void _scheduleUniformHydration(TournamentRegistrationSnapshot? snap) {
+    final regId = snap?.registrationId.trim() ?? '';
+    if (regId.isEmpty || _uniformHydratedRegistrationId == regId) return;
+    final category = _category;
+    if (category == null || !categoryRequiresUniform(category)) return;
+    final uid = ref.read(authServiceProvider).currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _uniformHydratedRegistrationId == regId) return;
+      setState(() {
+        _uniformHydratedRegistrationId = regId;
+        _titularUniform = hydrateUniformSelection(
+          stored: snap!.uniformFor(uid),
+          defaults: _defaultUniformForCategory(category),
         );
       });
     });
@@ -1525,6 +1556,7 @@ class _TournamentRegistrationPageState
             registrationSnap: registrationSnap,
             categories: categories,
           );
+          _scheduleUniformHydration(registrationSnap);
 
           final enrollmentAsync = ref.watch(
             tournamentCategoryEnrollmentCountsProvider(widget.tournamentId),

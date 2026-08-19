@@ -178,6 +178,7 @@ import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_predictions_page.dart';
+import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
@@ -1339,6 +1340,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final inviteId = state.pathParameters['inviteId']?.trim() ?? '';
           return TournamentPartnerInvitePage(inviteId: inviteId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentExternalInvite,
+        name: AppRouteNames.tournamentExternalInvite,
+        builder: (context, state) {
+          final id = state.pathParameters['externalInviteId']?.trim() ?? '';
+          return TournamentExternalInvitePage(externalInviteId: id);
         },
       ),
       GoRoute(

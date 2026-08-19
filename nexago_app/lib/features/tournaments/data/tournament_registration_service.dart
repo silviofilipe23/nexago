@@ -70,6 +70,7 @@ class TournamentRegistrationSnapshot {
     this.partnerPending = false,
     this.cancellationRequest,
     this.teamSize,
+    this.teamName,
     this.player1Id,
     this.participantUids = const [],
     this.uniformPlayer1,
@@ -90,6 +91,9 @@ class TournamentRegistrationSnapshot {
 
   /// Elenco de categoria de EQUIPE (trio+); `null` em solo/dupla.
   final int? teamSize;
+
+  /// Nome dado pelo capitão à equipe; `null` em solo/dupla.
+  final String? teamName;
   final String? player1Id;
   final List<String> participantUids;
   final TournamentUniformSelection? uniformPlayer1;
@@ -143,12 +147,18 @@ class TournamentRegistrationSnapshot {
         data['cancellationRequest'],
       ),
       teamSize: teamSizeRaw is num ? teamSizeRaw.toInt() : null,
+      teamName: _trimmedOrNull(data['teamName']),
       player1Id: (player1 != null && player1.isNotEmpty) ? player1 : null,
       participantUids: participants,
       uniformPlayer1: uniformSelectionFromDoc(data['uniformPlayer1']),
       uniformPlayer2: uniformSelectionFromDoc(data['uniformPlayer2']),
       uniformByUid: uniformByUidFromDoc(data['uniformByUid']),
     );
+  }
+
+  static String? _trimmedOrNull(Object? raw) {
+    final value = raw is String ? raw.trim() : '';
+    return value.isEmpty ? null : value;
   }
 
   bool athleteSharePaid(String athleteUid) {

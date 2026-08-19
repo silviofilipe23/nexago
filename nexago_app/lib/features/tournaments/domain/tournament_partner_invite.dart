@@ -136,3 +136,68 @@ class TournamentPartnerInviteAcceptResult {
     );
   }
 }
+
+/// Resultado do resgate de um convite por link.
+class ExternalInviteClaim {
+  const ExternalInviteClaim({
+    required this.inviteId,
+    required this.tournamentId,
+    required this.categoryId,
+  });
+
+  final String inviteId;
+  final String tournamentId;
+  final String categoryId;
+
+  bool get isValid => inviteId.isNotEmpty;
+}
+
+/// Convite por link visto por quem o recebeu, antes do resgate — só o
+/// suficiente para a tela dizer quem chamou e para qual torneio.
+class ExternalPartnerInvite {
+  const ExternalPartnerInvite({
+    required this.id,
+    required this.tournamentId,
+    required this.categoryId,
+    required this.inviterUid,
+    required this.inviterName,
+    required this.status,
+    required this.expiresAt,
+    this.inviteeName,
+  });
+
+  final String id;
+  final String tournamentId;
+  final String categoryId;
+  final String inviterUid;
+  final String inviterName;
+  final String status;
+  final DateTime expiresAt;
+  final String? inviteeName;
+
+  bool get isPending => status == 'pending' || status == 'claiming';
+  bool get isClaimed => status == 'claimed';
+  bool get isCancelled => status == 'cancelled';
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  factory ExternalPartnerInvite.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> snap,
+  ) {
+    final d = snap.data() ?? {};
+    return ExternalPartnerInvite(
+      id: snap.id,
+      tournamentId: d['tournamentId'] as String? ?? '',
+      categoryId: d['categoryId'] as String? ?? '',
+      inviterUid: d['inviterUid'] as String? ?? '',
+      inviterName: (d['inviterName'] as String?)?.trim().isNotEmpty == true
+          ? (d['inviterName'] as String).trim()
+          : 'Atleta',
+      status: d['status'] as String? ?? 'pending',
+      expiresAt: (d['expiresAt'] as Timestamp?)?.toDate() ??
+          DateTime.now().add(const Duration(days: 7)),
+      inviteeName: (d['inviteeName'] as String?)?.trim().isNotEmpty == true
+          ? (d['inviteeName'] as String).trim()
+          : null,
+    );
+  }
+}

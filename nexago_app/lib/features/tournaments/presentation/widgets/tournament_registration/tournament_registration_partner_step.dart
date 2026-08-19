@@ -25,14 +25,14 @@ class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
     required this.category,
     required this.selectedUserId,
     required this.onSelected,
-    required this.onInviteByPhone,
+    required this.onInviteByLink,
     this.onRegisterSolo,
   });
 
   final TournamentCategoryOffer category;
   final String? selectedUserId;
   final ValueChanged<TournamentRegistrationPartnerCandidate> onSelected;
-  final VoidCallback onInviteByPhone;
+  final VoidCallback onInviteByLink;
   final VoidCallback? onRegisterSolo;
 
   @override
@@ -278,7 +278,7 @@ class _TournamentRegistrationPartnerStepState
             },
           ),
         SizedBox(height: 8),
-        TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByPhone),
+        TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByLink),
         if (widget.onRegisterSolo != null) ...[
           const SizedBox(height: 16),
           TournamentRegistrationSoloCard(onTap: widget.onRegisterSolo!),

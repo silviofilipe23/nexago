@@ -106,6 +106,10 @@ class _TournamentRegistrationPageState
   bool _appliedSoloInviteRestore = false;
   bool _paidPopHandled = false;
 
+  /// Geração do link de convite em voo — trava só o cartão "Convidar por
+  /// link".
+  bool _sharingExternalInvite = false;
+
   /// Convite da lista com cancelamento em voo — trava só a linha dele, não a
   /// tela inteira.
   String? _cancelingInviteId;
@@ -937,6 +941,72 @@ class _TournamentRegistrationPageState
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  /// Convida por LINK quem ainda não tem conta no nexaGO.
+  ///
+  /// O convite de verdade exige um `inviteeUid`, que não existe antes do
+  /// cadastro: o backend cria um token de uso único, o link carrega esse token
+  /// mais o código de indicação, e o convite nasce sozinho quando o parceiro
+  /// termina o cadastro. Antes isto era um snackbar dizendo "em breve".
+  Future<void> _shareExternalInvite(
+    TournamentDetail tournament,
+    TournamentCategoryOffer category,
+  ) async {
+    if (_sharingExternalInvite) return;
+    if (!ref.read(tournamentAccessStateProvider).canAccess) {
+      _showProfileAccessBlocked();
+      return;
+    }
+    setState(() => _sharingExternalInvite = true);
+    try {
+      final externalInviteId = await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .createExternalInvite(
+            tournamentId: tournament.id,
+            categoryId: category.id,
+          );
+      if (!mounted) return;
+      final athlete = _athleteDisplay();
+      final url = externalPartnerInviteUrl(
+        externalInviteId: externalInviteId,
+        referralCode: ref.read(authServiceProvider).currentUser?.uid,
+        inviterName: athlete.name,
+      );
+      if (url == null) {
+        showAppSnackBar(
+          context,
+          'Não foi possível gerar o link do convite.',
+          isError: true,
+        );
+        return;
+      }
+      await nexaShareText(
+        context,
+        externalPartnerInviteMessage(
+          partnerName: null,
+          tournamentName: tournament.name,
+          categoryName: category.name,
+          url: url,
+          teamName: category.isTeamCategory ? _teamNameOfRegistration() : null,
+        ),
+      );
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _sharingExternalInvite = false);
+    }
+  }
+
+  /// Nome da equipe já criada, para o texto do convite falar dela.
+  String? _teamNameOfRegistration() {
+    final regId = _registrationId?.trim() ?? '';
+    if (regId.isEmpty) return null;
+    return ref
+        .read(tournamentRegistrationSnapshotProvider(regId))
+        .valueOrNull
+        ?.teamName;
   }
 
   /// Cutuca o parceiro que ainda não respondeu, pelo share sheet do sistema.
@@ -2022,9 +2092,7 @@ class _TournamentRegistrationPageState
                 _selectedPartner = candidate;
               });
             },
-            onInviteByPhone: () {
-              showAppSnackBar(context, 'Convite por celular em breve.');
-            },
+            onInviteByLink: () => _shareExternalInvite(tournament, category),
             onRegisterSolo: _registrationId == null
                 ? () => _registerSolo(tournament)
                 : null,

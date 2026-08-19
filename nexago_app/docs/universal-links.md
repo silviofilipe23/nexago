@@ -15,6 +15,12 @@ atleta abrir no app.
 | Prefixo | Para quê |
 | --- | --- |
 | `/convite-dupla/:id` | Convite para parceiro **sem conta**: leva ao cadastro e, no fim dele, ao convite. |
+
+O `:id` do `/convite-dupla` é o **token** do convite externo — o id de um doc
+em `tournamentExternalPartnerInvites`, aleatório e não adivinhável. Uso único e
+expiração de 7 dias são as travas: quem receber o link encaminhado e resgatar
+primeiro vira o convidado, e por isso o convite continua exigindo aceite e
+podendo ser cancelado por quem convidou.
 | `/torneios-convite/:id` | Convite **já criado**, compartilhado para cutucar quem ainda não respondeu. |
 
 O portal do atleta ainda não renderiza esses dois paths: quem abrir sem o app

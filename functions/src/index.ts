@@ -24,6 +24,10 @@ import {
   setRegistrationUniform,
 } from "./tournament-partner-invite";
 import {
+  claimExternalPartnerInvite,
+  createExternalPartnerInvite,
+} from "./tournament-external-invite";
+import {
   createTournamentTeamRegistration,
   leaveTournamentTeamRegistration,
 } from "./tournament-team-registration";
@@ -160,6 +164,8 @@ export {
   asaasWebhook,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
   onArenaBookingStatusChangedSyncSlotHold,
+  createExternalPartnerInvite,
+  claimExternalPartnerInvite,
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,

@@ -8,6 +8,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
+import '../../../domain/tournament_listing_status.dart';
 import '../../../domain/tournament_registration_success_args.dart';
 
 class TournamentDetailCategoryCard extends StatelessWidget {
@@ -59,6 +60,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
     final status = tournamentCategoryRowStatus(
       offer,
       inscriptionCount: inscriptionCount,
+      tournamentStatus: tournamentStatus,
     );
     final vacancy = tournamentCategoryVacancyUi(
       offer,
@@ -73,6 +75,9 @@ class TournamentDetailCategoryCard extends StatelessWidget {
     final prizes = categoryPrizeRows(offer);
     final formatTag = tournamentCategoryFormatTag(offer);
     final genderTag = tournamentCategoryGenderTag(offer);
+    // Torneio finalizado: taxa e vagas viram informação vencida — o card guarda
+    // só identidade, status e premiação.
+    final isTournamentOver = isTournamentTerminal(tournamentStatus);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -164,116 +169,122 @@ class TournamentDetailCategoryCard extends StatelessWidget {
               _TagChip(label: formatTag),
             ],
           ),
-          SizedBox(height: 14),
-          Row(
-            children: [
-              Text(
-                'VAGAS',
-                style: AppTypography.mono(
-                  fontSize: 10,
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              Spacer(),
-              Text(
-                vacancy.total > 0
-                    ? '${vacancy.enrolled}/${vacancy.total} equipes'
-                    : '— equipes',
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: vacancy.fill,
-              minHeight: 5,
-              backgroundColor: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
-              color: vacancy.barColor,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            vacancy.caption,
-            style: AppTypography.soraRegular(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: vacancy.captionColor,
-            ),
-          ),
-          SizedBox(height: 16),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          if (!isTournamentOver) ...[
+            SizedBox(height: 14),
+            Row(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'TAXA',
-                        style: AppTypography.mono(
-                          fontSize: 10,
-                          color: context.themeColors.onSurfaceMuted,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        formatCategoryEntryFee(offer),
-                        style: AppTypography.soraRegular(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.brand,
-                          height: 1,
-                        ),
-                      ),
-                      Text(
-                        'por equipe',
-                        style: AppTypography.soraRegular(
-                          fontSize: 12,
-                          color: context.themeColors.onSurfaceMuted,
-                        ),
-                      ),
-                    ],
+                Text(
+                  'VAGAS',
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.6,
                   ),
                 ),
-                if (prizes.isNotEmpty) ...[
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'PREMIAÇÃO',
-                          style: AppTypography.mono(
-                            fontSize: 10,
-                            color: context.themeColors.onSurfaceMuted,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        for (final row in prizes) ...[
-                          _PrizeLine(row: row),
-                          if (row != prizes.last) SizedBox(height: 6),
-                        ],
-                      ],
-                    ),
+                Spacer(),
+                Text(
+                  vacancy.total > 0
+                      ? '${vacancy.enrolled}/${vacancy.total} equipes'
+                      : '— equipes',
+                  style: AppTypography.mono(
+                    fontSize: 11,
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
                   ),
-                ],
+                ),
               ],
             ),
-          ),
-          SizedBox(height: 16),
+            SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: vacancy.fill,
+                minHeight: 5,
+                backgroundColor:
+                    context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
+                color: vacancy.barColor,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              vacancy.caption,
+              style: AppTypography.soraRegular(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: vacancy.captionColor,
+              ),
+            ),
+          ],
+          if (!isTournamentOver || prizes.isNotEmpty) ...[
+            SizedBox(height: 16),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!isTournamentOver)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'TAXA',
+                            style: AppTypography.mono(
+                              fontSize: 10,
+                              color: context.themeColors.onSurfaceMuted,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            formatCategoryEntryFee(offer),
+                            style: AppTypography.soraRegular(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.brand,
+                              height: 1,
+                            ),
+                          ),
+                          Text(
+                            'por equipe',
+                            style: AppTypography.soraRegular(
+                              fontSize: 12,
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (prizes.isNotEmpty) ...[
+                    if (!isTournamentOver) SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'PREMIAÇÃO',
+                            style: AppTypography.mono(
+                              fontSize: 10,
+                              color: context.themeColors.onSurfaceMuted,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          for (final row in prizes) ...[
+                            _PrizeLine(row: row),
+                            if (row != prizes.last) SizedBox(height: 6),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           if (!offer.isCompleted &&
-              ctaKind != TournamentCategoryCtaKind.disabled)
+              ctaKind != TournamentCategoryCtaKind.disabled) ...[
+            SizedBox(height: 16),
             _CategoryCtaButton(
               kind: ctaKind,
               onPressed: switch (ctaKind) {
@@ -284,6 +295,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                 _ => null,
               },
             ),
+          ],
         ],
       ),
     );

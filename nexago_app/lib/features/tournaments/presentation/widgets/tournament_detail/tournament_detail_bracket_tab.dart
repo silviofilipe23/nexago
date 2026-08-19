@@ -264,10 +264,13 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                     ),
                   ),
                   for (final match in group.matches)
-                    TournamentMatchCard(
-                      viewModel: cardsById[match.id]!,
-                      athleteTeamIds: athleteTeamIds,
-                      onTap: () => _openMatchDetail(context, match.id),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                      child: TournamentMatchCard(
+                        viewModel: cardsById[match.id]!,
+                        athleteTeamIds: athleteTeamIds,
+                        onTap: () => _openMatchDetail(context, match.id),
+                      ),
                     ),
                 ],
               ],
@@ -297,10 +300,13 @@ class TournamentDetailBracketTab extends ConsumerWidget {
                     ),
                   ),
                   for (final match in group.matches)
-                    TournamentMatchCard(
-                      viewModel: cardsById[match.id]!,
-                      athleteTeamIds: athleteTeamIds,
-                      onTap: () => _openMatchDetail(context, match.id),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                      child: TournamentMatchCard(
+                        viewModel: cardsById[match.id]!,
+                        athleteTeamIds: athleteTeamIds,
+                        onTap: () => _openMatchDetail(context, match.id),
+                      ),
                     ),
                 ],
               ],

@@ -10,6 +10,8 @@
  * da arena.
  */
 
+import type { TournamentFormat, TournamentListingStatus } from './tournament-discovery.models';
+
 /** O que o card precisa do `TournamentSummary` (estrutural: o summary satisfaz isso). */
 export interface DiscoverySpotsSource {
   capacity: number;
@@ -55,4 +57,25 @@ export function discoverySpotsOf(s: DiscoverySpotsSource, enrolled: number | nul
 export function discoveryFillPercent(spots: Pick<DiscoverySpots, 'filled' | 'total'>): number {
   if (spots.total <= 0) return 0;
   return Math.min(100, Math.round((spots.filled / spots.total) * 100));
+}
+
+/**
+ * Torneio concluído não anuncia mais oferta: vaga livre e valor de inscrição são convite para
+ * algo que já fechou. O card troca a barra de vagas pela contagem de inscritos — o único número
+ * que continua valendo depois do evento (quem disputou).
+ */
+export function discoveryShowsOffer(status: TournamentListingStatus): boolean {
+  return status !== 'ended';
+}
+
+/** Contagem de inscritos do card concluído. A unidade segue o formato: `filled` conta docs de
+ *  inscrição, que valem uma dupla no torneio de duplas e um atleta no individual. */
+export function discoveryEnrolledLabel(filled: number, format: TournamentFormat): string {
+  const count = Math.max(0, filled);
+  if (format === 'Individual') {
+    if (count === 0) return 'Nenhum atleta inscrito';
+    return count === 1 ? '1 atleta inscrito' : `${count} atletas inscritos`;
+  }
+  if (count === 0) return 'Nenhuma dupla inscrita';
+  return count === 1 ? '1 dupla inscrita' : `${count} duplas inscritas`;
 }

@@ -126,3 +126,29 @@ String categoryOfferDisplayName(TournamentCategoryOffer offer) {
   if (offer.name.length <= 12) return offer.name;
   return offer.name.split(' ').first;
 }
+
+/// Total de inscrições do torneio — a soma das categorias, mesma fonte da seção de vagas.
+///
+/// Usado no card do torneio concluído, onde vaga livre e preço saem de cena e a contagem de
+/// inscritos é o único número que ainda vale. Sem categorias cadastradas sobra [fallbackEnrolled]
+/// (o `enrolledCount` derivado do documento do torneio).
+int tournamentEnrolledEntries({
+  required List<TournamentCategoryOffer> offers,
+  required Map<String, int> counts,
+  required bool countsResolved,
+  required int fallbackEnrolled,
+}) {
+  if (offers.isEmpty) return fallbackEnrolled.clamp(0, 999999);
+  var total = 0;
+  for (final offer in offers) {
+    total += categoryEnrolledCount(
+      offer,
+      inscriptionCount: resolveInscriptionCountForOffer(
+        counts,
+        offer,
+        countsResolved: countsResolved,
+      ),
+    );
+  }
+  return total;
+}

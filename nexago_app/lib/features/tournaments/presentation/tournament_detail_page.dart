@@ -244,47 +244,48 @@ class _TournamentDetailContentState
       children: [
         SizedBox(height: topInset + AppSpacing.xs),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.screenH,
+            0,
+          ),
           child: Row(
             children: [
               NexaIconSquareButton(
                 icon: Icons.arrow_back_rounded,
                 onTap: () => _handleTournamentDetailBack(context),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isToday
+                          ? '${widget.tournament.name} — hoje'
+                          : widget.tournament.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleM
+                          .copyWith(color: context.themeColors.onSurface),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      tournamentDetailHeroMeta(widget.tournament, now),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.monoMeta
+                          .copyWith(color: context.themeColors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
               NexaIconSquareButton(
                 icon: Icons.ios_share_rounded,
                 onTap: () => _shareTournament(widget.tournament.name),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.sm,
-            AppSpacing.screenH,
-            0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                isToday
-                    ? '${widget.tournament.name} — hoje'
-                    : widget.tournament.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.titleL
-                    .copyWith(color: context.themeColors.onSurface),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                tournamentDetailHeroMeta(widget.tournament, now),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.monoMeta
-                    .copyWith(color: context.themeColors.onSurfaceMuted),
               ),
             ],
           ),

@@ -32,6 +32,11 @@ A colocação é atribuída automaticamente quando uma partida é concluída (me
   - Livre: 0.125 (125)
   - Legada/custom: 1.0
 - **Fórmula de cálculo**: base × peso do preset × `rankingWeight` do torneio × modulador de chave, arredondado uma vez. Cada torneio pode ter um `rankingWeight` (padrão 1.0) que multiplica os pontos — permite dar mais valor a torneios maiores.
+- **Pontos por fase alcançada** (19/08/2026): abaixo do pódio o prêmio depende da FASE em que a dupla caiu, não do formato do torneio. Quartas (5º-8º) 330 · oitavas (9º-16º) 200 · 16-avos (17º-32º) 130 · participação 100. Antes disso só havia dois destinos (`quarters` e `groups`), então numa chave de 22 duplas a 5ª e a 22ª colocação recebiam igual.
+  - O degrau sai da ESTRUTURA da chave: conta-se quantas duplas cada rodada elimina e acumulam-se as faixas de cima para baixo a partir da 5ª colocação. Eliminação é a partida cujo perdedor não tem `loserAdvance` — a final da losers, cujo perdedor ainda joga o 3º lugar, não elimina ninguém.
+  - `finalPlace` guarda o topo da faixa (quartas 5, oitavas 9, 16-avos 17) e participação é 0.
+  - Chave materializada sem fiação (`winnerAdvance`/`loserAdvance`) não ganha degrau: fica no balde de quartas, sem adivinhação.
+  - A tabela da liga ganhou os mesmos degraus (80 · 60 · 45 · 40); liga com tabela customizada antiga usa o default dos degraus novos, sem reescrita.
 - **Modulador de chave** (aplicado conforme número de duplas pagas na categoria):
   - ≥8 duplas pagas: 100%
   - 4–7 duplas pagas: 60%

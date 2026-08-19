@@ -9,6 +9,8 @@ const defaultLeagueRankingPoints = <String, int>{
   '3': 180,
   '4': 120,
   'quarters': 80,
+  'r16': 60,
+  'r32': 45,
   'groups': 40,
 };
 

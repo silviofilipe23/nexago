@@ -3,6 +3,8 @@ import * as logger from "firebase-functions/logger";
 import {isMatchCompleted, isWinnerInMatch} from "./match-status";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath} from "./firebase-paths";
 import {extractTeamMemberUids} from "./tournament-team-category";
+import {categoryPreset} from "./category-presets";
+import {findCategory} from "./tournament-registration-guards";
 
 const DEFAULT_LEAGUE_POINTS: Record<string, number> = {
   "1": 450,
@@ -655,7 +657,11 @@ export async function tryAwardLeagueStagePointsForMatch(
   }
 
   if (isNonGroupCompletedMatch(match)) {
-    teamsUpdated += await tryAwardGroupsPlacements(db, projectId, baseParams);
+    // Livre não concede participação (D6 emendada) — mesma regra do motor geral.
+    const preset = categoryPreset(findCategory(tournament as never, categoryId));
+    if (preset?.key !== "livre") {
+      teamsUpdated += await tryAwardGroupsPlacements(db, projectId, baseParams);
+    }
   }
 
   return {awarded: teamsUpdated > 0, teamsUpdated};

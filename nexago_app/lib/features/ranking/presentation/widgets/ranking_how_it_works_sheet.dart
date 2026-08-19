@@ -62,6 +62,21 @@ class _RankingHowItWorksSheet extends StatelessWidget {
             _PointsRow(place: '4º lugar', points: getPointsForPlace(4)),
             _PointsRow(place: '5º ao 8º', points: getPointsForPlace(5)),
             const SizedBox(height: 22),
+            _SectionLabel('PESOS POR CATEGORIA'),
+            const SizedBox(height: 10),
+            for (final entry in categoryPresetWeights.entries)
+              _WeightRow(category: entry.key, weight: entry.value),
+            const _WeightRow(category: 'Outras categorias', weight: 1.0),
+            const SizedBox(height: 8),
+            Text(
+              'No Livre, só pontua quem chega ao mata-mata. Chaves com menos '
+              'de 8 duplas pagas pontuam reduzido.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceMuted,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 22),
             _SectionLabel('MODOS DE CLASSIFICAÇÃO'),
             const SizedBox(height: 10),
             _ModeCard(
@@ -132,6 +147,41 @@ class _PointsRow extends StatelessWidget {
           ),
           Text(
             '$points pts',
+            style: AppTypography.mono(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brand,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeightRow extends StatelessWidget {
+  const _WeightRow({required this.category, required this.weight});
+  final String category;
+  final double weight;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              category,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+          ),
+          Text(
+            '×$weight',
             style: AppTypography.mono(
               fontSize: 13,
               fontWeight: FontWeight.w800,

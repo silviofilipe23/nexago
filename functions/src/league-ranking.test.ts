@@ -10,6 +10,7 @@ import {
   pointsForBucket,
   pointsForPlace,
   resolveLeaguePlacementsFromMatch,
+  tryAwardLeagueStagePointsForMatch,
 } from "./league-ranking";
 
 const DEFAULT_TABLE = {
@@ -339,5 +340,79 @@ describe("loadTeamAthleteIds", () => {
       await loadTeamAthleteIds(db(fake), projectId, "team-x"),
       [],
     );
+  });
+});
+
+describe("tryAwardLeagueStagePointsForMatch — bucket groups por preset", () => {
+  const PROJECT = "proj";
+
+  function leagueSeededDb(categoryPresetFields: Record<string, unknown>): FakeFirestore {
+    const fake = new FakeFirestore();
+    fake.seedDoc("tournaments/T1", {
+      leagueId: "L1",
+      leagueStageId: "stage-1",
+      leagueStageOrder: 1,
+      categories: [{categoryName: "C1", ...categoryPresetFields}],
+    });
+    fake.seedDoc("leagues/L1", {});
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/teams/tC`, {player1Id: "c1"});
+    // A final marca tA/tB como times de mata-mata; tC fica de fora (só grupos).
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/matches/m-final`, finalMatch());
+    for (const teamId of ["tA", "tB", "tC"]) {
+      fake.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i-${teamId}`, {
+        tournamentId: "T1",
+        categoryId: "C1",
+        teamId,
+        isPaid: true,
+      });
+    }
+    return fake;
+  }
+
+  function finalMatch(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: "m-final",
+      status: "Completed",
+      tournamentId: "T1",
+      categoryId: "C1",
+      teamAId: "tA",
+      teamBId: "tB",
+      winnerId: "tA",
+      matchType: "Final",
+      ...overrides,
+    };
+  }
+
+  it("Livre não concede bucket groups (times fora do mata-mata ficam sem pontos)", async () => {
+    const fake = leagueSeededDb({level: "Open", minLevel: "Iniciante 1"});
+    const result = await tryAwardLeagueStagePointsForMatch(
+      fake as never,
+      PROJECT,
+      finalMatch(),
+    );
+
+    assert.equal(
+      fake.store.get(`artifacts/${PROJECT}/public/data/leagueTeamRankings/L1_C1_tC`),
+      undefined,
+    );
+    // A final segue pontuando normalmente (não é o bucket groups).
+    assert.equal(result.teamsUpdated, 2);
+  });
+
+  it("Intermediário (controle) segue concedendo groups", async () => {
+    const fake = leagueSeededDb({level: "Intermediário 2", minLevel: "Intermediário 1"});
+    const result = await tryAwardLeagueStagePointsForMatch(
+      fake as never,
+      PROJECT,
+      finalMatch(),
+    );
+
+    const groupsTeam = fake.store.get(
+      `artifacts/${PROJECT}/public/data/leagueTeamRankings/L1_C1_tC`,
+    )!;
+    assert.equal(groupsTeam.totalPoints, 40);
+    assert.equal(result.teamsUpdated, 3);
   });
 });

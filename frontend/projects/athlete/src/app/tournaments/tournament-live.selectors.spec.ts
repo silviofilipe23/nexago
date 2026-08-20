@@ -124,6 +124,54 @@ describe('myDayTimeline', () => {
   });
 });
 
+describe('myDayTimeline — partidas sem horário', () => {
+  const reference = spTime(12);
+
+  it('sem horário entra quando o torneio está rolando hoje', () => {
+    const matches = [match({ id: 'sem-horario' })];
+    expect(myDayTimeline(matches, MINE, reference, true).map((m) => m.id)).toEqual(['sem-horario']);
+  });
+
+  it('sem horário fica fora quando o torneio não está rolando', () => {
+    const matches = [match({ id: 'sem-horario' })];
+    expect(myDayTimeline(matches, MINE, reference)).toEqual([]);
+  });
+
+  it('sem horário e encerrada ou cancelada fica fora — não há evidência de dia', () => {
+    const matches = [
+      match({ id: 'fim', status: 'Completed' }),
+      match({ id: 'cancel', status: 'Canceled' }),
+    ];
+    expect(myDayTimeline(matches, MINE, reference, true)).toEqual([]);
+  });
+
+  it('começou hoje entra mesmo agendada para ontem', () => {
+    const matches = [
+      match({
+        id: 'atrasada',
+        status: 'In Progress',
+        scheduleTime: spTime(18, 0, 28),
+        matchStartedAt: spTime(9, 30),
+      }),
+    ];
+    expect(myDayTimeline(matches, MINE, reference).map((m) => m.id)).toEqual(['atrasada']);
+  });
+
+  it('âncora de outro dia não cai no caso do torneio rolando', () => {
+    const matches = [match({ id: 'ontem', scheduleTime: spTime(9, 0, 28) })];
+    expect(myDayTimeline(matches, MINE, reference, true)).toEqual([]);
+  });
+
+  it('agendadas primeiro, sem horário no fim por matchNumber', () => {
+    const matches = [
+      match({ id: 'sem-b', matchNumber: 9 }),
+      match({ id: 'com', scheduleTime: spTime(15) }),
+      match({ id: 'sem-a', matchNumber: 4 }),
+    ];
+    expect(myDayTimeline(matches, MINE, reference, true).map((m) => m.id)).toEqual(['com', 'sem-a', 'sem-b']);
+  });
+});
+
 describe('liveMatchesOf', () => {
   it('filtra por status e, opcionalmente, por categoria', () => {
     const matches = [

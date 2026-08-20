@@ -157,6 +157,88 @@ TournamentUniformSelection defaultUniformSelectionForCategory(
   );
 }
 
+const _emptyUniformSelection = TournamentUniformSelection();
+
+/// Slot de uniforme do atleta a partir dos campos crus da inscrição.
+///
+/// Três caminhos do backend criam a inscrição de jeitos diferentes:
+/// `registerSoloTournament` grava `player1Id`; aceitar convite anexando ao solo
+/// faz `arrayUnion` (convidado no índice 1); aceitar convite SEM solo prévio
+/// grava `participantUids: [inviter, convidado]` e nenhum `player1Id` — daí o
+/// fallback pelo índice. Categoria de EQUIPE (trio+) não tem slots fixos: o
+/// uniforme mora em `uniformByUid.{uid}`.
+///
+/// A regra vive aqui, sobre primitivos, porque duas leituras precisam dela — a
+/// lista de inscrições e a tela de inscrição — e duas cópias divergiriam.
+TournamentUniformSelection uniformSlotFor({
+  required String uid,
+  int? teamSize,
+  Map<String, TournamentUniformSelection> uniformByUid = const {},
+  String? player1Id,
+  List<String> participantUids = const [],
+  TournamentUniformSelection? uniformPlayer1,
+  TournamentUniformSelection? uniformPlayer2,
+}) {
+  if (teamSize != null) {
+    return uniformByUid[uid] ?? _emptyUniformSelection;
+  }
+  if (player1Id == uid) {
+    return uniformPlayer1 ?? _emptyUniformSelection;
+  }
+  if (participantUids.isNotEmpty && participantUids.first == uid) {
+    return uniformPlayer1 ?? _emptyUniformSelection;
+  }
+  return uniformPlayer2 ?? _emptyUniformSelection;
+}
+
+/// Slot de uniforme no formato do doc (`{sizeTop, sizeShorts, jerseyNumber,
+/// jerseyName}`); `null` quando o campo não existe ou não é um mapa.
+TournamentUniformSelection? uniformSelectionFromDoc(dynamic raw) {
+  if (raw is! Map) return null;
+  final number = raw['jerseyNumber'];
+  return TournamentUniformSelection(
+    sizeTop: (raw['sizeTop'] as String?)?.trim(),
+    sizeShorts: (raw['sizeShorts'] as String?)?.trim(),
+    jerseyNumber: number is num ? number.toInt() : null,
+    jerseyName: (raw['jerseyName'] as String?)?.trim(),
+  );
+}
+
+Map<String, TournamentUniformSelection> uniformByUidFromDoc(dynamic raw) {
+  if (raw is! Map) return const {};
+  final result = <String, TournamentUniformSelection>{};
+  for (final entry in raw.entries) {
+    final uid = entry.key;
+    if (uid is! String || uid.trim().isEmpty) continue;
+    final slot = uniformSelectionFromDoc(entry.value);
+    if (slot != null) result[uid.trim()] = slot;
+  }
+  return result;
+}
+
+/// Seleção que a tela deve abrir: o que JÁ está gravado na inscrição manda,
+/// e só o que falta vem dos padrões.
+///
+/// Sem isso o cartão de uniforme abria em M/10/sobrenome mesmo para quem tinha
+/// escolhido GG por outra superfície — e salvar de novo apagava a escolha real.
+/// A união é campo a campo de propósito: a vaga nasce sem uniforme
+/// (`uniform: null`) e pode ter sido preenchida pela metade depois.
+TournamentUniformSelection hydrateUniformSelection({
+  required TournamentUniformSelection? stored,
+  required TournamentUniformSelection defaults,
+}) {
+  if (stored == null) return defaults;
+  final storedName = stored.jerseyName?.trim();
+  return TournamentUniformSelection(
+    sizeTop: stored.sizeTop ?? defaults.sizeTop,
+    sizeShorts: stored.sizeShorts ?? defaults.sizeShorts,
+    jerseyNumber: stored.jerseyNumber ?? defaults.jerseyNumber,
+    jerseyName: (storedName != null && storedName.isNotEmpty)
+        ? storedName
+        : defaults.jerseyName,
+  );
+}
+
 TournamentUniformSelection fillJerseyNameDefaultIfNeeded({
   required TournamentCategoryOffer category,
   required TournamentUniformSelection selection,

@@ -7,6 +7,7 @@ import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
+import '../../../domain/uniform_auto_saver.dart';
 
 /// Escolha de uniforme (titular ou parceiro no aceite).
 class TournamentRegistrationUniformStep extends StatelessWidget {
@@ -17,6 +18,8 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
     required this.selection,
     required this.onChanged,
     this.leagueBadge,
+    this.saveState,
+    this.onRetrySave,
   });
 
   final TournamentDetail tournament;
@@ -24,6 +27,12 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
   final TournamentUniformSelection selection;
   final ValueChanged<TournamentUniformSelection> onChanged;
   final String? leagueBadge;
+
+  /// Estado da gravação automática. `null` quando ainda não existe inscrição
+  /// onde gravar — aí a escolha viaja junto do convite, e um selo de "salvo"
+  /// mentiria.
+  final UniformSaveState? saveState;
+  final VoidCallback? onRetrySave;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +45,10 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (saveState != null) ...[
+          _UniformSaveBadge(state: saveState!, onRetry: onRetrySave),
+          const SizedBox(height: 12),
+        ],
         // _TournamentUniformContextRow(
         //   leagueBadge: leagueBadge ?? 'TORNEIO',
         //   categoryName: category.name,
@@ -549,6 +562,54 @@ class _StepperButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Selo da gravação automática — sem botão de salvar, é ele que conta o que
+/// está acontecendo com a escolha.
+class _UniformSaveBadge extends StatelessWidget {
+  const _UniformSaveBadge({required this.state, this.onRetry});
+
+  final UniformSaveState state;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final theme = Theme.of(context);
+
+    final (label, color, icon) = switch (state) {
+      UniformSaveState.idle => ('Escolha para salvar', colors.onSurfaceMuted, Icons.edit_outlined),
+      UniformSaveState.saving => ('Salvando...', colors.onSurfaceMuted, Icons.sync_rounded),
+      UniformSaveState.saved => ('Salvo', AppColors.win, Icons.check_circle_outline_rounded),
+      UniformSaveState.failed => ('Não salvou', AppColors.live, Icons.error_outline_rounded),
+    };
+
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (state == UniformSaveState.failed && onRetry != null) ...[
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Tentar de novo'),
+          ),
+        ],
+      ],
     );
   }
 }

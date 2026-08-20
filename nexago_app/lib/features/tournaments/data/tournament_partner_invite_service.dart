@@ -73,6 +73,10 @@ class TournamentPartnerInviteService {
 
   static const _collection = 'tournamentRegistrationInvites';
 
+  /// Convite por link (token de uso único) — coleção separada da dos convites
+  /// reais, que exigem `inviteeUid`.
+  static const _externalCollection = 'tournamentExternalPartnerInvites';
+
   Future<TournamentPartnerInviteSendResult> sendInvite({
     required String tournamentId,
     required String categoryId,
@@ -221,6 +225,75 @@ class TournamentPartnerInviteService {
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
         e.message ?? 'Não foi possível sair da equipe.',
+      );
+    }
+  }
+
+  /// Observa o convite por link (só leitura por id — as rules não permitem
+  /// varrer a coleção, e o id do doc é o próprio token).
+  Stream<ExternalPartnerInvite?> watchExternalInvite(String externalInviteId) {
+    if (externalInviteId.isEmpty) return Stream.value(null);
+    return _firestore
+        .collection(_externalCollection)
+        .doc(externalInviteId)
+        .snapshots()
+        .map((snap) {
+      if (!snap.exists) return null;
+      return ExternalPartnerInvite.fromFirestore(snap);
+    });
+  }
+
+  /// Cria o token do convite por link, para parceiro que ainda não tem conta.
+  ///
+  /// O convite de verdade não pode existir antes do cadastro (o backend exige
+  /// `inviteeUid`); este token é o que sobrevive até lá.
+  Future<String> createExternalInvite({
+    required String tournamentId,
+    required String categoryId,
+    String? inviteeName,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('createExternalPartnerInvite');
+      final result = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{
+          'tournamentId': tournamentId,
+          'categoryId': categoryId,
+          if (inviteeName != null && inviteeName.trim().isNotEmpty)
+            'inviteeName': inviteeName.trim(),
+        },
+      );
+      final id = (result.data['externalInviteId'] as String?)?.trim() ?? '';
+      if (id.isEmpty) {
+        throw TournamentPartnerInviteException(
+          'Não foi possível gerar o link do convite.',
+        );
+      }
+      return id;
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível gerar o link do convite.',
+      );
+    }
+  }
+
+  /// Resgata o token e devolve o convite de verdade, já criado em nome de quem
+  /// compartilhou o link. Idempotente do lado do backend.
+  Future<ExternalInviteClaim> claimExternalInvite(
+    String externalInviteId,
+  ) async {
+    try {
+      final callable = _functions.httpsCallable('claimExternalPartnerInvite');
+      final result = await callable.call<Map<String, dynamic>>(
+        <String, dynamic>{'externalInviteId': externalInviteId},
+      );
+      return ExternalInviteClaim(
+        inviteId: (result.data['inviteId'] as String?)?.trim() ?? '',
+        tournamentId: (result.data['tournamentId'] as String?)?.trim() ?? '',
+        categoryId: (result.data['categoryId'] as String?)?.trim() ?? '',
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível abrir o convite.',
       );
     }
   }

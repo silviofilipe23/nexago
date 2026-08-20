@@ -70,29 +70,21 @@ class RegistrationProgress {
   final DateTime? startAt;
 }
 
-const _emptyUniformSlot = TournamentUniformSelection();
-
-/// Slot do atleta no doc da inscrição. Três caminhos do backend criam a
-/// inscrição de jeitos diferentes: `registerSoloTournament` grava `player1Id`;
-/// aceitar convite anexando ao solo faz `arrayUnion` (convidado no índice 1);
-/// aceitar convite SEM solo prévio grava `participantUids: [inviter,
-/// convidado]` e nenhum `player1Id`. Daí o fallback pelo índice. Categoria de
-/// EQUIPE (trio+) não tem slots fixos: o uniforme mora em `uniformByUid.{uid}`.
+/// Slot do atleta no doc da inscrição. A regra mora em [uniformSlotFor], que a
+/// tela de inscrição também usa — duas cópias divergiriam.
 TournamentUniformSelection uniformSlotForRegistration(
   MyTournamentRegistration registration,
   String uid,
 ) {
-  if (registration.teamSize != null) {
-    return registration.uniformByUid[uid] ?? _emptyUniformSlot;
-  }
-  if (registration.player1Id == uid) {
-    return registration.uniformPlayer1 ?? _emptyUniformSlot;
-  }
-  if (registration.participantUids.isNotEmpty &&
-      registration.participantUids.first == uid) {
-    return registration.uniformPlayer1 ?? _emptyUniformSlot;
-  }
-  return registration.uniformPlayer2 ?? _emptyUniformSlot;
+  return uniformSlotFor(
+    uid: uid,
+    teamSize: registration.teamSize,
+    uniformByUid: registration.uniformByUid,
+    player1Id: registration.player1Id,
+    participantUids: registration.participantUids,
+    uniformPlayer1: registration.uniformPlayer1,
+    uniformPlayer2: registration.uniformPlayer2,
+  );
 }
 
 /// Uniforme do atleta está completo pros requisitos da categoria (mesma regra

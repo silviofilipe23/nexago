@@ -1,4 +1,8 @@
+import 'package:nexago_app/core/links/nexago_links.dart';
+
 import 'tournament_predictions_logic.dart';
+
+export 'package:nexago_app/core/links/nexago_links.dart' show kAthletePortalBaseUrl;
 
 /// Texto, link e conteúdo do card de compartilhamento do ranking de palpites.
 ///
@@ -10,9 +14,7 @@ import 'tournament_predictions_logic.dart';
 /// Quantas posições do topo entram na imagem.
 const int kPredictionShareTopCount = 3;
 
-/// Base pública do portal do atleta. O app compartilha o link da web porque é
-/// ele que abre em qualquer celular, com ou sem o app instalado.
-const String kAthletePortalBaseUrl = 'https://atleta.nexago.com.br';
+
 
 class PredictionShareRow {
   const PredictionShareRow({

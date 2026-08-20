@@ -23,6 +23,7 @@ import '../utils/onboarding_input_formatters.dart';
 import '../widgets/onboarding_progress_header.dart';
 import '../widgets/onboarding_scaffold.dart';
 import '../widgets/onboarding_step_header.dart';
+import '../../../../tournaments/domain/tournament_invite_links.dart';
 
 class AthleteOnboardingProfileStep extends ConsumerStatefulWidget {
   const AthleteOnboardingProfileStep({super.key});
@@ -55,7 +56,13 @@ class _AthleteOnboardingProfileStepState
     _nameCtrl.text = draft.name;
     _nicknameCtrl.text = draft.nickname;
     _birthCtrl.text = draft.birthDate;
-    _referralCodeCtrl.text = draft.referralCode;
+    // Quem chegou por um convite de dupla já trouxe o código de indicação no
+    // link; digitar de novo seria pedir algo que o app já sabe. O que o atleta
+    // tiver escrito manda — só preenche campo vazio.
+    _referralCodeCtrl.text = draft.referralCode.trim().isNotEmpty
+        ? draft.referralCode
+        : referralCodeFromDeepLinkPath(ref.read(pendingDeepLinkPathProvider)) ??
+            '';
   }
 
   @override

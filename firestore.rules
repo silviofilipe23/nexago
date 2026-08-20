@@ -2216,6 +2216,19 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Convite de dupla por LINK, para parceiro que ainda não tem conta.
+    // O id do doc é o token (aleatório, não adivinhável), então qualquer
+    // autenticado que tenha o link consegue ler para ver quem o chamou e para
+    // qual torneio — é o que a tela do convite mostra antes do resgate.
+    // `list` fica de fora de propósito: varrer a coleção mostraria os convites
+    // de todo mundo, e ninguém precisa disso. Escrita é só das callables
+    // (create/claim), que rodam com Admin SDK e não passam por estas regras.
+    match /tournamentExternalPartnerInvites/{externalInviteId} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
     // Bora Jogar — convites/jogos avulsos entre atletas (N participantes).
     // Escrita exclusiva via Cloud Functions; leitura de quem já é
     // organizador/confirmado (participantUids) OU tem vaga pendente

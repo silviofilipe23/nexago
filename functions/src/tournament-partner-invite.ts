@@ -807,17 +807,38 @@ async function sendTeamCategoryInvite(params: {
   return {inviteId: ref.id, ...(await inviteeProfileReadiness(db, inviteeUid))};
 }
 
-export const sendTournamentPartnerInvite = onCall(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) {
-    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
-  }
+/**
+ * Parâmetros de {@link sendPartnerInviteFor}.
+ */
+export interface SendPartnerInviteParams {
+  /** Quem convida (autenticado). */
+  uid: string;
+  tournamentId: string;
+  categoryId: string;
+  inviteeUid: string;
+  inviteeName: string;
+  inviterName: string;
+  lgpdAccepted?: boolean;
+  inviterUniform?: unknown;
+}
 
-  const tournamentId = (request.data?.tournamentId as string | undefined)?.trim() ?? "";
-  const categoryId = (request.data?.categoryId as string | undefined)?.trim() ?? "";
-  const inviteeUid = (request.data?.inviteeUid as string | undefined)?.trim() ?? "";
-  const inviteeName = (request.data?.inviteeName as string | undefined)?.trim() ?? "Atleta";
-  const inviterName = (request.data?.inviterName as string | undefined)?.trim() ?? "Atleta";
+/**
+ * Cria o convite de parceiro — TODA a validação e o efeito de
+ * `sendTournamentPartnerInvite`, sem depender do `request`.
+ *
+ * Existe separado porque o convite por link (`claimExternalPartnerInvite`)
+ * precisa exatamente disto em nome de quem compartilhou o link: duas cópias da
+ * validação divergiriam, e é justamente a validação que protege a categoria.
+ */
+export async function sendPartnerInviteFor(
+  params: SendPartnerInviteParams,
+): Promise<{inviteId: string; inviteeProfileReady: boolean; inviteeMissingSteps: string[]}> {
+  const uid = params.uid;
+  const tournamentId = params.tournamentId.trim();
+  const categoryId = params.categoryId.trim();
+  const inviteeUid = params.inviteeUid.trim();
+  const inviteeName = params.inviteeName.trim() || "Atleta";
+  const inviterName = params.inviterName.trim() || "Atleta";
 
   if (!tournamentId || !categoryId || !inviteeUid) {
     throw new HttpsError(
@@ -895,8 +916,8 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   }
 
   const uniformRequired = categoryRequiresUniform(category);
-  const inviterLgpdAccepted = request.data?.lgpdAccepted === true;
-  const inviterUniform = parseUniformPayload(request.data?.inviterUniform);
+  const inviterLgpdAccepted = params.lgpdAccepted === true;
+  const inviterUniform = parseUniformPayload(params.inviterUniform);
   // Uniforme é opcional na inscrição (coletado depois); valida só se enviado.
   validateUniformPayload(
     category,
@@ -1010,6 +1031,23 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     inviteId: ref.id,
     ...(await inviteeProfileReadiness(db, inviteeUid, category)),
   };
+}
+
+export const sendTournamentPartnerInvite = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+  }
+  return await sendPartnerInviteFor({
+    uid,
+    tournamentId: (request.data?.tournamentId as string | undefined) ?? "",
+    categoryId: (request.data?.categoryId as string | undefined) ?? "",
+    inviteeUid: (request.data?.inviteeUid as string | undefined) ?? "",
+    inviteeName: (request.data?.inviteeName as string | undefined) ?? "",
+    inviterName: (request.data?.inviterName as string | undefined) ?? "",
+    lgpdAccepted: request.data?.lgpdAccepted === true,
+    inviterUniform: request.data?.inviterUniform,
+  });
 });
 
 /**

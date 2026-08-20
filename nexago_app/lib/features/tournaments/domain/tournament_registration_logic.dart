@@ -6,8 +6,11 @@ import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_helpers.dart';
 import 'tournament_discovery_models.dart';
+import 'direct_payment_state.dart';
 import 'tournament_payment_mode.dart';
 import 'tournament_uniform_selection.dart';
+
+export 'direct_payment_state.dart';
 
 export 'tournament_uniform_selection.dart'
     show
@@ -17,6 +20,7 @@ export 'tournament_uniform_selection.dart'
         defaultJerseyNameForAthlete,
         defaultUniformSelectionForCategory,
         fillJerseyNameDefaultIfNeeded,
+        hydrateUniformSelection,
         isUniformSelectionComplete,
         kDefaultUniformSizeOptionsTop,
         kUniformChangeDeadlineDays,
@@ -459,7 +463,14 @@ String registrationDualPaymentProgressLabel({
   List<String> sharePaidUids = const [],
   String? currentAthleteUid,
   bool isDirectOrganizerPayment = false,
+  DirectPaymentState? directPaymentState,
 }) {
+  // Pagamento direto: entre a declaração dos dois atletas e a conferência do
+  // organizador a vaga vale, mas ninguém viu o dinheiro ainda. Dizer
+  // "confirmada" aqui adianta uma etapa que não aconteceu.
+  if (directPaymentState == DirectPaymentState.waitingOrganizer) {
+    return 'Pagamento informado. O organizador vai conferir o recebimento.';
+  }
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
   if (!registrationRequiresPayment(quote) || isDirectOrganizerPayment) {
     final selfConfirmed = currentAthleteSharePaid(

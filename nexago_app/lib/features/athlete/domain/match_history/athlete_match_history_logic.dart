@@ -25,25 +25,27 @@ List<AthleteMatchHistoryItem> filterMatches(
     return switch (filter) {
       MatchHistoryFilter.all => true,
       MatchHistoryFilter.year2026 => m.playedAt.year == 2026,
-      MatchHistoryFilter.year2025 => m.playedAt.year == 2025,
       MatchHistoryFilter.winsOnly => m.isWin,
     };
   }).toList();
 }
 
-int countForFilter(List<AthleteMatchHistoryItem> all, MatchHistoryFilter filter) {
+int countForFilter(
+  List<AthleteMatchHistoryItem> all,
+  MatchHistoryFilter filter,
+) {
   return filterMatches(all, filter).length;
 }
 
 List<MatchHistoryMonthGroup> groupMatchesByMonth(
   List<AthleteMatchHistoryItem> matches,
 ) {
-  final sorted = [...matches]
-    ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+  final sorted = [...matches]..sort((a, b) => b.playedAt.compareTo(a.playedAt));
 
   final map = <String, List<AthleteMatchHistoryItem>>{};
   for (final m in sorted) {
-    final key = '${m.playedAt.year}-${m.playedAt.month.toString().padLeft(2, '0')}';
+    final key =
+        '${m.playedAt.year}-${m.playedAt.month.toString().padLeft(2, '0')}';
     map.putIfAbsent(key, () => []).add(m);
   }
 
@@ -58,8 +60,7 @@ List<MatchHistoryMonthGroup> groupMatchesByMonth(
     return MatchHistoryMonthGroup(
       monthKey: key,
       title: '$monthName • ${first.year}',
-      summaryLabel:
-          '${list.length} JOGOS • ${wins}V ${losses}D',
+      summaryLabel: '${list.length} JOGOS • ${wins}V ${losses}D',
       matches: list,
     );
   }).toList();
@@ -89,8 +90,7 @@ AthleteSeasonSummary buildSeasonSummary({
   required int year,
   double? trendPercent,
 }) {
-  final yearMatches =
-      matches.where((m) => m.playedAt.year == year).toList();
+  final yearMatches = matches.where((m) => m.playedAt.year == year).toList();
   final wins = yearMatches.where((m) => m.isWin).length;
   final losses = yearMatches.length - wins;
   final total = yearMatches.length;
@@ -105,9 +105,9 @@ AthleteSeasonSummary buildSeasonSummary({
     bars.add(
       MonthlyWinLossBar(
         month: month,
-        label: _monthLabels[month] ?? DateFormat('MMM').format(
-          DateTime(year, month),
-        ).toUpperCase(),
+        label:
+            _monthLabels[month] ??
+            DateFormat('MMM').format(DateTime(year, month)).toUpperCase(),
         wins: mWins,
         losses: mLosses,
       ),

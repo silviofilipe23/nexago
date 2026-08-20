@@ -15,20 +15,30 @@ class UserCategoryRegistration {
   const UserCategoryRegistration({
     required this.registrationId,
     required this.isPaid,
+    this.partnerPending = false,
   });
 
   final String registrationId;
   final bool isPaid;
 
+  /// Reserva solo: vaga guardada com o parceiro em aberto.
+  final bool partnerPending;
+
+  /// Inscrição começada e não terminada — falta parceiro ou falta pagar. É o
+  /// que distingue "já inscrito" de "continue de onde parou": a tela precisa
+  /// levar de volta à inscrição existente em vez de tratar como concluída.
+  bool get isIncomplete => partnerPending || !isPaid;
+
   @override
   bool operator ==(Object other) {
     return other is UserCategoryRegistration &&
         other.registrationId == registrationId &&
-        other.isPaid == isPaid;
+        other.isPaid == isPaid &&
+        other.partnerPending == partnerPending;
   }
 
   @override
-  int get hashCode => Object.hash(registrationId, isPaid);
+  int get hashCode => Object.hash(registrationId, isPaid, partnerPending);
 }
 
 /// `categoryId` → inscrição do atleta no torneio.
@@ -148,6 +158,7 @@ TournamentUserRegistrationsByCategory userRegistrationsByCategoryData(
     result[categoryId] = UserCategoryRegistration(
       registrationId: registrationId,
       isPaid: row.inscription['isPaid'] == true,
+      partnerPending: row.inscription['partnerPending'] == true,
     );
   }
   return result;

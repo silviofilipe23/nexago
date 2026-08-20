@@ -17,6 +17,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     this.selected = false,
     this.showChangeAction = false,
     this.alreadyRegistered = false,
+    this.registrationIncomplete = false,
     this.levelBlocked = false,
     this.belowMinLevel = false,
     this.ageBlocked = false,
@@ -32,6 +33,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   final bool selected;
   final bool showChangeAction;
   final bool alreadyRegistered;
+  /// A inscrição existente ainda tem passo pendente (parceiro, uniforme ou
+  /// pagamento). Muda o selo: "JÁ INSCRITO" mentiria para quem não terminou.
+  final bool registrationIncomplete;
   /// Categoria abaixo do nível do atleta (anti-sandbagging): bloqueada.
   final bool levelBlocked;
   /// Quando [levelBlocked], distingue o motivo: atleta abaixo do PISO
@@ -56,16 +60,21 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
       inscriptionCount: inscriptionCount,
       includeGender: genderLabel.isEmpty,
     );
-    final selectable = !alreadyRegistered &&
-        !levelBlocked &&
+    // Já inscrito continua recebendo toque: é assim que o atleta volta para a
+    // inscrição existente (convidar parceiro, informar uniforme, pagar). Nesse
+    // caso a categoria lotada/encerrada não bloqueia — a vaga já é dele.
+    final selectable = !levelBlocked &&
         !ageBlocked &&
         !genderBlocked &&
-        isCategorySelectable(
-          offer,
-          inscriptionCount: inscriptionCount,
-        );
+        (alreadyRegistered ||
+            isCategorySelectable(
+              offer,
+              inscriptionCount: inscriptionCount,
+            ));
+    final registeredColor =
+        registrationIncomplete ? AppColors.pending : AppColors.win;
     final borderColor = alreadyRegistered
-        ? AppColors.win.withValues(alpha: 0.45)
+        ? registeredColor.withValues(alpha: 0.45)
         : selected
             ? AppColors.brand
             : context.themeColors.onSurfaceMuted.withValues(alpha: 0.15);
@@ -136,11 +145,15 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                     if (alreadyRegistered) ...[
                       SizedBox(height: 4),
                       Text(
-                        'JÁ INSCRITO',
+                        registrationIncomplete
+                            ? 'CONTINUAR INSCRIÇÃO'
+                            : 'JÁ INSCRITO',
                         style: AppTypography.mono(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.win,
+                          color: registrationIncomplete
+                              ? AppColors.pending
+                              : AppColors.win,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -180,8 +193,10 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                 )
               else if (alreadyRegistered)
                 Icon(
-                  Icons.verified_rounded,
-                  color: AppColors.win,
+                  registrationIncomplete
+                      ? Icons.arrow_forward_rounded
+                      : Icons.verified_rounded,
+                  color: registeredColor,
                   size: 22,
                 )
               else if (selected)

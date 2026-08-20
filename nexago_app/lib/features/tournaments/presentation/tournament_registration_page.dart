@@ -107,6 +107,9 @@ class _TournamentRegistrationPageState
   bool _appliedInitialRegistration = false;
   bool _appliedInitialInvite = false;
   bool _appliedSoloInviteRestore = false;
+  /// Inscrição existente na categoria já foi adotada (uma vez por sessão da
+  /// tela): sem a trava, uma inscrição cancelada aqui dentro voltaria sozinha.
+  bool _appliedRegistrationResume = false;
   bool _paidPopHandled = false;
 
   /// Saída da equipe em voo.
@@ -213,8 +216,22 @@ class _TournamentRegistrationPageState
           break;
         }
       }
-      if (match == null || !isCategorySelectable(match)) return;
-      if (registeredCategoryIds.contains(match.id)) return;
+      if (match == null) return;
+      // Categoria em que o atleta JÁ tem inscrição segue selecionável: é assim
+      // que ele volta para a inscrição existente (convidar parceiro, pagar).
+      // Lotada/encerrada e regras de elegibilidade não impedem — a vaga já é
+      // dele, e barrar aqui deixava a tela sem saída.
+      final resuming = registeredCategoryIds.contains(match.id);
+      if (resuming) {
+        final resumed = match;
+        setState(() {
+          _appliedInitialCategory = true;
+          _category = resumed;
+          _titularUniform = _defaultUniformForCategory(resumed);
+        });
+        return;
+      }
+      if (!isCategorySelectable(match)) return;
       final profile = ref.read(athleteProfileProvider).valueOrNull;
       if (!CategoryLevelEligibility.isCategoryEligibleForAthlete(
         match,
@@ -240,6 +257,40 @@ class _TournamentRegistrationPageState
         _appliedInitialCategory = true;
         _category = match;
         _titularUniform = _defaultUniformForCategory(match!);
+      });
+    });
+  }
+
+  /// Adota a inscrição que o atleta JÁ tem na categoria aberta.
+  ///
+  /// Sem isso a tela tentaria criar outra — o backend recusa com "você já
+  /// possui inscrição nesta categoria" — ou simplesmente parava no passo de
+  /// categoria mostrando "já inscrito". Quem reservou solo e voltou para
+  /// convidar o parceiro ficava sem caminho nenhum.
+  ///
+  /// O destino é o passo de pagamento porque é o painel da inscrição: convite
+  /// do parceiro, uniforme, pagamento e cancelamento moram lá.
+  void _scheduleResumeExistingRegistration(
+    TournamentUserRegistrationsByCategory registrationsByCategoryId,
+  ) {
+    if (_appliedRegistrationResume) return;
+    if ((_registrationId?.trim() ?? '').isNotEmpty) {
+      _appliedRegistrationResume = true;
+      return;
+    }
+    final categoryId =
+        (_category?.id ?? widget.initialCategoryId ?? '').trim();
+    if (categoryId.isEmpty) return;
+    final existing = registrationsByCategoryId[categoryId];
+    if (existing == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _appliedRegistrationResume) return;
+      if ((_registrationId?.trim() ?? '').isNotEmpty) return;
+      setState(() {
+        _appliedRegistrationResume = true;
+        _registrationId = existing.registrationId;
+        _step = TournamentRegistrationStep.payment;
       });
     });
   }
@@ -1788,6 +1839,10 @@ class _TournamentRegistrationPageState
         final wasPaid = prev?.valueOrNull?.isPaid == true;
         final isPaid = next.valueOrNull?.isPaid == true;
         if (!isPaid || wasPaid || !mounted || _paidPopHandled) return;
+        // Mesma regra de `_scheduleRegistrationPaidCheck`: pago e ainda sem
+        // parceiro (solo pagou o total) NÃO vai para a tela de sucesso — a
+        // próxima ação é convidar, e sair daqui tirava o convite do caminho.
+        if (registrationPaidAwaitingPartner(snap: next.valueOrNull)) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || _paidPopHandled) return;
           _navigateToRegistrationSuccess();
@@ -1834,15 +1889,19 @@ class _TournamentRegistrationPageState
             );
           }
 
-          final registeredCategoryIds =
+          // Inscrições do atleta neste torneio: além de marcar a categoria, é
+          // o que permite RETOMAR a inscrição já começada em vez de tratá-la
+          // como concluída.
+          final registrationsByCategoryId =
               ref
                   .watch(
-                    tournamentUserRegisteredCategoryIdsProvider(
+                    tournamentUserRegistrationsByCategoryProvider(
                       widget.tournamentId,
                     ),
                   )
                   .valueOrNull ??
-              const <String>{};
+              const <String, UserCategoryRegistration>{};
+          final registeredCategoryIds = registrationsByCategoryId.keys.toSet();
 
           _scheduleInitialCategory(
             categories,
@@ -1850,6 +1909,7 @@ class _TournamentRegistrationPageState
             tournamentSport: tournament.sport,
             tournamentStart: tournament.startDate,
           );
+          _scheduleResumeExistingRegistration(registrationsByCategoryId);
           _scheduleInitialRegistration(categories);
           _scheduleInitialInvite(categories);
           _scheduleRestoreSoloInvite(
@@ -2002,7 +2062,8 @@ class _TournamentRegistrationPageState
                               categories: categories,
                               enrollmentByCategoryId: enrollment,
                               enrollmentCountsResolved: enrollmentResolved,
-                              registeredCategoryIds: registeredCategoryIds,
+                              registrationsByCategoryId:
+                                  registrationsByCategoryId,
                               quote: quote,
                               athleteName: athlete.name,
                               athleteInitials: athlete.initials,
@@ -2106,7 +2167,7 @@ class _TournamentRegistrationPageState
     required List<TournamentCategoryOffer> categories,
     required Map<String, int> enrollmentByCategoryId,
     required bool enrollmentCountsResolved,
-    required Set<String> registeredCategoryIds,
+    required TournamentUserRegistrationsByCategory registrationsByCategoryId,
     required TournamentRegistrationQuote? quote,
     required String athleteName,
     required String athleteInitials,
@@ -2171,7 +2232,12 @@ class _TournamentRegistrationPageState
                     countsResolved: enrollmentCountsResolved,
                   ),
                   selected: _category?.id == cat.id,
-                  alreadyRegistered: registeredCategoryIds.contains(cat.id),
+                  alreadyRegistered:
+                      registrationsByCategoryId.containsKey(cat.id),
+                  // Começada e não terminada: o selo convida a continuar em
+                  // vez de anunciar "já inscrito" e travar o toque.
+                  registrationIncomplete:
+                      registrationsByCategoryId[cat.id]?.isIncomplete ?? false,
                   levelBlocked:
                       !CategoryLevelEligibility.isCategoryEligibleForLevel(
                         cat,

@@ -77,6 +77,69 @@ void main() {
     });
   });
 
+  group('knockoutDestinationOf', () {
+    TournamentMatch ko({
+      required String id,
+      String? descA,
+      String? descB,
+      String teamAId = '',
+      String teamBId = '',
+    }) {
+      return TournamentMatch(
+        id: id, tournamentId: 't1', categoryId: 'c1', round: 1,
+        matchType: 'knockout', poolId: '', teamAId: teamAId,
+        teamBId: teamBId, teamADescription: descA, teamBDescription: descB,
+        status: TournamentMatchStatus.scheduled, resultA: '', resultB: '',
+        isGroupMatch: false, matchNumber: 10,
+      );
+    }
+
+    String? destino(List<TournamentMatch> matches, int place) =>
+        knockoutDestinationOf(
+          matches: matches,
+          categoryId: 'c1',
+          place: place,
+          poolId: 'B',
+          nameOf: (id) => id == 'brito' ? 'Brito / Almeida' : id,
+          phaseLabelOf: (_) => 'QUARTAS',
+          timeLabelOf: (m) => m.scheduleTime == null ? null : '14:30',
+        );
+
+    test('casa a colocação com o slot declarado da chave', () {
+      final matches = [
+        ko(id: 'q1', descA: '1º Grupo B', descB: '2º Grupo A'),
+      ];
+
+      expect(destino(matches, 1), 'quartas contra 2º Grupo A');
+    });
+
+    test('usa o nome real quando a chave já resolveu o outro lado', () {
+      final matches = [
+        ko(id: 'q1', descA: '2º Grupo B', descB: '1º Grupo A',
+            teamBId: 'brito'),
+      ];
+
+      expect(destino(matches, 2), 'quartas contra Brito / Almeida');
+    });
+
+    test('colocação sem slot correspondente devolve null', () {
+      // Melhor o cenário ficar curto que apontar um cruzamento inventado.
+      final matches = [
+        ko(id: 'q1', descA: '1º Grupo A', descB: '2º Grupo C'),
+      ];
+
+      expect(destino(matches, 1), isNull);
+    });
+
+    test('não inventa horário quando o organizador não marcou', () {
+      final matches = [
+        ko(id: 'q1', descA: '1º Grupo B', descB: '2º Grupo A'),
+      ];
+
+      expect(destino(matches, 1), isNot(contains('às')));
+    });
+  });
+
   group('roundScenariosOf', () {
     test('não afirma posição quando outros jogos do grupo seguem pendentes',
         () {

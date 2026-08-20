@@ -121,6 +121,32 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
             qualifiersPerGroup: qualifiers,
           );
 
+    // "1º do grupo · quartas às 14:30 contra o 2º Grupo A": o destino sai da
+    // fiação declarada da chave. Sem slot correspondente o texto encolhe para a
+    // posição — nunca aponta um cruzamento inventado.
+    final scenariosComDestino = [
+      for (final s in scenarios)
+        (
+          scenario: s,
+          destination: s.rank == null || poolId.isEmpty
+              ? null
+              : knockoutDestinationOf(
+                  matches: categoryMatches,
+                  categoryId: widget.categoryId,
+                  place: s.rank!,
+                  poolId: poolId,
+                  nameOf: rosters.nameOf,
+                  phaseLabelOf: (m) => matchPhaseDisplayLabel(
+                    m,
+                    categoryMatches: categoryMatches,
+                  ),
+                  timeLabelOf: (m) => m.scheduleTime == null
+                      ? null
+                      : matchTimeLabelForCard(m),
+                ),
+        ),
+    ];
+
     final live = categoryMatches
         .where((m) => TournamentMatchStatus.isInProgress(m.status))
         .toList();
@@ -158,13 +184,9 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
           rosters: rosters,
           myTeamId: myTeamId,
           qualifiers: qualifiers,
+          scenarios: scenariosComDestino,
+          scenarioRound: myPending?.round,
         ),
-        if (scenarios.isNotEmpty) ...[
-          FocusSectionHeader(
-            label: 'EM JOGO NA RODADA ${myPending!.round}',
-          ),
-          for (final scenario in scenarios) _ScenarioRow(scenario: scenario),
-        ],
         if (crossing.isNotEmpty) ...[
           const FocusSectionHeader(label: 'CRUZAMENTO NO MATA-MATA'),
           for (final row in crossing) _CrossingTile(row: row),
@@ -274,6 +296,10 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
   }
 }
 
+/// A tabela do grupo, no desenho do protótipo: cabeçalho de colunas, uma linha
+/// por dupla e — no MESMO card, separado por um divisor — o que a rodada
+/// decide. Manter os dois juntos é o ponto: a pergunta "em que posição eu
+/// estou" e a pergunta "o que muda se eu vencer" se leem na mesma olhada.
 class _StandingsTable extends StatelessWidget {
   const _StandingsTable({
     required this.order,
@@ -281,6 +307,8 @@ class _StandingsTable extends StatelessWidget {
     required this.rosters,
     required this.myTeamId,
     required this.qualifiers,
+    required this.scenarios,
+    required this.scenarioRound,
   });
 
   final List<String> order;
@@ -288,22 +316,34 @@ class _StandingsTable extends StatelessWidget {
   final FocusRosters rosters;
   final String? myTeamId;
   final int qualifiers;
+  final List<({RoundScenario scenario, String? destination})> scenarios;
+  final int? scenarioRound;
+
+  static const double _wV = 26;
+  static const double _wD = 26;
+  static const double _wSets = 44;
+  static const double _wPts = 32;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
 
-    Widget cell(String text, {bool strong = false}) => Text(
-          text,
-          textAlign: TextAlign.center,
-          style: AppTypography.monoMeta.copyWith(
-            color: strong ? colors.onSurface : colors.onSurfaceMuted,
+    Widget head(String text, double width) => SizedBox(
+          width: width,
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: AppTypography.monoMeta.copyWith(
+              color: colors.onSurfaceMuted,
+              fontSize: 10,
+            ),
           ),
         );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
       child: Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: colors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
@@ -311,41 +351,89 @@ class _StandingsTable extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Padding(
+            Container(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.md,
                 AppSpacing.md,
                 AppSpacing.md,
                 AppSpacing.sm,
               ),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: colors.outline.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
               child: Row(
                 children: [
-                  SizedBox(width: 22, child: cell('#')),
+                  // O mesmo recuo da barra de classificação, para o "#" ficar
+                  // alinhado com os números das linhas.
+                  const SizedBox(width: 3),
+                  SizedBox(width: 20, child: head('#', 20)),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'DUPLA',
-                      style: AppTypography.monoMeta
-                          .copyWith(color: colors.onSurfaceMuted),
+                      style: AppTypography.monoMeta.copyWith(
+                        color: colors.onSurfaceMuted,
+                        fontSize: 10,
+                      ),
                     ),
                   ),
-                  SizedBox(width: 26, child: cell('V')),
-                  SizedBox(width: 26, child: cell('D')),
-                  SizedBox(width: 46, child: cell('SETS')),
-                  SizedBox(width: 34, child: cell('PTS')),
+                  head('V', _wV),
+                  head('D', _wD),
+                  head('SETS', _wSets),
+                  head('PTS', _wPts),
                 ],
               ),
             ),
             for (var i = 0; i < order.length; i++)
               _StandingRow(
                 rank: i + 1,
-                teamId: order[i],
                 stats: stats[order[i]],
                 name: rosters.nameOf(order[i], 'Dupla'),
-                players: rosters.playersOf(order[i]),
                 isMe: order[i] == myTeamId,
                 qualifies: i < qualifiers,
-                isLast: i == order.length - 1,
+                isLast: i == order.length - 1 && scenarios.isEmpty,
+              ),
+            if (scenarios.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.surfaceRaised.withValues(alpha: 0.4),
+                  border: Border(
+                    top: BorderSide(
+                      color: colors.outline.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      scenarioRound != null
+                          ? 'EM JOGO NA RODADA $scenarioRound'
+                          : 'EM JOGO NESTA RODADA',
+                      style: AppTypography.monoMeta.copyWith(
+                        color: colors.onSurfaceMuted,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final entry in scenarios)
+                      _ScenarioRow(
+                        scenario: entry.scenario,
+                        destination: entry.destination,
+                      ),
+                  ],
+                ),
               ),
           ],
         ),
@@ -356,23 +444,23 @@ class _StandingsTable extends StatelessWidget {
 
 /// Uma linha da classificação. A do atleta ganha fundo e o nome marcado com
 /// "você"; quem está na faixa de classificação ganha a barra verde à esquerda.
+///
+/// SEM avatar, seguindo o protótipo: a linha carrega cinco colunas numéricas
+/// além do nome, e um rosto aqui espremeria V/D/SETS/PTS. Os rostos seguem nas
+/// outras listas do Focus, que têm espaço para eles.
 class _StandingRow extends StatelessWidget {
   const _StandingRow({
     required this.rank,
-    required this.teamId,
     required this.stats,
     required this.name,
-    required this.players,
     required this.isMe,
     required this.qualifies,
     required this.isLast,
   });
 
   final int rank;
-  final String teamId;
   final TournamentPoolTeamStats? stats;
   final String name;
-  final List<TournamentMatchCardPlayerViewModel> players;
   final bool isMe;
   final bool qualifies;
   final bool isLast;
@@ -414,7 +502,7 @@ class _StandingRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 22,
+            width: 20,
             child: Text(
               '$rank',
               textAlign: TextAlign.center,
@@ -428,16 +516,15 @@ class _StandingRow extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                // Rostos pequenos: a linha da tabela é densa, e um avatar
-                // grande empurraria as colunas de V/D/SETS/PTS.
-                NexaDuoAvatars(players: players, size: 22),
-                const SizedBox(width: AppSpacing.sm),
                 Flexible(
                   child: Text(
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.bodyM.copyWith(
+                    // Menor que o corpo padrão: a linha divide a largura com
+                    // quatro colunas numéricas, e nome grande empurra as duas
+                    // últimas para fora no celular.
+                    style: AppTypography.bodyS.copyWith(
                       color: colors.onSurface,
                       fontWeight: isMe ? FontWeight.w800 : FontWeight.w500,
                     ),
@@ -446,16 +533,18 @@ class _StandingRow extends StatelessWidget {
                 if (isMe)
                   Text(
                     ' · você',
-                    style:
-                        AppTypography.bodyS.copyWith(color: AppColors.brand),
+                    style: AppTypography.bodyS.copyWith(
+                      color: AppColors.brand,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
               ],
             ),
           ),
-          cell('${s?.wins ?? 0}', 26, strong: isMe),
-          cell('${s?.losses ?? 0}', 26, strong: isMe),
-          cell('${s?.setsWon ?? 0}–${s?.setsLost ?? 0}', 46),
-          cell('${(s?.wins ?? 0) * 3}', 34, strong: true),
+          cell('${s?.wins ?? 0}', _StandingsTable._wV, strong: isMe),
+          cell('${s?.losses ?? 0}', _StandingsTable._wD, strong: isMe),
+          cell('${s?.setsWon ?? 0}–${s?.setsLost ?? 0}', _StandingsTable._wSets),
+          cell('${(s?.wins ?? 0) * 3}', _StandingsTable._wPts, strong: true),
         ],
       ),
     );
@@ -464,9 +553,13 @@ class _StandingRow extends StatelessWidget {
 
 /// "VENCE 1º do grupo" / "PERDE 2º do grupo" — o que a rodada decide.
 class _ScenarioRow extends StatelessWidget {
-  const _ScenarioRow({required this.scenario});
+  const _ScenarioRow({required this.scenario, required this.destination});
 
   final RoundScenario scenario;
+
+  /// "quartas às 14:30 contra o 2º Grupo A". `null` quando a chave ainda não
+  /// declara para onde aquela colocação leva.
+  final String? destination;
 
   @override
   Widget build(BuildContext context) {
@@ -474,18 +567,15 @@ class _ScenarioRow extends StatelessWidget {
     final tag = scenario.won ? 'VENCE' : 'PERDE';
     final tagColor = scenario.won ? colors.win : AppColors.pending;
 
+    // Sem recuo horizontal: esta linha vive DENTRO do card da tabela, que já
+    // tem o seu próprio.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        0,
-        AppSpacing.screenH,
-        AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 56,
+            width: 52,
             child: Text(
               tag,
               style: AppTypography.eyebrow.copyWith(color: tagColor),
@@ -494,8 +584,8 @@ class _ScenarioRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              scenario.text,
-              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+              [scenario.text, ?destination].join(' · '),
+              style: AppTypography.bodyS.copyWith(color: colors.onSurface),
             ),
           ),
         ],

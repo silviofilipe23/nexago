@@ -5,6 +5,8 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_journey_view.dart';
+import '../../../domain/tournament_match_card_view_model.dart';
+import '../../widgets/nexa_duo_avatars.dart';
 
 /// O trilho "Caminho até a final": um degrau por partida do atleta, seguido das
 /// fases que ainda vêm. A linha vertical liga os degraus e para no último.
@@ -12,10 +14,15 @@ class FocusJourneyRail extends StatelessWidget {
   const FocusJourneyRail({
     super.key,
     required this.steps,
+    required this.playersOf,
     required this.onOpen,
   });
 
   final List<JourneyStepRow> steps;
+
+  /// Elenco do adversário de cada degrau, para os rostos.
+  final List<TournamentMatchCardPlayerViewModel> Function(String teamId)
+      playersOf;
   final ValueChanged<String> onOpen;
 
   @override
@@ -25,6 +32,9 @@ class FocusJourneyRail extends StatelessWidget {
         for (var i = 0; i < steps.length; i++)
           _Step(
             step: steps[i],
+            players: steps[i].opponentTeamId != null
+                ? playersOf(steps[i].opponentTeamId!)
+                : const [],
             isLast: i == steps.length - 1,
             onTap: steps[i].matchId != null
                 ? () => onOpen(steps[i].matchId!)
@@ -36,9 +46,15 @@ class FocusJourneyRail extends StatelessWidget {
 }
 
 class _Step extends StatelessWidget {
-  const _Step({required this.step, required this.isLast, required this.onTap});
+  const _Step({
+    required this.step,
+    required this.players,
+    required this.isLast,
+    required this.onTap,
+  });
 
   final JourneyStepRow step;
+  final List<TournamentMatchCardPlayerViewModel> players;
   final bool isLast;
   final VoidCallback? onTap;
 
@@ -155,14 +171,26 @@ class _Step extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        step.opponentName,
-                        style: AppTypography.bodyM.copyWith(
-                          color: colors.onSurface,
-                          fontWeight:
-                              isNext ? FontWeight.w700 : FontWeight.w400,
-                        ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (step.opponentTeamId != null) ...[
+                            NexaDuoAvatars(players: players, size: 22),
+                            const SizedBox(width: AppSpacing.sm),
+                          ],
+                          Flexible(
+                            child: Text(
+                              step.opponentName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyM.copyWith(
+                                color: colors.onSurface,
+                                fontWeight:
+                                    isNext ? FontWeight.w700 : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       if (step.detailLabel != null)
                         Padding(

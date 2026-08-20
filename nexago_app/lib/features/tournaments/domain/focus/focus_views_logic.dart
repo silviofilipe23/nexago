@@ -71,6 +71,7 @@ class TimelineEntry {
     required this.state,
     required this.note,
     required this.clickable,
+    this.opponentTeamId,
   });
 
   final String matchId;
@@ -87,6 +88,10 @@ class TimelineEntry {
   final TimelineState state;
   final String? note;
   final bool clickable;
+
+  /// O time do adversário, para a UI buscar os rostos. `null` enquanto o
+  /// confronto não tem dono.
+  final String? opponentTeamId;
 }
 
 /// Uma dupla no herói do "Agora". Carrega só texto: os avatares vêm do
@@ -392,6 +397,7 @@ List<TimelineEntry> timelineOf(
                   : TimelineState.upcoming,
       note: _noteOf(ctx, m),
       clickable: m.teamAId.isNotEmpty && m.teamBId.isNotEmpty,
+      opponentTeamId: opponentId.isEmpty ? null : opponentId,
     );
   }).toList();
 }

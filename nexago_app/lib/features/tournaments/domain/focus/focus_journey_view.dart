@@ -157,6 +157,7 @@ class JourneyStepRow {
     required this.scoreLabel,
     required this.matchId,
     this.bracketBadge,
+    this.opponentTeamId,
   });
 
   final String id;
@@ -178,6 +179,10 @@ class JourneyStepRow {
   /// "WB" / "LB" / "GF" na dupla eliminação. `null` na eliminação simples, onde
   /// não há duas escadas para distinguir.
   final String? bracketBadge;
+
+  /// O time do adversário, para a UI buscar os rostos. Vazio quando o
+  /// confronto ainda não tem dono.
+  final String? opponentTeamId;
 }
 
 const String _vsLabel = 'vs';
@@ -269,6 +274,7 @@ JourneyStepRow _stepOfMatch(
     scoreLabel: done || live ? '$mySets – $theirSets' : _vsLabel,
     matchId: m.teamAId.isNotEmpty && m.teamBId.isNotEmpty ? m.id : null,
     bracketBadge: focusBracketBadgeOf(m),
+    opponentTeamId: opponentId.isEmpty ? null : opponentId,
   );
 }
 
@@ -363,6 +369,7 @@ List<JourneyStepRow> journeyStepsOf(
         scoreLabel: _vsLabel,
         matchId: null,
         bracketBadge: focusBracketBadgeOf(m),
+        opponentTeamId: opponentId.isEmpty ? null : opponentId,
       ));
     }
   } else {

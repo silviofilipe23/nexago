@@ -15,6 +15,9 @@ import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
+import '../../../domain/tournament_match_card_view_model.dart';
+import '../../widgets/nexa_duo_avatars.dart';
+import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/focus/campaign_share_data.dart';
 import '../widgets/focus_journey_rail.dart';
@@ -79,15 +82,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
     }
 
     final all = [for (final c in cards) c.match];
-    final teamNames = <String, String>{};
-    for (final c in cards) {
-      if (c.match.teamAId.isNotEmpty) {
-        teamNames[c.match.teamAId] = c.teamA.displayName;
-      }
-      if (c.match.teamBId.isNotEmpty) {
-        teamNames[c.match.teamBId] = c.teamB.displayName;
-      }
-    }
+    final rosters = FocusRosters.fromCards(cards);
 
     final categoryMatches = all.where((m) => m.categoryId == id).toList();
 
@@ -134,8 +129,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
     final ctx = FocusViewContext(
       matches: categoryMatches,
       myTeamIds: athleteTeamIds,
-      duoNameOf: (teamId, [fallback]) =>
-          teamNames[teamId] ?? fallback ?? 'A definir',
+      duoNameOf: rosters.nameOf,
       standingsOf: (_) => const [],
       nextMatch: null,
     );
@@ -143,7 +137,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
       categoryMatches,
       id,
       athleteTeamIds,
-      (teamId) => teamNames[teamId] ?? 'A definir',
+      rosters.nameOf,
     );
     final steps = journeyStepsOf(
       ctx,
@@ -228,8 +222,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
                       categoryLine: offer?.name ?? '',
                       tournamentName: tournament.name,
                       locationName: tournament.location,
-                      duoNameOf: (teamId) =>
-                          teamNames[teamId] ?? 'A definir',
+                      duoNameOf: (teamId) => rosters.nameOf(teamId),
                     ),
                   ),
                   icon: const Icon(Icons.ios_share_rounded, size: 16),
@@ -243,6 +236,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
         else
           FocusJourneyRail(
             steps: steps,
+            playersOf: rosters.playersOf,
             onOpen: (matchId) => _openMatch(context, matchId),
           ),
         const FocusSectionHeader(label: 'SEUS NÚMEROS NO TORNEIO'),
@@ -253,7 +247,11 @@ class FocusTrajetoriaSection extends ConsumerWidget {
           _Empty(text: 'Nenhuma partida encerrada ainda.'),
         if (opponents.isNotEmpty) ...[
           const FocusSectionHeader(label: 'QUEM PODE CRUZAR COM VOCÊ'),
-          for (final opponent in opponents) _Opponent(opponent: opponent),
+          for (final opponent in opponents)
+            _Opponent(
+              opponent: opponent,
+              players: rosters.playersOf(opponent.teamId),
+            ),
         ],
         if (prizes.isNotEmpty) ...[
           const FocusSectionHeader(label: 'O QUE ESTE TORNEIO MUDA'),
@@ -545,9 +543,10 @@ class _PrizeRow extends StatelessWidget {
 /// seção lista quem segue vivo do outro lado, e a campanha dele explica por quê
 /// ele importa.
 class _Opponent extends StatelessWidget {
-  const _Opponent({required this.opponent});
+  const _Opponent({required this.opponent, required this.players});
 
   final PossibleOpponent opponent;
+  final List<TournamentMatchCardPlayerViewModel> players;
 
   @override
   Widget build(BuildContext context) {
@@ -570,12 +569,22 @@ class _Opponent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              opponent.name,
-              style: AppTypography.bodyM.copyWith(
-                color: colors.onSurface,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              children: [
+                NexaDuoAvatars(players: players, size: 28),
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Text(
+                    opponent.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyM.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.xs),
             if (opponent.campaign.isEmpty)

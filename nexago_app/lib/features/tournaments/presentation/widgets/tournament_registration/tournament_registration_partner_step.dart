@@ -30,6 +30,7 @@ class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
     this.compact = false,
     this.invitingUserId,
     this.excludeUserIds = const <String>{},
+    this.currentGenders = const <String?>[],
   });
 
   final TournamentCategoryOffer category;
@@ -48,6 +49,10 @@ class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
   /// Atletas que já estão no elenco ou com convite pendente. Some da lista em
   /// vez de dar erro no envio, como o portal já fazia.
   final Set<String> excludeUserIds;
+
+  /// Gênero de quem já ocupa vaga na inscrição (elenco + convites pendentes).
+  /// Em dupla MISTA é o que define o gênero exigido do parceiro — o oposto.
+  final List<String?> currentGenders;
 
   @override
   ConsumerState<TournamentRegistrationPartnerStep> createState() =>
@@ -160,9 +165,16 @@ class _TournamentRegistrationPartnerStepState
     final theme = Theme.of(context);
     final query = _searchController.text.trim();
     final isFiltering = isSearchTermLongEnough(query);
-    final displayProfiles = _displayPartners
-        .where((p) => !widget.excludeUserIds.contains(p.uid))
-        .toList();
+    final requiredGender = requiredPartnerGenderTag(
+      offer: widget.category,
+      currentGenders: widget.currentGenders,
+    );
+    final displayProfiles = filterPartnersByRequiredGender(
+      _displayPartners
+          .where((p) => !widget.excludeUserIds.contains(p.uid))
+          .toList(),
+      requiredGender,
+    );
     final resultsHeader = isFiltering
         ? partnerResultsHeader(
             count: displayProfiles.length,
@@ -275,7 +287,7 @@ class _TournamentRegistrationPartnerStepState
                 profile,
                 tagLabel: partnerGenderPendencyLabel(
                       profile,
-                      categoryGenderForPartnerFilter(widget.category),
+                      requiredGender,
                     ) ??
                     (!isFiltering &&
                             _recentPartners.any((p) => p.uid == profile.uid)

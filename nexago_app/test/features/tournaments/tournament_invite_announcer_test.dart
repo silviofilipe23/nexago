@@ -7,7 +7,14 @@ import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite
 /// Puras de propósito: quem decide O QUE anunciar e QUANDO parar de anunciar é
 /// este módulo; o widget só orquestra store e navegação.
 void main() {
+  // O corte de sessão pode ser fixo — é comparado só com `createdAt`, também
+  // fixo. Já a EXPIRAÇÃO é lida do relógio (`isExpired` usa `DateTime.now()`),
+  // então prender `expiresAt` a uma data do calendário faz o teste passar hoje
+  // e falhar sozinho quando aquele instante chega. Foi o que aconteceu: com
+  // `sessionStart + 20h` os convites "venceram" às 06:00 UTC do dia seguinte e
+  // levaram 8 testes junto.
   final sessionStart = DateTime.utc(2026, 8, 19, 10, 0);
+  final farFuture = DateTime.now().add(const Duration(days: 365));
 
   TournamentPartnerInvite invite(
     String id, {
@@ -27,7 +34,7 @@ void main() {
       status: status,
       createdAt: createdAt ?? sessionStart.subtract(const Duration(hours: 1)),
       hasCreatedAt: hasCreatedAt,
-      expiresAt: expiresAt ?? sessionStart.add(const Duration(hours: 20)),
+      expiresAt: expiresAt ?? farFuture,
     );
   }
 
@@ -154,7 +161,7 @@ void main() {
         inviteeName: 'Léo',
         status: 'pending',
         createdAt: sessionStart,
-        expiresAt: sessionStart.add(const Duration(hours: 20)),
+        expiresAt: farFuture,
         isTeamInvite: true,
         teamName: 'Areia Quente',
       );
@@ -176,7 +183,7 @@ void main() {
         inviteeName: 'Léo',
         status: 'pending',
         createdAt: sessionStart,
-        expiresAt: sessionStart.add(const Duration(hours: 20)),
+        expiresAt: farFuture,
         isTeamInvite: true,
       );
 

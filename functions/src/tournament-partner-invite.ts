@@ -14,7 +14,9 @@ import {
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {
+  assertMixedDuoGenderEligibility,
   assertTeamGenderEligibility,
+  categoryIsMixedDuo,
   categoryRequiredGenderBucket,
 } from "./category-gender-eligibility";
 import {
@@ -92,7 +94,12 @@ async function inviteeProfileReadiness(
   // exigir (assertTeamGenderEligibility), então a pendência entra na lista.
   // Conflito declarado nem chega aqui — o envio já bloqueou.
   const rawGender = typeof data?.gender === "string" ? data.gender.trim() : "";
-  if (!rawGender && categoryRequiredGenderBucket(category) != null) {
+  const genderMatters =
+    categoryRequiredGenderBucket(category) != null ||
+    // Dupla mista também exige gênero declarado no aceite (para saber se fecha
+    // 1H+1M); sem isto o convidante esperava um aceite impossível.
+    categoryIsMixedDuo(category);
+  if (!rawGender && genderMatters) {
     missing.push("gênero");
   }
   return {
@@ -893,6 +900,16 @@ export async function sendPartnerInviteFor(
     uids: [uid, inviteeUid],
     requireDeclared: false,
   });
+  // Dupla MISTA: o gênero exigido é relacional (o parceiro tem de ser o oposto
+  // de quem convida), então não cabe em `assertTeamGenderEligibility`, que
+  // valida um gênero fixo da categoria. Mesma política de pendência: mesmo
+  // gênero DECLARADO bloqueia aqui; ausente espera o aceite.
+  await assertMixedDuoGenderEligibility({
+    db,
+    category,
+    uids: [uid, inviteeUid],
+    requireDeclared: false,
+  });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
@@ -1498,6 +1515,14 @@ export const acceptTournamentPartnerInvite = onCall({
   // compatível (requireDeclared). Equipe valida composição na transação.
   if (!isTeamCategory(previewCategory)) {
     await assertTeamGenderEligibility({
+      db,
+      category: previewCategory,
+      uids: [invitePreviewData.inviterUid as string | undefined, uid],
+      requireDeclared: true,
+    });
+    // Dupla mista fecha aqui: os dois precisam ter gênero declarado e ser de
+    // gêneros diferentes.
+    await assertMixedDuoGenderEligibility({
       db,
       category: previewCategory,
       uids: [invitePreviewData.inviterUid as string | undefined, uid],

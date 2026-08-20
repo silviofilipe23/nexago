@@ -2,10 +2,19 @@ import 'app_domains.dart';
 
 /// Hosts HTTPS aceitos para Universal / App Links do app mobile.
 ///
-/// Só vale host que sirva de fato `/.well-known/apple-app-site-association` e
-/// `assetlinks.json` — sem esses arquivos o sistema operacional nunca entrega o
-/// link pro app. Hoje isso é o portal do atleta.
-const kAppDeepLinkHosts = {AppDomains.athletePortalHost};
+/// `atleta.nexago.com.br` é o host do convite de dupla por link: entrou porque
+/// é o único domínio do projeto que já resolve e serve os arquivos de
+/// associação (`.well-known/apple-app-site-association` e `assetlinks.json`)
+/// pelo Firebase Hosting. Reivindicamos só o prefixo `/convite-dupla` — ver
+/// [resolveAppDeepLinkPath] e o `AndroidManifest`; o resto do portal continua
+/// abrindo no navegador.
+const kAppDeepLinkHosts = {
+  'nexago.app',
+  'www.nexago.app',
+  'voleigo.com.br',
+  'www.voleigo.com.br',
+  'atleta.nexago.com.br',
+};
 
 /// Resolve uma URI externa para um path interno do GoRouter.
 ///
@@ -22,6 +31,13 @@ String? resolveAppDeepLinkPath(Uri uri) {
     return _withQuery('/torneios-convite/${segments[1]}', uri);
   }
 
+  // Convite de dupla por link (parceiro ainda sem conta). A query carrega o
+  // contexto (`ref`, `de`) que o cadastro/onboarding consome, então preservá-la
+  // não é detalhe: é o que liga a indicação a quem convidou.
+  if (segments.first == 'convite-dupla' && segments.length >= 2) {
+    return _withQuery('/convite-dupla/${segments[1]}', uri);
+  }
+
   if (segments.first == 'torneios' && segments.length >= 2) {
     return _withQuery('/${segments.join('/')}', uri);
   }
@@ -34,6 +50,9 @@ List<String>? _deepLinkPathSegments(Uri uri) {
     if (uri.host == 'mercadopago') return null;
     if (uri.host == 'torneios') {
       return ['torneios', ...uri.pathSegments.where((s) => s.isNotEmpty)];
+    }
+    if (uri.host == 'convite-dupla') {
+      return ['convite-dupla', ...uri.pathSegments.where((s) => s.isNotEmpty)];
     }
     return uri.pathSegments.where((s) => s.isNotEmpty).toList();
   }

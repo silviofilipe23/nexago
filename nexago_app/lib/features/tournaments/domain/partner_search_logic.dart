@@ -7,8 +7,23 @@ import 'tournament_detail_logic.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_registration_logic.dart';
 
-/// Valor de gênero usado no filtro de parceiros (`genderType` ou nome da categoria).
+/// Valor de gênero usado no filtro de parceiros (`genderType` ou nome da
+/// categoria).
+///
+/// Categoria de EQUIPE (trio+) não se descreve por `genderType` — quem manda é
+/// a composição. Só equipe de gênero único filtra; livre e misto exato deixam
+/// passar, porque a composição completa é conta do backend, que valida elenco
+/// mais convites pendentes. O nome também não pode virar filtro aqui: uma
+/// "Quarteto Masculino e Feminino" livre esconderia metade dos candidatos.
 String categoryGenderForPartnerFilter(TournamentCategoryOffer offer) {
+  if (offer.isTeamCategory) {
+    if (offer.genderFree) return 'Misto';
+    final men = offer.genderCompositionMen;
+    final women = offer.genderCompositionWomen;
+    if (men != null && women == 0) return 'Masculino';
+    if (women != null && men == 0) return 'Feminino';
+    return 'Misto';
+  }
   final type = offer.genderType.trim();
   if (type.isNotEmpty) return type;
   return offer.name;

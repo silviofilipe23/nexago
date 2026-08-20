@@ -55,6 +55,70 @@ void main() {
       expect(invite.registrationId, 'reg99');
       expect(invite.teamId, 'team1');
     });
+
+    // O backend grava isTeamInvite/teamName no convite de trio+ (ver
+    // functions/src/tournament-partner-invite.ts). Sem ler esses campos o app
+    // chamava equipe de "dupla" em toda a copy.
+    test('maps team invite fields', () {
+      final snap = _FakeDoc(
+        id: 'inv2',
+        data: {
+          'tournamentId': 't1',
+          'categoryId': 'quarteto',
+          'inviterUid': 'u1',
+          'inviterName': 'João',
+          'inviteeUid': 'u2',
+          'inviteeName': 'Maria',
+          'status': 'pending',
+          'isTeamInvite': true,
+          'teamName': 'Areia Quente',
+        },
+      );
+
+      final invite = TournamentPartnerInvite.fromFirestore(snap);
+
+      expect(invite.isTeamInvite, isTrue);
+      expect(invite.teamName, 'Areia Quente');
+    });
+
+    test('convite de dupla não vira convite de equipe', () {
+      final snap = _FakeDoc(
+        id: 'inv3',
+        data: {
+          'tournamentId': 't1',
+          'categoryId': 'dupla',
+          'inviterUid': 'u1',
+          'inviterName': 'João',
+          'inviteeUid': 'u2',
+          'inviteeName': 'Maria',
+          'status': 'pending',
+        },
+      );
+
+      final invite = TournamentPartnerInvite.fromFirestore(snap);
+
+      expect(invite.isTeamInvite, isFalse);
+      expect(invite.teamName, isNull);
+    });
+
+    test('teamName em branco conta como ausente', () {
+      final snap = _FakeDoc(
+        id: 'inv4',
+        data: {
+          'tournamentId': 't1',
+          'categoryId': 'trio',
+          'inviterUid': 'u1',
+          'inviterName': 'João',
+          'inviteeUid': 'u2',
+          'inviteeName': 'Maria',
+          'status': 'pending',
+          'isTeamInvite': true,
+          'teamName': '   ',
+        },
+      );
+
+      expect(TournamentPartnerInvite.fromFirestore(snap).teamName, isNull);
+    });
   });
 
   group('TournamentPartnerInviteAcceptResult', () {

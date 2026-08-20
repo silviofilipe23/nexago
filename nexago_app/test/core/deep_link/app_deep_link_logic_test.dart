@@ -96,6 +96,44 @@ void main() {
         isNull,
       );
     });
+
+    test('maps external partner invite on the athlete portal host', () {
+      expect(
+        resolveAppDeepLinkPath(
+          Uri.parse('https://atleta.nexago.com.br/convite-dupla/ext-1'),
+        ),
+        '/convite-dupla/ext-1',
+      );
+    });
+
+    test('preserves referral context on the external partner invite', () {
+      expect(
+        resolveAppDeepLinkPath(
+          Uri.parse(
+            'https://atleta.nexago.com.br/convite-dupla/ext-1?ref=uid-1&de=Silvio',
+          ),
+        ),
+        '/convite-dupla/ext-1?ref=uid-1&de=Silvio',
+      );
+    });
+
+    // O host do portal é reivindicado só no prefixo do convite: reivindicar o
+    // host inteiro faria toda a web do portal abrir no app.
+    test('ignores other paths on the athlete portal host', () {
+      expect(
+        resolveAppDeepLinkPath(
+          Uri.parse('https://atleta.nexago.com.br/painel'),
+        ),
+        isNull,
+      );
+    });
+
+    test('maps external partner invite on the custom scheme', () {
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://convite-dupla/ext-1')),
+        '/convite-dupla/ext-1',
+      );
+    });
   });
 
   group('isMercadoPagoOAuthDeepLink', () {

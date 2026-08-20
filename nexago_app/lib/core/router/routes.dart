@@ -432,6 +432,10 @@ abstract final class AppRoutes {
   static const String tournamentRegistrationSuccess =
       '/torneios/:tournamentId/inscricao/sucesso';
 
+  /// Convite de dupla por LINK (parceiro sem conta): `/convite-dupla/:externalInviteId`
+  static const String tournamentExternalInvite =
+      '/convite-dupla/:externalInviteId';
+
   /// Convite de parceiro para torneio: `/torneios-convite/:inviteId`
   static const String tournamentPartnerInvite =
       '/torneios-convite/:inviteId';
@@ -656,6 +660,8 @@ abstract final class AppRouteNames {
   static const String tournamentRegistrationSuccess =
       'tournamentRegistrationSuccess';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
+  static const String tournamentExternalInvite =
+      'tournamentExternalInvite';
   static const String leagueDetail = 'leagueDetail';
   static const String tournamentDiscoveryList = 'tournamentDiscoveryList';
   static const String athleteRanking = 'athleteRanking';

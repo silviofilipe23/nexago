@@ -14,6 +14,7 @@ import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_section_header.dart';
+import '../../../core/ui/nexa_share.dart';
 import '../../../core/ui/nexa_segmented_control.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/data/payment_service.dart';
@@ -35,6 +36,8 @@ import '../domain/category_gender_eligibility.dart';
 import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_category_spots.dart';
 import '../domain/tournament_detail_logic.dart';
+import '../domain/tournament_invite_announcer.dart';
+import '../domain/tournament_invite_links.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -44,6 +47,8 @@ import '../domain/tournament_registration_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
+import '../domain/tournament_team_roster_logic.dart';
+import '../domain/uniform_auto_saver.dart';
 import 'widgets/tournament_registration/tournament_registration_category_card.dart';
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_hero_card.dart';
@@ -53,6 +58,9 @@ import 'widgets/tournament_registration/tournament_cancellation_request_sheet.da
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
 import 'widgets/tournament_registration/tournament_registration_price_summary.dart';
+import 'widgets/tournament_registration/tournament_registration_roster_card.dart';
+import 'widgets/tournament_registration/tournament_registration_received_invite_card.dart';
+import 'widgets/tournament_registration/tournament_registration_sent_invites_list.dart';
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 import 'widgets/tournament_registration/tournament_registration_waiting_step.dart';
@@ -100,6 +108,31 @@ class _TournamentRegistrationPageState
   bool _appliedInitialInvite = false;
   bool _appliedSoloInviteRestore = false;
   bool _paidPopHandled = false;
+
+  /// Saída da equipe em voo.
+  bool _leavingTeam = false;
+
+  /// Gravação automática do uniforme: escolher já salva, sem botão.
+  UniformSaveState _uniformSaveState = UniformSaveState.idle;
+  late final UniformAutoSaver _uniformSaver = UniformAutoSaver(
+    save: _writeUniform,
+    onStateChange: (state) {
+      if (mounted) setState(() => _uniformSaveState = state);
+    },
+  );
+
+  /// Geração do link de convite em voo — trava só o cartão "Convidar por
+  /// link".
+  bool _sharingExternalInvite = false;
+
+  /// Convite da lista com cancelamento em voo — trava só a linha dele, não a
+  /// tela inteira.
+  String? _cancelingInviteId;
+
+  /// Inscrição cujo uniforme gravado já foi trazido para a tela. Uma vez por
+  /// inscrição: depois disso quem manda é o que o atleta está editando, senão
+  /// cada snapshot novo desfaria a escolha em andamento.
+  String? _uniformHydratedRegistrationId;
   TournamentUniformSelection _titularUniform = const TournamentUniformSelection(
     sizeTop: 'M',
     jerseyNumber: 10,
@@ -124,6 +157,41 @@ class _TournamentRegistrationPageState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduleRegistrationPaidCheck();
     });
+  }
+
+  @override
+  void dispose() {
+    _uniformSaver.dispose();
+    super.dispose();
+  }
+
+  /// Gravação de verdade por trás do auto-save.
+  Future<void> _writeUniform(TournamentUniformSelection selection) async {
+    final regId = _registrationId?.trim() ?? '';
+    if (regId.isEmpty) {
+      throw TournamentPartnerInviteException(
+        'Sua inscrição ainda não foi criada.',
+      );
+    }
+    await ref
+        .read(tournamentPartnerInviteServiceProvider)
+        .setRegistrationUniform(registrationId: regId, uniform: selection);
+  }
+
+  /// Escolheu → grava sozinho. Antes da vaga existir não há onde gravar: aí o
+  /// uniforme viaja junto do convite (`inviterUniform`).
+  void _onUniformChanged(TournamentUniformSelection value) {
+    setState(() => _titularUniform = value);
+    final category = _category;
+    if (category == null) return;
+    if ((_registrationId?.trim() ?? '').isEmpty) return;
+    if (!isUniformSelectionComplete(category: category, selection: value)) {
+      // Meia escolha não vira gravação — e nem vira erro enquanto o atleta
+      // ainda está decidindo.
+      _uniformSaver.cancelPending();
+      return;
+    }
+    _uniformSaver.schedule(value);
   }
 
   void _scheduleInitialCategory(
@@ -344,6 +412,39 @@ class _TournamentRegistrationPageState
           avatarUrl: inviteeAvatar,
         );
       });
+    });
+  }
+
+  /// Traz o uniforme JÁ gravado na inscrição para o cartão da tela.
+  ///
+  /// A vaga nasce sem uniforme (`uniform: null`) e a escolha pode ter sido
+  /// feita depois — inclusive por outra superfície. Sem isso o cartão abria nos
+  /// padrões (M/10/sobrenome) mesmo para quem tinha escolhido GG, e salvar
+  /// apagava a escolha real.
+  void _scheduleUniformHydration(TournamentRegistrationSnapshot? snap) {
+    final regId = snap?.registrationId.trim() ?? '';
+    if (regId.isEmpty || _uniformHydratedRegistrationId == regId) return;
+    final category = _category;
+    if (category == null || !categoryRequiresUniform(category)) return;
+    final uid = ref.read(authServiceProvider).currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _uniformHydratedRegistrationId == regId) return;
+      final hydrated = hydrateUniformSelection(
+        stored: snap!.uniformFor(uid),
+        defaults: _defaultUniformForCategory(category),
+      );
+      setState(() {
+        _uniformHydratedRegistrationId = regId;
+        _titularUniform = hydrated;
+      });
+      // O que veio do servidor já está gravado: semear evita uma escrita
+      // redundante e deixa o selo honesto desde a abertura.
+      final stored = snap.uniformFor(uid);
+      if (isUniformSelectionComplete(category: category, selection: stored)) {
+        _uniformSaver.markSaved(stored);
+      }
     });
   }
 
@@ -866,12 +967,14 @@ class _TournamentRegistrationPageState
     }
   }
 
-  /// Salva o uniforme do atleta na inscrição (pós-inscrição) e volta ao passo
-  /// de pagamento/conclusão.
-  Future<void> _saveUniform(TournamentDetail tournament) async {
-    final regId = _registrationId?.trim();
+  /// Encerra o passo do uniforme.
+  ///
+  /// A escolha já grava sozinha (ver [_uniformSaver]); este botão só garante
+  /// que o debounce não fique pendente e devolve o atleta ao pagamento. Sem
+  /// inscrição não há onde gravar — a escolha viaja junto do convite.
+  void _finishUniformStep() {
     final cat = _category;
-    if (regId == null || regId.isEmpty || cat == null || _submitting) return;
+    if (cat == null) return;
     final msg = validateUniformSelection(
       category: cat,
       selection: _titularUniform,
@@ -880,22 +983,251 @@ class _TournamentRegistrationPageState
       showAppSnackBar(context, msg, isError: true);
       return;
     }
-    setState(() => _submitting = true);
+    if ((_registrationId?.trim() ?? '').isNotEmpty) {
+      _uniformSaver.saveNow(_titularUniform);
+    }
+    _goToStep(
+      (_registrationId?.trim() ?? '').isNotEmpty
+          ? TournamentRegistrationStep.payment
+          : TournamentRegistrationStep.category,
+    );
+  }
+
+  /// Convida por LINK quem ainda não tem conta no nexaGO.
+  ///
+  /// O convite de verdade exige um `inviteeUid`, que não existe antes do
+  /// cadastro: o backend cria um token de uso único, o link carrega esse token
+  /// mais o código de indicação, e o convite nasce sozinho quando o parceiro
+  /// termina o cadastro. Antes isto era um snackbar dizendo "em breve".
+  Future<void> _shareExternalInvite(
+    TournamentDetail tournament,
+    TournamentCategoryOffer category,
+  ) async {
+    if (_sharingExternalInvite) return;
+    if (!ref.read(tournamentAccessStateProvider).canAccess) {
+      _showProfileAccessBlocked();
+      return;
+    }
+    setState(() => _sharingExternalInvite = true);
+    try {
+      final externalInviteId = await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .createExternalInvite(
+            tournamentId: tournament.id,
+            categoryId: category.id,
+          );
+      if (!mounted) return;
+      final athlete = _athleteDisplay();
+      final url = externalPartnerInviteUrl(
+        externalInviteId: externalInviteId,
+        referralCode: ref.read(authServiceProvider).currentUser?.uid,
+        inviterName: athlete.name,
+      );
+      if (url == null) {
+        showAppSnackBar(
+          context,
+          'Não foi possível gerar o link do convite.',
+          isError: true,
+        );
+        return;
+      }
+      await nexaShareText(
+        context,
+        externalPartnerInviteMessage(
+          partnerName: null,
+          tournamentName: tournament.name,
+          categoryName: category.name,
+          url: url,
+          teamName: category.isTeamCategory ? _teamNameOfRegistration() : null,
+        ),
+      );
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _sharingExternalInvite = false);
+    }
+  }
+
+  /// Nome da equipe já criada, para o texto do convite falar dela.
+  String? _teamNameOfRegistration() {
+    final regId = _registrationId?.trim() ?? '';
+    if (regId.isEmpty) return null;
+    return ref
+        .read(tournamentRegistrationSnapshotProvider(regId))
+        .valueOrNull
+        ?.teamName;
+  }
+
+  /// Cutuca o parceiro que ainda não respondeu, pelo share sheet do sistema.
+  ///
+  /// O link é absoluto e no host do portal do atleta: quem tem o app cai no
+  /// convite dentro do app, quem não tem cai na web. Antes isto era um
+  /// snackbar exibindo `/torneios-convite/<id>` — um caminho cru, que não é
+  /// endereço nenhum e não dava para compartilhar.
+  Future<void> _shareInviteReminder({
+    required TournamentDetail tournament,
+    required String partnerName,
+    String? teamName,
+  }) async {
+    final url = tournamentPartnerInviteUrl(_inviteId);
+    if (url == null) {
+      showAppSnackBar(context, 'Aguardando envio do convite.');
+      return;
+    }
+    await nexaShareText(
+      context,
+      partnerInviteReminderMessage(
+        partnerName: partnerName,
+        tournamentName: tournament.name,
+        categoryName: _category?.name ?? _category?.id ?? '',
+        url: url,
+        teamName: teamName,
+      ),
+    );
+  }
+
+  /// Confirmação antes de declarar o pagamento direto ao organizador.
+  ///
+  /// A declaração é por honra e sem desfazer pelo app: quem clicar sem ter
+  /// pago aciona o organizador à toa. A pergunta diz o valor para o atleta
+  /// conferir contra o comprovante.
+  Future<bool> _confirmDirectPaymentDeclaration(
+    TournamentRegistrationQuote quote,
+  ) async {
+    final payFull = _canPayFull && _paymentType == 'full';
+    final amount = payFull ? quote.displayTotal : quote.shareAmount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar pagamento?'),
+        content: Text(
+          'Você está informando que já pagou ${formatRegistrationMoney(amount)} '
+          'direto ao organizador. Ele será avisado e vai conferir o '
+          'recebimento — não dá para desfazer por aqui.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ainda não paguei'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Já paguei'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true && mounted;
+  }
+
+  /// Elenco da equipe para o cartão, com nome e foto de cada integrante.
+  ///
+  /// Perfil que não carregou não some do elenco: a linha aparece com
+  /// "Você"/"Atleta" (ver [buildTeamRoster]).
+  List<TournamentRosterMember> _teamRoster(
+    TournamentRegistrationSnapshot snap,
+  ) {
+    final profiles = ref
+            .watch(
+              registrationRosterProfilesProvider(snap.participantUids),
+            )
+            .valueOrNull ??
+        const <String, AppUserProfile>{};
+    return buildTeamRoster(
+      participantUids: snap.participantUids,
+      captainUid: snap.captainUid,
+      myUid: ref.watch(authServiceProvider).currentUser?.uid,
+      nameByUid: {
+        for (final entry in profiles.entries)
+          entry.key: appUserDisplayName(entry.value),
+      },
+      photoByUid: {
+        for (final entry in profiles.entries)
+          if (entry.value.profilePhotoUrl?.isNotEmpty ?? false)
+            entry.key: entry.value.profilePhotoUrl!,
+      },
+    );
+  }
+
+  /// Integrante sai da equipe: a vaga reabre e o capitão é avisado.
+  ///
+  /// A callable já existia e nunca tinha sido chamada pela UI — não havia como
+  /// sair de uma equipe pelo app.
+  Future<void> _leaveTeam(TournamentRegistrationSnapshot snap) async {
+    if (_leavingTeam) return;
+    final teamName = snap.teamName?.trim();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sair da equipe?'),
+        content: Text(
+          'Sua vaga em ${teamName?.isNotEmpty == true ? teamName : 'a equipe'} '
+          'será liberada para outro atleta, e o capitão será avisado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sair da equipe'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _leavingTeam = true);
     try {
       await ref
           .read(tournamentPartnerInviteServiceProvider)
-          .setRegistrationUniform(
-            registrationId: regId,
-            uniform: _titularUniform,
-          );
+          .leaveTeamRegistration(snap.registrationId);
       if (!mounted) return;
-      showAppSnackBar(context, 'Uniforme salvo.');
-      _goToStep(TournamentRegistrationStep.payment);
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.goNamed(AppRouteNames.myTournaments);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          showAppSnackBar(context, 'Você saiu da equipe.');
+        }
+      });
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
-      await showTournamentPartnerInviteError(context, e);
+      showAppSnackBar(context, e.message, isError: true);
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) setState(() => _leavingTeam = false);
+    }
+  }
+
+  /// Cancela UM convite da lista de enviados.
+  ///
+  /// Diferente de [_cancelInvite], não mexe no passo nem na inscrição: o
+  /// convite em destaque segue de pé e a vaga continua reservada — o atleta só
+  /// desistiu de chamar aquela pessoa.
+  Future<void> _cancelSentInvite(TournamentPartnerInvite invite) async {
+    if (_cancelingInviteId != null) return;
+    setState(() => _cancelingInviteId = invite.id);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .cancelInvite(invite.id);
+      if (!mounted) return;
+      final firstName = invite.inviteeName.trim().split(' ').first;
+      showAppSnackBar(
+        context,
+        firstName.isEmpty
+            ? 'Convite cancelado.'
+            : 'Convite para $firstName cancelado.',
+      );
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _cancelingInviteId = null);
     }
   }
 
@@ -1115,8 +1447,7 @@ class _TournamentRegistrationPageState
               category: cat,
               selection: _titularUniform,
             )) {
-          // Uniforme é informado depois da inscrição: salva no registro.
-          _saveUniform(tournament);
+          _finishUniformStep();
         } else if (cat != null && mounted) {
           final msg = validateUniformSelection(
             category: cat,
@@ -1241,7 +1572,7 @@ class _TournamentRegistrationPageState
                 category: cat,
                 selection: _titularUniform,
               ),
-          ctaLabel: 'Salvar uniforme',
+          ctaLabel: 'Pronto',
           metaLabel: null,
           totalLabel: null,
           ctaSubtitle: null,
@@ -1525,6 +1856,7 @@ class _TournamentRegistrationPageState
             registrationSnap: registrationSnap,
             categories: categories,
           );
+          _scheduleUniformHydration(registrationSnap);
 
           final enrollmentAsync = ref.watch(
             tournamentCategoryEnrollmentCountsProvider(widget.tournamentId),
@@ -1561,6 +1893,16 @@ class _TournamentRegistrationPageState
           // vaga; o parceiro entra sem taxa depois). Exige só não haver parcela
           // já paga e a inscrição não estar quitada.
           _canPayFull = sharePaidUids.isEmpty && !isFullyPaid;
+          final directState = registrationSnap == null
+              ? DirectPaymentState.idle
+              : resolveDirectPaymentState(
+                  isPaid: registrationSnap.isPaid,
+                  sharePaidUids: registrationSnap.sharePaidUids,
+                  myUid: currentUid,
+                  declaredPaidAt: registrationSnap.declaredPaidAt,
+                  paymentVerifiedByOrganizer:
+                      registrationSnap.paymentVerifiedByOrganizer,
+                );
           final progressLabel = quote != null
               ? registrationDualPaymentProgressLabel(
                   quote: quote,
@@ -1571,6 +1913,10 @@ class _TournamentRegistrationPageState
                   isDirectOrganizerPayment:
                       tournamentUsesDirectOrganizerPayment(tournament) &&
                       registrationRequiresPayment(quote),
+                  directPaymentState:
+                      tournamentUsesDirectOrganizerPayment(tournament)
+                          ? directState
+                          : null,
                 )
               : null;
 
@@ -1779,12 +2125,35 @@ class _TournamentRegistrationPageState
           athleteProfile,
           tournamentSport: tournament.sport,
         );
+        // Convite recebido para a categoria escolhida: responder aqui evita
+        // depender de o atleta achar a Agenda ou a notificação.
+        final receivedInvite = receivedInviteForCategory(
+          pending:
+              ref.watch(pendingTournamentPartnerInvitesProvider).valueOrNull ??
+                  const <TournamentPartnerInvite>[],
+          tournamentId: widget.tournamentId,
+          categoryId: _category?.id ?? '',
+        );
         return [
           const NexaSectionHeader(
             title: 'Escolha a categoria',
             padding: EdgeInsets.zero,
           ),
           const SizedBox(height: AppSpacing.lg),
+          if (receivedInvite != null) ...[
+            TournamentRegistrationReceivedInviteCard(
+              title: inviteAnnouncementTitle(receivedInvite),
+              expiryLabel:
+                  tournamentInviteExpiryLabel(receivedInvite.expiresAt),
+              onOpenInvite: () => context.pushNamed(
+                AppRouteNames.tournamentPartnerInvite,
+                pathParameters: <String, String>{
+                  'inviteId': receivedInvite.id,
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           for (final cat in categories) ...[
             Builder(
               builder: (context) {
@@ -1884,7 +2253,12 @@ class _TournamentRegistrationPageState
             category: uniformCategory,
             selection: _titularUniform,
             leagueBadge: tournament.name.toUpperCase(),
-            onChanged: (value) => setState(() => _titularUniform = value),
+            onChanged: _onUniformChanged,
+            // Sem inscrição não há onde gravar: o selo some em vez de mentir.
+            saveState: (_registrationId?.trim().isNotEmpty ?? false)
+                ? _uniformSaveState
+                : null,
+            onRetrySave: _uniformSaver.retry,
           ),
         ];
       case TournamentRegistrationStep.partner:
@@ -1902,9 +2276,7 @@ class _TournamentRegistrationPageState
                 _selectedPartner = candidate;
               });
             },
-            onInviteByPhone: () {
-              showAppSnackBar(context, 'Convite por celular em breve.');
-            },
+            onInviteByLink: () => _shareExternalInvite(tournament, category),
             onRegisterSolo: _registrationId == null
                 ? () => _registerSolo(tournament)
                 : null,
@@ -1922,15 +2294,23 @@ class _TournamentRegistrationPageState
             ),
           ];
         }
-        final inviteLink = _inviteId != null
-            ? '/torneios-convite/${_inviteId!}'
-            : null;
         final pendingInviteId = _inviteId?.trim() ?? '';
         final inviteAsync = pendingInviteId.isNotEmpty
             ? ref.watch(tournamentPartnerInviteProvider(pendingInviteId))
             : null;
         final invite = inviteAsync?.valueOrNull;
         final inviteLoading = inviteAsync?.isLoading ?? false;
+        // Convidar mais de uma pessoa é caminho legítimo: o primeiro aceite
+        // derruba os demais. O destaque acima é um convite só, então os outros
+        // ficam listados aqui — antes eram invisíveis até expirar.
+        final otherSentInvites = sentPendingInvitesFor(
+          invites:
+              ref.watch(inviterTournamentPartnerInvitesProvider).valueOrNull ??
+                  const <TournamentPartnerInvite>[],
+          tournamentId: widget.tournamentId,
+          categoryId: _category?.id ?? '',
+          excludeInviteId: pendingInviteId,
+        );
         final inviteExpired =
             invite != null && invite.expiresAt.isBefore(DateTime.now());
         final partnerSubtitle = inviteAccepted
@@ -1957,18 +2337,21 @@ class _TournamentRegistrationPageState
             reservationHoursLabel: reservationHours,
             isLoading: inviteLoading,
             onContinueBrowsing: _exitRegistration,
-            onResendInvite: () {
-              if (inviteLink != null) {
-                showAppSnackBar(
-                  context,
-                  'Convite pendente. Compartilhe: $inviteLink',
-                );
-              } else {
-                showAppSnackBar(context, 'Aguardando envio do convite.');
-              }
-            },
+            onResendInvite: () => _shareInviteReminder(
+              tournament: tournament,
+              partnerName: partner.name,
+              teamName: invite?.teamName,
+            ),
             onCancelRegistration: _cancelRegistrationFromWaiting,
           ),
+          if (otherSentInvites.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            TournamentRegistrationSentInvitesList(
+              invites: otherSentInvites,
+              cancelingInviteId: _cancelingInviteId,
+              onCancel: (invite) => _cancelSentInvite(invite),
+            ),
+          ],
         ];
       case TournamentRegistrationStep.payment:
         final category = _category;
@@ -2065,6 +2448,38 @@ class _TournamentRegistrationPageState
               contactBusy: _contactingOrganizer,
             ),
           ),
+          // Categoria de EQUIPE: com quem vou jogar, quantas vagas faltam e a
+          // saída de quem ainda não pagou a própria cota.
+          if (registrationSnap != null && registrationSnap.teamSize != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            TournamentRegistrationRosterCard(
+              teamName: registrationSnap.teamName,
+              members: _teamRoster(registrationSnap),
+              remainingSlots: remainingTeamInviteSlots(
+                teamSize: registrationSnap.teamSize,
+                rosterCount: registrationSnap.participantUids.length,
+                pendingInviteCount: sentPendingInvitesFor(
+                  invites: ref
+                          .watch(inviterTournamentPartnerInvitesProvider)
+                          .valueOrNull ??
+                      const <TournamentPartnerInvite>[],
+                  tournamentId: widget.tournamentId,
+                  categoryId: category.id,
+                ).length,
+              ),
+              leaving: _leavingTeam,
+              onLeaveTeam: canLeaveTeamRegistration(
+                teamSize: registrationSnap.teamSize,
+                captainUid: registrationSnap.captainUid ??
+                    registrationSnap.player1Id,
+                myUid: ref.watch(authServiceProvider).currentUser?.uid,
+                isPaid: registrationSnap.isPaid,
+                sharePaidUids: registrationSnap.sharePaidUids,
+              )
+                  ? () => _leaveTeam(registrationSnap)
+                  : null,
+            ),
+          ],
         ];
     }
   }
@@ -2117,17 +2532,24 @@ class _TournamentRegistrationPageState
       }
 
       if (tournamentUsesDirectOrganizerPayment(tournament)) {
+        // Declarar não tem desfazer no app e aciona o organizador: o clique
+        // acidental é caro, então vale perguntar antes.
+        if (!await _confirmDirectPaymentDeclaration(quote)) return;
         final result = await ref
             .read(paymentServiceProvider)
             .reserveDirectOrganizerRegistration(registrationId: regId);
         if (!mounted) return;
-        final message = result.bothAthletesReserved
-            ? 'Vaga reservada! Aguarde o organizador confirmar o pagamento.'
-            : 'Vaga reservada. Convide seu parceiro para reservar a dele.';
-        context.goNamed(AppRouteNames.myTournaments);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (context.mounted) showAppSnackBar(context, message);
-        });
+        // Fica na tela: o estado pós-declaração (aguardando parceiro /
+        // aguardando o organizador conferir) é justamente o que o atleta
+        // precisa ver agora. Sair para "Meus torneios" escondia isso.
+        showAppSnackBar(
+          context,
+          result.bothAthletesReserved
+              ? 'Pagamento informado! A vaga está garantida — o organizador vai '
+                    'conferir o recebimento.'
+              : 'Sua parte foi informada. A inscrição fecha quando seu parceiro '
+                    'informar a dele.',
+        );
         return;
       }
 

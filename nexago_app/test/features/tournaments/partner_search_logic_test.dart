@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/partner_search_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
@@ -212,6 +213,77 @@ void main() {
       expect(
         partnerResultsHeader(count: 3, category: category),
         '3 RESULTADOS · S19',
+      );
+    });
+  });
+
+  // Categoria de EQUIPE não usa `genderType`: a composição é que manda. Livre
+  // e misto exato não filtram (a composição completa é conta do backend, que
+  // valida elenco + convites pendentes); só equipe de gênero único filtra.
+  group('categoryGenderForPartnerFilter em categoria de equipe', () {
+    TournamentCategoryOffer team({
+      int? men,
+      int? women,
+      bool free = false,
+      String genderType = 'Mix',
+    }) {
+      return TournamentCategoryOffer(
+        id: 'quarteto',
+        name: 'Quarteto Misto',
+        entryFee: 200,
+        level: 'A',
+        teamSize: 4,
+        genderFree: free,
+        genderType: genderType,
+        genderCompositionMen: men,
+        genderCompositionWomen: women,
+      );
+    }
+
+    test('equipe só de homens filtra por masculino', () {
+      expect(
+        genderTagFromText(categoryGenderForPartnerFilter(team(men: 4, women: 0))),
+        'MASCULINO',
+      );
+    });
+
+    test('equipe só de mulheres filtra por feminino', () {
+      expect(
+        genderTagFromText(categoryGenderForPartnerFilter(team(men: 0, women: 4))),
+        'FEMININO',
+      );
+    });
+
+    test('equipe mista exata não filtra', () {
+      expect(
+        genderTagFromText(categoryGenderForPartnerFilter(team(men: 2, women: 2))),
+        anyOf(isNull, 'MISTO'),
+      );
+    });
+
+    test('equipe livre não filtra', () {
+      expect(
+        genderTagFromText(categoryGenderForPartnerFilter(team(free: true))),
+        anyOf(isNull, 'MISTO'),
+      );
+    });
+
+    // O nome da categoria não pode virar filtro em equipe: "Quarteto
+    // Masculino Livre" filtraria homens numa equipe que aceita todo mundo.
+    test('nome da categoria não vira filtro em equipe livre', () {
+      final offer = TournamentCategoryOffer(
+        id: 'q',
+        name: 'Quarteto Masculino e Feminino',
+        entryFee: 200,
+        level: 'A',
+        teamSize: 4,
+        genderFree: true,
+        genderType: '',
+      );
+
+      expect(
+        genderTagFromText(categoryGenderForPartnerFilter(offer)),
+        anyOf(isNull, 'MISTO'),
       );
     });
   });

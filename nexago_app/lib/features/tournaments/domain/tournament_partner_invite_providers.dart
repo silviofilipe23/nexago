@@ -69,3 +69,14 @@ final ongoingTournamentPartnerInvitesHomeProvider =
     );
   });
 });
+
+/// Convite por link, lido por id (o id do doc é o token).
+final externalPartnerInviteProvider =
+    StreamProvider.autoDispose.family<ExternalPartnerInvite?, String>(
+  (ref, externalInviteId) {
+    if (externalInviteId.isEmpty) return Stream.value(null);
+    return ref
+        .watch(tournamentPartnerInviteServiceProvider)
+        .watchExternalInvite(externalInviteId);
+  },
+);

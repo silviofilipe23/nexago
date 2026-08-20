@@ -64,6 +64,22 @@
                     android:host="atleta.nexago.com.br"
                     android:pathPrefix="/torneios-convite"/>
             </intent-filter>
+            <!-- App Links: convite de dupla por link (parceiro ainda sem conta).
+                 Só este prefixo é reivindicado no portal do atleta — reivindicar
+                 o host inteiro faria toda a web do portal abrir no app. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="atleta.nexago.com.br"
+                    android:pathPrefix="/convite-dupla"/>
+                <data
+                    android:scheme="https"
+                    android:host="atleta.nexago.com.br"
+                    android:pathPrefix="/torneios-convite"/>
+            </intent-filter>
             <!-- Deep link custom scheme (dev / fallback) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>

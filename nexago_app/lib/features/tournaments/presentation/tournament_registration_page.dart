@@ -1533,6 +1533,16 @@ class _TournamentRegistrationPageState
                 ...?snap?.participantUids,
                 ...sentInvites.map((i) => i.inviteeUid),
               },
+              // Quem já ocupa vaga define o gênero que falta: em dupla mista o
+              // parceiro é o OPOSTO do titular; em equipe de composição exata,
+              // o da cota que ainda não fechou. Meu próprio gênero entra pelo
+              // perfil — na vaga solo o elenco ainda é só eu, e o perfil
+              // público pode não ter chegado.
+              currentGenders: [
+                ref.watch(athleteProfileProvider).valueOrNull?.gender,
+                for (final uid in snap?.participantUids ?? const <String>[])
+                  if (uid != myUid) profiles[uid]?.gender,
+              ],
               onSelected: (candidate) {
                 if (!canAccess) {
                   _showProfileAccessBlocked();

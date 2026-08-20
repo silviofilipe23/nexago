@@ -9,11 +9,13 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_announcements_repository.dart';
+import '../../../domain/focus/focus_double_elimination.dart';
 import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_providers.dart';
 import '../../../domain/focus/focus_views_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_detail_tabs_logic.dart';
+import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
@@ -22,6 +24,8 @@ import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../widgets/tournament_match_card.dart';
 import '../focus_section_header.dart';
+import '../../../domain/tournament_detail_logic.dart';
+import '../widgets/focus_lives_card.dart';
 import '../widgets/focus_now_hero.dart';
 import '../widgets/focus_share_match_sheet.dart';
 import '../widgets/focus_timeline.dart';
@@ -145,6 +149,23 @@ class FocusAgoraSection extends ConsumerWidget {
       nextMatch: next,
     );
 
+    // Dupla eliminação: a moldura, o kicker e os blocos de vida mudam. O
+    // formato vem do que a categoria DECLARA, não de adivinhar pelas partidas.
+    final offer = _offerOf();
+    final isDouble =
+        offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
+    final standing = isDouble && categoryId != null
+        ? focusDoubleEliminationStandingOf(
+            categoryMatches,
+            categoryId!,
+            athleteTeamIds,
+            phaseLabelOf: (m) =>
+                matchPhaseDisplayLabel(m, categoryMatches: categoryMatches),
+          )
+        : null;
+    final inRepescagem = standing?.side == FocusBracketSide.losers;
+    final accent = inRepescagem ? AppColors.pending : AppColors.brand;
+
     final heroView = nextMatchViewOf(ctx, now);
     final entries = timelineOf(ctx, day);
     final announcements =
@@ -166,7 +187,9 @@ class FocusAgoraSection extends ConsumerWidget {
           state: state,
           view: heroView,
           card: next == null ? null : byId[next.id],
-          kicker: _kickerOf(next),
+          kicker: standing != null
+              ? _bracketKickerOf(next, standing)
+              : _kickerOf(next),
           progress: focusCountdownProgress(
             previousEndedAt: _previousEndedAt(day, next),
             scheduleTime: next?.scheduleTime,
@@ -176,7 +199,12 @@ class FocusAgoraSection extends ConsumerWidget {
               ? matchTimeLabelForCard(next!)
               : null,
           walkAwayLabel: null,
-          accent: AppColors.brand,
+          accent: accent,
+          leadIn: inRepescagem
+              ? 'Você perdeu ${standing!.lastLossPhase != null ? 'em ${standing.lastLossPhase!.toLowerCase()}' : 'na chave dos vencedores'}. '
+                  'Ainda dá título — pela repescagem o caminho passa pela '
+                  'final dos perdedores.'
+              : null,
           footnote: _footnoteOf(day, next, now),
           onAcknowledge: () => ref
               .read(focusAcknowledgedCallProvider.notifier)
@@ -185,7 +213,24 @@ class FocusAgoraSection extends ConsumerWidget {
           onOpenMaps: _openMaps,
           onShare: () => showFocusShareMatchSheet(context, next!.id),
         ),
-        FocusSectionHeader(label: 'ORDEM DO SEU DIA'.toUpperCase()),
+        if (standing != null) ...[
+          const FocusSectionHeader(label: 'SUAS VIDAS'),
+          FocusLivesCard(standing: standing),
+          const FocusSectionHeader(label: 'ONDE VOCÊ ESTÁ'),
+          FocusBracketSideCards(
+            standing: standing,
+            winnersLabel: switch (standing.side) {
+              FocusBracketSide.winners => 'Você está aqui',
+              _ => 'Eliminado desta chave',
+            },
+            losersLabel: switch (standing.side) {
+              FocusBracketSide.winners => 'Rede de segurança',
+              FocusBracketSide.losers => 'Você está aqui',
+              FocusBracketSide.eliminated => 'Eliminado desta chave',
+            },
+          ),
+        ],
+        const FocusSectionHeader(label: 'ORDEM DO SEU DIA'),
         if (entries.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -239,6 +284,29 @@ class FocusAgoraSection extends ConsumerWidget {
     final local = at.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  TournamentCategoryOffer? _offerOf() {
+    for (final offer in tournament.categoryOffers) {
+      if (offer.id == categoryId) return offer;
+    }
+    return null;
+  }
+
+  /// "VENCEDORES · QUARTAS" / "REPESCAGEM · RODADA 3" — na dupla eliminação a
+  /// chave importa tanto quanto a fase, porque WB e LB numeram rodadas por
+  /// conta própria.
+  static String _bracketKickerOf(
+    TournamentMatch? m,
+    FocusDoubleEliminationStanding standing,
+  ) {
+    final side = switch (standing.side) {
+      FocusBracketSide.winners => 'VENCEDORES',
+      FocusBracketSide.losers => 'REPESCAGEM',
+      FocusBracketSide.eliminated => 'ELIMINADO',
+    };
+    if (m == null) return side;
+    return '$side · ${matchPhaseDisplayLabel(m)}';
   }
 
   /// "SUA PRÓXIMA · GRUPO B · R3" — o contexto da partida.

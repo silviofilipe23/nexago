@@ -1,6 +1,7 @@
 import '../tournament_match.dart';
 import '../tournament_match_display.dart';
 import '../tournament_match_status.dart';
+import 'focus_double_elimination.dart';
 import 'focus_journey_logic.dart';
 import 'focus_views_logic.dart';
 
@@ -155,6 +156,7 @@ class JourneyStepRow {
     required this.detailLabel,
     required this.scoreLabel,
     required this.matchId,
+    this.bracketBadge,
   });
 
   final String id;
@@ -172,6 +174,10 @@ class JourneyStepRow {
 
   /// `null` quando não há partida para abrir (fase sem dono, ou slot vazio).
   final String? matchId;
+
+  /// "WB" / "LB" / "GF" na dupla eliminação. `null` na eliminação simples, onde
+  /// não há duas escadas para distinguir.
+  final String? bracketBadge;
 }
 
 const String _vsLabel = 'vs';
@@ -262,6 +268,7 @@ JourneyStepRow _stepOfMatch(
     ),
     scoreLabel: done || live ? '$mySets – $theirSets' : _vsLabel,
     matchId: m.teamAId.isNotEmpty && m.teamBId.isNotEmpty ? m.id : null,
+    bracketBadge: focusBracketBadgeOf(m),
   );
 }
 
@@ -355,6 +362,7 @@ List<JourneyStepRow> journeyStepsOf(
         detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
         scoreLabel: _vsLabel,
         matchId: null,
+        bracketBadge: focusBracketBadgeOf(m),
       ));
     }
   } else {

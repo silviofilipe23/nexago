@@ -109,12 +109,14 @@ class _Step extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          Flexible(
                             child: Text(
                               [
                                 step.phaseLabel,
                                 ?step.metaLabel,
                               ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: AppTypography.monoMeta.copyWith(
                                 color: isNext
                                     ? colors.brand
@@ -122,6 +124,27 @@ class _Step extends StatelessWidget {
                               ),
                             ),
                           ),
+                          // WB/LB/GF: sem a sigla, "Rodada 2" não diz em qual
+                          // das duas escadas o atleta está.
+                          if (step.bracketBadge != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                                color: colors.surfaceRaised,
+                              ),
+                              child: Text(
+                                step.bracketBadge!,
+                                style: AppTypography.eyebrow
+                                    .copyWith(color: colors.onSurfaceMuted),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
                           Text(
                             step.scoreLabel,
                             style: AppTypography.monoMeta.copyWith(

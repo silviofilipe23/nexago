@@ -60,40 +60,6 @@ enum TimelineOutcome { win, loss }
 
 enum QualificationTone { win, neutral }
 
-class TimelineEntry {
-  const TimelineEntry({
-    required this.matchId,
-    required this.time,
-    required this.title,
-    required this.detail,
-    required this.outcomeLabel,
-    required this.outcome,
-    required this.state,
-    required this.note,
-    required this.clickable,
-    this.opponentTeamId,
-  });
-
-  final String matchId;
-
-  /// `null` quando a partida ainda não tem horário — a UI desenha "—". Um
-  /// rótulo vazio na coluna do relógio lê como bug, e essas partidas passaram
-  /// a aparecer na lista do dia quando a regra deixou de exigir `scheduleTime`
-  /// (ver `matchBelongsToDay`).
-  final String? time;
-  final String title;
-  final String? detail;
-  final String? outcomeLabel;
-  final TimelineOutcome? outcome;
-  final TimelineState state;
-  final String? note;
-  final bool clickable;
-
-  /// O time do adversário, para a UI buscar os rostos. `null` enquanto o
-  /// confronto não tem dono.
-  final String? opponentTeamId;
-}
-
 /// Uma dupla no herói do "Agora". Carrega só texto: os avatares vêm do
 /// `TournamentMatchCardViewModel` no widget, para este módulo seguir puro (sem
 /// `dart:ui`) e para não existir uma segunda regra de iniciais/foto.
@@ -155,6 +121,56 @@ class NextMatchView {
   final String? liveScoreLine;
   final DuoView sideA;
   final DuoView sideB;
+}
+
+/// Uma linha da "Ordem do seu dia".
+///
+/// Guarda PARTES, não um título montado: a tela põe fase, adversário, quadra e
+/// resultado em colunas próprias, e um título pré-concatenado impediria isso.
+class TimelineEntry {
+  const TimelineEntry({
+    required this.matchId,
+    required this.time,
+    required this.phaseLabel,
+    required this.opponentName,
+    required this.courtLabel,
+    required this.outcomeLabel,
+    required this.outcome,
+    required this.state,
+    required this.note,
+    required this.clickable,
+    this.opponentTeamId,
+  });
+
+  /// `null` nas linhas de FASE — as que ainda não são uma partida do atleta.
+  final String? matchId;
+
+  /// `null` quando a partida ainda não tem horário — a UI desenha "—". Um
+  /// rótulo vazio na coluna do relógio lê como bug.
+  final String? time;
+
+  /// "R3" na fase de grupos, "Quartas" no mata-mata.
+  final String phaseLabel;
+
+  /// "Sá / Toledo", ou o cruzamento declarado ("1º B vs 2º A"). `null` quando
+  /// nem o cruzamento existe.
+  final String? opponentName;
+
+  /// "Q3". `null` sem quadra marcada.
+  final String? courtLabel;
+
+  /// "V 2-0".
+  final String? outcomeLabel;
+  final TimelineOutcome? outcome;
+  final TimelineState state;
+
+  /// O que a partida decide, ou o que falta para ela existir
+  /// ("decide 1º", "se classificar").
+  final String? note;
+  final bool clickable;
+
+  /// O time do adversário, quando há um resolvido.
+  final String? opponentTeamId;
 }
 
 class QualificationNote {
@@ -352,37 +368,71 @@ NextMatchView? nextMatchViewOf(FocusViewContext ctx, DateTime now) {
   );
 }
 
-/// A ordem do dia do atleta, já formatada.
+/// "R3" na fase de grupos (posição da rodada DENTRO do grupo, não o `round`
+/// cru do Firestore, que em muitos torneios começa em zero), "Quartas" no
+/// mata-mata.
+String _compactPhaseOf(FocusViewContext ctx, TournamentMatch m) {
+  if (m.poolId.isNotEmpty) {
+    final rounds = ctx.matches
+        .where((o) => o.poolId == m.poolId)
+        .map((o) => o.round)
+        .toSet()
+        .toList()
+      ..sort();
+    final index = rounds.indexOf(m.round);
+    return 'R${index < 0 ? m.round : index + 1}';
+  }
+  final label = matchPhaseDisplayLabel(m, categoryMatches: ctx.matches);
+  if (label.isEmpty) return label;
+  return label[0].toUpperCase() + label.substring(1).toLowerCase();
+}
+
+/// "1º Grupo B" vira "1º B": na linha da ordem do dia a palavra "Grupo"
+/// repetida dos dois lados só rouba largura.
+String _compactSlot(String description) =>
+    description.replaceAll(RegExp(r'\bGrupo\s+'), '');
+
+/// "Q3" a partir de "Quadra 3"; quadra COM NOME sai como o organizador
+/// escreveu, porque abreviar transformaria "Central" em charada.
+String? _courtChipOf(TournamentMatch m) {
+  final court = m.courtName?.trim() ?? '';
+  if (court.isEmpty) return null;
+  if (!RegExp(r'\d').hasMatch(court)) return court;
+  final digits = RegExp(r'\d+').firstMatch(court)?.group(0);
+  return digits != null ? 'Q$digits' : court;
+}
+
+/// A ordem do dia do atleta: as partidas dele, seguidas das FASES que ainda
+/// vêm pela frente.
+///
+/// As fases entram porque o dia do atleta não termina na última partida
+/// marcada — se ele passar, joga de novo hoje, e a lista precisa dizer isso.
+/// Elas nunca afirmam adversário: mostram o cruzamento que a chave já declara
+/// ("1º B vs 2º A") ou apenas "se classificar".
 List<TimelineEntry> timelineOf(
   FocusViewContext ctx,
-  List<TournamentMatch> dayTimeline,
-) {
+  List<TournamentMatch> dayTimeline, {
+  List<TournamentMatch> futurePhases = const [],
+}) {
   final myTeamIds = ctx.myTeamIds;
   final nextId = ctx.nextMatch?.id;
 
-  return dayTimeline.map((m) {
+  final rows = <TimelineEntry>[];
+
+  for (final m in dayTimeline) {
     final outcome = _outcomeOf(m, myTeamIds);
-    final side = _sideOf(m, myTeamIds);
-    final iAmA = side == 'A';
+    final iAmA = myTeamIds.contains(m.teamAId);
     final opponentId = iAmA ? m.teamBId : m.teamAId;
     final opponentDescription = iAmA ? m.teamBDescription : m.teamADescription;
     final live = TournamentMatchStatus.isInProgress(m.status);
     final done = TournamentMatchStatus.isCompleted(m.status);
 
-    final title = [
-      matchNumberLabelForCard(m),
-      matchPhaseDisplayLabel(m, categoryMatches: ctx.matches),
-      'vs ${ctx.duoNameOf(opponentId, opponentDescription)}',
-      matchCourtLabelForCard(m),
-    ].where((p) => p.trim().isNotEmpty).join(' · ');
-
-    return TimelineEntry(
+    rows.add(TimelineEntry(
       matchId: m.id,
       time: m.scheduleTime != null ? matchTimeLabelForCard(m) : null,
-      title: title,
-      detail: done || live
-          ? setPartialsLabelForTeam(match: m, isTeamA: iAmA)
-          : null,
+      phaseLabel: _compactPhaseOf(ctx, m),
+      opponentName: ctx.duoNameOf(opponentId, opponentDescription),
+      courtLabel: _courtChipOf(m),
       outcomeLabel: outcome == null
           ? null
           : '${outcome == TimelineOutcome.win ? 'V' : 'D'} '
@@ -398,8 +448,35 @@ List<TimelineEntry> timelineOf(
       note: _noteOf(ctx, m),
       clickable: m.teamAId.isNotEmpty && m.teamBId.isNotEmpty,
       opponentTeamId: opponentId.isEmpty ? null : opponentId,
-    );
-  }).toList();
+    ));
+  }
+
+  // Uma linha por FASE, não uma por partida: várias partidas sem dono podem
+  // dividir a mesma rodada, e a ordem do dia é a linha do tempo do atleta.
+  final seen = <int>{};
+  for (final m in futurePhases) {
+    if (!seen.add(m.round)) continue;
+    final a = m.teamADescription?.trim() ?? '';
+    final b = m.teamBDescription?.trim() ?? '';
+    final crossing = a.isNotEmpty && b.isNotEmpty
+        ? '${_compactSlot(a)} vs ${_compactSlot(b)}'
+        : null;
+
+    rows.add(TimelineEntry(
+      matchId: null,
+      time: m.scheduleTime != null ? matchTimeLabelForCard(m) : null,
+      phaseLabel: _compactPhaseOf(ctx, m),
+      opponentName: crossing,
+      courtLabel: _courtChipOf(m),
+      outcomeLabel: null,
+      outcome: null,
+      state: TimelineState.upcoming,
+      note: crossing == null ? 'se classificar' : 'a definir',
+      clickable: false,
+    ));
+  }
+
+  return rows;
 }
 
 /// A situação do atleta no grupo, em uma frase.

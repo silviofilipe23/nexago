@@ -5,36 +5,27 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_views_logic.dart';
-import '../../../domain/tournament_match_card_view_model.dart';
-import '../../widgets/nexa_duo_avatars.dart';
 import '../focus_section_header.dart';
 
-/// "Ordem do seu dia" — a timeline do atleta com trilho.
+/// "Ordem do seu dia": um card com uma linha por partida do atleta, seguidas
+/// das fases que ainda vêm.
 ///
-/// Segue o grid MOBILE do portal (`48px 20px minmax(0,1fr)`): hora, marca e
-/// corpo na primeira linha, e o resultado/nota descendo para uma SEGUNDA linha
-/// alinhada ao corpo. No desktop a web mantém tudo numa linha só, mas abaixo de
-/// 640px ela quebra assim — que é o caso do app.
+/// Colunas do protótipo: horário · marcador · fase e adversário · quadra ·
+/// resultado. A linha da PRÓXIMA partida acende inteira — horário, marcador,
+/// texto e nota — porque é a única que o atleta procura com pressa.
 class FocusTimeline extends StatelessWidget {
   const FocusTimeline({
     super.key,
     required this.entries,
-    required this.playersOf,
     required this.onOpen,
   });
 
   final List<TimelineEntry> entries;
-
-  /// Elenco do adversário de cada linha, para os rostos.
-  final List<TournamentMatchCardPlayerViewModel> Function(String teamId)
-      playersOf;
   final ValueChanged<String> onOpen;
-
-  static const double _timeWidth = 48;
-  static const double _markWidth = 20;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
     final rows = <Widget>[];
 
     for (var i = 0; i < entries.length; i++) {
@@ -46,120 +37,139 @@ class FocusTimeline extends StatelessWidget {
       }
       rows.add(_Row(
         entry: entry,
-        players: entry.opponentTeamId != null
-            ? playersOf(entry.opponentTeamId!)
-            : const [],
-        onTap: entry.clickable ? () => onOpen(entry.matchId) : null,
+        isLast: i == entries.length - 1,
+        onTap: entry.matchId != null && entry.clickable
+            ? () => onOpen(entry.matchId!)
+            : null,
       ));
     }
 
-    return Column(children: rows);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Column(children: rows),
+      ),
+    );
   }
 }
 
 class _Row extends StatelessWidget {
   const _Row({
     required this.entry,
-    required this.players,
+    required this.isLast,
     required this.onTap,
   });
 
   final TimelineEntry entry;
-  final List<TournamentMatchCardPlayerViewModel> players;
+  final bool isLast;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final isNext = entry.state == TimelineState.next;
+    final isLive = entry.state == TimelineState.live;
+    final accent = isLive ? AppColors.live : colors.brand;
+    final highlight = isNext || isLive;
+    final muted = entry.state == TimelineState.upcoming;
 
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenH,
-          vertical: AppSpacing.md,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: isLast
+                ? BorderSide.none
+                : BorderSide(color: colors.outline.withValues(alpha: 0.5)),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.lg - 2,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: FocusTimeline._timeWidth,
-                  child: Text(
-                    entry.time ?? '—',
-                    style: AppTypography.monoMeta.copyWith(
-                      color: isNext ? colors.brand : colors.onSurfaceMuted,
-                    ),
-                  ),
+            SizedBox(
+              width: 52,
+              child: Text(
+                entry.time ?? '—',
+                style: AppTypography.monoMeta.copyWith(
+                  color: highlight
+                      ? accent
+                      : muted
+                          ? colors.onSurfaceMuted
+                          : colors.onSurface,
+                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
                 ),
-                SizedBox(
-                  width: FocusTimeline._markWidth,
-                  child: _Mark(state: entry.state),
-                ),
-                if (entry.opponentTeamId != null) ...[
-                  NexaDuoAvatars(players: players, size: 22),
-                  const SizedBox(width: AppSpacing.sm),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.title,
-                        style: AppTypography.bodyM.copyWith(
-                          color: colors.onSurface,
-                          fontWeight:
-                              isNext ? FontWeight.w700 : FontWeight.w400,
-                        ),
-                      ),
-                      if (entry.detail != null && entry.detail!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            entry.detail!,
-                            style: AppTypography.bodyS
-                                .copyWith(color: colors.onSurfaceMuted),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            // Segunda linha, alinhada ao corpo — `grid-column: 3` do portal.
-            if (entry.outcomeLabel != null || entry.note != null)
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: FocusTimeline._timeWidth + FocusTimeline._markWidth,
-                  top: AppSpacing.xs,
-                ),
-                child: entry.outcomeLabel != null
-                    ? Text(
-                        entry.outcomeLabel!,
-                        style: AppTypography.monoMeta.copyWith(
-                          color: entry.outcome == TimelineOutcome.win
-                              ? colors.win
-                              : colors.onSurfaceMuted,
-                        ),
-                      )
-                    : Text(
-                        entry.note!,
-                        style:
-                            AppTypography.bodyS.copyWith(color: colors.brand),
-                      ),
               ),
+            ),
+            SizedBox(width: 24, child: _Mark(state: entry.state)),
+            Expanded(
+              child: Text(
+                [entry.phaseLabel, ?_opponentPart()].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.bodyM.copyWith(
+                  color: muted ? colors.onSurfaceMuted : colors.onSurface,
+                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (entry.courtLabel != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                entry.courtLabel!,
+                style: AppTypography.monoMeta.copyWith(
+                  color: colors.onSurfaceMuted,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+            const SizedBox(width: AppSpacing.sm),
+            SizedBox(
+              width: 66,
+              child: Text(
+                _trailing(),
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.monoMeta.copyWith(
+                  color: switch (entry.outcome) {
+                    TimelineOutcome.win => colors.win,
+                    TimelineOutcome.loss => colors.onSurfaceMuted,
+                    null => highlight ? accent : colors.onSurfaceMuted,
+                  },
+                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+
+  /// "vs Sá / Toledo" nas partidas do atleta; o cruzamento cru nas linhas de
+  /// fase, que não são um confronto dele.
+  String? _opponentPart() {
+    final name = entry.opponentName;
+    if (name == null || name.trim().isEmpty) return null;
+    return entry.matchId != null ? 'vs $name' : name;
+  }
+
+  /// Resultado quando houve, senão o que a linha decide.
+  String _trailing() => entry.outcomeLabel ?? entry.note ?? '';
 }
 
-/// A marca do trilho: ✓ para encerrada, ponto cheio para ao vivo e para a
-/// próxima, anel vazado para o resto.
+/// ✓ para encerrada, ponto cheio para ao vivo e para a próxima, anel vazado
+/// para o que ainda vem.
 class _Mark extends StatelessWidget {
   const _Mark({required this.state});
 
@@ -170,11 +180,8 @@ class _Mark extends StatelessWidget {
     final colors = context.themeColors;
 
     return switch (state) {
-      TimelineState.done => Icon(
-          Icons.check_rounded,
-          size: 14,
-          color: colors.onSurfaceMuted,
-        ),
+      TimelineState.done =>
+        Icon(Icons.check_rounded, size: 15, color: colors.win),
       TimelineState.live => const _Dot(color: AppColors.live),
       TimelineState.next => _Dot(color: colors.brand),
       TimelineState.upcoming => _Ring(color: colors.outline),
@@ -189,12 +196,13 @@ class _Dot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 5),
-      child: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    return Container(
+      width: 13,
+      height: 13,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 3),
       ),
     );
   }
@@ -207,15 +215,12 @@ class _Ring extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 5),
-      child: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: color, width: 1.5),
-        ),
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 1.5),
       ),
     );
   }

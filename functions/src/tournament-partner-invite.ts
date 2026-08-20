@@ -1187,7 +1187,30 @@ export const registerSoloTournament = onCall(async (request) => {
         }
       : {}),
   };
-  await regRef.set(regData);
+  // A criação entra numa transação com uma releitura ESTREITA (só inscrições
+  // deste atleta neste torneio, pelo índice `tournamentId + participantUids`).
+  // A checagem larga acima cobre o legado, mas ela lê e escreve fora de
+  // transação: dois toques simultâneos no botão liam "sem inscrição" ao mesmo
+  // tempo e criavam DUAS reservas para o mesmo atleta — a segunda ficava
+  // invisível no app (a tela mapeia uma inscrição por categoria) e comia uma
+  // vaga da categoria para sempre.
+  await db.runTransaction(async (tx) => {
+    const mine = await tx.get(
+      inscriptionsRef
+        .where("tournamentId", "==", tournamentId)
+        .where("participantUids", "array-contains", uid),
+    );
+    const alreadyInCategory = mine.docs.some((doc) =>
+      categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
+    );
+    if (alreadyInCategory) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Você já possui inscrição nesta categoria.",
+      );
+    }
+    tx.set(regRef, regData);
+  });
 
   await markStaleCreateInvitesAfterSolo(db, tournamentId, categoryId, uid);
 
@@ -1470,6 +1493,21 @@ export const acceptTournamentPartnerInvite = onCall({
     throw new HttpsError("not-found", "Convite não encontrado.");
   }
   const invitePreviewData = invitePreview.data()!;
+  // Expiração é decidida FORA da transação: marcar `expired` lá dentro e em
+  // seguida lançar descarta a escrita junto com a transação abortada, e o
+  // convite ficava "pending" para sempre. Só toca em convite ainda pendente —
+  // aceito/recusado/cancelado continua respondendo pelo status próprio.
+  if (invitePreviewData.status === "pending") {
+    const previewExpiresAt = invitePreviewData.expiresAt as Timestamp | undefined;
+    if (
+      previewExpiresAt &&
+      typeof previewExpiresAt.toMillis === "function" &&
+      previewExpiresAt.toMillis() < Date.now()
+    ) {
+      await inviteRef.update({status: "expired"});
+      throw new HttpsError("failed-precondition", "Este convite expirou.");
+    }
+  }
   const previewTournamentId = invitePreviewData.tournamentId as string;
   const previewCategoryId = invitePreviewData.categoryId as string;
   const previewTournament = await loadTournamentDataForInvite(
@@ -1550,9 +1588,10 @@ export const acceptTournamentPartnerInvite = onCall({
       throw new HttpsError("failed-precondition", "Este convite não está mais pendente.");
     }
 
+    // Segunda linha de defesa (o convite pode expirar entre o preview e aqui).
+    // Sem escrita: a transação aborta e descartaria qualquer `tx.update`.
     const expiresAt = invite.expiresAt as Timestamp | undefined;
     if (expiresAt && expiresAt.toMillis() < Date.now()) {
-      tx.update(inviteRef, {status: "expired"});
       throw new HttpsError("failed-precondition", "Este convite expirou.");
     }
 

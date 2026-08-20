@@ -3,7 +3,17 @@ import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
 import {assertTournamentAcceptsRegistration, resolveCategoryEntryFee} from "./tournament-registration-guards";
 
-function mockDb(tournament: Record<string, unknown> | null) {
+/** [inscriptions] são os docs que a categoria já ocupa (id + campos). */
+function mockDb(
+  tournament: Record<string, unknown> | null,
+  inscriptions: Array<{id: string; data: Record<string, unknown>}> = [],
+) {
+  const queryStub = {
+    where: () => queryStub,
+    get: async () => ({
+      docs: inscriptions.map((doc) => ({id: doc.id, data: () => doc.data})),
+    }),
+  };
   return {
     doc: (path: string) => ({
       get: async () => ({
@@ -11,6 +21,7 @@ function mockDb(tournament: Record<string, unknown> | null) {
         data: () => tournament,
       }),
     }),
+    collection: () => queryStub,
   };
 }
 
@@ -172,11 +183,14 @@ describe("tournament-registration-guards", () => {
   });
 
   it("allowClosedRegistration NÃO passa por categoria lotada sem fila", async () => {
-    const db = mockDb({
-      listingStatus: "open",
-      waitlistEnabled: false,
-      categories: [{categoryName: "cat-a", spotsLeft: 0}],
-    });
+    const db = mockDb(
+      {
+        listingStatus: "open",
+        waitlistEnabled: false,
+        categories: [{categoryName: "cat-a", maxTeams: 1}],
+      },
+      [{id: "r1", data: {categoryId: "cat-a"}}],
+    );
     await assert.rejects(
       () =>
         assertTournamentAcceptsRegistration(
@@ -194,11 +208,17 @@ describe("tournament-registration-guards", () => {
   });
 
   it("allows category lotada when waitlist is enabled", async () => {
-    const db = mockDb({
-      listingStatus: "open",
-      waitlistEnabled: true,
-      categories: [{categoryName: "cat-a", spotsLeft: 0}],
-    });
+    const db = mockDb(
+      {
+        listingStatus: "open",
+        waitlistEnabled: true,
+        categories: [{categoryName: "cat-a", maxTeams: 2}],
+      },
+      [
+        {id: "r1", data: {categoryId: "cat-a"}},
+        {id: "r2", data: {categoryId: "cat-a"}},
+      ],
+    );
     const data = await assertTournamentAcceptsRegistration(
       db as never,
       "proj",

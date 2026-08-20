@@ -1,6 +1,7 @@
 import {HttpsError} from "firebase-functions/v2/https";
 import type {Firestore} from "firebase-admin/firestore";
 import {Timestamp} from "firebase-admin/firestore";
+import {artifactsInscriptionsPath} from "./firebase-paths";
 
 export type TournamentData = Record<string, unknown>;
 
@@ -94,6 +95,75 @@ export function resolveCategoryMatchKeys(
  */
 export interface RegistrationGuardOptions {
   allowClosedRegistration?: boolean;
+
+  /**
+   * Inscrição que JÁ ocupa uma vaga e não deve contar contra si mesma.
+   *
+   * Sem isto, confirmar uma inscrição existente numa categoria cheia a jogaria
+   * na fila de espera — e ela é justamente uma das que enchem a categoria.
+   * Usado por quem confirma/paga uma inscrição que já existe (PIX, confirmação
+   * gratuita, reserva direta com o organizador).
+   */
+  occupancyExcludesRegistrationId?: string;
+}
+
+/**
+ * Teto da categoria em EQUIPES (duplas/trios/…), ou `null` quando ela não
+ * declara teto — e aí não há o que lotar.
+ *
+ * `spotsLeft` entra por último e só como fallback de doc legado: ele nasce
+ * igual à capacidade e nenhum writer o decrementa, então serve como "quanto
+ * cabe", nunca como "quanto sobra". O primeiro valor POSITIVO vence — assim
+ * `maxTeams: 0` (sem teto declarado) cai para o próximo campo em vez de ser
+ * lido como categoria lotada.
+ */
+export function resolveCategoryCapacity(
+  category: Record<string, unknown> | null | undefined,
+): number | null {
+  if (!category) return null;
+  for (const field of ["maxTeams", "spotsTotal", "spots", "spotsLeft"]) {
+    const raw = category[field];
+    const n =
+      typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  }
+  return null;
+}
+
+/**
+ * Vagas ocupadas na categoria: a CONTAGEM dos documentos de inscrição
+ * (1 doc = 1 dupla/equipe), que é a única fonte exata — cancelamento faz hard
+ * delete. Fila de espera não ocupa vaga.
+ *
+ * Antes desta conta o guard lia `categories[].spotsLeft`, contador que nasce
+ * igual à capacidade e que ninguém decrementa: uma categoria de 1 dupla
+ * aceitava quantas quisesse, e a única trava real era a tela do app.
+ */
+async function countCategoryOccupancy(
+  db: Firestore,
+  projectId: string,
+  tournamentId: string,
+  categoryKeys: Set<string>,
+  excludeRegistrationId: string,
+): Promise<number> {
+  // `in` aceita no máximo 10 valores; as chaves equivalentes de uma categoria
+  // são 4 no pior caso (id, categoryId, categoryName, name).
+  const keys = [...categoryKeys].filter((key) => key.length > 0).slice(0, 10);
+  if (keys.length === 0) return 0;
+
+  const snap = await db
+    .collection(artifactsInscriptionsPath(projectId))
+    .where("tournamentId", "==", tournamentId)
+    .where("categoryId", "in", keys)
+    .get();
+
+  let occupied = 0;
+  for (const doc of snap.docs) {
+    if (doc.id === excludeRegistrationId) continue;
+    if (doc.data()?.waitlist === true) continue;
+    occupied++;
+  }
+  return occupied;
 }
 
 /** Bloqueia inscrição/convite/PIX quando torneio ou categoria está fechado. */
@@ -180,27 +250,24 @@ export async function assertTournamentAcceptsRegistration(
     // Capacidade: se lotado e fila ativa, a inscrição entra na fila.
     // (A marcação real de `waitlist` é feita pelas funções que persistem a inscrição,
     // usando o campo interno `__shouldWaitlist` retornado aqui.)
-    const waitlistEnabled = tournament.waitlistEnabled !== false;
-    const rawSpotsLeft =
-      category.spotsLeft ??
-      category.spotsTotal ??
-      category.maxTeams ??
-      category.spots;
-    const spotsLeft =
-      typeof rawSpotsLeft === "number"
-        ? rawSpotsLeft
-        : typeof rawSpotsLeft === "string"
-          ? Number(rawSpotsLeft)
-          : Number.NaN;
-
-    if (Number.isFinite(spotsLeft) && spotsLeft <= 0) {
-      if (waitlistEnabled) {
-        (tournament as TournamentData).__shouldWaitlist = true;
-      } else {
-        throw new HttpsError(
-          "failed-precondition",
-          "Categoria lotada.",
-        );
+    const capacity = resolveCategoryCapacity(category);
+    if (capacity != null) {
+      const occupied = await countCategoryOccupancy(
+        db,
+        projectId,
+        tournamentId,
+        resolveCategoryMatchKeys(tournament, categoryKey),
+        options?.occupancyExcludesRegistrationId?.trim() ?? "",
+      );
+      if (occupied >= capacity) {
+        if (tournament.waitlistEnabled !== false) {
+          (tournament as TournamentData).__shouldWaitlist = true;
+        } else {
+          throw new HttpsError(
+            "failed-precondition",
+            "Categoria lotada.",
+          );
+        }
       }
     }
   }

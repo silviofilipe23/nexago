@@ -55,14 +55,21 @@ typedef OrganizerInscriptionWithTeam = ({
   Map<String, dynamic>? team,
 });
 
-/// Agrega inscrições confirmadas (`isPaid == true`) por `categoryId`.
+/// Vagas ocupadas por `categoryId`: **1 documento de inscrição = 1 vaga**.
+///
+/// Conta também a inscrição ainda não paga, porque ela ocupa a vaga de fato —
+/// é o que "Vaga reservada!" promete ao atleta, e é a mesma conta que o
+/// servidor aplica em `assertTournamentAcceptsRegistration` e que o portal do
+/// atleta já usava. Contar só as pagas (como era aqui) fazia a tela anunciar
+/// vagas que o servidor recusaria.
+///
+/// Fila de espera fica de fora: quem está na fila não ocupa vaga.
 TournamentCategoryEnrollmentCounts countInscriptionsByCategoryData(
   Iterable<Map<String, dynamic>> rows,
 ) {
   final counts = <String, int>{};
   for (final data in rows) {
-    if (data['isPaid'] != true) continue;
-    if (data['waitlist'] == true) continue; // fila não conta como confirmada
+    if (data['waitlist'] == true) continue;
     final categoryId = (data['categoryId'] as String?)?.trim() ?? '';
     if (categoryId.isEmpty) continue;
     counts[categoryId] = (counts[categoryId] ?? 0) + 1;

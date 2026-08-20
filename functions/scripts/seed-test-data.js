@@ -9,6 +9,10 @@
  * organizador seed próprio.
  *
  * Volume no padrão (--count 32): 320 atletas → 10 categorias × 16 duplas.
+ * `--categories <n>` e `--teams-per-category <n>` cortam esse volume (ex.:
+ * `--categories 5 --teams-per-category 12` → 5 categorias × 12 duplas). O
+ * corte vale só na CRIAÇÃO do torneio: num torneio reutilizado valem as
+ * categorias já gravadas nele.
  * O torneio nasce `open`, SEM chave gerada — gerar a chave pelo painel é o
  * fluxo que se quer testar.
  *
@@ -35,6 +39,8 @@ const fs = require("fs");
 const admin = require("firebase-admin");
 const {generateKeywords, seedAthletes} = require("./seed-athletes-lib");
 const {
+  TOTAL_CATEGORIES,
+  MAX_TEAMS_PER_CATEGORY,
   assertReusableSeedTournament,
   buildTournamentDocFuture,
   buildTournamentDocToday,
@@ -52,6 +58,18 @@ const PROD_PROJECT_ID = "volley-track-2dd3b";
 function argValue(flag) {
   const i = process.argv.indexOf(flag);
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : undefined;
+}
+
+/** Inteiro opcional com faixa; ausente vira `undefined` (mantém o default). */
+function optionalIntArg(flag, min, max) {
+  const raw = argValue(flag);
+  if (raw === undefined) return undefined;
+  const value = parseInt(raw, 10);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    console.error(`${flag} precisa ser um inteiro entre ${min} e ${max}.`);
+    process.exit(1);
+  }
+  return value;
 }
 
 function parseArgs() {
@@ -81,6 +99,11 @@ function parseArgs() {
   }
   const password = process.env.SEED_PASSWORD || DEFAULT_SEED_PASSWORD;
 
+  // Ausentes = volume padrão (10 categorias × 16 duplas). Só entram no
+  // `categoryOptions` quando informadas, para nenhum comando existente mudar.
+  const categories = optionalIntArg("--categories", 1, TOTAL_CATEGORIES);
+  const teamsPerCategory = optionalIntArg("--teams-per-category", 1, 64);
+
   const credentialsPath = (
     argValue("--credentials") ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS ||
@@ -101,7 +124,17 @@ function parseArgs() {
     admin.initializeApp({projectId});
   }
 
-  return {APPLY, TODAY, projectId, managerUid, tournamentName, count, password};
+  return {
+    APPLY,
+    TODAY,
+    projectId,
+    managerUid,
+    tournamentName,
+    count,
+    password,
+    categories,
+    teamsPerCategory,
+  };
 }
 
 /** Prefixos de busca — mesmo formato de `seed-athletes-lib.generateKeywords`. */
@@ -157,15 +190,49 @@ async function ensureSeedOrganizer(db, auth, password) {
 }
 
 async function run() {
-  const {APPLY, TODAY, projectId, managerUid, tournamentName, count, password} =
-    parseArgs();
+  const {
+    APPLY,
+    TODAY,
+    projectId,
+    managerUid,
+    tournamentName,
+    count,
+    password,
+    categories,
+    teamsPerCategory,
+  } = parseArgs();
   const db = admin.firestore();
   const auth = admin.auth();
+
+  const categoryOptions =
+    categories === undefined && teamsPerCategory === undefined ?
+      undefined :
+      {maxCategories: categories, maxTeamsPerCategory: teamsPerCategory};
 
   console.log(`Projeto: ${projectId}`);
   console.log(`Modo: ${APPLY ? "APLICAR (--yes)" : "DRY-RUN"}`);
   console.log(`Atletas por nível×gênero: ${count} (total ${count * 10})`);
   console.log(`Torneio: "${tournamentName}" (${TODAY ? "hoje" : "em 14 dias"})`);
+  if (categoryOptions) {
+    const catLabel = categories === undefined ?
+      `${TOTAL_CATEGORIES} (padrão)` :
+      `${categories} de ${TOTAL_CATEGORIES} (as primeiras da ordem nível×gênero)`;
+    const teamsLabel = teamsPerCategory === undefined ?
+      `${MAX_TEAMS_PER_CATEGORY} (padrão)` :
+      String(teamsPerCategory);
+    console.log(`Categorias: ${catLabel}`);
+    console.log(`Duplas por categoria: ${teamsLabel}`);
+    // O pool de atletas é por nível×gênero; duplas exigem 2 por vaga. Com
+    // `--count` abaixo disso o seed grava menos duplas do que o pedido e não
+    // falha — o aviso existe para isso não passar por "deu certo".
+    const needed = (teamsPerCategory ?? MAX_TEAMS_PER_CATEGORY) * 2;
+    if (count < needed) {
+      console.log(
+        `  AVISO: --count ${count} < ${needed} atletas necessários por categoria;` +
+        ` cada categoria fica com ${Math.floor(count / 2)} duplas.`,
+      );
+    }
+  }
 
   // ── 0. Pré-voo: o nome do torneio não pode casar com torneio real ─────────
   // Antes de criar organizador e atletas: se o nome casar com um torneio sem
@@ -219,6 +286,7 @@ async function run() {
     // limpeza não desfaz nada — e ainda passa a preservar os 320 atletas para
     // sempre, por estarem "inscritos em torneio real".
     requireSeedFlagOnReuse: true,
+    categoryOptions,
     args: {
       APPLY,
       projectId,

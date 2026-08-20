@@ -73,6 +73,8 @@ async function runSeedScript({seedPasswordEnv}) {
     [
       "./seed-tournament-enrollments-lib",
       {
+        TOTAL_CATEGORIES: 10,
+        MAX_TEAMS_PER_CATEGORY: 16,
         assertReusableSeedTournament: async () => {},
         buildTournamentDocFuture: () => ({}),
         buildTournamentDocToday: () => ({}),

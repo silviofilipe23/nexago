@@ -695,26 +695,8 @@ class _TournamentRegistrationPaymentPageState
                       : isDirectOrganizer
                       ? 'Já paguei ao organizador'
                       : 'Confirmar e pagar',
-                  metaLabel: athleteSharePaid
-                      ? 'Aguardando parceiro'
-                      : isDirectOrganizer
-                      ? null
-                      : (isFree ? 'Gratuito' : 'Sua parcela'),
-                  totalLabel: !athleteSharePaid && !isFree && !isDirectOrganizer
-                      ? formatRegistrationMoney(
-                          _paymentType == 'full'
-                              ? quote.displayTotal
-                              : quote.shareAmount,
-                        )
-                      : null,
                   ctaSubtitle: isDirectOrganizer && !athleteSharePaid
                       ? 'pagamento direto com o organizador'
-                      : null,
-                  priceBoxLabel: isDirectOrganizer && !athleteSharePaid
-                      ? 'Inscrição'
-                      : null,
-                  priceBoxValue: isDirectOrganizer && !athleteSharePaid
-                      ? formatRegistrationMoney(quote.displayTotal)
                       : null,
                 ),
               ],

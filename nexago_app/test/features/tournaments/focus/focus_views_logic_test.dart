@@ -126,6 +126,52 @@ void main() {
     });
   });
 
+  group('focusCountdownProgress', () {
+    test('mede o intervalo desde o fim do jogo anterior', () {
+      final progress = focusCountdownProgress(
+        previousEndedAt: DateTime(2026, 8, 20, 10),
+        scheduleTime: DateTime(2026, 8, 20, 12),
+        now: DateTime(2026, 8, 20, 11),
+      );
+
+      expect(progress, 0.5);
+    });
+
+    test('sem jogo anterior a barra some — não inventa origem', () {
+      expect(
+        focusCountdownProgress(
+          previousEndedAt: null,
+          scheduleTime: DateTime(2026, 8, 20, 12),
+          now: DateTime(2026, 8, 20, 11),
+        ),
+        isNull,
+      );
+    });
+
+    test('trava entre 0 e 1 quando a partida atrasa', () {
+      final progress = focusCountdownProgress(
+        previousEndedAt: DateTime(2026, 8, 20, 10),
+        scheduleTime: DateTime(2026, 8, 20, 12),
+        now: DateTime(2026, 8, 20, 13),
+      );
+
+      expect(progress, 1.0);
+    });
+  });
+
+  group('countdownClockOf', () {
+    final now = DateTime(2026, 8, 20, 14, 0);
+
+    test('formata como relógio', () {
+      expect(countdownClockOf(DateTime(2026, 8, 20, 14, 42, 18), now), '42:18');
+      expect(countdownClockOf(DateTime(2026, 8, 20, 15, 2, 30), now), '1:02:30');
+    });
+
+    test('horário passado devolve null — nada de contagem negativa', () {
+      expect(countdownClockOf(DateTime(2026, 8, 20, 13, 30), now), isNull);
+    });
+  });
+
   group('countdownLabelOf', () {
     final now = DateTime(2026, 8, 20, 14, 0);
 
@@ -180,9 +226,11 @@ void main() {
       expect(view.matchId, 'prox');
       expect(view.kicker, startsWith('Sua próxima partida'));
       expect(view.bestOfLabel, 'MD3');
+      expect(view.formatLabel, 'MD3 · 21 PTS');
+      expect(view.countdownClock, '30:00');
       expect(view.countdown, 'começa em 30 min');
       expect(view.sideA.isMe, isTrue);
-      expect(view.sideA.standingLine, '1º do grupo · 2V 0D');
+      expect(view.sideA.standingLine, '1º · 2V 0D');
       expect(view.sideB.isMe, isFalse);
     });
 
@@ -215,7 +263,7 @@ void main() {
         },
       );
 
-      expect(standingLineOf(ctx, 'meu', 'A'), '1º do grupo · 2V 0D');
+      expect(standingLineOf(ctx, 'meu', 'A'), '1º · 2V 0D');
     });
 
     test('devolve null para time fora do grupo', () {

@@ -103,6 +103,12 @@ const _defaultSetPoints = 21;
 const _tiebreakSetPoints = 15;
 const _minSetAdvantage = 2;
 
+/// Pontos que fecham um set normal e um tie-break. Expostos porque o Modo Focus
+/// mostra o formato da partida ao atleta ("MD3 · 21 PTS", "tie 15") e a régua
+/// tem que ser a MESMA que decide se o set acabou.
+int get matchSetPoints => _defaultSetPoints;
+int get matchTiebreakSetPoints => _tiebreakSetPoints;
+
 int matchBestOf(TournamentMatch match) =>
     match.bestOf > 0 ? match.bestOf : _defaultBestOf;
 

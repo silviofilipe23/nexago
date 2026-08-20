@@ -17,6 +17,7 @@ import '../../../domain/tournament_detail_tabs_logic.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
+import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../widgets/tournament_match_card.dart';
@@ -168,10 +169,18 @@ class FocusAgoraSection extends ConsumerWidget {
           state: state,
           view: heroView,
           card: next == null ? null : byId[next.id],
+          kicker: _kickerOf(next),
+          progress: focusCountdownProgress(
+            previousEndedAt: _previousEndedAt(day, next),
+            scheduleTime: next?.scheduleTime,
+            now: now,
+          ),
           calledAt: next?.matchStartedAt != null
               ? matchTimeLabelForCard(next!)
               : null,
-          mapsLabel: _mapsLabel,
+          walkAwayLabel: null,
+          accent: AppColors.brand,
+          footnote: _footnoteOf(day, next, now),
           onAcknowledge: () => ref
               .read(focusAcknowledgedCallProvider.notifier)
               .acknowledge(next!.id),
@@ -233,6 +242,58 @@ class FocusAgoraSection extends ConsumerWidget {
     final local = at.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// "SUA PRÓXIMA · GRUPO B · R3" — o contexto da partida.
+  static String _kickerOf(TournamentMatch? m) {
+    if (m == null) return 'SUA PRÓXIMA';
+    final parts = <String>['SUA PRÓXIMA'];
+    if (m.poolId.trim().isNotEmpty) {
+      parts.add(poolLabelForId(m.poolId).toUpperCase());
+      parts.add('R${m.round}');
+    } else {
+      parts.add(matchPhaseDisplayLabel(m));
+    }
+    return parts.join(' · ');
+  }
+
+  /// Fim da última partida ENCERRADA do atleta antes desta — a origem da barra
+  /// de progresso e do "descanso desde o último".
+  static DateTime? _previousEndedAt(
+    List<TournamentMatch> day,
+    TournamentMatch? next,
+  ) {
+    DateTime? latest;
+    for (final m in day) {
+      if (next != null && m.id == next.id) continue;
+      final ended = m.matchEndedAt;
+      if (ended == null) continue;
+      if (latest == null || ended.isAfter(latest)) latest = ended;
+    }
+    return latest;
+  }
+
+  /// "3º jogo do dia · 46 min de descanso desde o último". Cada metade só entra
+  /// se puder ser calculada — nada de estimar descanso sem o fim do jogo
+  /// anterior gravado.
+  static String? _footnoteOf(
+    List<TournamentMatch> day,
+    TournamentMatch? next,
+    DateTime now,
+  ) {
+    if (next == null) return null;
+    final parts = <String>[];
+
+    final index = day.indexWhere((m) => m.id == next.id);
+    if (index >= 0) parts.add('${index + 1}º jogo do dia');
+
+    final previous = _previousEndedAt(day, next);
+    if (previous != null) {
+      final minutes = now.difference(previous).inMinutes;
+      if (minutes > 0) parts.add('$minutes min de descanso desde o último');
+    }
+
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   /// A próxima partida relevante: chamada de quadra e ao vivo primeiro, depois

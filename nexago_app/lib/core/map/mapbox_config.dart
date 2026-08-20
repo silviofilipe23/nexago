@@ -1,18 +1,42 @@
+import 'package:flutter/foundation.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 /// Token PÚBLICO do Mapbox (`pk.*`), injetado no build.
 ///
 /// Nunca fica no repositório: entra por `--dart-define`, tanto no `flutter run`
-/// quanto no `flutter build`.
+/// quanto no `flutter build`. Na prática vem do `dart_defines.json` (ignorado
+/// pelo git, molde em `dart_defines.example.json` — ver README).
 ///
 /// ```bash
-/// flutter run --dart-define=MAPBOX_ACCESS_TOKEN=pk.seu_token_aqui
+/// flutter run --dart-define-from-file=dart_defines.json
 /// ```
 ///
 /// Não confundir com o token SECRETO de download (`sk.*`), que é outra coisa:
 /// aquele só serve para o Gradle/CocoaPods baixarem o SDK nativo e mora em
 /// `~/.gradle/gradle.properties` e `~/.netrc` (ver `android/build.gradle.kts`).
 const String mapboxAccessToken = String.fromEnvironment('MAPBOX_ACCESS_TOKEN');
+
+/// Trava de COMPILAÇÃO: um release sem token não vira binário.
+///
+/// `assert` de construtor `const` é avaliado pelo compilador, não em runtime.
+/// Então `flutter build --release` sem `MAPBOX_ACCESS_TOKEN` falha na hora, em
+/// vez de gerar um app que sobe inteiro e só não tem mapa — um AAB sem token é
+/// indistinguível de um com token até o atleta abrir a busca de arenas.
+///
+/// Debug e `flutter test` seguem rodando sem token de propósito: a trava só
+/// olha para `kReleaseMode`.
+class _ReleaseRequiresToken {
+  const _ReleaseRequiresToken()
+    : assert(
+        !kReleaseMode || mapboxAccessToken != '',
+        'Build de release sem MAPBOX_ACCESS_TOKEN: o app subiria sem mapa. '
+        'Compile com --dart-define-from-file=dart_defines.json (ver README).',
+      );
+}
+
+// Basta existir: o compilador avalia a const e para o build aqui.
+// ignore: unused_element
+const _ReleaseRequiresToken _releaseRequiresToken = _ReleaseRequiresToken();
 
 /// Estilo do mapa. Trocável por um estilo do Studio sem tocar em mais nada.
 ///

@@ -48,3 +48,6 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
+
+# Tokens de build (--dart-define-from-file). O .example é versionado; o real, não.
+/dart_defines.json

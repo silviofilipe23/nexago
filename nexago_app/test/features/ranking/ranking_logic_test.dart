@@ -377,10 +377,44 @@ void main() {
           tournamentsCount: 2,
         ),
       ];
-      final filtered = filterAthleteRowsByLevel(rows, 5, {'a1': 2, 'a2': 5});
+      final filtered = filterAthleteRowsByLevel(
+        rows,
+        RankingLevelFilter.avancado,
+        {'a1': 2, 'a2': 5},
+      );
       expect(filtered.length, 1);
       expect(filtered.first.athleteId, 'a2');
       expect(filtered.first.rank, 1);
+    });
+
+    test('o grupo pega os dois degraus da faixa', () {
+      final rows = [
+        const AthleteRankingRow(
+          rank: 1,
+          athleteId: 'a1',
+          totalPoints: 500,
+          tournamentsCount: 2,
+        ),
+        const AthleteRankingRow(
+          rank: 2,
+          athleteId: 'a2',
+          totalPoints: 400,
+          tournamentsCount: 2,
+        ),
+        const AthleteRankingRow(
+          rank: 3,
+          athleteId: 'a3',
+          totalPoints: 300,
+          tournamentsCount: 2,
+        ),
+      ];
+      final filtered = filterAthleteRowsByLevel(
+        rows,
+        RankingLevelFilter.iniciante,
+        {'a1': 0, 'a2': 1, 'a3': 2},
+      );
+      expect(filtered.map((r) => r.athleteId), ['a1', 'a2']);
+      expect(filtered.map((r) => r.rank), [1, 2]);
     });
 
     test(
@@ -394,12 +428,16 @@ void main() {
             tournamentsCount: 2,
           ),
         ];
-        final filtered = filterAthleteRowsByLevel(rows, 5, {'a1': null});
+        final filtered = filterAthleteRowsByLevel(
+          rows,
+          RankingLevelFilter.avancado,
+          {'a1': null},
+        );
         expect(filtered, isEmpty);
       },
     );
 
-    test('returns all rows unchanged when levelRank is null', () {
+    test('returns all rows unchanged when the filter is all', () {
       final rows = [
         const AthleteRankingRow(
           rank: 1,
@@ -408,7 +446,10 @@ void main() {
           tournamentsCount: 2,
         ),
       ];
-      expect(filterAthleteRowsByLevel(rows, null, {'a1': null}), rows);
+      expect(
+        filterAthleteRowsByLevel(rows, RankingLevelFilter.all, {'a1': null}),
+        rows,
+      );
     });
   });
 
@@ -428,7 +469,11 @@ void main() {
           tournamentsCount: 2,
         ),
       ];
-      final filtered = filterTeamRowsByLevel(rows, 0, {'t1': 0, 't2': 5});
+      final filtered = filterTeamRowsByLevel(
+        rows,
+        RankingLevelFilter.iniciante,
+        {'t1': 0, 't2': 5},
+      );
       expect(filtered.length, 1);
       expect(filtered.first.teamId, 't1');
       expect(filtered.first.rank, 1);
@@ -543,6 +588,57 @@ void main() {
     });
   });
 
+  group('RankingLevelFilter', () {
+    test('cada grupo cobre os degraus da escada de 7', () {
+      const byGroup = {
+        RankingLevelFilter.iniciante: [0, 1],
+        RankingLevelFilter.intermediario: [2, 3],
+        RankingLevelFilter.avancado: [4, 5],
+        RankingLevelFilter.open: [6],
+      };
+      for (final entry in byGroup.entries) {
+        for (var rank = 0; rank <= 6; rank++) {
+          expect(
+            entry.key.matchesRank(rank),
+            entry.value.contains(rank),
+            reason: '${entry.key.name} x rank $rank',
+          );
+        }
+      }
+    });
+
+    test('os 4 grupos cobrem a escada inteira, sem degrau órfão', () {
+      for (var rank = 0; rank <= 6; rank++) {
+        final matches = RankingLevelFilter.values
+            .where((f) => f != RankingLevelFilter.all)
+            .where((f) => f.matchesRank(rank));
+        expect(matches.length, 1, reason: 'rank $rank');
+      }
+    });
+
+    test('all aceita tudo, inclusive quem não tem nível resolvido', () {
+      expect(RankingLevelFilter.all.matchesRank(null), isTrue);
+      for (var rank = 0; rank <= 6; rank++) {
+        expect(RankingLevelFilter.all.matchesRank(rank), isTrue);
+      }
+    });
+
+    test('escolher um grupo esconde quem não tem nível resolvido', () {
+      for (final filter in RankingLevelFilter.values) {
+        if (filter == RankingLevelFilter.all) continue;
+        expect(filter.matchesRank(null), isFalse, reason: filter.name);
+      }
+    });
+
+    test('rótulos são os do filtro', () {
+      expect(RankingLevelFilter.all.label, 'Todos os níveis');
+      expect(RankingLevelFilter.iniciante.label, 'Iniciante');
+      expect(RankingLevelFilter.intermediario.label, 'Intermediário');
+      expect(RankingLevelFilter.avancado.label, 'Avançado');
+      expect(RankingLevelFilter.open.label, 'Open');
+    });
+  });
+
   group('RankingPageFilter', () {
     test('default: modo atletas, gênero e formato em all, sem ano/nível', () {
       const filter = RankingPageFilter();
@@ -550,7 +646,7 @@ void main() {
       expect(filter.gender, RankingGenderFilter.all);
       expect(filter.format, RankingFormatFilter.all);
       expect(filter.year, isNull);
-      expect(filter.level, isNull);
+      expect(filter.level, RankingLevelFilter.all);
       expect(filter.isGeneralMode, isTrue);
     });
 
@@ -559,14 +655,14 @@ void main() {
         mode: RankingListMode.teams,
         year: 2026,
         gender: RankingGenderFilter.female,
-        level: 3,
+        level: RankingLevelFilter.intermediario,
       );
       final updated = base.copyWith(format: RankingFormatFilter.quarteto);
       expect(updated.format, RankingFormatFilter.quarteto);
       expect(updated.mode, RankingListMode.teams);
       expect(updated.year, 2026);
       expect(updated.gender, RankingGenderFilter.female);
-      expect(updated.level, 3);
+      expect(updated.level, RankingLevelFilter.intermediario);
     });
 
     test('copyWith sem argumentos e troca de ano preservam o formato', () {

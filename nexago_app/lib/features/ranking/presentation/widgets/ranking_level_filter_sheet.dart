@@ -2,28 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
-
-/// Ranks unificados da escada de 7.
-const _levelRanks = [0, 1, 2, 3, 4, 5, 6];
-
-/// Sentinela interno — `Navigator.pop(context, null)` seria indistinguível
-/// de fechar a folha sem escolher nada, então "Todos os níveis" usa esse
-/// valor por baixo e é convertido de volta pra `null` na saída.
-const _allLevelsSentinel = -1;
+import '../../domain/ranking_list_models.dart';
 
 /// Folha "Filtrar por nível" — mesmo padrão visual/estrutural de
-/// `showRankingGenderFilterSheet`. Devolve o rank escolhido (`null` = todos)
-/// ou [current] inalterado se a folha for fechada sem escolha.
-Future<int?> showRankingLevelFilterSheet(
+/// `showRankingGenderFilterSheet`. Devolve a faixa escolhida ou [current]
+/// inalterada se a folha for fechada sem escolha.
+///
+/// As opções são as 4 faixas de [RankingLevelFilter] (não os 7 degraus da
+/// escada, que estouravam o teto padrão de 9/16 da tela). Mesmo com 5 linhas,
+/// `isScrollControlled` + teto próprio de 85% e lista rolável seguram tela
+/// curta e fonte ampliada — sem eles, 1.5x já quebra o layout.
+Future<RankingLevelFilter> showRankingLevelFilterSheet(
   BuildContext context, {
-  required int? current,
+  required RankingLevelFilter current,
 }) async {
-  final normalizedCurrent = current ?? _allLevelsSentinel;
-
-  final result = await showModalBottomSheet<int>(
+  final result = await showModalBottomSheet<RankingLevelFilter>(
     context: context,
     backgroundColor: context.themeColors.surfaceCard,
+    isScrollControlled: true,
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+    ),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -54,27 +53,31 @@ Future<int?> showRankingLevelFilterSheet(
                 ),
               ),
               SizedBox(height: 12),
-              for (final option in [
-                (_allLevelsSentinel, 'Todos os níveis'),
-                for (final rank in _levelRanks)
-                  (rank, AthleteProfileOptions.labelForRank(rank)),
-              ])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    option.$2,
-                    style: TextStyle(
-                      color: context.themeColors.onSurface,
-                      fontWeight: normalizedCurrent == option.$1
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
-                  trailing: normalizedCurrent == option.$1
-                      ? Icon(Icons.check_rounded, color: AppColors.brand)
-                      : null,
-                  onTap: () => Navigator.pop(context, option.$1),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (final option in RankingLevelFilter.values)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          option.label,
+                          style: TextStyle(
+                            color: context.themeColors.onSurface,
+                            fontWeight: current == option
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        trailing: current == option
+                            ? Icon(Icons.check_rounded, color: AppColors.brand)
+                            : null,
+                        onTap: () => Navigator.pop(context, option),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
@@ -82,6 +85,5 @@ Future<int?> showRankingLevelFilterSheet(
     },
   );
 
-  if (result == null) return current;
-  return result == _allLevelsSentinel ? null : result;
+  return result ?? current;
 }

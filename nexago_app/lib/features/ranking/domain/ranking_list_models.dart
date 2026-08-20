@@ -8,13 +8,42 @@ enum RankingGenderFilter { all, male, female, mixed }
 /// `teamSize`; trio/quarteto/quinteto são as equipes nomeadas (`teamSize` 3–5).
 enum RankingFormatFilter { all, dupla, trio, quarteto, quinteto }
 
+/// Faixa de nível no ranking. A escada canônica tem 7 degraus (ver
+/// `AthleteProfileOptions.levels`), mas o filtro agrupa em 4 faixas — é como o
+/// atleta lê o próprio nível, e 8 linhas soltas não cabiam na folha.
+/// Os degraus continuam intactos: só a lente de filtragem é mais larga.
+enum RankingLevelFilter {
+  all('Todos os níveis', 0, 6),
+  iniciante('Iniciante', 0, 1),
+  intermediario('Intermediário', 2, 3),
+  avancado('Avançado', 4, 5),
+  open('Open', 6, 6);
+
+  const RankingLevelFilter(this.label, this.minRank, this.maxRank);
+
+  /// Rótulo do chip e da folha.
+  final String label;
+
+  /// Faixa fechada de ranks da escada de 7 que a opção cobre.
+  final int minRank;
+  final int maxRank;
+
+  /// `null` (nível não resolvido) só passa em [all] — escolher uma faixa
+  /// esconde quem não tem nível, mesma regra do filtro por degrau exato.
+  bool matchesRank(int? rank) {
+    if (this == RankingLevelFilter.all) return true;
+    if (rank == null) return false;
+    return rank >= minRank && rank <= maxRank;
+  }
+}
+
 class RankingPageFilter {
   const RankingPageFilter({
     this.mode = RankingListMode.athletes,
     this.year,
     this.gender = RankingGenderFilter.all,
     this.format = RankingFormatFilter.all,
-    this.level,
+    this.level = RankingLevelFilter.all,
   });
 
   final RankingListMode mode;
@@ -25,8 +54,8 @@ class RankingPageFilter {
   /// (a tela esconde o chip e volta pra `all` ao trocar de modo).
   final RankingFormatFilter format;
 
-  /// Rank de nível selecionado (`null` = todos os níveis).
-  final int? level;
+  /// Faixa de nível selecionada (`all` = todos os níveis).
+  final RankingLevelFilter level;
 
   bool get isGeneralMode => year == null;
 
@@ -37,14 +66,14 @@ class RankingPageFilter {
     int? Function()? year,
     RankingGenderFilter? gender,
     RankingFormatFilter? format,
-    int? Function()? level,
+    RankingLevelFilter? level,
   }) {
     return RankingPageFilter(
       mode: mode ?? this.mode,
       year: year != null ? year() : this.year,
       gender: gender ?? this.gender,
       format: format ?? this.format,
-      level: level != null ? level() : this.level,
+      level: level ?? this.level,
     );
   }
 }

@@ -15,7 +15,9 @@ import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../focus_section_header.dart';
+import '../../../domain/focus/campaign_share_data.dart';
 import '../widgets/focus_journey_rail.dart';
+import '../widgets/focus_share_campaign_sheet.dart';
 import '../widgets/focus_set_bars.dart';
 
 /// Seção "Trajetória": quanto falta pro título, o caminho até a final, os
@@ -86,6 +88,24 @@ class FocusTrajetoriaSection extends ConsumerWidget {
     }
 
     final categoryMatches = all.where((m) => m.categoryId == id).toList();
+
+    // Os dois rostos da dupla do atleta, tirados do lado dele em qualquer
+    // partida da categoria. Sem isso o card de campanha sai sem avatar.
+    var myPlayers = const <CampaignPlayer>[];
+    var myTeamName = 'Sua dupla';
+    for (final c in cards) {
+      if (c.match.categoryId != id) continue;
+      final iAmA = athleteTeamIds.contains(c.match.teamAId);
+      final iAmB = athleteTeamIds.contains(c.match.teamBId);
+      if (!iAmA && !iAmB) continue;
+      final side = iAmA ? c.teamA : c.teamB;
+      myTeamName = side.displayName;
+      myPlayers = [
+        for (final p in side.players)
+          CampaignPlayer(initial: p.initials, photo: p.avatarUrl),
+      ];
+      break;
+    }
     final offer = _offer();
     final isDouble =
         offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
@@ -138,7 +158,38 @@ class FocusTrajetoriaSection extends ConsumerWidget {
       ),
       children: [
         if (headline != null) _Headline(headline: headline),
-        const FocusSectionHeader(label: 'CAMINHO ATÉ A FINAL'),
+        Row(
+          children: [
+            const Expanded(
+              child: FocusSectionHeader(label: 'CAMINHO ATÉ A FINAL'),
+            ),
+            // Só com partida encerrada: um card de campanha sem campanha
+            // nenhuma não diz nada.
+            if (numbers.matches > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.screenH),
+                child: TextButton.icon(
+                  onPressed: () => showFocusShareCampaignSheet(
+                    context,
+                    buildCampaignShareData(
+                      matches: categoryMatches,
+                      categoryId: id,
+                      myTeamIds: athleteTeamIds,
+                      teamName: myTeamName,
+                      players: myPlayers,
+                      categoryLine: offer?.name ?? '',
+                      tournamentName: tournament.name,
+                      locationName: tournament.location,
+                      duoNameOf: (teamId) =>
+                          teamNames[teamId] ?? 'A definir',
+                    ),
+                  ),
+                  icon: const Icon(Icons.ios_share_rounded, size: 16),
+                  label: const Text('Compartilhar'),
+                ),
+              ),
+          ],
+        ),
         if (steps.isEmpty)
           _Empty(text: 'Sua chave ainda não foi sorteada.')
         else

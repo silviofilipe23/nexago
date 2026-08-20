@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../data/tournament_announcements_repository.dart';
 import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_providers.dart';
 import '../../../domain/focus/focus_views_logic.dart';
@@ -15,12 +17,17 @@ import '../../../domain/tournament_detail_tabs_logic.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
+import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../widgets/tournament_match_card.dart';
 import '../focus_section_header.dart';
+import '../widgets/focus_now_hero.dart';
+import '../widgets/focus_share_match_sheet.dart';
+import '../widgets/focus_timeline.dart';
 
-/// Seção "Agora": o que o atleta precisa saber nos próximos minutos, seguido
-/// da ordem do dia e do que está em quadra na categoria dele.
+/// Seção "Agora": o que o atleta precisa saber nos próximos minutos, seguido da
+/// ordem do dia, dos avisos do organizador e do que está em quadra na categoria
+/// dele. Mesma ordem e mesma cópia do portal.
 class FocusAgoraSection extends ConsumerWidget {
   const FocusAgoraSection({
     super.key,
@@ -41,6 +48,25 @@ class FocusAgoraSection extends ConsumerWidget {
       pathParameters: {'matchId': id},
       queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
     );
+  }
+
+  /// Rota até a ARENA, não até a quadra: as quadras do torneio são só `{id,
+  /// name}`, sem posição. O rótulo nomeia a arena justamente para não prometer
+  /// o que não temos.
+  Future<void> _openMaps() async {
+    final query = tournament.locationAddress?.trim().isNotEmpty == true
+        ? tournament.locationAddress!.trim()
+        : '${tournament.location}, ${tournament.city}';
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1'
+      '&query=${Uri.encodeComponent(query)}',
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String get _mapsLabel {
+    final location = tournament.location.trim();
+    return location.isNotEmpty ? 'Como chegar na $location' : 'Como chegar';
   }
 
   @override
@@ -75,10 +101,11 @@ class FocusAgoraSection extends ConsumerWidget {
     final colors = context.themeColors;
     final byId = {for (final c in cards) c.match.id: c};
     final all = [for (final c in cards) c.match];
+    final now = DateTime.now();
 
-    // Nome por ID DE TIME, montado a partir dos dois lados de cada card. O
-    // `byId` acima é indexado por id de PARTIDA — consultá-lo com um teamId
-    // devolve null em silêncio e todo adversário vira "A definir".
+    // Nome por ID DE TIME: `byId` é indexado por id de PARTIDA, e consultá-lo
+    // com um teamId devolve null em silêncio — todo adversário viraria
+    // "A definir".
     final teamNames = <String, String>{};
     for (final c in cards) {
       if (c.match.teamAId.isNotEmpty) {
@@ -88,7 +115,6 @@ class FocusAgoraSection extends ConsumerWidget {
         teamNames[c.match.teamBId] = c.teamB.displayName;
       }
     }
-    final now = DateTime.now();
 
     // A categoria em foco recorta TUDO: `poolId` só é único dentro dela.
     final categoryMatches = categoryId == null
@@ -102,7 +128,7 @@ class FocusAgoraSection extends ConsumerWidget {
       tournamentRunningToday: tournamentIsEventToday(tournament, now),
     );
 
-    final next = _nextMatchOf(day, all);
+    final next = _nextMatchOf(day);
     final acknowledged = ref.watch(focusAcknowledgedCallProvider);
     final state = focusNowStateOf(
       next,
@@ -120,7 +146,12 @@ class FocusAgoraSection extends ConsumerWidget {
       standingsOf: (_) => const [],
       nextMatch: next,
     );
+
+    final heroView = nextMatchViewOf(ctx, now);
     final entries = timelineOf(ctx, day);
+    final announcements =
+        ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
+            const [];
 
     final live = categoryMatches
         .where((m) => TournamentMatchStatus.isInProgress(m.status))
@@ -133,25 +164,51 @@ class FocusAgoraSection extends ConsumerWidget {
         bottom: AppSpacing.xxxl,
       ),
       children: [
-        _MainBlock(
+        FocusNowHero(
           state: state,
-          match: next,
+          view: heroView,
           card: next == null ? null : byId[next.id],
-          athleteTeamIds: athleteTeamIds,
+          calledAt: next?.matchStartedAt != null
+              ? matchTimeLabelForCard(next!)
+              : null,
+          mapsLabel: _mapsLabel,
           onAcknowledge: () => ref
               .read(focusAcknowledgedCallProvider.notifier)
               .acknowledge(next!.id),
-          onOpen: (id) => _openMatch(context, id),
+          onOpenMatch: () => _openMatch(context, next!.id),
+          onOpenMaps: _openMaps,
+          onShare: () => showFocusShareMatchSheet(context, next!.id),
         ),
-        if (entries.isNotEmpty) ...[
-          const FocusSectionHeader(label: 'ORDEM DO SEU DIA'),
-          _Timeline(
+        FocusSectionHeader(label: 'ORDEM DO SEU DIA'.toUpperCase()),
+        if (entries.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenH,
+              vertical: AppSpacing.sm,
+            ),
+            child: Text(
+              'Nenhuma partida sua hoje.',
+              style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+            ),
+          )
+        else
+          FocusTimeline(
             entries: entries,
             onOpen: (id) => _openMatch(context, id),
           ),
+        if (announcements.isNotEmpty) ...[
+          const FocusSectionHeader(label: 'AVISOS DO ORGANIZADOR'),
+          for (final a in announcements)
+            _Announcement(
+              time: a.createdAt != null ? _hhmm(a.createdAt!) : '',
+              message: a.message,
+            ),
         ],
         if (live.isNotEmpty) ...[
-          const FocusSectionHeader(label: 'AO VIVO NA SUA CATEGORIA', live: true),
+          const FocusSectionHeader(
+            label: 'AO VIVO NA SUA CATEGORIA',
+            live: true,
+          ),
           for (final m in live)
             if (byId[m.id] != null)
               Padding(
@@ -168,26 +225,19 @@ class FocusAgoraSection extends ConsumerWidget {
                 ),
               ),
         ],
-        if (entries.isEmpty && live.isEmpty && next == null)
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.xxl),
-            child: Text(
-              'Nada acontecendo agora — seus jogos aparecem aqui, com ou sem '
-              'horário definido.',
-              textAlign: TextAlign.center,
-              style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
-            ),
-          ),
       ],
     );
   }
 
+  static String _hhmm(DateTime at) {
+    final local = at.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
   /// A próxima partida relevante: chamada de quadra e ao vivo primeiro, depois
   /// a mais cedo do dia. Mesma precedência de `athleteMatchPriority`.
-  TournamentMatch? _nextMatchOf(
-    List<TournamentMatch> day,
-    List<TournamentMatch> all,
-  ) {
+  TournamentMatch? _nextMatchOf(List<TournamentMatch> day) {
     final mine = day
         .where((m) => !TournamentMatchStatus.isCompleted(m.status))
         .toList();
@@ -202,243 +252,42 @@ class FocusAgoraSection extends ConsumerWidget {
   }
 }
 
-/// O bloco principal, pelo estado. Cada ramo diz uma coisa diferente e nenhum
-/// deles inventa: `pendingKnockout` fala da CATEGORIA ("a chave ainda vai
-/// sair"), nunca do futuro do atleta.
-class _MainBlock extends StatelessWidget {
-  const _MainBlock({
-    required this.state,
-    required this.match,
-    required this.card,
-    required this.athleteTeamIds,
-    required this.onAcknowledge,
-    required this.onOpen,
-  });
+class _Announcement extends StatelessWidget {
+  const _Announcement({required this.time, required this.message});
 
-  final FocusNowState state;
-  final TournamentMatch? match;
-  final TournamentMatchCardViewModel? card;
-  final Set<String> athleteTeamIds;
-  final VoidCallback onAcknowledge;
-  final ValueChanged<String> onOpen;
+  final String time;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final padding = const EdgeInsets.fromLTRB(
-      AppSpacing.screenH,
-      0,
-      AppSpacing.screenH,
-      AppSpacing.lg,
-    );
 
-    switch (state) {
-      case FocusNowState.called:
-        return Padding(
-          padding: padding,
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.live,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CHAMADA DE QUADRA',
-                  style: AppTypography.eyebrow.copyWith(color: Colors.white),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Sua partida foi chamada. Vá para a quadra.',
-                  style: AppTypography.titleM.copyWith(color: Colors.white),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: onAcknowledge,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.live,
-                    ),
-                    // Só recolhe o alerta. Não existe callable para avisar a
-                    // mesa, e o rótulo não promete mais do que isso.
-                    child: const Text('Ok, estou indo'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-
-      case FocusNowState.live:
-      case FocusNowState.next:
-        final vm = card;
-        if (vm == null) return const SizedBox.shrink();
-        return Padding(
-          padding: padding,
-          child: TournamentMatchCard(
-            viewModel: vm,
-            athleteTeamIds: athleteTeamIds,
-            onTap: () => onOpen(vm.match.id),
-          ),
-        );
-
-      case FocusNowState.pendingKnockout:
-        return Padding(
-          padding: padding,
-          child: _Message(
-            title: 'A chave ainda vai sair',
-            body: 'O mata-mata da sua categoria ainda tem jogos por definir. '
-                'Adversário e quadra aparecem aqui assim que o organizador '
-                'publicar.',
-            colors: colors,
-          ),
-        );
-
-      case FocusNowState.idle:
-        return Padding(
-          padding: padding,
-          child: _Message(
-            title: 'Seu dia acabou por aqui',
-            body: 'Você não tem mais partidas neste torneio.',
-            colors: colors,
-          ),
-        );
-    }
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({
-    required this.title,
-    required this.body,
-    required this.colors,
-  });
-
-  final String title;
-  final String body;
-  final AppThemeColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.outline),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.md,
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: AppTypography.titleM.copyWith(color: colors.onSurface),
+          SizedBox(
+            width: 48,
+            child: Text(
+              time,
+              style: AppTypography.monoMeta
+                  .copyWith(color: colors.onSurfaceMuted),
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            body,
-            style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+            ),
           ),
         ],
       ),
     );
-  }
-}
-
-/// A ordem do dia. As partidas sem horário ganham um divisor próprio, depois
-/// das agendadas — elas passaram a entrar na lista quando a regra deixou de
-/// exigir `scheduleTime`.
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.entries, required this.onOpen});
-
-  final List<TimelineEntry> entries;
-  final ValueChanged<String> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final rows = <Widget>[];
-
-    for (var i = 0; i < entries.length; i++) {
-      final entry = entries[i];
-      final firstWithoutTime =
-          entry.time == null && (i == 0 || entries[i - 1].time != null);
-      if (firstWithoutTime) {
-        rows.add(const FocusSectionHeader(label: 'SEM HORÁRIO DEFINIDO'));
-      }
-      rows.add(
-        InkWell(
-          onTap: entry.clickable ? () => onOpen(entry.matchId) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenH,
-              vertical: AppSpacing.md,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 52,
-                  child: Text(
-                    entry.time ?? '—',
-                    style: AppTypography.bodyM.copyWith(
-                      color: entry.state == TimelineState.next
-                          ? colors.brand
-                          : colors.onSurfaceMuted,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.title,
-                        style: AppTypography.bodyM
-                            .copyWith(color: colors.onSurface),
-                      ),
-                      if (entry.note != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            entry.note!,
-                            style: AppTypography.bodyS
-                                .copyWith(color: colors.brand),
-                          ),
-                        ),
-                      if (entry.detail != null && entry.detail!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            entry.detail!,
-                            style: AppTypography.bodyS
-                                .copyWith(color: colors.onSurfaceMuted),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (entry.outcomeLabel != null)
-                  Text(
-                    entry.outcomeLabel!,
-                    style: AppTypography.bodyM.copyWith(
-                      color: entry.outcome == TimelineOutcome.win
-                          ? colors.win
-                          : colors.onSurfaceMuted,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(children: rows);
   }
 }

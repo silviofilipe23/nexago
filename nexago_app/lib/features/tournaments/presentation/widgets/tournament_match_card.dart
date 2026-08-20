@@ -8,6 +8,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/match_win_probability_providers.dart';
 import '../../domain/tournament_match_card_row.dart';
 import '../../domain/tournament_match_card_view_model.dart';
+import 'nexa_duo_avatars.dart';
 import '../../domain/tournament_match_display.dart';
 import 'tournament_match_card_premium_skin.dart';
 import 'tournament_match_live_badge.dart';
@@ -256,7 +257,7 @@ class _TeamRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
-          _DuoAvatars(players: side.players),
+          NexaDuoAvatars(players: side.players),
           const SizedBox(width: 12),
           Expanded(
             child: Text.rich(
@@ -379,95 +380,3 @@ class _Pills extends StatelessWidget {
 /// Par de avatares sobrepostos que identifica a dupla — mesmo desenho do portal
 /// (`duo-avatars`): gradiente laranja→rosa no primeiro atleta, verde no
 /// segundo, iniciais brancas e aro do fundo separando as fotos.
-class _DuoAvatars extends StatelessWidget {
-  const _DuoAvatars({required this.players});
-
-  final List<TournamentMatchCardPlayerViewModel> players;
-
-  static const _size = 28.0;
-  static const _overlap = _size * 0.3;
-
-  @override
-  Widget build(BuildContext context) {
-    final count = players.isEmpty ? 1 : players.length;
-
-    return SizedBox(
-      width: count > 1 ? _size * 2 - _overlap : _size,
-      height: _size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            child: _Avatar(player: players.firstOrNull, index: 0),
-          ),
-          if (players.length > 1)
-            Positioned(
-              left: _size - _overlap,
-              child: _Avatar(player: players[1], index: 1),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.player, required this.index});
-
-  final TournamentMatchCardPlayerViewModel? player;
-  final int index;
-
-  static const _size = 28.0;
-
-  static const _gradients = [
-    [Color(0xFFFF6A1A), Color(0xFFC2185B)],
-    [Color(0xFF2BD17E), Color(0xFF1E7A4D)],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final url = player?.avatarUrl?.trim();
-    final hasPhoto = url != null && url.isNotEmpty;
-
-    return Container(
-      width: _size,
-      height: _size,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: _gradients[index % _gradients.length],
-        ),
-        shape: BoxShape.circle,
-        border: Border.all(color: context.themeColors.canvas, width: 1.5),
-      ),
-      child: ClipOval(
-        child: hasPhoto
-            ? CachedNetworkImage(
-                imageUrl: url,
-                width: _size,
-                height: _size,
-                fit: BoxFit.cover,
-                placeholder: (_, _) => _initials(),
-                errorWidget: (_, _, _) => _initials(),
-              )
-            : _initials(),
-      ),
-    );
-  }
-
-  Widget _initials() {
-    return Center(
-      child: Text(
-        player?.initials ?? '?',
-        style: AppTypography.soraRegular(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: AppColors.white,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-}

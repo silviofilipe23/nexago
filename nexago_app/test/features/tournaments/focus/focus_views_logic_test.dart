@@ -126,6 +126,86 @@ void main() {
     });
   });
 
+  group('countdownLabelOf', () {
+    final now = DateTime(2026, 8, 20, 14, 0);
+
+    test('menos de meio minuto vira "começa agora"', () {
+      // O arredondamento é o mesmo do portal (`Math.round`): 30s já arredonda
+      // pra 1 min nos dois. O limite real é meio minuto.
+      expect(
+        countdownLabelOf(DateTime(2026, 8, 20, 14, 0, 20), now),
+        'começa agora',
+      );
+      expect(
+        countdownLabelOf(DateTime(2026, 8, 20, 14, 0, 30), now),
+        'começa em 1 min',
+      );
+    });
+
+    test('minutos e horas', () {
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 14, 40), now),
+          'começa em 40 min');
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 16, 0), now),
+          'começa em 2h');
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 16, 15), now),
+          'começa em 2h15');
+    });
+
+    test('passado vira atraso, não contagem negativa', () {
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 13, 30), now),
+          'atrasada 30 min');
+    });
+
+    test('sem horário devolve null', () {
+      expect(countdownLabelOf(null, now), isNull);
+    });
+  });
+
+  group('nextMatchViewOf', () {
+    test('monta o kicker, os chips e o lado do atleta', () {
+      final proxima = _match(
+        id: 'prox',
+        scheduleTime: DateTime(2026, 8, 20, 15),
+      );
+      final ctx = _ctx(
+        matches: [proxima],
+        nextMatch: proxima,
+        standings: {
+          'A': [_row(1, 'meu', wins: 2)],
+        },
+      );
+
+      final view = nextMatchViewOf(ctx, DateTime(2026, 8, 20, 14, 30))!;
+
+      expect(view.matchId, 'prox');
+      expect(view.kicker, startsWith('Sua próxima partida'));
+      expect(view.bestOfLabel, 'MD3');
+      expect(view.countdown, 'começa em 30 min');
+      expect(view.sideA.isMe, isTrue);
+      expect(view.sideA.standingLine, '1º do grupo · 2V 0D');
+      expect(view.sideB.isMe, isFalse);
+    });
+
+    test('ao vivo não mostra contagem regressiva', () {
+      final aoVivo = _match(
+        id: 'live',
+        status: TournamentMatchStatus.inProgress,
+        scheduleTime: DateTime(2026, 8, 20, 14),
+      );
+      final ctx = _ctx(matches: [aoVivo], nextMatch: aoVivo);
+
+      final view = nextMatchViewOf(ctx, DateTime(2026, 8, 20, 14, 30))!;
+
+      expect(view.live, isTrue);
+      expect(view.countdown, isNull);
+    });
+
+    test('sem próxima partida devolve null', () {
+      final ctx = _ctx(matches: const []);
+      expect(nextMatchViewOf(ctx, DateTime(2026, 8, 20, 14)), isNull);
+    });
+  });
+
   group('standingLineOf', () {
     test('devolve "1º do grupo · 2V 0D"', () {
       final ctx = _ctx(

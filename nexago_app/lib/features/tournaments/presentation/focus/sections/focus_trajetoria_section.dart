@@ -1,27 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_journey_logic.dart';
+import '../../../domain/focus/focus_journey_view.dart';
+import '../../../domain/focus/focus_views_logic.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
-import '../../../domain/tournament_match.dart';
-import '../../../domain/tournament_match_display.dart';
 import '../focus_section_header.dart';
+import '../../../domain/focus/campaign_share_data.dart';
+import '../widgets/focus_journey_rail.dart';
+import '../widgets/focus_share_campaign_sheet.dart';
+import '../widgets/focus_set_bars.dart';
 
-/// Seção "Trajetória": quanto falta pro título, por onde passa o caminho, e os
-/// números da campanha.
+/// Seção "Trajetória": quanto falta pro título, o caminho até a final, os
+/// números da campanha e o que o torneio muda.
 ///
-/// REGRA DA TELA: quando o motor devolve `null`, a manchete e o caminho SOMEM.
-/// Nada de placeholder, "a definir" ou contagem de fases chutada — o `null` de
-/// `winsToTitleOf`/`happyPathOf` significa "não dá pra afirmar", e inventar um
-/// número ali é exatamente o bug que as guardas daquele módulo existem pra
-/// evitar.
+/// REGRA DA TELA: quando o motor devolve `null`, a manchete SOME. Nada de
+/// placeholder ou contagem de fases chutada — `null` significa "não dá pra
+/// afirmar", e inventar um número ali é exatamente o bug que as guardas de
+/// `focus_journey_logic.dart` existem pra evitar.
 class FocusTrajetoriaSection extends ConsumerWidget {
   const FocusTrajetoriaSection({
     super.key,
@@ -34,18 +39,26 @@ class FocusTrajetoriaSection extends ConsumerWidget {
   final String? categoryId;
   final Set<String> athleteTeamIds;
 
-  TournamentCategoryOffer? _offer(List<TournamentCategoryOffer> offers) {
-    for (final offer in offers) {
+  TournamentCategoryOffer? _offer() {
+    for (final offer in tournament.categoryOffers) {
       if (offer.id == categoryId) return offer;
     }
     return null;
   }
 
+  void _openMatch(BuildContext context, String matchId) {
+    context.pushNamed(
+      AppRouteNames.athleteMatchDetail,
+      pathParameters: {'matchId': matchId},
+      queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.themeColors;
-    final cardsAsync = ref.watch(tournamentMatchCardsProvider(tournament.id));
-    final cards = cardsAsync.valueOrNull;
+    final cards =
+        ref.watch(tournamentMatchCardsProvider(tournament.id)).valueOrNull;
+
     if (cards == null) {
       return const Center(
         child: Padding(
@@ -55,21 +68,45 @@ class FocusTrajetoriaSection extends ConsumerWidget {
       );
     }
 
-    final all = [for (final c in cards) c.match];
     final id = categoryId;
     if (id == null) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Text(
-          'Sua campanha aparece aqui quando você tiver partida nesta '
-          'categoria.',
-          textAlign: TextAlign.center,
-          style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
-        ),
+      return _Empty(
+        text: 'Sua campanha aparece aqui quando você tiver partida nesta '
+            'categoria.',
       );
     }
 
-    final offer = _offer(tournament.categoryOffers);
+    final all = [for (final c in cards) c.match];
+    final teamNames = <String, String>{};
+    for (final c in cards) {
+      if (c.match.teamAId.isNotEmpty) {
+        teamNames[c.match.teamAId] = c.teamA.displayName;
+      }
+      if (c.match.teamBId.isNotEmpty) {
+        teamNames[c.match.teamBId] = c.teamB.displayName;
+      }
+    }
+
+    final categoryMatches = all.where((m) => m.categoryId == id).toList();
+
+    // Os dois rostos da dupla do atleta, tirados do lado dele em qualquer
+    // partida da categoria. Sem isso o card de campanha sai sem avatar.
+    var myPlayers = const <CampaignPlayer>[];
+    var myTeamName = 'Sua dupla';
+    for (final c in cards) {
+      if (c.match.categoryId != id) continue;
+      final iAmA = athleteTeamIds.contains(c.match.teamAId);
+      final iAmB = athleteTeamIds.contains(c.match.teamBId);
+      if (!iAmA && !iAmB) continue;
+      final side = iAmA ? c.teamA : c.teamB;
+      myTeamName = side.displayName;
+      myPlayers = [
+        for (final p in side.players)
+          CampaignPlayer(initial: p.initials, photo: p.avatarUrl),
+      ];
+      break;
+    }
+    final offer = _offer();
     final isDouble =
         offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
 
@@ -79,10 +116,39 @@ class FocusTrajetoriaSection extends ConsumerWidget {
       athleteTeamIds,
       isDoubleElimination: isDouble,
     );
-    final path = happyPathOf(all, id, athleteTeamIds);
-    final numbers = tournamentNumbersOf(
-      all.where((m) => m.categoryId == id).toList(),
+    final headline = journeyHeadlineOf(wins);
+    final happyPath = isDouble ? happyPathOf(all, id, athleteTeamIds) : null;
+    final numbers = tournamentNumbersOf(categoryMatches, athleteTeamIds);
+
+    final worstPlace = bracketWorstPlaceOf(
+      all,
+      id,
       athleteTeamIds,
+      isDoubleElimination: isDouble,
+    );
+    final prizes = _prizeRows(offer, worstPlace);
+    final finalPrize = _finalPrizeLabel(offer);
+
+    final ctx = FocusViewContext(
+      matches: categoryMatches,
+      myTeamIds: athleteTeamIds,
+      duoNameOf: (teamId, [fallback]) =>
+          teamNames[teamId] ?? fallback ?? 'A definir',
+      standingsOf: (_) => const [],
+      nextMatch: null,
+    );
+    final opponents = possibleOpponentsOf(
+      categoryMatches,
+      id,
+      athleteTeamIds,
+      (teamId) => teamNames[teamId] ?? 'A definir',
+    );
+    final steps = journeyStepsOf(
+      ctx,
+      journeyPathOf(categoryMatches, id, athleteTeamIds),
+      null,
+      finalPrize,
+      happyPath: happyPath,
     );
 
     return ListView(
@@ -91,40 +157,135 @@ class FocusTrajetoriaSection extends ConsumerWidget {
         bottom: AppSpacing.xxxl,
       ),
       children: [
-        if (wins != null) _Headline(wins: wins),
-        if (path != null && path.isNotEmpty) ...[
-          const FocusSectionHeader(label: 'CAMINHO ATÉ A FINAL'),
-          _Path(matches: path, categoryMatches: all),
-        ],
-        if (numbers.matches > 0) ...[
-          const FocusSectionHeader(label: 'SEUS NÚMEROS NO TORNEIO'),
-          _Numbers(numbers: numbers),
-        ],
-        if (wins == null && numbers.matches == 0)
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.xxl),
-            child: Text(
-              'Sua campanha aparece aqui quando a chave for sorteada.',
-              textAlign: TextAlign.center,
-              style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+        if (headline != null) _Headline(headline: headline),
+        Row(
+          children: [
+            const Expanded(
+              child: FocusSectionHeader(label: 'CAMINHO ATÉ A FINAL'),
             ),
+            // Só com partida encerrada: um card de campanha sem campanha
+            // nenhuma não diz nada.
+            if (numbers.matches > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.screenH),
+                child: TextButton.icon(
+                  onPressed: () => showFocusShareCampaignSheet(
+                    context,
+                    buildCampaignShareData(
+                      matches: categoryMatches,
+                      categoryId: id,
+                      myTeamIds: athleteTeamIds,
+                      teamName: myTeamName,
+                      players: myPlayers,
+                      categoryLine: offer?.name ?? '',
+                      tournamentName: tournament.name,
+                      locationName: tournament.location,
+                      duoNameOf: (teamId) =>
+                          teamNames[teamId] ?? 'A definir',
+                    ),
+                  ),
+                  icon: const Icon(Icons.ios_share_rounded, size: 16),
+                  label: const Text('Compartilhar'),
+                ),
+              ),
+          ],
+        ),
+        if (steps.isEmpty)
+          _Empty(text: 'Sua chave ainda não foi sorteada.')
+        else
+          FocusJourneyRail(
+            steps: steps,
+            onOpen: (matchId) => _openMatch(context, matchId),
           ),
+        const FocusSectionHeader(label: 'SEUS NÚMEROS NO TORNEIO'),
+        _Stats(numbers: numbers),
+        if (numbers.sets.isNotEmpty)
+          FocusSetBars(bars: numbers.sets)
+        else
+          _Empty(text: 'Nenhuma partida encerrada ainda.'),
+        if (opponents.isNotEmpty) ...[
+          const FocusSectionHeader(label: 'QUEM PODE CRUZAR COM VOCÊ'),
+          for (final opponent in opponents) _Opponent(opponent: opponent),
+        ],
+        if (prizes.isNotEmpty) ...[
+          const FocusSectionHeader(label: 'O QUE ESTE TORNEIO MUDA'),
+          for (final prize in prizes) _PrizeRow(prize: prize),
+        ],
       ],
     );
   }
+
+  /// A premiação da categoria, com a colocação já garantida destacada.
+  ///
+  /// "Garantido" casa a colocação EXATA que a campanha assegura ([worstPlace]),
+  /// não um piso: o atleta pode terminar em qualquer lugar até ela, nunca pior.
+  /// Se essa colocação não tem prêmio cadastrado, a resposta certa é "nada
+  /// garantido", não o prêmio de uma colocação que ele não pode mais alcançar.
+  List<_Prize> _prizeRows(TournamentCategoryOffer? offer, int? worstPlace) {
+    if (offer == null) return const [];
+    final rows = <_Prize>[];
+    for (final p in offer.prizes) {
+      final position = int.tryParse(p.position.trim().replaceAll('º', ''));
+      if (position == null) continue;
+      rows.add(_Prize(
+        position: position,
+        label: p.label?.trim().isNotEmpty == true ? p.label!.trim() : 'Prêmio',
+        valueLabel: p.value > 0 ? _brl(p.value) : null,
+        guaranteed: worstPlace != null && position == worstPlace,
+      ));
+    }
+    rows.sort((a, b) => a.position.compareTo(b.position));
+    return rows;
+  }
+
+  String? _finalPrizeLabel(TournamentCategoryOffer? offer) {
+    if (offer == null) return null;
+    for (final p in offer.prizes) {
+      final position = int.tryParse(p.position.trim().replaceAll('º', ''));
+      if (position == 1 && p.value > 0) return 'campeão leva ${_brl(p.value)}';
+    }
+    return null;
+  }
+
+  static String _brl(double value) {
+    final cents = (value * 100).round();
+    final reais = cents ~/ 100;
+    final rest = cents % 100;
+    final buffer = StringBuffer();
+    final digits = reais.toString();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+      buffer.write(digits[i]);
+    }
+    return rest == 0
+        ? 'R\$ $buffer'
+        : 'R\$ $buffer,${rest.toString().padLeft(2, '0')}';
+  }
 }
 
-/// `0` é campeão — resposta honesta, diferente do `null` de "não dá pra
-/// afirmar", que faz a manchete sumir antes de chegar aqui.
-class _Headline extends StatelessWidget {
-  const _Headline({required this.wins});
+class _Prize {
+  const _Prize({
+    required this.position,
+    required this.label,
+    required this.valueLabel,
+    required this.guaranteed,
+  });
 
-  final int wins;
+  final int position;
+  final String label;
+  final String? valueLabel;
+  final bool guaranteed;
+}
+
+class _Headline extends StatelessWidget {
+  const _Headline({required this.headline});
+
+  final JourneyHeadline headline;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final champion = wins == 0;
+    final champion = headline.kind == JourneyHeadlineKind.champion;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -138,25 +299,21 @@ class _Headline extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.xl),
         decoration: BoxDecoration(
           color: champion ? colors.win : colors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: champion ? colors.win : colors.outline),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              champion ? 'CAMPEÃO' : 'ATÉ O TÍTULO',
+              champion ? 'Fim de jornada' : 'Rumo ao título',
               style: AppTypography.eyebrow.copyWith(
                 color: champion ? Colors.white : colors.onSurfaceMuted,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              champion
-                  ? 'Você venceu a final.'
-                  : wins == 1
-                      ? 'Falta 1 vitória.'
-                      : 'Faltam $wins vitórias.',
+              champion ? 'Campeão da categoria!' : headline.text!,
               style: AppTypography.titleL.copyWith(
                 color: champion ? Colors.white : colors.onSurface,
               ),
@@ -168,63 +325,8 @@ class _Headline extends StatelessWidget {
   }
 }
 
-class _Path extends StatelessWidget {
-  const _Path({required this.matches, required this.categoryMatches});
-
-  final List<TournamentMatch> matches;
-  final List<TournamentMatch> categoryMatches;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    return Column(
-      children: [
-        for (var i = 0; i < matches.length; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenH,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: i == 0 ? colors.brand : colors.surfaceRaised,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '${i + 1}',
-                    style: AppTypography.bodyS.copyWith(
-                      color: i == 0 ? Colors.white : colors.onSurfaceMuted,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Text(
-                    matchPhaseDisplayLabel(
-                      matches[i],
-                      categoryMatches: categoryMatches,
-                    ),
-                    style: AppTypography.bodyM.copyWith(
-                      color: i == 0 ? colors.onSurface : colors.onSurfaceMuted,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Numbers extends StatelessWidget {
-  const _Numbers({required this.numbers});
+class _Stats extends StatelessWidget {
+  const _Stats({required this.numbers});
 
   final TournamentNumbers numbers;
 
@@ -239,8 +341,12 @@ class _Numbers extends StatelessWidget {
           children: [
             Text(
               value,
-              style: AppTypography.titleL.copyWith(color: colors.onSurface),
+              style: AppTypography.monoStat.copyWith(
+                color: colors.onSurface,
+                fontSize: 20,
+              ),
             ),
+            const SizedBox(height: 2),
             Text(
               label,
               style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
@@ -260,13 +366,177 @@ class _Numbers extends StatelessWidget {
           border: Border.all(color: colors.outline),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            stat('partidas', '${numbers.matches}'),
-            stat('sets', '${numbers.setsWon}–${numbers.setsLost}'),
-            stat('pontos', '${numbers.points}'),
-            stat('por set', '${numbers.pointsPerSet}'),
+            stat('Sets', '${numbers.setsWon}–${numbers.setsLost}'),
+            stat('Pontos', '${numbers.points}'),
+            stat('Por set', '${numbers.pointsPerSet}'),
+            stat('Partidas', '${numbers.matches}'),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PrizeRow extends StatelessWidget {
+  const _PrizeRow({required this.prize});
+
+  final _Prize prize;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: prize.guaranteed ? colors.win : colors.outline,
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 32,
+              child: Text(
+                '${prize.position}º',
+                style: AppTypography.monoMeta
+                    .copyWith(color: colors.onSurfaceMuted),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                prize.label,
+                style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+              ),
+            ),
+            if (prize.valueLabel != null)
+              Text(
+                prize.valueLabel!,
+                style: AppTypography.monoMeta.copyWith(color: colors.onSurface),
+              ),
+            if (prize.guaranteed) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colors.win,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Garantido',
+                  style: AppTypography.eyebrow.copyWith(color: Colors.white),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Um adversário que a chave ainda pode cruzar. NÃO promete confronto — a
+/// seção lista quem segue vivo do outro lado, e a campanha dele explica por quê
+/// ele importa.
+class _Opponent extends StatelessWidget {
+  const _Opponent({required this.opponent});
+
+  final PossibleOpponent opponent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              opponent.name,
+              style: AppTypography.bodyM.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            if (opponent.campaign.isEmpty)
+              Text(
+                'Primeira partida no torneio.',
+                style: AppTypography.bodyS
+                    .copyWith(color: colors.onSurfaceMuted),
+              )
+            else
+              for (final entry in opponent.campaign)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.label,
+                          style: AppTypography.bodyS
+                              .copyWith(color: colors.onSurfaceMuted),
+                        ),
+                      ),
+                      Text(
+                        entry.detail,
+                        style: AppTypography.monoMeta
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenH,
+        vertical: AppSpacing.md,
+      ),
+      child: Text(
+        text,
+        style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
       ),
     );
   }

@@ -17,6 +17,26 @@ import '../tournament_match_status.dart';
 /// "1º", "2º"… A posição do atleta no grupo.
 String ordinalOf(int position) => '$positionº';
 
+/// "2h15" / "45min" — a parte de duração da contagem.
+String _hoursMinutes(int minutes) {
+  final h = minutes ~/ 60;
+  final m = minutes % 60;
+  return m == 0 ? '${h}h' : '${h}h${m.toString().padLeft(2, '0')}';
+}
+
+/// "começa em 40 min" / "começa em 2h15" / "atrasada 30 min".
+///
+/// Partida que já passou do horário vira ATRASO, não contagem negativa: num
+/// torneio o atraso é a regra, e "começa em -30 min" não diz nada ao atleta.
+String? countdownLabelOf(DateTime? target, DateTime now) {
+  if (target == null) return null;
+  final diff = target.difference(now);
+  final minutes = (diff.inSeconds.abs() / 60).round();
+  if (minutes < 1) return 'começa agora';
+  final label = minutes < 60 ? '$minutes min' : _hoursMinutes(minutes);
+  return diff.isNegative ? 'atrasada $label' : 'começa em $label';
+}
+
 enum TimelineState { done, live, next, upcoming }
 
 enum TimelineOutcome { win, loss }
@@ -50,6 +70,59 @@ class TimelineEntry {
   final TimelineState state;
   final String? note;
   final bool clickable;
+}
+
+/// Uma dupla no herói do "Agora". Carrega só texto: os avatares vêm do
+/// `TournamentMatchCardViewModel` no widget, para este módulo seguir puro (sem
+/// `dart:ui`) e para não existir uma segunda regra de iniciais/foto.
+class DuoView {
+  const DuoView({
+    required this.teamId,
+    required this.name,
+    required this.isMe,
+    required this.standingLine,
+  });
+
+  final String teamId;
+  final String name;
+  final bool isMe;
+
+  /// "1º do grupo · 2V 0D" — só existe em partida de fase de grupos.
+  final String? standingLine;
+}
+
+/// O herói do "Agora", já formatado.
+class NextMatchView {
+  const NextMatchView({
+    required this.matchId,
+    required this.kicker,
+    required this.numberLabel,
+    required this.timeLabel,
+    required this.countdown,
+    required this.courtLabel,
+    required this.bestOfLabel,
+    required this.checkedIn,
+    required this.live,
+    required this.liveScoreLine,
+    required this.sideA,
+    required this.sideB,
+  });
+
+  final String matchId;
+  final String kicker;
+
+  /// "Jogo #12" — por extenso, porque no chip ele aparece sozinho, diferente da
+  /// linha do card onde o `#12` já se explica pelo contexto.
+  final String? numberLabel;
+  final String timeLabel;
+  final String? countdown;
+  final String? courtLabel;
+  final String bestOfLabel;
+  final bool checkedIn;
+  final bool live;
+  final String? liveScoreLine;
+  final DuoView sideA;
+  final DuoView sideB;
 }
 
 class QualificationNote {
@@ -147,6 +220,79 @@ String? standingLineOf(FocusViewContext ctx, String teamId, String poolId) {
   if (index < 0) return null;
   final row = rows[index];
   return '${ordinalOf(index + 1)} do grupo · ${row.wins}V ${row.losses}D';
+}
+
+/// "21-15 · 2º set 12-9" — o placar de quem está em quadra. `null` fora do ao
+/// vivo.
+String? liveScoreLineOf(TournamentMatch m) {
+  if (!TournamentMatchStatus.isInProgress(m.status)) return null;
+  final current = matchLiveCurrentSet(m);
+  if (current == null) return null;
+  var setsA = 0;
+  var setsB = 0;
+  for (final s in matchClosedSets(m)) {
+    if (s.a > s.b) {
+      setsA++;
+    } else if (s.b > s.a) {
+      setsB++;
+    }
+  }
+  return '$setsA–$setsB · ${current.setNumber}º set ${current.a}-${current.b}';
+}
+
+/// "Sua próxima partida · Grupo A · Rodada 2".
+String _kickerOf(FocusViewContext ctx, TournamentMatch m) {
+  final parts = <String>[
+    'Sua próxima partida',
+    matchPhaseDisplayLabel(m, categoryMatches: ctx.matches),
+  ];
+  return parts.where((p) => p.trim().isNotEmpty).join(' · ');
+}
+
+DuoView _duoViewOf(
+  FocusViewContext ctx,
+  String teamId,
+  String? description,
+  String poolId,
+) {
+  return DuoView(
+    teamId: teamId,
+    name: ctx.duoNameOf(teamId, description),
+    isMe: ctx.myTeamIds.contains(teamId),
+    standingLine: standingLineOf(ctx, teamId, poolId),
+  );
+}
+
+/// O herói do "Agora": a próxima partida do atleta, já formatada.
+///
+/// Ao vivo NÃO traz contagem regressiva — o relógio perdeu a função assim que a
+/// bola subiu, e o que importa passa a ser o placar.
+NextMatchView? nextMatchViewOf(FocusViewContext ctx, DateTime now) {
+  final m = ctx.nextMatch;
+  if (m == null) return null;
+
+  final live = TournamentMatchStatus.isInProgress(m.status);
+  final iAmA = ctx.myTeamIds.contains(m.teamAId);
+  final checkIn = iAmA ? m.checkInTeamAStatus : m.checkInTeamBStatus;
+  final number = matchNumberLabelForCard(m);
+
+  return NextMatchView(
+    matchId: m.id,
+    kicker: _kickerOf(ctx, m),
+    numberLabel: number.trim().isEmpty ? null : 'Jogo $number',
+    timeLabel: m.scheduleTime != null ? matchTimeLabelForCard(m) : 'A definir',
+    countdown: live ? null : countdownLabelOf(m.scheduleTime, now),
+    courtLabel: () {
+      final label = matchCourtLabelForCard(m);
+      return label.trim().isEmpty ? null : label;
+    }(),
+    bestOfLabel: 'MD${matchBestOf(m)}',
+    checkedIn: checkIn.trim().toLowerCase() == 'present',
+    live: live,
+    liveScoreLine: liveScoreLineOf(m),
+    sideA: _duoViewOf(ctx, m.teamAId, m.teamADescription, m.poolId),
+    sideB: _duoViewOf(ctx, m.teamBId, m.teamBDescription, m.poolId),
+  );
 }
 
 /// A ordem do dia do atleta, já formatada.

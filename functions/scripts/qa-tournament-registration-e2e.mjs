@@ -265,17 +265,18 @@ async function main() {
   const anon = await ensureAthlete("probe", { name: "QA Probe", gender: "M" });
   const tournament = obj(await fsGet(`tournaments/${TOURNAMENT_ID}`, anon.token));
   const categories = (tournament.categories || []).map((c) => c);
-  const duo = categories.find((c) => c.teamSize === 2 && !c.registrationClosed && !c.isCompleted);
-  const team = categories.find((c) => c.teamSize === 4 && !c.registrationClosed && !c.isCompleted);
+  const usable = (c, size) =>
+    c.teamSize === size && !c.registrationClosed && !c.isCompleted &&
+    // As atletas de QA são Misto/Iniciante 2: categoria de gênero fixo ou de
+    // nível abaixo do delas seria recusada pelo backend, não pelo roteiro.
+    (c.genderType === "mixed" || c.genderType === "Mix");
   ok(`torneio lido: ${tournament.name}`, tournament.name != null);
-  ok(`categoria de dupla: ${duo?.categoryName}`, duo != null);
-  ok(`categoria de equipe: ${team?.categoryName}`, team != null);
-  if (!duo || !team) {
+  ok("há categoria de dupla utilizável", categories.some((c) => usable(c, 2)));
+  ok("há categoria de equipe utilizável", categories.some((c) => usable(c, 4)));
+  if (!categories.some((c) => usable(c, 2)) || !categories.some((c) => usable(c, 4))) {
     console.log("\nSem categorias utilizáveis — abortando.");
     process.exit(1);
   }
-  console.log(`    dupla=${duo.id} (${duo.categoryName}, uniforme=${duo.uniformType})`);
-  console.log(`    equipe=${team.id} (${team.categoryName}, teamSize=${team.teamSize})`);
 
   section("1. Atletas de QA com perfil pronto");
   const [ana, bruno, carla, diego, elisa, felipe] = await Promise.all([
@@ -291,6 +292,9 @@ async function main() {
   // Estado limpo: inscrições anteriores destes atletas nesta categoria travam
   // o roteiro com "já possui inscrição".
   section("2. Limpeza do estado anterior");
+  /** Categorias que ficaram com inscrição de rodada anterior (pagamento
+   *  declarado bloqueia o autocancelamento). O roteiro desvia delas. */
+  const blocked = new Set();
   for (const user of [ana, bruno, carla, diego, elisa, felipe]) {
     const mine = await fsQuery(
       {
@@ -315,8 +319,12 @@ async function main() {
       const id = d.name.split("/").pop();
       try {
         await call("cancelTournamentRegistration", user.token, { registrationId: id });
-      } catch {
-        // Inscrição paga/confirmada não cancela por aqui — segue o roteiro.
+      } catch (e) {
+        // Inscrição com QUALQUER pagamento (inclusive a declaração "já paguei")
+        // não é cancelável pelo atleta — regra de negócio, não falha do
+        // roteiro. Fica anotada para o roteiro escolher outra categoria.
+        blocked.add(reg.categoryId);
+        console.log(`    · ${user.name}: ${reg.categoryId} não cancelável (${e.message.split(":").pop().trim()})`);
       }
     }
     for (const invite of await pendingInvitesFor(user, null)) {
@@ -328,6 +336,29 @@ async function main() {
     }
   }
   ok("estado anterior limpo", true);
+  if (blocked.size > 0) {
+    // Não é falha: inscrição com pagamento registrado é intencionalmente
+    // incancelável pelo atleta. O roteiro só precisa desviar da categoria.
+    console.log(
+      `    aviso: ${blocked.size} categoria(s) ficaram com inscrição de rodada ` +
+      "anterior (pagamento declarado). Só o organizador remove; o roteiro segue " +
+      "em outra categoria.",
+    );
+  }
+
+  // Categoria travada por pagamento declarado sai do roteiro: insistir nela
+  // daria "você já possui inscrição" e mataria a rodada inteira.
+  const duo = categories.find((c) => usable(c, 2) && !blocked.has(c.id));
+  const team = categories.find((c) => usable(c, 4) && !blocked.has(c.id));
+  if (!duo || !team) {
+    console.log(
+      "\nTodas as categorias utilizáveis têm inscrição com pagamento declarado.\n" +
+      "Só o organizador remove essas inscrições — limpe pelo painel e rode de novo."
+    );
+    process.exit(1);
+  }
+  console.log(`    dupla=${duo.id} (${duo.categoryName}, uniforme=${duo.uniformType})`);
+  console.log(`    equipe=${team.id} (${team.categoryName}, teamSize=${team.teamSize})`);
 
   // ── DUPLA ────────────────────────────────────────────────────────────────
   section("3. Dupla — reserva de vaga solo (Ana)");

@@ -16,6 +16,7 @@ import {
   duoPlayersOf,
   type DuoPlayer as DuoPlayerType,
 } from './duo-identity';
+import { eventDayOf } from './tournament-days';
 import { defaultTabOf, liveMatchesOf, myDayTimeline, myMatches, nextMatchOf, visibleTabsOf, type TournamentTabId } from './tournament-live.selectors';
 
 function createFirestore(): Firestore | null {
@@ -96,7 +97,13 @@ export class TournamentLiveStore {
 
   readonly nextMatch = computed(() => nextMatchOf(this.matches(), this.myTeamIds()));
 
-  readonly dayTimeline = computed(() => myDayTimeline(this.matches(), this.myTeamIds(), this.now()));
+  readonly dayTimeline = computed(() => {
+    const t = this.tournament();
+    // `eventDayOf` devolve null fora da janela do evento — e também quando o torneio não declara
+    // as duas datas, caso em que a regra antiga (só as agendadas) segue valendo.
+    const running = eventDayOf(t?.startAt, t?.endAt, this.now()) != null;
+    return myDayTimeline(this.matches(), this.myTeamIds(), this.now(), running);
+  });
 
   /** A categoria que o atleta está jogando agora — base da classificação lateral e do "ao vivo
    *  na sua categoria". Quem se inscreveu em mais de uma vê a da próxima partida. */

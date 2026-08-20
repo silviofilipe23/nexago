@@ -173,7 +173,8 @@ import '../../features/tournaments/presentation/tournament_categories_page.dart'
 import '../../features/tournaments/presentation/tournament_category_view_page.dart';
 import '../../features/tournaments/presentation/tournament_group_view_page.dart';
 import '../../features/tournaments/presentation/tournament_my_registration_page.dart';
-import '../../features/tournaments/presentation/tournament_today_page.dart';
+import '../../features/tournaments/presentation/focus/focus_section.dart';
+import '../../features/tournaments/presentation/focus/focus_shell_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
@@ -1152,11 +1153,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
-            path: 'hoje',
-            name: AppRouteNames.tournamentToday,
+            path: 'focus',
+            name: AppRouteNames.tournamentFocus,
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
-              return TournamentTodayPage(tournamentId: id);
+              return FocusShellPage(
+                tournamentId: id,
+                initialSection: focusSectionFromSlug(
+                  state.uri.queryParameters[AppRoutes.focusSectionQuery],
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'hoje',
+            name: AppRouteNames.tournamentToday,
+            // Aposentada em favor do Modo Focus. A rota fica como redirect
+            // porque o app é distribuído por loja: uma versão já instalada
+            // continua resolvendo este caminho, e três linhas custam menos que
+            // um deep link morto num build antigo.
+            redirect: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              if (id.isEmpty) return AppRoutes.discover;
+              return '/torneios/$id/focus'
+                  '?${AppRoutes.focusSectionQuery}=${FocusSection.agora.slug}';
             },
           ),
           GoRoute(

@@ -95,10 +95,42 @@ export function nextMatchOf(matches: readonly TournamentMatch[], myTeamIds: Read
   return [...mine].sort((a, b) => a.matchNumber - b.matchNumber)[0] ?? null;
 }
 
-/** Minhas partidas do dia de referência, em ordem cronológica — a timeline "Seu dia no torneio". */
-export function myDayTimeline(matches: readonly TournamentMatch[], myTeamIds: ReadonlySet<string>, reference: Date): TournamentMatch[] {
+/**
+ * Uma partida pertence ao dia de referência quando tem âncora de tempo nesse dia — horário
+ * agendado OU início real —, ou quando não tem âncora nenhuma e o torneio está rolando hoje.
+ *
+ * As duas âncoras valem INDEPENDENTEMENTE, não em cascata: partida agendada pra ontem que só
+ * entrou em quadra hoje pertence a hoje também. Torneio que atrasa e empurra jogo pro dia
+ * seguinte é rotina, e a versão em cascata (`matchStartedAt` só quando não há `scheduleTime`)
+ * prenderia esse jogo no dia em que ele não aconteceu.
+ *
+ * Ter âncora de outro dia, por outro lado, é resposta definitiva: sem isso a partida de ontem
+ * reapareceria hoje em todo torneio de mais de um dia.
+ *
+ * Sem âncora nenhuma exige partida em aberto: não há evidência de que ela é de hoje além da
+ * janela do torneio, e afirmar resultado de partida sem dia conhecido é pior que omitir.
+ */
+export function matchBelongsToDay(m: TournamentMatch, reference: Date, tournamentRunningToday: boolean): boolean {
+  if (m.scheduleTime != null && isSameSaoPauloDay(m.scheduleTime, reference)) return true;
+  if (m.matchStartedAt != null && isSameSaoPauloDay(m.matchStartedAt, reference)) return true;
+  if (m.scheduleTime != null || m.matchStartedAt != null) return false;
+  if (!tournamentRunningToday) return false;
+  return !matchIsCompleted(m) && !matchIsCanceled(m);
+}
+
+/** Minhas partidas do dia de referência, em ordem cronológica — a timeline "Seu dia no torneio".
+ *  As sem horário vão pro fim, por `matchNumber` (ver `byScheduleTime`).
+ *
+ *  `tournamentRunningToday` tem default `false` de propósito: preserva o comportamento antigo
+ *  pra quem não sabe as datas do torneio. */
+export function myDayTimeline(
+  matches: readonly TournamentMatch[],
+  myTeamIds: ReadonlySet<string>,
+  reference: Date,
+  tournamentRunningToday = false,
+): TournamentMatch[] {
   return myMatches(matches, myTeamIds)
-    .filter((m) => m.scheduleTime != null && isSameSaoPauloDay(m.scheduleTime, reference))
+    .filter((m) => matchBelongsToDay(m, reference, tournamentRunningToday))
     .sort(byScheduleTime);
 }
 

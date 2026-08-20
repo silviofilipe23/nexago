@@ -13,6 +13,7 @@ TournamentMatch _match({
   String status = TournamentMatchStatus.scheduled,
   int matchNumber = 1,
   DateTime? scheduleTime,
+  DateTime? matchStartedAt,
 }) {
   return TournamentMatch(
     id: id,
@@ -29,6 +30,7 @@ TournamentMatch _match({
     isGroupMatch: false,
     matchNumber: matchNumber,
     scheduleTime: scheduleTime,
+    matchStartedAt: matchStartedAt,
   );
 }
 
@@ -68,7 +70,6 @@ void main() {
     test('esqueleto fixo: só Visão geral e Categorias quando tudo é false',
         () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: false,
         hasDefinedMatchups: false,
       );
@@ -79,24 +80,17 @@ void main() {
       ]);
     });
 
-    test('Hoje entra quando tenho jogo hoje', () {
-      final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: true,
-        isRegistered: false,
-        hasDefinedMatchups: false,
+    test('a aba Hoje não existe mais — o dia virou o Modo Focus', () {
+      // Aposentada, não escondida: o enum não tem mais o valor, então nenhum
+      // chamador consegue reintroduzi-la por engano.
+      expect(
+        TournamentDetailTab.values.map((t) => t.name),
+        isNot(contains('hoje')),
       );
-
-      expect(tabs, contains(TournamentDetailTab.hoje));
-      expect(tabs, [
-        TournamentDetailTab.visaoGeral,
-        TournamentDetailTab.hoje,
-        TournamentDetailTab.categorias,
-      ]);
     });
 
     test('Minha inscrição entra quando estou inscrito', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: true,
         hasDefinedMatchups: false,
       );
@@ -110,7 +104,6 @@ void main() {
 
     test('Palpites entra quando há confrontos definidos', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: false,
         hasDefinedMatchups: true,
       );
@@ -124,14 +117,12 @@ void main() {
 
     test('ordem completa com tudo true', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: true,
         isRegistered: true,
         hasDefinedMatchups: true,
       );
 
       expect(tabs, [
         TournamentDetailTab.visaoGeral,
-        TournamentDetailTab.hoje,
         TournamentDetailTab.categorias,
         TournamentDetailTab.minhaInscricao,
         TournamentDetailTab.palpites,
@@ -140,19 +131,8 @@ void main() {
   });
 
   group('defaultTournamentDetailTab', () {
-    test('cai no Hoje quando a aba está presente', () {
+    test('a entrada é sempre a Visão geral', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: true,
-        isRegistered: false,
-        hasDefinedMatchups: false,
-      );
-
-      expect(defaultTournamentDetailTab(tabs), TournamentDetailTab.hoje);
-    });
-
-    test('cai na Visão geral quando não há Hoje', () {
-      final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: true,
         hasDefinedMatchups: true,
       );
@@ -327,6 +307,108 @@ void main() {
       ];
 
       expect(myTournamentDayTimeline(matches, {'meu'}, reference), isEmpty);
+    });
+
+    test('sem horário entra quando o torneio está rolando hoje', () {
+      final matches = [
+        _match(id: 'sem-horario', teamAId: 'meu', teamBId: 'y'),
+      ];
+
+      final timeline = myTournamentDayTimeline(
+        matches,
+        {'meu'},
+        reference,
+        tournamentRunningToday: true,
+      );
+
+      expect(timeline.map((m) => m.id), ['sem-horario']);
+    });
+
+    test('sem horário e encerrada fica fora — não há evidência de dia', () {
+      final matches = [
+        _match(
+          id: 'encerrada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.completed,
+        ),
+        _match(
+          id: 'cancelada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.canceled,
+        ),
+      ];
+
+      expect(
+        myTournamentDayTimeline(
+          matches,
+          {'meu'},
+          reference,
+          tournamentRunningToday: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('começou hoje entra mesmo agendada para ontem', () {
+      final matches = [
+        _match(
+          id: 'atrasada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.inProgress,
+          scheduleTime: DateTime(2026, 8, 19, 18, 0),
+          matchStartedAt: DateTime(2026, 8, 20, 9, 30),
+        ),
+      ];
+
+      final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
+
+      expect(timeline.map((m) => m.id), ['atrasada']);
+    });
+
+    test('âncora de outro dia não cai no caso do torneio rolando', () {
+      final matches = [
+        _match(
+          id: 'ontem',
+          teamAId: 'meu',
+          teamBId: 'y',
+          scheduleTime: DateTime(2026, 8, 19, 9, 0),
+        ),
+      ];
+
+      expect(
+        myTournamentDayTimeline(
+          matches,
+          {'meu'},
+          reference,
+          tournamentRunningToday: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('agendadas primeiro, sem horário no fim por matchNumber', () {
+      final matches = [
+        _match(id: 'sem-b', teamAId: 'meu', teamBId: 'y', matchNumber: 9),
+        _match(
+          id: 'com-horario',
+          teamAId: 'meu',
+          teamBId: 'y',
+          scheduleTime: DateTime(2026, 8, 20, 15, 0),
+        ),
+        _match(id: 'sem-a', teamAId: 'meu', teamBId: 'y', matchNumber: 4),
+      ];
+
+      final timeline = myTournamentDayTimeline(
+        matches,
+        {'meu'},
+        reference,
+        tournamentRunningToday: true,
+      );
+
+      expect(timeline.map((m) => m.id), ['com-horario', 'sem-a', 'sem-b']);
     });
   });
 

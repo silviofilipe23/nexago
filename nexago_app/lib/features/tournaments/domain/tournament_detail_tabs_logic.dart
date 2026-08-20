@@ -12,7 +12,6 @@ import 'tournament_match_status.dart';
 
 enum TournamentDetailTab {
   visaoGeral('Visão geral'),
-  hoje('Hoje'),
   categorias('Categorias'),
   minhaInscricao('Minha inscrição'),
   palpites('Palpites');
@@ -22,27 +21,28 @@ enum TournamentDetailTab {
   final String label;
 }
 
+/// A aba "Hoje" foi aposentada em favor do Modo Focus — o dia do atleta virou
+/// uma casca própria, fora destas abas. O sinal `hasMyMatchToday` continua
+/// existindo no detalhe do torneio, mas agora decide o CARD de entrada do
+/// Focus, não uma aba.
 List<TournamentDetailTab> visibleTournamentDetailTabs({
-  required bool hasMyMatchToday,
   required bool isRegistered,
   required bool hasDefinedMatchups,
 }) {
   return [
     TournamentDetailTab.visaoGeral,
-    if (hasMyMatchToday) TournamentDetailTab.hoje,
     TournamentDetailTab.categorias,
     if (isRegistered) TournamentDetailTab.minhaInscricao,
     if (hasDefinedMatchups) TournamentDetailTab.palpites,
   ];
 }
 
-/// Quem tem jogo hoje cai direto no "Hoje".
+/// A entrada é sempre a visão geral: quem tem jogo hoje é levado ao Modo Focus
+/// pela entrada automática, ou entra por ele pelo card de destaque.
 TournamentDetailTab defaultTournamentDetailTab(
   List<TournamentDetailTab> tabs,
 ) {
-  return tabs.contains(TournamentDetailTab.hoje)
-      ? TournamentDetailTab.hoje
-      : TournamentDetailTab.visaoGeral;
+  return TournamentDetailTab.visaoGeral;
 }
 
 /// Sub-visões da categoria — o segmentado que substitui abas Partidas/Chaves
@@ -98,19 +98,59 @@ int _byScheduleTime(TournamentMatch a, TournamentMatch b) {
   return at.compareTo(bt);
 }
 
+/// Uma partida pertence ao dia de referência quando tem âncora de tempo nesse
+/// dia — horário agendado OU início real —, ou quando não tem âncora nenhuma e
+/// o torneio está rolando hoje.
+///
+/// As duas âncoras valem INDEPENDENTEMENTE, não em cascata: partida agendada
+/// para ontem que só entrou em quadra hoje pertence a hoje também. Torneio que
+/// atrasa e empurra jogo pro dia seguinte é rotina, e a versão em cascata
+/// (`matchStartedAt` só quando não há `scheduleTime`) prenderia esse jogo no
+/// dia em que ele não aconteceu.
+///
+/// Ter âncora de outro dia é resposta definitiva: quem tem horário ou início
+/// fora do dia NÃO cai no caso do torneio rolando. Sem isso, a partida de
+/// ontem reapareceria hoje em todo torneio que ocupa mais de um dia.
+///
+/// Sem âncora nenhuma exige partida em aberto: não existe evidência de que ela
+/// pertence a hoje além da janela do torneio, e afirmar resultado de partida
+/// sem dia conhecido é pior que omitir.
+bool matchBelongsToDay(
+  TournamentMatch match,
+  DateTime reference, {
+  required bool tournamentRunningToday,
+}) {
+  final scheduled = match.scheduleTime;
+  final started = match.matchStartedAt;
+  if (scheduled != null && _sameLocalDay(scheduled, reference)) return true;
+  if (started != null && _sameLocalDay(started, reference)) return true;
+  if (scheduled != null || started != null) return false;
+  if (!tournamentRunningToday) return false;
+  return !TournamentMatchStatus.isCompleted(match.status) &&
+      !TournamentMatchStatus.isCanceled(match.status);
+}
+
 /// Minhas partidas do dia de referência, em ordem cronológica — a timeline
-/// "Seu dia no torneio".
+/// "Seu dia no torneio". As sem horário vão para o fim, por `matchNumber`
+/// (ver [_byScheduleTime]).
+///
+/// [tournamentRunningToday] tem default `false` de propósito: preserva o
+/// comportamento antigo para quem não sabe as datas do torneio.
 List<TournamentMatch> myTournamentDayTimeline(
   List<TournamentMatch> matches,
   Set<String> myTeamIds,
-  DateTime reference,
-) {
+  DateTime reference, {
+  bool tournamentRunningToday = false,
+}) {
   return matches
       .where(
         (m) =>
             (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)) &&
-            m.scheduleTime != null &&
-            _sameLocalDay(m.scheduleTime!, reference),
+            matchBelongsToDay(
+              m,
+              reference,
+              tournamentRunningToday: tournamentRunningToday,
+            ),
       )
       .toList()
     ..sort(_byScheduleTime);

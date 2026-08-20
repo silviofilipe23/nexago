@@ -106,6 +106,18 @@ describe('timelineOf', () => {
     expect(entry?.state).toBe('next');
   });
 
+  it('partida sem horário entra com time nulo — o template desenha "—", não um relógio vazio', () => {
+    const semHorario = match({ id: 'm3', teamAId: 'teamMine', teamBId: 'teamRival' });
+    const [entry] = timelineOf(ctxOf({ matches: [semHorario] }), [semHorario]);
+    expect(entry?.time).toBeNull();
+  });
+
+  it('partida com horário segue trazendo o rótulo do relógio', () => {
+    const comHorario = match({ id: 'm4', teamAId: 'teamMine', teamBId: 'teamRival', scheduleTime: new Date('2026-08-29T15:00:00Z') });
+    const [entry] = timelineOf(ctxOf({ matches: [comHorario] }), [comHorario]);
+    expect(entry?.time).not.toBeNull();
+  });
+
   it('inverte o placar quando o atleta está do lado B — mySetLine não pode ficar sob o lado A', () => {
     const done = match({
       id: 'm1',

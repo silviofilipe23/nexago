@@ -396,6 +396,18 @@
   padding: 0;
 }
 
+/* Separa as partidas ainda sem horário das agendadas. Elas passaram a aparecer
+   na lista do dia quando a regra deixou de exigir `scheduleTime` — ver
+   `matchBelongsToDay`. */
+.now-timeline__divider {
+  margin: 16px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
 .now-row {
   display: grid;
   grid-template-columns: 54px 24px minmax(0, 1fr) auto;

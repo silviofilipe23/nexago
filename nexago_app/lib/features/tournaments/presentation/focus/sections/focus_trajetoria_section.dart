@@ -281,7 +281,6 @@ class FocusTrajetoriaSection extends ConsumerWidget {
         else
           FocusJourneyRail(
             steps: steps,
-            playersOf: rosters.playersOf,
             onOpen: (matchId) => _openMatch(context, matchId),
           ),
         const FocusSectionHeader(label: 'SEUS NÚMEROS NO TORNEIO'),

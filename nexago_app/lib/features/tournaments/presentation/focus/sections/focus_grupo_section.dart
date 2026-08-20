@@ -2,33 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_journey_view.dart';
+import '../../../domain/focus/focus_scenarios.dart';
 import '../../../domain/tournament_detail_model.dart';
+import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
+import '../../../domain/tournament_group_standings_logic.dart';
+import '../../../domain/tournament_match.dart';
+import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
-import '../../widgets/tournament_detail/tournament_detail_groups_tab.dart';
-import '../../widgets/tournament_detail/tournament_matches_filter_toggle.dart';
 import '../focus_section_header.dart';
 
-/// Seção "Grupo" do Focus: a classificação do atleta, o cruzamento que a chave
-/// já declara, o que está em quadra na categoria e onde jogar.
+/// Seção "Grupo": a classificação do atleta, o que a rodada decide, o que está
+/// em quadra na categoria e onde é o quê.
 ///
-/// A classificação em si é o `TournamentDetailGroupsTab` que o detalhe já
-/// desenha — o app tem UM motor de classificação, e uma segunda tabela aqui
-/// poderia discordar dele na frente do atleta.
+/// A tabela é desenhada aqui, mas o MOTOR de classificação é o mesmo
+/// [computePoolStandings] que o resto do app usa — o Focus nunca pode discordar
+/// da tabela que o atleta vê no detalhe do torneio.
 ///
 /// A categoria vem travada de fora: `poolId` só é único DENTRO da categoria —
-/// os grupos são 'A', 'B', 'C'… em todas elas —, então sem esse recorte o Grupo
-/// A do atleta apareceria fundido com o Grupo A das outras.
-///
-/// FALTA em relação ao portal: "Cenários da rodada" ("vencendo, você
-/// classifica"). Ele simula os placares extremos e só afirma posição quando os
-/// dois concordam — porte que depende do motor de desempate e que só entra
-/// depois de conferido contra `computePoolStandings`. Afirmar classificação
-/// errada é pior que não afirmar.
+/// os grupos são 'A', 'B', 'C'… em todas elas.
 class FocusGrupoSection extends ConsumerStatefulWidget {
   const FocusGrupoSection({
     super.key,
@@ -46,7 +43,12 @@ class FocusGrupoSection extends ConsumerStatefulWidget {
 }
 
 class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
-  TournamentMatchesFilter _filter = TournamentMatchesFilter.mine;
+  TournamentCategoryOffer? get _offer {
+    for (final offer in widget.tournament.categoryOffers) {
+      if (offer.id == widget.categoryId) return offer;
+    }
+    return null;
+  }
 
   String? get _address {
     final t = widget.tournament;
@@ -73,123 +75,502 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final cards =
-        ref.watch(tournamentMatchCardsProvider(widget.tournament.id)).valueOrNull ??
-            const [];
+    final cards = ref
+            .watch(tournamentMatchCardsProvider(widget.tournament.id))
+            .valueOrNull ??
+        const [];
     final all = [for (final c in cards) c.match];
-    final crossing = crossingRowsOf(all, widget.categoryId);
-    final live = all
-        .where((m) =>
-            m.categoryId == widget.categoryId &&
-            TournamentMatchStatus.isInProgress(m.status))
-        .toList();
-    final address = _address;
+    final categoryMatches =
+        all.where((m) => m.categoryId == widget.categoryId).toList();
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SizedBox(
-            // A tabela vem do detalhe e traz o próprio scroll; aqui ela entra
-            // com altura própria para conviver com os blocos abaixo.
-            height: 420,
-            child: TournamentDetailGroupsTab(
-              tournament: widget.tournament,
-              categoryId: widget.categoryId,
-              filter: _filter,
-              showCategoryChips: false,
-              onFilterChanged: (value) => setState(() => _filter = value),
-              onCategorySelected: (_) {},
-            ),
+    final names = <String, String>{};
+    for (final c in cards) {
+      if (c.match.teamAId.isNotEmpty) {
+        names[c.match.teamAId] = c.teamA.displayName;
+      }
+      if (c.match.teamBId.isNotEmpty) {
+        names[c.match.teamBId] = c.teamB.displayName;
+      }
+    }
+
+    final myTeamId = _myTeamId(categoryMatches);
+    final poolId = _myPoolId(categoryMatches, myTeamId);
+    if (poolId == null) {
+      return _Empty(
+        text: 'Sua classificação aparece aqui quando o grupo for sorteado.',
+      );
+    }
+
+    final poolMatches =
+        categoryMatches.where((m) => m.poolId == poolId).toList();
+    final order = computePoolStandings(
+      poolId,
+      teamIdsInPool(poolMatches),
+      poolMatches,
+    );
+    final stats = computePoolTeamStats(
+      poolId,
+      teamIdsInPool(poolMatches),
+      poolMatches,
+    );
+    final qualifiers = _offer?.qualifiersPerGroup ?? 2;
+
+    final myPending = _myPendingMatch(poolMatches, myTeamId);
+    final scenarios = myPending == null
+        ? const <RoundScenario>[]
+        : roundScenariosOf(
+            matches: categoryMatches,
+            poolId: poolId,
+            myTeamId: myTeamId,
+            myMatchId: myPending.id,
+            qualifiersPerGroup: qualifiers,
+          );
+
+    final live = categoryMatches
+        .where((m) => TournamentMatchStatus.isInProgress(m.status))
+        .toList();
+    final crossing = crossingRowsOf(categoryMatches, widget.categoryId);
+
+    return ListView(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.xs,
+        bottom: AppSpacing.xxxl * 2,
+      ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _kicker(poolId, poolMatches),
+                style:
+                    AppTypography.eyebrow.copyWith(color: AppColors.brand),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                qualifiers == 1 ? 'Um avança.' : '$_qualifiersWord avançam.',
+                style:
+                    AppTypography.displayL.copyWith(color: colors.onSurface),
+              ),
+            ],
           ),
         ),
-        if (crossing.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const FocusSectionHeader(label: 'CRUZAMENTO NO MATA-MATA'),
-                for (final row in crossing) _CrossingTile(row: row),
-              ],
+        const FocusSectionHeader(label: 'CLASSIFICAÇÃO'),
+        _StandingsTable(
+          order: order,
+          stats: stats,
+          names: names,
+          myTeamId: myTeamId,
+          qualifiers: qualifiers,
+        ),
+        if (scenarios.isNotEmpty) ...[
+          FocusSectionHeader(
+            label: 'EM JOGO NA RODADA ${myPending!.round}',
+          ),
+          for (final scenario in scenarios) _ScenarioRow(scenario: scenario),
+        ],
+        if (crossing.isNotEmpty) ...[
+          const FocusSectionHeader(label: 'CRUZAMENTO NO MATA-MATA'),
+          for (final row in crossing) _CrossingTile(row: row),
+        ],
+        if (live.isNotEmpty) ...[
+          const FocusSectionHeader(
+            label: 'AO VIVO NA CATEGORIA',
+            live: true,
+          ),
+          for (final m in live)
+            _LiveRow(
+              nameA: names[m.teamAId] ?? 'A definir',
+              nameB: names[m.teamBId] ?? 'A definir',
+              context: [
+                if (m.poolId.isNotEmpty) poolLabelForId(m.poolId),
+                if (matchCourtLabelForCard(m).trim().isNotEmpty)
+                  matchCourtLabelForCard(m),
+              ].join(' · '),
+              score: matchCardScoreLabel(m),
+            ),
+        ],
+        if (_address != null) ...[
+          const FocusSectionHeader(label: 'ONDE É O QUÊ'),
+          _WhereRow(
+            label: 'Sua quadra agora',
+            value: myPending != null &&
+                    matchCourtLabelForCard(myPending).trim().isNotEmpty
+                ? matchCourtLabelForCard(myPending)
+                : 'A definir',
+          ),
+          _WhereRow(label: 'Arena', value: widget.tournament.location.trim()),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.md,
+              AppSpacing.screenH,
+              0,
+            ),
+            child: OutlinedButton.icon(
+              onPressed: _openMaps,
+              icon: const Icon(Icons.place_outlined, size: 16),
+              // Rota até a ARENA: as quadras do torneio não têm posição
+              // gravada, então prometer a quadra seria mentira.
+              label: const Text('Como chegar'),
             ),
           ),
-        if (live.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const FocusSectionHeader(
-                  label: 'AO VIVO NA CATEGORIA',
-                  live: true,
-                ),
-                for (final m in live)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenH,
-                      0,
-                      AppSpacing.screenH,
-                      AppSpacing.sm,
-                    ),
-                    child: Text(
-                      [
-                        cards
-                            .firstWhere((c) => c.match.id == m.id)
-                            .teamA
-                            .displayName,
-                        'x',
-                        cards
-                            .firstWhere((c) => c.match.id == m.id)
-                            .teamB
-                            .displayName,
-                      ].join(' '),
-                      style:
-                          AppTypography.bodyM.copyWith(color: colors.onSurface),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        if (address != null)
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const FocusSectionHeader(label: 'ONDE JOGAR'),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenH,
-                    0,
-                    AppSpacing.screenH,
-                    AppSpacing.xxxl,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (widget.tournament.location.trim().isNotEmpty)
-                        Text(
-                          widget.tournament.location.trim(),
-                          style: AppTypography.bodyM
-                              .copyWith(color: colors.onSurface),
-                        ),
-                      Text(
-                        address,
-                        style: AppTypography.bodyS
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      OutlinedButton.icon(
-                        onPressed: _openMaps,
-                        icon: const Icon(Icons.place_outlined, size: 16),
-                        // Rota até a ARENA, não até a quadra: as quadras do
-                        // torneio não têm posição gravada.
-                        label: const Text('Como chegar'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        ],
       ],
+    );
+  }
+
+  String get _qualifiersWord {
+    final n = _offer?.qualifiersPerGroup ?? 2;
+    return switch (n) {
+      2 => 'Dois',
+      3 => 'Três',
+      4 => 'Quatro',
+      _ => '$n',
+    };
+  }
+
+  /// "GRUPO B · APÓS 2 DE 3 RODADAS".
+  String _kicker(String poolId, List<TournamentMatch> poolMatches) {
+    final rounds = poolMatches.map((m) => m.round).toSet().length;
+    final played = poolMatches
+        .where((m) => TournamentMatchStatus.isCompleted(m.status))
+        .map((m) => m.round)
+        .toSet()
+        .length;
+    final label = poolLabelForId(poolId).toUpperCase();
+    if (rounds == 0) return label;
+    return '$label · APÓS $played DE $rounds RODADAS';
+  }
+
+  String? _myTeamId(List<TournamentMatch> matches) {
+    for (final m in matches) {
+      if (widget.athleteTeamIds.contains(m.teamAId)) return m.teamAId;
+      if (widget.athleteTeamIds.contains(m.teamBId)) return m.teamBId;
+    }
+    return null;
+  }
+
+  String? _myPoolId(List<TournamentMatch> matches, String? myTeamId) {
+    if (myTeamId == null) return null;
+    for (final m in matches) {
+      if (m.poolId.trim().isEmpty) continue;
+      if (m.teamAId == myTeamId || m.teamBId == myTeamId) return m.poolId;
+    }
+    return null;
+  }
+
+  TournamentMatch? _myPendingMatch(
+    List<TournamentMatch> poolMatches,
+    String? myTeamId,
+  ) {
+    if (myTeamId == null) return null;
+    final mine = poolMatches
+        .where((m) =>
+            (m.teamAId == myTeamId || m.teamBId == myTeamId) &&
+            !TournamentMatchStatus.isCompleted(m.status) &&
+            !TournamentMatchStatus.isCanceled(m.status))
+        .toList()
+      ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+    return mine.isEmpty ? null : mine.first;
+  }
+}
+
+class _StandingsTable extends StatelessWidget {
+  const _StandingsTable({
+    required this.order,
+    required this.stats,
+    required this.names,
+    required this.myTeamId,
+    required this.qualifiers,
+  });
+
+  final List<String> order;
+  final Map<String, TournamentPoolTeamStats> stats;
+  final Map<String, String> names;
+  final String? myTeamId;
+  final int qualifiers;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    Widget cell(String text, {bool strong = false}) => Text(
+          text,
+          textAlign: TextAlign.center,
+          style: AppTypography.monoMeta.copyWith(
+            color: strong ? colors.onSurface : colors.onSurfaceMuted,
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  SizedBox(width: 22, child: cell('#')),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'DUPLA',
+                      style: AppTypography.monoMeta
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ),
+                  SizedBox(width: 26, child: cell('V')),
+                  SizedBox(width: 26, child: cell('D')),
+                  SizedBox(width: 46, child: cell('SETS')),
+                  SizedBox(width: 34, child: cell('PTS')),
+                ],
+              ),
+            ),
+            for (var i = 0; i < order.length; i++)
+              _StandingRow(
+                rank: i + 1,
+                teamId: order[i],
+                stats: stats[order[i]],
+                name: names[order[i]] ?? 'Dupla',
+                isMe: order[i] == myTeamId,
+                qualifies: i < qualifiers,
+                isLast: i == order.length - 1,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Uma linha da classificação. A do atleta ganha fundo e o nome marcado com
+/// "você"; quem está na faixa de classificação ganha a barra verde à esquerda.
+class _StandingRow extends StatelessWidget {
+  const _StandingRow({
+    required this.rank,
+    required this.teamId,
+    required this.stats,
+    required this.name,
+    required this.isMe,
+    required this.qualifies,
+    required this.isLast,
+  });
+
+  final int rank;
+  final String teamId;
+  final TournamentPoolTeamStats? stats;
+  final String name;
+  final bool isMe;
+  final bool qualifies;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final s = stats;
+
+    Widget cell(String text, double width, {bool strong = false}) => SizedBox(
+          width: width,
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: AppTypography.monoMeta.copyWith(
+              color: strong ? colors.onSurface : colors.onSurfaceMuted,
+              fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isMe ? AppColors.brand.withValues(alpha: 0.10) : null,
+        border: Border(
+          left: BorderSide(
+            color: qualifies ? colors.win : Colors.transparent,
+            width: 3,
+          ),
+          bottom: isLast
+              ? BorderSide.none
+              : BorderSide(color: colors.outline.withValues(alpha: 0.5)),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            child: Text(
+              '$rank',
+              textAlign: TextAlign.center,
+              style: AppTypography.monoMeta.copyWith(
+                color: qualifies ? colors.win : colors.onSurfaceMuted,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyM.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: isMe ? FontWeight.w800 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (isMe)
+                  Text(
+                    ' · você',
+                    style:
+                        AppTypography.bodyS.copyWith(color: AppColors.brand),
+                  ),
+              ],
+            ),
+          ),
+          cell('${s?.wins ?? 0}', 26, strong: isMe),
+          cell('${s?.losses ?? 0}', 26, strong: isMe),
+          cell('${s?.setsWon ?? 0}–${s?.setsLost ?? 0}', 46),
+          cell('${(s?.wins ?? 0) * 3}', 34, strong: true),
+        ],
+      ),
+    );
+  }
+}
+
+/// "VENCE 1º do grupo" / "PERDE 2º do grupo" — o que a rodada decide.
+class _ScenarioRow extends StatelessWidget {
+  const _ScenarioRow({required this.scenario});
+
+  final RoundScenario scenario;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final tag = scenario.won ? 'VENCE' : 'PERDE';
+    final tagColor = scenario.won ? colors.win : AppColors.pending;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.sm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 56,
+            child: Text(
+              tag,
+              style: AppTypography.eyebrow.copyWith(color: tagColor),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              scenario.text,
+              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveRow extends StatelessWidget {
+  const _LiveRow({
+    required this.nameA,
+    required this.nameB,
+    required this.context,
+    required this.score,
+  });
+
+  final String nameA;
+  final String nameB;
+  final String context;
+  final String score;
+
+  @override
+  Widget build(BuildContext ctx) {
+    final colors = ctx.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: AppColors.live,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$nameA vs $nameB',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        AppTypography.bodyM.copyWith(color: colors.onSurface),
+                  ),
+                  if (context.trim().isNotEmpty)
+                    Text(
+                      context.toUpperCase(),
+                      style: AppTypography.eyebrow
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                ],
+              ),
+            ),
+            if (score.trim().isNotEmpty)
+              Text(
+                score,
+                style: AppTypography.monoMeta
+                    .copyWith(color: colors.onSurface),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -232,6 +613,66 @@ class _CrossingTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WhereRow extends StatelessWidget {
+  const _WhereRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    if (value.trim().isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style:
+                  AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+            ),
+          ),
+          Text(
+            value,
+            style: AppTypography.bodyM.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xxl),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
       ),
     );
   }

@@ -65,10 +65,7 @@ class FocusAgoraSection extends ConsumerWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  String get _mapsLabel {
-    final location = tournament.location.trim();
-    return location.isNotEmpty ? 'Como chegar na $location' : 'Como chegar';
-  }
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

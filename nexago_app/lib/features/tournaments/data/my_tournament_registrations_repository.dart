@@ -140,8 +140,8 @@ class MyTournamentRegistrationsRepository {
           teamName: (data['teamName'] as String?)?.trim().isNotEmpty == true
               ? (data['teamName'] as String).trim()
               : null,
-          uniformPlayer1: _uniformFromData(data['uniformPlayer1']),
-          uniformPlayer2: _uniformFromData(data['uniformPlayer2']),
+          uniformPlayer1: uniformSelectionFromRegistrationDoc(data, 1),
+          uniformPlayer2: uniformSelectionFromRegistrationDoc(data, 2),
           uniformByUid: _uniformByUidFromData(data['uniformByUid']),
           category: _resolveCategory(tournament, categoryId),
           paymentMode:

@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/text/safe_display_text.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
 import '../../../../arenas/domain/nearby_arenas_logic.dart';
 import 'arena_search_highlight.dart';
@@ -38,12 +39,14 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.themeColors;
     final place = arenaPlaceFields(arena);
-    final location =
-        '${place.city}${place.state.isNotEmpty ? ', ${place.state}' : ''}';
-    final sports = arena.courtTypes.take(3).join(' · ');
-    final sportPill =
-        (arena.courtTypes.isNotEmpty ? arena.courtTypes.first : 'Areia')
-            .toUpperCase();
+    final location = sanitizeUtf16(
+      '${place.city}${place.state.isNotEmpty ? ', ${place.state}' : ''}',
+    );
+    final sports = sanitizeUtf16(arena.courtTypes.take(3).join(' · '));
+    final sportPill = sanitizeUtf16(
+      (arena.courtTypes.isNotEmpty ? arena.courtTypes.first : 'Areia')
+          .toUpperCase(),
+    );
 
     return Material(
       color: colors.surfaceCard,

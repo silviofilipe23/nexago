@@ -18,4 +18,15 @@ void main() {
       expect(firstGraphemesUpper('🏐Arena', 2), '🏐A');
     });
   });
+
+  group('shortPersonLabel', () {
+    test('keeps emoji last token intact', () {
+      expect(shortPersonLabel('Pereira 🐸'), 'Pereira 🐸.');
+      expect(shortPersonLabel('Blessed 🥇'), 'Blessed 🥇.');
+    });
+
+    test('uses letter initial for normal names', () {
+      expect(shortPersonLabel('Ana Silva'), 'Ana S.');
+    });
+  });
 }

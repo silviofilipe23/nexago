@@ -22,13 +22,10 @@ String athleteInitials(AthleteProfile profile) {
 /// Nome curto p/ rótulos de dupla (ex.: "Ana C."), pra reduzir colisão
 /// quando dois atletas compartilham o primeiro nome.
 String athleteShortLabel(AthleteProfile profile) {
-  final display = athleteDisplayName(profile, fallback: '');
-  if (display.isEmpty) return '';
-  final parts =
-      display.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.length <= 1) return display;
-  final lastInitial = firstGraphemesUpper(parts.last, 1);
-  return '${parts.first} $lastInitial.';
+  return shortPersonLabel(
+    athleteDisplayName(profile, fallback: ''),
+    fallback: '',
+  );
 }
 
 /// Rótulo de uma dupla a partir dos dois perfis: tenta nomes curtos e, se

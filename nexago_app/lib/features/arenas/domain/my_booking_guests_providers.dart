@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexago_app/core/text/safe_display_text.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
@@ -101,12 +102,5 @@ final myBookingGuestDisplaysProvider = FutureProvider.autoDispose
 });
 
 String shortAthleteName(String fullName) {
-  final parts =
-      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) return fullName.trim();
-  if (parts.length == 1) return parts.first;
-  final first = parts.first;
-  final lastInitial =
-      parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
-  return '$first $lastInitial.';
+  return shortPersonLabel(fullName, fallback: fullName.trim());
 }

@@ -21,20 +21,19 @@ TextSpan buildArenaSearchHighlightedName(
     return TextSpan(text: safe, style: base);
   }
 
-  final source = safe.toLowerCase();
-  final needle = q.toLowerCase();
-  final i = source.indexOf(needle);
-  if (i < 0 || i + needle.length > safe.length) {
+  final match = RegExp(RegExp.escape(q), caseSensitive: false).firstMatch(safe);
+  if (match == null) {
     return TextSpan(text: safe, style: base);
   }
 
-  final end = i + needle.length;
+  final i = match.start;
+  final end = match.end;
   return TextSpan(
     style: base,
     children: [
-      if (i > 0) TextSpan(text: sanitizeUtf16(safe.substring(0, i))),
+      if (i > 0) TextSpan(text: safe.substring(0, i)),
       TextSpan(
-        text: sanitizeUtf16(safe.substring(i, end)),
+        text: safe.substring(i, end),
         style: base?.copyWith(
           color: highlightColor ?? AppColors.brand,
           decoration: TextDecoration.underline,
@@ -42,8 +41,7 @@ TextSpan buildArenaSearchHighlightedName(
               (highlightColor ?? AppColors.brand).withValues(alpha: 0.55),
         ),
       ),
-      if (end < safe.length)
-        TextSpan(text: sanitizeUtf16(safe.substring(end))),
+      if (end < safe.length) TextSpan(text: safe.substring(end)),
     ],
   );
 }

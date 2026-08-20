@@ -39,3 +39,17 @@ String firstGraphemesUpper(String input, int count) {
   if (chars.isEmpty || count <= 0) return '?';
   return chars.take(count).toString().toUpperCase();
 }
+
+/// "Pereira 🐸" → "Pereira 🐸." / "Ana Silva" → "Ana S."
+///
+/// Nunca usa `string[0]`/`substring` — isso parte emoji em UTF-16 inválido.
+String shortPersonLabel(String fullName, {String fallback = 'Atleta'}) {
+  final parts = sanitizeUtf16(fullName)
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return fallback;
+  if (parts.length == 1) return parts.first;
+  return '${parts.first} ${firstGraphemesUpper(parts.last, 1)}.';
+}

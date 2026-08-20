@@ -1,4 +1,5 @@
 import 'package:nexago_app/core/links/nexago_links.dart';
+import 'package:nexago_app/core/text/safe_display_text.dart';
 
 import 'tournament_predictions_logic.dart';
 
@@ -57,14 +58,7 @@ class PredictionShareData {
 /// "Marcelo Antunes" → "Marcelo A.". Preserva o primeiro nome inteiro (é como a
 /// pessoa se reconhece) e reduz o resto à inicial.
 String shortDisplayName(String? fullName) {
-  final parts = (fullName ?? '')
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return 'Atleta';
-  if (parts.length == 1) return parts.first;
-  return '${parts.first} ${parts.last[0].toUpperCase()}.';
+  return shortPersonLabel(fullName ?? '');
 }
 
 /// `/torneios/{id}/palpites` no portal do atleta. A rota é protegida, mas o

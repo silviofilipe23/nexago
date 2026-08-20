@@ -242,3 +242,59 @@ RoundScenario _scenarioOf({
     text: '${first}º do grupo',
   );
 }
+
+/// A descrição que o gerador grava no slot de classificado: "1º Grupo B".
+/// Formato exato de `qualifierSlotDescription`
+/// (`functions/src/category-bracket-builders.ts`) — se ele mudar lá, o
+/// cruzamento para de casar aqui e o texto encolhe em vez de mentir.
+String qualifierSlotDescription(int place, String poolId) =>
+    '${place}º Grupo ${poolId.trim()}';
+
+/// Para onde uma colocação leva no mata-mata: "quartas às 14:30 contra o
+/// 2º Grupo A".
+///
+/// Sai da FIAÇÃO declarada da chave, não de simulação: o gerador escreve o
+/// cruzamento como descrição nos slots ("1º Grupo B" × "2º Grupo A") antes de
+/// os grupos terminarem. Se nenhum slot casar com a colocação, devolve `null` e
+/// o cenário fica só com a posição — melhor curto que errado.
+///
+/// O horário só entra quando o organizador REALMENTE marcou. Esta função nunca
+/// estima: uma hora chutada num dia de torneio faz atleta perder jogo.
+String? knockoutDestinationOf({
+  required List<TournamentMatch> matches,
+  required String categoryId,
+  required int place,
+  required String poolId,
+  required String Function(String teamId) nameOf,
+  required String Function(TournamentMatch match) phaseLabelOf,
+  required String? Function(TournamentMatch match) timeLabelOf,
+}) {
+  final slot = qualifierSlotDescription(place, poolId);
+
+  for (final m in matches) {
+    if (m.categoryId != categoryId) continue;
+    if (m.poolId.isNotEmpty || m.isGroupMatch) continue;
+
+    final a = m.teamADescription?.trim() ?? '';
+    final b = m.teamBDescription?.trim() ?? '';
+    final iAmA = a == slot;
+    final iAmB = b == slot;
+    if (!iAmA && !iAmB) continue;
+
+    // O adversário: o nome real quando a chave já resolveu aquele lado, senão
+    // a descrição que o gerador deixou.
+    final opponentId = iAmA ? m.teamBId : m.teamAId;
+    final opponentDescription = iAmA ? b : a;
+    final opponent = opponentId.trim().isNotEmpty
+        ? nameOf(opponentId)
+        : (opponentDescription.isEmpty ? null : opponentDescription);
+
+    final parts = <String>[phaseLabelOf(m).toLowerCase()];
+    final time = timeLabelOf(m);
+    if (time != null && time.trim().isNotEmpty) parts.add('às $time');
+    if (opponent != null) parts.add('contra $opponent');
+    return parts.join(' ');
+  }
+
+  return null;
+}

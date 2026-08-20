@@ -2,11 +2,32 @@ import 'package:flutter/material.dart';
 
 enum RankingListMode { athletes, teams }
 
-enum RankingGenderFilter { all, male, female, mixed }
+enum RankingGenderFilter {
+  all('Todos'),
+  male('Masculino'),
+  female('Feminino'),
+  mixed('Misto');
+
+  const RankingGenderFilter(this.label);
+
+  /// Rótulo exibido na folha de filtros.
+  final String label;
+}
 
 /// Formato do time no ranking de duplas/equipes. Dupla é o formato legado sem
 /// `teamSize`; trio/quarteto/quinteto são as equipes nomeadas (`teamSize` 3–5).
-enum RankingFormatFilter { all, dupla, trio, quarteto, quinteto }
+enum RankingFormatFilter {
+  all('Todos'),
+  dupla('Dupla'),
+  trio('Trio'),
+  quarteto('Quarteto'),
+  quinteto('Quinteto');
+
+  const RankingFormatFilter(this.label);
+
+  /// Rótulo exibido na folha de filtros.
+  final String label;
+}
 
 /// Faixa de nível no ranking. A escada canônica tem 7 degraus (ver
 /// `AthleteProfileOptions.levels`), mas o filtro agrupa em 4 faixas — é como o
@@ -59,7 +80,23 @@ class RankingPageFilter {
 
   bool get isGeneralMode => year == null;
 
-  String get pointsModeLabel => isGeneralMode ? 'SOMA TOTAL' : 'MELHORES 5';
+  /// Temporada em curso, em texto. Vive no cabeçalho da lista porque os chips
+  /// de ano saíram da tela: sem isso, nada diz qual recorte está aberto.
+  String get seasonLabel => isGeneralMode ? 'GERAL' : '$year';
+
+  String get pointsModeLabel => isGeneralMode ? 'SOMA TOTAL' : 'SOMA DO ANO';
+
+  /// Algum recorte que não aparece em lugar nenhum da tela — é o que o ícone
+  /// da barra precisa denunciar.
+  ///
+  /// Ano e modo ficam de fora porque estão sempre à vista: o segmento
+  /// Equipes/Atletas é um controle da tela e a temporada vive no cabeçalho da
+  /// lista. Contar a temporada aqui deixaria o aviso aceso desde a abertura
+  /// (a tela nasce no ano corrente), avisando de nada.
+  bool get hasActiveFilters =>
+      gender != RankingGenderFilter.all ||
+      format != RankingFormatFilter.all ||
+      level != RankingLevelFilter.all;
 
   RankingPageFilter copyWith({
     RankingListMode? mode,

@@ -19,6 +19,13 @@ const PLATFORM_COSTS = "platformCosts";
 /** Arenas pré-cadastradas priorizadas no plano de ação — teto por chamada. */
 const MAX_TARGET_ARENAS = 20;
 
+/**
+ * Gen2 callables precisam de invoker público para o browser completar o
+ * preflight OPTIONS. Sem isso o Cloud Run responde 403 sem CORS e o DevTools
+ * mostra "blocked by CORS policy". A autenticação Firebase continua no handler.
+ */
+const BACKOFFICE_CALLABLE = {invoker: "public" as const};
+
 export type CostCategory = "fixed" | "variable";
 
 export interface PlatformCostItem {
@@ -181,7 +188,7 @@ async function loadTargetArenas(db: Firestore, limit: number): Promise<BreakEven
   return rows.slice(0, Math.min(limit, MAX_TARGET_ARENAS));
 }
 
-export const getFinanceOverview = onCall(async (request) => {
+export const getFinanceOverview = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   await assertBackofficeAdmin(uid);
@@ -238,7 +245,7 @@ interface UpsertCostInput {
   notes?: string;
 }
 
-export const upsertPlatformCost = onCall(async (request) => {
+export const upsertPlatformCost = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   await assertBackofficeAdmin(uid);
@@ -285,7 +292,7 @@ export const upsertPlatformCost = onCall(async (request) => {
   return {id: ref.id};
 });
 
-export const deletePlatformCost = onCall(async (request) => {
+export const deletePlatformCost = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   await assertBackofficeAdmin(uid);

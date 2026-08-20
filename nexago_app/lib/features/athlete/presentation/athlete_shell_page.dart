@@ -19,6 +19,7 @@ import 'athlete_home_page.dart';
 import '../../tournaments/presentation/tournament_discovery_page.dart'
     show TournamentDiscoveryPage;
 import '../../tournaments/presentation/widgets/tournament_invite_accept_coordinator.dart';
+import '../../tournaments/presentation/focus/focus_day_announcer.dart';
 import '../../tournaments/presentation/widgets/tournament_invite_announcer.dart';
 
 /// Container principal do atleta com [BottomNavigationBar] e [IndexedStack].
@@ -110,70 +111,72 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
 
     return TournamentInviteAcceptCoordinator(
       child: TournamentInviteAnnouncer(
-        child: Scaffold(
-          extendBody: true,
-          backgroundColor: theme.colorScheme.surfaceContainerLowest,
-          body: ShellTabBarCollapseListener(
-            controller: scrollRegistry.tabBarCollapse,
-            child: IndexedStack(
-              index: _index,
-              children: const [
-                AthleteHomePage(),
-                AthleteAgendaPage(),
-                ArenaListPage(),
-                TournamentDiscoveryPage(),
-                AthleteCommunityPage(),
-              ],
+        child: FocusDayAnnouncer(
+          child: Scaffold(
+            extendBody: true,
+            backgroundColor: theme.colorScheme.surfaceContainerLowest,
+            body: ShellTabBarCollapseListener(
+              controller: scrollRegistry.tabBarCollapse,
+              child: IndexedStack(
+                index: _index,
+                children: const [
+                  AthleteHomePage(),
+                  AthleteAgendaPage(),
+                  ArenaListPage(),
+                  TournamentDiscoveryPage(),
+                  AthleteCommunityPage(),
+                ],
+              ),
             ),
-          ),
-          bottomNavigationBar: ListenableBuilder(
-            listenable: scrollRegistry.tabBarCollapse,
-            builder: (context, _) => NexaBottomNavBar(
-              collapseProgress: scrollRegistry.tabBarCollapse.progress,
-              currentIndex: _index,
-              onTap: (i) {
-                ref.read(athleteShellTabIndexProvider.notifier).state = i;
-                setState(() => _index = i);
-                scrollRegistry.tabBarCollapse.expand();
-                ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
-              },
-              items: const [
-                NexaBottomNavItem(
-                  label: 'Início',
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home,
-                  sfSymbol: 'house',
-                  selectedSfSymbol: 'house.fill',
-                ),
-                NexaBottomNavItem(
-                  label: 'Agenda',
-                  icon: Icons.calendar_today_outlined,
-                  selectedIcon: Icons.calendar_today,
-                  sfSymbol: 'calendar',
-                  selectedSfSymbol: 'calendar',
-                ),
-                NexaBottomNavItem(
-                  label: 'Reservar',
-                  icon: Icons.add_circle_outline,
-                  selectedIcon: Icons.add_circle,
-                  sfSymbol: 'plus.circle',
-                  selectedSfSymbol: 'plus.circle.fill',
-                ),
-                NexaBottomNavItem(
-                  label: 'Competir',
-                  icon: Icons.emoji_events_outlined,
-                  selectedIcon: Icons.emoji_events,
-                  sfSymbol: 'trophy',
-                  selectedSfSymbol: 'trophy.fill',
-                ),
-                NexaBottomNavItem(
-                  label: 'Comunidade',
-                  icon: Icons.diversity_2_outlined,
-                  selectedIcon: Icons.diversity_2_rounded,
-                  sfSymbol: 'person.2',
-                  selectedSfSymbol: 'person.2.fill',
-                ),
-              ],
+            bottomNavigationBar: ListenableBuilder(
+              listenable: scrollRegistry.tabBarCollapse,
+              builder: (context, _) => NexaBottomNavBar(
+                collapseProgress: scrollRegistry.tabBarCollapse.progress,
+                currentIndex: _index,
+                onTap: (i) {
+                  ref.read(athleteShellTabIndexProvider.notifier).state = i;
+                  setState(() => _index = i);
+                  scrollRegistry.tabBarCollapse.expand();
+                  ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
+                },
+                items: const [
+                  NexaBottomNavItem(
+                    label: 'Início',
+                    icon: Icons.home_outlined,
+                    selectedIcon: Icons.home,
+                    sfSymbol: 'house',
+                    selectedSfSymbol: 'house.fill',
+                  ),
+                  NexaBottomNavItem(
+                    label: 'Agenda',
+                    icon: Icons.calendar_today_outlined,
+                    selectedIcon: Icons.calendar_today,
+                    sfSymbol: 'calendar',
+                    selectedSfSymbol: 'calendar',
+                  ),
+                  NexaBottomNavItem(
+                    label: 'Reservar',
+                    icon: Icons.add_circle_outline,
+                    selectedIcon: Icons.add_circle,
+                    sfSymbol: 'plus.circle',
+                    selectedSfSymbol: 'plus.circle.fill',
+                  ),
+                  NexaBottomNavItem(
+                    label: 'Competir',
+                    icon: Icons.emoji_events_outlined,
+                    selectedIcon: Icons.emoji_events,
+                    sfSymbol: 'trophy',
+                    selectedSfSymbol: 'trophy.fill',
+                  ),
+                  NexaBottomNavItem(
+                    label: 'Comunidade',
+                    icon: Icons.diversity_2_outlined,
+                    selectedIcon: Icons.diversity_2_rounded,
+                    sfSymbol: 'person.2',
+                    selectedSfSymbol: 'person.2.fill',
+                  ),
+                ],
+              ),
             ),
           ),
         ),

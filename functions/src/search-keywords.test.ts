@@ -9,6 +9,10 @@ import {
   normalizeNicknameForSearch,
   normalizeSearchTerm,
   tokenizeSearchText,
+  searchQueryTokens,
+  searchAnchorToken,
+  profileMatchesSearchTokens,
+  searchRelevanceScore,
 } from "./search-keywords";
 
 describe("search-keywords", () => {
@@ -120,5 +124,99 @@ describe("search-keywords", () => {
     assert.ok(fields.keywords.includes("maria"));
     assert.equal(fields.player1DisplayName, "Silvio Dionizio");
     assert.equal(fields.player2DisplayName, "Maria Silva");
+  });
+});
+
+describe("search-keywords: variantes acentuadas e forma colada", () => {
+  it("guarda a variante COM acento ao lado da sem acento", () => {
+    const keywords = generateKeywords(["João Gonçalves"]);
+    assert.ok(keywords.includes("joao"));
+    assert.ok(keywords.includes("joão"));
+    assert.ok(keywords.includes("goncalves"));
+    assert.ok(keywords.includes("gonçalves"));
+    // Prefixo acentuado no meio da palavra também entra.
+    assert.ok(keywords.includes("gonç"));
+  });
+
+  it("palavra sem acento não duplica keyword", () => {
+    const keywords = generateKeywords(["Silva"]);
+    assert.equal(keywords.filter((k) => k === "silva").length, 1);
+  });
+
+  it("apostrofo cola as partes: D'Avila vira davila", () => {
+    const keywords = generateKeywords(["Maria D\u2019\u00c1vila"]);
+    assert.ok(keywords.includes("davila"));
+    assert.ok(!keywords.includes("avila"));
+  });
+
+  it("guarda a forma colada do nome inteiro", () => {
+    const keywords = generateKeywords(["João Silva"]);
+    assert.ok(keywords.includes("joaosilva"));
+    assert.ok(keywords.includes("joaos"));
+  });
+
+  it("apelido com separador casa colado e por parte", () => {
+    const fields = buildUserSearchFields({
+      fullName: "Ana Paula",
+      nickname: "@ana_paula",
+      roles: ["athlete"],
+    });
+    assert.ok(fields.keywords.includes("anapaula"));
+    assert.ok(fields.keywords.includes("ana"));
+    assert.ok(fields.keywords.includes("paula"));
+  });
+
+  it("todo token tem a forma exata mesmo com o teto estourado", () => {
+    const keywords = generateKeywords(
+      ["Ana Beatriz Carolina Daniela", "apelidozz"],
+      {maxKeywords: 12}
+    );
+    assert.equal(keywords.length, 12);
+    assert.ok(keywords.includes("apelidozz"));
+    assert.ok(keywords.includes("ana"));
+  });
+});
+
+describe("search-keywords: lado da consulta", () => {
+  it("searchQueryTokens quebra o termo em palavras normalizadas", () => {
+    assert.deepEqual(searchQueryTokens("  João   Silva "), ["joao", "silva"]);
+    assert.deepEqual(searchQueryTokens("@ana_paula"), ["ana", "paula"]);
+    assert.deepEqual(searchQueryTokens("   "), []);
+  });
+
+  it("searchAnchorToken escolhe o token mais longo (mais seletivo)", () => {
+    assert.equal(searchAnchorToken(["de", "oliveira"]), "oliveira");
+    assert.equal(searchAnchorToken([]), "");
+  });
+
+  it("profileMatchesSearchTokens exige TODOS os tokens", () => {
+    const profile = {fullName: "João Pedro Silva", nickname: "jp"};
+    assert.equal(profileMatchesSearchTokens(profile, ["joao", "silva"]), true);
+    assert.equal(profileMatchesSearchTokens(profile, ["joao", "souza"]), false);
+    assert.equal(profileMatchesSearchTokens(profile, ["joaopedro"]), true);
+  });
+
+  it("profileMatchesSearchTokens casa por keywords quando o nome falta", () => {
+    const profile = {keywords: ["ra", "raf", "rafa"]};
+    assert.equal(profileMatchesSearchTokens(profile, ["rafa"]), true);
+    assert.equal(profileMatchesSearchTokens(profile, ["rafael"]), false);
+  });
+
+  it("profileMatchesSearchTokens casa pelo nome quando keywords está velho", () => {
+    const profile = {fullName: "Rafael Souza", keywords: ["ra", "raf"]};
+    assert.equal(profileMatchesSearchTokens(profile, ["souza"]), true);
+  });
+
+  it("searchRelevanceScore põe o casamento exato na frente", () => {
+    const exato = {fullName: "Ana Silva", nickname: "ana"};
+    const comeco = {fullName: "Ana Beatriz", nickname: "aninha"};
+    const meio = {fullName: "Mariana Costa", nickname: "mari"};
+    const tokens = ["ana"];
+    assert.ok(
+      searchRelevanceScore(exato, tokens) < searchRelevanceScore(comeco, tokens)
+    );
+    assert.ok(
+      searchRelevanceScore(comeco, tokens) < searchRelevanceScore(meio, tokens)
+    );
   });
 });

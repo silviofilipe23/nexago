@@ -23,6 +23,7 @@ import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../widgets/tournament_match_card.dart';
+import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../widgets/focus_lives_card.dart';
@@ -108,15 +109,7 @@ class FocusAgoraSection extends ConsumerWidget {
     // Nome por ID DE TIME: `byId` é indexado por id de PARTIDA, e consultá-lo
     // com um teamId devolve null em silêncio — todo adversário viraria
     // "A definir".
-    final teamNames = <String, String>{};
-    for (final c in cards) {
-      if (c.match.teamAId.isNotEmpty) {
-        teamNames[c.match.teamAId] = c.teamA.displayName;
-      }
-      if (c.match.teamBId.isNotEmpty) {
-        teamNames[c.match.teamBId] = c.teamB.displayName;
-      }
-    }
+    final rosters = FocusRosters.fromCards(cards);
 
     // A categoria em foco recorta TUDO: `poolId` só é único dentro dela.
     final categoryMatches = categoryId == null
@@ -143,8 +136,7 @@ class FocusAgoraSection extends ConsumerWidget {
     final ctx = FocusViewContext(
       matches: categoryMatches,
       myTeamIds: athleteTeamIds,
-      duoNameOf: (teamId, [fallback]) =>
-          teamNames[teamId] ?? fallback ?? 'A definir',
+      duoNameOf: rosters.nameOf,
       standingsOf: (_) => const [],
       nextMatch: next,
     );
@@ -245,6 +237,7 @@ class FocusAgoraSection extends ConsumerWidget {
         else
           FocusTimeline(
             entries: entries,
+            playersOf: rosters.playersOf,
             onOpen: (id) => _openMatch(context, id),
           ),
         if (announcements.isNotEmpty) ...[

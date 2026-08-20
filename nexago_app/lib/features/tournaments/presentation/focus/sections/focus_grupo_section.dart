@@ -15,6 +15,9 @@ import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
+import '../../../domain/tournament_match_card_view_model.dart';
+import '../../widgets/nexa_duo_avatars.dart';
+import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 
 /// Seção "Grupo": a classificação do atleta, o que a rodada decide, o que está
@@ -83,15 +86,7 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
     final categoryMatches =
         all.where((m) => m.categoryId == widget.categoryId).toList();
 
-    final names = <String, String>{};
-    for (final c in cards) {
-      if (c.match.teamAId.isNotEmpty) {
-        names[c.match.teamAId] = c.teamA.displayName;
-      }
-      if (c.match.teamBId.isNotEmpty) {
-        names[c.match.teamBId] = c.teamB.displayName;
-      }
-    }
+    final rosters = FocusRosters.fromCards(cards);
 
     final myTeamId = _myTeamId(categoryMatches);
     final poolId = _myPoolId(categoryMatches, myTeamId);
@@ -160,7 +155,7 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
         _StandingsTable(
           order: order,
           stats: stats,
-          names: names,
+          rosters: rosters,
           myTeamId: myTeamId,
           qualifiers: qualifiers,
         ),
@@ -181,8 +176,10 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
           ),
           for (final m in live)
             _LiveRow(
-              nameA: names[m.teamAId] ?? 'A definir',
-              nameB: names[m.teamBId] ?? 'A definir',
+              nameA: rosters.nameOf(m.teamAId),
+              nameB: rosters.nameOf(m.teamBId),
+              playersA: rosters.playersOf(m.teamAId),
+              playersB: rosters.playersOf(m.teamBId),
               context: [
                 if (m.poolId.isNotEmpty) poolLabelForId(m.poolId),
                 if (matchCourtLabelForCard(m).trim().isNotEmpty)
@@ -281,14 +278,14 @@ class _StandingsTable extends StatelessWidget {
   const _StandingsTable({
     required this.order,
     required this.stats,
-    required this.names,
+    required this.rosters,
     required this.myTeamId,
     required this.qualifiers,
   });
 
   final List<String> order;
   final Map<String, TournamentPoolTeamStats> stats;
-  final Map<String, String> names;
+  final FocusRosters rosters;
   final String? myTeamId;
   final int qualifiers;
 
@@ -344,7 +341,8 @@ class _StandingsTable extends StatelessWidget {
                 rank: i + 1,
                 teamId: order[i],
                 stats: stats[order[i]],
-                name: names[order[i]] ?? 'Dupla',
+                name: rosters.nameOf(order[i], 'Dupla'),
+                players: rosters.playersOf(order[i]),
                 isMe: order[i] == myTeamId,
                 qualifies: i < qualifiers,
                 isLast: i == order.length - 1,
@@ -364,6 +362,7 @@ class _StandingRow extends StatelessWidget {
     required this.teamId,
     required this.stats,
     required this.name,
+    required this.players,
     required this.isMe,
     required this.qualifies,
     required this.isLast,
@@ -373,6 +372,7 @@ class _StandingRow extends StatelessWidget {
   final String teamId;
   final TournamentPoolTeamStats? stats;
   final String name;
+  final List<TournamentMatchCardPlayerViewModel> players;
   final bool isMe;
   final bool qualifies;
   final bool isLast;
@@ -428,6 +428,10 @@ class _StandingRow extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
+                // Rostos pequenos: a linha da tabela é densa, e um avatar
+                // grande empurraria as colunas de V/D/SETS/PTS.
+                NexaDuoAvatars(players: players, size: 22),
+                const SizedBox(width: AppSpacing.sm),
                 Flexible(
                   child: Text(
                     name,
@@ -504,12 +508,16 @@ class _LiveRow extends StatelessWidget {
   const _LiveRow({
     required this.nameA,
     required this.nameB,
+    required this.playersA,
+    required this.playersB,
     required this.context,
     required this.score,
   });
 
   final String nameA;
   final String nameB;
+  final List<TournamentMatchCardPlayerViewModel> playersA;
+  final List<TournamentMatchCardPlayerViewModel> playersB;
   final String context;
   final String score;
 
@@ -541,6 +549,10 @@ class _LiveRow extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
+            NexaDuoAvatars(players: playersA, size: 22),
+            const SizedBox(width: 4),
+            NexaDuoAvatars(players: playersB, size: 22),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(

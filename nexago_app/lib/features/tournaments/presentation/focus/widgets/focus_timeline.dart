@@ -5,6 +5,8 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_views_logic.dart';
+import '../../../domain/tournament_match_card_view_model.dart';
+import '../../widgets/nexa_duo_avatars.dart';
 import '../focus_section_header.dart';
 
 /// "Ordem do seu dia" — a timeline do atleta com trilho.
@@ -17,10 +19,15 @@ class FocusTimeline extends StatelessWidget {
   const FocusTimeline({
     super.key,
     required this.entries,
+    required this.playersOf,
     required this.onOpen,
   });
 
   final List<TimelineEntry> entries;
+
+  /// Elenco do adversário de cada linha, para os rostos.
+  final List<TournamentMatchCardPlayerViewModel> Function(String teamId)
+      playersOf;
   final ValueChanged<String> onOpen;
 
   static const double _timeWidth = 48;
@@ -39,6 +46,9 @@ class FocusTimeline extends StatelessWidget {
       }
       rows.add(_Row(
         entry: entry,
+        players: entry.opponentTeamId != null
+            ? playersOf(entry.opponentTeamId!)
+            : const [],
         onTap: entry.clickable ? () => onOpen(entry.matchId) : null,
       ));
     }
@@ -48,9 +58,14 @@ class FocusTimeline extends StatelessWidget {
 }
 
 class _Row extends StatelessWidget {
-  const _Row({required this.entry, required this.onTap});
+  const _Row({
+    required this.entry,
+    required this.players,
+    required this.onTap,
+  });
 
   final TimelineEntry entry;
+  final List<TournamentMatchCardPlayerViewModel> players;
   final VoidCallback? onTap;
 
   @override
@@ -84,6 +99,10 @@ class _Row extends StatelessWidget {
                   width: FocusTimeline._markWidth,
                   child: _Mark(state: entry.state),
                 ),
+                if (entry.opponentTeamId != null) ...[
+                  NexaDuoAvatars(players: players, size: 22),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

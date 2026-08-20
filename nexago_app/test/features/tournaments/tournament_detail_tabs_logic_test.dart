@@ -13,6 +13,7 @@ TournamentMatch _match({
   String status = TournamentMatchStatus.scheduled,
   int matchNumber = 1,
   DateTime? scheduleTime,
+  DateTime? matchStartedAt,
 }) {
   return TournamentMatch(
     id: id,
@@ -29,6 +30,7 @@ TournamentMatch _match({
     isGroupMatch: false,
     matchNumber: matchNumber,
     scheduleTime: scheduleTime,
+    matchStartedAt: matchStartedAt,
   );
 }
 
@@ -327,6 +329,108 @@ void main() {
       ];
 
       expect(myTournamentDayTimeline(matches, {'meu'}, reference), isEmpty);
+    });
+
+    test('sem horário entra quando o torneio está rolando hoje', () {
+      final matches = [
+        _match(id: 'sem-horario', teamAId: 'meu', teamBId: 'y'),
+      ];
+
+      final timeline = myTournamentDayTimeline(
+        matches,
+        {'meu'},
+        reference,
+        tournamentRunningToday: true,
+      );
+
+      expect(timeline.map((m) => m.id), ['sem-horario']);
+    });
+
+    test('sem horário e encerrada fica fora — não há evidência de dia', () {
+      final matches = [
+        _match(
+          id: 'encerrada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.completed,
+        ),
+        _match(
+          id: 'cancelada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.canceled,
+        ),
+      ];
+
+      expect(
+        myTournamentDayTimeline(
+          matches,
+          {'meu'},
+          reference,
+          tournamentRunningToday: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('começou hoje entra mesmo agendada para ontem', () {
+      final matches = [
+        _match(
+          id: 'atrasada',
+          teamAId: 'meu',
+          teamBId: 'y',
+          status: TournamentMatchStatus.inProgress,
+          scheduleTime: DateTime(2026, 8, 19, 18, 0),
+          matchStartedAt: DateTime(2026, 8, 20, 9, 30),
+        ),
+      ];
+
+      final timeline = myTournamentDayTimeline(matches, {'meu'}, reference);
+
+      expect(timeline.map((m) => m.id), ['atrasada']);
+    });
+
+    test('âncora de outro dia não cai no caso do torneio rolando', () {
+      final matches = [
+        _match(
+          id: 'ontem',
+          teamAId: 'meu',
+          teamBId: 'y',
+          scheduleTime: DateTime(2026, 8, 19, 9, 0),
+        ),
+      ];
+
+      expect(
+        myTournamentDayTimeline(
+          matches,
+          {'meu'},
+          reference,
+          tournamentRunningToday: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('agendadas primeiro, sem horário no fim por matchNumber', () {
+      final matches = [
+        _match(id: 'sem-b', teamAId: 'meu', teamBId: 'y', matchNumber: 9),
+        _match(
+          id: 'com-horario',
+          teamAId: 'meu',
+          teamBId: 'y',
+          scheduleTime: DateTime(2026, 8, 20, 15, 0),
+        ),
+        _match(id: 'sem-a', teamAId: 'meu', teamBId: 'y', matchNumber: 4),
+      ];
+
+      final timeline = myTournamentDayTimeline(
+        matches,
+        {'meu'},
+        reference,
+        tournamentRunningToday: true,
+      );
+
+      expect(timeline.map((m) => m.id), ['com-horario', 'sem-a', 'sem-b']);
     });
   });
 

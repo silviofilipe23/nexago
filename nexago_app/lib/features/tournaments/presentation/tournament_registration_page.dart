@@ -157,10 +157,15 @@ class _TournamentRegistrationPageState
   void _applyInitialCategory({
     required List<TournamentCategoryOffer> categories,
     required TournamentUserRegistrationsByCategory registrations,
+    required bool registrationsResolved,
     required Map<String, int> enrollment,
     required bool enrollmentResolved,
   }) {
     if (_appliedInitialCategory || categories.isEmpty) return;
+    // No primeiro build o stream de inscrições ainda não voltou. Escolher agora
+    // faria "retomar a inscrição começada" perder para "primeira categoria
+    // livre" — justamente o caso que a tela precisa acertar.
+    if (!registrationsResolved) return;
     _appliedInitialCategory = true;
 
     final wanted = widget.initialCategoryId?.trim() ?? '';
@@ -308,12 +313,15 @@ class _TournamentRegistrationPageState
 
     _uniformHydratedRegistrationId = snap.registrationId;
     final stored = snap.uniformFor(uid);
-    final hydrated = hydrateUniformSelection(
-      stored: stored,
-      defaults: _uniform,
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // Os padrões da categoria entram em outro post-frame agendado no MESMO
+      // build; ler `_uniform` aqui dentro pega o valor já atualizado, e não o
+      // anterior.
+      final hydrated = hydrateUniformSelection(
+        stored: stored,
+        defaults: _uniform,
+      );
       setState(() => _uniform = hydrated);
       if (!stored.isEmpty) {
         _uniformSaver.markSaved(hydrated);
@@ -513,6 +521,19 @@ class _TournamentRegistrationPageState
         setState(() => _uniformError = error);
         return;
       }
+    }
+
+    // Inscrição legada sem o meu aceite: o checkbox reaparece no cartão e o
+    // aceite sai junto com o convite (o backend copia para a inscrição).
+    final regId = _currentRegistrationId;
+    final snap = (regId != null && regId.isNotEmpty)
+        ? ref.read(tournamentRegistrationSnapshotProvider(regId)).valueOrNull
+        : null;
+    final myUid = ref.read(authServiceProvider).currentUser?.uid;
+    if (snap != null &&
+        snap.lgpdConsentMissingFor(myUid) &&
+        !_requireLgpd('convidar seu parceiro')) {
+      return;
     }
 
     final profile = ref.read(athleteProfileProvider).valueOrNull;
@@ -838,14 +859,13 @@ class _TournamentRegistrationPageState
               );
             }
 
+            final registrationsAsync = ref.watch(
+              tournamentUserRegistrationsByCategoryProvider(
+                widget.tournamentId,
+              ),
+            );
             final registrations =
-                ref
-                    .watch(
-                      tournamentUserRegistrationsByCategoryProvider(
-                        widget.tournamentId,
-                      ),
-                    )
-                    .valueOrNull ??
+                registrationsAsync.valueOrNull ??
                 const <String, UserCategoryRegistration>{};
             final enrollmentAsync = ref.watch(
               tournamentCategoryEnrollmentCountsProvider(widget.tournamentId),
@@ -857,6 +877,7 @@ class _TournamentRegistrationPageState
             _applyInitialCategory(
               categories: categories,
               registrations: registrations,
+              registrationsResolved: registrationsAsync.hasValue,
               enrollment: enrollment,
               enrollmentResolved: enrollmentResolved,
             );
@@ -1057,9 +1078,8 @@ class _TournamentRegistrationPageState
       ),
       // Convite recebido: o uniforme aparece dentro do cartão do aceite (é lá
       // que ele viaja), então o cartão próprio sai — igual ao portal.
-      if (uniformRequired &&
-          receivedInvite == null &&
-          category != null) ...[
+      // `uniformRequired` já garante a categoria não nula.
+      if (uniformRequired && receivedInvite == null) ...[
         const SizedBox(height: AppSpacing.lg),
         RegistrationShellCard(
           step: 2,
@@ -1157,7 +1177,14 @@ class _TournamentRegistrationPageState
                     ? 'Completo'
                     : 'Pendente')
               : null,
-          lgpdLabel: hasRegistration ? 'Aceito' : null,
+          lgpdLabel: !hasRegistration
+              ? null
+              : (snap?.lgpdConsentMissingFor(
+                          ref.watch(authServiceProvider).currentUser?.uid,
+                        ) ??
+                        false)
+                  ? 'Pendente'
+                  : 'Aceito',
           priceLabel: formatRegistrationMoney(category.entryFee),
           priceUnitLabel: category.unitSingular,
         ),
@@ -1346,9 +1373,11 @@ class _TournamentRegistrationPageState
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
-              onPressed: () => _goToPayment(
-                registrationId: registration!.registrationId,
-                categoryId: category.id,
+              onPressed: () => context.pushNamed(
+                AppRouteNames.tournamentMyRegistration,
+                pathParameters: <String, String>{
+                  'tournamentId': widget.tournamentId,
+                },
               ),
               child: const Text('Ver minha inscrição'),
             ),
@@ -1452,6 +1481,14 @@ class _TournamentRegistrationPageState
                 )
                 ? () => _leaveTeam(snap)
                 : null,
+          ),
+        ],
+        if (snap != null && snap.lgpdConsentMissingFor(myUid)) ...[
+          const SizedBox(height: AppSpacing.lg),
+          RegistrationLgpdConsentBox(
+            accepted: _lgpdAccepted,
+            enabled: _invitingUserId == null,
+            onChanged: (v) => setState(() => _lgpdAccepted = v),
           ),
         ],
         if (isCaptain) ...[

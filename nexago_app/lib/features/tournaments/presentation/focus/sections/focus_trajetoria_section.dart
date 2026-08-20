@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/focus/focus_double_elimination.dart';
 import '../../../domain/focus/focus_journey_logic.dart';
 import '../../../domain/focus/focus_journey_view.dart';
 import '../../../domain/focus/focus_views_logic.dart';
@@ -56,6 +57,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
     final cards =
         ref.watch(tournamentMatchCardsProvider(tournament.id)).valueOrNull;
 
@@ -151,13 +153,59 @@ class FocusTrajetoriaSection extends ConsumerWidget {
       happyPath: happyPath,
     );
 
+    // Na dupla eliminação a manchete muda: quem caiu para a repescagem ainda
+    // tem título pela frente, e a tela precisa dizer isso — "3 vitórias até o
+    // título" sozinho não distingue quem está invicto de quem está na última
+    // vida.
+    final standing = isDouble
+        ? focusDoubleEliminationStandingOf(all, id, athleteTeamIds)
+        : null;
+    final inRepescagem = standing?.side == FocusBracketSide.losers;
+
     return ListView(
       padding: const EdgeInsets.only(
         top: AppSpacing.md,
         bottom: AppSpacing.xxxl,
       ),
       children: [
-        if (headline != null) _Headline(headline: headline),
+        if (inRepescagem)
+          const _Headline.repescagem()
+        else if (headline != null)
+          _Headline(headline: headline),
+        if (standing != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.sm,
+              AppSpacing.screenH,
+              0,
+            ),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm - 2,
+              children: [
+                _Pill(
+                  label: switch (standing.side) {
+                    FocusBracketSide.winners => 'VENCEDORES · 2 VIDAS',
+                    FocusBracketSide.losers => 'REPESCAGEM · 1 VIDA',
+                    FocusBracketSide.eliminated => 'ELIMINADO',
+                  },
+                  color: switch (standing.side) {
+                    FocusBracketSide.winners => colors.win,
+                    FocusBracketSide.losers => AppColors.pending,
+                    FocusBracketSide.eliminated => colors.onSurfaceMuted,
+                  },
+                ),
+                if (wins != null && wins > 0)
+                  _Pill(
+                    label: wins == 1
+                        ? '1 JOGO ATÉ A FINAL'
+                        : '$wins JOGOS ATÉ A FINAL',
+                    color: colors.onSurfaceMuted,
+                  ),
+              ],
+            ),
+          ),
         Row(
           children: [
             const Expanded(
@@ -277,15 +325,45 @@ class _Prize {
   final bool guaranteed;
 }
 
-class _Headline extends StatelessWidget {
-  const _Headline({required this.headline});
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color});
 
-  final JourneyHeadline headline;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs + 2,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color),
+      ),
+      child: Text(label, style: AppTypography.eyebrow.copyWith(color: color)),
+    );
+  }
+}
+
+class _Headline extends StatelessWidget {
+  const _Headline({required this.headline}) : repescagem = false;
+
+  /// A manchete de quem caiu para a repescagem: o título ainda existe, e é isso
+  /// que o atleta precisa ler primeiro.
+  const _Headline.repescagem()
+      : headline = null,
+        repescagem = true;
+
+  final JourneyHeadline? headline;
+  final bool repescagem;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final champion = headline.kind == JourneyHeadlineKind.champion;
+    final champion =
+        !repescagem && headline!.kind == JourneyHeadlineKind.champion;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -300,20 +378,34 @@ class _Headline extends StatelessWidget {
         decoration: BoxDecoration(
           color: champion ? colors.win : colors.surfaceCard,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: champion ? colors.win : colors.outline),
+          border: Border.all(
+            color: champion
+                ? colors.win
+                : repescagem
+                    ? AppColors.pending
+                    : colors.outline,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              champion ? 'Fim de jornada' : 'Rumo ao título',
+              champion
+                  ? 'Fim de jornada'
+                  : repescagem
+                      ? 'Sua trajetória'
+                      : 'Rumo ao título',
               style: AppTypography.eyebrow.copyWith(
                 color: champion ? Colors.white : colors.onSurfaceMuted,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              champion ? 'Campeão da categoria!' : headline.text!,
+              champion
+                  ? 'Campeão da categoria!'
+                  : repescagem
+                      ? 'Ainda dá título — por baixo.'
+                      : headline!.text!,
               style: AppTypography.titleL.copyWith(
                 color: champion ? Colors.white : colors.onSurface,
               ),

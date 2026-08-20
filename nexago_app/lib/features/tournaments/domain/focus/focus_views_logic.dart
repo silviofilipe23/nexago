@@ -24,6 +24,23 @@ String _hoursMinutes(int minutes) {
   return m == 0 ? '${h}h' : '${h}h${m.toString().padLeft(2, '0')}';
 }
 
+/// "42:18" — o que falta até o horário, como relógio. Acima de uma hora entra
+/// a hora inteira ("1:02:30"). `null` quando não há horário ou o horário já
+/// passou: contagem negativa não diz nada ao atleta, e o atraso é dito em
+/// palavras por [countdownLabelOf].
+String? countdownClockOf(DateTime? target, DateTime now) {
+  if (target == null) return null;
+  final diff = target.difference(now);
+  if (diff.isNegative) return null;
+  final total = diff.inSeconds;
+  final h = total ~/ 3600;
+  final m = (total % 3600) ~/ 60;
+  final sec = total % 60;
+  final mm = m.toString().padLeft(2, '0');
+  final ss = sec.toString().padLeft(2, '0');
+  return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+}
+
 /// "começa em 40 min" / "começa em 2h15" / "atrasada 30 min".
 ///
 /// Partida que já passou do horário vira ATRASO, não contagem negativa: num
@@ -101,6 +118,8 @@ class NextMatchView {
     required this.countdown,
     required this.courtLabel,
     required this.bestOfLabel,
+    required this.formatLabel,
+    required this.countdownClock,
     required this.checkedIn,
     required this.live,
     required this.liveScoreLine,
@@ -118,6 +137,14 @@ class NextMatchView {
   final String? countdown;
   final String? courtLabel;
   final String bestOfLabel;
+
+  /// "MD3 · 21 PTS" — o formato completo, do jeito que o chip do protótipo
+  /// mostra. Os pontos vêm da mesma constante que decide se um set acabou.
+  final String formatLabel;
+
+  /// "42:18" — a contagem regressiva como relógio, que é o elemento maior do
+  /// herói. `null` quando não há horário ou a partida já começou.
+  final String? countdownClock;
   final bool checkedIn;
   final bool live;
   final String? liveScoreLine;
@@ -212,14 +239,37 @@ String? _noteOf(FocusViewContext ctx, TournamentMatch m) {
   return rounds.last == m.round ? 'decide a classificação do grupo' : null;
 }
 
-/// "1º do grupo · 2V 0D".
+/// "1º · 2V 0D" — a posição e o cartel da dupla no grupo.
+///
+/// Compacto de propósito: no herói do "Agora" esta linha fica sob o nome da
+/// dupla, ao lado da linha do adversário, e "do grupo" repetido dos dois lados
+/// só rouba largura no celular (é o formato dos protótipos).
 String? standingLineOf(FocusViewContext ctx, String teamId, String poolId) {
   if (teamId.isEmpty || poolId.isEmpty) return null;
   final rows = ctx.standingsOf(poolId);
   final index = rows.indexWhere((s) => s.teamId == teamId);
   if (index < 0) return null;
   final row = rows[index];
-  return '${ordinalOf(index + 1)} do grupo · ${row.wins}V ${row.losses}D';
+  return '${ordinalOf(index + 1)} · ${row.wins}V ${row.losses}D';
+}
+
+/// Quanto do intervalo entre o fim da partida ANTERIOR do atleta e o horário da
+/// próxima já passou, de 0 a 1 — a barra que acompanha a contagem regressiva.
+///
+/// Ancorada no fim do jogo anterior, e não numa janela fixa: é o intervalo que
+/// o atleta realmente está vivendo. Sem partida anterior encerrada (o primeiro
+/// jogo do dia) NÃO há intervalo a medir, e a função devolve `null` — a barra
+/// some, em vez de fingir um progresso a partir de uma origem inventada.
+double? focusCountdownProgress({
+  required DateTime? previousEndedAt,
+  required DateTime? scheduleTime,
+  required DateTime now,
+}) {
+  if (previousEndedAt == null || scheduleTime == null) return null;
+  final total = scheduleTime.difference(previousEndedAt).inSeconds;
+  if (total <= 0) return null;
+  final elapsed = now.difference(previousEndedAt).inSeconds;
+  return (elapsed / total).clamp(0.0, 1.0);
 }
 
 /// "21-15 · 2º set 12-9" — o placar de quem está em quadra. `null` fora do ao
@@ -287,6 +337,8 @@ NextMatchView? nextMatchViewOf(FocusViewContext ctx, DateTime now) {
       return label.trim().isEmpty ? null : label;
     }(),
     bestOfLabel: 'MD${matchBestOf(m)}',
+    formatLabel: 'MD${matchBestOf(m)} · $matchSetPoints PTS',
+    countdownClock: live ? null : countdownClockOf(m.scheduleTime, now),
     checkedIn: checkIn.trim().toLowerCase() == 'present',
     live: live,
     liveScoreLine: liveScoreLineOf(m),

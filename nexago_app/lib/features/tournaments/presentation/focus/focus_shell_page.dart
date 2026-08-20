@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/layout/nexa_bottom_nav_bar.dart';
+import '../../../../core/layout/nexa_bottom_nav_models.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -10,10 +12,10 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/nexa_icon_square_button.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../domain/focus/focus_providers.dart';
+import '../../domain/tournament_detail_logic.dart';
 import '../../domain/tournament_detail_model.dart';
-import '../../domain/tournament_detail_tabs_logic.dart';
+import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_discovery_providers.dart';
-import '../../domain/tournament_match_status.dart';
 import '../../domain/tournament_matches_logic.dart';
 import 'focus_section.dart';
 import 'sections/focus_agora_section.dart';
@@ -21,21 +23,19 @@ import 'sections/focus_chave_section.dart';
 import 'sections/focus_grupo_section.dart';
 import 'sections/focus_trajetoria_section.dart';
 
-/// Casca do Modo Focus: cabeçalho, navegação das quatro seções e o corpo.
+/// Casca do Modo Focus: cabeçalho, corpo e a navegação inferior das seções.
 ///
-/// UMA rota, quatro seções num [IndexedStack] — não as quatro rotas aninhadas
-/// do portal. Lá elas existem porque o `router-outlet` exige, e o próprio
-/// código de lá documenta a armadilha: seção listada sem rota irmã não casa com
-/// filho nenhum, o router recua até o catch-all e ejeta o atleta pro painel sem
-/// erro no console. Uma casca dona das seções não tem esse modo de falha.
+/// A nav é INFERIOR, como nos protótipos — não chips no topo. É a mesma
+/// `NexaBottomNavBar` do resto do app, então o gesto de trocar de seção dentro
+/// do Focus é o mesmo que o atleta já usa fora dele.
 ///
-/// O `IndexedStack` (e não um `switch`) preserva o scroll e o estado de cada
-/// seção ao trocar de aba — voltar pra Chave depois de ir na Trajetória não
-/// redesenha a chave do zero.
+/// UMA rota com [IndexedStack], não as quatro aninhadas do portal: lá uma seção
+/// sem rota irmã ejeta o atleta para o painel sem erro no console. O
+/// `IndexedStack` ainda preserva scroll e estado de cada seção na troca.
 ///
 /// A imersão é a própria rota: o app não envolve telas de atleta em
-/// `StatefulShellRoute`, então aqui não há bottom-nav pra esconder. O que a
-/// casca faz é tirar o caminho de volta ao hub — a única saída é o ×.
+/// `StatefulShellRoute`, então aqui não há bottom-nav do app para esconder. O
+/// que a casca faz é tirar o caminho de volta ao hub — a única saída é o ×.
 class FocusShellPage extends ConsumerStatefulWidget {
   const FocusShellPage({
     super.key,
@@ -54,9 +54,16 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   late FocusSection _section = widget.initialSection;
 
   /// Sair devolve o atleta à HOME, não ao detalhe do torneio: no dia de jogo a
-  /// home é a base da navegação dele — é de lá que o Focus abre, e é lá que ele
-  /// quer voltar pra reservar quadra, ver ranking ou qualquer outra coisa.
+  /// home é a base da navegação dele.
   void _exit() => context.go(AppRoutes.home);
+
+  TournamentCategoryOffer? _offer(TournamentDetail? tournament, String? id) {
+    if (tournament == null || id == null) return null;
+    for (final offer in tournament.categoryOffers) {
+      if (offer.id == id) return offer;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,28 +79,28 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
             .valueOrNull ??
         const <String, String>{};
     final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
-    final hasLive = ref
-            .watch(tournamentMatchCardsProvider(widget.tournamentId))
-            .valueOrNull
-            ?.any((c) =>
-                TournamentMatchStatus.isInProgress(c.match.status)) ??
-        false;
+
+    final offer = _offer(tournament, categoryId);
+    final isDouble =
+        offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
+    final sections = visibleFocusSections(isDoubleElimination: isDouble);
+
+    // A seção corrente pode sair da lista quando o formato resolve (ex.: entrou
+    // por deep link em `grupo` e a categoria é dupla eliminação). Cai na
+    // primeira, em vez de mostrar uma aba que a nav não tem.
+    final current = sections.contains(_section) ? _section : sections.first;
 
     return Scaffold(
       backgroundColor: colors.canvas,
+      extendBody: true,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(height: topInset + AppSpacing.xs),
           _Header(
             tournament: tournament,
-            categoryId: categoryId,
-            hasLive: hasLive,
+            isDoubleElimination: isDouble,
             onExit: _exit,
-          ),
-          _SectionBar(
-            current: _section,
-            onChanged: (section) => setState(() => _section = section),
           ),
           Expanded(
             child: tournament == null
@@ -101,84 +108,117 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
                     child: CircularProgressIndicator(color: AppColors.brand),
                   )
                 : IndexedStack(
-                    index: _section.index,
+                    index: sections.indexOf(current),
                     sizing: StackFit.expand,
                     children: [
-                      FocusAgoraSection(
-                        tournament: tournament,
-                        categoryId: categoryId,
-                        athleteTeamIds: athleteTeamIds,
-                      ),
-                      FocusTrajetoriaSection(
-                        tournament: tournament,
-                        categoryId: categoryId,
-                        athleteTeamIds: athleteTeamIds,
-                      ),
-                      if (categoryId != null)
-                        FocusGrupoSection(
-                          tournament: tournament,
-                          categoryId: categoryId,
-                        )
-                      else
-                        const _NoCategory(),
-                      if (categoryId != null)
-                        FocusChaveSection(
-                          tournament: tournament,
-                          categoryId: categoryId,
-                        )
-                      else
-                        const _NoCategory(),
+                      for (final section in sections)
+                        _sectionBody(
+                          section,
+                          tournament,
+                          categoryId,
+                          athleteTeamIds,
+                        ),
                     ],
                   ),
           ),
         ],
       ),
+      bottomNavigationBar: NexaBottomNavBar(
+        currentIndex: sections.indexOf(current),
+        onTap: (index) => setState(() => _section = sections[index]),
+        items: [
+          for (final section in sections)
+            NexaBottomNavItem(
+              label: section.label,
+              icon: _iconOf(section),
+              selectedIcon: _selectedIconOf(section),
+            ),
+        ],
+        uppercaseLabels: true,
+      ),
     );
+  }
+
+  IconData _iconOf(FocusSection section) => switch (section) {
+        FocusSection.agora => Icons.local_fire_department_outlined,
+        FocusSection.trajetoria => Icons.emoji_events_outlined,
+        FocusSection.grupo => Icons.table_rows_outlined,
+        FocusSection.chave => Icons.account_tree_outlined,
+      };
+
+  IconData _selectedIconOf(FocusSection section) => switch (section) {
+        FocusSection.agora => Icons.local_fire_department_rounded,
+        FocusSection.trajetoria => Icons.emoji_events_rounded,
+        FocusSection.grupo => Icons.table_rows_rounded,
+        FocusSection.chave => Icons.account_tree_rounded,
+      };
+
+  Widget _sectionBody(
+    FocusSection section,
+    TournamentDetail tournament,
+    String? categoryId,
+    Set<String> athleteTeamIds,
+  ) {
+    return switch (section) {
+      FocusSection.agora => FocusAgoraSection(
+          tournament: tournament,
+          categoryId: categoryId,
+          athleteTeamIds: athleteTeamIds,
+        ),
+      FocusSection.trajetoria => FocusTrajetoriaSection(
+          tournament: tournament,
+          categoryId: categoryId,
+          athleteTeamIds: athleteTeamIds,
+        ),
+      FocusSection.grupo => categoryId == null
+          ? const _NoCategory()
+          : FocusGrupoSection(
+              tournament: tournament,
+              categoryId: categoryId,
+              athleteTeamIds: athleteTeamIds,
+            ),
+      FocusSection.chave => categoryId == null
+          ? const _NoCategory()
+          : FocusChaveSection(
+              tournament: tournament,
+              categoryId: categoryId,
+            ),
+    };
   }
 }
 
+/// "× | ● FOCUS / Nome do torneio | 11:28".
+///
+/// O clima que os protótipos mostram ao lado do relógio fica de fora: o projeto
+/// não tem fonte de dado meteorológico, e a spec do Focus já havia cortado esse
+/// item pelo mesmo motivo.
 class _Header extends StatelessWidget {
   const _Header({
     required this.tournament,
-    required this.categoryId,
-    required this.hasLive,
+    required this.isDoubleElimination,
     required this.onExit,
   });
 
   final TournamentDetail? tournament;
-  final String? categoryId;
-  final bool hasLive;
+  final bool isDoubleElimination;
   final VoidCallback onExit;
-
-  /// "Sáb 20 ago · dia 2 de 3 · Arena, Cidade" + o nome da categoria em foco.
-  /// Cada pedaço só entra se existir — a linha nunca afirma um dia que não dá
-  /// pra calcular.
-  String _meta() {
-    final t = tournament;
-    if (t == null) return '';
-    final parts = <String>[tournamentDetailHeroMeta(t, DateTime.now())];
-    for (final offer in t.categoryOffers) {
-      if (offer.id == categoryId && offer.name.trim().isNotEmpty) {
-        parts.add(offer.name.trim());
-      }
-    }
-    return parts.where((p) => p.trim().isNotEmpty).join(' · ');
-  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final meta = _meta();
+    final now = TimeOfDay.now();
+    final clock = '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xs,
         0,
         AppSpacing.screenH,
-        AppSpacing.sm,
+        AppSpacing.md,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           NexaIconSquareButton(
             icon: Icons.close_rounded,
@@ -189,48 +229,42 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
-                    // Selo do portal: acende quando há partida em quadra no
-                    // torneio, que é o sinal de "isso aqui está vivo agora".
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: hasLive ? AppColors.live : colors.surfaceRaised,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Focus',
-                        style: AppTypography.eyebrow.copyWith(
-                          color: hasLive ? Colors.white : colors.onSurfaceMuted,
-                        ),
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: AppColors.brand,
+                        shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        tournament?.name ?? 'Modo Focus',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.titleM
-                            .copyWith(color: colors.onSurface),
-                      ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isDoubleElimination
+                          ? 'FOCUS · DUPLA ELIMINATÓRIA'
+                          : 'FOCUS',
+                      style: AppTypography.eyebrow
+                          .copyWith(color: AppColors.brand),
                     ),
                   ],
                 ),
-                if (meta.isNotEmpty)
-                  Text(
-                    meta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.bodyS
-                        .copyWith(color: colors.onSurfaceMuted),
-                  ),
+                Text(
+                  tournament?.name ?? 'Modo Focus',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.titleM.copyWith(color: colors.onSurface),
+                ),
               ],
+            ),
+          ),
+          Text(
+            clock,
+            style: AppTypography.monoStat.copyWith(
+              color: colors.onSurface,
+              fontSize: 20,
             ),
           ),
         ],
@@ -239,55 +273,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _SectionBar extends StatelessWidget {
-  const _SectionBar({required this.current, required this.onChanged});
-
-  final FocusSection current;
-  final ValueChanged<FocusSection> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-      child: Row(
-        children: [
-          for (final section in FocusSection.values)
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: GestureDetector(
-                onTap: () => onChanged(section),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.sm + 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: section == current
-                        ? colors.brand
-                        : colors.surfaceRaised,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    section.label,
-                    style: AppTypography.bodyM.copyWith(
-                      color: section == current
-                          ? Colors.white
-                          : colors.onSurfaceMuted,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sem categoria resolvida não dá pra desenhar grupo nem chave: as duas
+/// Sem categoria resolvida não dá para desenhar grupo nem chave: as duas
 /// derivam de `poolId`/`round` DENTRO de uma categoria.
 class _NoCategory extends StatelessWidget {
   const _NoCategory();

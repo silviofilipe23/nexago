@@ -11,34 +11,60 @@ import '../../widgets/nexa_duo_avatars.dart';
 
 /// O bloco principal da seção "Agora", nos cinco estados.
 ///
-/// Segue o layout MOBILE do portal, que é o que vale aqui: acima de 720px a web
-/// usa três colunas (`1fr auto 1fr`), mas abaixo disso ela mesma colapsa para
-/// uma coluna centralizada — dupla A, bloco central, dupla B — com os botões
-/// empilhados em largura total. Copiar o desenho de desktop deixaria o app
-/// diferente do portal no celular, que é justamente onde os dois se encontram.
+/// Layout dos protótipos: as duplas ficam LADO A LADO com o "vs" no meio, e a
+/// contagem regressiva fica ACIMA delas, com a barra do intervalo. É diferente
+/// do portal (que empilha no celular) e é deliberado — a leitura de "quem
+/// contra quem" é o que o atleta procura primeiro na tela.
 ///
-/// A cópia dos textos é a mesma do portal, palavra por palavra.
+/// [accent] pinta a moldura: laranja no fluxo normal, vermelho na chamada de
+/// quadra e amarelo na repescagem da dupla eliminação, onde uma derrota
+/// elimina.
 class FocusNowHero extends StatelessWidget {
   const FocusNowHero({
     super.key,
     required this.state,
     required this.view,
     required this.card,
+    required this.kicker,
+    required this.progress,
     required this.calledAt,
-    required this.mapsLabel,
+    required this.walkAwayLabel,
+    required this.accent,
     required this.onAcknowledge,
     required this.onOpenMatch,
     required this.onOpenMaps,
     required this.onShare,
+    this.leadIn,
+    this.footnote,
   });
 
   final FocusNowState state;
   final NextMatchView? view;
   final TournamentMatchCardViewModel? card;
 
-  /// "14:32" — quando a mesa chamou. `null` esconde a linha em vez de mentir.
+  /// "SUA PRÓXIMA · GRUPO B · R3" — o contexto da partida, montado por quem
+  /// chama porque depende do formato (grupo, chave dos vencedores, repescagem).
+  final String kicker;
+
+  /// Quanto do intervalo desde o jogo anterior já passou. `null` esconde a
+  /// barra — ver [focusCountdownProgress].
+  final double? progress;
+
+  /// "11:26" — quando a mesa chamou. `null` esconde a linha.
   final String? calledAt;
-  final String mapsLabel;
+
+  /// "W.O. em 8:42" quando há prazo a mostrar.
+  final String? walkAwayLabel;
+
+  final Color accent;
+
+  /// Parágrafo acima da contagem — usado na repescagem para explicar o que
+  /// ainda está em jogo.
+  final String? leadIn;
+
+  /// Linha de rodapé do card ("3º jogo do dia · 46 min de descanso").
+  final String? footnote;
+
   final VoidCallback onAcknowledge;
   final VoidCallback onOpenMatch;
   final VoidCallback onOpenMaps;
@@ -46,6 +72,8 @@ class FocusNowHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenH,
@@ -53,82 +81,78 @@ class FocusNowHero extends StatelessWidget {
         AppSpacing.screenH,
         AppSpacing.lg,
       ),
-      child: switch (state) {
-        FocusNowState.called => _Called(
-            view: view,
-            calledAt: calledAt,
-            mapsLabel: mapsLabel,
-            onAcknowledge: onAcknowledge,
-            onOpenMatch: onOpenMatch,
-            onOpenMaps: onOpenMaps,
-          ),
-        FocusNowState.live => _Live(
-            view: view,
-            card: card,
-            onOpenMatch: onOpenMatch,
-          ),
-        FocusNowState.next => _Next(
-            view: view,
-            card: card,
-            mapsLabel: mapsLabel,
-            onOpenMatch: onOpenMatch,
-            onOpenMaps: onOpenMaps,
-            onShare: onShare,
-          ),
-        // Fato da CATEGORIA, não promessa ao leitor: nem toda categoria tem
-        // fase de grupos, e a checagem de pendência não distingue quem
-        // classificou de quem já caiu no próprio mata-mata. Por isso o texto
-        // nunca diz "seu adversário" nem menciona grupos.
-        FocusNowState.pendingKnockout => const _Idle(
-            text: 'O mata-mata desta categoria ainda está sendo definido. '
-                'Os confrontos e as quadras saem conforme as partidas '
-                'pendentes terminam.',
-          ),
-        FocusNowState.idle => const _Idle(
-            text: 'Você não tem mais partidas pendentes neste torneio.',
-          ),
-      },
-    );
-  }
-}
-
-/// Card base das variações — mesma moldura do `.now-*` do portal.
-class _Card extends StatelessWidget {
-  const _Card({required this.child, this.accent = false});
-
-  final Widget child;
-  final bool accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        color: accent ? AppColors.live : colors.surfaceCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: accent ? AppColors.live : colors.outline,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.55)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.10),
+              blurRadius: 40,
+              spreadRadius: -8,
+            ),
+          ],
         ),
+        child: switch (state) {
+          FocusNowState.called => _CalledBody(
+              view: view,
+              calledAt: calledAt,
+              walkAwayLabel: walkAwayLabel,
+              onAcknowledge: onAcknowledge,
+              onOpenMatch: onOpenMatch,
+              onOpenMaps: onOpenMaps,
+            ),
+          FocusNowState.live ||
+          FocusNowState.next =>
+            _MatchBody(
+              view: view,
+              card: card,
+              kicker: kicker,
+              progress: progress,
+              accent: accent,
+              leadIn: leadIn,
+              footnote: footnote,
+              onOpenMaps: onOpenMaps,
+              onOpenMatch: onOpenMatch,
+            ),
+          // Fato da CATEGORIA, não promessa ao leitor: a checagem de pendência
+          // não distingue quem classificou de quem já caiu no mata-mata, então
+          // o texto nunca diz "seu adversário" nem menciona grupos.
+          FocusNowState.pendingKnockout => const _Message(
+              title: 'A chave ainda está sendo definida',
+              body: 'Os confrontos e as quadras saem conforme as partidas '
+                  'pendentes terminam.',
+            ),
+          FocusNowState.idle => const _Message(
+              title: 'Seu dia acabou por aqui',
+              body: 'Você não tem mais partidas pendentes neste torneio.',
+            ),
+        },
       ),
-      child: child,
     );
   }
 }
 
-/// Uma dupla: rostos, nome e a linha de classificação do grupo.
+/// Uma dupla no herói: rostos, nome e a linha de posição/cartel.
 class _Side extends StatelessWidget {
-  const _Side({required this.duo, required this.players});
+  const _Side({
+    required this.duo,
+    required this.players,
+    required this.accent,
+  });
 
   final DuoView? duo;
   final List<TournamentMatchCardPlayerViewModel> players;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final d = duo;
+    final isMe = d?.isMe ?? false;
 
     return Column(
       children: [
@@ -141,16 +165,18 @@ class _Side extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: AppTypography.titleM.copyWith(
             color: colors.onSurface,
-            fontWeight: d?.isMe == true ? FontWeight.w800 : FontWeight.w700,
+            fontWeight: FontWeight.w800,
           ),
         ),
         if (d?.standingLine != null)
           Padding(
-            padding: const EdgeInsets.only(top: 2),
+            padding: const EdgeInsets.only(top: 3),
             child: Text(
-              d!.standingLine!,
+              isMe ? 'VOCÊS · ${d!.standingLine}' : d!.standingLine!,
               textAlign: TextAlign.center,
-              style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+              style: AppTypography.monoMeta.copyWith(
+                color: isMe ? accent : colors.onSurfaceMuted,
+              ),
             ),
           ),
       ],
@@ -159,13 +185,16 @@ class _Side extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label});
+  const _Chip({required this.label, this.icon, this.accent});
 
   final String label;
+  final IconData? icon;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final color = accent ?? colors.onSurfaceMuted;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -173,22 +202,229 @@ class _Chip extends StatelessWidget {
         vertical: AppSpacing.xs + 2,
       ),
       decoration: BoxDecoration(
-        color: colors.surfaceRaised,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: accent != null ? accent! : colors.outline,
+        ),
       ),
-      child: Text(
-        label,
-        style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(label, style: AppTypography.monoMeta.copyWith(color: color)),
+        ],
       ),
     );
   }
 }
 
-class _Called extends StatelessWidget {
-  const _Called({
+class _MatchBody extends StatelessWidget {
+  const _MatchBody({
+    required this.view,
+    required this.card,
+    required this.kicker,
+    required this.progress,
+    required this.accent,
+    required this.leadIn,
+    required this.footnote,
+    required this.onOpenMaps,
+    required this.onOpenMatch,
+  });
+
+  final NextMatchView? view;
+  final TournamentMatchCardViewModel? card;
+  final String kicker;
+  final double? progress;
+  final Color accent;
+  final String? leadIn;
+  final String? footnote;
+  final VoidCallback onOpenMaps;
+  final VoidCallback onOpenMatch;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final v = view;
+    if (v == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                kicker,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.eyebrow.copyWith(color: accent),
+              ),
+            ),
+            if (v.checkedIn)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm + 2,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: colors.win),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_rounded, size: 11, color: colors.win),
+                    const SizedBox(width: 3),
+                    Text(
+                      'CHECK-IN',
+                      style:
+                          AppTypography.eyebrow.copyWith(color: colors.win),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        if (leadIn != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.md),
+            child: Text(
+              leadIn!,
+              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+            ),
+          ),
+        const SizedBox(height: AppSpacing.lg),
+        Center(
+          child: Column(
+            children: [
+              Text(
+                v.live ? 'EM QUADRA' : 'COMEÇA EM',
+                style:
+                    AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                v.live
+                    ? (v.liveScoreLine ?? 'Ao vivo')
+                    : (v.countdownClock ?? v.timeLabel),
+                style: AppTypography.monoStat.copyWith(
+                  color: accent,
+                  fontSize: v.live ? 28 : 54,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (progress != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 5,
+              backgroundColor: colors.surfaceRaised,
+              valueColor: AlwaysStoppedAnimation(accent),
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.xl),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _Side(
+                duo: v.sideA,
+                players: card?.teamA.players ?? const [],
+                accent: accent,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: Text(
+                'vs',
+                style: AppTypography.monoMeta
+                    .copyWith(color: colors.onSurfaceMuted),
+              ),
+            ),
+            Expanded(
+              child: _Side(
+                duo: v.sideB,
+                players: card?.teamB.players ?? const [],
+                accent: accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Center(
+          child: Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm - 2,
+            alignment: WrapAlignment.center,
+            children: [
+              _Chip(label: v.timeLabel, accent: accent),
+              if (v.courtLabel != null)
+                _Chip(label: v.courtLabel!, icon: Icons.place_outlined),
+              _Chip(label: v.formatLabel),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onOpenMaps,
+            style: FilledButton.styleFrom(
+              backgroundColor: accent,
+              foregroundColor: _onAccent(accent),
+            ),
+            icon: const Icon(Icons.place_rounded, size: 18),
+            label: Text(
+              v.courtLabel != null
+                  ? 'Como chegar na ${v.courtLabel}'
+                  : 'Como chegar',
+            ),
+          ),
+        ),
+        if (footnote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.notifications_none_rounded,
+                  size: 14,
+                  color: colors.onSurfaceMuted,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    footnote!,
+                    style: AppTypography.bodyS
+                        .copyWith(color: colors.onSurfaceMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Amarelo pede tinta escura; laranja e vermelho pedem branco.
+Color _onAccent(Color accent) =>
+    accent == AppColors.pending ? const Color(0xFF0A0A0A) : Colors.white;
+
+class _CalledBody extends StatelessWidget {
+  const _CalledBody({
     required this.view,
     required this.calledAt,
-    required this.mapsLabel,
+    required this.walkAwayLabel,
     required this.onAcknowledge,
     required this.onOpenMatch,
     required this.onOpenMaps,
@@ -196,306 +432,154 @@ class _Called extends StatelessWidget {
 
   final NextMatchView? view;
   final String? calledAt;
-  final String mapsLabel;
+  final String? walkAwayLabel;
   final VoidCallback onAcknowledge;
   final VoidCallback onOpenMatch;
   final VoidCallback onOpenMaps;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
     final court = view?.courtLabel ?? 'Sua quadra';
+    final opponent = view?.sideB.isMe == true ? view?.sideA : view?.sideB;
 
-    return _Card(
-      accent: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Você foi chamado',
-            style: AppTypography.eyebrow.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '$court liberada. Vai agora.',
-            style: AppTypography.titleL.copyWith(color: Colors.white),
-          ),
-          if (calledAt != null)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs),
-              child: Text(
-                'A mesa chamou às $calledAt.',
-                style: AppTypography.bodyM.copyWith(
-                  color: Colors.white.withValues(alpha: 0.85),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: AppColors.live,
+                  shape: BoxShape.circle,
                 ),
               ),
-            ),
-          const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onAcknowledge,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.live,
+              const SizedBox(width: 5),
+              Text(
+                'VOCÊ FOI CHAMADO',
+                style: AppTypography.eyebrow.copyWith(color: AppColors.live),
               ),
-              // Só recolhe o alerta: não existe callable para avisar a mesa, e
-              // o rótulo não promete mais do que isso.
-              child: const Text('Ok, estou indo'),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.sm,
-            children: [
-              _WhiteLink(label: mapsLabel, onTap: onOpenMaps),
-              if (view != null)
-                _WhiteLink(label: 'Ver partida', onTap: onOpenMatch),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WhiteLink extends StatelessWidget {
-  const _WhiteLink({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Text(
-        label,
-        style: AppTypography.bodyM.copyWith(
-          color: Colors.white,
-          decoration: TextDecoration.underline,
-          decorationColor: Colors.white,
         ),
-      ),
-    );
-  }
-}
-
-class _Live extends StatelessWidget {
-  const _Live({
-    required this.view,
-    required this.card,
-    required this.onOpenMatch,
-  });
-
-  final NextMatchView? view;
-  final TournamentMatchCardViewModel? card;
-  final VoidCallback onOpenMatch;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final v = view;
-    if (v == null) return const SizedBox.shrink();
-
-    return _Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            v.kicker,
-            style: AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
+        const SizedBox(height: AppSpacing.md),
+        Center(
+          child: Text(
+            '$court liberada.\nVai agora.',
+            textAlign: TextAlign.center,
+            style: AppTypography.displayL.copyWith(color: colors.onSurface),
           ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Center(
+          child: Text(
+            [
+              if (opponent?.name != null) 'Sua partida é contra ${opponent!.name}.',
+              if (calledAt != null) 'A mesa chamou às $calledAt.',
+            ].join(' '),
+            textAlign: TextAlign.center,
+            style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+          ),
+        ),
+        if (walkAwayLabel != null) ...[
           const SizedBox(height: AppSpacing.lg),
-          _Side(duo: v.sideA, players: card?.teamA.players ?? const []),
-          const SizedBox(height: AppSpacing.lg),
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+                vertical: AppSpacing.md,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.live.withValues(alpha: 0.6)),
+              ),
+              child: Column(
                 children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: AppColors.live,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm - 2),
                   Text(
-                    'Ao vivo',
+                    'W.O. EM',
                     style: AppTypography.eyebrow
-                        .copyWith(color: AppColors.live),
+                        .copyWith(color: colors.onSurfaceMuted),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    walkAwayLabel!,
+                    style: AppTypography.monoStat.copyWith(
+                      color: AppColors.live,
+                      fontSize: 34,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                v.liveScoreLine ?? 'Em quadra',
-                textAlign: TextAlign.center,
-                // Mono, como o `--nx-font-mono` do portal: placar que muda a
-                // cada ponto não pode dançar de largura.
-                style: AppTypography.monoStat.copyWith(color: colors.onSurface),
-              ),
-              if (v.courtLabel != null)
-                Text(
-                  v.courtLabel!,
-                  style: AppTypography.bodyS
-                      .copyWith(color: colors.onSurfaceMuted),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _Side(duo: v.sideB, players: card?.teamB.players ?? const []),
-          const SizedBox(height: AppSpacing.xl),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onOpenMatch,
-              child: const Text('Ver partida'),
             ),
           ),
         ],
-      ),
+        const SizedBox(height: AppSpacing.lg),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onAcknowledge,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.live,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.check_rounded, size: 18),
+            // Só recolhe o alerta: não existe callable para avisar a mesa, e o
+            // rótulo não promete mais do que isso.
+            label: const Text('Estou indo pra quadra'),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onOpenMaps,
+                icon: const Icon(Icons.place_outlined, size: 16),
+                label: const Text('Mapa'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onOpenMatch,
+                icon: const Icon(Icons.article_outlined, size: 16),
+                label: const Text('Partida'),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _Next extends StatelessWidget {
-  const _Next({
-    required this.view,
-    required this.card,
-    required this.mapsLabel,
-    required this.onOpenMatch,
-    required this.onOpenMaps,
-    required this.onShare,
-  });
+class _Message extends StatelessWidget {
+  const _Message({required this.title, required this.body});
 
-  final NextMatchView? view;
-  final TournamentMatchCardViewModel? card;
-  final String mapsLabel;
-  final VoidCallback onOpenMatch;
-  final VoidCallback onOpenMaps;
-  final VoidCallback onShare;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final v = view;
-    if (v == null) return const SizedBox.shrink();
-
-    return _Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  v.kicker,
-                  style: AppTypography.eyebrow
-                      .copyWith(color: colors.onSurfaceMuted),
-                ),
-              ),
-              if (v.checkedIn)
-                Row(
-                  children: [
-                    Icon(Icons.check_rounded, size: 12, color: colors.win),
-                    const SizedBox(width: 3),
-                    Text(
-                      'Check-in feito',
-                      style: AppTypography.bodyS.copyWith(color: colors.win),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _Side(duo: v.sideA, players: card?.teamA.players ?? const []),
-          const SizedBox(height: AppSpacing.lg),
-          Column(
-            children: [
-              Text(
-                v.timeLabel,
-                style: AppTypography.monoStat.copyWith(
-                  color: colors.onSurface,
-                  fontSize: 34,
-                ),
-              ),
-              if (v.countdown != null)
-                Text(
-                  v.countdown!,
-                  style: AppTypography.bodyS.copyWith(color: colors.brand),
-                ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm - 2,
-                alignment: WrapAlignment.center,
-                children: [
-                  if (v.numberLabel != null) _Chip(label: v.numberLabel!),
-                  if (v.courtLabel != null) _Chip(label: v.courtLabel!),
-                  _Chip(label: v.bestOfLabel),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          _Side(duo: v.sideB, players: card?.teamB.players ?? const []),
-          const SizedBox(height: AppSpacing.xl),
-          // Empilhados e em largura total — é o que a web faz abaixo de 720px.
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onOpenMatch,
-              child: const Text('Ver partida'),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onOpenMaps,
-              icon: const Icon(Icons.place_outlined, size: 16),
-              label: Text(mapsLabel),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onShare,
-              icon: const Icon(Icons.ios_share_rounded, size: 16),
-              label: const Text('Compartilhar'),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Esteja na quadra alguns minutos antes — o organizador pode '
-            'declarar W.O. por atraso.',
-            style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Idle extends StatelessWidget {
-  const _Idle({required this.text});
-
-  final String text;
+  final String title;
+  final String body;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
 
-    return _Card(
-      child: Text(
-        text,
-        style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.titleM.copyWith(color: colors.onSurface),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          body,
+          style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+        ),
+      ],
     );
   }
 }

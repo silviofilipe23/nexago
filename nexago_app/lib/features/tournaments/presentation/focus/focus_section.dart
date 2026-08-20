@@ -1,4 +1,8 @@
-/// As quatro seções do Modo Focus, na ordem em que aparecem na casca.
+/// As seções do Modo Focus.
+///
+/// A terceira depende do FORMATO da categoria — nos protótipos a nav mostra
+/// `GRUPO` nas categorias com fase de grupos e `CHAVE` na dupla eliminação. É a
+/// mesma posição, com o conteúdo que faz sentido para aquele torneio.
 enum FocusSection {
   agora('Agora', 'agora'),
   trajetoria('Trajetória', 'trajetoria'),
@@ -9,6 +13,17 @@ enum FocusSection {
 
   final String label;
   final String slug;
+}
+
+/// As três abas visíveis, na ordem da nav. A terceira é [FocusSection.chave]
+/// quando a categoria é dupla eliminação (não há fase de grupos para mostrar) e
+/// [FocusSection.grupo] caso contrário.
+List<FocusSection> visibleFocusSections({required bool isDoubleElimination}) {
+  return [
+    FocusSection.agora,
+    FocusSection.trajetoria,
+    isDoubleElimination ? FocusSection.chave : FocusSection.grupo,
+  ];
 }
 
 /// Resolve `?secao=` para uma seção. Valor desconhecido, ausente ou vazio cai

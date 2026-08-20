@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-
 import '../../../../core/auth/auth_providers.dart';
-import '../../../../core/router/routes.dart';
 import '../../domain/athlete_tournament_day_logic.dart';
 import '../../domain/athlete_tournament_day_providers.dart';
 import '../../domain/focus/focus_day_offer.dart';
+import 'focus_invite_sheet.dart';
 
-/// Abre o Modo Focus ao entrar no app no dia de jogo.
+/// OFERECE o Modo Focus ao entrar no app no dia de jogo.
+///
+/// Oferece, não empurra: os protótipos trocaram o redirect automático por uma
+/// folha com "Entrar no Focus" e "Depois". Quem abriu o app para reservar
+/// quadra ou ver ranking não tem a navegação sequestrada, e quem vai jogar
+/// continua sem depender de descobrir o Focus sozinho.
 ///
 /// Mesmo desenho do [TournamentInviteAnnouncer], de propósito: é o padrão que
 /// esta casca já usa para "anunciar algo uma vez ao entrar", com as mesmas duas
@@ -16,13 +19,11 @@ import '../../domain/focus/focus_day_offer.dart';
 ///
 /// **Por que aqui e não no `redirect` global do router:** aquele redirect é
 /// `async` e roda em TODA navegação — colocar a decisão lá faria o Focus brigar
-/// com deep link, push e com o próprio × (que navega para a home e dispararia o
-/// redirect outra vez).
+/// com deep link e push.
 ///
-/// **A trava** ([FocusDayOffer]) é o que impede o loop: o × devolve pra home, a
-/// home resolve o alvo do dia de novo, e sem a trava o atleta voltaria pro
-/// Focus sem saída. Ela vive em memória — matar e reabrir o app reoferece, que
-/// é o que "sempre abrir no dia de jogo" quer dizer.
+/// **A trava** ([FocusDayOffer]) impede reoferecer a cada rebuild da home. Ela
+/// vive em memória: matar e reabrir o app oferece de novo, que é o
+/// comportamento certo para quem fechou o app entre um jogo e outro.
 class FocusDayAnnouncer extends ConsumerStatefulWidget {
   const FocusDayAnnouncer({super.key, required this.child});
 
@@ -52,17 +53,14 @@ class _FocusDayAnnouncerState extends ConsumerState<FocusDayAnnouncer> {
         return;
       }
       // Só oferece com a casca do atleta à vista: se ele já está numa
-      // inscrição, num pagamento ou num convite, empurrar o Focus por cima
-      // seria sequestrar um fluxo que ele começou de propósito.
+      // inscrição, num pagamento ou num convite, abrir a folha por cima
+      // interromperia um fluxo que ele começou de propósito.
       if (ModalRoute.of(context)?.isCurrent != true) {
         _opening = false;
         return;
       }
       offer.markOffered(uid, now);
-      await context.pushNamed(
-        AppRouteNames.tournamentFocus,
-        pathParameters: <String, String>{'tournamentId': target.tournamentId},
-      );
+      await showFocusInviteSheet(context, target: target);
       if (mounted) _opening = false;
     });
   }

@@ -21,4 +21,21 @@ void main() {
       expect(focusSectionFromSlug('  CHAVE '), FocusSection.chave);
     });
   });
+
+  group('visibleFocusSections', () {
+    test('a terceira aba é Grupo em categoria com fase de grupos', () {
+      expect(
+        visibleFocusSections(isDoubleElimination: false),
+        [FocusSection.agora, FocusSection.trajetoria, FocusSection.grupo],
+      );
+    });
+
+    test('a terceira aba é Chave na dupla eliminação', () {
+      // Não há fase de grupos para mostrar; a mesma posição vira a chave.
+      expect(
+        visibleFocusSections(isDoubleElimination: true),
+        [FocusSection.agora, FocusSection.trajetoria, FocusSection.chave],
+      );
+    });
+  });
 }

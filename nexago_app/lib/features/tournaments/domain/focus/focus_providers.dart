@@ -1,21 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/tournament_matches_repository.dart';
 import '../athlete_tournament_day_providers.dart';
-import '../tournament_match.dart';
 
-/// Partidas do torneio em tempo real, a fonte única das quatro seções do Focus.
+/// NOTA: NÃO existe um `focusMatchesProvider` aqui de propósito.
 ///
-/// `family` por torneio: as seções leem o MESMO provider, então o Riverpod
-/// mantém um listener só e trocar de seção não derruba e reabre a assinatura —
-/// que é o problema que a casca do portal precisou resolver à mão com
-/// `acquireLive`.
-final focusMatchesProvider =
-    StreamProvider.family<List<TournamentMatch>, String>((ref, tournamentId) {
-  final repo = TournamentMatchesRepository(FirebaseFirestore.instance);
-  return repo.watchByTournament(tournamentId);
-});
+/// A primeira versão criou um `StreamProvider.family` sobre
+/// `watchByTournament` — e isso era um SEGUNDO listener na mesma coleção que
+/// `tournamentMatchCardsProvider` (`tournament_discovery_providers.dart:66`) já
+/// observa, com o enriquecimento de nomes e fotos por cima. As seções do Focus
+/// leem aquele provider; o Riverpod compartilha a assinatura entre elas, que é
+/// o que a casca do portal precisou montar à mão com `acquireLive`.
 
 /// A categoria em foco — a da próxima partida do atleta neste torneio.
 ///

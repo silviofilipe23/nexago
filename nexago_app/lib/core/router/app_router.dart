@@ -173,6 +173,8 @@ import '../../features/tournaments/presentation/tournament_categories_page.dart'
 import '../../features/tournaments/presentation/tournament_category_view_page.dart';
 import '../../features/tournaments/presentation/tournament_group_view_page.dart';
 import '../../features/tournaments/presentation/tournament_my_registration_page.dart';
+import '../../features/tournaments/presentation/focus/focus_section.dart';
+import '../../features/tournaments/presentation/focus/focus_shell_page.dart';
 import '../../features/tournaments/presentation/tournament_today_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
@@ -1150,6 +1152,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ],
               ),
             ],
+          ),
+          GoRoute(
+            path: 'focus',
+            name: AppRouteNames.tournamentFocus,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return FocusShellPage(
+                tournamentId: id,
+                initialSection: focusSectionFromSlug(
+                  state.uri.queryParameters[AppRoutes.focusSectionQuery],
+                ),
+              );
+            },
           ),
           GoRoute(
             path: 'hoje',

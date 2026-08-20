@@ -389,6 +389,12 @@ abstract final class AppRoutes {
   /// "Hoje" do torneio: `/torneios/:tournamentId/hoje`
   static const String tournamentToday = '/torneios/:tournamentId/hoje';
 
+  /// Modo Focus: `/torneios/:tournamentId/focus?secao=agora|trajetoria|grupo|chave`
+  static const String tournamentFocus = '/torneios/:tournamentId/focus';
+
+  /// Query que escolhe a seção de entrada do Modo Focus.
+  static const String focusSectionQuery = 'secao';
+
   /// "Minha inscrição": `/torneios/:tournamentId/minha-inscricao`
   static const String tournamentMyRegistration =
       '/torneios/:tournamentId/minha-inscricao';
@@ -652,6 +658,7 @@ abstract final class AppRouteNames {
   static const String tournamentCategoryView = 'tournamentCategoryView';
   static const String tournamentGroupView = 'tournamentGroupView';
   static const String tournamentToday = 'tournamentToday';
+  static const String tournamentFocus = 'tournamentFocus';
   static const String tournamentMyRegistration = 'tournamentMyRegistration';
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';

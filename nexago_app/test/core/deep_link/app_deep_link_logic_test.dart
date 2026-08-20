@@ -6,7 +6,7 @@ void main() {
     test('maps tournament registration HTTPS link', () {
       expect(
         resolveAppDeepLinkPath(
-          Uri.parse('https://nexago.app/torneios/abc/inscricao'),
+          Uri.parse('https://atleta.nexago.com.br/torneios/abc/inscricao'),
         ),
         '/torneios/abc/inscricao',
       );
@@ -15,7 +15,7 @@ void main() {
     test('maps tournament detail HTTPS link', () {
       expect(
         resolveAppDeepLinkPath(
-          Uri.parse('https://nexago.app/torneios/abc'),
+          Uri.parse('https://atleta.nexago.com.br/torneios/abc'),
         ),
         '/torneios/abc',
       );
@@ -25,26 +25,41 @@ void main() {
       expect(
         resolveAppDeepLinkPath(
           Uri.parse(
-            'https://nexago.app/torneios/abc/inscricao?categoryId=cat-1',
+            'https://atleta.nexago.com.br/torneios/abc/inscricao?categoryId=cat-1',
           ),
         ),
         '/torneios/abc/inscricao?categoryId=cat-1',
       );
     });
 
-    test('maps convite on voleigo.com.br', () {
+    test('maps convite on athlete portal', () {
+      expect(
+        resolveAppDeepLinkPath(
+          Uri.parse('https://atleta.nexago.com.br/convite/invite-1'),
+        ),
+        '/convite/invite-1',
+      );
+    });
+
+    test('rejects retired domains', () {
+      // nexago.app nunca foi registrado e voleigo.com.br está com o certificado
+      // HTTPS expirado — nenhum dos dois pode servir o AASA/assetlinks.
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('https://nexago.app/torneios/abc')),
+        isNull,
+      );
       expect(
         resolveAppDeepLinkPath(
           Uri.parse('https://voleigo.com.br/convite/invite-1'),
         ),
-        '/convite/invite-1',
+        isNull,
       );
     });
 
     test('maps tournament partner invite', () {
       expect(
         resolveAppDeepLinkPath(
-          Uri.parse('https://nexago.app/torneios-convite/inv-9'),
+          Uri.parse('https://atleta.nexago.com.br/torneios-convite/inv-9'),
         ),
         '/torneios-convite/inv-9',
       );

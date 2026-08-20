@@ -6,8 +6,7 @@
 	<string>production</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:voleigo.com.br</string>
-		<string>applinks:nexago.app</string>
+		<string>applinks:atleta.nexago.com.br</string>
 	</array>
 </dict>
 </plist>

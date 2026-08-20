@@ -3,7 +3,7 @@ enum AthleteMatchResult { win, loss }
 
 enum MatchHistoryTab { matches, tournaments }
 
-enum MatchHistoryFilter { all, year2026, year2025, winsOnly }
+enum MatchHistoryFilter { all, year2026, winsOnly }
 
 enum TournamentPlacement { gold, silver, bronze, other }
 

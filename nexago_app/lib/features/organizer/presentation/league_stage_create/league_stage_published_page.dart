@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/deep_link/app_domains.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/feedback/feedback_page.dart';
@@ -26,7 +27,7 @@ class LeagueStagePublishedPage extends StatelessWidget {
 
   final LeagueStagePublishedArgs args;
 
-  String get _shareLink => 'https://nexago.app/torneios/${args.tournamentId}';
+  String get _shareLink => AppShareLinks.tournament(args.tournamentId);
 
   @override
   Widget build(BuildContext context) {

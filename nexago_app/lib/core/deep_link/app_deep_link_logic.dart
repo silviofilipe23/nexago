@@ -1,3 +1,5 @@
+import 'app_domains.dart';
+
 /// Hosts HTTPS aceitos para Universal / App Links do app mobile.
 ///
 /// `atleta.nexago.com.br` é o host do convite de dupla por link: entrou porque
@@ -16,7 +18,7 @@ const kAppDeepLinkHosts = {
 
 /// Resolve uma URI externa para um path interno do GoRouter.
 ///
-/// Ex.: `https://nexago.app/torneios/abc/inscricao` → `/torneios/abc/inscricao`
+/// Ex.: `https://atleta.nexago.com.br/torneios/abc/inscricao` → `/torneios/abc/inscricao`
 String? resolveAppDeepLinkPath(Uri uri) {
   final segments = _deepLinkPathSegments(uri);
   if (segments == null || segments.isEmpty) return null;
@@ -69,6 +71,11 @@ String _withQuery(String path, Uri uri) {
   return '$path?${uri.query}';
 }
 
+/// O retorno OAuth do Mercado Pago é o único lugar que ainda conhece
+/// `voleigo.com.br`: quem escolhe o destino é a Cloud Function
+/// `mercadoPagoOAuthReturnBase`, não o app. Trocar aqui sem trocar lá (e sem
+/// reconfigurar as URLs no painel do Mercado Pago) derruba a conexão de conta
+/// do gestor de arena — por isso fica como está até a CF migrar.
 bool isMercadoPagoOAuthDeepLink(Uri uri) {
   if (uri.scheme == 'nexago' && uri.host == 'mercadopago') return true;
   if (uri.scheme == 'https' || uri.scheme == 'http') {

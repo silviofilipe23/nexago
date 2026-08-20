@@ -1,3 +1,4 @@
+import '../../../../core/deep_link/app_domains.dart';
 import 'sand_rank_catalog.dart';
 
 /// Texto padrão de compartilhamento de um degrau do Sand Rank — reaproveitado
@@ -6,5 +7,5 @@ import 'sand_rank_catalog.dart';
 String sandRankShareText(SandRankStep step) {
   final label = sandRankLabel(step);
   return 'Cheguei ao elo $label no nexaGO! 🏐🔥 '
-      'Bora pra areia comigo: https://nexago.app';
+      'Bora pra areia comigo: ${AppShareLinks.appDownload}';
 }

@@ -1,10 +1,11 @@
+import '../../../../core/deep_link/app_domains.dart';
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
 import '../category_ops/category_ops_models.dart';
 import 'tournament_ops_models.dart';
 
 String organizerTournamentShareLink(String tournamentId) =>
-    'https://nexago.app/torneios/$tournamentId';
+    AppShareLinks.tournament(tournamentId);
 
 /// Aba inicial do detalhe do organizador conforme a fase do torneio: dentro da
 /// janela do evento (publicado + entre o início e o fim do dia), abre direto em

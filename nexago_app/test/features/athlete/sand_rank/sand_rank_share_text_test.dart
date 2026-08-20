@@ -10,7 +10,7 @@ void main() {
 
       expect(text, contains('Competidor II'));
       expect(text, contains('nexaGO'));
-      expect(text, contains('https://nexago.app'));
+      expect(text, contains('https://nexago.com.br'));
     });
 
     test('degrau sem divisão (Lenda) não mostra algarismo romano vazio', () {

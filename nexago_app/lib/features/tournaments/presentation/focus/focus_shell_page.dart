@@ -132,6 +132,12 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
               label: section.label,
               icon: _iconOf(section),
               selectedIcon: _selectedIconOf(section),
+              // O SF Symbol é OBRIGATÓRIO na prática: sem ele a barra nativa
+              // cai no `iconData` e desenha o ícone fora de escala (era o que
+              // acontecia — só o troféu saía certo, porque é o único destes
+              // que o `materialIconToSfSymbol` conhece).
+              sfSymbol: _sfSymbolOf(section),
+              selectedSfSymbol: _selectedSfSymbolOf(section),
             ),
         ],
         uppercaseLabels: true,
@@ -151,6 +157,22 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         FocusSection.trajetoria => Icons.emoji_events_rounded,
         FocusSection.grupo => Icons.table_rows_rounded,
         FocusSection.chave => Icons.account_tree_rounded,
+      };
+
+  String _sfSymbolOf(FocusSection section) => switch (section) {
+        FocusSection.agora => 'flame',
+        FocusSection.trajetoria => 'trophy',
+        FocusSection.grupo => 'tablecells',
+        FocusSection.chave => 'arrow.triangle.branch',
+      };
+
+  String _selectedSfSymbolOf(FocusSection section) => switch (section) {
+        FocusSection.agora => 'flame.fill',
+        FocusSection.trajetoria => 'trophy.fill',
+        FocusSection.grupo => 'tablecells.fill',
+        // Sem variante preenchida no SF; repete a de contorno em vez de cair
+        // no `iconData`, que é o caminho que quebra a escala.
+        FocusSection.chave => 'arrow.triangle.branch',
       };
 
   Widget _sectionBody(

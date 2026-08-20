@@ -212,28 +212,21 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
         ],
         if (_address != null) ...[
           const FocusSectionHeader(label: 'ONDE É O QUÊ'),
-          _WhereRow(
-            label: 'Sua quadra agora',
-            value: myPending != null &&
-                    matchCourtLabelForCard(myPending).trim().isNotEmpty
-                ? matchCourtLabelForCard(myPending)
-                : 'A definir',
-          ),
-          _WhereRow(label: 'Arena', value: widget.tournament.location.trim()),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenH,
-              AppSpacing.md,
-              AppSpacing.screenH,
-              0,
-            ),
-            child: OutlinedButton.icon(
-              onPressed: _openMaps,
-              icon: const Icon(Icons.place_outlined, size: 16),
-              // Rota até a ARENA: as quadras do torneio não têm posição
-              // gravada, então prometer a quadra seria mentira.
-              label: const Text('Como chegar'),
-            ),
+          _WhereCard(
+            rows: [
+              (
+                'Sua quadra agora',
+                myPending != null &&
+                        matchCourtLabelForCard(myPending).trim().isNotEmpty
+                    ? matchCourtLabelForCard(myPending)
+                    : 'A definir',
+              ),
+              if (widget.tournament.location.trim().isNotEmpty)
+                ('Arena', widget.tournament.location.trim()),
+              if (widget.tournament.city.trim().isNotEmpty)
+                ('Cidade', widget.tournament.city.trim()),
+            ],
+            onOpenMaps: _openMaps,
           ),
         ],
       ],
@@ -720,41 +713,88 @@ class _CrossingTile extends StatelessWidget {
   }
 }
 
-class _WhereRow extends StatelessWidget {
-  const _WhereRow({required this.label, required this.value});
+/// "Onde é o quê": as referências do dia, uma por linha, com o mapa da arena
+/// no rodapé do mesmo card — o desenho do protótipo.
+///
+/// O protótipo traz também mesa/súmula, ponto de hidratação e fisioterapia.
+/// Nenhum tem campo no projeto: as comodidades da arena são estacionamento,
+/// vestiário, quadra coberta, bar, aluguel e acessibilidade, e o torneio nem
+/// carrega `arenaId`. Entram quando alguém puder preenchê-los — até lá o card
+/// mostra só o que é verdade.
+class _WhereCard extends StatelessWidget {
+  const _WhereCard({required this.rows, required this.onOpenMaps});
 
-  final String label;
-  final String value;
+  final List<(String, String)> rows;
+  final VoidCallback onOpenMaps;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    if (value.trim().isEmpty) return const SizedBox.shrink();
+    final visible =
+        rows.where((r) => r.$2.trim().isNotEmpty).toList(growable: false);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        0,
-        AppSpacing.screenH,
-        AppSpacing.md,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style:
-                  AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Column(
+          children: [
+            for (var i = 0; i < visible.length; i++)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.lg - 2,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: colors.outline.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        visible[i].$1,
+                        style: AppTypography.bodyM
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Flexible(
+                      child: Text(
+                        visible[i].$2,
+                        textAlign: TextAlign.right,
+                        style: AppTypography.bodyM.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onOpenMaps,
+                  icon: const Icon(Icons.place_outlined, size: 16),
+                  // Mapa da ARENA: as quadras do torneio são só `{id, name}`,
+                  // sem posição, então apontar a quadra seria mentira.
+                  label: const Text('Abrir mapa da arena'),
+                ),
+              ),
             ),
-          ),
-          Text(
-            value,
-            style: AppTypography.bodyM.copyWith(
-              color: colors.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -34,10 +34,12 @@ class FocusGrupoSection extends ConsumerStatefulWidget {
     super.key,
     required this.tournament,
     required this.categoryId,
+    required this.athleteTeamIds,
   });
 
   final TournamentDetail tournament;
   final String categoryId;
+  final Set<String> athleteTeamIds;
 
   @override
   ConsumerState<FocusGrupoSection> createState() => _FocusGrupoSectionState();

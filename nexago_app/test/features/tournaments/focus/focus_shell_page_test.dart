@@ -52,36 +52,38 @@ void main() {
     await initializeDateFormatting('pt_BR', null);
   });
 
-  testWidgets('mostra as quatro seções e o botão de sair', (tester) async {
-    await tester.pumpWidget(_app());
-    await tester.pumpAndSettle();
-
-    expect(find.text('Agora'), findsOneWidget);
-    expect(find.text('Trajetória'), findsOneWidget);
-    expect(find.text('Grupo'), findsOneWidget);
-    expect(find.text('Chave'), findsOneWidget);
-    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
-  });
-
-  testWidgets('trocar de seção mantém a casca e as quatro abas',
+  testWidgets('nav inferior traz as três seções e o cabeçalho tem o ×',
       (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Trajetória'));
+    // Rótulos em caixa alta: é o `uppercaseLabels` da nav do app.
+    expect(find.text('AGORA'), findsOneWidget);
+    expect(find.text('TRAJETÓRIA'), findsOneWidget);
+    // Sem formato de dupla eliminação resolvido, a terceira aba é o Grupo.
+    expect(find.text('GRUPO'), findsOneWidget);
+    expect(find.text('CHAVE'), findsNothing);
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    expect(find.text('FOCUS'), findsOneWidget);
+  });
+
+  testWidgets('trocar de seção mantém a casca e a nav', (tester) async {
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    // A casca não é substituída: as abas e o × seguem lá.
-    expect(find.text('Agora'), findsOneWidget);
+    await tester.tap(find.text('TRAJETÓRIA'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('AGORA'), findsOneWidget);
     expect(find.byIcon(Icons.close_rounded), findsOneWidget);
   });
 
-  testWidgets('sem categoria em foco, Grupo e Chave explicam em vez de vazar',
+  testWidgets('sem categoria em foco a seção de grupo explica em vez de vazar',
       (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Grupo'));
+    await tester.tap(find.text('GRUPO'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('o grupo e a chave dela'), findsWidgets);

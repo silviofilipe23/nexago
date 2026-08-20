@@ -9,6 +9,7 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/feedback/feedback_page.dart';
 import '../../../../core/ui/feedback/show_feedback_page.dart';
 import '../../../athlete/domain/tournament_access_providers.dart';
+import '../../data/tournament_registration_service.dart';
 import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_partner_invite.dart';
@@ -254,7 +255,7 @@ class _TournamentInviteAcceptCoordinatorState
     }
 
     final firstName = invite.inviteeName.split(' ').first;
-    await _showPartnerAcceptedFeedback(invite, firstName);
+    await _showPartnerAcceptedFeedback(invite, firstName, snap);
   }
 
   void _navigateToRegistrationPayment(TournamentPartnerInvite invite) {
@@ -279,20 +280,43 @@ class _TournamentInviteAcceptCoordinatorState
     );
   }
 
+  void _navigateToRegistrationRoster(TournamentPartnerInvite invite) {
+    if (!context.mounted) return;
+    context.pushNamed(
+      AppRouteNames.tournamentRegistration,
+      pathParameters: {'tournamentId': invite.tournamentId},
+      queryParameters: tournamentRegistrationRosterParams(invite),
+    );
+  }
+
   Future<void> _showPartnerAcceptedFeedback(
     TournamentPartnerInvite invite,
     String firstName,
+    TournamentRegistrationSnapshot? snap,
   ) async {
     if (!context.mounted) return;
+    // Equipe com elenco aberto ainda não tem o que pagar (ver
+    // `partnerAcceptedFeedbackCopy`): o passo é convidar quem falta.
+    final copy = partnerAcceptedFeedbackCopy(
+      firstName: firstName,
+      isTeamInvite: invite.isTeamInvite,
+      rosterComplete: snap?.partnerPending != true,
+      rosterCount: snap?.participantUids.length,
+      teamSize: snap?.teamSize,
+    );
     await pushSuccessFeedback(
       context,
-      title: '$firstName aceitou!',
-      description: 'Conclua o pagamento da inscrição.',
+      title: copy.title,
+      description: copy.description,
       primaryAction: FeedbackAction(
-        label: 'Pagar',
+        label: copy.primaryLabel,
         onPressed: () {
           Navigator.of(context).pop();
-          _navigateToRegistrationPayment(invite);
+          if (copy.goesToPayment) {
+            _navigateToRegistrationPayment(invite);
+          } else {
+            _navigateToRegistrationRoster(invite);
+          }
         },
       ),
       secondaryAction: FeedbackAction(

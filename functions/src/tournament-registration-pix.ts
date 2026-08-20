@@ -190,6 +190,9 @@ export const createTournamentRegistrationPixPayment = onCall({
     projectId,
     tournamentId,
     categoryId,
+    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+    // justamente quem está confirmando a vaga que já é dele.
+    {occupancyExcludesRegistrationId: registrationId},
   );
 
   if (isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {
@@ -591,6 +594,9 @@ export const confirmFreeTournamentRegistration = onCall({
     projectId,
     tournamentId,
     categoryId,
+    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+    // justamente quem está confirmando a vaga que já é dele.
+    {occupancyExcludesRegistrationId: registrationId},
   );
 
   const shouldWaitlist =
@@ -730,6 +736,9 @@ export const reserveDirectOrganizerRegistration = onCall({
     projectId,
     tournamentId,
     categoryId,
+    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+    // justamente quem está confirmando a vaga que já é dele.
+    {occupancyExcludesRegistrationId: registrationId},
   );
 
   if (!isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {

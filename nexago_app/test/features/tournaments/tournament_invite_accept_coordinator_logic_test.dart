@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
+  _copyTests();
   group('registrationSuccessNavigationAction', () {
     test('ignores when not paid', () {
       expect(
@@ -93,6 +94,61 @@ void main() {
         ),
         RegistrationSuccessNavigationAction.navigate,
       );
+    });
+  });
+}
+
+void _copyTests() {
+  group('partnerAcceptedFeedbackCopy', () {
+    test('dupla aceita fecha a inscrição e leva ao pagamento', () {
+      final copy = partnerAcceptedFeedbackCopy(
+        firstName: 'Bruno',
+        isTeamInvite: false,
+        rosterComplete: true,
+      );
+      expect(copy.title, 'Bruno aceitou!');
+      expect(copy.description, 'Conclua o pagamento da inscrição.');
+      expect(copy.primaryLabel, 'Pagar');
+      expect(copy.goesToPayment, isTrue);
+    });
+
+    test('equipe com elenco aberto NÃO pede pagamento', () {
+      final copy = partnerAcceptedFeedbackCopy(
+        firstName: 'Bruno',
+        isTeamInvite: true,
+        rosterComplete: false,
+        rosterCount: 2,
+        teamSize: 4,
+      );
+      expect(copy.title, 'Bruno entrou na equipe');
+      expect(copy.description, 'Elenco 2/4. Convide os atletas que faltam.');
+      expect(copy.primaryLabel, 'Convidar');
+      expect(
+        copy.goesToPayment,
+        isFalse,
+        reason: 'com 2/4 não existe conta a pagar — o passo é convidar',
+      );
+    });
+
+    test('equipe que fecha o elenco volta a pedir pagamento', () {
+      final copy = partnerAcceptedFeedbackCopy(
+        firstName: 'Carla',
+        isTeamInvite: true,
+        rosterComplete: true,
+        rosterCount: 4,
+        teamSize: 4,
+      );
+      expect(copy.title, 'Carla aceitou!');
+      expect(copy.goesToPayment, isTrue);
+    });
+
+    test('elenco sem contagem conhecida omite o progresso', () {
+      final copy = partnerAcceptedFeedbackCopy(
+        firstName: 'Diego',
+        isTeamInvite: true,
+        rosterComplete: false,
+      );
+      expect(copy.description, 'Elenco. Convide os atletas que faltam.');
     });
   });
 }

@@ -5,21 +5,33 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 
 void main() {
   group('countInscriptionsByCategoryData', () {
-    test('groups paid inscriptions by categoryId', () {
+    test('conta 1 vaga por documento, paga ou não', () {
       expect(
         countInscriptionsByCategoryData([
           {'categoryId': 'Masculino C', 'isPaid': true},
           {'categoryId': 'Masculino C', 'isPaid': true},
           {'categoryId': 'Misto', 'isPaid': true},
-          {'categoryId': 'Misto', 'isPaid': true, 'waitlist': true},
+          // Reserva ainda não paga OCUPA vaga — é o que o servidor conta.
           {'categoryId': 'Misto', 'isPaid': false},
           {'categoryId': 'Feminino C'},
           {'tournamentId': 't1'},
         ]),
         {
           'Masculino C': 2,
-          'Misto': 1,
+          'Misto': 2,
+          'Feminino C': 1,
         },
+      );
+    });
+
+    test('fila de espera não ocupa vaga', () {
+      expect(
+        countInscriptionsByCategoryData([
+          {'categoryId': 'Misto', 'isPaid': true},
+          {'categoryId': 'Misto', 'isPaid': true, 'waitlist': true},
+          {'categoryId': 'Misto', 'waitlist': true},
+        ]),
+        {'Misto': 1},
       );
     });
   });

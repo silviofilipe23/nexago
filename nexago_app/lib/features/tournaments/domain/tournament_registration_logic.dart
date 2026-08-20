@@ -525,6 +525,55 @@ String registrationDualPaymentProgressLabel({
   return 'Aguardando o pagamento de cada atleta (sua parcela + parceiro).';
 }
 
+/// Copy e destino do aviso "convite aceito" que abre sozinho para quem convidou.
+class PartnerAcceptedFeedbackCopy {
+  const PartnerAcceptedFeedbackCopy({
+    required this.title,
+    required this.description,
+    required this.primaryLabel,
+    required this.goesToPayment,
+  });
+
+  final String title;
+  final String description;
+  final String primaryLabel;
+
+  /// `false` = o próximo passo é o elenco (convidar), não o pagamento.
+  final bool goesToPayment;
+}
+
+/// O que dizer quando um convite é aceito.
+///
+/// Em EQUIPE o aceite não fecha a inscrição: o elenco cresce até o `teamSize`.
+/// Anunciar "conclua o pagamento" com 2/4 manda o capitão para uma conta que
+/// ainda não existe e esconde a única ação que resta — convidar quem falta.
+/// Na dupla o aceite sempre fecha (2/2), e aí o pagamento é o passo certo.
+PartnerAcceptedFeedbackCopy partnerAcceptedFeedbackCopy({
+  required String firstName,
+  required bool isTeamInvite,
+  required bool rosterComplete,
+  int? rosterCount,
+  int? teamSize,
+}) {
+  if (isTeamInvite && !rosterComplete) {
+    final hasProgress =
+        rosterCount != null && teamSize != null && rosterCount > 0 && teamSize > 0;
+    final progress = hasProgress ? ' $rosterCount/$teamSize' : '';
+    return PartnerAcceptedFeedbackCopy(
+      title: '$firstName entrou na equipe',
+      description: 'Elenco$progress. Convide os atletas que faltam.',
+      primaryLabel: 'Convidar',
+      goesToPayment: false,
+    );
+  }
+  return PartnerAcceptedFeedbackCopy(
+    title: '$firstName aceitou!',
+    description: 'Conclua o pagamento da inscrição.',
+    primaryLabel: 'Pagar',
+    goesToPayment: true,
+  );
+}
+
 /// Sticky da inscrição só habilita ações quando o perfil permite torneios.
 bool registrationStickyEnabled({
   required bool canAccess,

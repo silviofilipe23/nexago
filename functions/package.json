@@ -15,7 +15,8 @@
     "seed-tournament": "node scripts/seed-tournament-with-enrollments.js",
     "seed-tournament-today": "node scripts/seed-tournament-today-with-enrollments.js",
     "seed-test-data": "node scripts/seed-test-data.js",
-    "delete-test-data": "node scripts/delete-test-data.js"
+    "delete-test-data": "node scripts/delete-test-data.js",
+    "test:registrations": "npm run build && firebase emulators:exec --only firestore --project nexago-registration-matrix \"node --test --test-concurrency=1 test/registration-*.test.mjs\""
   },
   "engines": {
     "node": "22"

@@ -114,6 +114,19 @@ Map<String, String> tournamentRegistrationPaymentParams(
   );
 }
 
+/// Abre a inscrição no ELENCO após um integrante entrar na equipe — o passo
+/// que resta quando o elenco ainda não fechou.
+Map<String, String> tournamentRegistrationRosterParams(
+  TournamentPartnerInvite invite,
+) {
+  return tournamentRegistrationQueryParams(
+    categoryId: invite.categoryId,
+    registrationId: invite.registrationId,
+    inviteId: invite.id,
+    step: TournamentRegistrationStep.partner,
+  );
+}
+
 /// Abre inscrição aguardando parceiro.
 Map<String, String> tournamentRegistrationWaitingParams(
   TournamentPartnerInvite invite,

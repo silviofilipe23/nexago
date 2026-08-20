@@ -108,6 +108,13 @@ const _minSetAdvantage = 2;
 /// tem que ser a MESMA que decide se o set acabou.
 int get matchSetPoints => _defaultSetPoints;
 int get matchTiebreakSetPoints => _tiebreakSetPoints;
+int get matchMinSetAdvantage => _minSetAdvantage;
+
+/// Pontos que fecham o set de índice [index] num jogo melhor-de-[bestOf].
+/// Mesma régua de [matchSetIsWon] — exposta para a simulação de cenários do
+/// Focus, que precisa gerar placares legais.
+int matchSetTargetPoints(int index, int bestOf) =>
+    bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
 
 int matchBestOf(TournamentMatch match) =>
     match.bestOf > 0 ? match.bestOf : _defaultBestOf;

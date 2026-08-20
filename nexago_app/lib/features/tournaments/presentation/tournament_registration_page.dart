@@ -157,8 +157,15 @@ class _TournamentRegistrationPageState
     return categories.first;
   }
 
-  /// Primeira categoria a abrir: a da rota, senão a que já tem inscrição
-  /// (retomar vem antes de começar outra), senão a primeira inscritível.
+  /// Primeira categoria a abrir, em ordem de prioridade: a da rota, a da
+  /// inscrição indicada na rota, a de um CONVITE pendente, a que já tem
+  /// inscrição (retomar vem antes de começar outra) e, por fim, a primeira
+  /// inscritível.
+  ///
+  /// O convite entra antes da inscrição porque é o que exige resposta: sem
+  /// isso, quem foi convidado para o quarteto abria a tela na primeira
+  /// categoria da lista, lia "você ainda não se inscreveu" e não encontrava o
+  /// convite em lugar nenhum.
   void _applyInitialCategory({
     required List<TournamentCategoryOffer> categories,
     required TournamentUserRegistrationsByCategory registrations,
@@ -171,6 +178,7 @@ class _TournamentRegistrationPageState
     // faria "retomar a inscrição começada" perder para "primeira categoria
     // livre" — justamente o caso que a tela precisa acertar.
     if (!registrationsResolved) return;
+    if (!ref.read(pendingTournamentPartnerInvitesProvider).hasValue) return;
     _appliedInitialCategory = true;
 
     final wanted = widget.initialCategoryId?.trim() ?? '';
@@ -187,6 +195,21 @@ class _TournamentRegistrationPageState
           chosen = entry.key;
           break;
         }
+      }
+    }
+
+    // Convite pendente neste torneio: é o que espera resposta.
+    if (chosen == null) {
+      final inviteId = widget.initialInviteId?.trim() ?? '';
+      final pending =
+          ref.read(pendingTournamentPartnerInvitesProvider).valueOrNull ??
+          const <TournamentPartnerInvite>[];
+      for (final invite in pending) {
+        if (invite.tournamentId != widget.tournamentId) continue;
+        if (inviteId.isNotEmpty && invite.id != inviteId) continue;
+        if (!categories.any((c) => c.id == invite.categoryId)) continue;
+        chosen = invite.categoryId;
+        break;
       }
     }
 

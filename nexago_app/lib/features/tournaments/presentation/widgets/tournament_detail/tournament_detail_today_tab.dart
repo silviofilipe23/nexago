@@ -13,16 +13,23 @@ import '../../../domain/tournament_match_card_view_model.dart';
 import '../tournament_match_card.dart';
 
 /// Aba "Hoje" (paridade com o portal): partidas ao vivo do torneio primeiro,
-/// depois a timeline "Seu dia" com as partidas do atleta agendadas pra hoje.
+/// depois a timeline "Seu dia" com as partidas do atleta no dia — as agendadas
+/// e, num bloco próprio, as que ainda não têm horário.
 class TournamentDetailTodayTab extends ConsumerWidget {
   const TournamentDetailTodayTab({
     super.key,
     required this.tournamentId,
     required this.athleteTeamIds,
+    required this.tournamentRunningToday,
   });
 
   final String tournamentId;
   final Set<String> athleteTeamIds;
+
+  /// Hoje cai dentro da janela do evento. É o que autoriza listar partida sem
+  /// horário: sem `scheduleTime` e sem `matchStartedAt`, a janela do torneio é
+  /// a única evidência de que ela é de hoje (ver `matchBelongsToDay`).
+  final bool tournamentRunningToday;
 
   void _openMatchDetail(BuildContext context, String matchId) {
     final id = matchId.trim();
@@ -63,14 +70,17 @@ class TournamentDetailTodayTab extends ConsumerWidget {
           matches,
           athleteTeamIds,
           DateTime.now(),
+          tournamentRunningToday: tournamentRunningToday,
         ).where((m) => !liveIds.contains(m.id)).toList();
+        final scheduled = mine.where((m) => m.scheduleTime != null).toList();
+        final unscheduled = mine.where((m) => m.scheduleTime == null).toList();
 
         if (live.isEmpty && mine.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(AppSpacing.xxl),
             child: Text(
-              'Nada acontecendo agora — os jogos de hoje aparecem aqui '
-              'assim que forem programados.',
+              'Nada acontecendo agora — seus jogos de hoje aparecem aqui, '
+              'com ou sem horário definido.',
               textAlign: TextAlign.center,
               style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
             ),
@@ -105,13 +115,22 @@ class TournamentDetailTodayTab extends ConsumerWidget {
               ),
               for (final m in live) cardOf(byId[m.id]!),
             ],
-            if (mine.isNotEmpty) ...[
+            if (scheduled.isNotEmpty) ...[
               if (live.isNotEmpty) const SizedBox(height: AppSpacing.md),
               _TodaySectionHeader(
                 label: 'SEU DIA NO TORNEIO',
                 color: colors.onSurfaceMuted,
               ),
-              for (final m in mine) cardOf(byId[m.id]!),
+              for (final m in scheduled) cardOf(byId[m.id]!),
+            ],
+            if (unscheduled.isNotEmpty) ...[
+              if (live.isNotEmpty || scheduled.isNotEmpty)
+                const SizedBox(height: AppSpacing.md),
+              _TodaySectionHeader(
+                label: 'SEM HORÁRIO DEFINIDO',
+                color: colors.onSurfaceMuted,
+              ),
+              for (final m in unscheduled) cardOf(byId[m.id]!),
             ],
           ],
         );

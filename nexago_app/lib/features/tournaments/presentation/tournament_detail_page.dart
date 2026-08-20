@@ -239,11 +239,14 @@ class _TournamentDetailContentState
     final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
     final live = liveTournamentMatches(matches);
-    final hasMyMatchToday =
-        myTournamentDayTimeline(matches, athleteTeamIds, now).isNotEmpty ||
-            live.isNotEmpty;
-
     final isToday = tournamentIsEventToday(widget.tournament, now);
+    final hasMyMatchToday = myTournamentDayTimeline(
+          matches,
+          athleteTeamIds,
+          now,
+          tournamentRunningToday: isToday,
+        ).isNotEmpty ||
+        live.isNotEmpty;
 
     return Column(
       children: [

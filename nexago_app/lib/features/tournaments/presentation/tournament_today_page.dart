@@ -7,6 +7,8 @@ import '../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/nexa_icon_square_button.dart';
 import '../data/tournament_inscriptions_repository.dart';
+import '../domain/tournament_detail_tabs_logic.dart';
+import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_matches_logic.dart';
 import 'widgets/tournament_detail/tournament_detail_today_tab.dart';
 
@@ -25,6 +27,12 @@ class TournamentTodayPage extends ConsumerWidget {
             .watch(tournamentUserTeamIdsByCategoryProvider(tournamentId))
             .valueOrNull ??
         const <String, String>{};
+    // Enquanto o detalhe carrega, `false`: sem as datas do torneio não dá pra
+    // afirmar que uma partida sem horário é de hoje.
+    final tournament =
+        ref.watch(tournamentDetailProvider(tournamentId)).valueOrNull;
+    final tournamentRunningToday = tournament != null &&
+        tournamentIsEventToday(tournament, DateTime.now());
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -59,6 +67,7 @@ class TournamentTodayPage extends ConsumerWidget {
             child: TournamentDetailTodayTab(
               tournamentId: tournamentId,
               athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
+              tournamentRunningToday: tournamentRunningToday,
             ),
           ),
         ],

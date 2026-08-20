@@ -268,30 +268,29 @@ int? teamLevelRank(AppUserProfile? player1, AppUserProfile? player2) {
   return r1 > r2 ? r1 : r2;
 }
 
-/// Filtra o ranking de atletas por nível exato (`null` = todos os níveis).
-/// Atleta sem nível resolvido nunca aparece quando um nível específico é
-/// escolhido.
+/// Filtra o ranking de atletas pela faixa de nível (`all` = todos os níveis).
+/// Atleta sem nível resolvido nunca aparece quando uma faixa é escolhida.
 List<AthleteRankingRow> filterAthleteRowsByLevel(
   List<AthleteRankingRow> rows,
-  int? levelRank,
+  RankingLevelFilter level,
   Map<String, int?> levelRankByAthleteId,
 ) {
-  if (levelRank == null) return rows;
+  if (level == RankingLevelFilter.all) return rows;
   final filtered = rows
-      .where((row) => levelRankByAthleteId[row.athleteId] == levelRank)
+      .where((row) => level.matchesRank(levelRankByAthleteId[row.athleteId]))
       .toList();
   return assignRanks(filtered);
 }
 
-/// Filtra o ranking de duplas por nível exato (`null` = todos os níveis).
+/// Filtra o ranking de duplas pela faixa de nível (`all` = todos os níveis).
 List<TeamRankingRow> filterTeamRowsByLevel(
   List<TeamRankingRow> rows,
-  int? levelRank,
+  RankingLevelFilter level,
   Map<String, int?> levelRankByTeamId,
 ) {
-  if (levelRank == null) return rows;
+  if (level == RankingLevelFilter.all) return rows;
   final filtered = rows
-      .where((row) => levelRankByTeamId[row.teamId] == levelRank)
+      .where((row) => level.matchesRank(levelRankByTeamId[row.teamId]))
       .toList();
   return assignTeamRanks(filtered);
 }

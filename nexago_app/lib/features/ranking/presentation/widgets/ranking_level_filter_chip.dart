@@ -1,35 +1,33 @@
 import 'package:flutter/material.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
+import '../../domain/ranking_list_models.dart';
 import 'ranking_level_filter_sheet.dart';
 
 /// Chip de nível na tela de ranking geral — abre a mesma folha de seleção
 /// já usada pro filtro de gênero (`ranking_gender_filter_sheet.dart`).
-/// `null` = todos os níveis.
+/// `RankingLevelFilter.all` = todos os níveis.
 class RankingLevelFilterChip extends StatelessWidget {
   const RankingLevelFilterChip({
     super.key,
-    required this.selectedRank,
+    required this.selected,
     required this.onChanged,
   });
 
-  final int? selectedRank;
-  final ValueChanged<int?> onChanged;
+  final RankingLevelFilter selected;
+  final ValueChanged<RankingLevelFilter> onChanged;
 
   Future<void> _openSheet(BuildContext context) async {
     final result = await showRankingLevelFilterSheet(
       context,
-      current: selectedRank,
+      current: selected,
     );
-    if (result != selectedRank) onChanged(result);
+    if (result != selected) onChanged(result);
   }
 
   @override
   Widget build(BuildContext context) {
-    final label = selectedRank == null
-        ? 'Todos os níveis'
-        : AthleteProfileOptions.labelForRank(selectedRank!);
+    final label = selected.label;
 
     return Material(
       color: Colors.transparent,

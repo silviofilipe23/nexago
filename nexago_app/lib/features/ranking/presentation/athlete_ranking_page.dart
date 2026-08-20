@@ -258,12 +258,12 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                         runSpacing: 8,
                         children: [
                           RankingLevelFilterChip(
-                            selectedRank: filter.level,
-                            onChanged: (rank) {
+                            selected: filter.level,
+                            onChanged: (level) {
                               ref
                                   .read(rankingPageFilterProvider.notifier)
                                   .state =
-                                  filter.copyWith(level: () => rank);
+                                  filter.copyWith(level: level);
                             },
                           ),
                           if (filter.mode == RankingListMode.teams)

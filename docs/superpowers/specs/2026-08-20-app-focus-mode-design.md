@@ -31,10 +31,17 @@ precisa de uma âncora nova.
 Uma partida é do dia quando:
 
 1. tem `scheduleTime` no dia de referência — **regra atual, intacta**; ou
-2. não tem `scheduleTime` mas tem `matchStartedAt` no dia — jogo que a mesa começou sem
-   agendamento; ou
-3. não tem nenhum dos dois, **o torneio está rolando hoje** (hoje entre `startDate` e `endDate`),
-   e a partida não está encerrada nem cancelada.
+2. tem `matchStartedAt` no dia de referência — jogo que a mesa começou naquele dia; ou
+3. não tem **nenhuma** das duas âncoras, **o torneio está rolando hoje** (hoje entre `startDate` e
+   `endDate`), e a partida não está encerrada nem cancelada.
+
+As âncoras 1 e 2 valem de forma independente, não em cascata: partida agendada para ontem que só
+entrou em quadra hoje pertence a hoje também. Torneio que atrasa e empurra jogo para o dia
+seguinte é rotina, e a versão em cascata (`matchStartedAt` só quando não há `scheduleTime`)
+deixaria esse jogo preso no dia em que ele não aconteceu.
+
+Ter âncora de outro dia é resposta definitiva: quem tem `scheduleTime` ou `matchStartedAt` fora do
+dia de referência não cai no caso 3.
 
 O caso 2 não é refinamento: sem ele, uma partida jogada hoje direto na mesa, sem nunca ter sido
 agendada, some da própria timeline do atleta que a jogou — o caso 3 a exclui por estar encerrada,
@@ -207,13 +214,34 @@ Regras do porte:
 O modelo do app já tem `winnerAdvanceMatchNumber`/`winnerAdvanceSlot`, então a fiação que o caminho
 feliz percorre existe do lado de cá.
 
-### O que o app tem e a web não
+### Os cinco estados do "Agora"
 
-`queueStatus == 'on_court'` — chamada de quadra — já existe em `athlete_tournament_day_logic.dart`
-e alimenta `athleteCourtCallMatchProvider` em tempo real. A seção "Agora" do app deve mostrá-la
-com precedência sobre a próxima partida agendada; `athleteMatchPriority` já ordena assim
-(chamada > ao vivo > agendada > fila). Não existe equivalente na web e **não** é escopo portar
-para lá agora.
+`nowStateOf` (`focus/now/focus-now.component.ts`) é função pura e tem precedência explícita:
+
+```
+called → live → next → pending-knockout → idle
+```
+
+Duas armadilhas que essa ordem resolve e que o porte precisa preservar:
+
+- **"chamado" e "em quadra" coexistem no dado.** `callMatchToCourt` grava `queueStatus:
+  'on_court'` e `status: 'in progress'` na MESMA escrita. Sem a ordem explícita, ou o alerta de
+  chamada nunca aparece, ou nunca sai da tela. O que o tira da tela é o reconhecimento
+  (`acknowledgedMatchId`), que é só local — não existe callable para avisar a mesa, e o rótulo
+  ("Ok, estou indo") diz exatamente isso.
+- **`idle` não é "sem partida".** Sem partida do atleta, a categoria ainda pode ter mata-mata
+  pendente cujo slot não tem o `teamId` dele até o `winnerAdvance` preencher. Aí o estado é
+  `pending-knockout`, não `idle` — e é excluído quando o atleta já perdeu no mata-mata
+  (`eliminatedFromKnockout`), senão um eliminado nas quartas lê a mesma mensagem de quem espera
+  o sorteio.
+
+O app tem o mesmo dado por outro caminho: `athleteMatchPriority`
+(`athlete_tournament_day_logic.dart`) já ordena chamada > ao vivo > agendada > fila, e
+`athleteCourtCallMatchProvider` já observa a chamada em tempo real. O porte usa
+`nowStateOf` como fonte da precedência e o provider existente como fonte do dado.
+
+O reconhecimento precisa sobreviver à troca de seção dentro da casca — mora num provider da
+casca, não no estado do widget da seção.
 
 ## Fora de escopo
 

@@ -156,80 +156,125 @@ class FocusTrajetoriaSection extends ConsumerWidget {
         : null;
     final inRepescagem = standing?.side == FocusBracketSide.losers;
 
+    // Quantas duplas disputam a categoria — times distintos que aparecem nas
+    // partidas dela. Sai do que a chave e os grupos realmente têm, não de um
+    // contador de inscrições que pode incluir quem desistiu.
+    final duplas = <String>{};
+    for (final m in categoryMatches) {
+      if (m.teamAId.isNotEmpty) duplas.add(m.teamAId);
+      if (m.teamBId.isNotEmpty) duplas.add(m.teamBId);
+    }
+
+    // "Classificado" = já tem partida NO MATA-MATA. É o único sinal que não
+    // exige simular o desempate do grupo — a linha que este projeto se recusa
+    // a cruzar antes de o grupo encerrar.
+    final classificado = categoryMatches.any((m) =>
+        m.poolId.isEmpty &&
+        !m.isGroupMatch &&
+        (athleteTeamIds.contains(m.teamAId) ||
+            athleteTeamIds.contains(m.teamBId)));
+
     return ListView(
       padding: const EdgeInsets.only(
         top: AppSpacing.md,
         bottom: AppSpacing.xxxl,
       ),
       children: [
-        if (inRepescagem)
-          const _Headline.repescagem()
-        else if (headline != null)
-          _Headline(headline: headline),
-        if (standing != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenH,
-              AppSpacing.sm,
-              AppSpacing.screenH,
-              0,
-            ),
-            child: Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm - 2,
-              children: [
-                _Pill(
-                  label: switch (standing.side) {
-                    FocusBracketSide.winners => 'VENCEDORES · 2 VIDAS',
-                    FocusBracketSide.losers => 'REPESCAGEM · 1 VIDA',
-                    FocusBracketSide.eliminated => 'ELIMINADO',
-                  },
-                  color: switch (standing.side) {
-                    FocusBracketSide.winners => colors.win,
-                    FocusBracketSide.losers => AppColors.pending,
-                    FocusBracketSide.eliminated => colors.onSurfaceMuted,
-                  },
-                ),
-                if (wins != null && wins > 0)
-                  _Pill(
-                    label: wins == 1
-                        ? '1 JOGO ATÉ A FINAL'
-                        : '$wins JOGOS ATÉ A FINAL',
-                    color: colors.onSurfaceMuted,
-                  ),
-              ],
-            ),
-          ),
-        Row(
-          children: [
-            const Expanded(
-              child: FocusSectionHeader(label: 'CAMINHO ATÉ A FINAL'),
-            ),
-            // Só com partida encerrada: um card de campanha sem campanha
-            // nenhuma não diz nada.
-            if (numbers.matches > 0)
-              Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.screenH),
-                child: TextButton.icon(
-                  onPressed: () => showFocusShareCampaignSheet(
-                    context,
-                    buildCampaignShareData(
-                      matches: categoryMatches,
-                      categoryId: id,
-                      myTeamIds: athleteTeamIds,
-                      teamName: myTeamName,
-                      players: myPlayers,
-                      categoryLine: offer?.name ?? '',
-                      tournamentName: tournament.name,
-                      locationName: tournament.location,
-                      duoNameOf: (teamId) => rosters.nameOf(teamId),
-                    ),
-                  ),
-                  icon: const Icon(Icons.ios_share_rounded, size: 16),
-                  label: const Text('Compartilhar'),
-                ),
+        // Cabeçalho do protótipo: eyebrow nomeando a dupla, manchete grande e
+        // as pílulas logo abaixo. Texto solto, não card — o card competia com
+        // a manchete e roubava a hierarquia dela.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ['SUA TRAJETÓRIA', myTeamName.toUpperCase()].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.eyebrow.copyWith(color: AppColors.brand),
               ),
-          ],
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                inRepescagem
+                    ? 'Ainda dá título — por baixo.'
+                    : headline == null
+                        ? 'Sua campanha no torneio.'
+                        : headline.kind == JourneyHeadlineKind.champion
+                            ? 'Campeão da categoria!'
+                            : headline.text!,
+                style:
+                    AppTypography.displayL.copyWith(color: colors.onSurface),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  if (standing != null)
+                    _Pill(
+                      label: switch (standing.side) {
+                        FocusBracketSide.winners => 'VENCEDORES · 2 VIDAS',
+                        FocusBracketSide.losers => 'REPESCAGEM · 1 VIDA',
+                        FocusBracketSide.eliminated => 'ELIMINADO',
+                      },
+                      color: switch (standing.side) {
+                        FocusBracketSide.winners => colors.win,
+                        FocusBracketSide.losers => AppColors.pending,
+                        FocusBracketSide.eliminated => colors.onSurfaceMuted,
+                      },
+                      icon: standing.side == FocusBracketSide.winners
+                          ? Icons.check_rounded
+                          : null,
+                    )
+                  else if (classificado)
+                    _Pill(
+                      label: 'CLASSIFICADO',
+                      color: colors.win,
+                      icon: Icons.check_rounded,
+                    ),
+                  if (isDouble && wins != null && wins > 0)
+                    _Pill(
+                      label: wins == 1
+                          ? '1 JOGO ATÉ A FINAL'
+                          : '$wins JOGOS ATÉ A FINAL',
+                      color: colors.onSurfaceMuted,
+                    )
+                  else if (duplas.length > 1)
+                    _Pill(
+                      label: '${duplas.length} DUPLAS',
+                      color: colors.onSurfaceMuted,
+                    ),
+                  // Só com partida encerrada: um card de campanha sem campanha
+                  // nenhuma não diz nada.
+                  if (numbers.matches > 0)
+                    _Pill(
+                      label: 'COMPARTILHAR',
+                      color: AppColors.brand,
+                      icon: Icons.ios_share_rounded,
+                      onTap: () => showFocusShareCampaignSheet(
+                        context,
+                        buildCampaignShareData(
+                          matches: categoryMatches,
+                          categoryId: id,
+                          myTeamIds: athleteTeamIds,
+                          teamName: myTeamName,
+                          players: myPlayers,
+                          categoryLine: offer?.name ?? '',
+                          tournamentName: tournament.name,
+                          locationName: tournament.location,
+                          duoNameOf: (teamId) => rosters.nameOf(teamId),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        FocusSectionHeader(
+          label:
+              isDouble ? 'CAMINHO ATÉ A GRANDE FINAL' : 'CAMINHO ATÉ A FINAL',
         ),
         if (steps.isEmpty)
           _Empty(text: 'Sua chave ainda não foi sorteada.')
@@ -323,97 +368,54 @@ class _Prize {
   final bool guaranteed;
 }
 
+/// Pílula do cabeçalho: contorno na cor do estado, rótulo em caixa alta e um
+/// ícone opcional. Com [onTap] ela vira botão — é assim que "COMPARTILHAR"
+/// convive com as pílulas informativas na mesma linha, como no protótipo.
 class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color});
+  const _Pill({
+    required this.label,
+    required this.color,
+    this.icon,
+    this.onTap,
+  });
 
   final String label;
   final Color color;
+  final IconData? icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final pill = Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs + 2,
+        vertical: AppSpacing.sm - 1,
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color),
+        border: Border.all(color: color.withValues(alpha: 0.75)),
       ),
-      child: Text(label, style: AppTypography.eyebrow.copyWith(color: color)),
-    );
-  }
-}
-
-class _Headline extends StatelessWidget {
-  const _Headline({required this.headline}) : repescagem = false;
-
-  /// A manchete de quem caiu para a repescagem: o título ainda existe, e é isso
-  /// que o atleta precisa ler primeiro.
-  const _Headline.repescagem()
-      : headline = null,
-        repescagem = true;
-
-  final JourneyHeadline? headline;
-  final bool repescagem;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final champion =
-        !repescagem && headline!.kind == JourneyHeadlineKind.champion;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        0,
-        AppSpacing.screenH,
-        AppSpacing.sm,
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        decoration: BoxDecoration(
-          color: champion ? colors.win : colors.surfaceCard,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: champion
-                ? colors.win
-                : repescagem
-                    ? AppColors.pending
-                    : colors.outline,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              champion
-                  ? 'Fim de jornada'
-                  : repescagem
-                      ? 'Sua trajetória'
-                      : 'Rumo ao título',
-              style: AppTypography.eyebrow.copyWith(
-                color: champion ? Colors.white : colors.onSurfaceMuted,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              champion
-                  ? 'Campeão da categoria!'
-                  : repescagem
-                      ? 'Ainda dá título — por baixo.'
-                      : headline!.text!,
-              style: AppTypography.titleL.copyWith(
-                color: champion ? Colors.white : colors.onSurface,
-              ),
-            ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 5),
           ],
-        ),
+          Text(label, style: AppTypography.eyebrow.copyWith(color: color)),
+        ],
       ),
+    );
+
+    if (onTap == null) return pill;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: pill,
     );
   }
 }
+
 
 class _Stats extends StatelessWidget {
   const _Stats({required this.numbers});

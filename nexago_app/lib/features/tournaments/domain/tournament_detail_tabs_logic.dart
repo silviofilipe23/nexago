@@ -12,7 +12,6 @@ import 'tournament_match_status.dart';
 
 enum TournamentDetailTab {
   visaoGeral('Visão geral'),
-  hoje('Hoje'),
   categorias('Categorias'),
   minhaInscricao('Minha inscrição'),
   palpites('Palpites');
@@ -22,27 +21,28 @@ enum TournamentDetailTab {
   final String label;
 }
 
+/// A aba "Hoje" foi aposentada em favor do Modo Focus — o dia do atleta virou
+/// uma casca própria, fora destas abas. O sinal `hasMyMatchToday` continua
+/// existindo no detalhe do torneio, mas agora decide o CARD de entrada do
+/// Focus, não uma aba.
 List<TournamentDetailTab> visibleTournamentDetailTabs({
-  required bool hasMyMatchToday,
   required bool isRegistered,
   required bool hasDefinedMatchups,
 }) {
   return [
     TournamentDetailTab.visaoGeral,
-    if (hasMyMatchToday) TournamentDetailTab.hoje,
     TournamentDetailTab.categorias,
     if (isRegistered) TournamentDetailTab.minhaInscricao,
     if (hasDefinedMatchups) TournamentDetailTab.palpites,
   ];
 }
 
-/// Quem tem jogo hoje cai direto no "Hoje".
+/// A entrada é sempre a visão geral: quem tem jogo hoje é levado ao Modo Focus
+/// pela entrada automática, ou entra por ele pelo card de destaque.
 TournamentDetailTab defaultTournamentDetailTab(
   List<TournamentDetailTab> tabs,
 ) {
-  return tabs.contains(TournamentDetailTab.hoje)
-      ? TournamentDetailTab.hoje
-      : TournamentDetailTab.visaoGeral;
+  return TournamentDetailTab.visaoGeral;
 }
 
 /// Sub-visões da categoria — o segmentado que substitui abas Partidas/Chaves

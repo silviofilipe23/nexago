@@ -320,7 +320,7 @@ class _TournamentDetailContentState
                   showMinhaInscricao: isRegistered,
                   palpitesEnabled: tournamentHasDefinedMatchups(matches),
                   onOpenHoje: () => context.pushNamed(
-                    AppRouteNames.tournamentToday,
+                    AppRouteNames.tournamentFocus,
                     pathParameters: {'tournamentId': widget.tournament.id},
                   ),
                   onOpenCategorias: () => context.pushNamed(

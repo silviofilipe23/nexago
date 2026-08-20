@@ -61,11 +61,11 @@ class TournamentDetailExploreSection extends StatelessWidget {
           const SizedBox(height: 12),
           if (showHoje)
             ExploreCard(
-              icon: Icons.sensors_rounded,
-              title: 'Hoje',
+              icon: Icons.center_focus_strong_rounded,
+              title: 'Você joga hoje',
               subtitle: liveNow
-                  ? 'Tem jogo em quadra agora'
-                  : 'Seu dia no torneio, em ordem de horário',
+                  ? 'Tem jogo em quadra agora — entrar no Modo Focus'
+                  : 'Entrar no Modo Focus',
               onTap: onOpenHoje,
             ),
           ExploreCard(

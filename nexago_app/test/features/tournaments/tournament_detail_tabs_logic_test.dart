@@ -70,7 +70,6 @@ void main() {
     test('esqueleto fixo: só Visão geral e Categorias quando tudo é false',
         () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: false,
         hasDefinedMatchups: false,
       );
@@ -81,24 +80,17 @@ void main() {
       ]);
     });
 
-    test('Hoje entra quando tenho jogo hoje', () {
-      final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: true,
-        isRegistered: false,
-        hasDefinedMatchups: false,
+    test('a aba Hoje não existe mais — o dia virou o Modo Focus', () {
+      // Aposentada, não escondida: o enum não tem mais o valor, então nenhum
+      // chamador consegue reintroduzi-la por engano.
+      expect(
+        TournamentDetailTab.values.map((t) => t.name),
+        isNot(contains('hoje')),
       );
-
-      expect(tabs, contains(TournamentDetailTab.hoje));
-      expect(tabs, [
-        TournamentDetailTab.visaoGeral,
-        TournamentDetailTab.hoje,
-        TournamentDetailTab.categorias,
-      ]);
     });
 
     test('Minha inscrição entra quando estou inscrito', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: true,
         hasDefinedMatchups: false,
       );
@@ -112,7 +104,6 @@ void main() {
 
     test('Palpites entra quando há confrontos definidos', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: false,
         hasDefinedMatchups: true,
       );
@@ -126,14 +117,12 @@ void main() {
 
     test('ordem completa com tudo true', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: true,
         isRegistered: true,
         hasDefinedMatchups: true,
       );
 
       expect(tabs, [
         TournamentDetailTab.visaoGeral,
-        TournamentDetailTab.hoje,
         TournamentDetailTab.categorias,
         TournamentDetailTab.minhaInscricao,
         TournamentDetailTab.palpites,
@@ -142,19 +131,8 @@ void main() {
   });
 
   group('defaultTournamentDetailTab', () {
-    test('cai no Hoje quando a aba está presente', () {
+    test('a entrada é sempre a Visão geral', () {
       final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: true,
-        isRegistered: false,
-        hasDefinedMatchups: false,
-      );
-
-      expect(defaultTournamentDetailTab(tabs), TournamentDetailTab.hoje);
-    });
-
-    test('cai na Visão geral quando não há Hoje', () {
-      final tabs = visibleTournamentDetailTabs(
-        hasMyMatchToday: false,
         isRegistered: true,
         hasDefinedMatchups: true,
       );

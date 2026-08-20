@@ -184,6 +184,7 @@ import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
 import '../../features/tournaments/domain/tournament_registration_success_args.dart';
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
+import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
 import '../auth/post_login_destination.dart';
@@ -1237,6 +1238,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             initialRegistrationId: registrationId,
             initialInviteId: inviteId,
             initialStep: initialStep,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationPayment,
+        name: AppRouteNames.tournamentRegistrationPayment,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final registrationId =
+              state.uri.queryParameters['registrationId']?.trim() ?? '';
+          final categoryId = state.uri.queryParameters['categoryId']?.trim();
+          // Sem inscrição não há o que pagar: cai na tela de inscrição, que
+          // deriva o estado da categoria e mostra o passo que falta.
+          if (registrationId.isEmpty) {
+            return TournamentRegistrationPage(
+              tournamentId: tournamentId,
+              initialCategoryId: categoryId,
+            );
+          }
+          return TournamentRegistrationPaymentPage(
+            tournamentId: tournamentId,
+            registrationId: registrationId,
+            categoryId: categoryId,
           );
         },
       ),

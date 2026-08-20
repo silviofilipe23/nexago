@@ -27,6 +27,9 @@ class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
     required this.onSelected,
     required this.onInviteByLink,
     this.onRegisterSolo,
+    this.compact = false,
+    this.invitingUserId,
+    this.excludeUserIds = const <String>{},
   });
 
   final TournamentCategoryOffer category;
@@ -34,6 +37,17 @@ class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
   final ValueChanged<TournamentRegistrationPartnerCandidate> onSelected;
   final VoidCallback onInviteByLink;
   final VoidCallback? onRegisterSolo;
+
+  /// Dentro do cartão "Sua inscrição" da tela única: o título do cartão já diz
+  /// o que é, então o cabeçalho gigante do passo sai.
+  final bool compact;
+
+  /// Convite em voo — trava só a linha do atleta convidado.
+  final String? invitingUserId;
+
+  /// Atletas que já estão no elenco ou com convite pendente. Some da lista em
+  /// vez de dar erro no envio, como o portal já fazia.
+  final Set<String> excludeUserIds;
 
   @override
   ConsumerState<TournamentRegistrationPartnerStep> createState() =>
@@ -146,7 +160,9 @@ class _TournamentRegistrationPartnerStepState
     final theme = Theme.of(context);
     final query = _searchController.text.trim();
     final isFiltering = isSearchTermLongEnough(query);
-    final displayProfiles = _displayPartners;
+    final displayProfiles = _displayPartners
+        .where((p) => !widget.excludeUserIds.contains(p.uid))
+        .toList();
     final resultsHeader = isFiltering
         ? partnerResultsHeader(
             count: displayProfiles.length,
@@ -163,17 +179,19 @@ class _TournamentRegistrationPartnerStepState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Quem joga\ncom você?',
-          style: AppTypography.soraRegular(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-            height: 1.05,
-            letterSpacing: -0.4,
+        if (!widget.compact) ...[
+          Text(
+            'Quem joga\ncom você?',
+            style: AppTypography.soraRegular(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+              height: 1.05,
+              letterSpacing: -0.4,
+            ),
           ),
-        ),
-        SizedBox(height: 18),
+          SizedBox(height: 18),
+        ],
         TextField(
           controller: _searchController,
           focusNode: _focusNode,
@@ -268,6 +286,7 @@ class _TournamentRegistrationPartnerStepState
                 padding: const EdgeInsets.only(bottom: 10),
                 child: TournamentRegistrationPartnerCandidateTile(
                   candidate: candidate,
+                  sending: widget.invitingUserId == profile.uid,
                   selected: widget.selectedUserId == profile.uid,
                   onTap: () => _selectProfile(
                     profile,

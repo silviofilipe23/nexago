@@ -13,6 +13,7 @@ import '../../domain/focus/focus_providers.dart';
 import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_detail_tabs_logic.dart';
 import '../../domain/tournament_discovery_providers.dart';
+import '../../domain/tournament_match_status.dart';
 import '../../domain/tournament_matches_logic.dart';
 import 'focus_section.dart';
 import 'sections/focus_agora_section.dart';
@@ -71,6 +72,12 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
             .valueOrNull ??
         const <String, String>{};
     final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
+    final hasLive = ref
+            .watch(tournamentMatchCardsProvider(widget.tournamentId))
+            .valueOrNull
+            ?.any((c) =>
+                TournamentMatchStatus.isInProgress(c.match.status)) ??
+        false;
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -81,6 +88,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
           _Header(
             tournament: tournament,
             categoryId: categoryId,
+            hasLive: hasLive,
             onExit: _exit,
           ),
           _SectionBar(
@@ -133,11 +141,13 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.tournament,
     required this.categoryId,
+    required this.hasLive,
     required this.onExit,
   });
 
   final TournamentDetail? tournament;
   final String? categoryId;
+  final bool hasLive;
   final VoidCallback onExit;
 
   /// "Sáb 20 ago · dia 2 de 3 · Arena, Cidade" + o nome da categoria em foco.
@@ -180,11 +190,37 @@ class _Header extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  tournament?.name ?? 'Modo Focus',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.titleM.copyWith(color: colors.onSurface),
+                Row(
+                  children: [
+                    // Selo do portal: acende quando há partida em quadra no
+                    // torneio, que é o sinal de "isso aqui está vivo agora".
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: hasLive ? AppColors.live : colors.surfaceRaised,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Focus',
+                        style: AppTypography.eyebrow.copyWith(
+                          color: hasLive ? Colors.white : colors.onSurfaceMuted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        tournament?.name ?? 'Modo Focus',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.titleM
+                            .copyWith(color: colors.onSurface),
+                      ),
+                    ),
+                  ],
                 ),
                 if (meta.isNotEmpty)
                   Text(

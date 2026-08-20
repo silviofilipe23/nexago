@@ -380,3 +380,108 @@ List<JourneyStepRow> journeyStepsOf(
 
   return [...mine, ...future];
 }
+
+/// Uma linha da campanha de um adversário: "Grupo A" → "2V 1D", ou a fase
+/// vencida → o placar em sets.
+class CampaignEntry {
+  const CampaignEntry({required this.label, required this.detail});
+
+  final String label;
+  final String detail;
+}
+
+/// Um adversário que a chave ainda pode cruzar com o atleta.
+class PossibleOpponent {
+  const PossibleOpponent({
+    required this.teamId,
+    required this.name,
+    required this.campaign,
+  });
+
+  final String teamId;
+  final String name;
+  final List<CampaignEntry> campaign;
+}
+
+/// O que este time fez no torneio até aqui: o saldo nos grupos e cada fase de
+/// mata-mata que ele venceu.
+List<CampaignEntry> campaignOf(
+  List<TournamentMatch> matches,
+  String teamId,
+  String Function(String teamId) opponentNameOf,
+) {
+  if (teamId.isEmpty) return const [];
+  final mine =
+      matches.where((m) => m.teamAId == teamId || m.teamBId == teamId).toList();
+  final entries = <CampaignEntry>[];
+
+  final groupMatches = mine
+      .where((m) =>
+          m.poolId.isNotEmpty && TournamentMatchStatus.isCompleted(m.status))
+      .toList();
+  if (groupMatches.isNotEmpty) {
+    final wins =
+        groupMatches.where((m) => (m.winnerId ?? '') == teamId).length;
+    entries.add(CampaignEntry(
+      label: 'Grupo ${groupMatches.first.poolId}',
+      detail: '${wins}V ${groupMatches.length - wins}D',
+    ));
+  }
+
+  final knockoutWins = mine
+      .where((m) =>
+          m.poolId.isEmpty &&
+          TournamentMatchStatus.isCompleted(m.status) &&
+          (m.winnerId ?? '') == teamId)
+      .toList()
+    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+
+  for (final m in knockoutWins) {
+    final opponentId = m.teamAId == teamId ? m.teamBId : m.teamAId;
+    final iAmA = m.teamAId == teamId;
+    final (mySets, theirSets) = _setWins(m, iAmA);
+    entries.add(CampaignEntry(
+      label: matchPhaseDisplayLabel(m, categoryMatches: matches),
+      detail: '$mySets–$theirSets vs ${opponentNameOf(opponentId)}',
+    ));
+  }
+
+  return entries;
+}
+
+/// Quem a chave ainda pode colocar no caminho do atleta: os times de partidas
+/// de mata-mata PENDENTES da categoria em que ele não está.
+///
+/// Não promete confronto — só lista quem segue vivo do outro lado. Afirmar
+/// "seu próximo adversário" exigiria resolver a chave inteira.
+List<PossibleOpponent> possibleOpponentsOf(
+  List<TournamentMatch> matches,
+  String categoryId,
+  Set<String> myTeamIds,
+  String Function(String teamId) duoNameOf,
+) {
+  final ids = <String>[];
+  for (final m in matches) {
+    if (m.categoryId != categoryId) continue;
+    if (m.poolId.isNotEmpty || m.isGroupMatch) continue;
+    if (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)) continue;
+    if (TournamentMatchStatus.isCompleted(m.status) ||
+        TournamentMatchStatus.isCanceled(m.status)) {
+      continue;
+    }
+    for (final id in [m.teamAId, m.teamBId]) {
+      if (id.isNotEmpty && !myTeamIds.contains(id) && !ids.contains(id)) {
+        ids.add(id);
+      }
+    }
+  }
+
+  return [
+    for (final teamId in ids)
+      PossibleOpponent(
+        teamId: teamId,
+        name: duoNameOf(teamId),
+        campaign: campaignOf(matches, teamId, duoNameOf),
+      ),
+  ];
+}

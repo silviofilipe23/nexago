@@ -117,6 +117,12 @@ class FocusTrajetoriaSection extends ConsumerWidget {
       standingsOf: (_) => const [],
       nextMatch: null,
     );
+    final opponents = possibleOpponentsOf(
+      categoryMatches,
+      id,
+      athleteTeamIds,
+      (teamId) => teamNames[teamId] ?? 'A definir',
+    );
     final steps = journeyStepsOf(
       ctx,
       journeyPathOf(categoryMatches, id, athleteTeamIds),
@@ -146,6 +152,10 @@ class FocusTrajetoriaSection extends ConsumerWidget {
           FocusSetBars(bars: numbers.sets)
         else
           _Empty(text: 'Nenhuma partida encerrada ainda.'),
+        if (opponents.isNotEmpty) ...[
+          const FocusSectionHeader(label: 'QUEM PODE CRUZAR COM VOCÊ'),
+          for (final opponent in opponents) _Opponent(opponent: opponent),
+        ],
         if (prizes.isNotEmpty) ...[
           const FocusSectionHeader(label: 'O QUE ESTE TORNEIO MUDA'),
           for (final prize in prizes) _PrizeRow(prize: prize),
@@ -381,6 +391,77 @@ class _PrizeRow extends StatelessWidget {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Um adversário que a chave ainda pode cruzar. NÃO promete confronto — a
+/// seção lista quem segue vivo do outro lado, e a campanha dele explica por quê
+/// ele importa.
+class _Opponent extends StatelessWidget {
+  const _Opponent({required this.opponent});
+
+  final PossibleOpponent opponent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenH,
+        0,
+        AppSpacing.screenH,
+        AppSpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: colors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              opponent.name,
+              style: AppTypography.bodyM.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            if (opponent.campaign.isEmpty)
+              Text(
+                'Primeira partida no torneio.',
+                style: AppTypography.bodyS
+                    .copyWith(color: colors.onSurfaceMuted),
+              )
+            else
+              for (final entry in opponent.campaign)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.label,
+                          style: AppTypography.bodyS
+                              .copyWith(color: colors.onSurfaceMuted),
+                        ),
+                      ),
+                      Text(
+                        entry.detail,
+                        style: AppTypography.monoMeta
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                    ],
+                  ),
+                ),
           ],
         ),
       ),

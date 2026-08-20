@@ -57,7 +57,10 @@ export type TimelineState = 'done' | 'live' | 'next' | 'upcoming';
 
 export interface TimelineEntry {
   matchId: string;
-  time: string;
+  /** `null` quando a partida ainda não tem horário — o template desenha "—". Um rótulo vazio na
+   *  coluna do relógio lê como bug, e desde que a lista do dia deixou de exigir `scheduleTime`
+   *  (ver `matchBelongsToDay`) essa linha existe de verdade. */
+  time: string | null;
   title: string;
   detail: string | null;
   outcomeLabel: string | null;
@@ -236,7 +239,7 @@ export function timelineOf(ctx: FocusViewContext, dayTimeline: readonly Tourname
     const done = matchIsCompleted(m);
     return {
       matchId: m.id,
-      time: timeLabelOf(m.scheduleTime),
+      time: m.scheduleTime != null ? timeLabelOf(m.scheduleTime) : null,
       title: [matchNumberLabelOf(m), phaseLabelOf(ctx, m), `vs ${ctx.duoNameOf(opponentId, opponentDescription)}`, courtLabelOf(m.courtName)]
         .filter((p): p is string => p != null)
         .join(' · '),

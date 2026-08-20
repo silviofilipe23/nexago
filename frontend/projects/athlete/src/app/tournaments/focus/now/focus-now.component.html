@@ -170,12 +170,15 @@
   <section class="now-card">
     <h2 class="now-card__title">Ordem do seu dia</h2>
     @if (timeline().length === 0) {
-      <p class="now-empty">Nenhuma partida sua agendada para hoje.</p>
+      <p class="now-empty">Nenhuma partida sua hoje.</p>
     } @else {
       <ol class="now-timeline">
-        @for (entry of timeline(); track entry.matchId) {
+        @for (entry of timeline(); track entry.matchId; let i = $index) {
+          @if (entry.time === null && (i === 0 || timeline()[i - 1].time !== null)) {
+            <li class="now-timeline__divider">Sem horário definido</li>
+          }
           <li class="now-row" [attr.data-state]="entry.state">
-            <span class="now-row__time">{{ entry.time }}</span>
+            <span class="now-row__time">{{ entry.time ?? '—' }}</span>
             <span class="now-row__mark" aria-hidden="true">
               @switch (entry.state) {
                 @case ('done') {

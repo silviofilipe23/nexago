@@ -172,16 +172,22 @@ String registrationSummaryStatusLabel({
 int registrationCardStepNumber({required bool uniformRequired}) =>
     uniformRequired ? 3 : 2;
 
-/// Vagas de convite ainda abertas: elenco + convites pendentes ocupam.
-/// Dupla sempre tem no máximo 1.
+/// Vagas de convite ainda abertas.
+///
+/// **Dupla sempre tem uma vaga aberta**, mesmo com convite pendente: convidar
+/// várias pessoas é caminho legítimo — o primeiro aceite fecha a vaga e o
+/// backend derruba os demais (`markStaleInvitesAfterAccept`). Descontar o
+/// convite pendente escondia a busca e deixava o atleta refém de quem não
+/// respondia. Mesma conta do `remainingInviteSlots` no portal.
+///
+/// Em EQUIPE a vaga é finita de verdade: elenco + convites pendentes ocupam,
+/// senão o capitão convida gente demais para um elenco que não cabe.
 int registrationRemainingInviteSlots({
   required int? teamSize,
   required int rosterCount,
   required int pendingInviteCount,
 }) {
-  if (teamSize == null) {
-    return rosterCount + pendingInviteCount >= 2 ? 0 : 1;
-  }
+  if (teamSize == null) return 1;
   final left = teamSize - rosterCount - pendingInviteCount;
   return left < 0 ? 0 : left;
 }

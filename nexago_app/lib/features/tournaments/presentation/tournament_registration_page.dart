@@ -76,7 +76,13 @@ class TournamentRegistrationPage extends ConsumerStatefulWidget {
   final String? initialRegistrationId;
   final String? initialInviteId;
 
-  /// Só `payment` ainda tem efeito: redireciona para a tela de pagamento.
+  /// Aceito para as rotas antigas continuarem entrando; a tela não navega mais
+  /// por passos e mostra sozinha o que falta.
+  ///
+  /// `payment` deliberadamente NÃO pula para a tela de pagamento: quem chega
+  /// por "Continuar inscrição" pode estar devendo o uniforme ou o parceiro, que
+  /// moram aqui. Pular direto escondia os dois. O portal também trata
+  /// `/inscricao` como o painel da inscrição, com o pagamento a um toque.
   final TournamentRegistrationStep? initialStep;
 
   @override
@@ -125,7 +131,6 @@ class _TournamentRegistrationPageState
   String? _uniformHydratedRegistrationId;
 
   bool _appliedInitialCategory = false;
-  bool _redirectedToPayment = false;
   bool _syncedJerseyNameFromProfile = false;
 
   @override
@@ -902,22 +907,6 @@ class _TournamentRegistrationPageState
                 : null;
             _hydrateUniform(snap, category);
 
-            // Rota antiga com `?step=payment`: o pagamento agora é outra tela.
-            if (widget.initialStep == TournamentRegistrationStep.payment &&
-                !_redirectedToPayment &&
-                registration != null &&
-                category != null) {
-              _redirectedToPayment = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _goToPayment(
-                  registrationId: registration.registrationId,
-                  categoryId: category.id,
-                  replace: true,
-                );
-              });
-            }
-
             return Column(
               children: [
                 TournamentRegistrationHeader(
@@ -1492,7 +1481,10 @@ class _TournamentRegistrationPageState
           ),
         ],
         if (isCaptain) ...[
-          if (remainingSlots == 0 && sentInvites.isNotEmpty) ...[
+          // Só em EQUIPE o elenco lota: na dupla sempre cabe outro convite.
+          if (category.isTeamCategory &&
+              remainingSlots == 0 &&
+              sentInvites.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
             const RegistrationShellNote(
               'Todas as vagas estão reservadas por convites pendentes. Cancele '

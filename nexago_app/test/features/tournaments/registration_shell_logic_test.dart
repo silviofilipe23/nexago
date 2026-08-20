@@ -311,7 +311,10 @@ void main() {
   });
 
   group('registrationRemainingInviteSlots', () {
-    test('dupla tem uma vaga só, e o convite pendente já a ocupa', () {
+    // Convidar várias pessoas para a mesma vaga de dupla é caminho legítimo: o
+    // primeiro aceite fecha e o backend derruba os demais. Descontar o convite
+    // pendente escondia a busca e prendia o atleta a quem não respondia.
+    test('dupla mantém a vaga aberta mesmo com convites pendentes', () {
       expect(
         registrationRemainingInviteSlots(
           teamSize: null,
@@ -324,17 +327,9 @@ void main() {
         registrationRemainingInviteSlots(
           teamSize: null,
           rosterCount: 1,
-          pendingInviteCount: 1,
+          pendingInviteCount: 3,
         ),
-        0,
-      );
-      expect(
-        registrationRemainingInviteSlots(
-          teamSize: null,
-          rosterCount: 2,
-          pendingInviteCount: 0,
-        ),
-        0,
+        1,
       );
     });
 

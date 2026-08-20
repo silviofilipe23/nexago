@@ -152,6 +152,32 @@ void main() {
   });
 
   group('TournamentRegistrationSnapshot uniformFor', () {
+    // Shape REAL gravado pelo backend na dupla: campos ACHATADOS
+    // (`sizeTopPlayer1`, `jerseyNumberPlayer1`, …), nunca um mapa
+    // `uniformPlayer1` — ver `registrationUniformForSlot` em
+    // `functions/src/tournament-partner-invite.ts`. Confirmado no dev: a
+    // inscrição criada por `registerSoloTournament` + `setRegistrationUniform`
+    // sai com `sizeTopPlayer1: "G"` e nenhum campo `uniformPlayer1`.
+    test('lê o slot do titular dos campos achatados que o backend grava', () {
+      final snap = TournamentRegistrationSnapshot.fromDoc('reg-1', {
+        'player1Id': 'a',
+        'participantUids': ['a', 'b'],
+        'sizeTopPlayer1': 'G',
+        'jerseyNumberPlayer1': 7,
+        'sizeShortsPlayer1': 'M',
+        'jerseyNamePlayer1': 'Ana',
+        'sizeTopPlayer2': 'M',
+        'jerseyNumberPlayer2': 3,
+      });
+
+      expect(snap.uniformFor('a').sizeTop, 'G');
+      expect(snap.uniformFor('a').jerseyNumber, 7);
+      expect(snap.uniformFor('a').sizeShorts, 'M');
+      expect(snap.uniformFor('a').jerseyName, 'Ana');
+      expect(snap.uniformFor('b').sizeTop, 'M');
+      expect(snap.uniformFor('b').jerseyNumber, 3);
+    });
+
     test('lê o slot do titular do doc da inscrição', () {
       final snap = TournamentRegistrationSnapshot.fromDoc('reg-1', {
         'player1Id': 'a',

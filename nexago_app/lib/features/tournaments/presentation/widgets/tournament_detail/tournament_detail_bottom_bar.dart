@@ -12,12 +12,17 @@ class TournamentDetailBottomBar extends StatelessWidget {
     required this.priceLabel,
     required this.spotsSubtitle,
     required this.onPressed,
+    this.ctaLabel = 'Inscrever minha dupla',
   });
 
   final bool enabled;
   final String priceLabel;
   final String spotsSubtitle;
   final VoidCallback? onPressed;
+
+  /// Muda quando o atleta já tem inscrição: a barra continua sendo a porta de
+  /// entrada da tela de inscrição, mas o convite deixa de ser "inscrever".
+  final String ctaLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +65,7 @@ class TournamentDetailBottomBar extends StatelessWidget {
             ),
           ),
           child: Text(
-            'Inscrever minha dupla',
+            ctaLabel,
             style: AppTypography.soraRegular(
               fontSize: 14,
               fontWeight: FontWeight.w800,

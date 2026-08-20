@@ -34,6 +34,79 @@ void main() {
     });
   });
 
+  // Categoria de EQUIPE (trio+): o doc de `teams` só tem dois slots fixos
+  // (`player1Id`/`player2Id`); do terceiro integrante em diante o elenco mora em
+  // `memberUids` no time e em `participantUids` na inscrição. Parar nos dois
+  // slots deixava esse atleta invisível para o app inteiro — a tela de
+  // inscrição oferecia criar a equipe DE NOVO, o selo "já inscrito" sumia e a
+  // barra do torneio convidava a se inscrever numa vaga que já era dele.
+  group('athleteIsInscriptionMember — elenco de equipe', () {
+    final teamInscription = {
+      'categoryId': 'Quarteto Misto',
+      'teamId': 't1',
+      'participantUids': ['uid-a', 'uid-b', 'uid-c'],
+      'player1Id': 'uid-a',
+    };
+    final teamDoc = {
+      'player1Id': 'uid-a',
+      'player2Id': 'uid-b',
+      'memberUids': ['uid-a', 'uid-b', 'uid-c'],
+      'teamSize': 4,
+    };
+
+    test('capitão e segundo integrante entram pelos slots fixos', () {
+      expect(
+        athleteIsInscriptionMember(
+          uid: 'uid-a',
+          inscription: teamInscription,
+          team: teamDoc,
+        ),
+        isTrue,
+      );
+      expect(
+        athleteIsInscriptionMember(
+          uid: 'uid-b',
+          inscription: teamInscription,
+          team: teamDoc,
+        ),
+        isTrue,
+      );
+    });
+
+    test('terceiro integrante entra por memberUids/participantUids', () {
+      expect(
+        athleteIsInscriptionMember(
+          uid: 'uid-c',
+          inscription: teamInscription,
+          team: teamDoc,
+        ),
+        isTrue,
+      );
+    });
+
+    test('equipe sem memberUids ainda encontra pelo elenco da inscrição', () {
+      expect(
+        athleteIsInscriptionMember(
+          uid: 'uid-c',
+          inscription: teamInscription,
+          team: const {'player1Id': 'uid-a', 'player2Id': 'uid-b'},
+        ),
+        isTrue,
+      );
+    });
+
+    test('quem não está em lugar nenhum continua de fora', () {
+      expect(
+        athleteIsInscriptionMember(
+          uid: 'uid-z',
+          inscription: teamInscription,
+          team: teamDoc,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('userRegistrationsByCategoryData', () {
     final rows = <({
       String registrationId,
@@ -234,6 +307,35 @@ void main() {
 
     test('returns empty for unknown athlete', () {
       expect(userTeamIdsByCategoryData(rows, 'uid-zzz'), isEmpty);
+    });
+  });
+
+  group('userTeamIdsByCategoryData — elenco de equipe', () {
+    // Sem o teamId o atleta perde o destaque das próprias partidas no torneio.
+    test('terceiro integrante recebe o teamId da equipe', () {
+      final rows = <({
+        String registrationId,
+        Map<String, dynamic> inscription,
+        Map<String, dynamic>? team,
+      })>[
+        (
+          registrationId: 'reg-1',
+          inscription: {
+            'categoryId': 'Quarteto Misto',
+            'teamId': 't1',
+            'participantUids': ['uid-a', 'uid-b', 'uid-c'],
+          },
+          team: {
+            'player1Id': 'uid-a',
+            'player2Id': 'uid-b',
+            'memberUids': ['uid-a', 'uid-b', 'uid-c'],
+          },
+        ),
+      ];
+
+      expect(userTeamIdsByCategoryData(rows, 'uid-c'), {'Quarteto Misto': 't1'});
+      expect(userTeamIdsByCategoryData(rows, 'uid-a'), {'Quarteto Misto': 't1'});
+      expect(userTeamIdsByCategoryData(rows, 'uid-z'), isEmpty);
     });
   });
 

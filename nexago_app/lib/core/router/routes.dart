@@ -424,6 +424,10 @@ abstract final class AppRoutes {
   static const String tournamentRegistration =
       '/torneios/:tournamentId/inscricao';
 
+  /// Pagamento da inscrição: `/torneios/:tournamentId/inscricao/pagamento`
+  static const String tournamentRegistrationPayment =
+      '/torneios/:tournamentId/inscricao/pagamento';
+
   /// PIX da inscrição: `/torneios/:tournamentId/inscricao/pix`
   static const String tournamentRegistrationPix =
       '/torneios/:tournamentId/inscricao/pix';
@@ -656,6 +660,8 @@ abstract final class AppRouteNames {
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';
   static const String tournamentRegistration = 'tournamentRegistration';
+  static const String tournamentRegistrationPayment =
+      'tournamentRegistrationPayment';
   static const String tournamentRegistrationPix = 'tournamentRegistrationPix';
   static const String tournamentRegistrationSuccess =
       'tournamentRegistrationSuccess';

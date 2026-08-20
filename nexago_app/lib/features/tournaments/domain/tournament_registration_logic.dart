@@ -53,6 +53,12 @@ bool registrationCancellableByAthlete({
   double paidAmount = 0,
 }) => !isPaid && sharePaidUids.isEmpty && paidAmount <= 0;
 
+/// Passo da inscrição.
+///
+/// Sobrevive à virada para a tela única só para as rotas antigas
+/// (`?step=payment`, gravado em notificações e links já enviados) continuarem
+/// entrando: a tela não navega mais por passos, e só `payment` ainda tem
+/// efeito — redireciona para a tela de pagamento.
 enum TournamentRegistrationStep { category, uniform, partner, waiting, payment }
 
 class TournamentRegistrationPartnerCandidate {

@@ -74,6 +74,7 @@ class TournamentRegistrationSnapshot {
     this.captainUid,
     this.player1Id,
     this.participantUids = const [],
+    this.lgpdAcceptedUids = const [],
     this.uniformPlayer1,
     this.uniformPlayer2,
     this.uniformByUid = const {},
@@ -103,6 +104,13 @@ class TournamentRegistrationSnapshot {
   final String? captainUid;
   final String? player1Id;
   final List<String> participantUids;
+
+  /// Quem já aceitou o termo de imagem/LGPD nesta inscrição.
+  ///
+  /// Inscrição criada por versão antiga do app não tem o meu aceite — é o que
+  /// faz o checkbox reaparecer no cartão do parceiro, para o aceite sair junto
+  /// com o convite (mesma regra do `myLgpdConsentMissing` no portal).
+  final List<String> lgpdAcceptedUids;
   final TournamentUniformSelection? uniformPlayer1;
   final TournamentUniformSelection? uniformPlayer2;
   final Map<String, TournamentUniformSelection> uniformByUid;
@@ -150,6 +158,14 @@ class TournamentRegistrationSnapshot {
             .where((id) => id.isNotEmpty)
             .toList()
         : <String>[];
+    final rawLgpd = data['lgpdAcceptedUids'];
+    final lgpdUids = rawLgpd is List
+        ? rawLgpd
+              .whereType<String>()
+              .map((id) => id.trim())
+              .where((id) => id.isNotEmpty)
+              .toList()
+        : <String>[];
     final teamSizeRaw = data['teamSize'];
     final player1 = (data['player1Id'] as String?)?.trim();
     return TournamentRegistrationSnapshot(
@@ -166,8 +182,9 @@ class TournamentRegistrationSnapshot {
       captainUid: _trimmedOrNull(data['captainUid']),
       player1Id: (player1 != null && player1.isNotEmpty) ? player1 : null,
       participantUids: participants,
-      uniformPlayer1: uniformSelectionFromDoc(data['uniformPlayer1']),
-      uniformPlayer2: uniformSelectionFromDoc(data['uniformPlayer2']),
+      lgpdAcceptedUids: lgpdUids,
+      uniformPlayer1: uniformSelectionFromRegistrationDoc(data, 1),
+      uniformPlayer2: uniformSelectionFromRegistrationDoc(data, 2),
       uniformByUid: uniformByUidFromDoc(data['uniformByUid']),
       declaredPaidAt: (data['declaredPaidAt'] as Timestamp?)?.toDate(),
       paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] == true,
@@ -177,6 +194,13 @@ class TournamentRegistrationSnapshot {
   static String? _trimmedOrNull(Object? raw) {
     final value = raw is String ? raw.trim() : '';
     return value.isEmpty ? null : value;
+  }
+
+  /// O termo LGPD ainda não foi aceito por este atleta nesta inscrição.
+  bool lgpdConsentMissingFor(String? athleteUid) {
+    final uid = athleteUid?.trim() ?? '';
+    if (uid.isEmpty) return false;
+    return !lgpdAcceptedUids.contains(uid);
   }
 
   bool athleteSharePaid(String athleteUid) {

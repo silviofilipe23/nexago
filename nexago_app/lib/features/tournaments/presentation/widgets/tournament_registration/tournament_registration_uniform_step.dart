@@ -20,6 +20,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
     this.leagueBadge,
     this.saveState,
     this.onRetrySave,
+    this.compact = false,
   });
 
   final TournamentDetail tournament;
@@ -34,6 +35,11 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
   final UniformSaveState? saveState;
   final VoidCallback? onRetrySave;
 
+  /// Dentro do cartão "Uniforme" da tela única: o título e o selo de gravação
+  /// já vivem no cabeçalho do cartão, então o herói do passo sai e sobra só o
+  /// formulário. Mesma forma do `rg-card` de uniforme no portal.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -45,7 +51,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (saveState != null) ...[
+        if (saveState != null && !compact) ...[
           _UniformSaveBadge(state: saveState!, onRetry: onRetrySave),
           const SizedBox(height: 12),
         ],
@@ -55,43 +61,45 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
         //   categoryBadge: categoryBadgeLabel(category),
         // ),
         // SizedBox(height: 20),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                'Vamos te vestir.',
-                style: AppTypography.soraRegular(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
-                  height: 1.05,
+        if (!compact)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Vamos te vestir.',
+                  style: AppTypography.soraRegular(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                    height: 1.05,
+                  ),
                 ),
               ),
-            ),
-            SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.brand.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.brand.withValues(alpha: 0.35),
+              SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.brand.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Text(
+                  'INCLUSO',
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.brand,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
-              child: Text(
-                'INCLUSO',
-                style: AppTypography.mono(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.brand,
-                  letterSpacing: 0.6,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 10),
+            ],
+          ),
+        if (!compact) SizedBox(height: 10),
         Text(
           'Camisa oficial do torneio. Você troca tamanho/número até '
           '${kUniformChangeDeadlineDays} dias antes.',
@@ -107,7 +115,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
         //   jerseyNumber: category.uniformNumberOnShirt ? number : null,
         //   sizeTop: sizeTop,
         // ),
-        SizedBox(height: 24),
+        SizedBox(height: compact ? 18 : 24),
         Row(
           children: [
             Text(

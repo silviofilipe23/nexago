@@ -36,6 +36,13 @@ class TournamentUniformSelection {
     );
   }
 
+  /// Nada escolhido — equivale a "sem uniforme gravado" na hidratação.
+  bool get isEmpty =>
+      (sizeTop?.trim().isEmpty ?? true) &&
+      (sizeShorts?.trim().isEmpty ?? true) &&
+      jerseyNumber == null &&
+      (jerseyName?.trim().isEmpty ?? true);
+
   Map<String, dynamic> toCallableMap() {
     final map = <String, dynamic>{};
     final top = sizeTop?.trim();
@@ -202,6 +209,35 @@ TournamentUniformSelection? uniformSelectionFromDoc(dynamic raw) {
     jerseyNumber: number is num ? number.toInt() : null,
     jerseyName: (raw['jerseyName'] as String?)?.trim(),
   );
+}
+
+/// Slot de uniforme da DUPLA, lido dos campos achatados do doc
+/// (`sizeTopPlayer1`, `jerseyNumberPlayer1`, …).
+///
+/// É esse o shape que o backend grava: `registrationUniformForSlot` em
+/// `functions/src/tournament-partner-invite.ts` espalha os campos com o sufixo
+/// do slot, e nunca cria um mapa `uniformPlayer1`. Ler o mapa devolvia sempre
+/// `null` na dupla — o cartão de uniforme abria nos padrões (M/10) mesmo para
+/// quem já tinha escolhido outro tamanho, e a gravação automática apagava a
+/// escolha real na primeira mexida. O portal web sempre leu daqui
+/// (`uniformSlotFromDoc`); a divergência era só do app.
+///
+/// O mapa continua aceito como segundo caminho: nenhum doc em produção usa,
+/// mas descartá-lo perderia dado de qualquer escrita futura nesse formato.
+TournamentUniformSelection? uniformSelectionFromRegistrationDoc(
+  Map<String, dynamic> data,
+  int slot,
+) {
+  final suffix = slot == 1 ? 'Player1' : 'Player2';
+  final number = data['jerseyNumber$suffix'];
+  final flat = TournamentUniformSelection(
+    sizeTop: (data['sizeTop$suffix'] as String?)?.trim(),
+    sizeShorts: (data['sizeShorts$suffix'] as String?)?.trim(),
+    jerseyNumber: number is num ? number.toInt() : null,
+    jerseyName: (data['jerseyName$suffix'] as String?)?.trim(),
+  );
+  if (!flat.isEmpty) return flat;
+  return uniformSelectionFromDoc(data['uniform$suffix']);
 }
 
 Map<String, TournamentUniformSelection> uniformByUidFromDoc(dynamic raw) {

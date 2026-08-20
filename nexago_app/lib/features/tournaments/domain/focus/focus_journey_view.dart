@@ -485,3 +485,52 @@ List<PossibleOpponent> possibleOpponentsOf(
       ),
   ];
 }
+
+/// Uma linha do "Cruzamento no mata-mata": o confronto que a chave JÁ declara
+/// por descrição ("1º do Grupo A" x "2º do Grupo B"), antes de ter dupla.
+class CrossingRow {
+  const CrossingRow({
+    required this.id,
+    required this.label,
+    required this.a,
+    required this.b,
+  });
+
+  final String id;
+  final String label;
+  final String a;
+  final String b;
+}
+
+/// Os primeiros confrontos que a chave declara por DESCRIÇÃO — os dois lados
+/// precisam ter `teamDescription`, que é o que o gerador escreve enquanto os
+/// grupos não terminam. Sem descrição não há cruzamento a mostrar: seria só um
+/// slot vazio.
+List<CrossingRow> crossingRowsOf(
+  List<TournamentMatch> matches,
+  String? categoryId, {
+  int limit = 4,
+}) {
+  if (categoryId == null) return const [];
+  final rows = matches
+      .where((m) =>
+          m.categoryId == categoryId && m.poolId.isEmpty && !m.isGroupMatch)
+      .where((m) =>
+          (m.teamADescription?.trim().isNotEmpty ?? false) &&
+          (m.teamBDescription?.trim().isNotEmpty ?? false))
+      .toList()
+    ..sort((a, b) {
+      final byRound = a.round.compareTo(b.round);
+      return byRound != 0 ? byRound : a.matchNumber.compareTo(b.matchNumber);
+    });
+
+  return [
+    for (final m in rows.take(limit))
+      CrossingRow(
+        id: m.id,
+        label: matchPhaseDisplayLabel(m, categoryMatches: matches),
+        a: m.teamADescription!.trim(),
+        b: m.teamBDescription!.trim(),
+      ),
+  ];
+}

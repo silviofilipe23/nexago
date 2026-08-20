@@ -21,6 +21,9 @@
       "@nexago/levels": ["shared/levels/index.ts"],
       "@nexago/link-pages": ["shared/link-pages/index.ts"],
       "@nexago/live-scoring": ["shared/live-scoring/index.ts"],
+      "@nexago/search-keywords": [
+        "shared/search-keywords/index.ts"
+      ],
       "@nexago/push-notifications": ["shared/push-notifications/index.ts"]
     }
   },

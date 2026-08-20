@@ -1,4 +1,12 @@
-/** Prefixos de palavras para busca Firestore (`keywords` + `array-contains`). */
+/**
+ * Fonte única das `keywords` de busca no frontend — porte fiel de
+ * `functions/src/search-keywords.ts` (canônico) e gêmeo de
+ * `nexago_app/lib/core/search/search_keywords.dart`.
+ *
+ * Os três precisam gerar o MESMO conjunto: quem grava o doc pode ser a CF, o
+ * app ou o painel, e quem consulta é qualquer uma das superfícies. Se
+ * divergirem, some atleta da busca.
+ */
 
 export const DEFAULT_MIN_PREFIX = 2;
 export const DEFAULT_MAX_KEYWORDS = 400;
@@ -6,26 +14,6 @@ export const DEFAULT_MAX_KEYWORDS = 400;
 export type GenerateKeywordsOptions = {
   minPrefix?: number;
   maxKeywords?: number;
-};
-
-export type UserSearchFields = {
-  keywords: string[];
-  hasAthleteRole: boolean;
-  hasOrganizerRole: boolean;
-};
-
-export type TournamentSearchFields = {
-  keywords: string[];
-};
-
-export type LeagueSearchFields = {
-  keywords: string[];
-};
-
-export type TeamSearchFields = {
-  keywords: string[];
-  player1DisplayName?: string;
-  player2DisplayName?: string;
 };
 
 function stripDiacritics(value: string): string {
@@ -54,6 +42,13 @@ export function normalizeAccentedTerm(raw: string): string {
     .normalize("NFC")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+/** Remove `@` inicial de apelidos antes de tokenizar. */
+export function normalizeNicknameForSearch(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith("@") ? trimmed.slice(1).trim() : trimmed;
 }
 
 function normalizeToken(raw: string): string {
@@ -299,179 +294,4 @@ export function searchRelevanceScore(
   if (nickname.startsWith(joined) || fullName.startsWith(joined)) return 2;
   if (words.some((word) => word.startsWith(tokens[0] ?? ""))) return 3;
   return 4;
-}
-
-function userDocHasRole(data: Record<string, unknown>, role: string): boolean {
-  const roles = data.roles;
-  return Array.isArray(roles) &&
-    roles.some((r) => typeof r === "string" && r.trim().toLowerCase() === role);
-}
-
-function readString(data: Record<string, unknown>, key: string): string {
-  const v = data[key];
-  return typeof v === "string" ? v.trim() : "";
-}
-
-/** Remove `@` inicial de apelidos antes de tokenizar. */
-export function normalizeNicknameForSearch(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  return trimmed.startsWith("@") ? trimmed.slice(1).trim() : trimmed;
-}
-
-export function buildUserSearchFields(
-  data: Record<string, unknown>
-): UserSearchFields {
-  const fullName = readString(data, "fullName") || readString(data, "name");
-  const nickname = normalizeNicknameForSearch(readString(data, "nickname"));
-  const email = readString(data, "email");
-
-  return {
-    keywords: generateKeywords([fullName, nickname, email]),
-    hasAthleteRole: userDocHasRole(data, "athlete"),
-    hasOrganizerRole: userDocHasRole(data, "organizer"),
-  };
-}
-
-export function buildTournamentSearchFields(
-  data: Record<string, unknown>
-): TournamentSearchFields {
-  const name = readString(data, "name");
-  const city = readString(data, "city");
-  const location = readString(data, "location");
-  const seasonLabel = readString(data, "seasonLabel");
-
-  return {
-    keywords: generateKeywords([name, city, location, seasonLabel]),
-  };
-}
-
-export function buildLeagueSearchFields(
-  data: Record<string, unknown>
-): LeagueSearchFields {
-  const name = readString(data, "name");
-  const city = readString(data, "city");
-  const seasonLabel =
-    readString(data, "seasonLabel") || readString(data, "season");
-  const sources = [name, city, seasonLabel];
-
-  const stages = data.stages;
-  if (Array.isArray(stages)) {
-    for (const stage of stages) {
-      if (!stage || typeof stage !== "object") continue;
-      const stageName = readString(stage as Record<string, unknown>, "name");
-      if (stageName) sources.push(stageName);
-    }
-  }
-
-  return {
-    keywords: generateKeywords(sources),
-  };
-}
-
-export function buildTeamSearchFields(
-  data: Record<string, unknown>,
-  playerNames: string[] = []
-): TeamSearchFields {
-  const teamName = readString(data, "teamName");
-  const p1 = readString(data, "player1DisplayName");
-  const p2 = readString(data, "player2DisplayName");
-  const sources = [teamName, p1, p2, ...playerNames].filter((s) => s.length > 0);
-
-  const fields: TeamSearchFields = {
-    keywords: generateKeywords(sources),
-  };
-
-  const resolvedP1 = p1 || playerNames[0] || "";
-  const resolvedP2 = p2 || playerNames[1] || "";
-  if (resolvedP1) fields.player1DisplayName = resolvedP1;
-  if (resolvedP2) fields.player2DisplayName = resolvedP2;
-
-  return fields;
-}
-
-export function searchFieldsChanged(
-  current: Record<string, unknown> | undefined,
-  next: Record<string, unknown>
-): boolean {
-  if (!current) return true;
-
-  for (const [key, value] of Object.entries(next)) {
-    const prev = current[key];
-    if (Array.isArray(value) && Array.isArray(prev)) {
-      if (value.length !== prev.length) return true;
-      const a = [...value].map(String).sort();
-      const b = [...prev].map(String).sort();
-      for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i]) return true;
-      }
-      continue;
-    }
-    if (prev !== value) return true;
-  }
-  return false;
-}
-
-export function userSearchSourceFieldsChanged(
-  before: Record<string, unknown> | undefined,
-  after: Record<string, unknown> | undefined
-): boolean {
-  if (!after) return false;
-  if (!before) return true;
-
-  const keys = ["fullName", "name", "nickname", "email", "roles"];
-  for (const key of keys) {
-    const b = before[key];
-    const a = after[key];
-    if (JSON.stringify(b) !== JSON.stringify(a)) return true;
-  }
-  return false;
-}
-
-export function tournamentSearchSourceFieldsChanged(
-  before: Record<string, unknown> | undefined,
-  after: Record<string, unknown> | undefined
-): boolean {
-  if (!after) return false;
-  if (!before) return true;
-
-  const keys = ["name", "city", "location", "seasonLabel"];
-  for (const key of keys) {
-    if (before[key] !== after[key]) return true;
-  }
-  return false;
-}
-
-export function leagueSearchSourceFieldsChanged(
-  before: Record<string, unknown> | undefined,
-  after: Record<string, unknown> | undefined
-): boolean {
-  if (!after) return false;
-  if (!before) return true;
-
-  const keys = ["name", "city", "seasonLabel", "season", "stages"];
-  for (const key of keys) {
-    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) return true;
-  }
-  return false;
-}
-
-export function teamSearchSourceFieldsChanged(
-  before: Record<string, unknown> | undefined,
-  after: Record<string, unknown> | undefined
-): boolean {
-  if (!after) return false;
-  if (!before) return true;
-
-  const keys = [
-    "teamName",
-    "player1Id",
-    "player2Id",
-    "player1DisplayName",
-    "player2DisplayName",
-  ];
-  for (const key of keys) {
-    if (before[key] !== after[key]) return true;
-  }
-  return false;
 }

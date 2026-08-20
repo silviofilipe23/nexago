@@ -1,4 +1,12 @@
 import { collection, getDocs, limit, query, where } from 'firebase/firestore';
+import {
+  normalizeSearchTerm,
+  profileMatchesSearchTokens,
+  searchAnchorToken,
+  searchQueryTokens,
+  searchRelevanceScore,
+  type SearchableProfile,
+} from '@nexago/search-keywords';
 import { organizerFirestore } from './firestore';
 
 /** Busca de atleta cadastrado por prefixo de nome/apelido em `public_profiles`
@@ -47,30 +55,72 @@ function athleteFromDoc(id: string, data: Record<string, unknown>): AthleteSearc
 /** As `keywords` são gravadas sem acento e sem separador (`onUserSearchKeywordsSync`), então o
  *  termo digitado precisa passar pela mesma normalização — senão "gonçalves" nunca casa. */
 export function normalizeAthleteSearchTerm(term: string): string {
-  return term
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+  return normalizeSearchTerm(term);
+}
+
+/** O `array-contains` do Firestore aceita UM valor: a consulta ancora no token mais seletivo
+ *  ("de oliveira" vira `oliveira`) e traz uma página folgada. O `AND` dos demais tokens e a
+ *  ordem por relevância saem no client, do próprio doc — sem leitura extra. */
+const ATHLETE_SEARCH_FETCH_LIMIT = 60;
+
+interface AthleteSearchCandidate {
+  data: Record<string, unknown>;
+  athlete: AthleteSearchResult;
 }
 
 export async function searchAthletes(
   term: string,
   excludeUids: readonly string[] = [],
 ): Promise<AthleteSearchResult[]> {
-  const normalized = normalizeAthleteSearchTerm(term);
-  if (normalized.length < ATHLETE_SEARCH_MIN_TERM) return [];
+  const tokens = searchQueryTokens(term);
+  const anchor = searchAnchorToken(tokens);
+  if (anchor.length < ATHLETE_SEARCH_MIN_TERM) return [];
+
   const db = organizerFirestore();
   const snap = await getDocs(
     query(
       collection(db, 'public_profiles'),
       where('hasAthleteRole', '==', true),
-      where('keywords', 'array-contains', normalized),
-      limit(ATHLETE_SEARCH_LIMIT),
+      where('keywords', 'array-contains', anchor),
+      limit(ATHLETE_SEARCH_FETCH_LIMIT),
     ),
   );
+
   const excluded = new Set(excludeUids);
-  return snap.docs
-    .map((d) => athleteFromDoc(d.id, d.data() as Record<string, unknown>))
-    .filter((a) => !excluded.has(a.uid));
+  const candidates = snap.docs
+    .map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      return { data, athlete: athleteFromDoc(d.id, data) };
+    })
+    .filter((c) => !excluded.has(c.athlete.uid));
+
+  return rankAthleteSearch(candidates, tokens).slice(0, ATHLETE_SEARCH_LIMIT);
+}
+
+function searchableOf(candidate: AthleteSearchCandidate): SearchableProfile {
+  const keywords = candidate.data['keywords'];
+  return {
+    fullName: candidate.athlete.displayName,
+    nickname: candidate.athlete.nickname,
+    keywords: Array.isArray(keywords) ? (keywords as string[]) : [],
+  };
+}
+
+/** Exportado para teste: o `AND` dos tokens e a ordem por relevância, já sem Firestore. */
+export function rankAthleteSearch(
+  candidates: readonly AthleteSearchCandidate[],
+  tokens: readonly string[],
+): AthleteSearchResult[] {
+  const strict = candidates.filter((c) => profileMatchesSearchTokens(searchableOf(c), tokens));
+  // Sem casamento completo, mostra quem casou com a âncora: quem digitou "joao souza" e não tem
+  // João Souza na base vê os Souza em vez de uma tela vazia.
+  const chosen = strict.length > 0 ? [...strict] : [...candidates];
+
+  return chosen
+    .sort((a, b) => {
+      const byScore = searchRelevanceScore(searchableOf(a), tokens) - searchRelevanceScore(searchableOf(b), tokens);
+      if (byScore !== 0) return byScore;
+      return athleteDisplayName(a.athlete).localeCompare(athleteDisplayName(b.athlete), 'pt-BR');
+    })
+    .map((c) => c.athlete);
 }

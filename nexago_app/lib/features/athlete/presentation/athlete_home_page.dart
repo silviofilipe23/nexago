@@ -17,7 +17,6 @@ import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
 import '../../tournaments/domain/registration_progress_logic.dart';
 import '../../tournaments/domain/tournament_partner_invite_providers.dart';
-import '../../tournaments/domain/tournament_registration_logic.dart';
 import '../../tournaments/domain/tournament_registration_navigation.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
@@ -264,11 +263,7 @@ class _HomeRegistrationTrackerSectionState
     context.pushNamed(
       AppRouteNames.tournamentRegistration,
       pathParameters: {'tournamentId': item.tournamentId},
-      queryParameters: tournamentRegistrationQueryParams(
-        categoryId: item.categoryId,
-        registrationId: item.paymentPending ? item.registrationId : null,
-        step: item.paymentPending ? TournamentRegistrationStep.payment : null,
-      ),
+      queryParameters: registrationProgressResumeParams(item),
     );
   }
 

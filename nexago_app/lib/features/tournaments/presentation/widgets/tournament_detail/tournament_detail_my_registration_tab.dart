@@ -15,7 +15,6 @@ import '../../../data/my_tournament_registrations_repository.dart';
 import '../../../data/tournament_partner_invite_service.dart';
 import '../../../domain/registration_progress_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
-import '../../../domain/tournament_registration_logic.dart';
 import '../../../domain/tournament_registration_navigation.dart';
 
 /// Aba "Minha inscrição" (paridade com o portal): trilha de passos das
@@ -41,11 +40,7 @@ class _TournamentDetailMyRegistrationTabState
     context.pushNamed(
       AppRouteNames.tournamentRegistration,
       pathParameters: {'tournamentId': item.tournamentId},
-      queryParameters: tournamentRegistrationQueryParams(
-        categoryId: item.categoryId,
-        registrationId: item.paymentPending ? item.registrationId : null,
-        step: item.paymentPending ? TournamentRegistrationStep.payment : null,
-      ),
+      queryParameters: registrationProgressResumeParams(item),
     );
   }
 

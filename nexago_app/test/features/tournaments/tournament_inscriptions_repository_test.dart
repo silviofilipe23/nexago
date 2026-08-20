@@ -83,6 +83,29 @@ void main() {
         userRegistrationsByCategoryData(rowsWithPaid, 'uid-a')['Feminino C'],
         const UserCategoryRegistration(registrationId: 'reg-3', isPaid: true),
       );
+      // Paga e com dupla fechada: nada pendente.
+      expect(
+        userRegistrationsByCategoryData(rowsWithPaid, 'uid-a')['Feminino C']
+            ?.isIncomplete,
+        isFalse,
+      );
+      // Paga mas ainda sem parceiro (solo pagou o total) segue incompleta.
+      expect(
+        userRegistrationsByCategoryData([
+          (
+            registrationId: 'reg-5',
+            inscription: {
+              'categoryId': 'Open',
+              'player1Id': 'uid-a',
+              'participantUids': ['uid-a'],
+              'isPaid': true,
+              'partnerPending': true,
+            },
+            team: null,
+          ),
+        ], 'uid-a')['Open']?.isIncomplete,
+        isTrue,
+      );
       expect(
         userRegistrationsByCategoryData(rowsWithPaid, 'uid-a')['Open']?.isPaid,
         isFalse,
@@ -109,8 +132,16 @@ void main() {
           'Masculino C': const UserCategoryRegistration(
             registrationId: 'solo-1',
             isPaid: false,
+            partnerPending: true,
           ),
         },
+      );
+      // Reserva solo é inscrição INCOMPLETA: a tela precisa saber disso para
+      // levar de volta ao convite em vez de mostrar "já inscrito" e parar.
+      expect(
+        userRegistrationsByCategoryData(soloRows, 'uid-a')['Masculino C']
+            ?.isIncomplete,
+        isTrue,
       );
       expect(
         registeredCategoryIdsForUserData(

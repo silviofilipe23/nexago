@@ -8,6 +8,7 @@ void main() {
       expect(focusSectionFromSlug('trajetoria'), FocusSection.trajetoria);
       expect(focusSectionFromSlug('grupo'), FocusSection.grupo);
       expect(focusSectionFromSlug('chave'), FocusSection.chave);
+      expect(focusSectionFromSlug('arena'), FocusSection.arena);
     });
 
     test('slug desconhecido, vazio ou nulo cai em Agora', () {
@@ -26,7 +27,12 @@ void main() {
     test('a terceira aba é Grupo em categoria com fase de grupos', () {
       expect(
         visibleFocusSections(isDoubleElimination: false),
-        [FocusSection.agora, FocusSection.trajetoria, FocusSection.grupo],
+        [
+          FocusSection.agora,
+          FocusSection.trajetoria,
+          FocusSection.grupo,
+          FocusSection.arena,
+        ],
       );
     });
 
@@ -34,8 +40,24 @@ void main() {
       // Não há fase de grupos para mostrar; a mesma posição vira a chave.
       expect(
         visibleFocusSections(isDoubleElimination: true),
-        [FocusSection.agora, FocusSection.trajetoria, FocusSection.chave],
+        [
+          FocusSection.agora,
+          FocusSection.trajetoria,
+          FocusSection.chave,
+          FocusSection.arena,
+        ],
       );
+    });
+
+    test('Arena é sempre a última, nos dois formatos', () {
+      // É a única seção que não depende da categoria em foco: vale para quem
+      // ainda não tem partida nenhuma.
+      for (final isDouble in [true, false]) {
+        expect(
+          visibleFocusSections(isDoubleElimination: isDouble).last,
+          FocusSection.arena,
+        );
+      }
     });
   });
 }

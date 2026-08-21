@@ -23,6 +23,7 @@ import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_matches_logic.dart';
 import 'focus_section.dart';
 import 'sections/focus_agora_section.dart';
+import 'sections/focus_arena_section.dart';
 import 'sections/focus_chave_section.dart';
 import 'sections/focus_grupo_section.dart';
 import 'sections/focus_trajetoria_section.dart';
@@ -224,6 +225,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         FocusSection.trajetoria => Icons.emoji_events_outlined,
         FocusSection.grupo => Icons.table_rows_outlined,
         FocusSection.chave => Icons.account_tree_outlined,
+        FocusSection.arena => Icons.place_outlined,
       };
 
   IconData _selectedIconOf(FocusSection section) => switch (section) {
@@ -231,6 +233,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         FocusSection.trajetoria => Icons.emoji_events_rounded,
         FocusSection.grupo => Icons.table_rows_rounded,
         FocusSection.chave => Icons.account_tree_rounded,
+        FocusSection.arena => Icons.place_rounded,
       };
 
   String _sfSymbolOf(FocusSection section) => switch (section) {
@@ -238,6 +241,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         FocusSection.trajetoria => 'trophy',
         FocusSection.grupo => 'tablecells',
         FocusSection.chave => 'arrow.triangle.branch',
+        FocusSection.arena => 'mappin.and.ellipse',
       };
 
   String _selectedSfSymbolOf(FocusSection section) => switch (section) {
@@ -247,6 +251,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
         // Sem variante preenchida no SF; repete a de contorno em vez de cair
         // no `iconData`, que é o caminho que quebra a escala.
         FocusSection.chave => 'arrow.triangle.branch',
+        FocusSection.arena => 'mappin.and.ellipse',
       };
 
   Widget _sectionBody(
@@ -279,6 +284,12 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
               tournament: tournament,
               categoryId: categoryId,
             ),
+      // Sem guarda de categoria: a Arena olha o torneio inteiro, e é o que
+      // sobra para quem foi eliminado ou ainda não entrou em quadra.
+      FocusSection.arena => FocusArenaSection(
+          tournament: tournament,
+          athleteTeamIds: athleteTeamIds,
+        ),
     };
   }
 }

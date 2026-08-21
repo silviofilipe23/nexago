@@ -11,6 +11,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/focus_shell_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_agora_section.dart';
+import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_arena_section.dart';
 
 TournamentDetail _tournament() {
   final today = DateTime.now();
@@ -121,7 +122,7 @@ void main() {
     await initializeDateFormatting('pt_BR', null);
   });
 
-  testWidgets('nav inferior traz as três seções e o cabeçalho tem o ×',
+  testWidgets('nav inferior traz as quatro seções e o cabeçalho tem o ×',
       (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
@@ -132,8 +133,24 @@ void main() {
     // Sem formato de dupla eliminação resolvido, a terceira aba é o Grupo.
     expect(find.text('GRUPO'), findsOneWidget);
     expect(find.text('CHAVE'), findsNothing);
+    expect(find.text('ARENA'), findsOneWidget);
     expect(find.byIcon(Icons.close_rounded), findsOneWidget);
     expect(find.text('FOCUS'), findsOneWidget);
+  });
+
+  // A Arena é a única seção que não se recorta por categoria: tem que abrir
+  // mesmo quando o atleta não tem partida nenhuma neste torneio — que é
+  // exatamente o cenário deste `_app()`.
+  testWidgets('a aba Arena abre sem categoria em foco', (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ARENA'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FocusArenaSection), findsOneWidget);
+    expect(find.text('AO VIVO NA ARENA'), findsOneWidget);
+    expect(find.textContaining('o grupo e a chave dela'), findsNothing);
   });
 
   testWidgets('trocar de seção mantém a casca e a nav', (tester) async {

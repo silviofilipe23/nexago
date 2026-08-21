@@ -7,7 +7,8 @@ enum FocusSection {
   agora('Agora', 'agora'),
   trajetoria('Trajetória', 'trajetoria'),
   grupo('Grupo', 'grupo'),
-  chave('Chave', 'chave');
+  chave('Chave', 'chave'),
+  arena('Arena', 'arena');
 
   const FocusSection(this.label, this.slug);
 
@@ -15,14 +16,19 @@ enum FocusSection {
   final String slug;
 }
 
-/// As três abas visíveis, na ordem da nav. A terceira é [FocusSection.chave]
+/// As quatro abas visíveis, na ordem da nav. A terceira é [FocusSection.chave]
 /// quando a categoria é dupla eliminação (não há fase de grupos para mostrar) e
 /// [FocusSection.grupo] caso contrário.
+///
+/// [FocusSection.arena] fecha a barra e não varia: é a única seção que olha o
+/// torneio INTEIRO, sem depender da categoria em foco, então serve inclusive a
+/// quem ainda não tem partida nenhuma.
 List<FocusSection> visibleFocusSections({required bool isDoubleElimination}) {
   return [
     FocusSection.agora,
     FocusSection.trajetoria,
     isDoubleElimination ? FocusSection.chave : FocusSection.grupo,
+    FocusSection.arena,
   ];
 }
 

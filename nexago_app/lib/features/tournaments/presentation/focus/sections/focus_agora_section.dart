@@ -23,12 +23,12 @@ import '../../../domain/tournament_match_card_view_model.dart';
 import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
-import '../../widgets/tournament_match_card.dart';
 import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../widgets/focus_lives_card.dart';
+import '../widgets/focus_match_card.dart';
 import '../widgets/focus_now_hero.dart';
 import '../widgets/focus_share_match_sheet.dart';
 import '../widgets/focus_timeline.dart';
@@ -270,9 +270,11 @@ class FocusAgoraSection extends ConsumerWidget {
                   AppSpacing.screenH,
                   AppSpacing.lg,
                 ),
-                child: TournamentMatchCard(
+                child: FocusMatchCard(
                   viewModel: byId[m.id]!,
                   athleteTeamIds: athleteTeamIds,
+                  // Sem categoria: a lista já está recortada pela categoria em
+                  // foco, e repeti-la em todo card só roubaria espaço do grupo.
                   onTap: () => _openMatch(context, m.id),
                 ),
               ),

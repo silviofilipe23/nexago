@@ -197,46 +197,4 @@ void main() {
       );
     });
   });
-
-  group('focusArenaContextLabel', () {
-    test('partida de grupo: categoria e grupo', () {
-      final label = focusArenaContextLabel(
-        match: _match(
-          id: 'm1',
-          matchType: 'group',
-          poolId: 'B',
-          isGroupMatch: true,
-        ),
-        categoryName: 'Misto B',
-      );
-
-      expect(label, 'Misto B · Grupo B');
-    });
-
-    test('partida de mata-mata: categoria e fase', () {
-      final label = focusArenaContextLabel(
-        match: _match(id: 'm1', matchType: 'knockout', round: 1),
-        categoryName: 'Masculino A',
-      );
-
-      expect(label, startsWith('Masculino A · '));
-      expect(label, isNot(endsWith('· ')));
-    });
-
-    test('sem nome de categoria, sobra só a fase', () {
-      // A categoria pode não estar nas ofertas (torneio legado); melhor a fase
-      // sozinha do que um separador solto na frente.
-      final label = focusArenaContextLabel(
-        match: _match(
-          id: 'm1',
-          matchType: 'group',
-          poolId: 'A',
-          isGroupMatch: true,
-        ),
-        categoryName: '',
-      );
-
-      expect(label, 'Grupo A');
-    });
-  });
 }

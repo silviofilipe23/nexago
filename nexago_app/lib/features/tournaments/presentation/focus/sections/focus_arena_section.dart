@@ -11,11 +11,10 @@ import '../../../domain/focus/focus_arena_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_detail_tabs_logic.dart';
 import '../../../domain/tournament_discovery_providers.dart';
-import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
-import '../../widgets/tournament_match_card.dart';
 import '../focus_bottom_clearance.dart';
 import '../focus_section_header.dart';
+import '../widgets/focus_match_card.dart';
 
 /// Seção "Arena": o que está acontecendo no torneio INTEIRO, não só na
 /// categoria do atleta.
@@ -170,22 +169,17 @@ class _FocusArenaSectionState extends ConsumerState<FocusArenaSection> {
                     AppSpacing.screenH,
                     AppSpacing.lg,
                   ),
-                  child: TournamentMatchCard(
+                  child: FocusMatchCard(
                     viewModel: byId[match.id]!,
                     athleteTeamIds: widget.athleteTeamIds,
-                    contextLabel: _contextLabelOf(match),
+                    // A lista é do torneio inteiro: a categoria é o que
+                    // distingue um "#14" do outro.
+                    categoryName: _categoryNameOf(match.categoryId),
                     onTap: () => _openMatch(match.id),
                   ),
                 ),
         ],
       ],
-    );
-  }
-
-  String _contextLabelOf(TournamentMatch match) {
-    return focusArenaContextLabel(
-      match: match,
-      categoryName: _categoryNameOf(match.categoryId),
     );
   }
 }

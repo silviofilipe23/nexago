@@ -137,27 +137,39 @@ class FocusBracketSideCards extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _SideCard(
-              title: 'VENCEDORES',
-              body: winnersLabel,
-              active: inWinners,
-              accent: AppColors.brand,
+      // `IntrinsicHeight` é o que torna o `stretch` abaixo legal. Os dois cards
+      // precisam terminar na MESMA linha de base — "Você está aqui · QF" e
+      // "Eliminado desta chave" têm alturas diferentes, e sem isso um card
+      // ficaria mais curto que o vizinho.
+      //
+      // Só que `stretch` manda a altura do Row como restrição APERTADA para os
+      // filhos, e o Row aqui mora num `ListView` (seção Agora), que dá altura
+      // ILIMITADA. Sem medir antes, a restrição saía infinita e o layout
+      // estourava — a seção Agora quebrava em toda categoria de dupla
+      // eliminação.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _SideCard(
+                title: 'VENCEDORES',
+                body: winnersLabel,
+                active: inWinners,
+                accent: AppColors.brand,
+              ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: _SideCard(
-              title: 'REPESCAGEM',
-              body: losersLabel,
-              active: inLosers,
-              accent: AppColors.pending,
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _SideCard(
+                title: 'REPESCAGEM',
+                body: losersLabel,
+                active: inLosers,
+                accent: AppColors.pending,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

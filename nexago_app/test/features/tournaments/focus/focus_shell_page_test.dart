@@ -7,6 +7,8 @@ import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.d
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
 import 'package:nexago_app/core/layout/nexa_bottom_nav_bar.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/focus_shell_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_agora_section.dart';
 
@@ -46,6 +48,71 @@ Widget _app() {
     child: const MaterialApp(
       home: FocusShellPage(tournamentId: 't1'),
     ),
+  );
+}
+
+/// Torneio com UMA categoria de dupla eliminação.
+TournamentDetail _doubleEliminationTournament() {
+  final base = _tournament();
+  return TournamentDetail(
+    id: base.id,
+    name: base.name,
+    location: base.location,
+    city: base.city,
+    dateLabel: base.dateLabel,
+    startDate: base.startDate,
+    endDate: base.endDate,
+    categories: base.categories,
+    format: base.format,
+    priceLabel: base.priceLabel,
+    priceValue: base.priceValue,
+    spotsLeft: base.spotsLeft,
+    spotsTotal: base.spotsTotal,
+    status: base.status,
+    featured: base.featured,
+    enrolledCount: base.enrolledCount,
+    liveMatchesNow: base.liveMatchesNow,
+    categoryOffers: const [
+      TournamentCategoryOffer(
+        id: 'cat-a',
+        name: 'Masculina A',
+        entryFee: 90,
+        bracketFormat: 'Double Elimination',
+      ),
+    ],
+  );
+}
+
+TournamentMatchCardViewModel _completedCard() {
+  const team = TournamentMatchCardTeamViewModel(
+    displayName: 'Dupla',
+    players: [
+      TournamentMatchCardPlayerViewModel(
+        initials: 'DP',
+        avatarColor: Color(0xFF00FF88),
+      ),
+    ],
+  );
+  return TournamentMatchCardViewModel(
+    match: TournamentMatch(
+      id: 'm1',
+      tournamentId: 't1',
+      categoryId: 'cat-a',
+      round: 1,
+      matchType: 'WB',
+      poolId: '',
+      teamAId: 'meu-time',
+      teamBId: 'outro',
+      // Eliminado: nenhuma partida por jogar sobrou.
+      status: 'Completed',
+      resultA: '0',
+      resultB: '2',
+      isGroupMatch: false,
+      matchNumber: 1,
+      winnerId: 'outro',
+    ),
+    teamA: team,
+    teamB: team,
   );
 }
 
@@ -109,5 +176,31 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('o grupo e a chave dela'), findsWidgets);
+  });
+
+  // Regressão: `pickAthleteNextMatch` devolve null quando o atleta foi
+  // eliminado, e a categoria em foco ia junto — a nav caía em GRUPO mesmo numa
+  // categoria de dupla eliminatória, e as duas seções viravam tela vazia.
+  testWidgets('eliminado numa categoria de dupla eliminação, a aba é CHAVE',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tournamentDetailProvider('t1').overrideWith(
+            (ref) => Stream.value(_doubleEliminationTournament()),
+          ),
+          tournamentMatchCardsProvider('t1')
+              .overrideWith((ref) => Stream.value([_completedCard()])),
+          tournamentUserTeamIdsByCategoryProvider('t1')
+              .overrideWith((ref) => Stream.value(const {'cat-a': 'meu-time'})),
+        ],
+        child: const MaterialApp(home: FocusShellPage(tournamentId: 't1')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('CHAVE'), findsOneWidget);
+    expect(find.text('GRUPO'), findsNothing);
+    expect(find.text('FOCUS · DUPLA ELIMINATÓRIA'), findsOneWidget);
   });
 }

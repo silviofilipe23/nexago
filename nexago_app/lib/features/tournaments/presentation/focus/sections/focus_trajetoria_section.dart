@@ -23,7 +23,8 @@ import '../focus_section_header.dart';
 import '../../../domain/focus/campaign_share_data.dart';
 import '../widgets/focus_journey_rail.dart';
 import '../widgets/focus_share_campaign_sheet.dart';
-import '../widgets/focus_set_bars.dart';
+import '../widgets/focus_empty_line.dart';
+import '../widgets/focus_tournament_numbers.dart';
 
 /// Seção "Trajetória": quanto falta pro título, o caminho até a final, os
 /// números da campanha e o que o torneio muda.
@@ -76,7 +77,7 @@ class FocusTrajetoriaSection extends ConsumerWidget {
 
     final id = categoryId;
     if (id == null) {
-      return _Empty(
+      return const FocusEmptyLine(
         text: 'Sua campanha aparece aqui quando você tiver partida nesta '
             'categoria.',
       );
@@ -278,18 +279,14 @@ class FocusTrajetoriaSection extends ConsumerWidget {
               isDouble ? 'CAMINHO ATÉ A GRANDE FINAL' : 'CAMINHO ATÉ A FINAL',
         ),
         if (steps.isEmpty)
-          _Empty(text: 'Sua chave ainda não foi sorteada.')
+          const FocusEmptyLine(text: 'Sua chave ainda não foi sorteada.')
         else
           FocusJourneyRail(
             steps: steps,
             onOpen: (matchId) => _openMatch(context, matchId),
           ),
         const FocusSectionHeader(label: 'SEUS NÚMEROS NO TORNEIO'),
-        _Stats(numbers: numbers),
-        if (numbers.sets.isNotEmpty)
-          FocusSetBars(bars: numbers.sets)
-        else
-          _Empty(text: 'Nenhuma partida encerrada ainda.'),
+        FocusTournamentNumbers(numbers: numbers),
         if (opponents.isNotEmpty) ...[
           const FocusSectionHeader(label: 'QUEM PODE CRUZAR COM VOCÊ'),
           for (final opponent in opponents)
@@ -412,61 +409,6 @@ class _Pill extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: pill,
-    );
-  }
-}
-
-
-class _Stats extends StatelessWidget {
-  const _Stats({required this.numbers});
-
-  final TournamentNumbers numbers;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    Widget stat(String label, String value) {
-      return Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: AppTypography.monoStat.copyWith(
-                color: colors.onSurface,
-                fontSize: 20,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: colors.surfaceCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.outline),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            stat('Sets', '${numbers.setsWon}–${numbers.setsLost}'),
-            stat('Pontos', '${numbers.points}'),
-            stat('Por set', '${numbers.pointsPerSet}'),
-            stat('Partidas', '${numbers.matches}'),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -618,28 +560,6 @@ class _Opponent extends StatelessWidget {
                 ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenH,
-        vertical: AppSpacing.md,
-      ),
-      child: Text(
-        text,
-        style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
       ),
     );
   }

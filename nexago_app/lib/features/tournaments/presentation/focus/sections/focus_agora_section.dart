@@ -71,8 +71,6 @@ class FocusAgoraSection extends ConsumerWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.themeColors;
@@ -129,7 +127,8 @@ class FocusAgoraSection extends ConsumerWidget {
     final state = focusNowStateOf(
       next,
       acknowledged,
-      categoryHasPendingKnockout: categoryId != null &&
+      categoryHasPendingKnockout:
+          categoryId != null &&
           hasPendingKnockoutInCategory(categoryMatches, categoryId!) &&
           !eliminatedFromKnockout(categoryMatches, categoryId!, athleteTeamIds),
     );
@@ -166,11 +165,11 @@ class FocusAgoraSection extends ConsumerWidget {
     final futurePhases = categoryId == null
         ? const <TournamentMatch>[]
         : (journeyPathOf(categoryMatches, categoryId!, athleteTeamIds).future
-          ..sort((a, b) => a.round.compareTo(b.round)));
+            ..sort((a, b) => a.round.compareTo(b.round)));
     final entries = timelineOf(ctx, day, futurePhases: futurePhases);
     final announcements =
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
-            const [];
+        const [];
 
     final live = categoryMatches
         .where((m) => TournamentMatchStatus.isInProgress(m.status))
@@ -202,8 +201,8 @@ class FocusAgoraSection extends ConsumerWidget {
           accent: accent,
           leadIn: inRepescagem
               ? 'Você perdeu ${standing!.lastLossPhase != null ? 'em ${standing.lastLossPhase!.toLowerCase()}' : 'na chave dos vencedores'}. '
-                  'Ainda dá título — pela repescagem o caminho passa pela '
-                  'final dos perdedores.'
+                    'Ainda dá título — pela repescagem o caminho passa pela '
+                    'final dos perdedores.'
               : null,
           footnote: _footnoteOf(day, next, now),
           onAcknowledge: () => ref
@@ -402,8 +401,9 @@ class _Announcement extends StatelessWidget {
             width: 48,
             child: Text(
               time,
-              style: AppTypography.monoMeta
-                  .copyWith(color: colors.onSurfaceMuted),
+              style: AppTypography.monoMeta.copyWith(
+                color: colors.onSurfaceMuted,
+              ),
             ),
           ),
           Expanded(

@@ -14,11 +14,7 @@ import '../focus_section_header.dart';
 /// resultado. A linha da PRÓXIMA partida acende inteira — horário, marcador,
 /// texto e nota — porque é a única que o atleta procura com pressa.
 class FocusTimeline extends StatelessWidget {
-  const FocusTimeline({
-    super.key,
-    required this.entries,
-    required this.onOpen,
-  });
+  const FocusTimeline({super.key, required this.entries, required this.onOpen});
 
   final List<TimelineEntry> entries;
   final ValueChanged<String> onOpen;
@@ -35,13 +31,15 @@ class FocusTimeline extends StatelessWidget {
       if (firstWithoutTime) {
         rows.add(const FocusSectionHeader(label: 'SEM HORÁRIO DEFINIDO'));
       }
-      rows.add(_Row(
-        entry: entry,
-        isLast: i == entries.length - 1,
-        onTap: entry.matchId != null && entry.clickable
-            ? () => onOpen(entry.matchId!)
-            : null,
-      ));
+      rows.add(
+        _Row(
+          entry: entry,
+          isLast: i == entries.length - 1,
+          onTap: entry.matchId != null && entry.clickable
+              ? () => onOpen(entry.matchId!)
+              : null,
+        ),
+      );
     }
 
     return Padding(
@@ -60,11 +58,7 @@ class FocusTimeline extends StatelessWidget {
 }
 
 class _Row extends StatelessWidget {
-  const _Row({
-    required this.entry,
-    required this.isLast,
-    required this.onTap,
-  });
+  const _Row({required this.entry, required this.isLast, required this.onTap});
 
   final TimelineEntry entry;
   final bool isLast;
@@ -90,23 +84,25 @@ class _Row extends StatelessWidget {
           ),
         ),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
+          horizontal: AppSpacing.sm,
           vertical: AppSpacing.lg - 2,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(
-              width: 52,
+              width: 40,
               child: Text(
                 entry.time ?? '—',
-                style: AppTypography.monoMeta.copyWith(
+                style: AppTypography.mono().copyWith(
                   color: highlight
                       ? accent
                       : muted
-                          ? colors.onSurfaceMuted
-                          : colors.onSurface,
-                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                      ? colors.onSurfaceMuted
+                      : colors.onSurface,
+                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w400,
+                  fontSize: 12,
+                  letterSpacing: 0,
                 ),
               ),
             ),
@@ -118,7 +114,8 @@ class _Row extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyM.copyWith(
                   color: muted ? colors.onSurfaceMuted : colors.onSurface,
-                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w500,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 11,
                 ),
               ),
             ),
@@ -126,9 +123,10 @@ class _Row extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Text(
                 entry.courtLabel!,
-                style: AppTypography.monoMeta.copyWith(
+                style: AppTypography.soraRegular().copyWith(
                   color: colors.onSurfaceMuted,
                   fontSize: 10,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
@@ -140,13 +138,15 @@ class _Row extends StatelessWidget {
                 textAlign: TextAlign.right,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.monoMeta.copyWith(
+                style: AppTypography.mono().copyWith(
                   color: switch (entry.outcome) {
                     TimelineOutcome.win => colors.win,
                     TimelineOutcome.loss => colors.onSurfaceMuted,
                     null => highlight ? accent : colors.onSurfaceMuted,
                   },
-                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: highlight ? FontWeight.w800 : FontWeight.w400,
+                  fontSize: 8,
+                  letterSpacing: 0,
                 ),
               ),
             ),
@@ -180,8 +180,11 @@ class _Mark extends StatelessWidget {
     final colors = context.themeColors;
 
     return switch (state) {
-      TimelineState.done =>
-        Icon(Icons.check_rounded, size: 15, color: colors.win),
+      TimelineState.done => Icon(
+        Icons.check_rounded,
+        size: 15,
+        color: colors.win,
+      ),
       TimelineState.live => const _Dot(color: AppColors.live),
       TimelineState.next => _Dot(color: colors.brand),
       TimelineState.upcoming => _Ring(color: colors.outline),

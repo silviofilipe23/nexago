@@ -1,3 +1,4 @@
+import '../../tournaments/domain/tournament_detail_tabs_logic.dart';
 import '../../tournaments/domain/tournament_match.dart';
 import '../../tournaments/domain/tournament_match_status.dart';
 
@@ -32,18 +33,40 @@ int athleteMatchPriority(TournamentMatch match, String teamId) {
   return 4;
 }
 
-/// Escolhe a melhor partida entre candidatos do atleta.
+/// Escolhe a melhor partida do atleta NO DIA [today].
+///
+/// O filtro de dia não é detalhe: sem ele qualquer partida aberta do atleta
+/// virava alvo, e a oferta do Modo Focus abria dizendo "Hoje é dia de torneio"
+/// com o horário de um jogo semanas à frente. Aconteceu de verdade — o
+/// "Torneio 5cat seed nexaGO" do DEV corre de 20 a 23/08 e tem partidas
+/// marcadas para 03/09.
+///
+/// A regra do dia é a MESMA da lista "Seu dia no torneio"
+/// ([matchBelongsToDay]), de propósito: o que o atleta vê na timeline e o que
+/// dispara a oferta não podem discordar. Em particular, partida SEM horário
+/// continua contando — `dayKey` é apagado no desagendamento, e a janela do
+/// torneio é a única âncora que sobra para quem está na fila do dia.
+///
+/// [today] é um instante qualquer do dia; a comparação acontece no fuso do
+/// evento. A função pressupõe que o torneio está rolando nesse dia — quem
+/// chama já filtrou por inscrição paga em evento de hoje.
+///
+/// Chamada de quadra com horário de OUTRO dia fica de fora aqui (âncora de
+/// outro dia é resposta definitiva). Ela não se perde: o alerta ao vivo vem de
+/// [pickAthleteCourtCallMatch], que não filtra por dia.
 AthleteNextMatch? pickAthleteNextMatch({
   required List<TournamentMatch> matches,
   required String teamId,
   required String tournamentId,
   required String tournamentName,
+  required DateTime today,
 }) {
   final mine = matches.where((m) {
     final tid = teamId.trim();
     return tid.isNotEmpty &&
         (m.teamAId.trim() == tid || m.teamBId.trim() == tid) &&
-        !TournamentMatchStatus.isCompleted(m.status);
+        !TournamentMatchStatus.isCompleted(m.status) &&
+        matchBelongsToDay(m, today, tournamentRunningToday: true);
   }).toList();
   if (mine.isEmpty) return null;
 

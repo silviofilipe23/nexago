@@ -32,6 +32,7 @@ class TournamentPredictionsPage extends ConsumerStatefulWidget {
     super.key,
     required this.tournamentId,
     this.embedded = false,
+    this.bottomPadding = 0,
   });
 
   final String tournamentId;
@@ -39,6 +40,13 @@ class TournamentPredictionsPage extends ConsumerStatefulWidget {
   /// `true` quando renderizada como aba do detalhe do torneio — sem o
   /// scaffold próprio (a casca já tem cabeçalho e abas).
   final bool embedded;
+
+  /// Folga no fim da rolagem, para quando a casca que embute esta tela tem uma
+  /// nav flutuando POR CIMA do corpo — é o caso do Modo Focus, que usa
+  /// `extendBody: true`. Sem ela o botão "Salvar palpites" e o painel de
+  /// pontuação terminam atrás do vidro. Na rota própria vale 0: lá o scaffold
+  /// da subpágina já cuida do fim da lista.
+  final double bottomPadding;
 
   @override
   ConsumerState<TournamentPredictionsPage> createState() =>
@@ -121,6 +129,8 @@ class _TournamentPredictionsPageState
         ..._buildPicksSlivers()
       else
         ..._buildLeaderboardSlivers(),
+      if (widget.bottomPadding > 0)
+        SliverToBoxAdapter(child: SizedBox(height: widget.bottomPadding)),
     ];
 
     if (widget.embedded) {

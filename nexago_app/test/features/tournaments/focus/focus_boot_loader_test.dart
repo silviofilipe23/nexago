@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/tournaments/domain/predictions/tournament_predictions_providers.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_announcements_repository.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_repository.dart';
 import 'package:nexago_app/features/tournaments/domain/focus/focus_boot_logic.dart';
@@ -142,6 +143,10 @@ void main() {
               .overrideWith((ref) => teamIds.stream),
           tournamentAnnouncementsProvider('t1')
               .overrideWith((ref) => announcements.stream),
+          // O `IndexedStack` da casca constrói TODAS as seções, inclusive a de
+          // palpites — que sem este override iria ao Firestore real.
+          myTournamentPredictionEntryProvider('t1')
+              .overrideWith((ref) async => null),
         ],
         child: const MaterialApp(
           home: FocusShellPage(tournamentId: 't1'),

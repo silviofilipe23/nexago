@@ -43,6 +43,10 @@ String? materialIconToSfSymbol(IconData icon) {
     Icons.account_tree ||
     Icons.account_tree_rounded =>
       'arrow.triangle.branch',
+    Icons.place_outlined || Icons.place || Icons.place_rounded =>
+      'mappin.and.ellipse',
+    Icons.casino_outlined => 'die.face.5',
+    Icons.casino || Icons.casino_rounded => 'die.face.5.fill',
     _ => null,
   };
 }

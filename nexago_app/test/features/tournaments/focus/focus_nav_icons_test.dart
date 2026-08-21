@@ -13,6 +13,10 @@ const _icons = <IconData>[
   Icons.table_rows_rounded,
   Icons.account_tree_outlined,
   Icons.account_tree_rounded,
+  Icons.place_outlined,
+  Icons.place_rounded,
+  Icons.casino_outlined,
+  Icons.casino_rounded,
 ];
 
 void main() {

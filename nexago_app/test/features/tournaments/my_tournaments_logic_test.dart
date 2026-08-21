@@ -169,6 +169,30 @@ void main() {
       expect(registrationHomeBadgeLabel(reg), 'DIA DO EVENTO');
     });
 
+    // Retrato do "Torneio 5cat seed nexaGO" do DEV: começou ontem, termina
+    // depois de amanhã, inscrições encerradas (`closed` → bracketsReady).
+    // Enquanto o dia do meio não contava como dia do evento, esta era a trava
+    // que devolvia `null` em `athleteNextMatchProvider` e impedia o app de
+    // oferecer o Modo Focus.
+    test('returns true on a middle day of a multi-day tournament', () {
+      final today = DateTime.now();
+      final midnight = DateTime(today.year, today.month, today.day);
+      final reg = MyTournamentRegistration(
+        registrationId: 'reg-multi',
+        tournamentId: 't-multi',
+        tournamentName: 'Torneio de 4 dias',
+        dateLabel: 'em andamento',
+        statusLabel: 'Inscrito',
+        isPaid: true,
+        categoryId: 'cat',
+        startDate: midnight.subtract(const Duration(days: 1)),
+        endDate: midnight.add(const Duration(days: 2, hours: 20)),
+        listingStatus: TournamentListingStatus.bracketsReady,
+      );
+      expect(registrationShowsAsLiveToday(reg), isTrue);
+      expect(registrationHomeBadgeLabel(reg), 'DIA DO EVENTO');
+    });
+
     test('sortRegistrationsForHomePreview excludes completed tournaments', () {
       final ongoing = MyTournamentRegistration(
         registrationId: 'reg-ongoing',

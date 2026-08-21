@@ -154,17 +154,26 @@ DateTime tournamentEffectiveEndAt(DateTime startAt, DateTime endAt) {
 }
 
 /// Torneio acontece hoje (data local) e ainda não encerrou.
+///
+/// Vale para QUALQUER dia entre início e fim, não só o de abertura: num torneio
+/// de 20 a 23, o dia 21 também é dia do evento. O `endAt` delimita a janela —
+/// antes ele só servia para excluir o que já acabou, e os dias do meio caíam
+/// fora, derrubando "DIA DO EVENTO" na Home e a oferta do Modo Focus.
 bool isTournamentEventDay({
   required DateTime startAt,
   DateTime? endAt,
   DateTime? now,
 }) {
   final clock = now ?? DateTime.now();
-  if (endAt != null) {
-    final effectiveEnd = tournamentEffectiveEndAt(startAt, endAt);
-    if (effectiveEnd.isBefore(clock)) return false;
-  }
-  return tournamentEventDateLocal(startAt) == tournamentEventDateLocal(clock);
+  final today = tournamentEventDateLocal(clock);
+  final startDay = tournamentEventDateLocal(startAt);
+  if (today.isBefore(startDay)) return false;
+
+  if (endAt == null) return today == startDay;
+
+  final effectiveEnd = tournamentEffectiveEndAt(startAt, endAt);
+  if (effectiveEnd.isBefore(clock)) return false;
+  return !today.isAfter(tournamentEventDateLocal(effectiveEnd));
 }
 
 /// Deriva status de listagem a partir de campos do documento Firestore.

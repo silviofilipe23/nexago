@@ -305,11 +305,10 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   }
 }
 
-/// "× | ● FOCUS / Nome do torneio | 11:28".
+/// "× | ● FOCUS / Nome do torneio".
 ///
-/// O clima que os protótipos mostram ao lado do relógio fica de fora: o projeto
-/// não tem fonte de dado meteorológico, e a spec do Focus já havia cortado esse
-/// item pelo mesmo motivo.
+/// Sem relógio nem clima à direita: o relógio do sistema já fica na barra de
+/// status logo acima, e o clima dos protótipos nunca teve fonte de dado.
 class _Header extends StatelessWidget {
   const _Header({
     required this.tournament,
@@ -324,10 +323,6 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final now = TimeOfDay.now();
-    final clock =
-        '${now.hour.toString().padLeft(2, '0')}:'
-        '${now.minute.toString().padLeft(2, '0')}';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -378,13 +373,6 @@ class _Header extends StatelessWidget {
                   style: AppTypography.titleM.copyWith(color: colors.onSurface),
                 ),
               ],
-            ),
-          ),
-          Text(
-            clock,
-            style: AppTypography.monoStat.copyWith(
-              color: colors.onSurface,
-              fontSize: 20,
             ),
           ),
         ],

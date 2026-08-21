@@ -70,14 +70,6 @@ final focusCategoryIdProvider =
   );
 });
 
-/// O time do atleta na categoria em foco.
-final focusMyTeamIdProvider =
-    Provider.family<String?, String>((ref, tournamentId) {
-  final next = ref.watch(athleteNextMatchProvider).valueOrNull;
-  if (next == null || next.tournamentId != tournamentId) return null;
-  return next.match.teamAId.isNotEmpty ? next.match.teamAId : null;
-});
-
 /// Chamada de quadra já reconhecida pelo atleta ("Ok, estou indo").
 ///
 /// Mora aqui, e não no estado do widget da seção, porque precisa sobreviver à

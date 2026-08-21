@@ -43,6 +43,25 @@ FocusNowState focusNowStateOf(
   return FocusNowState.next;
 }
 
+/// Alguma partida do atleta no dia já entrou em quadra (ou já terminou).
+///
+/// Serve ao botão do herói do "Agora": "Como chegar" só ajuda quem ainda está a
+/// caminho da arena; depois que o dia começa, o que o atleta quer é mostrar o
+/// jogo.
+///
+/// Usa o início REAL, não o horário agendado: atraso de mesa é rotina e o
+/// atleta ainda em trânsito continua precisando da rota. Partida encerrada
+/// conta mesmo sem `matchStartedAt` — W.O. e placar lançado depois do fato não
+/// gravam o início.
+bool athleteFirstMatchStarted(List<TournamentMatch> dayMatches) {
+  return dayMatches.any(
+    (m) =>
+        m.matchStartedAt != null ||
+        TournamentMatchStatus.isInProgress(m.status) ||
+        TournamentMatchStatus.isCompleted(m.status),
+  );
+}
+
 /// Existe mata-mata pendente na categoria? Serve para o estado
 /// `pendingKnockout`: os slots do bracket ainda não têm o `teamId` do atleta,
 /// então a próxima partida dele não os enxerga.

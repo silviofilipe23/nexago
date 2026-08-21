@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -63,8 +64,9 @@ class FocusTrajetoriaSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.themeColors;
-    final cards =
-        ref.watch(tournamentMatchCardsProvider(tournament.id)).valueOrNull;
+    final cards = ref
+        .watch(tournamentMatchCardsProvider(tournament.id))
+        .valueOrNull;
 
     if (cards == null) {
       return const Center(
@@ -78,7 +80,8 @@ class FocusTrajetoriaSection extends ConsumerWidget {
     final id = categoryId;
     if (id == null) {
       return const FocusEmptyLine(
-        text: 'Sua campanha aparece aqui quando você tiver partida nesta '
+        text:
+            'Sua campanha aparece aqui quando você tiver partida nesta '
             'categoria.',
       );
     }
@@ -170,11 +173,13 @@ class FocusTrajetoriaSection extends ConsumerWidget {
     // "Classificado" = já tem partida NO MATA-MATA. É o único sinal que não
     // exige simular o desempate do grupo — a linha que este projeto se recusa
     // a cruzar antes de o grupo encerrar.
-    final classificado = categoryMatches.any((m) =>
-        m.poolId.isEmpty &&
-        !m.isGroupMatch &&
-        (athleteTeamIds.contains(m.teamAId) ||
-            athleteTeamIds.contains(m.teamBId)));
+    final classificado = categoryMatches.any(
+      (m) =>
+          m.poolId.isEmpty &&
+          !m.isGroupMatch &&
+          (athleteTeamIds.contains(m.teamAId) ||
+              athleteTeamIds.contains(m.teamBId)),
+    );
 
     return ListView(
       padding: EdgeInsets.only(
@@ -201,12 +206,11 @@ class FocusTrajetoriaSection extends ConsumerWidget {
                 inRepescagem
                     ? 'Ainda dá título — por baixo.'
                     : headline == null
-                        ? 'Sua campanha no torneio.'
-                        : headline.kind == JourneyHeadlineKind.champion
-                            ? 'Campeão da categoria!'
-                            : headline.text!,
-                style:
-                    AppTypography.displayL.copyWith(color: colors.onSurface),
+                    ? 'Sua campanha no torneio.'
+                    : headline.kind == JourneyHeadlineKind.champion
+                    ? 'Campeão da categoria!'
+                    : headline.text!,
+                style: AppTypography.displayL.copyWith(color: colors.onSurface),
               ),
               const SizedBox(height: AppSpacing.md),
               Wrap(
@@ -247,36 +251,49 @@ class FocusTrajetoriaSection extends ConsumerWidget {
                       label: '${duplas.length} DUPLAS',
                       color: colors.onSurfaceMuted,
                     ),
-                  // Só com partida encerrada: um card de campanha sem campanha
-                  // nenhuma não diz nada.
-                  if (numbers.matches > 0)
-                    _Pill(
-                      label: 'COMPARTILHAR',
-                      color: AppColors.brand,
-                      icon: Icons.ios_share_rounded,
-                      onTap: () => showFocusShareCampaignSheet(
-                        context,
-                        buildCampaignShareData(
-                          matches: categoryMatches,
-                          categoryId: id,
-                          myTeamIds: athleteTeamIds,
-                          teamName: myTeamName,
-                          players: myPlayers,
-                          categoryLine: offer?.name ?? '',
-                          tournamentName: tournament.name,
-                          locationName: tournament.location,
-                          duoNameOf: (teamId) => rosters.nameOf(teamId),
-                        ),
-                      ),
-                    ),
                 ],
               ),
+              // Só com partida encerrada: um card de campanha sem campanha
+              // nenhuma não diz nada.
+              if (numbers.matches > 0) ...[
+                const SizedBox(height: AppSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => showFocusShareCampaignSheet(
+                      context,
+                      buildCampaignShareData(
+                        matches: categoryMatches,
+                        categoryId: id,
+                        myTeamIds: athleteTeamIds,
+                        teamName: myTeamName,
+                        players: myPlayers,
+                        categoryLine: offer?.name ?? '',
+                        tournamentName: tournament.name,
+                        locationName: tournament.location,
+                        duoNameOf: (teamId) => rosters.nameOf(teamId),
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.black,
+                      minimumSize: const Size(0, 48),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: AppRadii.mdAll,
+                      ),
+                    ),
+                    icon: const Icon(Icons.ios_share_rounded, size: 18),
+                    label: const Text('COMPARTILHAR'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
         FocusSectionHeader(
-          label:
-              isDouble ? 'CAMINHO ATÉ A GRANDE FINAL' : 'CAMINHO ATÉ A FINAL',
+          label: isDouble
+              ? 'CAMINHO ATÉ A GRANDE FINAL'
+              : 'CAMINHO ATÉ A FINAL',
         ),
         if (steps.isEmpty)
           const FocusEmptyLine(text: 'Sua chave ainda não foi sorteada.')
@@ -315,12 +332,16 @@ class FocusTrajetoriaSection extends ConsumerWidget {
     for (final p in offer.prizes) {
       final position = int.tryParse(p.position.trim().replaceAll('º', ''));
       if (position == null) continue;
-      rows.add(_Prize(
-        position: position,
-        label: p.label?.trim().isNotEmpty == true ? p.label!.trim() : 'Prêmio',
-        valueLabel: p.value > 0 ? _brl(p.value) : null,
-        guaranteed: worstPlace != null && position == worstPlace,
-      ));
+      rows.add(
+        _Prize(
+          position: position,
+          label: p.label?.trim().isNotEmpty == true
+              ? p.label!.trim()
+              : 'Prêmio',
+          valueLabel: p.value > 0 ? _brl(p.value) : null,
+          guaranteed: worstPlace != null && position == worstPlace,
+        ),
+      );
     }
     rows.sort((a, b) => a.position.compareTo(b.position));
     return rows;
@@ -366,24 +387,18 @@ class _Prize {
 }
 
 /// Pílula do cabeçalho: contorno na cor do estado, rótulo em caixa alta e um
-/// ícone opcional. Com [onTap] ela vira botão — é assim que "COMPARTILHAR"
-/// convive com as pílulas informativas na mesma linha, como no protótipo.
+/// ícone opcional. Só informa estado — a ação de compartilhar mora no botão
+/// de largura cheia logo abaixo.
 class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.label,
-    required this.color,
-    this.icon,
-    this.onTap,
-  });
+  const _Pill({required this.label, required this.color, this.icon});
 
   final String label;
   final Color color;
   final IconData? icon;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final pill = Container(
+    return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm - 1,
@@ -399,16 +414,12 @@ class _Pill extends StatelessWidget {
             Icon(icon, size: 12, color: color),
             const SizedBox(width: 5),
           ],
-          Text(label, style: AppTypography.eyebrow.copyWith(color: color)),
+          Text(
+            label,
+            style: AppTypography.eyebrow.copyWith(color: color, fontSize: 8),
+          ),
         ],
       ),
-    );
-
-    if (onTap == null) return pill;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: pill,
     );
   }
 }
@@ -447,8 +458,9 @@ class _PrizeRow extends StatelessWidget {
               width: 32,
               child: Text(
                 '${prize.position}º',
-                style: AppTypography.monoMeta
-                    .copyWith(color: colors.onSurfaceMuted),
+                style: AppTypography.monoMeta.copyWith(
+                  color: colors.onSurfaceMuted,
+                ),
               ),
             ),
             Expanded(
@@ -534,8 +546,9 @@ class _Opponent extends StatelessWidget {
             if (opponent.campaign.isEmpty)
               Text(
                 'Primeira partida no torneio.',
-                style: AppTypography.bodyS
-                    .copyWith(color: colors.onSurfaceMuted),
+                style: AppTypography.bodyS.copyWith(
+                  color: colors.onSurfaceMuted,
+                ),
               )
             else
               for (final entry in opponent.campaign)
@@ -546,14 +559,16 @@ class _Opponent extends StatelessWidget {
                       Expanded(
                         child: Text(
                           entry.label,
-                          style: AppTypography.bodyS
-                              .copyWith(color: colors.onSurfaceMuted),
+                          style: AppTypography.bodyS.copyWith(
+                            color: colors.onSurfaceMuted,
+                          ),
                         ),
                       ),
                       Text(
                         entry.detail,
-                        style: AppTypography.monoMeta
-                            .copyWith(color: colors.onSurfaceMuted),
+                        style: AppTypography.monoMeta.copyWith(
+                          color: colors.onSurfaceMuted,
+                        ),
                       ),
                     ],
                   ),

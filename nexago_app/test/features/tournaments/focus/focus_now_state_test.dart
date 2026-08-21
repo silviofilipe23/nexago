@@ -7,6 +7,7 @@ TournamentMatch _match({
   String id = 'm1',
   String status = TournamentMatchStatus.scheduled,
   String queueStatus = '',
+  DateTime? matchStartedAt,
 }) {
   return TournamentMatch(
     id: id,
@@ -23,6 +24,7 @@ TournamentMatch _match({
     isGroupMatch: false,
     matchNumber: 1,
     queueStatus: queueStatus,
+    matchStartedAt: matchStartedAt,
   );
 }
 
@@ -70,6 +72,46 @@ void main() {
 
     test('sem partida e sem mata-mata pendente é idle', () {
       expect(focusNowStateOf(null, null), FocusNowState.idle);
+    });
+  });
+
+  group('athleteFirstMatchStarted', () {
+    test('dia só com partida agendada ainda não começou', () {
+      expect(athleteFirstMatchStarted([_match()]), isFalse);
+    });
+
+    test('partida em quadra começa o dia', () {
+      expect(
+        athleteFirstMatchStarted(
+          [_match(status: TournamentMatchStatus.inProgress)],
+        ),
+        isTrue,
+      );
+    });
+
+    // Horário agendado que já passou NÃO conta: atraso de mesa é rotina e quem
+    // ainda está a caminho continua precisando da rota.
+    test('início real conta mesmo com o status atrasado', () {
+      expect(
+        athleteFirstMatchStarted(
+          [_match(matchStartedAt: DateTime(2026, 8, 21, 9))],
+        ),
+        isTrue,
+      );
+    });
+
+    // W.O. e placar lançado depois do fato não gravam `matchStartedAt`.
+    test('partida encerrada sem início gravado conta', () {
+      expect(
+        athleteFirstMatchStarted(
+          [_match(status: TournamentMatchStatus.completed)],
+        ),
+        isTrue,
+      );
+    });
+
+    test('dia vazio não começou', () {
+      expect(athleteFirstMatchStarted(const []), isFalse);
     });
   });
 

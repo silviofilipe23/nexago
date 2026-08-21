@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -30,6 +31,7 @@ class FocusNowHero extends StatelessWidget {
     required this.calledAt,
     required this.walkAwayLabel,
     required this.accent,
+    required this.firstMatchStarted,
     required this.onAcknowledge,
     required this.onOpenMatch,
     required this.onOpenMaps,
@@ -57,6 +59,10 @@ class FocusNowHero extends StatelessWidget {
   final String? walkAwayLabel;
 
   final Color accent;
+
+  /// O atleta já começou a jogar hoje — ver [athleteFirstMatchStarted]. Troca a
+  /// ação principal do card: rota até a arena antes, compartilhar depois.
+  final bool firstMatchStarted;
 
   /// Parágrafo acima da contagem — usado na repescagem para explicar o que
   /// ainda está em jogo.
@@ -115,8 +121,10 @@ class FocusNowHero extends StatelessWidget {
               accent: accent,
               leadIn: leadIn,
               footnote: footnote,
+              firstMatchStarted: firstMatchStarted,
               onOpenMaps: onOpenMaps,
               onOpenMatch: onOpenMatch,
+              onShare: onShare,
             ),
           // Fato da CATEGORIA, não promessa ao leitor: a checagem de pendência
           // não distingue quem classificou de quem já caiu no mata-mata, então
@@ -230,8 +238,10 @@ class _MatchBody extends StatelessWidget {
     required this.accent,
     required this.leadIn,
     required this.footnote,
+    required this.firstMatchStarted,
     required this.onOpenMaps,
     required this.onOpenMatch,
+    required this.onShare,
   });
 
   final NextMatchView? view;
@@ -241,8 +251,10 @@ class _MatchBody extends StatelessWidget {
   final Color accent;
   final String? leadIn;
   final String? footnote;
+  final bool firstMatchStarted;
   final VoidCallback onOpenMaps;
   final VoidCallback onOpenMatch;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -373,17 +385,29 @@ class _MatchBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
+        // Uma ação só, e ela muda de dono no meio do dia: até a primeira
+        // partida entrar em quadra o atleta está a caminho e quer a rota;
+        // depois disso ele já está na areia e o que sobra é mostrar o jogo.
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: onOpenMaps,
+            onPressed: firstMatchStarted ? onShare : onOpenMaps,
             style: FilledButton.styleFrom(
               backgroundColor: accent,
               foregroundColor: _onAccent(accent),
+              minimumSize: const Size(0, 48),
+              shape: const RoundedRectangleBorder(
+                borderRadius: AppRadii.mdAll,
+              ),
             ),
-            icon: const Icon(Icons.place_rounded, size: 18),
+            icon: Icon(
+              firstMatchStarted ? Icons.ios_share_rounded : Icons.place_rounded,
+              size: 18,
+            ),
             label: Text(
-              v.courtLabel != null
+              firstMatchStarted
+                  ? 'COMPARTILHAR'
+                  : v.courtLabel != null
                   ? 'Como chegar na ${v.courtLabel}'
                   : 'Como chegar',
             ),

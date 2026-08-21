@@ -205,6 +205,7 @@ class FocusAgoraSection extends ConsumerWidget {
                     'Ainda dá título — pela repescagem o caminho passa pela '
                     'final dos perdedores.'
               : null,
+          firstMatchStarted: athleteFirstMatchStarted(day),
           footnote: _footnoteOf(day, next, now),
           onAcknowledge: () => ref
               .read(focusAcknowledgedCallProvider.notifier)

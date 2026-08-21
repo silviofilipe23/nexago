@@ -389,7 +389,8 @@ abstract final class AppRoutes {
   /// "Hoje" do torneio: `/torneios/:tournamentId/hoje`
   static const String tournamentToday = '/torneios/:tournamentId/hoje';
 
-  /// Modo Focus: `/torneios/:tournamentId/focus?secao=agora|trajetoria|grupo|chave`
+  /// Modo Focus:
+  /// `/torneios/:tournamentId/focus?secao=agora|trajetoria|grupo|chave|arena`
   static const String tournamentFocus = '/torneios/:tournamentId/focus';
 
   /// Query que escolhe a seção de entrada do Modo Focus.

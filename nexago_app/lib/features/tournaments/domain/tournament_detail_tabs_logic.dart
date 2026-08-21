@@ -165,6 +165,37 @@ List<TournamentMatch> liveTournamentMatches(List<TournamentMatch> matches) {
     ..sort(_byScheduleTime);
 }
 
+/// O que ainda vai entrar em quadra HOJE, torneio inteiro, na ordem em que a
+/// arena vai chamar.
+///
+/// Complemento de [liveTournamentMatches]: o que já está em quadra tem lista
+/// própria e por isso NÃO se repete aqui — a mesma partida nas duas listas
+/// contaria duas vezes nos números da seção Arena.
+///
+/// Partida SEM horário entra (no fim, por `matchNumber`), pela mesma razão de
+/// [matchBelongsToDay]: `dayKey` é apagado no desagendamento, e esconder quem
+/// não tem horário esconderia justamente a fila do dia.
+List<TournamentMatch> upcomingTournamentMatches(
+  List<TournamentMatch> matches,
+  DateTime reference, {
+  required bool tournamentRunningToday,
+}) {
+  return matches
+      .where(
+        (m) =>
+            !TournamentMatchStatus.isInProgress(m.status) &&
+            !TournamentMatchStatus.isCompleted(m.status) &&
+            !TournamentMatchStatus.isCanceled(m.status) &&
+            matchBelongsToDay(
+              m,
+              reference,
+              tournamentRunningToday: tournamentRunningToday,
+            ),
+      )
+      .toList()
+    ..sort(_byScheduleTime);
+}
+
 /// "Copa X — hoje" quando o evento está rolando (mesmo critério do portal).
 bool tournamentIsEventToday(TournamentDetail tournament, DateTime now) {
   final start = tournament.startDate;

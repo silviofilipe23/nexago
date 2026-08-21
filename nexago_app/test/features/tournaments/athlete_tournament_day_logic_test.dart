@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/athlete_tournament_day_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 
@@ -10,6 +11,7 @@ TournamentMatch _match({
   int queueOrder = 0,
   String teamAId = 'team-me',
   String teamBId = 'team-other',
+  String? winnerId,
   DateTime? scheduleTime,
   DateTime? matchStartedAt,
 }) {
@@ -31,6 +33,7 @@ TournamentMatch _match({
     queueOrder: queueOrder,
     scheduleTime: scheduleTime,
     matchStartedAt: matchStartedAt,
+    winnerId: winnerId,
   );
 }
 
@@ -135,6 +138,107 @@ void main() {
       );
 
       expect(next?.match.id, 'noite');
+    });
+  });
+
+  group('pickAthleteFocusHomeTarget', () {
+    final today = DateTime(2026, 8, 21, 12);
+
+    MyTournamentRegistration reg({
+      String tournamentId = 't1',
+      String teamId = 'team-me',
+      String categoryId = 'cat',
+      TournamentListingStatus listingStatus = TournamentListingStatus.live,
+      DateTime? startDate,
+      bool isPaid = true,
+    }) {
+      return MyTournamentRegistration(
+        registrationId: 'reg-$tournamentId',
+        tournamentId: tournamentId,
+        tournamentName: 'Copa $tournamentId',
+        dateLabel: '21/08',
+        statusLabel: 'Inscrito',
+        isPaid: isPaid,
+        categoryId: categoryId,
+        teamId: teamId,
+        listingStatus: listingStatus,
+        startDate: startDate ?? today,
+        endDate: today,
+      );
+    }
+
+    test('mostra no dia do evento mesmo sem partida pendente', () {
+      final target = pickAthleteFocusHomeTarget(
+        registrations: [reg()],
+        matchesByTournament: {
+          't1': [
+            _match(
+              id: 'done',
+              status: TournamentMatchStatus.completed,
+              winnerId: 'team-me',
+              scheduleTime: today,
+            ),
+          ],
+        },
+        today: today,
+      );
+
+      expect(target?.tournamentId, 't1');
+    });
+
+    test('some quando o atleta foi eliminado no mata-mata', () {
+      final target = pickAthleteFocusHomeTarget(
+        registrations: [reg()],
+        matchesByTournament: {
+          't1': [
+            _match(
+              id: 'quartas',
+              status: TournamentMatchStatus.completed,
+              teamAId: 'team-me',
+              teamBId: 'rival',
+              winnerId: 'rival',
+              scheduleTime: today,
+            ),
+          ],
+        },
+        today: today,
+      );
+
+      expect(target, isNull);
+    });
+
+    test('fora do dia do evento não aparece', () {
+      final target = pickAthleteFocusHomeTarget(
+        registrations: [
+          reg(
+            listingStatus: TournamentListingStatus.open,
+            startDate: DateTime(2026, 9, 1),
+          ),
+        ],
+        matchesByTournament: const {},
+        today: today,
+      );
+
+      expect(target, isNull);
+    });
+
+    test('preferir o torneio que ainda tem partida hoje', () {
+      final target = pickAthleteFocusHomeTarget(
+        registrations: [reg(tournamentId: 'idle'), reg(tournamentId: 'live')],
+        matchesByTournament: {
+          'idle': const [],
+          'live': [
+            _match(
+              id: 'next',
+              scheduleTime: today,
+              teamAId: 'team-me',
+            ),
+          ],
+        },
+        today: today,
+      );
+
+      expect(target?.tournamentId, 'live');
     });
   });
 }

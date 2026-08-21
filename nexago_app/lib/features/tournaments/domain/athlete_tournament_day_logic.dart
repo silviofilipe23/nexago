@@ -1,6 +1,9 @@
-import '../../tournaments/domain/tournament_detail_tabs_logic.dart';
-import '../../tournaments/domain/tournament_match.dart';
-import '../../tournaments/domain/tournament_match_status.dart';
+import 'focus/focus_now_state.dart';
+import 'tournament_detail_tabs_logic.dart';
+import 'tournament_discovery_models.dart';
+import 'tournament_match.dart';
+import 'tournament_match_status.dart';
+import 'my_tournaments_logic.dart';
 
 /// Próxima partida relevante para o atleta no dia do torneio.
 class AthleteNextMatch {
@@ -17,6 +20,21 @@ class AthleteNextMatch {
 
   /// `queueStatus == on_court` — chamada de quadra ativa.
   final bool isCourtCall;
+}
+
+/// Destino do botão "Modo Focus" na home do atleta.
+///
+/// Diferente de [AthleteNextMatch]: não exige partida pendente HOJE. O botão
+/// fica enquanto o torneio está no dia do evento e some quando o atleta é
+/// eliminado no mata-mata — ou quando o evento acaba.
+class AthleteFocusHomeTarget {
+  const AthleteFocusHomeTarget({
+    required this.tournamentId,
+    required this.tournamentName,
+  });
+
+  final String tournamentId;
+  final String tournamentName;
 }
 
 /// Prioridade: chamada de quadra > ao vivo > agendada > fila.
@@ -112,4 +130,53 @@ AthleteNextMatch? pickAthleteCourtCallMatch({
     );
   }
   return null;
+}
+
+/// Escolhe o torneio do botão Focus na home.
+///
+/// Critérios, nesta ordem:
+/// 1. inscrição paga com `teamId`, no dia do evento ([registrationShowsAsLiveToday]);
+/// 2. ainda NÃO eliminado no mata-mata da categoria;
+/// 3. entre os elegíveis, preferir quem tem próxima partida hoje (mesma regra
+///    da oferta do sheet) — se ninguém tem, fica o primeiro elegível.
+///
+/// Um botão só: torneios em paralelo no mesmo dia são raros, e dois CTAs
+/// competindo na home só atrapalham.
+AthleteFocusHomeTarget? pickAthleteFocusHomeTarget({
+  required List<MyTournamentRegistration> registrations,
+  required Map<String, List<TournamentMatch>> matchesByTournament,
+  required DateTime today,
+}) {
+  final eventDay = registrations
+      .where(registrationShowsAsLiveToday)
+      .where((r) => r.isPaid && (r.teamId?.trim().isNotEmpty ?? false))
+      .toList();
+  if (eventDay.isEmpty) return null;
+
+  AthleteFocusHomeTarget? withNext;
+  AthleteFocusHomeTarget? anyAlive;
+  for (final reg in eventDay) {
+    final teamId = reg.teamId!.trim();
+    final categoryId = reg.categoryId.trim();
+    final matches = matchesByTournament[reg.tournamentId] ?? const [];
+    if (categoryId.isNotEmpty &&
+        eliminatedFromKnockout(matches, categoryId, {teamId})) {
+      continue;
+    }
+    final target = AthleteFocusHomeTarget(
+      tournamentId: reg.tournamentId,
+      tournamentName: reg.tournamentName,
+    );
+    anyAlive ??= target;
+    if (withNext != null) continue;
+    final next = pickAthleteNextMatch(
+      matches: matches,
+      teamId: teamId,
+      tournamentId: reg.tournamentId,
+      tournamentName: reg.tournamentName,
+      today: today,
+    );
+    if (next != null) withNext = target;
+  }
+  return withNext ?? anyAlive;
 }

@@ -10,6 +10,7 @@ import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_announcements_repository.dart';
 import '../../../domain/focus/focus_double_elimination.dart';
+import '../../../domain/focus/focus_journey_view.dart';
 import '../../../domain/focus/focus_now_state.dart';
 import '../../../domain/focus/focus_providers.dart';
 import '../../../domain/focus/focus_views_logic.dart';
@@ -159,7 +160,14 @@ class FocusAgoraSection extends ConsumerWidget {
     final accent = inRepescagem ? AppColors.pending : AppColors.brand;
 
     final heroView = nextMatchViewOf(ctx, now);
-    final entries = timelineOf(ctx, day);
+    // As fases que ainda vêm entram na ordem do dia: se o atleta passar, ele
+    // joga de novo hoje, e a lista precisa dizer isso. Só as pendentes SEM
+    // dono — as dele já estão em `day`.
+    final futurePhases = categoryId == null
+        ? const <TournamentMatch>[]
+        : (journeyPathOf(categoryMatches, categoryId!, athleteTeamIds).future
+          ..sort((a, b) => a.round.compareTo(b.round)));
+    final entries = timelineOf(ctx, day, futurePhases: futurePhases);
     final announcements =
         ref.watch(tournamentAnnouncementsProvider(tournament.id)).valueOrNull ??
             const [];
@@ -237,7 +245,6 @@ class FocusAgoraSection extends ConsumerWidget {
         else
           FocusTimeline(
             entries: entries,
-            playersOf: rosters.playersOf,
             onOpen: (id) => _openMatch(context, id),
           ),
         if (announcements.isNotEmpty) ...[

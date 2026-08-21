@@ -254,6 +254,86 @@ void main() {
     });
   });
 
+  group('timelineOf — fases futuras', () {
+    TournamentMatch fase({
+      required String id,
+      required int round,
+      String? descA,
+      String? descB,
+      DateTime? scheduleTime,
+    }) {
+      return TournamentMatch(
+        id: id, tournamentId: 't1', categoryId: 'c1', round: round,
+        matchType: 'knockout', poolId: '', teamAId: '', teamBId: '',
+        teamADescription: descA, teamBDescription: descB,
+        status: TournamentMatchStatus.scheduled, resultA: '', resultB: '',
+        isGroupMatch: false, matchNumber: 10 + round,
+        scheduleTime: scheduleTime,
+      );
+    }
+
+    test('mostra o cruzamento declarado, compactado', () {
+      // "1º Grupo B" vira "1º B": na linha da ordem do dia a palavra "Grupo"
+      // repetida dos dois lados só rouba largura.
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [
+          fase(id: 'q', round: 2, descA: '1º Grupo B', descB: '2º Grupo A'),
+        ],
+      );
+
+      expect(entries.single.opponentName, '1º B vs 2º A');
+      expect(entries.single.note, 'a definir');
+      expect(entries.single.matchId, isNull);
+    });
+
+    test('sem cruzamento declarado, diz "se classificar"', () {
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [fase(id: 'sf', round: 3)],
+      );
+
+      expect(entries.single.opponentName, isNull);
+      expect(entries.single.note, 'se classificar');
+    });
+
+    test('uma linha por RODADA, não uma por partida sem dono', () {
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [
+          fase(id: 'q1', round: 2, descA: '1º Grupo A', descB: '2º Grupo B'),
+          fase(id: 'q2', round: 2, descA: '1º Grupo B', descB: '2º Grupo A'),
+        ],
+      );
+
+      expect(entries.length, 1);
+    });
+
+    test('não inventa horário para fase que o organizador não marcou', () {
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [fase(id: 'q', round: 2)],
+      );
+
+      expect(entries.single.time, isNull);
+    });
+  });
+
+  group('timelineOf — rótulos', () {
+    test('fase de grupos vira "R" + posição da rodada, não o round cru', () {
+      // O `round` do Firestore começa em zero em muitos torneios; "R0" não
+      // significa nada para o atleta.
+      final r0 = _match(id: 'a', scheduleTime: DateTime(2026, 8, 20, 9));
+      final ctx = _ctx(matches: [r0]);
+
+      expect(timelineOf(ctx, [r0]).single.phaseLabel, 'R1');
+    });
+  });
+
   group('standingLineOf', () {
     test('devolve "1º do grupo · 2V 0D"', () {
       final ctx = _ctx(

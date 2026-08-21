@@ -24,6 +24,7 @@ import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../widgets/tournament_match_card.dart';
+import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/tournament_detail_logic.dart';
@@ -177,9 +178,9 @@ class FocusAgoraSection extends ConsumerWidget {
         .toList();
 
     return ListView(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         top: AppSpacing.md,
-        bottom: AppSpacing.xxxl,
+        bottom: focusBottomClearance(context),
       ),
       children: [
         FocusNowHero(

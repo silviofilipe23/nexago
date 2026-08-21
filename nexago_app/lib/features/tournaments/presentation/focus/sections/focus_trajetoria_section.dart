@@ -17,6 +17,7 @@ import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../widgets/nexa_duo_avatars.dart';
+import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 import '../../../domain/focus/campaign_share_data.dart';
@@ -175,9 +176,9 @@ class FocusTrajetoriaSection extends ConsumerWidget {
             athleteTeamIds.contains(m.teamBId)));
 
     return ListView(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         top: AppSpacing.md,
-        bottom: AppSpacing.xxxl,
+        bottom: focusBottomClearance(context),
       ),
       children: [
         // Cabeçalho do protótipo: eyebrow nomeando a dupla, manchete grande e

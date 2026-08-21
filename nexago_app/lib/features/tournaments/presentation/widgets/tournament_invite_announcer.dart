@@ -57,6 +57,9 @@ class _TournamentInviteAnnouncerState
       // Só anuncia com a casca do atleta à vista: se o atleta já está numa
       // inscrição, num pagamento ou no próprio convite (deep link), empilhar
       // outra tela por cima seria justamente o que o corte de sessão evita.
+      //
+      // Isto ADIA o anúncio, não o descarta: o convite não é marcado como
+      // anunciado e o `build` refaz a tentativa quando a tela de cima sai.
       if (ModalRoute.of(context)?.isCurrent != true) {
         _opening = false;
         return;
@@ -80,13 +83,24 @@ class _TournamentInviteAnnouncerState
       },
     );
 
-    // O primeiro valor do stream pode chegar antes do primeiro `listen` — sem
-    // esta leitura, quem abre o app com convite pendente só veria a tela se o
-    // stream emitisse de novo.
     final current = ref
         .watch(pendingTournamentPartnerInvitesProvider)
         .valueOrNull;
-    if (current != null) _maybeAnnounce(current);
+
+    // Ler a rota corrente AQUI, no build, não é uma checagem a mais:
+    // `isCurrentOf` assina o `_ModalScopeStatus` da rota, e é essa assinatura
+    // que faz o Flutter reconstruir este widget assim que a tela empilhada em
+    // cima sai.
+    final shellIsCurrent = ModalRoute.isCurrentOf(context) ?? false;
+
+    // Esta linha carrega duas coisas, e as duas importam:
+    //  1. o primeiro valor do stream pode chegar antes do primeiro `listen` —
+    //     sem ela, quem abre o app com convite pendente só veria a tela se o
+    //     stream emitisse de novo;
+    //  2. é a SEGUNDA CHANCE do anúncio que perdeu a corrida do primeiro frame
+    //     para os outros anúncios da casca (Focus, missão diária, promoção de
+    //     elo) — refeito com a lista atual de convites, não com a de antes.
+    if (shellIsCurrent && current != null) _maybeAnnounce(current);
 
     return widget.child;
   }

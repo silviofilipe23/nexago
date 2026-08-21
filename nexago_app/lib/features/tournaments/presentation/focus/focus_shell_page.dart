@@ -21,6 +21,8 @@ import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_matches_logic.dart';
+import '../tournament_predictions_page.dart';
+import 'focus_bottom_clearance.dart';
 import 'focus_section.dart';
 import 'sections/focus_agora_section.dart';
 import 'sections/focus_arena_section.dart';
@@ -224,6 +226,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     FocusSection.grupo => Icons.table_rows_outlined,
     FocusSection.chave => Icons.account_tree_outlined,
     FocusSection.arena => Icons.place_outlined,
+    FocusSection.palpites => Icons.casino_outlined,
   };
 
   IconData _selectedIconOf(FocusSection section) => switch (section) {
@@ -232,6 +235,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     FocusSection.grupo => Icons.table_rows_rounded,
     FocusSection.chave => Icons.account_tree_rounded,
     FocusSection.arena => Icons.place_rounded,
+    FocusSection.palpites => Icons.casino_rounded,
   };
 
   String _sfSymbolOf(FocusSection section) => switch (section) {
@@ -240,6 +244,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     FocusSection.grupo => 'tablecells',
     FocusSection.chave => 'arrow.triangle.branch',
     FocusSection.arena => 'mappin.and.ellipse',
+    FocusSection.palpites => 'die.face.5',
   };
 
   String _selectedSfSymbolOf(FocusSection section) => switch (section) {
@@ -250,6 +255,7 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     // no `iconData`, que é o caminho que quebra a escala.
     FocusSection.chave => 'arrow.triangle.branch',
     FocusSection.arena => 'mappin.and.ellipse',
+    FocusSection.palpites => 'die.face.5.fill',
   };
 
   Widget _sectionBody(
@@ -286,6 +292,14 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
       FocusSection.arena => FocusArenaSection(
         tournament: tournament,
         athleteTeamIds: athleteTeamIds,
+      ),
+      // Também sem guarda de categoria: os palpites são do torneio INTEIRO, a
+      // mesma lista da rota `/torneios/:id/palpites`. `embedded` tira o
+      // scaffold próprio da tela — a casca já tem cabeçalho e nav.
+      FocusSection.palpites => TournamentPredictionsPage(
+        tournamentId: tournament.id,
+        embedded: true,
+        bottomPadding: focusBottomClearance(context),
       ),
     };
   }

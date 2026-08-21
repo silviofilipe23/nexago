@@ -12,6 +12,8 @@ import 'package:nexago_app/features/tournaments/domain/tournament_match_card_vie
 import 'package:nexago_app/features/tournaments/presentation/focus/focus_shell_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_agora_section.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_arena_section.dart';
+import 'package:nexago_app/features/tournaments/domain/predictions/tournament_predictions_providers.dart';
+import 'package:nexago_app/features/tournaments/presentation/tournament_predictions_page.dart';
 
 TournamentDetail _tournament() {
   final today = DateTime.now();
@@ -45,6 +47,8 @@ Widget _app() {
           .overrideWith((ref) => Stream.value(const [])),
       tournamentUserTeamIdsByCategoryProvider('t1')
           .overrideWith((ref) => Stream.value(const {})),
+      // Sem isto o provider iria ao Firestore real, que o teste não tem.
+      myTournamentPredictionEntryProvider('t1').overrideWith((ref) async => null),
     ],
     child: const MaterialApp(
       home: FocusShellPage(tournamentId: 't1'),
@@ -122,18 +126,20 @@ void main() {
     await initializeDateFormatting('pt_BR', null);
   });
 
-  testWidgets('nav inferior traz as quatro seções e o cabeçalho tem o ×',
+  testWidgets('nav inferior traz as cinco seções e o cabeçalho tem o ×',
       (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     // Rótulos em caixa alta: é o `uppercaseLabels` da nav do app.
     expect(find.text('AGORA'), findsOneWidget);
-    expect(find.text('TRAJETÓRIA'), findsOneWidget);
+    expect(find.text('JORNADA'), findsOneWidget);
+    expect(find.text('TRAJETÓRIA'), findsNothing);
     // Sem formato de dupla eliminação resolvido, a terceira aba é o Grupo.
     expect(find.text('GRUPO'), findsOneWidget);
     expect(find.text('CHAVE'), findsNothing);
     expect(find.text('ARENA'), findsOneWidget);
+    expect(find.text('PALPITES'), findsOneWidget);
     expect(find.byIcon(Icons.close_rounded), findsOneWidget);
     expect(find.text('FOCUS'), findsOneWidget);
   });
@@ -157,7 +163,7 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('TRAJETÓRIA'));
+    await tester.tap(find.text('JORNADA'));
     await tester.pumpAndSettle();
 
     expect(find.text('AGORA'), findsOneWidget);
@@ -210,6 +216,10 @@ void main() {
               .overrideWith((ref) => Stream.value([_completedCard()])),
           tournamentUserTeamIdsByCategoryProvider('t1')
               .overrideWith((ref) => Stream.value(const {'cat-a': 'meu-time'})),
+          // O `IndexedStack` da casca constrói TODAS as seções, inclusive a de
+          // palpites — que sem este override iria ao Firestore real.
+          myTournamentPredictionEntryProvider('t1')
+              .overrideWith((ref) async => null),
         ],
         child: const MaterialApp(home: FocusShellPage(tournamentId: 't1')),
       ),
@@ -219,5 +229,57 @@ void main() {
     expect(find.text('CHAVE'), findsOneWidget);
     expect(find.text('GRUPO'), findsNothing);
     expect(find.text('FOCUS · DUPLA ELIMINATÓRIA'), findsOneWidget);
+  });
+
+  // Palpites é do torneio INTEIRO, como a Arena: tem que abrir mesmo para quem
+  // não tem partida nenhuma nele — o cenário deste `_app()`.
+  testWidgets('a aba Palpites abre a tela de palpites sem categoria em foco',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('PALPITES'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TournamentPredictionsPage), findsOneWidget);
+    // O toggle da própria tela: prova que veio o conteúdo, não a casca vazia.
+    expect(find.text('Meus palpites'), findsOneWidget);
+    expect(find.text('Ranking'), findsOneWidget);
+    expect(find.textContaining('o grupo e a chave dela'), findsNothing);
+  });
+
+  // A tela de palpites tem scaffold próprio na rota `/palpites`. Dentro do
+  // Focus ela entra `embedded`, senão viria com cabeçalho e botão de voltar
+  // por cima da casca imersiva.
+  testWidgets('a aba Palpites entra embutida, sem scaffold próprio',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('PALPITES'));
+    await tester.pumpAndSettle();
+
+    final page = tester.widget<TournamentPredictionsPage>(
+      find.byType(TournamentPredictionsPage),
+    );
+    expect(page.embedded, isTrue);
+    expect(page.tournamentId, 't1');
+  });
+
+  // Mesmo motivo do teste da seção Agora: com `extendBody: true` a nav flutua
+  // por cima, e sem folga o botão "Salvar palpites" termina atrás do vidro.
+  testWidgets('a aba Palpites deixa folga para a nav flutuante',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('PALPITES'));
+    await tester.pumpAndSettle();
+
+    final page = tester.widget<TournamentPredictionsPage>(
+      find.byType(TournamentPredictionsPage),
+    );
+
+    expect(page.bottomPadding, greaterThanOrEqualTo(nexaBottomNavBarHeight()));
   });
 }

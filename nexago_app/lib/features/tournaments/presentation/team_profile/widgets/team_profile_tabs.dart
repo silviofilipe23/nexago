@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/team_profile/team_public_profile_models.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 
 class TeamProfileTabBar extends StatelessWidget {
   const TeamProfileTabBar({
@@ -222,7 +223,8 @@ class _CampaignCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateLabel = entry.playedAt == null
         ? ''
-        : DateFormat('MMM yyyy', 'pt_BR').format(entry.playedAt!);
+        : DateFormat('MMM yyyy', 'pt_BR')
+            .format(toNexagoEventLocal(entry.playedAt!));
     final metaParts = <String>[
       if (dateLabel.isNotEmpty) dateLabel,
       if (entry.locationLabel.isNotEmpty) entry.locationLabel,

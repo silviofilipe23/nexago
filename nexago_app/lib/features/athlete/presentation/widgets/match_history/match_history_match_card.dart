@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 
 class MatchHistoryMatchCard extends StatelessWidget {
   const MatchHistoryMatchCard({
@@ -24,7 +25,8 @@ class MatchHistoryMatchCard extends StatelessWidget {
     final isWin = match.isWin;
     final accent = isWin ? AppColors.win : AppColors.live;
     final resultLabel = isWin ? 'V' : 'D';
-    final dateStr = DateFormat('d MMM', 'pt_BR').format(match.playedAt);
+    final dateStr =
+        DateFormat('d MMM', 'pt_BR').format(toNexagoEventLocal(match.playedAt));
     final radius = compact ? 12.0 : 14.0;
 
     return Padding(

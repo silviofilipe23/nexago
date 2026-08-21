@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 
 import '../../../ranking/domain/ranking_display_helpers.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
@@ -342,15 +343,16 @@ int? _startsInMinutes(DateTime? scheduleTime) {
 
 String? _scheduleSubtitle(TournamentMatch match, DateTime? scheduleTime) {
   if (scheduleTime == null) return null;
-  final now = DateTime.now();
+  final local = toNexagoEventLocal(scheduleTime);
+  final now = toNexagoEventLocal(DateTime.now());
   final sameDay =
-      scheduleTime.year == now.year &&
-      scheduleTime.month == now.month &&
-      scheduleTime.day == now.day;
+      local.year == now.year &&
+      local.month == now.month &&
+      local.day == now.day;
   final dayPart = sameDay
       ? 'hoje'
-      : DateFormat('EEE', 'pt_BR').format(scheduleTime).toLowerCase();
-  final time = DateFormat('HH:mm', 'pt_BR').format(scheduleTime);
+      : DateFormat('EEE', 'pt_BR').format(local).toLowerCase();
+  final time = DateFormat('HH:mm', 'pt_BR').format(local);
   final court = _venueLabel(match, '');
   final parts = [dayPart, time];
   if (court.isNotEmpty) parts.add(court);
@@ -435,7 +437,10 @@ String _teamDisplayLabel({
 
 String _dateTimeLabel(DateTime? at) {
   if (at == null) return 'Data não informada';
-  return DateFormat("d 'de' MMMM 'de' y · HH:mm", 'pt_BR').format(at);
+  // Instante do doc → parede São Paulo antes de virar rótulo (ver
+  // `toNexagoEventLocal`): formatar o DateTime cru mostra UTC, +3h.
+  return DateFormat("d 'de' MMMM 'de' y · HH:mm", 'pt_BR')
+      .format(toNexagoEventLocal(at));
 }
 
 String _venueLabel(TournamentMatch match, String contextVenue) {

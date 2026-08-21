@@ -5,6 +5,7 @@ import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_point_action.dart';
 import 'athlete_match_detail_models.dart';
 import 'match_detail_play_by_play_logic.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 
 const _minPointsForMomentum = 4;
 
@@ -184,7 +185,8 @@ List<MatchDetailMomentumChartPoint> _buildChartPointsFromActions({
     points.add(
       MatchDetailMomentumChartPoint(
         scoreDiff: ourScore - oppScore,
-        time: fmt.format(action.ts),
+        // `ts` é instante (UTC): a hora do ponto é a da parede SP.
+        time: fmt.format(toNexagoEventLocal(action.ts)),
         scoreLabel: '$ourScore-$oppScore',
         isOurTeam: isOurPoint,
         teamLabel: teamLabel,

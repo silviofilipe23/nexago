@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../widgets/tournament_detail/tournament_detail_bracket_tab.dart';
 import '../../widgets/tournament_detail/tournament_matches_filter_toggle.dart';
+import '../focus_bottom_clearance.dart';
 
 /// Seção "Chave" do Focus — embrulho do desenho que o detalhe do torneio já
 /// faz. Não redesenha nada: a arte da chave (incluindo a dupla eliminação) tem
@@ -39,6 +40,7 @@ class _FocusChaveSectionState extends ConsumerState<FocusChaveSection> {
       categoryId: widget.categoryId,
       filter: _filter,
       showCategoryChips: false,
+      bottomPadding: focusBottomClearance(context),
       selectedRound: _round,
       onRoundChanged: (value) => setState(() => _round = value),
       onFilterChanged: (value) => setState(() => _filter = value),

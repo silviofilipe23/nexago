@@ -17,6 +17,7 @@ import '../../../domain/tournament_match_display.dart';
 import '../../../domain/tournament_match_status.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../widgets/nexa_duo_avatars.dart';
+import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
 
@@ -153,9 +154,9 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
     final crossing = crossingRowsOf(categoryMatches, widget.categoryId);
 
     return ListView(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         top: AppSpacing.xs,
-        bottom: AppSpacing.xxxl * 2,
+        bottom: focusBottomClearance(context),
       ),
       children: [
         Padding(

@@ -29,7 +29,12 @@ class TournamentDetailBracketTab extends ConsumerWidget {
     this.showCategoryChips = true,
     this.selectedRound,
     this.onRoundChanged,
+    this.bottomPadding = 32,
   });
+
+  /// Folga abaixo da lista. O padrão serve ao detalhe do torneio; o Focus
+  /// aumenta para a nav flutuante da casca não cobrir a última partida.
+  final double bottomPadding;
 
   /// `false` dentro da casca da categoria — lá a cascata manda voltar por
   /// "Todas as categorias", sem trocar de categoria pelos chips.
@@ -153,7 +158,7 @@ class TournamentDetailBracketTab extends ConsumerWidget {
         final isEmpty = !showPools && !hasKnockoutContent;
 
         return tournamentDetailTabSliversFromChildren(
-          padding: const EdgeInsets.only(bottom: 32),
+          padding: EdgeInsets.only(bottom: bottomPadding),
           children: [
             if (showCategoryChips)
               TournamentDetailCategoryChips(

@@ -6,7 +6,9 @@ import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_rep
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
+import 'package:nexago_app/core/layout/nexa_bottom_nav_bar.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/focus_shell_page.dart';
+import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_agora_section.dart';
 
 TournamentDetail _tournament() {
   final today = DateTime.now();
@@ -76,6 +78,26 @@ void main() {
 
     expect(find.text('AGORA'), findsOneWidget);
     expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+  });
+
+  // A casca usa `extendBody: true`: a nav flutua POR CIMA do corpo. Com padding
+  // fixo o fim da lista some atrás do vidro, que foi o que aconteceu.
+  testWidgets('a lista da seção deixa folga para a nav flutuante',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    final list = tester.widget<ListView>(
+      find.descendant(
+        of: find.byType(FocusAgoraSection),
+        matching: find.byType(ListView),
+      ),
+    );
+
+    expect(
+      (list.padding as EdgeInsets).bottom,
+      greaterThanOrEqualTo(nexaBottomNavBarHeight()),
+    );
   });
 
   testWidgets('sem categoria em foco a seção de grupo explica em vez de vazar',

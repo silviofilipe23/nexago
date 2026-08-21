@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +12,9 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/nexa_icon_square_button.dart';
+import '../../data/tournament_announcements_repository.dart';
 import '../../data/tournament_inscriptions_repository.dart';
+import '../../domain/focus/focus_boot_logic.dart';
 import '../../domain/focus/focus_providers.dart';
 import '../../domain/tournament_detail_logic.dart';
 import '../../domain/tournament_detail_model.dart';
@@ -22,6 +26,7 @@ import 'sections/focus_agora_section.dart';
 import 'sections/focus_chave_section.dart';
 import 'sections/focus_grupo_section.dart';
 import 'sections/focus_trajetoria_section.dart';
+import 'widgets/focus_boot_loader.dart';
 
 /// Casca do Modo Focus: cabeçalho, corpo e a navegação inferior das seções.
 ///
@@ -51,11 +56,49 @@ class FocusShellPage extends ConsumerStatefulWidget {
 }
 
 class _FocusShellPageState extends ConsumerState<FocusShellPage> {
+  /// Piso de exibição da soleira. `tournamentDetailProvider` guarda cache, então
+  /// reabrir o Focus resolve em milissegundos e o loader piscaria por um quadro
+  /// — pior do que não ter loader nenhum.
+  static const Duration _bootMinimumHold = Duration(milliseconds: 600);
+
+  /// Teto. Um stream que nunca emite (offline, sem cache) não pode prender o
+  /// atleta: passado o prazo a casca entra e cada seção mostra o próprio
+  /// estado.
+  static const Duration _bootDeadline = Duration(seconds: 6);
+
   late FocusSection _section = widget.initialSection;
+
+  bool _minimumHoldElapsed = false;
+  bool _deadlineElapsed = false;
+  Timer? _holdTimer;
+  Timer? _deadlineTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _holdTimer = Timer(_bootMinimumHold, () {
+      if (mounted) setState(() => _minimumHoldElapsed = true);
+    });
+    _deadlineTimer = Timer(_bootDeadline, () {
+      if (mounted) setState(() => _deadlineElapsed = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    _deadlineTimer?.cancel();
+    super.dispose();
+  }
 
   /// Sair devolve o atleta à HOME, não ao detalhe do torneio: no dia de jogo a
   /// home é a base da navegação dele.
   void _exit() => context.go(AppRoutes.home);
+
+  /// "Assentou" é chegou OU falhou. Um stream que a regra do Firestore negou
+  /// nunca traria dado, e esperar por ele deixaria o passo girando para sempre.
+  static bool _settled(AsyncValue<Object?> value) =>
+      value.hasValue || value.hasError;
 
   TournamentCategoryOffer? _offer(TournamentDetail? tournament, String? id) {
     if (tournament == null || id == null) return null;
@@ -69,16 +112,44 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final topInset = MediaQuery.paddingOf(context).top;
-    final tournament =
-        ref.watch(tournamentDetailProvider(widget.tournamentId)).valueOrNull;
+
+    // As mesmas famílias que as seções observam — o Riverpod compartilha a
+    // assinatura, então observar aqui não abre um segundo listener no Firestore.
+    final detailAsync = ref.watch(tournamentDetailProvider(widget.tournamentId));
+    final teamIdsAsync =
+        ref.watch(tournamentUserTeamIdsByCategoryProvider(widget.tournamentId));
+
+    // `select` porque a casca só precisa saber SE o passo assentou. Observar o
+    // valor faria a casca inteira — cabeçalho, nav e as três seções do
+    // `IndexedStack` — reconstruir a cada ponto marcado no torneio.
+    final nextMatchSettled = ref.watch(
+      tournamentMatchCardsProvider(widget.tournamentId).select(_settled),
+    );
+    final announcementsSettled = ref.watch(
+      tournamentAnnouncementsProvider(widget.tournamentId).select(_settled),
+    );
+
+    final tournament = detailAsync.valueOrNull;
     final categoryId = ref.watch(focusCategoryIdProvider(widget.tournamentId));
-    final teamIdsByCategory = ref
-            .watch(
-              tournamentUserTeamIdsByCategoryProvider(widget.tournamentId),
-            )
-            .valueOrNull ??
-        const <String, String>{};
+    final teamIdsByCategory =
+        teamIdsAsync.valueOrNull ?? const <String, String>{};
     final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
+
+    final progress = FocusBootProgress({
+      if (nextMatchSettled) FocusBootStep.nextMatch,
+      if (tournament != null && _settled(teamIdsAsync)) FocusBootStep.journey,
+      if (announcementsSettled) FocusBootStep.announcements,
+    });
+    final showBoot = shouldShowFocusBoot(
+      hasTournament: tournament != null,
+      progress: progress,
+      minimumHoldElapsed: _minimumHoldElapsed,
+      deadlineElapsed: _deadlineElapsed,
+    );
+
+    // O detalhe assentou sem torneio: id errado, torneio removido ou regra
+    // negada. Sem isto a soleira ficaria girando para sempre.
+    final unavailable = tournament == null && _settled(detailAsync);
 
     final offer = _offer(tournament, categoryId);
     final isDouble =
@@ -103,23 +174,26 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
             onExit: _exit,
           ),
           Expanded(
-            child: tournament == null
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.brand),
-                  )
-                : IndexedStack(
-                    index: sections.indexOf(current),
-                    sizing: StackFit.expand,
-                    children: [
-                      for (final section in sections)
-                        _sectionBody(
-                          section,
-                          tournament,
-                          categoryId,
-                          athleteTeamIds,
-                        ),
-                    ],
-                  ),
+            child: switch ((unavailable, showBoot, tournament)) {
+              (true, _, _) => const _TournamentUnavailable(),
+              (_, _, null) || (_, true, _) => FocusBootLoader(
+                  progress: progress,
+                  tournamentName: tournament?.name,
+                ),
+              (_, _, final TournamentDetail loaded) => IndexedStack(
+                  index: sections.indexOf(current),
+                  sizing: StackFit.expand,
+                  children: [
+                    for (final section in sections)
+                      _sectionBody(
+                        section,
+                        loaded,
+                        categoryId,
+                        athleteTeamIds,
+                      ),
+                  ],
+                ),
+            },
           ),
         ],
       ),
@@ -290,6 +364,32 @@ class _Header extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// O torneio assentou sem dado: id errado, removido ou regra negada.
+///
+/// A saída é o × do cabeçalho, que continua na tela durante todo o Focus — por
+/// isso a cópia aponta para ele em vez de prometer um botão de tentar de novo
+/// que a casca não tem.
+class _TournamentUnavailable extends StatelessWidget {
+  const _TournamentUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xxl),
+      child: Center(
+        child: Text(
+          'Não foi possível carregar este torneio. Toque no × para voltar e '
+          'tentar de novo.',
+          textAlign: TextAlign.center,
+          style: AppTypography.bodyM.copyWith(color: colors.onSurfaceMuted),
+        ),
       ),
     );
   }

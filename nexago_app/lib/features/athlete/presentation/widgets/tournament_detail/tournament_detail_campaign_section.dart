@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_tournament_detail_models.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 
 class TournamentDetailCampaignSection extends StatelessWidget {
   const TournamentDetailCampaignSection({
@@ -67,7 +68,8 @@ class _CampaignRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final accent = match.isWin ? AppColors.win : AppColors.live;
-    final dateStr = DateFormat('dd/MM · HH:mm', 'pt_BR').format(match.playedAt);
+    final dateStr = DateFormat('dd/MM · HH:mm', 'pt_BR')
+        .format(toNexagoEventLocal(match.playedAt));
 
     return IntrinsicHeight(
       child: Row(

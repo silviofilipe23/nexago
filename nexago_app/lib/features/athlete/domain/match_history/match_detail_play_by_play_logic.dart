@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import 'athlete_match_detail_models.dart';
@@ -298,7 +299,8 @@ List<MatchDetailPlayByPlayItem> _toPlayByPlayItems({
   return [
     for (final point in points)
       MatchDetailPlayByPlayItem(
-        time: fmt.format(point.ts),
+        // `ts` é instante (UTC) — a hora do ponto é a da parede SP.
+        time: fmt.format(toNexagoEventLocal(point.ts)),
         isOurTeam: point.isOurTeam,
         description: 'Ponto · ${_teamLabelForPoint(
           isOurPoint: point.isOurTeam,

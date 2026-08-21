@@ -4,6 +4,7 @@ import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'athlete_match_detail_models.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 
 const kMatchDetailHeadToHeadPastMatchLimit = 3;
 
@@ -130,7 +131,8 @@ String _pastMatchLabel(
           : 'Torneio';
   final playedAt = playedAtForMatch(match);
   if (playedAt == null) return tournamentName;
-  final monthYear = DateFormat('MMM yy', 'pt_BR').format(playedAt);
+  final monthYear =
+      DateFormat('MMM yy', 'pt_BR').format(toNexagoEventLocal(playedAt));
   return '$tournamentName · $monthYear';
 }
 

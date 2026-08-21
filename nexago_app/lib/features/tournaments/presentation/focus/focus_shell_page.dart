@@ -116,9 +116,12 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
 
     // As mesmas famílias que as seções observam — o Riverpod compartilha a
     // assinatura, então observar aqui não abre um segundo listener no Firestore.
-    final detailAsync = ref.watch(tournamentDetailProvider(widget.tournamentId));
-    final teamIdsAsync =
-        ref.watch(tournamentUserTeamIdsByCategoryProvider(widget.tournamentId));
+    final detailAsync = ref.watch(
+      tournamentDetailProvider(widget.tournamentId),
+    );
+    final teamIdsAsync = ref.watch(
+      tournamentUserTeamIdsByCategoryProvider(widget.tournamentId),
+    );
 
     // `select` porque a casca só precisa saber SE o passo assentou. Observar o
     // valor faria a casca inteira — cabeçalho, nav e as três seções do
@@ -178,22 +181,17 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
             child: switch ((unavailable, showBoot, tournament)) {
               (true, _, _) => const _TournamentUnavailable(),
               (_, _, null) || (_, true, _) => FocusBootLoader(
-                  progress: progress,
-                  tournamentName: tournament?.name,
-                ),
+                progress: progress,
+                tournamentName: tournament?.name,
+              ),
               (_, _, final TournamentDetail loaded) => IndexedStack(
-                  index: sections.indexOf(current),
-                  sizing: StackFit.expand,
-                  children: [
-                    for (final section in sections)
-                      _sectionBody(
-                        section,
-                        loaded,
-                        categoryId,
-                        athleteTeamIds,
-                      ),
-                  ],
-                ),
+                index: sections.indexOf(current),
+                sizing: StackFit.expand,
+                children: [
+                  for (final section in sections)
+                    _sectionBody(section, loaded, categoryId, athleteTeamIds),
+                ],
+              ),
             },
           ),
         ],
@@ -221,38 +219,38 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   }
 
   IconData _iconOf(FocusSection section) => switch (section) {
-        FocusSection.agora => Icons.local_fire_department_outlined,
-        FocusSection.trajetoria => Icons.emoji_events_outlined,
-        FocusSection.grupo => Icons.table_rows_outlined,
-        FocusSection.chave => Icons.account_tree_outlined,
-        FocusSection.arena => Icons.place_outlined,
-      };
+    FocusSection.agora => Icons.local_fire_department_outlined,
+    FocusSection.trajetoria => Icons.emoji_events_outlined,
+    FocusSection.grupo => Icons.table_rows_outlined,
+    FocusSection.chave => Icons.account_tree_outlined,
+    FocusSection.arena => Icons.place_outlined,
+  };
 
   IconData _selectedIconOf(FocusSection section) => switch (section) {
-        FocusSection.agora => Icons.local_fire_department_rounded,
-        FocusSection.trajetoria => Icons.emoji_events_rounded,
-        FocusSection.grupo => Icons.table_rows_rounded,
-        FocusSection.chave => Icons.account_tree_rounded,
-        FocusSection.arena => Icons.place_rounded,
-      };
+    FocusSection.agora => Icons.local_fire_department_rounded,
+    FocusSection.trajetoria => Icons.emoji_events_rounded,
+    FocusSection.grupo => Icons.table_rows_rounded,
+    FocusSection.chave => Icons.account_tree_rounded,
+    FocusSection.arena => Icons.place_rounded,
+  };
 
   String _sfSymbolOf(FocusSection section) => switch (section) {
-        FocusSection.agora => 'flame',
-        FocusSection.trajetoria => 'trophy',
-        FocusSection.grupo => 'tablecells',
-        FocusSection.chave => 'arrow.triangle.branch',
-        FocusSection.arena => 'mappin.and.ellipse',
-      };
+    FocusSection.agora => 'flame',
+    FocusSection.trajetoria => 'trophy',
+    FocusSection.grupo => 'tablecells',
+    FocusSection.chave => 'arrow.triangle.branch',
+    FocusSection.arena => 'mappin.and.ellipse',
+  };
 
   String _selectedSfSymbolOf(FocusSection section) => switch (section) {
-        FocusSection.agora => 'flame.fill',
-        FocusSection.trajetoria => 'trophy.fill',
-        FocusSection.grupo => 'tablecells.fill',
-        // Sem variante preenchida no SF; repete a de contorno em vez de cair
-        // no `iconData`, que é o caminho que quebra a escala.
-        FocusSection.chave => 'arrow.triangle.branch',
-        FocusSection.arena => 'mappin.and.ellipse',
-      };
+    FocusSection.agora => 'flame.fill',
+    FocusSection.trajetoria => 'trophy.fill',
+    FocusSection.grupo => 'tablecells.fill',
+    // Sem variante preenchida no SF; repete a de contorno em vez de cair
+    // no `iconData`, que é o caminho que quebra a escala.
+    FocusSection.chave => 'arrow.triangle.branch',
+    FocusSection.arena => 'mappin.and.ellipse',
+  };
 
   Widget _sectionBody(
     FocusSection section,
@@ -262,34 +260,33 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   ) {
     return switch (section) {
       FocusSection.agora => FocusAgoraSection(
-          tournament: tournament,
-          categoryId: categoryId,
-          athleteTeamIds: athleteTeamIds,
-        ),
+        tournament: tournament,
+        categoryId: categoryId,
+        athleteTeamIds: athleteTeamIds,
+      ),
       FocusSection.trajetoria => FocusTrajetoriaSection(
-          tournament: tournament,
-          categoryId: categoryId,
-          athleteTeamIds: athleteTeamIds,
-        ),
-      FocusSection.grupo => categoryId == null
-          ? const _NoCategory()
-          : FocusGrupoSection(
-              tournament: tournament,
-              categoryId: categoryId,
-              athleteTeamIds: athleteTeamIds,
-            ),
-      FocusSection.chave => categoryId == null
-          ? const _NoCategory()
-          : FocusChaveSection(
-              tournament: tournament,
-              categoryId: categoryId,
-            ),
+        tournament: tournament,
+        categoryId: categoryId,
+        athleteTeamIds: athleteTeamIds,
+      ),
+      FocusSection.grupo =>
+        categoryId == null
+            ? const _NoCategory()
+            : FocusGrupoSection(
+                tournament: tournament,
+                categoryId: categoryId,
+                athleteTeamIds: athleteTeamIds,
+              ),
+      FocusSection.chave =>
+        categoryId == null
+            ? const _NoCategory()
+            : FocusChaveSection(tournament: tournament, categoryId: categoryId),
       // Sem guarda de categoria: a Arena olha o torneio inteiro, e é o que
       // sobra para quem foi eliminado ou ainda não entrou em quadra.
       FocusSection.arena => FocusArenaSection(
-          tournament: tournament,
-          athleteTeamIds: athleteTeamIds,
-        ),
+        tournament: tournament,
+        athleteTeamIds: athleteTeamIds,
+      ),
     };
   }
 }
@@ -314,7 +311,8 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final now = TimeOfDay.now();
-    final clock = '${now.hour.toString().padLeft(2, '0')}:'
+    final clock =
+        '${now.hour.toString().padLeft(2, '0')}:'
         '${now.minute.toString().padLeft(2, '0')}';
 
     return Padding(
@@ -353,8 +351,9 @@ class _Header extends StatelessWidget {
                       isDoubleElimination
                           ? 'FOCUS · DUPLA ELIMINATÓRIA'
                           : 'FOCUS',
-                      style: AppTypography.eyebrow
-                          .copyWith(color: AppColors.brand),
+                      style: AppTypography.eyebrow.copyWith(
+                        color: AppColors.brand,
+                      ),
                     ),
                   ],
                 ),

@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/brand/nexa_hashtag.dart';
 import '../../../core/layout/nexa_app_bar.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -323,6 +324,9 @@ class _TournamentRegistrationSuccessViewState
 
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
+        text: withNexaHashtag(
+          'Inscrição confirmada no ${widget.args.tournamentName}',
+        ),
         sharePositionOrigin: nexaSharePositionOrigin(context),
       );
     } catch (_) {

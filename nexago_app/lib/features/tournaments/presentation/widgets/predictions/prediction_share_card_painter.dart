@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'package:nexago_app/core/brand/nexa_hashtag.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/predictions/prediction_share_text.dart';
@@ -329,11 +330,25 @@ void _drawFooter(Canvas canvas, PredictionShareData data) {
   url.paint(canvas, Offset(cx - url.width / 2, 1752));
 
   const size = 40.0;
+  const gap = 24.0;
   final mark = _text(
     'nexaGO',
     AppTypography.soraRegular(fontSize: size, fontWeight: FontWeight.w800, color: _ink),
   );
-  _drawWordmark(canvas, Offset(cx - mark.width / 2, 1832), size);
+  final hash = _tracked(
+    nexaHashtagStamp,
+    AppTypography.mono(fontSize: 24, fontWeight: FontWeight.w700, color: _orange),
+    spacing: 4,
+  );
+  // O conjunto é que fica centrado, não o wordmark.
+  final left = cx - (mark.width + gap + hash.width) / 2;
+  _drawWordmark(canvas, Offset(left, 1832), size);
+  // Alinhado pela BASE do lockup: `paint` posiciona pelo topo, e o mono, sendo
+  // menor, ficaria pendurado acima da linha.
+  hash.paint(
+    canvas,
+    Offset(left + mark.width + gap, 1832 + mark.height - hash.height),
+  );
 }
 
 /// Pinta o card inteiro no [canvas], em coordenadas de 1080×1920. [mark] é a logo do cabeçalho;

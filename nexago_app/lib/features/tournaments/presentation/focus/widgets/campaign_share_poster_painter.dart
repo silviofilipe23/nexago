@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/brand/nexa_hashtag.dart';
 import '../../../../../core/ui/share_poster_primitives.dart';
 import '../../../domain/focus/campaign_share_data.dart';
 
@@ -628,4 +629,16 @@ void _drawFooter(
       1822,
     );
   }
+
+  // A hashtag ganha linha própria, na cor de acento da skin: no card do campeão
+  // o rodapé é escuro sobre laranja, e um laranja fixo aqui sumiria no fundo.
+  posterTracked(
+    canvas,
+    nexaHashtagStamp,
+    _mono(700, 24, color: skin.wordmarkGo),
+    _m,
+    1874,
+    4,
+    align: PosterAlign.left,
+  );
 }

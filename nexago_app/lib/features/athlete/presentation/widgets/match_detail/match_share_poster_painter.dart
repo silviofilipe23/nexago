@@ -19,6 +19,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/brand/nexa_hashtag.dart';
 import '../../../../../core/ui/share_poster_primitives.dart';
 
 import '../../../domain/match_history/match_share_poster_data.dart';
@@ -596,10 +597,29 @@ void _drawFooter(Canvas canvas, String? dateLine) {
     6,
   );
 
-  // lockup pequeno centrado no pé
+  // lockup pequeno centrado no pé, com a hashtag da campanha ao lado. As duas
+  // peças são medidas antes de desenhar porque o conjunto é que fica centrado —
+  // centrar só o wordmark jogaria a linha toda pra esquerda.
   const size = 40.0;
+  const gap = 24.0;
+  final hashStyle = _mono(700, 24, color: _orange);
+  final hashW = posterTrackedWidth(nexaHashtagStamp, hashStyle, 4);
   final wordW = _measure('nexaGO', _sora(800, size));
-  _drawWordmark(canvas, _cx - wordW / 2, 1848, size);
+  final wordEnd = _drawWordmark(
+    canvas,
+    _cx - (wordW + gap + hashW) / 2,
+    1848,
+    size,
+  );
+  _tracked(
+    canvas,
+    nexaHashtagStamp,
+    hashStyle,
+    wordEnd + gap,
+    1848,
+    4,
+    align: _Align.left,
+  );
 }
 
 // --- Composições ------------------------------------------------------------

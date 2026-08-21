@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../../core/brand/nexa_hashtag.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
@@ -78,7 +79,9 @@ class _CampaignSheetState extends State<_CampaignSheet> {
           ),
         ],
         subject: widget.data.teamName,
-        text: '${widget.data.teamName} — ${widget.data.tournamentName}',
+        text: withNexaHashtag(
+          '${widget.data.teamName} — ${widget.data.tournamentName}',
+        ),
         sharePositionOrigin: origin,
       );
     } catch (error, stackTrace) {

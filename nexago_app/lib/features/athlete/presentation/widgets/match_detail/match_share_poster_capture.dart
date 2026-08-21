@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../../core/brand/nexa_hashtag.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart' show kNexagoLogoAsset;
 import '../../../domain/match_history/match_share_poster_data.dart';
 import 'match_share_poster_painter.dart';
@@ -144,8 +145,9 @@ Future<ShareResult> shareMatchSharePosterPng(
   return Share.shareXFiles(
     [XFile(file.path, mimeType: 'image/png', name: 'nexago_partida.png')],
     subject: '${data.teamA.name} x ${data.teamB.name}',
-    text:
-        '${data.teamA.name} ${data.setWinsA}–${data.setWinsB} ${data.teamB.name}',
+    text: withNexaHashtag(
+      '${data.teamA.name} ${data.setWinsA}–${data.setWinsB} ${data.teamB.name}',
+    ),
     sharePositionOrigin: sharePositionOrigin,
   );
 }

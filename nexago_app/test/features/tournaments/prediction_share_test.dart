@@ -121,7 +121,7 @@ void main() {
       expect(
         predictionShareText(data, url),
         'Estou em #5 no ranking de palpites do Open Goiânia Beach 2026. '
-        'Dá o seu: $url',
+        'Dá o seu: $url #vamosnexa',
       );
     });
 
@@ -142,7 +142,7 @@ void main() {
       );
       expect(
         predictionShareText(data, url),
-        'Rafaela N. lidera o ranking de palpites. Dá o seu: $url',
+        'Rafaela N. lidera o ranking de palpites. Dá o seu: $url #vamosnexa',
       );
     });
   });

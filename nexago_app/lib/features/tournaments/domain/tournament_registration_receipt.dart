@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../../core/brand/nexa_hashtag.dart';
 import 'tournament_category_spots.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_models.dart';
@@ -123,16 +124,17 @@ String tournamentShareCardLocationLine(TournamentDetail tournament) {
   return '$location · $city';
 }
 
-/// `NEXAGO · MAI 2026`
+/// `NEXAGO · MAI 2026 · #VAMOSNEXA`
 ///
 /// Par do `registrationShareFooter` do portal do atleta
 /// (`frontend/projects/athlete/src/app/tournaments/registration/registration-share.ts`):
 /// o card é desenhado à mão nas duas superfícies e o rodapé tem de sair
-/// idêntico. O `intl` abrevia o mês com ponto em pt_BR (`mai.`) e o portal
-/// remove esse ponto — sem o mesmo corte aqui o app emitiria `MAI. 2026`.
+/// idêntico — a hashtag precisa entrar lá também. O `intl` abrevia o mês com
+/// ponto em pt_BR (`mai.`) e o portal remove esse ponto — sem o mesmo corte
+/// aqui o app emitiria `MAI. 2026`.
 String tournamentShareCardFooter(TournamentDetail tournament) {
   final month = _monthAbbrevNoDot(tournament.startDate).toUpperCase();
-  return 'NEXAGO · $month ${tournament.startDate.year}';
+  return 'NEXAGO · $month ${tournament.startDate.year} · $nexaHashtagStamp';
 }
 
 String _monthAbbrevNoDot(DateTime date) =>

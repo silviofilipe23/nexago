@@ -37,10 +37,10 @@ void main() {
   // web destes casos está em
   // `frontend/projects/athlete/src/app/tournaments/registration/registration-share.spec.ts`.
   group('tournamentShareCardFooter', () {
-    test('marca é NEXAGO seguida do mês/ano do torneio', () {
+    test('marca é NEXAGO seguida do mês/ano do torneio e da hashtag', () {
       expect(
         tournamentShareCardFooter(_detail(startDate: DateTime(2026, 5, 18))),
-        'NEXAGO · MAI 2026',
+        'NEXAGO · MAI 2026 · #VAMOSNEXA',
       );
     });
 
@@ -57,7 +57,7 @@ void main() {
     test('setembro (abreviação mais longa) também sai sem ponto', () {
       expect(
         tournamentShareCardFooter(_detail(startDate: DateTime(2026, 9, 3))),
-        'NEXAGO · SET 2026',
+        'NEXAGO · SET 2026 · #VAMOSNEXA',
       );
     });
   });

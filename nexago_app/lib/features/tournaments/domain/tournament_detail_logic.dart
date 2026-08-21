@@ -248,6 +248,31 @@ String bracketFormatLabel(String raw) {
   };
 }
 
+/// O formato que VALE para a categoria.
+///
+/// São dois campos no Firestore, e eles discordam com frequência:
+///
+///  - `categories[].bracketFormat` — o que o organizador DECLAROU ao criar a
+///    categoria (vazio nos torneios de seed, que nem chegam a declarar);
+///  - `tournaments/{id}.categoryOps[categoryId].bracketFormatOverride` — o
+///    formato com que a chave foi de fato GERADA
+///    (`functions/src/organizer-category-ops.ts`).
+///
+/// O override é escrito na hora de publicar a chave, então é ele que descreve
+/// as partidas que existem. O declarado é intenção; o override é o que
+/// aconteceu — e por isso ganha.
+///
+/// Sem isto o lado do ATLETA lia só o declarado: uma categoria gerada como
+/// dupla eliminação continuava se apresentando como fase de grupos, e o Modo
+/// Focus mostrava a aba GRUPO no lugar de CHAVE.
+String effectiveBracketFormat({
+  required String declared,
+  required String override,
+}) {
+  final chosen = override.trim();
+  return chosen.isNotEmpty ? chosen : declared;
+}
+
 /// Formato de chave dupla eliminatória (sem fase de grupos).
 bool isDoubleEliminationBracketFormat(String raw) {
   final n = raw.trim().toLowerCase().replaceAll('_', ' ');

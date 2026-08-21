@@ -1,7 +1,3 @@
-import '../tournament_group_standings_logic.dart';
-import '../tournament_match.dart';
-import '../tournament_match_display.dart';
-
 /// As duas listas da seção Arena. O segmento é o que o atleta escolhe nos
 /// chips do topo — não são contadores, são as duas visões da arena.
 enum FocusArenaSegment { live, upcoming }
@@ -38,27 +34,4 @@ FocusArenaSegment focusArenaInitialSegment({
 }) {
   if (liveCount == 0 && upcomingCount > 0) return FocusArenaSegment.upcoming;
   return FocusArenaSegment.live;
-}
-
-/// "Misto B · Grupo B" — de onde vem a partida.
-///
-/// Só faz sentido numa lista do torneio inteiro, que é o caso desta seção: no
-/// resto do app a lista já vem recortada por categoria.
-///
-/// Na fase de grupos usa o rótulo do POOL, não [matchPhaseDisplayLabel]: este
-/// devolveria "FASE DE GRUPOS · GRUPO B" e a categoria — a informação que
-/// falta — seria a primeira a truncar.
-String focusArenaContextLabel({
-  required TournamentMatch match,
-  required String categoryName,
-}) {
-  final phase = match.isPoolMatch
-      ? poolLabelForId(match.poolId)
-      : matchPhaseDisplayLabel(match);
-  final category = categoryName.trim();
-
-  return [
-    if (category.isNotEmpty) category,
-    if (phase.isNotEmpty) phase,
-  ].join(' · ');
 }

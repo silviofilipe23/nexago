@@ -26,7 +26,6 @@ class TournamentMatchCard extends ConsumerWidget {
     super.key,
     required this.viewModel,
     this.athleteTeamIds = const {},
-    this.contextLabel,
     this.onTap,
   });
 
@@ -34,15 +33,6 @@ class TournamentMatchCard extends ConsumerWidget {
 
   /// Equipes do atleta logado no torneio — marcam o card e o lado dele.
   final Set<String> athleteTeamIds;
-
-  /// Linha extra sob a linha mono ("Misto B · Grupo B"). OPCIONAL, e nula em
-  /// toda tela que já existia: numa lista recortada por categoria a informação
-  /// é redundante, e o card é desenho à mão espelhado no portal do atleta —
-  /// acrescentar linha para todo mundo faria as duas superfícies divergirem.
-  ///
-  /// Serve à seção Arena do Focus, que lista o TORNEIO INTEIRO: lá o "#14" sem
-  /// categoria não diz de que jogo se trata.
-  final String? contextLabel;
 
   final VoidCallback? onTap;
 
@@ -83,8 +73,6 @@ class TournamentMatchCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Head(row: row),
-          if (contextLabel != null && contextLabel!.trim().isNotEmpty)
-            _ContextLine(label: contextLabel!.trim()),
           const SizedBox(height: 12),
           _TeamRow(
             side: row.sideA,
@@ -98,38 +86,6 @@ class TournamentMatchCard extends ConsumerWidget {
           ),
           if (row.pills.isNotEmpty) _Pills(pills: row.pills),
         ],
-      ),
-    );
-  }
-}
-
-/// "MISTO B · GRUPO B" — de onde vem a partida, quando o card está numa lista
-/// que mistura categorias. Linha própria, e não emendada na linha mono do topo:
-/// lá o horário e a quadra já disputam espaço com o selo, e a categoria seria a
-/// primeira a truncar justamente onde ela é a informação que falta.
-class _ContextLine extends StatelessWidget {
-  const _ContextLine({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: Text(
-        label.toUpperCase(),
-        style: AppTypography.mono(
-          fontSize: 10,
-          fontWeight: FontWeight.w400,
-          // Mesmo alpha da linha mono de cima: a categoria é o que FALTA nesta
-          // lista, então ela não pode ser mais apagada que o horário.
-          color: colors.onSurfaceMuted.withValues(alpha: 0.85),
-          letterSpacing: 1.2,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }

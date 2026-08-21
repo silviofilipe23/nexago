@@ -9,7 +9,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/sections/focus_arena_section.dart';
-import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_match_card.dart';
+import 'package:nexago_app/features/tournaments/presentation/focus/widgets/focus_match_card.dart';
 
 const _team = TournamentMatchCardTeamViewModel(
   displayName: 'Dupla',
@@ -135,10 +135,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('#14'), findsOneWidget);
-    expect(find.textContaining('QUADRA 3'), findsOneWidget);
     // A lista é do torneio inteiro: sem a categoria o "#14" não diz de que
-    // jogo se trata.
-    expect(find.text('MISTO B · GRUPO B'), findsOneWidget);
+    // jogo se trata. A quadra abrevia para caber ao lado dela.
+    expect(find.text('MISTO B · GRUPO B · Q3'), findsOneWidget);
   });
 
   testWidgets('tocar em A SEGUIR troca a lista', (tester) async {
@@ -157,7 +156,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('AO VIVO AGORA'), findsOneWidget);
-    expect(find.byType(TournamentMatchCard), findsOneWidget);
+    expect(find.byType(FocusMatchCard), findsOneWidget);
     expect(find.text('#14'), findsOneWidget);
 
     await tester.tap(find.text('1 A SEGUIR'));
@@ -166,7 +165,7 @@ void main() {
     expect(find.text('A SEGUIR'), findsOneWidget);
     expect(find.text('#21'), findsOneWidget);
     expect(find.text('#14'), findsNothing);
-    expect(find.text('MASCULINA A · GRUPO A'), findsOneWidget);
+    expect(find.text('MASCULINA A · GRUPO A · Q3'), findsOneWidget);
   });
 
   testWidgets('nada em quadra: abre já na fila, sem esconder o conteúdo',
@@ -178,7 +177,7 @@ void main() {
 
     expect(find.text('Nenhuma partida em quadra agora.'), findsOneWidget);
     expect(find.text('A SEGUIR'), findsOneWidget);
-    expect(find.byType(TournamentMatchCard), findsOneWidget);
+    expect(find.byType(FocusMatchCard), findsOneWidget);
   });
 
   // O padrão do teste de widget é 800x600 — largo demais para provar qualquer
@@ -213,7 +212,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nenhuma partida em quadra agora.'), findsOneWidget);
-    expect(find.byType(TournamentMatchCard), findsNothing);
+    expect(find.byType(FocusMatchCard), findsNothing);
     expect(find.textContaining('Nada em quadra'), findsOneWidget);
   });
 }

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/time/nexago_event_timezone.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../data/tournament_matches_repository.dart';
 import 'athlete_tournament_day_logic.dart';
@@ -38,6 +39,11 @@ final athleteNextMatchProvider =
     }),
   );
 
+  // Um instante só para o laço inteiro: resolvido a cada volta, um atleta com
+  // torneios em paralelo poderia ser avaliado em dois dias diferentes na mesma
+  // passagem, se ela cruzar a meia-noite.
+  final now = nexagoEventNow();
+
   AthleteNextMatch? best;
   for (final reg in eventDayRegs) {
     final teamId = reg.teamId!.trim();
@@ -47,6 +53,7 @@ final athleteNextMatchProvider =
       teamId: teamId,
       tournamentId: reg.tournamentId,
       tournamentName: reg.tournamentName,
+      today: now,
     );
     if (candidate == null) continue;
     if (best == null ||

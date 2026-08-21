@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../../core/time/nexago_event_timezone.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_match.dart';
 import 'tournament_match_status.dart';
@@ -83,11 +84,11 @@ bool tournamentHasDefinedMatchups(List<TournamentMatch> matches) {
   return matches.any((m) => m.teamAId.isNotEmpty && m.teamBId.isNotEmpty);
 }
 
-bool _sameLocalDay(DateTime a, DateTime b) {
-  final la = a.toLocal();
-  final lb = b.toLocal();
-  return la.year == lb.year && la.month == lb.month && la.day == lb.day;
-}
+/// O dia de um torneio é o do FUSO DO EVENTO, nunca o do aparelho: o atleta
+/// que abre o app viajando (ou o jogo das 22h, que em UTC já é amanhã) tem que
+/// ver o mesmo dia que a mesa e o organizador veem na arena.
+bool _sameEventDay(DateTime a, DateTime b) =>
+    nexagoEventDayKey(a) == nexagoEventDayKey(b);
 
 int _byScheduleTime(TournamentMatch a, TournamentMatch b) {
   final at = a.scheduleTime;
@@ -122,8 +123,8 @@ bool matchBelongsToDay(
 }) {
   final scheduled = match.scheduleTime;
   final started = match.matchStartedAt;
-  if (scheduled != null && _sameLocalDay(scheduled, reference)) return true;
-  if (started != null && _sameLocalDay(started, reference)) return true;
+  if (scheduled != null && _sameEventDay(scheduled, reference)) return true;
+  if (started != null && _sameEventDay(started, reference)) return true;
   if (scheduled != null || started != null) return false;
   if (!tournamentRunningToday) return false;
   return !TournamentMatchStatus.isCompleted(match.status) &&

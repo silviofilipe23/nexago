@@ -65,19 +65,20 @@ class _Step extends StatelessWidget {
   /// A cor do estado pinta o ponto, a linha abaixo dele e a linha de meta —
   /// é uma decisão só, aplicada em três lugares.
   Color _accent(AppThemeColors colors) => switch (step.status) {
-        JourneyStepStatus.win => colors.win,
-        JourneyStepStatus.loss => AppColors.live,
-        JourneyStepStatus.live => AppColors.live,
-        JourneyStepStatus.next => colors.brand,
-        JourneyStepStatus.upcoming => colors.outline,
-      };
+    JourneyStepStatus.win => colors.win,
+    JourneyStepStatus.loss => AppColors.live,
+    JourneyStepStatus.live => AppColors.live,
+    JourneyStepStatus.next => colors.brand,
+    JourneyStepStatus.upcoming => colors.outline,
+  };
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final accent = _accent(colors);
     final isNext = step.status == JourneyStepStatus.next;
-    final done = step.status == JourneyStepStatus.win ||
+    final done =
+        step.status == JourneyStepStatus.win ||
         step.status == JourneyStepStatus.loss;
 
     return IntrinsicHeight(
@@ -123,11 +124,13 @@ class _Step extends StatelessWidget {
                               ?step.metaLabel,
                             ].join('  '),
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.monoMeta.copyWith(
+                            overflow: TextOverflow.visible,
+                            style: AppTypography.mono().copyWith(
                               color: step.status == JourneyStepStatus.upcoming
                                   ? colors.onSurfaceMuted
                                   : accent,
+                              fontSize: 10,
+                              letterSpacing: 0,
                             ),
                           ),
                         ),
@@ -146,8 +149,11 @@ class _Step extends StatelessWidget {
                             ),
                             child: Text(
                               step.bracketBadge!,
-                              style: AppTypography.eyebrow
-                                  .copyWith(color: colors.onSurfaceMuted),
+                              style: AppTypography.soraRegular().copyWith(
+                                fontSize: 10,
+                                letterSpacing: 0,
+                                color: colors.onSurfaceMuted,
+                              ),
                             ),
                           ),
                         ],
@@ -171,9 +177,11 @@ class _Step extends StatelessWidget {
                       step.opponentName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.titleM.copyWith(
+                      style: AppTypography.soraRegular().copyWith(
                         color: colors.onSurface,
-                        fontWeight: isNext ? FontWeight.w800 : FontWeight.w700,
+                        fontWeight: isNext ? FontWeight.w600 : FontWeight.w400,
+                        fontSize: 12,
+                        letterSpacing: 0,
                       ),
                     ),
                     if (step.detailLabel != null)
@@ -181,8 +189,11 @@ class _Step extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
                           step.detailLabel!,
-                          style: AppTypography.monoMeta
-                              .copyWith(color: colors.onSurfaceMuted),
+                          style: AppTypography.mono().copyWith(
+                            color: colors.onSurfaceMuted,
+                            fontSize: 10,
+                            letterSpacing: 0,
+                          ),
                         ),
                       ),
                   ],
@@ -212,12 +223,21 @@ class _Dot extends StatelessWidget {
     final colors = context.themeColors;
 
     return switch (status) {
-      JourneyStepStatus.win => _Filled(color: accent, icon: Icons.check_rounded),
-      JourneyStepStatus.loss => _Filled(color: accent, icon: Icons.close_rounded),
+      JourneyStepStatus.win => _Filled(
+        color: accent,
+        icon: Icons.check_rounded,
+      ),
+      JourneyStepStatus.loss => _Filled(
+        color: accent,
+        icon: Icons.close_rounded,
+      ),
       JourneyStepStatus.live => _Ring(color: accent, width: 3, size: 22),
       JourneyStepStatus.next => _Ring(color: accent, width: 3, size: 22),
-      JourneyStepStatus.upcoming =>
-        _Ring(color: colors.outline, width: 1.5, size: 18),
+      JourneyStepStatus.upcoming => _Ring(
+        color: colors.outline,
+        width: 1.5,
+        size: 18,
+      ),
     };
   }
 }

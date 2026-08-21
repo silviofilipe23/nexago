@@ -21,10 +21,13 @@ class JourneyHeadline {
 /// `null` quando o motor não sabe — e aí a manchete SOME, nunca vira chute.
 JourneyHeadline? journeyHeadlineOf(int? wins) {
   if (wins == null) return null;
-  if (wins == 0) return const JourneyHeadline(kind: JourneyHeadlineKind.champion);
+  if (wins == 0)
+    return const JourneyHeadline(kind: JourneyHeadlineKind.champion);
   return JourneyHeadline(
     kind: JourneyHeadlineKind.countdown,
-    text: wins == 1 ? '1 vitória até o título.' : '$wins vitórias até o título.',
+    text: wins == 1
+        ? '1 vitória até o título.'
+        : '$wins vitórias até o título.',
   );
 }
 
@@ -53,11 +56,13 @@ int? bracketWorstPlaceOf(
 
   final rounds = knockoutRounds(matches, categoryId);
   final myKnockouts = matches
-      .where((m) =>
-          m.categoryId == categoryId &&
-          m.poolId.isEmpty &&
-          !m.isGroupMatch &&
-          (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)))
+      .where(
+        (m) =>
+            m.categoryId == categoryId &&
+            m.poolId.isEmpty &&
+            !m.isGroupMatch &&
+            (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)),
+      )
       .toList();
   if (myKnockouts.isEmpty) return null;
 
@@ -119,24 +124,31 @@ JourneyPath journeyPathOf(
   String categoryId,
   Set<String> myTeamIds,
 ) {
-  final mine = matches
-      .where((m) =>
-          m.categoryId == categoryId &&
-          (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)))
-      .toList()
-    ..sort(_byScheduleThenNumber);
+  final mine =
+      matches
+          .where(
+            (m) =>
+                m.categoryId == categoryId &&
+                (myTeamIds.contains(m.teamAId) ||
+                    myTeamIds.contains(m.teamBId)),
+          )
+          .toList()
+        ..sort(_byScheduleThenNumber);
 
-  final future = matches
-      .where((m) =>
-          m.categoryId == categoryId &&
-          m.poolId.isEmpty &&
-          !m.isGroupMatch &&
-          !myTeamIds.contains(m.teamAId) &&
-          !myTeamIds.contains(m.teamBId) &&
-          !TournamentMatchStatus.isCompleted(m.status) &&
-          !TournamentMatchStatus.isCanceled(m.status))
-      .toList()
-    ..sort((a, b) => a.round.compareTo(b.round));
+  final future =
+      matches
+          .where(
+            (m) =>
+                m.categoryId == categoryId &&
+                m.poolId.isEmpty &&
+                !m.isGroupMatch &&
+                !myTeamIds.contains(m.teamAId) &&
+                !myTeamIds.contains(m.teamBId) &&
+                !TournamentMatchStatus.isCompleted(m.status) &&
+                !TournamentMatchStatus.isCanceled(m.status),
+          )
+          .toList()
+        ..sort((a, b) => a.round.compareTo(b.round));
 
   return JourneyPath(mine: mine, future: future);
 }
@@ -185,7 +197,7 @@ class JourneyStepRow {
   final String? opponentTeamId;
 }
 
-const String _vsLabel = 'vs';
+// const String _vsLabel = 'vs';
 
 bool _isFinalPhaseLabel(String label) =>
     label == 'Final' || label == 'Grand final';
@@ -254,12 +266,12 @@ JourneyStepRow _stepOfMatch(
     status: won
         ? JourneyStepStatus.win
         : lost
-            ? JourneyStepStatus.loss
-            : live
-                ? JourneyStepStatus.live
-                : m.id == nextMatchId
-                    ? JourneyStepStatus.next
-                    : JourneyStepStatus.upcoming,
+        ? JourneyStepStatus.loss
+        : live
+        ? JourneyStepStatus.live
+        : m.id == nextMatchId
+        ? JourneyStepStatus.next
+        : JourneyStepStatus.upcoming,
     phaseLabel: phaseLabel,
     metaLabel: _metaLabelOf(m),
     opponentName: ctx.duoNameOf(opponentId, opponentDescription),
@@ -271,7 +283,7 @@ JourneyStepRow _stepOfMatch(
       finalPrizeLabel,
       hasPendingGroupMatches,
     ),
-    scoreLabel: done || live ? '$mySets – $theirSets' : _vsLabel,
+    scoreLabel: done || live ? '$mySets – $theirSets' : '',
     matchId: m.teamAId.isNotEmpty && m.teamBId.isNotEmpty ? m.id : null,
     bracketBadge: focusBracketBadgeOf(m),
     opponentTeamId: opponentId.isEmpty ? null : opponentId,
@@ -292,15 +304,17 @@ String? _detailLabelOf(
   if (sets != null) return sets;
   if (_isFinalPhaseLabel(phaseLabel)) return finalPrizeLabel;
 
-  final pending = !TournamentMatchStatus.isCompleted(m.status) &&
+  final pending =
+      !TournamentMatchStatus.isCompleted(m.status) &&
       !TournamentMatchStatus.isCanceled(m.status);
   if (m.poolId.isNotEmpty && pending) {
-    final rounds = ctx.matches
-        .where((o) => o.poolId == m.poolId)
-        .map((o) => o.round)
-        .toSet()
-        .toList()
-      ..sort();
+    final rounds =
+        ctx.matches
+            .where((o) => o.poolId == m.poolId)
+            .map((o) => o.round)
+            .toSet()
+            .toList()
+          ..sort();
     if (rounds.isNotEmpty && rounds.last == m.round) {
       // Mesma redação de `_noteOf`: afirmar POSIÇÃO exigiria simular o
       // desempate, que este app se recusa a fazer antes do grupo encerrar.
@@ -329,19 +343,23 @@ List<JourneyStepRow> journeyStepsOf(
   String? finalPrizeLabel, {
   List<TournamentMatch>? happyPath,
 }) {
-  final hasPendingGroupMatches = ctx.matches.any((m) =>
-      m.poolId.isNotEmpty &&
-      !TournamentMatchStatus.isCompleted(m.status) &&
-      !TournamentMatchStatus.isCanceled(m.status));
+  final hasPendingGroupMatches = ctx.matches.any(
+    (m) =>
+        m.poolId.isNotEmpty &&
+        !TournamentMatchStatus.isCompleted(m.status) &&
+        !TournamentMatchStatus.isCanceled(m.status),
+  );
 
   final mine = path.mine
-      .map((m) => _stepOfMatch(
-            ctx,
-            m,
-            nextMatchId,
-            finalPrizeLabel,
-            hasPendingGroupMatches,
-          ))
+      .map(
+        (m) => _stepOfMatch(
+          ctx,
+          m,
+          nextMatchId,
+          finalPrizeLabel,
+          hasPendingGroupMatches,
+        ),
+      )
       .toList();
 
   final future = <JourneyStepRow>[];
@@ -355,22 +373,28 @@ List<JourneyStepRow> journeyStepsOf(
       final opponentId = mySlot == 'A'
           ? m.teamBId
           : mySlot == 'B'
-              ? m.teamAId
-              : '';
-      final phaseLabel = matchPhaseDisplayLabel(m, categoryMatches: ctx.matches);
-      future.add(JourneyStepRow(
-        id: m.id,
-        status: JourneyStepStatus.upcoming,
-        phaseLabel: phaseLabel,
-        metaLabel: _metaLabelOf(m),
-        opponentName:
-            mySlot != null ? ctx.duoNameOf(opponentId, null) : 'A definir',
-        detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
-        scoreLabel: _vsLabel,
-        matchId: null,
-        bracketBadge: focusBracketBadgeOf(m),
-        opponentTeamId: opponentId.isEmpty ? null : opponentId,
-      ));
+          ? m.teamAId
+          : '';
+      final phaseLabel = matchPhaseDisplayLabel(
+        m,
+        categoryMatches: ctx.matches,
+      );
+      future.add(
+        JourneyStepRow(
+          id: m.id,
+          status: JourneyStepStatus.upcoming,
+          phaseLabel: phaseLabel,
+          metaLabel: _metaLabelOf(m),
+          opponentName: mySlot != null
+              ? ctx.duoNameOf(opponentId, null)
+              : 'A definir',
+          detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
+          scoreLabel: '',
+          matchId: null,
+          bracketBadge: focusBracketBadgeOf(m),
+          opponentTeamId: opponentId.isEmpty ? null : opponentId,
+        ),
+      );
     }
   } else {
     // Uma linha por FASE: `future` pode ter várias partidas do mesmo round —
@@ -379,17 +403,22 @@ List<JourneyStepRow> journeyStepsOf(
     final seen = <int>{};
     for (final m in path.future) {
       if (!seen.add(m.round)) continue;
-      final phaseLabel = matchPhaseDisplayLabel(m, categoryMatches: ctx.matches);
-      future.add(JourneyStepRow(
-        id: 'fase-${m.round}',
-        status: JourneyStepStatus.upcoming,
-        phaseLabel: phaseLabel,
-        metaLabel: m.scheduleTime != null ? matchTimeLabelForCard(m) : null,
-        opponentName: 'A definir',
-        detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
-        scoreLabel: _vsLabel,
-        matchId: null,
-      ));
+      final phaseLabel = matchPhaseDisplayLabel(
+        m,
+        categoryMatches: ctx.matches,
+      );
+      future.add(
+        JourneyStepRow(
+          id: 'fase-${m.round}',
+          status: JourneyStepStatus.upcoming,
+          phaseLabel: phaseLabel,
+          metaLabel: m.scheduleTime != null ? matchTimeLabelForCard(m) : null,
+          opponentName: 'A definir',
+          detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
+          scoreLabel: '',
+          matchId: null,
+        ),
+      );
     }
   }
 
@@ -426,39 +455,48 @@ List<CampaignEntry> campaignOf(
   String Function(String teamId) opponentNameOf,
 ) {
   if (teamId.isEmpty) return const [];
-  final mine =
-      matches.where((m) => m.teamAId == teamId || m.teamBId == teamId).toList();
+  final mine = matches
+      .where((m) => m.teamAId == teamId || m.teamBId == teamId)
+      .toList();
   final entries = <CampaignEntry>[];
 
   final groupMatches = mine
-      .where((m) =>
-          m.poolId.isNotEmpty && TournamentMatchStatus.isCompleted(m.status))
+      .where(
+        (m) =>
+            m.poolId.isNotEmpty && TournamentMatchStatus.isCompleted(m.status),
+      )
       .toList();
   if (groupMatches.isNotEmpty) {
-    final wins =
-        groupMatches.where((m) => (m.winnerId ?? '') == teamId).length;
-    entries.add(CampaignEntry(
-      label: 'Grupo ${groupMatches.first.poolId}',
-      detail: '${wins}V ${groupMatches.length - wins}D',
-    ));
+    final wins = groupMatches.where((m) => (m.winnerId ?? '') == teamId).length;
+    entries.add(
+      CampaignEntry(
+        label: 'Grupo ${groupMatches.first.poolId}',
+        detail: '${wins}V ${groupMatches.length - wins}D',
+      ),
+    );
   }
 
-  final knockoutWins = mine
-      .where((m) =>
-          m.poolId.isEmpty &&
-          TournamentMatchStatus.isCompleted(m.status) &&
-          (m.winnerId ?? '') == teamId)
-      .toList()
-    ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+  final knockoutWins =
+      mine
+          .where(
+            (m) =>
+                m.poolId.isEmpty &&
+                TournamentMatchStatus.isCompleted(m.status) &&
+                (m.winnerId ?? '') == teamId,
+          )
+          .toList()
+        ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
 
   for (final m in knockoutWins) {
     final opponentId = m.teamAId == teamId ? m.teamBId : m.teamAId;
     final iAmA = m.teamAId == teamId;
     final (mySets, theirSets) = _setWins(m, iAmA);
-    entries.add(CampaignEntry(
-      label: matchPhaseDisplayLabel(m, categoryMatches: matches),
-      detail: '$mySets–$theirSets vs ${opponentNameOf(opponentId)}',
-    ));
+    entries.add(
+      CampaignEntry(
+        label: matchPhaseDisplayLabel(m, categoryMatches: matches),
+        detail: '$mySets–$theirSets vs ${opponentNameOf(opponentId)}',
+      ),
+    );
   }
 
   return entries;
@@ -479,7 +517,8 @@ List<PossibleOpponent> possibleOpponentsOf(
   for (final m in matches) {
     if (m.categoryId != categoryId) continue;
     if (m.poolId.isNotEmpty || m.isGroupMatch) continue;
-    if (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId)) continue;
+    if (myTeamIds.contains(m.teamAId) || myTeamIds.contains(m.teamBId))
+      continue;
     if (TournamentMatchStatus.isCompleted(m.status) ||
         TournamentMatchStatus.isCanceled(m.status)) {
       continue;
@@ -527,17 +566,26 @@ List<CrossingRow> crossingRowsOf(
   int limit = 4,
 }) {
   if (categoryId == null) return const [];
-  final rows = matches
-      .where((m) =>
-          m.categoryId == categoryId && m.poolId.isEmpty && !m.isGroupMatch)
-      .where((m) =>
-          (m.teamADescription?.trim().isNotEmpty ?? false) &&
-          (m.teamBDescription?.trim().isNotEmpty ?? false))
-      .toList()
-    ..sort((a, b) {
-      final byRound = a.round.compareTo(b.round);
-      return byRound != 0 ? byRound : a.matchNumber.compareTo(b.matchNumber);
-    });
+  final rows =
+      matches
+          .where(
+            (m) =>
+                m.categoryId == categoryId &&
+                m.poolId.isEmpty &&
+                !m.isGroupMatch,
+          )
+          .where(
+            (m) =>
+                (m.teamADescription?.trim().isNotEmpty ?? false) &&
+                (m.teamBDescription?.trim().isNotEmpty ?? false),
+          )
+          .toList()
+        ..sort((a, b) {
+          final byRound = a.round.compareTo(b.round);
+          return byRound != 0
+              ? byRound
+              : a.matchNumber.compareTo(b.matchNumber);
+        });
 
   return [
     for (final m in rows.take(limit))

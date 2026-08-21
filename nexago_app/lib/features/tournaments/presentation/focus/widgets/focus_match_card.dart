@@ -7,9 +7,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/focus/focus_match_card_view.dart';
 import '../../../domain/tournament_match_card_row.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
-import '../../widgets/nexa_duo_avatars.dart';
+import '../../widgets/match_card_symmetric_parts.dart';
 import '../../widgets/tournament_match_card_premium_skin.dart';
-import '../../widgets/tournament_match_live_badge.dart';
 
 /// Card de partida do Modo Focus: dupla à esquerda, placar no meio, dupla à
 /// direita — o desenho dos protótipos do Focus.
@@ -60,9 +59,9 @@ class FocusMatchCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Head(
+          MatchCardHead(
             row: row,
-            context: focusMatchCardContext(
+            contextLabel: focusMatchCardContext(
               match: match,
               categoryName: categoryName,
             ),
@@ -73,154 +72,18 @@ class FocusMatchCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _Side(side: row.sideA)),
+              Expanded(child: MatchCardSide(side: row.sideA)),
               _Score(
                 center: score.center,
                 detail: score.detail,
                 state: row.state,
                 stage: row.stage,
               ),
-              Expanded(child: _Side(side: row.sideB)),
+              Expanded(child: MatchCardSide(side: row.sideB)),
             ],
           ),
         ],
       ),
-    );
-  }
-}
-
-/// "#14 ● AO VIVO" à esquerda, "MISTO B · GRUPO B · Q3" à direita.
-///
-/// O nº abre a linha e não encolhe: é por ele que o organizador chama o jogo na
-/// quadra. O contexto é quem quebra — em até duas linhas, como no protótipo.
-class _Head extends StatelessWidget {
-  const _Head({required this.row, required this.context});
-
-  final TournamentMatchRow row;
-  final String context;
-
-  @override
-  Widget build(BuildContext ctx) {
-    final colors = ctx.themeColors;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (row.number.isNotEmpty) ...[
-          Text(
-            row.number,
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: colors.onSurfaceMuted,
-              letterSpacing: 0.66,
-            ),
-          ),
-          const SizedBox(width: 7),
-        ],
-        _StateMark(row: row),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            context.toUpperCase(),
-            textAlign: TextAlign.right,
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              color: colors.onSurfaceMuted.withValues(alpha: 0.85),
-              letterSpacing: 1.32,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// O estado, em texto — nunca só cor.
-///
-/// Agendada mostra o HORÁRIO no lugar do rótulo: é o que o atleta procura, e
-/// é o que mantém a hora na tela nas listas de "a seguir", onde toda partida
-/// está agendada.
-class _StateMark extends StatelessWidget {
-  const _StateMark({required this.row});
-
-  final TournamentMatchRow row;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final isLive = row.state == TournamentMatchRowState.live;
-
-    final color = switch (row.state) {
-      TournamentMatchRowState.live => AppColors.live,
-      TournamentMatchRowState.done => AppColors.win,
-      TournamentMatchRowState.scheduled ||
-      TournamentMatchRowState.tbd =>
-        AppColors.pending,
-      TournamentMatchRowState.canceled => colors.onSurfaceMuted,
-    };
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isLive) ...[
-          const TournamentMatchCardLiveDot(),
-          const SizedBox(width: 5),
-        ],
-        Text(
-          row.stateLabel.toUpperCase(),
-          style: AppTypography.mono(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: color,
-            letterSpacing: 1.32,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Uma dupla: os dois rostos sobrepostos e o nome centralizado embaixo.
-class _Side extends StatelessWidget {
-  const _Side({required this.side});
-
-  final TournamentMatchRowSide side;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        NexaDuoAvatars(players: side.players, size: 40),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          side.name,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.soraRegular(
-            fontSize: 14,
-            fontWeight: side.mine
-                ? FontWeight.w700
-                : side.lost || side.tbd
-                    ? FontWeight.w500
-                    : FontWeight.w600,
-            color: side.tbd
-                ? colors.onSurfaceMuted.withValues(alpha: 0.85)
-                : side.lost
-                    ? colors.onSurfaceMuted
-                    : colors.onSurface,
-          ).copyWith(
-            fontStyle: side.tbd ? FontStyle.italic : FontStyle.normal,
-          ),
-        ),
-      ],
     );
   }
 }

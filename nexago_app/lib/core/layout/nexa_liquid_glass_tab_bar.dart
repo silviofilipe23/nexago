@@ -7,12 +7,15 @@ import '../theme/app_theme_colors.dart';
 import 'nexa_bottom_nav_models.dart';
 import 'shell_tab_bar_collapse.dart';
 
-/// Reserva apenas parte do inset da home indicator, para a cápsula flutuante
-/// ficar perto da borda inferior (com folga mínima) em vez de flutuar alta.
+/// No iOS a home indicator é translúcida e por gesto, então a cápsula assenta
+/// na borda inferior ("grounded") em vez de flutuar alta. No Android o inset
+/// pode ser a barra de navegação de 3 botões (opaca, ~48dp) — reservar o
+/// inset inteiro para a cápsula nunca ficar atrás dos botões do sistema.
 double _groundedBottomInset(BuildContext context) {
   final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
   if (safeBottom <= 0) return 6;
-  return (safeBottom * 0);
+  if (Theme.of(context).platform == TargetPlatform.iOS) return 0;
+  return safeBottom;
 }
 
 /// Tab bar flutuante estilo Liquid Glass (blur + cápsula + pill ativo).

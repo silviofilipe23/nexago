@@ -12,6 +12,7 @@ const NAV = [
   { label: 'Ligas', href: '/ligas' },
   { label: 'Torneios', href: '/torneios' },
   { label: 'Rankings', href: '/rankings' },
+  { label: 'Docs', href: '/docs' },
 ];
 
 const PERSONAS = [

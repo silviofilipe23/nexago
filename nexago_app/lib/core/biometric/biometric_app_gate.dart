@@ -67,6 +67,9 @@ class _BiometricAppGateState extends ConsumerState<BiometricAppGate> {
     }
 
     if (profileAsync.isLoading) {
+      // Scrim escuro translúcido, não branco: este gate vive ACIMA do
+      // MaterialApp (sem Theme do app) e um flash branco em tema escuro era
+      // percebido como "a tela piscou" a cada login/cadastro dentro do app.
       return Directionality(
         textDirection: TextDirection.ltr,
         child: Stack(
@@ -75,7 +78,7 @@ class _BiometricAppGateState extends ConsumerState<BiometricAppGate> {
             widget.child,
             const ModalBarrier(
               dismissible: false,
-              color: Color(0xCCFFFFFF),
+              color: Color(0x99000000),
             ),
             const Center(
               child: CircularProgressIndicator(),

@@ -54,6 +54,8 @@ senha `Senha123!` (ou `SEED_PASSWORD`).
 | `--yes` | dry-run | aplica de verdade |
 | `--manager-uid <uid>` | cria organizador seed próprio | organizador do torneio |
 | `--count <n>` | `32` (ou `COUNT`) | atletas por nível×gênero (total = `n × 10`) |
+| `--categories <n>` | `10` | mantém só as `n` primeiras categorias (ordem nível×gênero) |
+| `--teams-per-category <n>` | `16` | vagas e duplas inscritas por categoria |
 | `--today` | em 14 dias | torneio no dia de hoje |
 | `--tournament-name <s>` | `Torneio seed nexaGO` | nome do torneio |
 
@@ -61,6 +63,19 @@ senha `Senha123!` (ou `SEED_PASSWORD`).
 |---|---|---|
 | `COUNT` | `32` | mesmo que `--count` (a flag tem prioridade) |
 | `SEED_PASSWORD` | `Senha123!` | senha dos 321 logins seed (organizador e atletas) |
+
+Os dois cortes de volume valem apenas na **criação** do torneio — as
+categorias ficam gravadas no doc e um torneio reutilizado mantém as dele (o
+script avisa quando isso acontece). Para um volume diferente, use um
+`--tournament-name` novo. E como o pool de atletas é por nível×gênero, mantenha
+`--count >= 2 × --teams-per-category`; abaixo disso o seed grava menos duplas do
+que o pedido, avisando.
+
+```bash
+npm run seed-test-data -- --project volley-track-dev-4596c \
+  --tournament-name "Torneio seed nexaGO 5cat" \
+  --categories 5 --teams-per-category 12 --count 24 --yes
+```
 
 Idempotente: rodar de novo reaproveita contas e torneio existentes. Uma
 ressalva sobre `SEED_PASSWORD`: a idempotência é por e-mail e **não regrava a

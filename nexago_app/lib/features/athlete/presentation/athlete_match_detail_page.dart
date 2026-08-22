@@ -218,9 +218,6 @@ class _DetailBody extends StatelessWidget {
           onTournament: () => _onTournament(context),
           onRematch: () => showAppSnackBar(context, 'Em breve.'),
           onOpponentProfile: () => showAppSnackBar(context, 'Em breve.'),
-          onShare: detail.sharePoster != null
-              ? () => showMatchDetailShareSheet(context, detail.sharePoster!)
-              : null,
         ),
       ],
     );

@@ -35,12 +35,20 @@ class LiveTableHeader extends StatelessWidget {
     required this.titleLabel,
     required this.elapsedLabel,
     required this.onBack,
+    this.fullModeActive = false,
+    this.onToggleFullMode,
   });
 
   final String courtLabel;
   final String titleLabel;
   final String elapsedLabel;
   final VoidCallback onBack;
+
+  /// Quando [onToggleFullMode] é informado, exibe um botão pra ligar/desligar
+  /// as ferramentas extras da mesa (Quadra, Tempo, Modo exibição) — pensadas
+  /// pro mesário que também é o próprio árbitro, sem ninguém mais na mesa.
+  final bool fullModeActive;
+  final VoidCallback? onToggleFullMode;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +118,15 @@ class LiveTableHeader extends StatelessWidget {
               color: AppColors.live,
             ),
           ),
+          if (onToggleFullMode != null) ...[
+            const SizedBox(width: 8),
+            _LiveTableIconButton(
+              icon: Icons.tune_rounded,
+              tooltip: 'Modo full',
+              active: fullModeActive,
+              onPressed: onToggleFullMode!,
+            ),
+          ],
         ],
       ),
     );
@@ -132,15 +149,24 @@ class _LiveDot extends StatelessWidget {
 }
 
 class _LiveTableIconButton extends StatelessWidget {
-  const _LiveTableIconButton({required this.icon, required this.onPressed});
+  const _LiveTableIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+    this.active = false,
+  });
 
   final IconData icon;
   final VoidCallback onPressed;
+  final String? tooltip;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceRaised,
+    final button = Material(
+      color: active
+          ? AppColors.brand.withValues(alpha: 0.16)
+          : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,
@@ -148,10 +174,15 @@ class _LiveTableIconButton extends StatelessWidget {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, size: 18, color: context.themeColors.onSurface),
+          child: Icon(
+            icon,
+            size: 18,
+            color: active ? AppColors.brand : context.themeColors.onSurface,
+          ),
         ),
       ),
     );
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
   }
 }
 
@@ -293,6 +324,8 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
     this.seedA,
     this.seedB,
     this.enabled = true,
+    this.timeoutsA,
+    this.timeoutsB,
   });
 
   final LiveTableTeamData teamA;
@@ -308,6 +341,8 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
   final int? seedA;
   final int? seedB;
   final bool enabled;
+  final int? timeoutsA;
+  final int? timeoutsB;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +359,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
               enabled: enabled,
               onAddPoint: onAddPointA,
               onSubtract: onSubtractA,
+              timeoutCount: timeoutsA,
             ),
           ),
           const SizedBox(width: 10),
@@ -336,6 +372,7 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
               enabled: enabled,
               onAddPoint: onAddPointB,
               onSubtract: onSubtractB,
+              timeoutCount: timeoutsB,
             ),
           ),
         ],
@@ -354,6 +391,7 @@ class LiveTableTeamScoreCard extends StatelessWidget {
     this.onAddPoint,
     this.onSubtract,
     this.enabled = true,
+    this.timeoutCount,
   });
 
   final LiveTableTeamData team;
@@ -363,6 +401,10 @@ class LiveTableTeamScoreCard extends StatelessWidget {
   final VoidCallback? onAddPoint;
   final VoidCallback? onSubtract;
   final bool enabled;
+
+  /// Tempos técnicos já usados por essa dupla no set atual (0–2). `null`
+  /// esconde os pontinhos — só aparecem com o modo full ligado.
+  final int? timeoutCount;
 
   @override
   Widget build(BuildContext context) {
@@ -452,6 +494,29 @@ class LiveTableTeamScoreCard extends StatelessWidget {
               height: 1,
             ),
           ),
+          if (timeoutCount != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < 2; i++) ...[
+                  if (i > 0) const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i < timeoutCount!
+                          ? AppColors.brand
+                          : context.themeColors.onSurfaceMuted.withValues(
+                              alpha: 0.25,
+                            ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -708,6 +773,73 @@ class LiveTableActionBar extends StatelessWidget {
                 onPressed: enabled ? (onHistory ?? () {}) : () {},
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ferramentas extras do modo full — pro mesário que também é o próprio
+/// árbitro, sem mais ninguém na mesa: trocar o lado de exibição, marcar tempo
+/// técnico e entrar no modo exibição (tela virada pros atletas).
+class LiveTableFullModeBar extends StatelessWidget {
+  const LiveTableFullModeBar({
+    super.key,
+    required this.enabled,
+    required this.sidesSwapped,
+    required this.onSwapSides,
+    required this.onAddTimeout,
+    required this.onEnterPresent,
+  });
+
+  final bool enabled;
+  final bool sidesSwapped;
+  final VoidCallback onSwapSides;
+  final VoidCallback onAddTimeout;
+  final VoidCallback onEnterPresent;
+
+  @override
+  Widget build(BuildContext context) {
+    final mutedBorder = context.themeColors.onSurfaceMuted.withValues(
+      alpha: 0.14,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ActionBarButton(
+              label: sidesSwapped ? 'Quadra (invertida)' : 'Quadra',
+              icon: Icons.swap_horiz_rounded,
+              enabled: enabled,
+              onPressed: onSwapSides,
+              borderColor: mutedBorder,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _ActionBarButton(
+              label: 'Tempo',
+              icon: Icons.timer_outlined,
+              enabled: enabled,
+              onPressed: onAddTimeout,
+              borderColor: mutedBorder,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            // Sempre disponível, mesmo com a partida encerrada ou salvando:
+            // é só visualização, não mexe em placar.
+            child: _ActionBarButton(
+              label: 'Modo exibição',
+              icon: Icons.fullscreen_rounded,
+              iconColor: AppColors.brand,
+              enabled: true,
+              onPressed: onEnterPresent,
+              borderColor: AppColors.brand.withValues(alpha: 0.28),
+            ),
           ),
         ],
       ),
@@ -983,6 +1115,317 @@ class LiveTableQuickScoreEntry extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Modo exibição: tela virada pros atletas verem o placar, sem cabeçalho nem
+/// ferramentas — só "Desfazer" fica disponível (é a correção mais comum de
+/// quem está com a tela de costas pra si, olhando os atletas). Duas variantes
+/// de layout: retrato (duplas empilhadas) e paisagem (lado a lado, sets ao
+/// centro), igual ao modo exibição da mesa do atleta no web.
+class LiveTablePresentView extends StatelessWidget {
+  const LiveTablePresentView({
+    super.key,
+    required this.teamA,
+    required this.teamB,
+    required this.scoreA,
+    required this.scoreB,
+    required this.isServingA,
+    required this.isServingB,
+    required this.setsWonA,
+    required this.setsWonB,
+    required this.enabled,
+    required this.onUndo,
+    required this.onExit,
+  });
+
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final int scoreA;
+  final int scoreB;
+  final bool isServingA;
+  final bool isServingB;
+  final int setsWonA;
+  final int setsWonB;
+  final bool enabled;
+  final VoidCallback onUndo;
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+
+    return ColoredBox(
+      color: context.themeColors.canvas,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Positioned(
+              top: 8,
+              right: 8,
+              child: _LiveTableIconButton(
+                icon: Icons.fullscreen_exit_rounded,
+                tooltip: 'Sair do modo exibição',
+                onPressed: onExit,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: isLandscape
+                  ? _PresentLandscape(
+                      teamA: teamA,
+                      teamB: teamB,
+                      scoreA: scoreA,
+                      scoreB: scoreB,
+                      isServingA: isServingA,
+                      isServingB: isServingB,
+                      setsWonA: setsWonA,
+                      setsWonB: setsWonB,
+                      enabled: enabled,
+                      onUndo: onUndo,
+                    )
+                  : _PresentPortrait(
+                      teamA: teamA,
+                      teamB: teamB,
+                      scoreA: scoreA,
+                      scoreB: scoreB,
+                      isServingA: isServingA,
+                      isServingB: isServingB,
+                      setsWonA: setsWonA,
+                      setsWonB: setsWonB,
+                      enabled: enabled,
+                      onUndo: onUndo,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PresentPortrait extends StatelessWidget {
+  const _PresentPortrait({
+    required this.teamA,
+    required this.teamB,
+    required this.scoreA,
+    required this.scoreB,
+    required this.isServingA,
+    required this.isServingB,
+    required this.setsWonA,
+    required this.setsWonB,
+    required this.enabled,
+    required this.onUndo,
+  });
+
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final int scoreA;
+  final int scoreB;
+  final bool isServingA;
+  final bool isServingB;
+  final int setsWonA;
+  final int setsWonB;
+  final bool enabled;
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Expanded(
+          child: _PresentTeamBlock(
+            team: teamA,
+            score: scoreA,
+            isServing: isServingA,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _PresentSetsChip(setsWonA: setsWonA, setsWonB: setsWonB),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _PresentTeamBlock(
+            team: teamB,
+            score: scoreB,
+            isServing: isServingB,
+          ),
+        ),
+        const SizedBox(height: 20),
+        _PresentUndoButton(enabled: enabled, onPressed: onUndo),
+      ],
+    );
+  }
+}
+
+class _PresentLandscape extends StatelessWidget {
+  const _PresentLandscape({
+    required this.teamA,
+    required this.teamB,
+    required this.scoreA,
+    required this.scoreB,
+    required this.isServingA,
+    required this.isServingB,
+    required this.setsWonA,
+    required this.setsWonB,
+    required this.enabled,
+    required this.onUndo,
+  });
+
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final int scoreA;
+  final int scoreB;
+  final bool isServingA;
+  final bool isServingB;
+  final int setsWonA;
+  final int setsWonB;
+  final bool enabled;
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                child: _PresentTeamBlock(
+                  team: teamA,
+                  score: scoreA,
+                  isServing: isServingA,
+                ),
+              ),
+              const SizedBox(width: 16),
+              _PresentSetsChip(setsWonA: setsWonA, setsWonB: setsWonB),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _PresentTeamBlock(
+                  team: teamB,
+                  score: scoreB,
+                  isServing: isServingB,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _PresentUndoButton(enabled: enabled, onPressed: onUndo),
+      ],
+    );
+  }
+}
+
+class _PresentTeamBlock extends StatelessWidget {
+  const _PresentTeamBlock({
+    required this.team,
+    required this.score,
+    required this.isServing,
+  });
+
+  final LiveTableTeamData team;
+  final int score;
+  final bool isServing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (isServing) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.circle, size: 8, color: AppColors.brand),
+              const SizedBox(width: 6),
+              Text(
+                'SAQUE',
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brand,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+        Text(
+          team.label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.soraRegular(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+          ),
+        ),
+        FittedBox(
+          child: Text(
+            '$score',
+            style: AppTypography.mono(
+              fontSize: 120,
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+              height: 1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PresentSetsChip extends StatelessWidget {
+  const _PresentSetsChip({required this.setsWonA, required this.setsWonB});
+
+  final int setsWonA;
+  final int setsWonB;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$setsWonA – $setsWonB',
+        style: AppTypography.mono(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          color: context.themeColors.onSurfaceMuted,
+        ),
+      ),
+    );
+  }
+}
+
+class _PresentUndoButton extends StatelessWidget {
+  const _PresentUndoButton({required this.enabled, required this.onPressed});
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 160,
+      child: _ActionBarButton(
+        label: 'Desfazer',
+        icon: Icons.undo_rounded,
+        enabled: enabled,
+        onPressed: onPressed,
+        borderColor: context.themeColors.onSurfaceMuted.withValues(
+          alpha: 0.14,
         ),
       ),
     );
@@ -2301,4 +2744,13 @@ int liveTableCurrentSetScore(TournamentMatch match, {required bool sideA}) {
   if (match.sets.isEmpty || idx < 0 || idx >= match.sets.length) return 0;
   final set = match.sets[idx];
   return sideA ? set.a : set.b;
+}
+
+/// Sets vencidos por cada dupla — via `matchClosedSets`, nunca contando o set
+/// em andamento (`setsWonCountForMatch` mente ao vivo, ver nota do projeto).
+(int, int) liveTableSetsWon(TournamentMatch match) {
+  final closed = matchClosedSets(match);
+  final a = closed.where((s) => s.a > s.b).length;
+  final b = closed.where((s) => s.b > s.a).length;
+  return (a, b);
 }

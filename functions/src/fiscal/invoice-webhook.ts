@@ -56,7 +56,12 @@ export async function applyIssuerNotification(
       },
       {merge: true},
     );
+    return;
   }
+
+  logger.warn(
+    `Unrecognized issuer status for invoice ${payload.ref}: ${payload.status}`,
+  );
 }
 
 export const fiscalIssuerWebhook = onRequest(

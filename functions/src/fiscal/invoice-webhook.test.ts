@@ -62,8 +62,14 @@ describe("applyIssuerNotification", () => {
     const fake = new FakeFirestore();
     fake.seedDoc("fiscalInvoices/inv1", {arenaId: "arena1", status: "authorized", numero: "42"});
 
-    await applyIssuerNotification(db(fake), {ref: "inv1", status: "processando_autorizacao"});
+    await applyIssuerNotification(db(fake), {
+      ref: "inv1",
+      status: "erro_autorizacao",
+      mensagem: "Test rejection attempt",
+    });
 
-    assert.equal(fake.store.get("fiscalInvoices/inv1")?.status, "authorized");
+    const doc = fake.store.get("fiscalInvoices/inv1");
+    assert.equal(doc?.status, "authorized");
+    assert.equal(doc?.numero, "42");
   });
 });

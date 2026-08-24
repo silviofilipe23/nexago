@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,15 +28,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _obscurePassword = true;
   bool _submitting = false;
   bool _googleSubmitting = false;
-  bool _appleSubmitting = false;
   String? _emailError;
   String? _passwordError;
-
-  /// Apple Sign-In só é exigido/oferecido no iOS/macOS (firebase_auth nativo).
-  bool get _showAppleButton =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.iOS ||
-          defaultTargetPlatform == TargetPlatform.macOS);
 
   @override
   void dispose() {
@@ -104,7 +96,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _signInWithGoogle() async {
-    if (_submitting || _googleSubmitting || _appleSubmitting) return;
+    if (_submitting || _googleSubmitting) return;
     HapticFeedback.mediumImpact();
     setState(() => _googleSubmitting = true);
     try {
@@ -127,35 +119,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  Future<void> _signInWithApple() async {
-    if (_submitting || _googleSubmitting || _appleSubmitting) return;
-    HapticFeedback.mediumImpact();
-    setState(() => _appleSubmitting = true);
-    try {
-      final cred = await ref.read(authServiceProvider).signInWithApple();
-      if (!mounted) return;
-      if (cred == null) return;
-      ref.read(analyticsServiceProvider).logLogin('apple');
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
-    } catch (_) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        'Não foi possível entrar com Apple. Tente novamente.',
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _appleSubmitting = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final busy = _submitting || _googleSubmitting || _appleSubmitting;
+    final busy = _submitting || _googleSubmitting;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -306,19 +274,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           icon: const AuthGoogleGlyph(),
                           label: 'Continuar com Google',
                         ),
-                        if (_showAppleButton) ...[
-                          SizedBox(height: 10),
-                          AuthSocialButton(
-                            onPressed: busy ? null : _signInWithApple,
-                            loading: _appleSubmitting,
-                            icon: Icon(
-                              Icons.apple,
-                              size: 22,
-                              color: context.themeColors.onSurface,
-                            ),
-                            label: 'Continuar com Apple',
-                          ),
-                        ],
                         SizedBox(height: 28),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,

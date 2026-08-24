@@ -626,7 +626,7 @@ export const releaseMatchAfterCheckIn = onCall(async (request) => {
   const db = getFirestore();
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
-  await assertCanManageTournament(db, uid, data.tournamentId as string);
+  await assertCanScoreTournament(db, uid, data.tournamentId as string);
 
   const checkIn = data.checkIn as Record<string, Record<string, string>> | undefined;
   const a = checkIn?.teamA?.status;

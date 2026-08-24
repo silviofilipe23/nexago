@@ -73,6 +73,19 @@ test('gestor marca o mesmo ponto', async () => {
   await assertSucceeds(updateDoc(doc(db, MATCH_PATH), pointUpdate()));
 });
 
+/** Check-in do atleta é feito pelo mesário na tela de lançamento de placar do app, não só
+ *  pelo gestor: sem `checkIn` na allowlist do scorer, essa escrita caía no `permission-denied`
+ *  mesmo com o ponto passando normalmente (campos diferentes, mesma regra). */
+test('mesário faz check-in do atleta', async () => {
+  const db = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertSucceeds(
+    updateDoc(doc(db, MATCH_PATH), {
+      'checkIn.time-a': { status: 'present', at: serverTimestamp() },
+      updatedAt: serverTimestamp(),
+    }),
+  );
+});
+
 test('mesário continua sem mexer no que não é placar (quadra, horário, duplas)', async () => {
   const db = testEnv.authenticatedContext(MESARIO).firestore();
   await assertFails(updateDoc(doc(db, MATCH_PATH), { courtName: '7', updatedAt: serverTimestamp() }));

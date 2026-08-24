@@ -1,6 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {FocusNfeIssuer, nowInArenaTimezone} from "./focus-nfe-client";
+import {buildDefaultIssuer, FocusNfeIssuer, nowInArenaTimezone} from "./focus-nfe-client";
 
 type Call = {url: string; init: RequestInit};
 
@@ -138,5 +138,12 @@ describe("FocusNfeIssuer.issueServiceInvoice", () => {
     const issuer = new FocusNfeIssuer("https://homologacao.focusnfe.com.br", fetchFn);
 
     await assert.rejects(() => issuer.issueServiceInvoice("tok_abc", input));
+  });
+});
+
+describe("buildDefaultIssuer", () => {
+  it("devolve uma instância de FocusNfeIssuer", () => {
+    const issuer = buildDefaultIssuer();
+    assert.ok(issuer instanceof FocusNfeIssuer);
   });
 });

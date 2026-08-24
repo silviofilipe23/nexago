@@ -9,10 +9,7 @@ import {SecretManagerServiceClient} from "@google-cloud/secret-manager";
 import {shouldProcess, type ShouldProcessReason} from "./invoice-emitter";
 import {readArenaFiscalConfig} from "./invoice-repository";
 import {
-  FocusNfeIssuer,
-  FOCUS_API_URL_PRODUCTION,
-  FOCUS_API_URL_SANDBOX,
-  FOCUS_ENV,
+  buildDefaultIssuer,
   focusFiscalSecrets,
 } from "./focus-nfe-client";
 import type {FiscalIssuer} from "./issuer-port";
@@ -156,9 +153,7 @@ export const onFiscalInvoiceRequested = onDocumentCreated(
     retry: true,
   },
   async (event) => {
-    const issuer = new FocusNfeIssuer(
-      FOCUS_ENV.value() === "sandbox" ? FOCUS_API_URL_SANDBOX : FOCUS_API_URL_PRODUCTION,
-    );
+    const issuer = buildDefaultIssuer();
     await processInvoiceRequest(
       getFirestore(),
       issuer,

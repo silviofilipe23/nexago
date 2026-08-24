@@ -203,3 +203,14 @@ export class FocusNfeIssuer implements FiscalIssuer {
     if (status >= 400) throw new Error(`FOCUS_CANCEL_FAILED_${status}`);
   }
 }
+
+/**
+ * Emissor para processar notas (nunca registrar empresa — por isso sem
+ * `accountToken`). Usado pelo trigger de processamento e por qualquer
+ * callable que precise reprocessar uma nota fora do trigger.
+ */
+export function buildDefaultIssuer(): FiscalIssuer {
+  return new FocusNfeIssuer(
+    FOCUS_ENV.value() === "sandbox" ? FOCUS_API_URL_SANDBOX : FOCUS_API_URL_PRODUCTION,
+  );
+}

@@ -7,6 +7,7 @@ import {
   type DocumentReference,
   type Firestore,
 } from "firebase-admin/firestore";
+import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
@@ -19,6 +20,8 @@ import {
   finalizeArenaBookingIfAllSharesResolved,
   parseArenaBookingShareExternalReference,
 } from "./arena-booking-split";
+import {resolveAthleteCpfCnpj} from "./asaas-customer";
+import {requestInvoiceForPaidBooking} from "./fiscal/payment-hooks";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -44,6 +47,30 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
   "DUNNING_RECEIVED",
   "DELETED",
 ]);
+
+/**
+ * Nome e CPF do atleta pagador, para a nota fiscal. Mesma resolução usada na
+ * cobrança PIX (getAuth + resolveAthleteCpfCnpj) — o webhook não tem CPF em
+ * escopo, só o uid do titular/pagador.
+ */
+async function resolvePayerForInvoice(
+  athleteId: string | undefined,
+): Promise<{nome: string; cpfCnpj: string} | null> {
+  if (!athleteId) return null;
+  let nome = "Atleta NexaGO";
+  try {
+    const user = await getAuth().getUser(athleteId);
+    nome = user.displayName?.trim() || nome;
+  } catch {
+    // segue com fallback
+  }
+  try {
+    const cpfCnpj = await resolveAthleteCpfCnpj(athleteId);
+    return {nome, cpfCnpj};
+  } catch {
+    return null;
+  }
+}
 
 export async function processArenaBookingAsaasNotification(
   db: Firestore,
@@ -161,6 +188,23 @@ export async function processArenaBookingAsaasNotification(
         );
       } catch (walletErr) {
         logger.error(`Asaas arena booking ${bookingId}: wallet credit failed`, walletErr);
+      }
+
+      try {
+        const athleteId = booking.athleteId as string | undefined;
+        const payer = await resolvePayerForInvoice(athleteId);
+        if (payer) {
+          await requestInvoiceForPaidBooking(db, {
+            arenaId,
+            bookingId,
+            asaasPaymentId: paymentId,
+            grossReais: paidOnline,
+            tomador: {nome: payer.nome, cpfCnpj: payer.cpfCnpj},
+            tomadorUid: athleteId ?? null,
+          });
+        }
+      } catch (fiscalErr) {
+        logger.error(`Asaas arena booking ${bookingId}: fiscal request failed`, fiscalErr);
       }
     }
 
@@ -293,6 +337,26 @@ export async function processArenaBookingShareAsaasNotification(
         logger.error(
           `Asaas arena booking share ${bookingId}/${shareId}: wallet credit failed`,
           walletErr,
+        );
+      }
+
+      try {
+        const payerAthleteId = share.payerAthleteId as string | undefined;
+        const payer = await resolvePayerForInvoice(payerAthleteId);
+        if (payer) {
+          await requestInvoiceForPaidBooking(db, {
+            arenaId,
+            bookingId,
+            asaasPaymentId: paymentId,
+            grossReais: paidOnline,
+            tomador: {nome: payer.nome, cpfCnpj: payer.cpfCnpj},
+            tomadorUid: payerAthleteId ?? null,
+          });
+        }
+      } catch (fiscalErr) {
+        logger.error(
+          `Asaas arena booking share ${bookingId}/${shareId}: fiscal request failed`,
+          fiscalErr,
         );
       }
     }

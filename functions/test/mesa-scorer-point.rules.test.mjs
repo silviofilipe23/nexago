@@ -145,3 +145,59 @@ test('mesário grava o evento da timeline com o seq seguinte', async () => {
     }),
   );
 });
+
+const TOURNAMENT_PATH = 'tournaments/t1';
+
+/** `TournamentLiveMatchesSync.syncForTournament`: chamado pelo app logo depois de CADA
+ *  `recordPointTransaction`, fora da transação do ponto — se essa escrita falhar, o ponto
+ *  já foi gravado (a mesa não trava), mas a tela mostra o erro mesmo assim. */
+test('mesário atualiza liveMatchesNow do torneio ao marcar ponto', async () => {
+  const db = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertSucceeds(
+    setDoc(
+      doc(db, TOURNAMENT_PATH),
+      { liveMatchesNow: 2, updatedAt: serverTimestamp() },
+      { merge: true },
+    ),
+  );
+});
+
+test('mesário não mexe em nada além de liveMatchesNow no torneio', async () => {
+  const db = testEnv.authenticatedContext(MESARIO).firestore();
+  await assertFails(
+    setDoc(
+      doc(db, TOURNAMENT_PATH),
+      { name: 'Etapa Rio (hackeada)', updatedAt: serverTimestamp() },
+      { merge: true },
+    ),
+  );
+  await assertFails(
+    setDoc(
+      doc(db, TOURNAMENT_PATH),
+      { liveMatchesNow: 2, managerId: MESARIO, updatedAt: serverTimestamp() },
+      { merge: true },
+    ),
+  );
+});
+
+test('gestor continua podendo editar qualquer campo do torneio', async () => {
+  const db = testEnv.authenticatedContext(GESTOR).firestore();
+  await assertSucceeds(
+    setDoc(
+      doc(db, TOURNAMENT_PATH),
+      { name: 'Etapa Rio 2', updatedAt: serverTimestamp() },
+      { merge: true },
+    ),
+  );
+});
+
+test('quem não é da equipe não mexe no torneio', async () => {
+  const db = testEnv.authenticatedContext(ESTRANHO).firestore();
+  await assertFails(
+    setDoc(
+      doc(db, TOURNAMENT_PATH),
+      { liveMatchesNow: 9, updatedAt: serverTimestamp() },
+      { merge: true },
+    ),
+  );
+});

@@ -16,6 +16,7 @@ import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/nexago_artifacts_paths.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
+import 'organizer_match_navigation.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import 'widgets/organizer_schedule_time_widgets.dart';
 import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
@@ -398,7 +399,9 @@ class _OrganizerMatchCheckInPageState
           );
       if (mounted) {
         showAppSnackBar(context, 'Partida liberada.');
-        context.pop();
+        context.pushReplacement(
+          organizerMatchLivePath(widget.tournamentId, match.id),
+        );
       }
     } catch (e) {
       if (mounted) showAppErrorSnackBar(context, e);

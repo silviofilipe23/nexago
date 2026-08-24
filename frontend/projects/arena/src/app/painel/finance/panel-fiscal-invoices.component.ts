@@ -6,6 +6,7 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
 import {
+  retryFiscalInvoice,
   setArenaFiscalMode,
   watchArenaFiscalConfig,
 } from '../fiscal/fiscal-repository';
@@ -165,7 +166,12 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
                   <div class="invoice-block">
                     <div class="table-row">
                       <div class="inv-date">{{ formatDate(inv.createdAt) }}</div>
-                      <div class="inv-origin">{{ originLabel[inv.origin] }}</div>
+                      <div class="inv-origin">
+                        {{ originLabel[inv.origin] }}
+                        @if (inv.origin === 'activation_test') {
+                          <span class="test-badge">Teste</span>
+                        }
+                      </div>
                       <div class="inv-tomador">
                         {{ inv.tomadorNome }}
                         @if (inv.tomadorDocumento) {
@@ -181,6 +187,16 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
                         }
                         @if (inv.xmlUrl; as xml) {
                           <a [href]="xml" target="_blank" rel="noopener" class="ar-ghost-btn file-btn">XML</a>
+                        }
+                        @if (inv.status === 'rejected' && isOwner()) {
+                          <button
+                            type="button"
+                            class="ar-ghost-btn file-btn"
+                            [disabled]="retryingInvoiceId() === inv.id"
+                            (click)="retryInvoice(inv.id)"
+                          >
+                            {{ retryingInvoiceId() === inv.id ? 'Reemitindo…' : 'Reemitir' }}
+                          </button>
                         }
                       </div>
                     </div>
@@ -352,6 +368,16 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
       color: var(--nx-text-mute);
     }
 
+    .test-badge {
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--nx-pending);
+      color: #fff;
+    }
+
     .inv-tomador {
       min-width: 0;
       font-family: var(--nx-font-display);
@@ -438,6 +464,7 @@ export class PanelFiscalInvoicesComponent {
   protected readonly config = signal<ArenaFiscalConfigView | null>(null);
   protected readonly settingMode = signal(false);
   protected readonly modeError = signal<string | null>(null);
+  protected readonly retryingInvoiceId = signal<string | null>(null);
 
   protected readonly invoices = signal<FiscalInvoiceItem[]>([]);
   protected readonly loading = signal(true);
@@ -518,6 +545,20 @@ export class PanelFiscalInvoicesComponent {
       this.modeError.set(err instanceof Error ? err.message : 'Não foi possível alterar o modo de emissão.');
     } finally {
       this.settingMode.set(false);
+    }
+  }
+
+  protected async retryInvoice(invoiceId: string): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId || !this.isOwner()) return;
+
+    this.retryingInvoiceId.set(invoiceId);
+    try {
+      await retryFiscalInvoice(arenaFunctions(), arenaId, invoiceId);
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível reemitir a nota.');
+    } finally {
+      this.retryingInvoiceId.set(null);
     }
   }
 }

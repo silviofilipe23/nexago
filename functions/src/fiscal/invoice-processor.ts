@@ -34,7 +34,7 @@ const REJECTION_MESSAGE: Record<ShouldProcessReason, string> = {
 
 /** Uma origem só é "paga" se o documento de origem disser isso. */
 async function isOriginPaid(db: Firestore, invoice: FiscalInvoice): Promise<boolean> {
-  if (invoice.origin === "manual") return true;
+  if (invoice.origin === "manual" || invoice.origin === "activation_test") return true;
   if (!invoice.originId) return false;
   if (invoice.origin === "booking") {
     // Pagamento dividido: a fatia paga é o que confirma ESTE pedido. O

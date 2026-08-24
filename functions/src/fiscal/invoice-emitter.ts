@@ -41,10 +41,18 @@ export type ShouldProcessResult =
  */
 export function shouldProcess(input: ShouldProcessInput): ShouldProcessResult {
   const {config} = input;
-  if (!config || config.status !== "active" || config.mode === "off") {
+  if (input.origin === "activation_test") {
+    // A nota de ativação roda enquanto o status ainda NÃO é "active" — ela é
+    // quem produz esse estado. "error" também é aceito: é o caminho do
+    // reemitir depois de corrigir o cadastro. `mode` não importa aqui —
+    // emissão manual do dono, não emissão automática por pagamento.
+    if (!config || (config.status !== "testing" && config.status !== "error")) {
+      return {ok: false, reason: "CONFIG_NOT_EMITTING"};
+    }
+  } else if (!config || config.status !== "active" || config.mode === "off") {
     return {ok: false, reason: "CONFIG_NOT_EMITTING"};
   }
-  if (input.origin !== "manual" && !input.originPaid) {
+  if (input.origin !== "manual" && input.origin !== "activation_test" && !input.originPaid) {
     return {ok: false, reason: "ORIGIN_NOT_PAID"};
   }
   if (!(input.valorBrutoReais > 0)) {
@@ -62,7 +70,8 @@ export function shouldProcess(input: ShouldProcessInput): ShouldProcessResult {
 export type IdempotencyInput =
   | {origin: FiscalInvoiceOrigin; asaasPaymentId: string}
   | {origin: FiscalInvoiceOrigin; bookingId: string; receiptId: string}
-  | {origin: "manual"; invoiceId: string};
+  | {origin: "manual"; invoiceId: string}
+  | {origin: "activation_test"; arenaId: string};
 
 /**
  * Chave única da nota. O webhook do Asaas repete, e nota duplicada é problema
@@ -71,5 +80,6 @@ export type IdempotencyInput =
 export function buildIdempotencyKey(input: IdempotencyInput): string {
   if ("asaasPaymentId" in input) return `payment:${input.asaasPaymentId}`;
   if ("receiptId" in input) return `receipt:${input.bookingId}:${input.receiptId}`;
+  if ("arenaId" in input) return `activation:${input.arenaId}`;
   return `manual:${input.invoiceId}`;
 }

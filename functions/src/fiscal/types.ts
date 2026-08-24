@@ -4,7 +4,7 @@ import type {Timestamp} from "firebase-admin/firestore";
 export type FiscalMode = "always" | "on_demand" | "off";
 export type FiscalConfigStatus = "draft" | "testing" | "active" | "error";
 
-export type FiscalInvoiceOrigin = "booking" | "club" | "manual";
+export type FiscalInvoiceOrigin = "booking" | "club" | "manual" | "activation_test";
 export type FiscalInvoiceStatus =
   | "requested"
   | "processing"

@@ -112,6 +112,46 @@ describe("shouldProcess", () => {
   });
 });
 
+describe("shouldProcess — activation_test", () => {
+  const activationBase = {
+    origin: "activation_test" as const,
+    originPaid: true,
+    valorBrutoReais: 1,
+    tomadorCpfCnpj: "39053344705",
+    hasAuthorizedTwin: false,
+  };
+
+  it("processa com status testing, mesmo sem active", () => {
+    const testingConfig = config({status: "testing", mode: "off"});
+    assert.deepEqual(
+      shouldProcess({...activationBase, config: testingConfig}),
+      {ok: true},
+    );
+  });
+
+  it("processa com status error (caminho do reemitir)", () => {
+    const errorConfig = config({status: "error", mode: "off"});
+    assert.deepEqual(
+      shouldProcess({...activationBase, config: errorConfig}),
+      {ok: true},
+    );
+  });
+
+  it("recusa com status draft — cadastro ainda não foi enviado", () => {
+    const draftConfig = config({status: "draft", mode: "off"});
+    assert.deepEqual(
+      shouldProcess({...activationBase, config: draftConfig}),
+      {ok: false, reason: "CONFIG_NOT_EMITTING"},
+    );
+  });
+
+  it("dispensa a checagem de pagamento, igual manual", () => {
+    const testingConfig = config({status: "testing", mode: "off"});
+    const result = shouldProcess({...activationBase, config: testingConfig, originPaid: false});
+    assert.deepEqual(result, {ok: true});
+  });
+});
+
 describe("buildIdempotencyKey", () => {
   it("deriva do pagamento no caminho online", () => {
     assert.equal(
@@ -131,6 +171,15 @@ describe("buildIdempotencyKey", () => {
     assert.equal(
       buildIdempotencyKey({origin: "manual", invoiceId: "i1"}),
       "manual:i1",
+    );
+  });
+});
+
+describe("buildIdempotencyKey — activation_test", () => {
+  it("deriva da arena, não de pagamento", () => {
+    assert.equal(
+      buildIdempotencyKey({origin: "activation_test", arenaId: "arena1"}),
+      "activation:arena1",
     );
   });
 });

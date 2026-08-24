@@ -197,3 +197,43 @@ describe("processInvoiceRequest", () => {
     assert.equal(fake.store.get("fiscalInvoices/inv1")?.status, "requested");
   });
 });
+
+describe("processInvoiceRequest — activation_test", () => {
+  it("processa a nota de ativação mesmo com a config em testing", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("arenas/arena1/fiscal/config", {
+      cnpj: "12345678000199",
+      razaoSocial: "Arena X Ltda",
+      inscricaoMunicipal: "123456",
+      regimeTributario: "simples_nacional",
+      enderecoFiscal: {codigoIbge: "5208707", municipio: "Goiânia", uf: "GO"},
+      services: [{id: "s1", codigoMunicipal: "3.03", descricao: "Quadra", aliquotaIss: 2}],
+      defaultServiceIdBooking: "s1",
+      issuerId: "emp_1",
+      credentialSecretName: "fiscal-arena1",
+      mode: "off",
+      status: "testing",
+    });
+    fake.seedDoc("fiscalInvoices/inv1", {
+      arenaId: "arena1",
+      origin: "activation_test",
+      originId: null,
+      idempotencyKey: "activation:arena1",
+      serviceId: "s1",
+      codigoMunicipal: "3.03",
+      aliquotaIss: 2,
+      descricao: "Nota de teste — ativação",
+      tomador: {nome: "Cliente de Teste NexaGO", cpfCnpj: "39053344705"},
+      tomadorUid: null,
+      valorBrutoReais: 1,
+      status: "requested",
+    });
+    const issuer = new FakeIssuer();
+
+    await processInvoiceRequest(db(fake), issuer, readToken, "inv1");
+
+    const doc = fake.store.get("fiscalInvoices/inv1");
+    assert.equal(doc?.status, "authorized");
+    assert.equal(issuer.issued.length, 1);
+  });
+});

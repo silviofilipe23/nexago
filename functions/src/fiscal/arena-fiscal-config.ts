@@ -46,7 +46,7 @@ export function issuerTokenSecretName(arenaId: string): string {
   return `fiscal-issuer-token-${arenaId}`;
 }
 
-async function assertManagesArena(
+export async function assertManagesArena(
   db: Firestore,
   arenaId: string,
   callerUid: string,

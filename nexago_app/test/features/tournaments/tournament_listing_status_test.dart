@@ -293,4 +293,29 @@ void main() {
     expect(isRegistrationListingClosed('closed'), isTrue);
     expect(isRegistrationListingClosed('open'), isFalse);
   });
+
+  group('isTournamentTerminal', () {
+    test('true only for completed and ended (cancelled maps to ended)', () {
+      expect(isTournamentTerminal(TournamentListingStatus.completed), isTrue);
+      expect(isTournamentTerminal(TournamentListingStatus.ended), isTrue);
+      expect(
+        isTournamentTerminal(listingStatusFromRaw('cancelled')!),
+        isTrue,
+      );
+    });
+
+    test('false for every non-terminal status', () {
+      expect(isTournamentTerminal(TournamentListingStatus.scheduled), isFalse);
+      expect(isTournamentTerminal(TournamentListingStatus.open), isFalse);
+      expect(
+        isTournamentTerminal(TournamentListingStatus.almostFull),
+        isFalse,
+      );
+      expect(isTournamentTerminal(TournamentListingStatus.live), isFalse);
+      expect(
+        isTournamentTerminal(TournamentListingStatus.bracketsReady),
+        isFalse,
+      );
+    });
+  });
 }

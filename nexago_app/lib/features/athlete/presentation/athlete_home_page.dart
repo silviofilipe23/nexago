@@ -44,9 +44,9 @@ import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
 
 /// Aba Início do atleta — mesmo padrão de layout do painel do portal web no
-/// mobile: Modo Focus (no dia do evento) → KPIs → acompanhamento de inscrição →
-/// convites → competições → próxima reserva → evolução → comunidade → missões →
-/// meus torneios → atalhos.
+/// mobile: meus torneios (quando ativa, em destaque no topo) → Modo Focus
+/// (no dia do evento) → KPIs → acompanhamento de inscrição → convites →
+/// competições → próxima reserva → evolução → comunidade → missões → atalhos.
 class AthleteHomePage extends ConsumerWidget {
   const AthleteHomePage({super.key});
 
@@ -121,6 +121,12 @@ class AthleteHomePage extends ConsumerWidget {
                   sliver: SliverList.list(
                     children: [
                       const SizedBox(height: AppSpacing.lg),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenH,
+                        ),
+                        child: MyTournamentsHomeSection(),
+                      ),
                       const AthleteHomeFocusButton(),
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -283,13 +289,6 @@ class AthleteHomePage extends ConsumerWidget {
                             );
                           },
                         ),
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: MyTournamentsHomeSection(),
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
                       Padding(

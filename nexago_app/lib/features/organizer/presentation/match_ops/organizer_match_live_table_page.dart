@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../data/match_point_write.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
@@ -43,6 +45,15 @@ class _OrganizerMatchLiveTablePageState
   bool _saving = false;
   Timer? _clockTimer;
 
+  /// Ferramentas extras (Quadra, Tempo, Modo exibição) pro mesário que também
+  /// é o próprio árbitro — desligadas por padrão, sem persistência, igual ao
+  /// modo exibição do web.
+  bool _fullMode = false;
+  bool _sidesSwapped = false;
+  Map<String, int> _timeouts = const {'A': 0, 'B': 0};
+  int? _timeoutsSetIndex;
+  bool _presentMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +65,48 @@ class _OrganizerMatchLiveTablePageState
   @override
   void dispose() {
     _clockTimer?.cancel();
+    if (_presentMode) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      WakelockPlus.disable();
+    }
     super.dispose();
+  }
+
+  void _toggleFullMode() => setState(() => _fullMode = !_fullMode);
+
+  void _swapSides() => setState(() => _sidesSwapped = !_sidesSwapped);
+
+  /// Zera os tempos técnicos ao trocar de set — mesma regra do web
+  /// (`timeouts` é visual, o doc da partida não tem campo pra isso).
+  void _resetTimeoutsIfSetChanged(int currentSetIndex) {
+    if (_timeoutsSetIndex == currentSetIndex) return;
+    _timeoutsSetIndex = currentSetIndex;
+    _timeouts = const {'A': 0, 'B': 0};
+  }
+
+  void _addTimeout(TournamentMatch match) {
+    final servingId = match.servingTeamId.trim();
+    final side = servingId == match.teamAId
+        ? 'A'
+        : servingId == match.teamBId
+            ? 'B'
+            : null;
+    if (side == null) return;
+    final current = _timeouts[side] ?? 0;
+    if (current >= 2) return;
+    setState(() => _timeouts = {..._timeouts, side: current + 1});
+  }
+
+  Future<void> _enterPresentMode() async {
+    setState(() => _presentMode = true);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    await WakelockPlus.enable();
+  }
+
+  Future<void> _exitPresentMode() async {
+    setState(() => _presentMode = false);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await WakelockPlus.disable();
   }
 
   TournamentMatch? _currentMatch() {
@@ -491,6 +543,7 @@ class _OrganizerMatchLiveTablePageState
                 }
 
                 final setIdx = match.currentSetIndex ?? 0;
+                _resetTimeoutsIfSetChanged(setIdx);
                 final sets = match.sets;
                 final current = sets.length > setIdx
                     ? sets[setIdx]
@@ -529,6 +582,38 @@ class _OrganizerMatchLiveTablePageState
                     .whereType<TournamentMatchPointEvent>()
                     .toList();
 
+                if (_presentMode) {
+                  final (setsWonA, setsWonB) = liveTableSetsWon(match);
+                  return LiveTablePresentView(
+                    teamA: _sidesSwapped ? teamB : teamA,
+                    teamB: _sidesSwapped ? teamA : teamB,
+                    scoreA: liveTableCurrentSetScore(
+                      match,
+                      sideA: !_sidesSwapped,
+                    ),
+                    scoreB: liveTableCurrentSetScore(
+                      match,
+                      sideA: _sidesSwapped,
+                    ),
+                    isServingA: liveTableIsServing(
+                      match,
+                      sideA: !_sidesSwapped,
+                    ),
+                    isServingB: liveTableIsServing(
+                      match,
+                      sideA: _sidesSwapped,
+                    ),
+                    setsWonA: _sidesSwapped ? setsWonB : setsWonA,
+                    setsWonB: _sidesSwapped ? setsWonA : setsWonB,
+                    enabled: actionsEnabled,
+                    onUndo: _undoLastPoint,
+                    onExit: _exitPresentMode,
+                  );
+                }
+
+                final leftSide = _sidesSwapped ? 'B' : 'A';
+                final rightSide = _sidesSwapped ? 'A' : 'B';
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -537,6 +622,8 @@ class _OrganizerMatchLiveTablePageState
                       titleLabel: title.isNotEmpty ? title : 'Partida',
                       elapsedLabel: _elapsedLabel(match),
                       onBack: () => context.pop(),
+                      fullModeActive: _fullMode,
+                      onToggleFullMode: _toggleFullMode,
                     ),
                     LiveTableSetStrip(
                       sets: sets,
@@ -555,19 +642,37 @@ class _OrganizerMatchLiveTablePageState
                         onChoose: _chooseServe,
                       ),
                     LiveTableTeamScoreBoard(
-                      teamA: teamA,
-                      teamB: teamB,
-                      scoreA: liveTableCurrentSetScore(match, sideA: true),
-                      scoreB: liveTableCurrentSetScore(match, sideA: false),
-                      isServingA: liveTableIsServing(match, sideA: true),
-                      isServingB: liveTableIsServing(match, sideA: false),
-                      seedA: liveTableTeamSeed(match, sideA: true),
-                      seedB: liveTableTeamSeed(match, sideA: false),
+                      teamA: _sidesSwapped ? teamB : teamA,
+                      teamB: _sidesSwapped ? teamA : teamB,
+                      scoreA: liveTableCurrentSetScore(
+                        match,
+                        sideA: !_sidesSwapped,
+                      ),
+                      scoreB: liveTableCurrentSetScore(
+                        match,
+                        sideA: _sidesSwapped,
+                      ),
+                      isServingA: liveTableIsServing(
+                        match,
+                        sideA: !_sidesSwapped,
+                      ),
+                      isServingB: liveTableIsServing(
+                        match,
+                        sideA: _sidesSwapped,
+                      ),
+                      seedA: liveTableTeamSeed(match, sideA: !_sidesSwapped),
+                      seedB: liveTableTeamSeed(match, sideA: _sidesSwapped),
                       enabled: actionsEnabled,
-                      onAddPointA: () => _point('A'),
-                      onAddPointB: () => _point('B'),
-                      onSubtractA: () => _undoIfSide('A'),
-                      onSubtractB: () => _undoIfSide('B'),
+                      onAddPointA: () => _point(leftSide),
+                      onAddPointB: () => _point(rightSide),
+                      onSubtractA: () => _undoIfSide(leftSide),
+                      onSubtractB: () => _undoIfSide(rightSide),
+                      timeoutsA: _fullMode
+                          ? _timeouts[_sidesSwapped ? 'B' : 'A']
+                          : null,
+                      timeoutsB: _fullMode
+                          ? _timeouts[_sidesSwapped ? 'A' : 'B']
+                          : null,
                     ),
                     LiveTableSetRules(
                       rulesLabel: rules,
@@ -603,11 +708,29 @@ class _OrganizerMatchLiveTablePageState
                     ),
                     Expanded(
                       child: SingleChildScrollView(
-                        child: LiveTablePointFeed(
-                          setIndex: setIdx,
-                          events: events,
-                          teamA: teamA,
-                          teamB: teamB,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Dentro da área rolável, não como irmão fixo do
+                            // Column principal: numa tela baixa, a barra
+                            // extra do modo full não pode empurrar o layout
+                            // pra além da altura disponível (RenderFlex
+                            // overflow) — aqui ela só exige um scroll a mais.
+                            if (_fullMode)
+                              LiveTableFullModeBar(
+                                enabled: actionsEnabled,
+                                sidesSwapped: _sidesSwapped,
+                                onSwapSides: _swapSides,
+                                onAddTimeout: () => _addTimeout(match),
+                                onEnterPresent: _enterPresentMode,
+                              ),
+                            LiveTablePointFeed(
+                              setIndex: setIdx,
+                              events: events,
+                              teamA: teamA,
+                              teamB: teamB,
+                            ),
+                          ],
                         ),
                       ),
                     ),

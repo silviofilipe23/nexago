@@ -74,12 +74,18 @@ dependencies:
   # app". O Firebase provisiona a própria chave; não usamos a API do pacote.
   # É o que obriga o mínimo de iOS 15 (ver ios/Podfile).
   recaptcha_enterprise_flutter: ^18.9.1
+  wakelock_plus: ^1.3.3
 
 dev_dependencies:
   firebase_auth_mocks: ^0.14.1
   flutter_launcher_icons: ^0.14.3
   flutter_test:
     sdk: flutter
+  # Só pra testar o modo full da mesa ao vivo (LiveTablePresentView): expõe
+  # `WakelockPlusPlatformInterface` pra podermos trocar por um fake em teste
+  # sem MissingPluginException — `wakelock_plus` (dependency normal) já
+  # resolve esta versão de forma transitiva.
+  wakelock_plus_platform_interface: ^1.6.0
 
 flutter_launcher_icons:
   android: true

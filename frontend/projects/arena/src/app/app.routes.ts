@@ -279,6 +279,13 @@ export const routes: Routes = [
       import('./painel/courts/panel-court-form.component').then((m) => m.PanelCourtFormComponent),
   },
   {
+    path: 'painel/fiscal',
+    title: 'Notas fiscais — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/fiscal/panel-fiscal.component').then((m) => m.PanelFiscalComponent),
+  },
+  {
     path: 'painel/relatorios/ocupacao',
     title: 'Ocupação — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],

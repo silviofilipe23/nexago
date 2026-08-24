@@ -78,23 +78,20 @@ O padrão do `node --test` vai entre aspas simples no script: sob `/bin/sh`, que
 é o shell do `npm run`, `**` não expande recursivamente e o glob desabaria em
 `lib/*.test.js` — quem expande é o próprio Node.
 
-## Limitação conhecida: ativação
+## Ativação (testing → active)
 
-**Não existe hoje nenhum caminho — automático ou manual pela interface — que
-leve `arenas/{arenaId}/fiscal/config.status` de `testing` para `active`.**
+A arena emite uma nota real em homologação pelo passo 5 do wizard (botão
+"Emitir nota de teste"). Autorizada, `status` vira `active` sozinho — quem
+faz isso é o trigger `onActivationTestInvoiceResolved`, não o wizard. Rejeitada,
+`status` vira `error` com o motivo real do emissor, e o mesmo botão (agora
+"Tentar novamente") reemite a mesma nota.
 
-`saveArenaFiscalConfigCore` sempre grava `status: "testing"`, e não há callable
-que promova esse valor. Como `shouldAutoIssue` e `shouldProcess` exigem
-`status === "active"`, na prática **nenhuma arena consegue emitir nota por esta
-feature ainda**: todo pedido que nascesse seria rejeitado com
-`CONFIG_NOT_EMITTING`, e o seletor de modo do passo 5 do assistente nunca
-libera.
+A nota de teste usa um tomador sintético fixo (CPF formato-válido, não real,
+"Cliente de Teste NexaGO") e o serviço padrão de reserva real da arena, valor
+R$1,00. Aparece na lista de notas fiscais com a etiqueta "Teste" — nunca some,
+nunca é confundida com venda real.
 
-Fechar essa lacuna é pré-requisito para a feature valer para qualquer arena, e
-pede desenho próprio (emitir uma nota de teste em homologação, decidir o que
-conta como aprovação, tratar reprovação e reenvio) — não é um ajuste pontual. O
-passo 5 do assistente e esta seção existem para que ninguém confunda "dados
-salvos" com "pronto para emitir".
+Reemitir uma nota real rejeitada (`retryFiscalInvoice`) usa o mesmo mecanismo.
 
 ## IAM da service account das Functions
 

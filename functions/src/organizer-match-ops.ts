@@ -543,7 +543,7 @@ export const callMatchToCourt = onCall(async (request) => {
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   const tournamentId = data.tournamentId as string;
-  await assertCanManageTournament(db, uid, tournamentId);
+  await assertCanScoreTournament(db, uid, tournamentId);
 
   const checkIn = data.checkIn as Record<string, Record<string, string>> | undefined;
   const a = checkIn?.teamA?.status;

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/firebase/firebase_providers.dart';
 import '../../../tournaments/data/tournament_detail_lookup.dart';
 import '../../../tournaments/domain/tournament_detail_model.dart';
 import '../../../tournaments/domain/tournament_listing_status.dart';
@@ -74,7 +75,7 @@ final myTournamentStaffEntriesProvider =
 
 final _staffTournamentDetailProvider =
     FutureProvider.family<TournamentDetail?, String>((ref, tournamentId) {
-  return loadTournamentDetailById(FirebaseFirestore.instance, tournamentId);
+  return loadTournamentDetailById(ref.watch(firestoreProvider), tournamentId);
 });
 
 /// Staff ativo com torneio ainda não cancelado/concluído — usado na Home,

@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_spacing.dart';
 import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../organizer/domain/match_ops/match_ops_providers.dart';
-import '../../organizer/domain/match_ops/match_scoring_logic.dart';
 import '../../organizer/presentation/match_ops/organizer_match_navigation.dart';
+import '../domain/tournament_detail_model.dart';
+import '../domain/tournament_discovery_providers.dart';
+import 'focus/widgets/focus_match_card.dart';
 
 /// J2 — Transmissão pública (read-only).
+///
+/// Reaproveita o card de partida do Modo Focus (fotos, placar por sets,
+/// badge AO VIVO) em vez de um layout próprio: é o mesmo desenho, então
+/// qualquer ajuste ali já reflete aqui.
 class PublicMatchLivePage extends ConsumerWidget {
   const PublicMatchLivePage({
     super.key,
@@ -19,16 +25,26 @@ class PublicMatchLivePage extends ConsumerWidget {
   final String tournamentId;
   final String matchId;
 
+  /// Nome da categoria pela oferta do torneio — mesmo padrão de
+  /// `FocusArenaSection._categoryNameOf`.
+  String _categoryNameOf(TournamentDetail tournament, String categoryId) {
+    final id = categoryId.trim();
+    if (id.isEmpty) return '';
+    for (final offer in tournament.categoryOffers) {
+      if (offer.id.trim() == id) return offer.name;
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final matchAsync = ref.watch(organizerMatchByIdProvider((
-      tournamentId: tournamentId,
-      matchId: matchId,
-    )));
+    final cardsAsync = ref.watch(organizerMatchCardsByIdProvider(tournamentId));
+    final tournament =
+        ref.watch(tournamentDetailProvider(tournamentId)).valueOrNull;
 
     return Scaffold(
       appBar: NexaAppBar(
-        title: const Text('Ao vivo'),
+        title: Text(tournament?.name ?? 'Ao vivo'),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_rounded),
@@ -39,57 +55,22 @@ class PublicMatchLivePage extends ConsumerWidget {
           ),
         ],
       ),
-      body: matchAsync.when(
+      body: cardsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
-        data: (match) {
-          if (match == null) {
+        data: (cards) {
+          final card = cards[matchId];
+          if (card == null) {
             return const Center(child: Text('Partida não encontrada'));
           }
+          final categoryName = tournament == null
+              ? ''
+              : _categoryNameOf(tournament, card.match.categoryId);
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (match.isInProgress)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.live.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'AO VIVO',
-                        style: TextStyle(
-                          color: AppColors.live,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-                  Text(
-                    match.teamsLabel,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    MatchScoringLogic.setsScoreLabel(match),
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                          color: AppColors.brand,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  if (match.effectiveCourtLabel.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(match.effectiveCourtLabel),
-                  ],
-                ],
-              ),
+              padding: const EdgeInsets.all(AppSpacing.screenH),
+              child:
+                  FocusMatchCard(viewModel: card, categoryName: categoryName),
             ),
           );
         },

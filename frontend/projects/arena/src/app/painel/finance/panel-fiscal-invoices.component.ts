@@ -152,6 +152,9 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
               <p class="state-text">{{ err }}</p>
               <button type="button" class="ar-mini-btn" (click)="retry()">Tentar de novo</button>
             } @else {
+              @if (retryError(); as rerr) {
+                <div class="error-banner">{{ rerr }}</div>
+              }
               <div class="table-head">
                 <span>Data</span>
                 <span>Origem</span>
@@ -192,10 +195,10 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
                           <button
                             type="button"
                             class="ar-ghost-btn file-btn"
-                            [disabled]="retryingInvoiceId() === inv.id"
+                            [disabled]="retryingInvoiceIds().has(inv.id)"
                             (click)="retryInvoice(inv.id)"
                           >
-                            {{ retryingInvoiceId() === inv.id ? 'Reemitindo…' : 'Reemitir' }}
+                            {{ retryingInvoiceIds().has(inv.id) ? 'Reemitindo…' : 'Reemitir' }}
                           </button>
                         }
                       </div>
@@ -464,7 +467,8 @@ export class PanelFiscalInvoicesComponent {
   protected readonly config = signal<ArenaFiscalConfigView | null>(null);
   protected readonly settingMode = signal(false);
   protected readonly modeError = signal<string | null>(null);
-  protected readonly retryingInvoiceId = signal<string | null>(null);
+  protected readonly retryingInvoiceIds = signal<Set<string>>(new Set());
+  protected readonly retryError = signal<string | null>(null);
 
   protected readonly invoices = signal<FiscalInvoiceItem[]>([]);
   protected readonly loading = signal(true);
@@ -552,13 +556,18 @@ export class PanelFiscalInvoicesComponent {
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId || !this.isOwner()) return;
 
-    this.retryingInvoiceId.set(invoiceId);
+    this.retryError.set(null);
+    this.retryingInvoiceIds.update((ids) => new Set(ids).add(invoiceId));
     try {
       await retryFiscalInvoice(arenaFunctions(), arenaId, invoiceId);
     } catch (err) {
-      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível reemitir a nota.');
+      this.retryError.set(err instanceof Error ? err.message : 'Não foi possível reemitir a nota.');
     } finally {
-      this.retryingInvoiceId.set(null);
+      this.retryingInvoiceIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(invoiceId);
+        return next;
+      });
     }
   }
 }

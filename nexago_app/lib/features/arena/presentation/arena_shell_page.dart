@@ -87,6 +87,7 @@ class ArenaShellPage extends ConsumerWidget {
                 items: _navItems,
                 currentIndex: currentIndex,
                 collapseProgress: scrollRegistry.tabBarCollapse.progress,
+                isScrolling: scrollRegistry.tabBarCollapse.isScrolling,
                 uppercaseLabels: true,
                 onTap: (i) {
                   scrollRegistry.tabBarCollapse.expand();

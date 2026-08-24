@@ -52,10 +52,12 @@ class AthleteHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(athleteProfileProvider).valueOrNull;
+    // Único watch de topo: é o gate do NexaAsyncView (skeleton/erro/dados).
+    // Os demais providers da página são lidos dentro de Consumers por
+    // seção — assim uma emissão de notificações/reservas/missões/etc. não
+    // reconstrói a CustomScrollView inteira (~15 seções, gráfico, carrossel
+    // de imagens) a cada tick, inclusive durante o gesto de scroll.
     final summaryAsync = ref.watch(gamificationSummaryProvider);
-    final missionsAsync = ref.watch(dailyMissionsProvider);
-    final bookingsAsync = ref.watch(myBookingsStreamProvider);
 
     return SafeArea(
       top: false,
@@ -67,30 +69,6 @@ class AthleteHomePage extends ConsumerWidget {
           onRetry: () => ref.invalidate(gamificationSummaryProvider),
           skeleton: const _AthleteHomeSkeleton(),
           data: (summary) {
-            final bookings = bookingsAsync.valueOrNull ?? [];
-            final matches = ref
-                    .watch(currentAthleteMatchHistoryBundleProvider)
-                    .valueOrNull
-                    ?.matches ??
-                const [];
-            final ranking =
-                ref.watch(competeHubUserRankingProvider).valueOrNull;
-            final now = DateTime.now();
-            final kpis = buildAthleteHomeKpis(
-              matches: matches,
-              gamification: summary,
-              ranking: ranking,
-              now: now,
-            );
-            final evolution =
-                buildAthleteEvolutionSeries(matches: matches, now: now);
-            final nextBooking = findNextAthleteBooking(bookings, now: now);
-            final name = profile != null
-                ? athleteDisplayName(profile)
-                : 'Atleta';
-            final unreadNotifications = ref.watch(
-              athleteUnreadNotificationsCountProvider,
-            );
             final bottomClearance =
                 nexaBottomNavBarHeight() +
                 MediaQuery.viewPaddingOf(context).bottom +
@@ -105,23 +83,37 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.screenH,
                   ),
-                  child: AthleteHomeHeader(
-                    displayName: name,
-                    avatarUrl: profile?.avatarUrl,
-                    summary: summary,
-                    onAvatarTap: () =>
-                        context.pushNamed(AppRouteNames.athleteProfile),
-                    onXpTap: () =>
-                        context.pushNamed(AppRouteNames.athleteQuest),
-                    unreadNotificationCount: unreadNotifications,
-                    onNotificationsTap: () =>
-                        context.pushNamed(AppRouteNames.athleteNotifications),
-                    sandRankEnabled:
-                        ref.watch(sandRankEnabledProvider).valueOrNull ?? false,
-                    sandRankFrameId: ref
-                        .watch(sandRankCosmeticsProvider)
-                        .valueOrNull
-                        ?.frameId,
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final profile =
+                          ref.watch(athleteProfileProvider).valueOrNull;
+                      final name = profile != null
+                          ? athleteDisplayName(profile)
+                          : 'Atleta';
+                      final unreadNotifications = ref.watch(
+                        athleteUnreadNotificationsCountProvider,
+                      );
+                      return AthleteHomeHeader(
+                        displayName: name,
+                        avatarUrl: profile?.avatarUrl,
+                        summary: summary,
+                        onAvatarTap: () =>
+                            context.pushNamed(AppRouteNames.athleteProfile),
+                        onXpTap: () =>
+                            context.pushNamed(AppRouteNames.athleteQuest),
+                        unreadNotificationCount: unreadNotifications,
+                        onNotificationsTap: () => context.pushNamed(
+                          AppRouteNames.athleteNotifications,
+                        ),
+                        sandRankEnabled:
+                            ref.watch(sandRankEnabledProvider).valueOrNull ??
+                                false,
+                        sandRankFrameId: ref
+                            .watch(sandRankCosmeticsProvider)
+                            .valueOrNull
+                            ?.frameId,
+                      );
+                    },
                   ),
                 ),
                 SliverPadding(
@@ -134,7 +126,27 @@ class AthleteHomePage extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,
                         ),
-                        child: AthleteHomeKpiGrid(kpis: kpis),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final matches = ref
+                                    .watch(
+                                      currentAthleteMatchHistoryBundleProvider,
+                                    )
+                                    .valueOrNull
+                                    ?.matches ??
+                                const [];
+                            final ranking = ref
+                                .watch(competeHubUserRankingProvider)
+                                .valueOrNull;
+                            final kpis = buildAthleteHomeKpis(
+                              matches: matches,
+                              gamification: summary,
+                              ranking: ranking,
+                              now: DateTime.now(),
+                            );
+                            return AthleteHomeKpiGrid(kpis: kpis);
+                          },
+                        ),
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(
@@ -144,22 +156,27 @@ class AthleteHomePage extends ConsumerWidget {
                       ),
                       // Convites só ocupam espaço quando existem — sem isso o
                       // gap deles soma com o das competições e vira buraco.
-                      if ((ref
-                                  .watch(
-                                    ongoingTournamentPartnerInvitesHomeProvider,
-                                  )
-                                  .valueOrNull ??
-                              const [])
-                          .isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            AppSpacing.screenH,
-                            AppSpacing.sectionGap,
-                            AppSpacing.screenH,
-                            0,
-                          ),
-                          child: PendingTournamentInviterInvitesSection(),
-                        ),
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasInvites = (ref
+                                      .watch(
+                                        ongoingTournamentPartnerInvitesHomeProvider,
+                                      )
+                                      .valueOrNull ??
+                                  const [])
+                              .isNotEmpty;
+                          if (!hasInvites) return const SizedBox.shrink();
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                              AppSpacing.screenH,
+                              0,
+                            ),
+                            child: PendingTournamentInviterInvitesSection(),
+                          );
+                        },
+                      ),
                       const SizedBox(height: AppSpacing.sectionGap),
                       const AthleteHomeCompetitionsSection(),
                       const SizedBox(height: AppSpacing.sectionGap),
@@ -167,13 +184,25 @@ class AthleteHomePage extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,
                         ),
-                        child: AthleteHomeNextReservationCard(
-                          booking: nextBooking,
-                          now: now,
-                          onDetailsTap: () =>
-                              context.pushNamed(AppRouteNames.myBookings),
-                          onReserveTap: () =>
-                              _goToTab(ref, athleteShellReservarTabIndex),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final bookings =
+                                ref.watch(myBookingsStreamProvider).valueOrNull ??
+                                    [];
+                            final now = DateTime.now();
+                            final nextBooking = findNextAthleteBooking(
+                              bookings,
+                              now: now,
+                            );
+                            return AthleteHomeNextReservationCard(
+                              booking: nextBooking,
+                              now: now,
+                              onDetailsTap: () =>
+                                  context.pushNamed(AppRouteNames.myBookings),
+                              onReserveTap: () =>
+                                  _goToTab(ref, athleteShellReservarTabIndex),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
@@ -181,35 +210,78 @@ class AthleteHomePage extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,
                         ),
-                        child: AthleteHomeEvolutionChart(series: evolution),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final matches = ref
+                                    .watch(
+                                      currentAthleteMatchHistoryBundleProvider,
+                                    )
+                                    .valueOrNull
+                                    ?.matches ??
+                                const [];
+                            final evolution = buildAthleteEvolutionSeries(
+                              matches: matches,
+                              now: DateTime.now(),
+                            );
+                            return AthleteHomeEvolutionChart(
+                              series: evolution,
+                            );
+                          },
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
                       // Mesmo racional dos convites: comunidade vazia não
                       // deixa gap duplo entre evolução e missões.
-                      if ((ref.watch(communityFeedProvider).valueOrNull ??
-                              const [])
-                          .isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.screenH,
-                          ),
-                          child: AthleteHomeCommunitySection(
-                            onViewAll: () =>
-                                _goToTab(ref, athleteShellCommunityTabIndex),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sectionGap),
-                      ],
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasCommunityItems = (ref
+                                      .watch(communityFeedProvider)
+                                      .valueOrNull ??
+                                  const [])
+                              .isNotEmpty;
+                          if (!hasCommunityItems) {
+                            return const SizedBox.shrink();
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.screenH,
+                                ),
+                                child: AthleteHomeCommunitySection(
+                                  onViewAll: () => _goToTab(
+                                    ref,
+                                    athleteShellCommunityTabIndex,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.sectionGap),
+                            ],
+                          );
+                        },
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,
                         ),
-                        child: AthleteHomeDailyMissionsSection(
-                          missions: missionsAsync.valueOrNull,
-                          onViewAll: () =>
-                              context.pushNamed(AppRouteNames.athleteQuest),
-                          onMissionTap: (mission) =>
-                              navigateForDailyMission(context, ref, mission),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final missions =
+                                ref.watch(dailyMissionsProvider).valueOrNull;
+                            return AthleteHomeDailyMissionsSection(
+                              missions: missions,
+                              onViewAll: () => context.pushNamed(
+                                AppRouteNames.athleteQuest,
+                              ),
+                              onMissionTap: (mission) =>
+                                  navigateForDailyMission(
+                                context,
+                                ref,
+                                mission,
+                              ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),

@@ -33,6 +33,7 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
     this.horizontalMargin = 16,
     this.bottomMargin = 10,
     this.collapseProgress = 0,
+    this.isScrolling = false,
   });
 
   final List<NexaBottomNavItem> items;
@@ -48,6 +49,11 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
 
   /// 0 = expandida, 1 = compacta (ícones, menor altura).
   final double collapseProgress;
+
+  /// Enquanto o conteúdo por trás está rolando, suspendemos o blur ao vivo
+  /// (custo de raster por frame) e mostramos só o tint translúcido; o blur
+  /// volta assim que o scroll assenta.
+  final bool isScrolling;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +72,42 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
         _lerp(bottomMargin, bottomMargin * 0.6, t) +
         _groundedBottomInset(context);
     final showTabLabels = t < 0.45;
+    final content = DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.barFill,
+        borderRadius: BorderRadius.circular(barHeight / 2),
+        border: Border.all(color: tokens.outerStroke, width: 0.8),
+      ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        height: barHeight,
+        child: centerAction == null
+            ? _TabRow(
+                items: items,
+                currentIndex: index,
+                onTap: onTap,
+                tokens: tokens,
+                selectedColor: selectedColor,
+                unselectedColor: muted,
+                uppercaseLabels: uppercaseLabels,
+                showLabels: showTabLabels,
+                collapseProgress: t,
+              )
+            : _TabRowWithCenterAction(
+                items: items,
+                currentIndex: index,
+                onTap: onTap,
+                centerAction: centerAction!,
+                tokens: tokens,
+                selectedColor: selectedColor,
+                unselectedColor: muted,
+                uppercaseLabels: uppercaseLabels,
+                showLabels: showTabLabels,
+                collapseProgress: t,
+              ),
+      ),
+    );
 
     return Padding(
       padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
@@ -79,48 +121,15 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(barHeight / 2),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: _lerp(28, 20, t),
-                sigmaY: _lerp(28, 20, t),
-              ),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: tokens.barFill,
-                  borderRadius: BorderRadius.circular(barHeight / 2),
-                  border: Border.all(color: tokens.outerStroke, width: 0.8),
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  height: barHeight,
-                  child: centerAction == null
-                      ? _TabRow(
-                          items: items,
-                          currentIndex: index,
-                          onTap: onTap,
-                          tokens: tokens,
-                          selectedColor: selectedColor,
-                          unselectedColor: muted,
-                          uppercaseLabels: uppercaseLabels,
-                          showLabels: showTabLabels,
-                          collapseProgress: t,
-                        )
-                      : _TabRowWithCenterAction(
-                          items: items,
-                          currentIndex: index,
-                          onTap: onTap,
-                          centerAction: centerAction!,
-                          tokens: tokens,
-                          selectedColor: selectedColor,
-                          unselectedColor: muted,
-                          uppercaseLabels: uppercaseLabels,
-                          showLabels: showTabLabels,
-                          collapseProgress: t,
-                        ),
-                ),
-              ),
-            ),
+            child: isScrolling
+                ? content
+                : BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: _lerp(28, 20, t),
+                      sigmaY: _lerp(28, 20, t),
+                    ),
+                    child: content,
+                  ),
           ),
         ),
       ),

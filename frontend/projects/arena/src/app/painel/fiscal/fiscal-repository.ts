@@ -93,3 +93,21 @@ export async function getArenaFiscalRequirements(functions: Functions, codigoIbg
     throw mapFunctionsError(err, 'Não foi possível consultar as exigências do município.');
   }
 }
+
+export async function emitActivationTestInvoice(functions: Functions, arenaId: string): Promise<void> {
+  const call = httpsCallable(functions, 'emitActivationTestInvoice');
+  try {
+    await call({ arenaId });
+  } catch (err) {
+    throw mapFunctionsError(err, 'Não foi possível emitir a nota de teste.');
+  }
+}
+
+export async function retryFiscalInvoice(functions: Functions, arenaId: string, invoiceId: string): Promise<void> {
+  const call = httpsCallable(functions, 'retryFiscalInvoice');
+  try {
+    await call({ arenaId, invoiceId });
+  } catch (err) {
+    throw mapFunctionsError(err, 'Não foi possível reemitir a nota.');
+  }
+}

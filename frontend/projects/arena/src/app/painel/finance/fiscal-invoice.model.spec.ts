@@ -1,4 +1,4 @@
-import { mapFiscalInvoice, FISCAL_INVOICE_STATUS_LABEL } from './fiscal-invoice.model';
+import { mapFiscalInvoice, FISCAL_INVOICE_STATUS_LABEL, FISCAL_INVOICE_ORIGIN_LABEL } from './fiscal-invoice.model';
 
 describe('mapFiscalInvoice', () => {
   it('mapeia uma nota autorizada', () => {
@@ -31,5 +31,11 @@ describe('FISCAL_INVOICE_STATUS_LABEL', () => {
     expect(FISCAL_INVOICE_STATUS_LABEL.processing).toBe('Processando');
     expect(FISCAL_INVOICE_STATUS_LABEL.authorized).toBe('Autorizada');
     expect(FISCAL_INVOICE_STATUS_LABEL.rejected).toBe('Rejeitada');
+  });
+});
+
+describe('FISCAL_INVOICE_ORIGIN_LABEL', () => {
+  it('rotula activation_test', () => {
+    expect(FISCAL_INVOICE_ORIGIN_LABEL['activation_test']).toBe('Teste de ativação');
   });
 });

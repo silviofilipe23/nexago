@@ -21,6 +21,7 @@ export const FISCAL_INVOICE_ORIGIN_LABEL: Record<string, string> = {
   booking: 'Reserva',
   club: 'Clubinho',
   manual: 'Avulsa',
+  activation_test: 'Teste de ativação',
 };
 
 export interface FiscalInvoiceItem {

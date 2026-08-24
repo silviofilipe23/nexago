@@ -10,6 +10,7 @@ class ShellTabBarCollapseController extends ChangeNotifier {
 
   double _progress = 0;
   bool _notifyScheduled = false;
+  bool _isScrolling = false;
 
   double get progress => _progress;
 
@@ -17,10 +18,20 @@ class ShellTabBarCollapseController extends ChangeNotifier {
 
   bool get showLabels => _progress < 0.45;
 
+  /// Verdadeiro do início do gesto/inércia até o scroll assentar de vez —
+  /// usado pra suspender o blur ao vivo da cápsula (custo de raster por
+  /// frame) enquanto o conteúdo por trás dela está se movendo.
+  bool get isScrolling => _isScrolling;
+
   void expand() => _setProgress(0);
 
   bool handleScrollNotification(ScrollNotification notification) {
     if (notification.depth != 0) return false;
+
+    if (notification is ScrollStartNotification) {
+      _setScrolling(true);
+      return false;
+    }
 
     if (notification is ScrollUpdateNotification) {
       final metrics = notification.metrics;
@@ -36,6 +47,7 @@ class ShellTabBarCollapseController extends ChangeNotifier {
     }
 
     if (notification is ScrollEndNotification) {
+      _setScrolling(false);
       final metrics = notification.metrics;
       if (metrics.pixels <= metrics.minScrollExtent + 2) {
         _setProgress(0);
@@ -45,6 +57,12 @@ class ShellTabBarCollapseController extends ChangeNotifier {
     }
 
     return false;
+  }
+
+  void _setScrolling(bool value) {
+    if (_isScrolling == value) return;
+    _isScrolling = value;
+    _scheduleNotify();
   }
 
   void _setProgress(double value) {

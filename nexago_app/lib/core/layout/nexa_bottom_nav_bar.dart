@@ -27,6 +27,7 @@ class NexaBottomNavBar extends StatelessWidget {
     this.horizontalMargin = 16,
     this.bottomMargin = 0,
     this.collapseProgress = 0,
+    this.isScrolling = false,
   });
 
   final List<NexaBottomNavItem> items;
@@ -42,6 +43,10 @@ class NexaBottomNavBar extends StatelessWidget {
   final double horizontalMargin;
   final double bottomMargin;
   final double collapseProgress;
+
+  /// Repassado à cápsula Flutter (fallback não-nativo) pra suspender o blur
+  /// ao vivo enquanto o conteúdo atrás dela está rolando.
+  final bool isScrolling;
 
   static const double _glassOverflow = 20;
 
@@ -119,6 +124,7 @@ class NexaBottomNavBar extends StatelessWidget {
       horizontalMargin: horizontalMargin,
       bottomMargin: bottomMargin,
       collapseProgress: collapseProgress,
+      isScrolling: isScrolling,
     );
   }
 }

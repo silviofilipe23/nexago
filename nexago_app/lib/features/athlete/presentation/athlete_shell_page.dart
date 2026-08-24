@@ -132,6 +132,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
               listenable: scrollRegistry.tabBarCollapse,
               builder: (context, _) => NexaBottomNavBar(
                 collapseProgress: scrollRegistry.tabBarCollapse.progress,
+                isScrolling: scrollRegistry.tabBarCollapse.isScrolling,
                 currentIndex: _index,
                 onTap: (i) {
                   ref.read(athleteShellTabIndexProvider.notifier).state = i;

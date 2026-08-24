@@ -40,7 +40,7 @@ export interface CreateInvoiceRequestInput {
 }
 
 /** Id determinístico: mesma chave, mesmo documento. */
-function invoiceIdFor(arenaId: string, idempotencyKey: string): string {
+export function invoiceIdFor(arenaId: string, idempotencyKey: string): string {
   return `${arenaId}__${idempotencyKey}`.replace(/\//g, "_");
 }
 

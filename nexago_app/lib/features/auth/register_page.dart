@@ -573,16 +573,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           icon: const AuthGoogleGlyph(),
           label: 'Continuar com Google',
         ),
-        SizedBox(height: 10),
-        AuthSocialButton(
-          onPressed: null,
-          icon: Icon(
-            Icons.apple,
-            size: 22,
-            color: context.themeColors.onSurface,
-          ),
-          label: 'Continuar com Apple',
-        ),
         SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,

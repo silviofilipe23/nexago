@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_radii.dart';
+import 'package:nexago_app/core/theme/app_shadows.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
@@ -55,11 +57,42 @@ class TournamentPredictionsPage extends ConsumerStatefulWidget {
 
 class _TournamentPredictionsPageState
     extends ConsumerState<TournamentPredictionsPage> {
+  static const _scrollFloatThreshold = 16.0;
+
   _PredictionsSection _section = _PredictionsSection.picks;
   final Map<String, String> _draftPicks = {};
+  final _scrollController = ScrollController();
   bool _draftInitialized = false;
   bool _submitting = false;
   bool _sharing = false;
+  bool _scrolledDown = false;
+
+  // Espelham o resultado de `_buildPicksSlivers()` pro botão flutuante — ele
+  // vive fora da sliver list (precisa ficar por cima da rolagem), mas usa o
+  // mesmo `canSave`/`matches` já calculados ali, sem reler os providers.
+  bool _picksReady = false;
+  bool _picksCanSave = false;
+  List<TournamentMatch> _picksMatches = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateScrolledDown);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _updateScrolledDown() {
+    final offset = _scrollController.hasClients ? _scrollController.offset : 0;
+    final scrolledDown = offset > _scrollFloatThreshold;
+    if (scrolledDown != _scrolledDown) {
+      setState(() => _scrolledDown = scrolledDown);
+    }
+  }
 
   void _seedDraftIfNeeded(TournamentPredictionEntry? entry) {
     if (_draftInitialized) return;
@@ -115,6 +148,8 @@ class _TournamentPredictionsPageState
 
   @override
   Widget build(BuildContext context) {
+    _picksReady = false;
+
     final slivers = [
       SliverToBoxAdapter(
         child: Padding(
@@ -133,10 +168,40 @@ class _TournamentPredictionsPageState
         SliverToBoxAdapter(child: SizedBox(height: widget.bottomPadding)),
     ];
 
-    if (widget.embedded) {
-      return CustomScrollView(slivers: slivers);
+    if (!widget.embedded) {
+      return TournamentDetailSubpageScaffold(title: 'Palpites', slivers: slivers);
     }
-    return TournamentDetailSubpageScaffold(title: 'Palpites', slivers: slivers);
+
+    // Sem essa flutuante, "Salvar palpites" só existe no fim de uma lista que
+    // pode ter dezenas de partidas — o atleta troca um palpite lá em cima e
+    // nunca descobre que precisa rolar até o fim pra salvar.
+    final showFloatingSave =
+        _picksReady && (_scrolledDown || _picksCanSave);
+
+    return Stack(
+      children: [
+        CustomScrollView(controller: _scrollController, slivers: slivers),
+        Positioned(
+          left: 20,
+          right: 20,
+          bottom: widget.bottomPadding > 0
+              ? widget.bottomPadding
+              : MediaQuery.paddingOf(context).bottom + 16,
+          child: IgnorePointer(
+            ignoring: !showFloatingSave,
+            child: AnimatedOpacity(
+              opacity: showFloatingSave ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: _FloatingSaveButton(
+                canSave: _picksCanSave,
+                submitting: _submitting,
+                onPressed: () => _save(_picksMatches),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   List<Widget> _buildPicksSlivers() {
@@ -185,6 +250,9 @@ class _TournamentPredictionsPageState
 
     final matches = cards.map((c) => c.match).toList();
     final canSave = _hasUnsavedChanges(entry, matches);
+    _picksReady = true;
+    _picksCanSave = canSave;
+    _picksMatches = matches;
 
     return [
       SliverList(
@@ -416,6 +484,47 @@ class _TournamentPredictionsPageState
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
+  }
+}
+
+class _FloatingSaveButton extends StatelessWidget {
+  const _FloatingSaveButton({
+    required this.canSave,
+    required this.submitting,
+    required this.onPressed,
+  });
+
+  final bool canSave;
+  final bool submitting;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: AppRadii.pillAll,
+        boxShadow: AppShadows.floating(context.themeColors),
+      ),
+      child: FilledButton(
+        onPressed: !canSave || submitting ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.brand,
+          foregroundColor: Colors.black,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.pillAll),
+        ),
+        child: submitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.black,
+                ),
+              )
+            : const Text('Salvar palpites'),
+      ),
+    );
   }
 }
 

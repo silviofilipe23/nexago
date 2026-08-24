@@ -15,6 +15,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../arenas/data/arena_contact_service.dart';
 import '../../arenas/domain/arena_contact_message.dart';
+import '../../arenas/domain/arena_map_opening_camera.dart';
 import '../../arenas/domain/arena_map_pins_logic.dart';
 import '../../arenas/domain/arena_search_filter_logic.dart';
 import '../../arenas/domain/arena_search_providers.dart';
@@ -487,6 +488,11 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
       setState(() => _filters = _filters.copyWith(sportChip: chip));
     });
 
+    // A localização começa a resolver aqui, fora do `when` das arenas. Pedi-la
+    // só depois que a busca carrega garantia que o mapa nasceria antes de
+    // sabermos onde o atleta está — e o GPS leva segundos para responder.
+    ref.watch(userLocationProvider);
+
     final userId = ref.watch(authProvider).valueOrNull?.uid;
     final storedFavorites =
         (ref.watch(favoriteArenaIdsProvider).valueOrNull ?? const <String>[])
@@ -623,7 +629,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           child: ArenaMapView(
             pins: split.pins,
             controller: _mapController,
-            initialCenter: _initialCenter(),
+            initialCenter: _initialCenter(filtered),
             logoPadding: EdgeInsets.only(bottom: bottomInset + 16),
             // Coordenada conhecida significa permissão já concedida. Ligar o
             // marcador antes disso faria o Mapbox pedir a permissão sozinho,
@@ -691,10 +697,12 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     return location?.hasCoordinates ?? false;
   }
 
-  ({double latitude, double longitude})? _initialCenter() {
-    final location = ref.read(userLocationProvider).valueOrNull;
-    if (location == null || !location.hasCoordinates) return null;
-    return (latitude: location.latitude!, longitude: location.longitude!);
+  ({double latitude, double longitude})? _initialCenter(
+    List<FilteredArenaSearchResult> filtered,
+  ) {
+    final location = ref.watch(userLocationProvider).valueOrNull;
+    if (location == null) return null;
+    return resolveArenaMapOpeningCenter(user: location, results: filtered);
   }
 
   Widget _buildHeaderOverlay({required bool compact}) {

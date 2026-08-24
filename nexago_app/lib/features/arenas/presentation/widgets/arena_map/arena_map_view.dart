@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../../core/map/mapbox_config.dart';
+import '../../../domain/arena_map_opening_camera.dart';
 import '../../../domain/arena_map_pin.dart';
 import '../../../domain/arena_map_pins_logic.dart';
 import 'arena_map_style.dart';
@@ -80,7 +81,11 @@ class ArenaMapView extends StatefulWidget {
 
   final ArenaMapController? controller;
 
-  /// Onde a câmera abre antes de existir qualquer pino (cidade do perfil).
+  /// Onde o atleta está — GPS ou, na falta dele, a cidade do perfil.
+  ///
+  /// Chega nulo e vira coordenada segundos depois, quando o GPS responde. Vale
+  /// como abertura mesmo chegando assim, atrasado: enquanto ele é nulo a câmera
+  /// só tem os pinos para se guiar, e esse enquadramento cede a vez.
   final ({double latitude, double longitude})? initialCenter;
 
   /// Empurra a marca d'água e a atribuição do Mapbox para cima do sheet.
@@ -105,6 +110,11 @@ class _ArenaMapViewState extends State<ArenaMapView> {
   bool _didInitialFit = false;
   bool _appliedInitialCenter = false;
 
+  /// Vira `true` na primeira ação do atleta sobre a câmera (buscar, tocar num
+  /// pino, pedir "minha localização"). Encerra a abertura: daí em diante nem a
+  /// localização que chegou atrasada mexe no mapa.
+  bool _athleteMovedCamera = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,16 +138,18 @@ class _ArenaMapViewState extends State<ArenaMapView> {
       _syncUserLocation();
     }
 
-    // A localização costuma resolver depois que o mapa já nasceu. Aplicar aqui
-    // só vale enquanto nada mais posicionou a câmera: passado esse ponto, ela
-    // é do atleta e mexer seria justamente o salto que queremos evitar.
+    // A localização costuma resolver depois que o mapa já nasceu — e depois de
+    // os pinos já terem se enquadrado sozinhos. Esse enquadramento é o que
+    // fazemos SEM saber onde o atleta está, então ele perde a vez assim que
+    // sabemos. Só a ação do próprio atleta encerra a abertura.
     final center = widget.initialCenter;
-    if (center != null &&
-        oldWidget.initialCenter == null &&
-        !_appliedInitialCenter &&
-        !_didInitialFit) {
+    if (shouldApplyLateOpeningCenter(
+      hasCenter: center != null,
+      alreadyApplied: _appliedInitialCenter,
+      athleteMovedCamera: _athleteMovedCamera,
+    )) {
       _appliedInitialCenter = true;
-      unawaited(_flyTo(center.latitude, center.longitude, zoom: _minFitZoom));
+      unawaited(_flyTo(center!.latitude, center.longitude, zoom: _minFitZoom));
     }
   }
 
@@ -180,11 +192,23 @@ class _ArenaMapViewState extends State<ArenaMapView> {
     super.dispose();
   }
 
+  /// Tudo que entra pelo controller nasce de um toque do atleta — a página não
+  /// mexe na câmera sozinha. Por isso a passagem por aqui marca a câmera como
+  /// dele; o enquadramento automático dos pinos chama `_fitPins` direto e
+  /// continua valendo como abertura.
+  ///
+  /// `resetNorth` fica de fora: gira a bússola sem escolher lugar nenhum.
   void _attachController(ArenaMapController? controller) {
     if (controller == null) return;
-    controller._flyTo = _flyTo;
+    controller._flyTo = (latitude, longitude, {zoom}) {
+      _athleteMovedCamera = true;
+      return _flyTo(latitude, longitude, zoom: zoom);
+    };
     controller._resetNorth = _resetNorth;
-    controller._fitPins = _fitPins;
+    controller._fitPins = (pins, fallbackCenter) {
+      _athleteMovedCamera = true;
+      return _fitPins(pins, fallbackCenter);
+    };
   }
 
   void _onMapCreated(MapboxMap map) {
@@ -376,6 +400,10 @@ class _ArenaMapViewState extends State<ArenaMapView> {
       onMapCreated: _onMapCreated,
       onStyleLoadedListener: _onStyleLoaded,
       onStyleImageMissingListener: _onStyleImageMissing,
+      // Arrastar o mapa também é o atleta escolhendo onde olhar. Sem isto, a
+      // localização que resolvesse logo depois puxaria o mapa da mão dele.
+      // Só gesto chega aqui: `flyTo` programático não dispara este evento.
+      onScrollListener: (_) => _athleteMovedCamera = true,
     );
   }
 }

@@ -32,13 +32,24 @@ export async function reprocessFiscalInvoice(
     // presa em "requested" para sempre: nem o botão de reemitir nem o de
     // ativação enxergam esse estado. Volta para "rejected" — acionável de
     // novo pela UI — e relança pro chamador saber que esta tentativa falhou.
-    await ref.set(
-      {
-        status: "rejected",
-        errorMessage: "Falha temporária ao falar com o emissor — tente de novo.",
-      },
-      {merge: true},
-    );
+    //
+    // O webhook do emissor pode ter autorizado a nota enquanto a chamada
+    // acima ainda estava presa na falha de rede (a Focus pode ter recebido o
+    // pedido mesmo com o cliente não tendo visto a resposta). Mesma guarda de
+    // `invoice-processor.ts`: nunca sobrescrever um status terminal.
+    await db.runTransaction(async (tx) => {
+      const current = await tx.get(ref);
+      const currentStatus = current.data()?.status;
+      if (currentStatus === "authorized" || currentStatus === "cancelled") return;
+      tx.set(
+        ref,
+        {
+          status: "rejected",
+          errorMessage: "Falha temporária ao falar com o emissor — tente de novo.",
+        },
+        {merge: true},
+      );
+    });
     throw e;
   }
 }

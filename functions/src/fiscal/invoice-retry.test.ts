@@ -83,6 +83,41 @@ describe("reprocessFiscalInvoice", () => {
     assert.equal(doc?.errorMessage, "Falha temporária ao falar com o emissor — tente de novo.");
   });
 
+  it("não sobrescreve authorized quando o webhook chega durante a falha de rede da tentativa direta", async () => {
+    // O emissor pode ter recebido e autorizado o pedido mesmo sem o cliente
+    // ter visto a resposta (timeout/rede caiu depois do processamento). O
+    // fake simula o webhook vencendo essa corrida: grava "authorized" no
+    // Firestore e só então lança, como um `fetch` que nunca resolveu.
+    const fake = new FakeFirestore();
+    seedRejectedInvoice(fake);
+    const racingIssuer = {
+      async getMunicipalRequirements() {
+        return [];
+      },
+      async registerIssuer() {
+        return {issuerId: "emp_1", token: "tok_teste"};
+      },
+      async issueServiceInvoice() {
+        fake.seedDoc("fiscalInvoices/inv1", {
+          ...fake.store.get("fiscalInvoices/inv1"),
+          status: "authorized",
+          numero: "42",
+        });
+        throw new Error("FOCUS_TIMEOUT_AFTER_PROCESSING");
+      },
+      async getInvoice() {
+        return {status: "authorized" as const};
+      },
+      async cancelInvoice() {},
+    };
+
+    await assert.rejects(() => reprocessFiscalInvoice(db(fake), racingIssuer, readToken, "inv1"));
+
+    const doc = fake.store.get("fiscalInvoices/inv1");
+    assert.equal(doc?.status, "authorized");
+    assert.equal(doc?.numero, "42");
+  });
+
   it("sem o reset, processInvoiceRequest seria um no-op — prova que o reset é necessário", async () => {
     // Sanity check da premissa do design: chamar processInvoiceRequest direto
     // numa nota "rejected" (sem passar por reprocessFiscalInvoice) não faz nada,

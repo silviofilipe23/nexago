@@ -69,7 +69,7 @@ O coração do design: sem isso, nenhuma nota de ativação passaria da primeira
 
 **Interfaces:**
 - Consumes: nada de tasks futuras
-- Produces: `FiscalInvoiceOrigin` inclui `"activation_test"`; `shouldProcess` aceita esse origin com `config.status` em `"testing"`/`"error"`; `buildIdempotencyKey({origin: "activation_test", arenaId})` → `` `activation:${arenaId}` ``; `invoiceIdFor(arenaId, idempotencyKey): string` exportada de `invoice-repository.ts`; `isOriginPaid` retorna `true` para `"activation_test"`
+- Produces: `FiscalInvoiceOrigin` inclui `"activation_test"`; `shouldProcess` aceita esse origin com `config.status` em `"testing"`/`"error"`; `buildIdempotencyKey({origin: "activation_test", arenaId})` → `` `activation:${arenaId}` ``; `isOriginPaid` retorna `true` para `"activation_test"`. (`invoiceIdFor` continua não-exportada depois desta task — ver a nota no fim dela; quem a exporta é a Task 4, que é quem primeiro precisa dela.)
 
 - [ ] **Step 1: Escrever os testes que falham — `shouldProcess` e `buildIdempotencyKey`**
 
@@ -312,7 +312,7 @@ git add functions/src/fiscal/types.ts functions/src/fiscal/invoice-emitter.ts fu
 git commit -m "feat(fiscal): pipeline de emissão aceita origin activation_test"
 ```
 
-Nota: `invoiceIdFor` ainda precisa ser exportada de `invoice-repository.ts` — isso é Task 3 (quem primeiro precisa dela é `activation.ts`), não esta task. Não exporte agora só porque está no arquivo.
+Nota: `invoiceIdFor` ainda precisa ser exportada de `invoice-repository.ts` — isso é Task 4 (quem primeiro precisa dela é `activation.ts`, a própria Task 4), não esta task nem a Task 3. Não exporte agora só porque está no arquivo.
 
 ---
 
@@ -416,7 +416,6 @@ git commit -m "refactor(fiscal): extrai buildDefaultIssuer, usado pelo trigger d
 
 **Files:**
 - Create: `functions/src/fiscal/invoice-retry.ts`
-- Modify: `functions/src/fiscal/invoice-repository.ts` (exportar `invoiceIdFor`)
 - Modify: `functions/src/fiscal/arena-fiscal-config.ts` (exportar `assertManagesArena`)
 - Test: `functions/src/fiscal/invoice-retry.test.ts`
 
@@ -440,27 +439,13 @@ export async function assertManagesArena(
 
 Motivo, para você entender e não desfazer sem querer: a Fatia A deixou essa checagem deliberadamente local para não virar um utilitário genérico compartilhado entre módulos não relacionados (cupons, assinatura, fiscal). Mas `invoice-retry.ts` e `activation.ts` são **do mesmo módulo fiscal** — reusar aqui não é o "terceiro utilitário genérico" que a Fatia A evitou, é a mesma checagem servindo o mesmo domínio.
 
-- [ ] **Step 2: Exportar `invoiceIdFor`**
-
-Em `functions/src/fiscal/invoice-repository.ts:43`, mude:
-
-```typescript
-function invoiceIdFor(arenaId: string, idempotencyKey: string): string {
-```
-
-para:
-
-```typescript
-export function invoiceIdFor(arenaId: string, idempotencyKey: string): string {
-```
-
-- [ ] **Step 3: Rodar o lint pra confirmar que as duas exportações não quebraram nada**
+- [ ] **Step 2: Rodar o lint pra confirmar que a exportação não quebrou nada**
 
 ```bash
 cd functions && npm run lint
 ```
 
-- [ ] **Step 4: Escrever o teste que falha**
+- [ ] **Step 3: Escrever o teste que falha**
 
 Create `functions/src/fiscal/invoice-retry.test.ts`:
 
@@ -618,7 +603,7 @@ describe("retryFiscalInvoiceCore", () => {
 });
 ```
 
-- [ ] **Step 5: Rodar e confirmar que falha**
+- [ ] **Step 4: Rodar e confirmar que falha**
 
 ```bash
 cd functions && npx ts-node --transpile-only src/fiscal/invoice-retry.test.ts
@@ -626,7 +611,7 @@ cd functions && npx ts-node --transpile-only src/fiscal/invoice-retry.test.ts
 
 Esperado: `Cannot find module './invoice-retry'`.
 
-- [ ] **Step 6: Implementar `invoice-retry.ts`**
+- [ ] **Step 5: Implementar `invoice-retry.ts`**
 
 ```typescript
 /**
@@ -706,22 +691,22 @@ export const retryFiscalInvoice = onCall(async (request) => {
 });
 ```
 
-- [ ] **Step 7: Rodar e confirmar que passa**
+- [ ] **Step 6: Rodar e confirmar que passa**
 
 ```bash
 cd functions && npx ts-node --transpile-only src/fiscal/invoice-retry.test.ts
 ```
 
-- [ ] **Step 8: Rodar o lint**
+- [ ] **Step 7: Rodar o lint**
 
 ```bash
 cd functions && npm run lint
 ```
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add functions/src/fiscal/invoice-retry.ts functions/src/fiscal/invoice-retry.test.ts functions/src/fiscal/invoice-repository.ts functions/src/fiscal/arena-fiscal-config.ts
+git add functions/src/fiscal/invoice-retry.ts functions/src/fiscal/invoice-retry.test.ts functions/src/fiscal/arena-fiscal-config.ts
 git commit -m "feat(fiscal): primitivo de reprocessamento e callable de reemitir"
 ```
 
@@ -733,13 +718,30 @@ git commit -m "feat(fiscal): primitivo de reprocessamento e callable de reemitir
 
 **Files:**
 - Create: `functions/src/fiscal/activation.ts`
+- Modify: `functions/src/fiscal/invoice-repository.ts` (exportar `invoiceIdFor`)
 - Test: `functions/src/fiscal/activation.test.ts`
 
 **Interfaces:**
 - Consumes: `invoiceIdFor`, `readArenaFiscalConfig` (`invoice-repository.ts`); `createInvoiceRequest`, `CreateInvoiceRequestInput`; `buildIdempotencyKey` (`invoice-emitter.ts`); `reprocessFiscalInvoice` (Task 3); `assertManagesArena` (Task 3); `buildDefaultIssuer` (Task 2); `readIssuerTokenFromSecretManager` (Fatia A)
 - Produces: callable `emitActivationTestInvoice`; trigger `onActivationTestInvoiceResolved`
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [ ] **Step 1: Exportar `invoiceIdFor`**
+
+O teste desta task (próximo step) já precisa importar `invoiceIdFor` para computar o id determinístico esperado — exporte antes de escrever o teste, não depois.
+
+Em `functions/src/fiscal/invoice-repository.ts:43`, mude:
+
+```typescript
+function invoiceIdFor(arenaId: string, idempotencyKey: string): string {
+```
+
+para:
+
+```typescript
+export function invoiceIdFor(arenaId: string, idempotencyKey: string): string {
+```
+
+- [ ] **Step 2: Escrever o teste que falha**
 
 Create `functions/src/fiscal/activation.test.ts`:
 
@@ -978,7 +980,7 @@ describe("applyActivationOutcome", () => {
 });
 ```
 
-- [ ] **Step 2: Rodar e confirmar que falha**
+- [ ] **Step 3: Rodar e confirmar que falha**
 
 ```bash
 cd functions && npx ts-node --transpile-only src/fiscal/activation.test.ts
@@ -986,7 +988,7 @@ cd functions && npx ts-node --transpile-only src/fiscal/activation.test.ts
 
 Esperado: `Cannot find module './activation'`.
 
-- [ ] **Step 3: Implementar `activation.ts`**
+- [ ] **Step 4: Implementar `activation.ts`**
 
 ```typescript
 /**
@@ -1156,22 +1158,22 @@ export const onActivationTestInvoiceResolved = onDocumentUpdated(
 );
 ```
 
-- [ ] **Step 4: Rodar e confirmar que passa**
+- [ ] **Step 5: Rodar e confirmar que passa**
 
 ```bash
 cd functions && npx ts-node --transpile-only src/fiscal/activation.test.ts
 ```
 
-- [ ] **Step 5: Rodar o lint**
+- [ ] **Step 6: Rodar o lint**
 
 ```bash
 cd functions && npm run lint
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add functions/src/fiscal/activation.ts functions/src/fiscal/activation.test.ts
+git add functions/src/fiscal/activation.ts functions/src/fiscal/activation.test.ts functions/src/fiscal/invoice-repository.ts
 git commit -m "feat(fiscal): callable de ativação e trigger de promoção testing->active"
 ```
 

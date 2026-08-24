@@ -10,6 +10,7 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import {
+  emitActivationTestInvoice,
   getArenaFiscalRequirements,
   saveArenaFiscalConfig,
   setArenaFiscalMode,
@@ -303,16 +304,37 @@ function readFileAsBase64(file: File): Promise<string> {
                   }
                   @case ('testing') {
                     <p class="hint">
-                      Seus dados fiscais foram enviados e estão em análise. A ativação da emissão automática ainda não é
-                      self-service nesta versão — a equipe nexaGO vai avisar quando sua arena estiver pronta para emitir.
-                      Enquanto isso, fale com o suporte se precisar acompanhar o andamento.
+                      Seus dados fiscais foram enviados. Falta emitir uma nota real em homologação pra confirmar que o
+                      cadastro foi aceito pela prefeitura — assim que ela for autorizada, a emissão automática libera.
                     </p>
+                    <button
+                      type="button"
+                      class="ar-mini-btn ar-mini-btn-primary"
+                      [disabled]="!isOwner() || emittingTest()"
+                      (click)="emitTestInvoice()"
+                    >
+                      {{ emittingTest() ? 'Emitindo…' : 'Emitir nota de teste' }}
+                    </button>
+                    @if (emitTestError(); as eerr) {
+                      <div class="error-banner">{{ eerr }}</div>
+                    }
                   }
                   @case ('error') {
                     <p class="hint error">
-                      Houve um problema no cadastro junto ao emissor. Revise os dados nos passos anteriores ou fale com o
-                      suporte.
+                      A nota de teste foi rejeitada pela prefeitura. Revise os dados nos passos anteriores se precisar, ou
+                      tente de novo.
                     </p>
+                    <button
+                      type="button"
+                      class="ar-mini-btn ar-mini-btn-primary"
+                      [disabled]="!isOwner() || emittingTest()"
+                      (click)="emitTestInvoice()"
+                    >
+                      {{ emittingTest() ? 'Tentando…' : 'Tentar novamente' }}
+                    </button>
+                    @if (emitTestError(); as eerr) {
+                      <div class="error-banner">{{ eerr }}</div>
+                    }
                   }
                   @case ('active') {
                     <p class="hint">Nota de teste aprovada — escolha como a emissão deve funcionar:</p>
@@ -714,6 +736,8 @@ export class PanelFiscalComponent {
   // Passo 5 — modo de emissão
   protected readonly settingMode = signal(false);
   protected readonly modeError = signal<string | null>(null);
+  protected readonly emittingTest = signal(false);
+  protected readonly emitTestError = signal<string | null>(null);
 
   private readonly cnpjDigits = computed(() => onlyDigits(this.cnpj()));
 
@@ -933,6 +957,22 @@ export class PanelFiscalComponent {
       this.modeError.set(err instanceof Error ? err.message : 'Não foi possível alterar o modo de emissão.');
     } finally {
       this.settingMode.set(false);
+    }
+  }
+
+  protected async emitTestInvoice(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId || !this.isOwner()) return;
+    if (this.currentStatus() !== 'testing' && this.currentStatus() !== 'error') return;
+
+    this.emittingTest.set(true);
+    this.emitTestError.set(null);
+    try {
+      await emitActivationTestInvoice(arenaFunctions(), arenaId);
+    } catch (err) {
+      this.emitTestError.set(err instanceof Error ? err.message : 'Não foi possível emitir a nota de teste.');
+    } finally {
+      this.emittingTest.set(false);
     }
   }
 }

@@ -3,9 +3,18 @@
  * Roda fora da transação da carteira de propósito — prefeitura fora do ar não
  * pode derrubar a confirmação de um pagamento.
  */
-import {FieldValue, type Firestore} from "firebase-admin/firestore";
+import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {SecretManagerServiceClient} from "@google-cloud/secret-manager";
 import {shouldProcess} from "./invoice-emitter";
 import {readArenaFiscalConfig} from "./invoice-repository";
+import {
+  FocusNfeIssuer,
+  FOCUS_API_URL_PRODUCTION,
+  FOCUS_API_URL_SANDBOX,
+  FOCUS_ENV,
+  focusFiscalSecrets,
+} from "./focus-nfe-client";
 import type {FiscalIssuer} from "./issuer-port";
 import type {FiscalInvoice} from "./types";
 
@@ -95,3 +104,36 @@ export async function processInvoiceRequest(
     {merge: true},
   );
 }
+
+const secretManager = new SecretManagerServiceClient();
+
+/** Lê a versão mais recente do secret cujo nome está em `credentialSecretName`. */
+export const readIssuerTokenFromSecretManager: ReadIssuerToken = async (secretName) => {
+  const projectId = process.env.GCLOUD_PROJECT ?? "";
+  const [version] = await secretManager.accessSecretVersion({
+    name: `projects/${projectId}/secrets/${secretName}/versions/latest`,
+  });
+  const value = version.payload?.data?.toString();
+  if (!value) throw new Error("FISCAL_ISSUER_TOKEN_MISSING");
+  return value;
+};
+
+/** Processa o pedido assim que ele nasce. Retry automático em erro lançado. */
+export const onFiscalInvoiceRequested = onDocumentCreated(
+  {
+    document: "fiscalInvoices/{invoiceId}",
+    secrets: [...focusFiscalSecrets],
+    retry: true,
+  },
+  async (event) => {
+    const issuer = new FocusNfeIssuer(
+      FOCUS_ENV.value() === "sandbox" ? FOCUS_API_URL_SANDBOX : FOCUS_API_URL_PRODUCTION,
+    );
+    await processInvoiceRequest(
+      getFirestore(),
+      issuer,
+      readIssuerTokenFromSecretManager,
+      event.params.invoiceId,
+    );
+  },
+);

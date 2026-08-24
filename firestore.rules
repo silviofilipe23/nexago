@@ -853,6 +853,15 @@ service cloud.firestore {
       );
       allow write: if false;
     }
+    // Configuração fiscal — leitura do gestor/admin; escrita só via functions.
+    match /arenas/{arenaId}/fiscal/{docId} {
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
     match /arenas/{arenaId}/courts/{courtId} {
       allow read: if true;
       allow create: if request.auth != null && (
@@ -967,6 +976,16 @@ service cloud.firestore {
       allow create: if false;
       allow update: if request.auth != null && (isSuperAdmin() || isAdmin());
       allow delete: if false;
+    }
+    // Notas fiscais — a arena vê as suas, o tomador vê a dele.
+    match /fiscalInvoices/{invoiceId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        arenaCanRead(resource.data.arenaId, 'financeiro') ||
+        resource.data.tomadorUid == request.auth.uid
+      );
+      allow create, update, delete: if false;
     }
     // Convites de equipe. Lidos pelo dono e por quem tem o e-mail convidado
     // (a rota /convite precisa ler antes de aceitar). Escrita só via function.

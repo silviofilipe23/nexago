@@ -138,6 +138,7 @@ service cloud.firestore {
         'matchEndedAt',
         'lastActions',
         'pointEventSeq',
+        'checkIn',
         'updatedAt'
       ]);
     }

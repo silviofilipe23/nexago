@@ -853,12 +853,17 @@ service cloud.firestore {
       );
       allow write: if false;
     }
-    // Configuração fiscal — leitura do gestor/admin; escrita só via functions.
+    // Configuração fiscal — leitura do gestor/admin e de quem tem a área
+    // 'financeiro' (mesma porta de `fiscalInvoices`: sem ler a config, a aba
+    // de notas fiscais mostra "arena ainda não configurou" para o staff e
+    // esconde a lista que a regra abaixo deixa ele ver). Escrita só via
+    // functions.
     match /arenas/{arenaId}/fiscal/{docId} {
       allow read: if request.auth != null && (
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
         isAdmin() ||
-        isSuperAdmin()
+        isSuperAdmin() ||
+        arenaCanRead(arenaId, 'financeiro')
       );
       allow write: if false;
     }

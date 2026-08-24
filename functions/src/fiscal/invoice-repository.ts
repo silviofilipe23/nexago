@@ -25,6 +25,8 @@ export interface CreateInvoiceRequestInput {
   arenaId: string;
   origin: FiscalInvoiceOrigin;
   originId: string | null;
+  /** Fatia do split que pagou, quando houver — ver `FiscalInvoice.shareId`. */
+  shareId?: string | null;
   idempotencyKey: string;
   serviceId: string;
   codigoMunicipal: string;

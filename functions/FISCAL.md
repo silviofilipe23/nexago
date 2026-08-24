@@ -7,9 +7,12 @@ Focus NFe, para reservas de quadra e sessões do clubinho.
 
 ```bash
 firebase functions:secrets:set FOCUS_ACCOUNT_TOKEN
-firebase functions:secrets:set FOCUS_ENV   # sandbox | production
 firebase functions:secrets:set FISCAL_WEBHOOK_TOKEN
 ```
+
+`FOCUS_ENV` (`sandbox` | `production`) **não** é secret — é um `defineString`,
+porque só escolhe a URL da Focus. Defina como parâmetro de ambiente
+(`.env`/`firebase functions:config`), não com `functions:secrets:set`.
 
 `FOCUS_ACCOUNT_TOKEN` é o token da conta nexaGO na Focus, usado só para
 cadastrar empresas (`registerIssuer`). A emissão em si usa o token de cada
@@ -31,7 +34,8 @@ subsequentes para a mesma nota (`FINAL_STATUSES`).
 ## Fluxo
 
 1. Um documento nasce em `fiscalInvoices/{invoiceId}` com `status: "requested"`
-   (reserva paga, sessão do clubinho ou lançamento manual).
+   (reserva paga ou sessão do clubinho paga — são as duas únicas origens
+   implementadas; lançamento manual/nota avulsa é Fatia B, não existe aqui).
 2. O trigger `onFiscalInvoiceRequested` dispara, revalida a origem e a
    configuração da arena (`shouldProcess`) e chama a Focus NFe.
 3. Se a Focus responde na hora, o resultado já vai para o documento
@@ -66,5 +70,62 @@ Publicar também `firestore:rules` (leitura de `arenas/{arenaId}/fiscal` e
 ### Teste local
 
 ```bash
-cd functions && npm run build && node --test lib/fiscal/*.test.js
+cd functions && npm test
 ```
+
+Roda a suíte inteira (build + todos os `lib/**/*.test.js` + os testes `.mjs`).
+O padrão do `node --test` vai entre aspas simples no script: sob `/bin/sh`, que
+é o shell do `npm run`, `**` não expande recursivamente e o glob desabaria em
+`lib/*.test.js` — quem expande é o próprio Node.
+
+## Limitação conhecida: ativação
+
+**Não existe hoje nenhum caminho — automático ou manual pela interface — que
+leve `arenas/{arenaId}/fiscal/config.status` de `testing` para `active`.**
+
+`saveArenaFiscalConfigCore` sempre grava `status: "testing"`, e não há callable
+que promova esse valor. Como `shouldAutoIssue` e `shouldProcess` exigem
+`status === "active"`, na prática **nenhuma arena consegue emitir nota por esta
+feature ainda**: todo pedido que nascesse seria rejeitado com
+`CONFIG_NOT_EMITTING`, e o seletor de modo do passo 5 do assistente nunca
+libera.
+
+Fechar essa lacuna é pré-requisito para a feature valer para qualquer arena, e
+pede desenho próprio (emitir uma nota de teste em homologação, decidir o que
+conta como aprovação, tratar reprovação e reenvio) — não é um ajuste pontual. O
+passo 5 do assistente e esta seção existem para que ninguém confunda "dados
+salvos" com "pronto para emitir".
+
+## IAM da service account das Functions
+
+Os papéis abaixo precisam estar concedidos à service account de runtime das
+Cloud Functions **antes da primeira chamada real de `saveArenaFiscalConfig`**:
+
+| Papel | Para quê |
+| --- | --- |
+| `roles/secretmanager.admin` | `saveArenaFiscalConfig` cria a secret `fiscal-issuer-token-{arenaId}` e adiciona versões. Least-privilege equivalente: `secretmanager.secretCreator` + `secretmanager.secretVersionAdder`. |
+| `roles/secretmanager.secretAccessor` | `onFiscalInvoiceRequested` lê a versão mais recente do token da arena na hora de emitir. |
+
+```bash
+PROJECT_ID=<seu-projeto>
+SA="$(gcloud iam service-accounts list --project "$PROJECT_ID" \
+  --filter='email~compute@' --format='value(email)')"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$SA" --role="roles/secretmanager.admin"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$SA" --role="roles/secretmanager.secretAccessor"
+```
+
+Sem esses papéis, `saveArenaFiscalConfig` falha **depois** de já ter registrado
+o CNPJ da arena na Focus — o cadastro fica órfão, ocupando uma vaga do plano
+pago. Desde a correção em `saveSecretToSecretManager` (que só engole
+`ALREADY_EXISTS`), a falha é barulhenta em vez de silenciosa, mas o registro no
+emissor já terá acontecido: ao ver esse erro, cheque também se há empresa
+duplicada/órfã no painel da Focus.
+
+## Não verificado contra a API real
+
+O contrato com a Focus NFe (nomes de campos em `registerIssuer`/
+`issueServiceInvoice`, formato do payload do webhook, unidade de `aliquota`)
+foi escrito a partir da documentação e **nunca foi validado com uma conta
+real**. Confirme cada um em homologação antes de emitir de verdade.

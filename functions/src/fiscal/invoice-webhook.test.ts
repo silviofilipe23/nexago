@@ -58,6 +58,31 @@ describe("applyIssuerNotification", () => {
     assert.equal(fake.store.get("fiscalInvoices/sumiu"), undefined);
   });
 
+  it("ignora ref malformada sem montar caminho nem lançar", async () => {
+    const fake = new FakeFirestore();
+    seedProcessing(fake);
+
+    for (const bad of ["../arenas/arena1", "inv1/extra", "", "inv 1"]) {
+      await applyIssuerNotification(db(fake), {ref: bad, status: "autorizado"});
+    }
+
+    // Nada foi tocado: nem a nota legítima, nem qualquer documento novo.
+    assert.equal(fake.store.get("fiscalInvoices/inv1")?.status, "processing");
+    assert.equal(fake.store.size, 1);
+  });
+
+  it("aceita o id real, que tem `:` — a guarda não pode derrubar o webhook", async () => {
+    const fake = new FakeFirestore();
+    // Formato exato de `invoiceIdFor`: `{arenaId}__payment:{asaasPaymentId}`.
+    const realId = "arena1__payment:pay_1234567890";
+    fake.seedDoc(`fiscalInvoices/${realId}`, {arenaId: "arena1", status: "processing"});
+
+    await applyIssuerNotification(db(fake), {ref: realId, status: "autorizado", numero: "42"});
+
+    assert.equal(fake.store.get(`fiscalInvoices/${realId}`)?.status, "authorized");
+    assert.equal(fake.store.get(`fiscalInvoices/${realId}`)?.numero, "42");
+  });
+
   it("não rebaixa uma nota já autorizada", async () => {
     const fake = new FakeFirestore();
     fake.seedDoc("fiscalInvoices/inv1", {arenaId: "arena1", status: "authorized", numero: "42"});

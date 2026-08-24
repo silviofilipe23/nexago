@@ -82,7 +82,11 @@ describe("processInvoiceRequest", () => {
 
     assert.equal(issuer.issued.length, 0);
     assert.equal(fake.store.get("fiscalInvoices/inv1")?.status, "rejected");
-    assert.equal(fake.store.get("fiscalInvoices/inv1")?.errorMessage, "CONFIG_NOT_EMITTING");
+    // Mensagem em português: o gestor lê isto cru na lista de notas fiscais.
+    assert.equal(
+      fake.store.get("fiscalInvoices/inv1")?.errorMessage,
+      "Emissão automática desligada para esta arena.",
+    );
   });
 
   it("não emite quando a reserva ainda não está paga", async () => {
@@ -94,7 +98,50 @@ describe("processInvoiceRequest", () => {
     await processInvoiceRequest(db(fake), issuer, readToken, "inv1");
 
     assert.equal(issuer.issued.length, 0);
-    assert.equal(fake.store.get("fiscalInvoices/inv1")?.errorMessage, "ORIGIN_NOT_PAID");
+    assert.equal(
+      fake.store.get("fiscalInvoices/inv1")?.errorMessage,
+      "Pagamento ainda não confirmado.",
+    );
+  });
+
+  it("emite a fatia paga do split mesmo com a reserva ainda pendente", async () => {
+    const fake = new FakeFirestore();
+    seedAll(fake);
+    // As outras fatias ainda não pagaram, então `finalizeArenaBooking...` não
+    // rodou e a reserva continua `pending` — o que vale é a fatia desta nota.
+    fake.seedDoc("arenaBookings/b1", {arenaId: "arena1", paymentStatus: "pending"});
+    fake.seedDoc("arenaBookings/b1/paymentShares/sh1", {status: "paid"});
+    fake.seedDoc("fiscalInvoices/inv1", {
+      ...(fake.store.get("fiscalInvoices/inv1") as Record<string, unknown>),
+      shareId: "sh1",
+    });
+    const issuer = new FakeIssuer();
+
+    await processInvoiceRequest(db(fake), issuer, readToken, "inv1");
+
+    assert.equal(issuer.issued.length, 1);
+    assert.equal(fake.store.get("fiscalInvoices/inv1")?.status, "authorized");
+  });
+
+  it("não emite quando a própria fatia do split ainda está pendente", async () => {
+    const fake = new FakeFirestore();
+    seedAll(fake);
+    fake.seedDoc("arenaBookings/b1", {arenaId: "arena1", paymentStatus: "paid"});
+    fake.seedDoc("arenaBookings/b1/paymentShares/sh1", {status: "pending"});
+    fake.seedDoc("fiscalInvoices/inv1", {
+      ...(fake.store.get("fiscalInvoices/inv1") as Record<string, unknown>),
+      shareId: "sh1",
+    });
+    const issuer = new FakeIssuer();
+
+    await processInvoiceRequest(db(fake), issuer, readToken, "inv1");
+
+    assert.equal(issuer.issued.length, 0);
+    assert.equal(fake.store.get("fiscalInvoices/inv1")?.status, "rejected");
+    assert.equal(
+      fake.store.get("fiscalInvoices/inv1")?.errorMessage,
+      "Pagamento ainda não confirmado.",
+    );
   });
 
   it("ignora pedido que já não está em requested — o trigger pode repetir", async () => {
@@ -109,6 +156,34 @@ describe("processInvoiceRequest", () => {
     await processInvoiceRequest(db(fake), issuer, readToken, "inv1");
 
     assert.equal(issuer.issued.length, 0);
+  });
+
+  it("não rebaixa nota que o webhook autorizou enquanto a chamada corria", async () => {
+    const fake = new FakeFirestore();
+    seedAll(fake);
+    const issuer = new FakeIssuer();
+    issuer.nextResult = {status: "rejected", errorMessage: "recusada"};
+    // Simula o `fiscalIssuerWebhook` chegando com a autorização no meio da
+    // chamada ao emissor: o pedido passa pela guarda inicial em `requested`,
+    // mas já está terminal quando a gravação final vai acontecer.
+    const issue = issuer.issueServiceInvoice.bind(issuer);
+    issuer.issueServiceInvoice = async (token, input) => {
+      fake.seedDoc("fiscalInvoices/inv1", {
+        ...(fake.store.get("fiscalInvoices/inv1") as Record<string, unknown>),
+        status: "authorized",
+        numero: "42",
+        pdfUrl: "https://exemplo/nota.pdf",
+      });
+      return issue(token, input);
+    };
+
+    await processInvoiceRequest(db(fake), issuer, readToken, "inv1");
+
+    const doc = fake.store.get("fiscalInvoices/inv1");
+    assert.equal(doc?.status, "authorized");
+    assert.equal(doc?.numero, "42");
+    assert.equal(doc?.pdfUrl, "https://exemplo/nota.pdf");
+    assert.equal(doc?.errorMessage, undefined);
   });
 
   it("deixa em requested quando o emissor cai, para o retry pegar", async () => {

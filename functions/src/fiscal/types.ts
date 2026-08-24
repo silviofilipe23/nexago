@@ -52,6 +52,11 @@ export interface ArenaFiscalConfig {
   mode: FiscalMode;
   status: FiscalConfigStatus;
   statusMessage?: string;
+  /** Aceite do termo que autoriza a nexaGO a emitir em nome da arena. */
+  authorizationAcceptedAt?: Timestamp;
+  authorizationAcceptedByUid?: string;
+  authorizationTermVersion?: string;
+  updatedAt?: Timestamp;
 }
 
 export interface FiscalTomador {
@@ -65,6 +70,12 @@ export interface FiscalInvoice {
   arenaId: string;
   origin: FiscalInvoiceOrigin;
   originId: string | null;
+  /**
+   * Id da fatia em `arenaBookings/{originId}/paymentShares/{shareId}` quando o
+   * pedido nasceu de um pagamento dividido. Nulo/ausente no pagamento único da
+   * reserva — é ele que diz onde procurar a confirmação do pagamento.
+   */
+  shareId?: string | null;
   idempotencyKey: string;
   serviceId: string;
   codigoMunicipal: string;
@@ -83,4 +94,8 @@ export interface FiscalInvoice {
   errorMessage?: string;
   requestedByUid?: string;
   issuedByUid?: string;
+  createdAt?: Timestamp;
+  processedAt?: Timestamp;
+  authorizedAt?: Timestamp;
+  cancelledAt?: Timestamp;
 }

@@ -193,6 +193,12 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
                   </div>
                 } @empty {
                   <p class="state-text empty-text">{{ emptyInvoicesMessage() }}</p>
+                  @if (invoices().length === 0) {
+                    <a routerLink="/painel/fiscal" class="ar-mini-btn empty-cta">
+                      <ar-icon name="gear" [size]="14" />
+                      Ver configuração fiscal
+                    </a>
+                  }
                 }
               </div>
             }
@@ -231,6 +237,11 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
 
     .empty-text {
       margin: 12px 0;
+    }
+
+    .empty-cta {
+      align-self: flex-start;
+      margin-bottom: 12px;
     }
 
     .empty-title {

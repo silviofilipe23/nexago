@@ -7,6 +7,7 @@
  * e ele vai para o Secret Manager.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
 import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {SecretManagerServiceClient} from "@google-cloud/secret-manager";
 import {
@@ -17,7 +18,7 @@ import {
   FOCUS_ENV,
   focusFiscalSecrets,
 } from "./focus-nfe-client";
-import type {FiscalIssuer} from "./issuer-port";
+import type {FiscalIssuer, RegisterIssuerResult} from "./issuer-port";
 import type {FiscalAddress, FiscalMode, FiscalService} from "./types";
 
 export type SaveSecretFn = (name: string, value: string) => Promise<void>;
@@ -92,16 +93,29 @@ export async function saveArenaFiscalConfigCore(
   }
   assertDefaultServicesExist(input);
 
-  const registered = await issuer.registerIssuer({
-    cnpj: input.cnpj,
-    razaoSocial: input.razaoSocial,
-    nomeFantasia: input.nomeFantasia,
-    inscricaoMunicipal: input.inscricaoMunicipal,
-    endereco: input.enderecoFiscal,
-    regimeTributario: input.regimeTributario,
-    certificadoBase64: input.certificadoBase64,
-    senhaCertificado: input.senhaCertificado,
-  });
+  // O emissor lança `Error` cru (ex.: `FOCUS_REGISTER_FAILED_422`); solto,
+  // isso chega no wizard como um `internal` opaco. O gestor precisa de uma
+  // frase que diga o que fazer.
+  let registered: RegisterIssuerResult;
+  try {
+    registered = await issuer.registerIssuer({
+      cnpj: input.cnpj,
+      razaoSocial: input.razaoSocial,
+      nomeFantasia: input.nomeFantasia,
+      inscricaoMunicipal: input.inscricaoMunicipal,
+      endereco: input.enderecoFiscal,
+      regimeTributario: input.regimeTributario,
+      certificadoBase64: input.certificadoBase64,
+      senhaCertificado: input.senhaCertificado,
+    });
+  } catch (e) {
+    logger.error(`registerIssuer falhou para a arena ${input.arenaId}`, e);
+    throw new HttpsError(
+      "failed-precondition",
+      "Não foi possível registrar a arena no emissor de notas fiscais. " +
+        "Confira os dados e tente novamente, ou fale com o suporte.",
+    );
+  }
 
   const secretName = issuerTokenSecretName(input.arenaId);
   await saveSecret(secretName, registered.token);
@@ -169,6 +183,9 @@ function buildIssuer(): FiscalIssuer {
 
 const secretManager = new SecretManagerServiceClient();
 
+/** `ALREADY_EXISTS` no enum de status do google-gax. */
+const GRPC_ALREADY_EXISTS = 6;
+
 /** Cria a secret se não existir e adiciona a versão nova. */
 export async function saveSecretToSecretManager(name: string, value: string): Promise<void> {
   const projectId = process.env.GCLOUD_PROJECT ?? "";
@@ -179,8 +196,11 @@ export async function saveSecretToSecretManager(name: string, value: string): Pr
       secretId: name,
       secret: {replication: {automatic: {}}},
     });
-  } catch {
-    // já existe — segue para adicionar a versão
+  } catch (err) {
+    // Só "já existe" é esperado. Engolir tudo esconderia um PERMISSION_DENIED
+    // de IAM — e aí a arena já teria sido registrada no emissor, consumindo
+    // uma vaga do plano, com a falha aparecendo confusa mais adiante.
+    if ((err as {code?: number} | null)?.code !== GRPC_ALREADY_EXISTS) throw err;
   }
   await secretManager.addSecretVersion({
     parent: `${parent}/secrets/${name}`,

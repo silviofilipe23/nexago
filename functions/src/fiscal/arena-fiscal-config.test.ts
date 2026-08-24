@@ -97,6 +97,27 @@ describe("saveArenaFiscalConfigCore", () => {
     assert.equal(fake.store.get("arenas/arena1/fiscal/config"), undefined);
   });
 
+  it("traduz falha do emissor em erro legível, sem gravar a config", async () => {
+    const fake = new FakeFirestore();
+    seedArena(fake);
+    const issuer = new FakeIssuer();
+    issuer.throwOnRegister = new Error("FOCUS_REGISTER_FAILED_422");
+
+    await assert.rejects(
+      () => saveArenaFiscalConfigCore(db(fake), issuer, async () => {}, input),
+      (err: unknown) => {
+        // HttpsError, não `Error` cru: o wizard mostra `err.message`, e um
+        // `Error` solto vira um `internal` opaco na chamada.
+        assert.equal((err as {httpErrorCode?: unknown}).httpErrorCode !== undefined, true);
+        assert.equal((err as {code?: string}).code, "failed-precondition");
+        assert.match((err as Error).message, /emissor de notas fiscais/);
+        assert.equal((err as Error).message.includes("FOCUS_REGISTER_FAILED"), false);
+        return true;
+      },
+    );
+    assert.equal(fake.store.get("arenas/arena1/fiscal/config"), undefined);
+  });
+
   it("recusa quem não é gestor da arena", async () => {
     const fake = new FakeFirestore();
     seedArena(fake);

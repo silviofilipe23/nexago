@@ -21,7 +21,10 @@ import {
   parseArenaBookingShareExternalReference,
 } from "./arena-booking-split";
 import {resolveAthleteCpfCnpj} from "./asaas-customer";
-import {requestInvoiceForPaidBooking} from "./fiscal/payment-hooks";
+import {
+  requestInvoiceForPaidBooking,
+  shouldAttemptFiscalInvoice,
+} from "./fiscal/payment-hooks";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -191,8 +194,12 @@ export async function processArenaBookingAsaasNotification(
       }
 
       try {
+        // A resolução do pagador custa um getUser + uma busca de CPF: só vale
+        // a pena quando a arena realmente emite nota automaticamente.
         const athleteId = booking.athleteId as string | undefined;
-        const payer = await resolvePayerForInvoice(athleteId);
+        const payer = (await shouldAttemptFiscalInvoice(db, arenaId))
+          ? await resolvePayerForInvoice(athleteId)
+          : null;
         if (payer) {
           await requestInvoiceForPaidBooking(db, {
             arenaId,
@@ -342,11 +349,14 @@ export async function processArenaBookingShareAsaasNotification(
 
       try {
         const payerAthleteId = share.payerAthleteId as string | undefined;
-        const payer = await resolvePayerForInvoice(payerAthleteId);
+        const payer = (await shouldAttemptFiscalInvoice(db, arenaId))
+          ? await resolvePayerForInvoice(payerAthleteId)
+          : null;
         if (payer) {
           await requestInvoiceForPaidBooking(db, {
             arenaId,
             bookingId,
+            shareId,
             asaasPaymentId: paymentId,
             grossReais: paidOnline,
             tomador: {nome: payer.nome, cpfCnpj: payer.cpfCnpj},

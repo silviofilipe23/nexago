@@ -1,6 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {FocusNfeIssuer} from "./focus-nfe-client";
+import {FocusNfeIssuer, nowInArenaTimezone} from "./focus-nfe-client";
 
 type Call = {url: string; init: RequestInit};
 
@@ -31,6 +31,22 @@ const input = {
   },
   optanteSimplesNacional: true,
 };
+
+describe("nowInArenaTimezone", () => {
+  it("mantém a nota das 22h30 no dia certo, com o offset -03:00", () => {
+    // 01:30 UTC do dia 24 é 22:30 do dia 23 em Goiânia: em UTC a nota sairia
+    // com a competência de um dia (e, na virada, de um mês) errado.
+    assert.equal(
+      nowInArenaTimezone(new Date("2026-08-24T01:30:00.000Z")),
+      "2026-08-23T22:30:00-03:00",
+    );
+  });
+
+  it("aponta para o mesmo instante que a data recebida", () => {
+    const instant = new Date("2026-08-24T01:30:00.000Z");
+    assert.equal(new Date(nowInArenaTimezone(instant)).getTime(), instant.getTime());
+  });
+});
 
 describe("FocusNfeIssuer.issueServiceInvoice", () => {
   it("chama POST /v2/nfse com ref na query e Basic auth do token", async () => {
@@ -73,6 +89,17 @@ describe("FocusNfeIssuer.issueServiceInvoice", () => {
     const body = JSON.parse(calls[0].init.body as string);
     assert.equal(body.tomador.cnpj, "12345678000199");
     assert.equal(body.tomador.cpf, undefined);
+  });
+
+  it("data_emissao vai no fuso da arena, não em UTC", async () => {
+    const {calls, fetchFn} = stubFetch({status: "processando_autorizacao"});
+    const issuer = new FocusNfeIssuer("https://homologacao.focusnfe.com.br", fetchFn);
+
+    await issuer.issueServiceInvoice("tok_abc", input);
+
+    const body = JSON.parse(calls[0].init.body as string);
+    assert.match(body.data_emissao, /-03:00$/);
+    assert.equal(body.data_emissao.endsWith("Z"), false);
   });
 
   it("traduz autorizado para o resultado da porta", async () => {

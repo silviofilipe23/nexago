@@ -157,10 +157,12 @@ function readFileAsBase64(file: File): Promise<string> {
                   </div>
                   <div>
                     <div class="field-label">Regime tributário</div>
-                    <select class="input-box" [value]="regimeTributario() ?? ''" (change)="onRegimeChange($any($event.target).value)">
-                      <option value="" disabled>Selecione</option>
+                    <!-- [selected] na <option>, não [value] no <select>: o binding no select não
+                         reflete o valor nesta versão do Angular. -->
+                    <select class="input-box" (change)="onRegimeChange($any($event.target).value)">
+                      <option value="" disabled [selected]="regimeTributario() === null">Selecione</option>
                       @for (opt of regimeOptions; track opt.value) {
-                        <option [value]="opt.value">{{ opt.label }}</option>
+                        <option [value]="opt.value" [selected]="regimeTributario() === opt.value">{{ opt.label }}</option>
                       }
                     </select>
                   </div>
@@ -301,9 +303,9 @@ function readFileAsBase64(file: File): Promise<string> {
                   }
                   @case ('testing') {
                     <p class="hint">
-                      Seus dados foram enviados. A nexaGO está preparando a emissão de uma nota de teste em homologação
-                      junto à prefeitura — assim que ela for aprovada, a configuração passa a "Ativa" e o modo de emissão
-                      fica liberado. Isso pode levar alguns dias úteis; avise o suporte se precisar acompanhar.
+                      Seus dados fiscais foram enviados e estão em análise. A ativação da emissão automática ainda não é
+                      self-service nesta versão — a equipe nexaGO vai avisar quando sua arena estiver pronta para emitir.
+                      Enquanto isso, fale com o suporte se precisar acompanhar o andamento.
                     </p>
                   }
                   @case ('error') {

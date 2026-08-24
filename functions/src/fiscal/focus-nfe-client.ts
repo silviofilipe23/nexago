@@ -2,7 +2,7 @@
  * Implementação da porta fiscal contra a Focus NFe.
  * Único arquivo do módulo que sabe qual é o fornecedor.
  */
-import {defineSecret} from "firebase-functions/params";
+import {defineSecret, defineString} from "firebase-functions/params";
 import type {
   FiscalIssuer,
   IssueServiceInvoiceInput,
@@ -13,11 +13,27 @@ import type {
 } from "./issuer-port";
 
 export const FOCUS_ACCOUNT_TOKEN = defineSecret("FOCUS_ACCOUNT_TOKEN");
-export const FOCUS_ENV = defineSecret("FOCUS_ENV");
-export const focusFiscalSecrets = [FOCUS_ACCOUNT_TOKEN, FOCUS_ENV];
+/** `sandbox` | `production`. Não é segredo: é só qual URL da Focus usar. */
+export const FOCUS_ENV = defineString("FOCUS_ENV");
+/** Só o que é segredo de verdade entra no `secrets:` das functions. */
+export const focusFiscalSecrets = [FOCUS_ACCOUNT_TOKEN];
 
 export const FOCUS_API_URL_PRODUCTION = "https://api.focusnfe.com.br";
 export const FOCUS_API_URL_SANDBOX = "https://homologacao.focusnfe.com.br";
+
+/** A arena opera em BRT; a Focus não assume fuso nenhum. */
+const ARENA_TIMEZONE_OFFSET = "-03:00";
+const ARENA_TIMEZONE_OFFSET_MINUTES = -180;
+
+/**
+ * Instante atual em ISO-8601 com o fuso da arena explícito. `toISOString()`
+ * renderiza UTC (`...Z`), e uma nota emitida às 22h de Goiânia sairia datada
+ * do dia seguinte — competência errada, e mês errado na virada.
+ */
+export function nowInArenaTimezone(now: Date = new Date()): string {
+  const shifted = new Date(now.getTime() + ARENA_TIMEZONE_OFFSET_MINUTES * 60_000);
+  return `${shifted.toISOString().slice(0, 19)}${ARENA_TIMEZONE_OFFSET}`;
+}
 
 type FetchFn = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -119,7 +135,7 @@ export class FocusNfeIssuer implements FiscalIssuer {
       {
         method: "POST",
         body: JSON.stringify({
-          data_emissao: new Date().toISOString(),
+          data_emissao: nowInArenaTimezone(),
           natureza_operacao: "1",
           optante_simples_nacional: input.optanteSimplesNacional,
           prestador: {

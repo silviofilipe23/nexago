@@ -18,9 +18,28 @@ function resolveService(
   return service;
 }
 
+/**
+ * Guarda barata para o webhook de pagamento: uma leitura de doc responde se
+ * vale a pena resolver o pagador (getUser + busca de CPF). Não substitui a
+ * checagem interna de `requestInvoiceForPaid*` — é só para não pagar o preço
+ * da resolução do tomador em toda arena que não emite nota.
+ */
+export async function shouldAttemptFiscalInvoice(
+  db: Firestore,
+  arenaId: string,
+): Promise<boolean> {
+  return shouldAutoIssue(await readArenaFiscalConfig(db, arenaId));
+}
+
 export interface PaidBookingInvoiceInput {
   arenaId: string;
   bookingId: string;
+  /**
+   * Fatia do pagamento dividido, quando a confirmação veio de uma delas. Sem
+   * isso o processador olharia o `paymentStatus` da reserva, que só vira
+   * `paid`/`partial` quando TODAS as fatias se resolvem.
+   */
+  shareId?: string;
   asaasPaymentId: string;
   grossReais: number;
   tomador: FiscalTomador;
@@ -40,6 +59,7 @@ export async function requestInvoiceForPaidBooking(
       arenaId: input.arenaId,
       origin: "booking",
       originId: input.bookingId,
+      shareId: input.shareId ?? null,
       idempotencyKey: buildIdempotencyKey({
         origin: "booking",
         asaasPaymentId: input.asaasPaymentId,

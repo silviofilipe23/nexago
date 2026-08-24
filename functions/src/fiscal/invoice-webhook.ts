@@ -19,10 +19,24 @@ export interface IssuerNotification {
 
 const FINAL_STATUSES = new Set(["authorized", "cancelled"]);
 
+/**
+ * `ref` vira caminho de documento, então precisa ser UM segmento só: sem `/`
+ * e sem `.` (logo, sem `..`). O `:` é obrigatório no alfabeto — `invoiceIdFor`
+ * produz `{arenaId}__payment:{asaasPaymentId}`, e é esse id que viaja como
+ * `reference` até a Focus e volta aqui. Uma classe sem `:` derrubaria TODA
+ * confirmação assíncrona.
+ */
+const SAFE_REF = /^[A-Za-z0-9_:-]+$/;
+
 export async function applyIssuerNotification(
   db: Firestore,
   payload: IssuerNotification,
 ): Promise<void> {
+  if (!SAFE_REF.test(String(payload?.ref ?? ""))) {
+    // Payload malformado não é erro nosso: não devolve 500 nem monta caminho.
+    logger.warn(`Ignorando notificação com ref inválida: ${String(payload?.ref)}`);
+    return;
+  }
   const ref = db.doc(`fiscalInvoices/${payload.ref}`);
   const snap = await ref.get();
   if (!snap.exists) return;

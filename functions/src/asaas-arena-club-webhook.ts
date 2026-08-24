@@ -27,7 +27,10 @@ import {CLUB_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {resolveAthleteCpfCnpj} from "./asaas-customer";
-import {requestInvoiceForPaidClubSpot} from "./fiscal/payment-hooks";
+import {
+  requestInvoiceForPaidClubSpot,
+  shouldAttemptFiscalInvoice,
+} from "./fiscal/payment-hooks";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -192,7 +195,10 @@ export async function processArenaClubSessionAsaasNotification(
         }
 
         try {
-          const payer = await resolvePayerForInvoice(athleteUid);
+          // Idem reservas: só resolve o pagador se a arena emite nota mesmo.
+          const payer = (await shouldAttemptFiscalInvoice(db, arenaId))
+            ? await resolvePayerForInvoice(athleteUid)
+            : null;
           if (payer) {
             await requestInvoiceForPaidClubSpot(db, {
               arenaId,

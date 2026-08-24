@@ -19,12 +19,14 @@ export class FakeIssuer implements FiscalIssuer {
     xmlUrl: "https://exemplo/nota.xml",
   };
   throwOnIssue: Error | null = null;
+  throwOnRegister: Error | null = null;
 
   async getMunicipalRequirements(): Promise<MunicipalRequirement[]> {
     return [{field: "inscricaoMunicipal", label: "Inscrição municipal", required: true, type: "text"}];
   }
 
   async registerIssuer(input: RegisterIssuerInput): Promise<RegisterIssuerResult> {
+    if (this.throwOnRegister) throw this.throwOnRegister;
     return {issuerId: `emp_${input.cnpj}`, token: "tok_teste"};
   }
 

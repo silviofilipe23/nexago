@@ -142,6 +142,14 @@ service cloud.firestore {
         'updatedAt'
       ]);
     }
+    // Mesário não gerencia o torneio, só mantém o contador de partidas ao vivo
+    // em dia depois de marcar ponto — nada além disso em `tournaments/{id}`.
+    function scorerCanOnlyEditLiveMatchesNowField() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'liveMatchesNow',
+        'updatedAt'
+      ]);
+    }
     function inscriptionParticipantUidsMatchTeam(appId, teamId) {
       return !('participantUids' in request.resource.data) ||
         (
@@ -1872,8 +1880,24 @@ service cloud.firestore {
         organizerCanCreateTournament()
       );
       
-      // Atualizar/deletar: gestor do torneio, admin da plataforma ou gestor de torneios
-      allow update, delete: if request.auth != null && (
+      // Atualizar: gestor do torneio, admin da plataforma ou gestor de torneios —
+      // ou mesário, só pra manter `liveMatchesNow` em dia a cada ponto marcado
+      // (`TournamentLiveMatchesSync.syncForTournament`, chamado pelo app depois
+      // de cada `recordPointTransaction`).
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
+        resource.data.managerId == request.auth.uid ||
+        isTournamentStaff(tournamentId, ['manager']) ||
+        (
+          canScoreTournament(tournamentId) &&
+          scorerCanOnlyEditLiveMatchesNowField()
+        )
+      );
+
+      // Deletar: nunca o mesário — só quem já podia gerenciar o torneio.
+      allow delete: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
         (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Reveal } from '@/components/motion/Reveal';
 import { ButtonLink } from '@/components/ui/Button';
 import { FaqAccordion, type QA } from '@/components/sections/FaqAccordion';
@@ -84,6 +85,12 @@ export default function AjudaPage() {
         </h1>
         <p className="mt-4 text-balance text-base leading-relaxed text-text-mute sm:text-lg">
           Respostas para as dúvidas mais comuns. Não achou o que procurava? Fale com a gente.
+        </p>
+        <p className="mt-5 text-sm text-text-mute">
+          Quer o passo a passo completo de cada funcionalidade?{' '}
+          <Link href="/docs" className="font-semibold text-brand transition-colors hover:text-brand-light">
+            Veja a documentação →
+          </Link>
         </p>
       </Reveal>
 

@@ -70,6 +70,19 @@ describe("reprocessFiscalInvoice", () => {
     assert.equal(issuer.issued.length, 1);
   });
 
+  it("volta para rejected com mensagem de falha temporária quando o emissor está fora do ar, em vez de travar em requested", async () => {
+    const fake = new FakeFirestore();
+    seedRejectedInvoice(fake);
+    const issuer = new FakeIssuer();
+    issuer.throwOnIssue = new Error("FOCUS_UNAVAILABLE_503");
+
+    await assert.rejects(() => reprocessFiscalInvoice(db(fake), issuer, readToken, "inv1"));
+
+    const doc = fake.store.get("fiscalInvoices/inv1");
+    assert.equal(doc?.status, "rejected");
+    assert.equal(doc?.errorMessage, "Falha temporária ao falar com o emissor — tente de novo.");
+  });
+
   it("sem o reset, processInvoiceRequest seria um no-op — prova que o reset é necessário", async () => {
     // Sanity check da premissa do design: chamar processInvoiceRequest direto
     // numa nota "rejected" (sem passar por reprocessFiscalInvoice) não faz nada,

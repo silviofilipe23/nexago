@@ -34,8 +34,8 @@ subsequentes para a mesma nota (`FINAL_STATUSES`).
 ## Fluxo
 
 1. Um documento nasce em `fiscalInvoices/{invoiceId}` com `status: "requested"`
-   (reserva paga ou sessão do clubinho paga — são as duas únicas origens
-   implementadas; lançamento manual/nota avulsa é Fatia B, não existe aqui).
+   (reserva paga, sessão do clubinho paga, ou a nota de ativação/teste da
+   arena — nota avulsa continua sendo Fatia B, não existe aqui).
 2. O trigger `onFiscalInvoiceRequested` dispara, revalida a origem e a
    configuração da arena (`shouldProcess`) e chama a Focus NFe.
 3. Se a Focus responde na hora, o resultado já vai para o documento
@@ -56,12 +56,25 @@ subsequentes para a mesma nota (`FINAL_STATUSES`).
 - `onFiscalInvoiceRequested` — trigger `onDocumentCreated` em
   `fiscalInvoices/{invoiceId}` que efetivamente emite a nota.
 - `fiscalIssuerWebhook` — recebe a confirmação assíncrona da Focus.
+- `emitActivationTestInvoice` — emite (ou reemite, se a nota anterior foi
+  rejeitada) a nota de teste que promove `status` de `"testing"` para
+  `"active"`.
+- `onActivationTestInvoiceResolved` — trigger `onDocumentUpdated` em
+  `fiscalInvoices/{invoiceId}` que promove a config quando a nota de
+  ativação é autorizada ou rejeitada.
+- `retryFiscalInvoice` — reemite uma nota real (reserva/clubinho) rejeitada,
+  usando o mesmo mecanismo direto de `emitActivationTestInvoice`.
 
 ## Deploy
 
 ```bash
-firebase deploy --only functions:saveArenaFiscalConfig,functions:setArenaFiscalMode,functions:getArenaFiscalRequirements,functions:onFiscalInvoiceRequested,functions:fiscalIssuerWebhook
+firebase deploy --only functions:saveArenaFiscalConfig,functions:setArenaFiscalMode,functions:getArenaFiscalRequirements,functions:onFiscalInvoiceRequested,functions:fiscalIssuerWebhook,functions:emitActivationTestInvoice,functions:onActivationTestInvoiceResolved,functions:retryFiscalInvoice
 ```
+
+⚠️ Publicar os callables **sem** `onActivationTestInvoiceResolved` quebra a
+ativação em silêncio: a Focus autoriza a nota de teste, mas nenhuma arena
+chega a `active` — sem erro em lugar nenhum, só um botão que não adianta
+nada. Os três novos vão juntos.
 
 Publicar também `firestore:rules` (leitura de `arenas/{arenaId}/fiscal` e
 `fiscalInvoices`) e `firestore:indexes` (listagem de `fiscalInvoices` por
@@ -101,7 +114,7 @@ Cloud Functions **antes da primeira chamada real de `saveArenaFiscalConfig`**:
 | Papel | Para quê |
 | --- | --- |
 | `roles/secretmanager.admin` | `saveArenaFiscalConfig` cria a secret `fiscal-issuer-token-{arenaId}` e adiciona versões. Least-privilege equivalente: `secretmanager.secretCreator` + `secretmanager.secretVersionAdder`. |
-| `roles/secretmanager.secretAccessor` | `onFiscalInvoiceRequested` lê a versão mais recente do token da arena na hora de emitir. |
+| `roles/secretmanager.secretAccessor` | `onFiscalInvoiceRequested`, `emitActivationTestInvoice` e `retryFiscalInvoice` leem a versão mais recente do token da arena (`readIssuerTokenFromSecretManager`) na hora de emitir — os dois últimos chamam a Focus direto, sem passar pelo trigger. |
 
 ```bash
 PROJECT_ID=<seu-projeto>

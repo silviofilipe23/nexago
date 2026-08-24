@@ -114,6 +114,62 @@ describe("emitActivationTestInvoiceCore", () => {
     assert.equal(issuer.issued.length, 0);
   });
 
+  it("reconcilia quando a nota de teste já está authorized mas a config foi resetada (re-save do wizard)", async () => {
+    const fake = new FakeFirestore();
+    seedArena(fake);
+    seedConfig(fake, {status: "testing"}); // resetado por um re-save, mas a nota antiga já foi autorizada
+    fake.seedDoc(`fiscalInvoices/${activationId}`, {
+      arenaId: "arena1",
+      origin: "activation_test",
+      status: "authorized",
+      numero: "1",
+    });
+    const issuer = new FakeIssuer();
+
+    await emitActivationTestInvoiceCore(db(fake), issuer, readToken, {
+      arenaId: "arena1",
+      callerUid: "manager1",
+    });
+
+    assert.equal(fake.store.get("arenas/arena1/fiscal/config")?.status, "active");
+    assert.equal(issuer.issued.length, 0); // reconcilia, não reenvia a nota
+  });
+
+  it("reemite com o serviço atual da config, não o congelado na nota rejeitada", async () => {
+    const fake = new FakeFirestore();
+    seedArena(fake);
+    seedConfig(fake, {
+      status: "error",
+      services: [{id: "s1", codigoMunicipal: "3.03-NEW", descricao: "Quadra corrigida", aliquotaIss: 3}],
+      defaultServiceIdBooking: "s1",
+    });
+    fake.seedDoc(`fiscalInvoices/${activationId}`, {
+      arenaId: "arena1",
+      origin: "activation_test",
+      originId: null,
+      idempotencyKey: "activation:arena1",
+      serviceId: "s1",
+      codigoMunicipal: "3.03-OLD",
+      aliquotaIss: 2,
+      descricao: "Nota de teste — ativação",
+      tomador: {nome: "Cliente de Teste NexaGO", cpfCnpj: "39053344705"},
+      tomadorUid: null,
+      valorBrutoReais: 1,
+      status: "rejected",
+      errorMessage: "Item de serviço inválido.",
+    });
+    const issuer = new FakeIssuer();
+
+    await emitActivationTestInvoiceCore(db(fake), issuer, readToken, {
+      arenaId: "arena1",
+      callerUid: "manager1",
+    });
+
+    assert.equal(issuer.issued.length, 1);
+    assert.equal(issuer.issued[0].servico.itemListaServico, "3.03-NEW");
+    assert.equal(issuer.issued[0].servico.aliquota, 3);
+  });
+
   it("não faz nada quando já está requested/processing — evita chamada duplicada em voo", async () => {
     const fake = new FakeFirestore();
     seedArena(fake);

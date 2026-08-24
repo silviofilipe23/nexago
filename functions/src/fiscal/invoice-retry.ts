@@ -18,11 +18,29 @@ export async function reprocessFiscalInvoice(
   readToken: ReadIssuerToken,
   invoiceId: string,
 ): Promise<void> {
-  await db.doc(`fiscalInvoices/${invoiceId}`).set(
+  const ref = db.doc(`fiscalInvoices/${invoiceId}`);
+  await ref.set(
     {status: "requested", errorMessage: null, processedAt: FieldValue.serverTimestamp()},
     {merge: true},
   );
-  await processInvoiceRequest(db, issuer, readToken, invoiceId);
+  try {
+    await processInvoiceRequest(db, issuer, readToken, invoiceId);
+  } catch (e) {
+    // Falha transitória (rede/5xx da Focus) — processInvoiceRequest lança de
+    // propósito para o `retry: true` do trigger de criação pegar, mas esta
+    // chamada é direta, sem trigger nenhum reagindo. Sem isto, a nota fica
+    // presa em "requested" para sempre: nem o botão de reemitir nem o de
+    // ativação enxergam esse estado. Volta para "rejected" — acionável de
+    // novo pela UI — e relança pro chamador saber que esta tentativa falhou.
+    await ref.set(
+      {
+        status: "rejected",
+        errorMessage: "Falha temporária ao falar com o emissor — tente de novo.",
+      },
+      {merge: true},
+    );
+    throw e;
+  }
 }
 
 export interface RetryFiscalInvoiceInput {

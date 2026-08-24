@@ -555,11 +555,19 @@ export class PanelFiscalInvoicesComponent {
   protected async retryInvoice(invoiceId: string): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId || !this.isOwner()) return;
+    // Guarda re-entrante: o `[disabled]` do botão só vale depois do próximo
+    // ciclo de detecção — entre o clique e o repaint cabe um segundo clique.
+    if (this.retryingInvoiceIds().has(invoiceId)) return;
 
     this.retryError.set(null);
     this.retryingInvoiceIds.update((ids) => new Set(ids).add(invoiceId));
     try {
       await retryFiscalInvoice(arenaFunctions(), arenaId, invoiceId);
+      // O callable só volta depois de a Focus responder — a linha na tela já
+      // está desatualizada (ainda "Rejeitada", com o erro antigo). A lista é
+      // leitura única, então recarrega; sem isto só um F5 mostraria o novo
+      // status.
+      this.retry();
     } catch (err) {
       this.retryError.set(err instanceof Error ? err.message : 'Não foi possível reemitir a nota.');
     } finally {

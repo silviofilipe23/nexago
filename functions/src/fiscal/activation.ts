@@ -52,16 +52,42 @@ export async function emitActivationTestInvoiceCore(
   const snap = await ref.get();
 
   if (snap.exists) {
-    // A nota de ativação já existe: reemitir (se rejected) ou não fazer nada.
-    // NUNCA revalida `config.status` aqui — quem faz isso é o `shouldProcess`
-    // dentro do reprocessamento, do mesmo jeito que `retryFiscalInvoiceCore`
-    // (Task 3) também não revalida antes de chamar `reprocessFiscalInvoice`.
+    // A nota de ativação já existe: reconciliar, reemitir (se rejected) ou não
+    // fazer nada. NUNCA revalida `config.status` para BARRAR o reprocessamento
+    // aqui — quem faz isso é o `shouldProcess` dentro do reprocessamento, do
+    // mesmo jeito que `retryFiscalInvoiceCore` (Task 3) também não revalida
+    // antes de chamar `reprocessFiscalInvoice`.
     const existing = snap.data() as FiscalInvoice;
+    if (existing.status === "authorized" && config.status !== "active") {
+      // A config foi resetada por um re-save do wizard (ex.: renovação anual
+      // do certificado A1) depois que a nota de ativação já tinha sido
+      // autorizada. A nota antiga continua provando que o cadastro funciona —
+      // reconcilia em vez de deixar o botão não fazer nada para sempre.
+      await applyActivationOutcome(db, input.arenaId, {status: "authorized"});
+      return;
+    }
     if (existing.status === "rejected") {
+      // "Tentar novamente" depois de corrigir o cadastro só faz sentido se a
+      // nota reenviada usar o serviço ATUAL da config, não o congelado na
+      // criação — senão o dono corrige o catálogo e a mesma nota errada sai
+      // de novo. Só vale para a nota de ativação: uma nota real (reserva/
+      // clubinho) nunca deve ter seu valor/serviço trocado depois do fato.
+      const freshService = config.services.find((s) => s.id === config.defaultServiceIdBooking);
+      if (freshService) {
+        await ref.set(
+          {
+            serviceId: freshService.id,
+            codigoMunicipal: freshService.codigoMunicipal,
+            aliquotaIss: freshService.aliquotaIss,
+          },
+          {merge: true},
+        );
+      }
       await reprocessFiscalInvoice(db, issuer, readToken, invoiceId);
     }
-    // authorized / requested / processing: nada a fazer, o estado já reflete
-    // o que a tela precisa mostrar via o listener ao vivo da config/nota.
+    // authorized (com a config já active) / requested / processing: nada a
+    // fazer, o estado já reflete o que a tela precisa mostrar via o listener
+    // ao vivo da config/nota.
     return;
   }
 
@@ -156,9 +182,14 @@ export async function applyActivationOutcome(
  * Dispara em toda atualização de qualquer nota fiscal — o Firestore não
  * filtra triggers por valor de campo. Sai de imediato se não for a nota de
  * ativação. Custo extra por nota real: uma leitura de campo e um retorno.
+ *
+ * `retry: true` como no irmão `onFiscalInvoiceRequested`: sem ele, uma falha
+ * transitória de escrita deixaria a nota autorizada e a arena presa em
+ * `testing` para sempre. `applyActivationOutcome` é idempotente (grava sempre
+ * os mesmos valores fixos com `merge: true`), então repetir é inofensivo.
  */
 export const onActivationTestInvoiceResolved = onDocumentUpdated(
-  "fiscalInvoices/{invoiceId}",
+  {document: "fiscalInvoices/{invoiceId}", retry: true},
   async (event) => {
     const before = event.data?.before.data() as FiscalInvoice | undefined;
     const after = event.data?.after.data() as FiscalInvoice | undefined;

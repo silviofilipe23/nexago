@@ -100,9 +100,12 @@ function readFileAsBase64(file: File): Promise<string> {
 /** Assistente de configuração fiscal (NFS-e) da arena: 5 passos que terminam numa única chamada a
  *  `saveArenaFiscalConfig` (Task 7) — o backend não aceita salvamento incremental, então os passos
  *  1–4 só existem no estado local do componente até o envio final. Depois de enviado, a config
- *  nasce com `status: 'testing'`; ela só vira `'active'` (liberando o seletor de modo do passo 5)
- *  via um fluxo de emissão de nota de teste que ainda não existe — aqui a tela só lê e mostra o
- *  status que o backend reportar, sem inventar transição nenhuma no cliente. */
+ *  nasce com `status: 'testing'`; o passo 5 traz o botão "Emitir nota de teste", que chama
+ *  `emitActivationTestInvoice` e cria uma NFS-e real de R$1,00 no cadastro da própria arena.
+ *  Autorizada, o trigger `onActivationTestInvoiceResolved` promove a config para `'active'`
+ *  (liberando o seletor de modo); rejeitada, ela vira `'error'` com o motivo e o mesmo botão vira
+ *  "Tentar novamente" — aqui a tela só lê e mostra o status que o backend reportar, sem inventar
+ *  transição nenhuma no cliente. */
 @Component({
   selector: 'ar-panel-fiscal',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -964,6 +967,10 @@ export class PanelFiscalComponent {
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId || !this.isOwner()) return;
     if (this.currentStatus() !== 'testing' && this.currentStatus() !== 'error') return;
+    // Guarda re-entrante: o `[disabled]` do botão só vale depois do próximo
+    // ciclo de detecção — entre o clique e o repaint cabe um segundo clique, e
+    // isto aqui manda uma nota fiscal de verdade.
+    if (this.emittingTest()) return;
 
     this.emittingTest.set(true);
     this.emitTestError.set(null);

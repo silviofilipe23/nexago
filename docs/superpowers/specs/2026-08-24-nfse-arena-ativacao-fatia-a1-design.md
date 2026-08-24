@@ -34,8 +34,20 @@ Tudo em `functions/src/fiscal/`, seguindo a estrutura de módulos já criada na 
 Nenhum arquivo da Fatia A é reescrito — só estendido:
 
 - `types.ts`: `FiscalInvoiceOrigin` ganha `"activation_test"`.
-- `invoice-emitter.ts`: `shouldProcess` pula a checagem de pagamento para `"activation_test"`, igual já faz para `"manual"`.
-- `invoice-processor.ts`: `isOriginPaid` retorna `true` para `"activation_test"`, mesma linha de raciocínio da checagem de `"manual"`. `invoiceIdFor` passa a ser exportado — `activation.ts` precisa calcular o id determinístico da nota de teste sem duplicar a fórmula.
+- `invoice-emitter.ts`: dois ajustes em `shouldProcess`, não um.
+  1. **Checagem de pagamento** — pula para `"activation_test"`, igual já faz para `"manual"` (isso já estava no design original).
+  2. **Checagem de status da config — achado na revisão deste documento, não estava no design original.** O primeiro `if` de `shouldProcess` hoje é `if (!config || config.status !== "active" || config.mode === "off")`. Isso bloquearia *toda* nota de ativação: ela roda exatamente enquanto `status` ainda é `"testing"` (ou `"error"`, no reemitir) — nunca `"active"`, porque é ela quem produz esse estado. Sem esse ajuste, `emitActivationTestInvoice` chamaria `createInvoiceRequest` normalmente, mas o trigger rejeitaria a nota na hora com `CONFIG_NOT_EMITTING`, antes de qualquer chamada ao emissor. `mode` também não se aplica aqui — é irrelevante para uma emissão disparada manualmente pelo dono, não pelo pagamento automático. A checagem vira:
+     ```typescript
+     if (input.origin === "activation_test") {
+       if (!config || (config.status !== "testing" && config.status !== "error")) {
+         return {ok: false, reason: "CONFIG_NOT_EMITTING"};
+       }
+     } else if (!config || config.status !== "active" || config.mode === "off") {
+       return {ok: false, reason: "CONFIG_NOT_EMITTING"};
+     }
+     ```
+- `invoice-processor.ts`: `isOriginPaid` retorna `true` para `"activation_test"`, mesma linha de raciocínio da checagem de `"manual"`.
+- `invoice-repository.ts`: `invoiceIdFor` passa a ser exportado (hoje é local, não exportado) — `activation.ts` precisa calcular o id determinístico da nota de teste sem duplicar a fórmula.
 - `index.ts`: exporta os dois callables novos e o trigger novo.
 
 ## Dados
@@ -143,7 +155,7 @@ Padrão da Fatia A: `node:test` + `FakeFirestore`/`FakeIssuer`.
 - `reprocessFiscalInvoice`: reseta `status`/`errorMessage` antes de chamar `processInvoiceRequest`; propaga o resultado do issuer corretamente.
 - `retryFiscalInvoice`: recusa nota de outra arena; recusa `status !== "rejected"`; RBAC dono-only.
 - Trigger de promoção: `authorized` → config vira `active`; `rejected` → config vira `error` com `statusMessage`; ignora atualização de nota com `origin` diferente de `"activation_test"`.
-- `shouldProcess`/`isOriginPaid`: `"activation_test"` passa sem checagem de pagamento, mesmo padrão de `"manual"`.
+- `shouldProcess`/`isOriginPaid`: `"activation_test"` passa sem checagem de pagamento, mesmo padrão de `"manual"`; e passa com `config.status` em `"testing"`/`"error"` mesmo sem `"active"` (o ajuste achado nesta revisão) — cobrir também o caso negativo, `config.status === "draft"` continua bloqueado.
 - Frontend: specs dos dois componentes cobrindo os estados novos (botão de emitir/tentar de novo, botão de reemitir, etiqueta de teste).
 
 ## Fora de escopo

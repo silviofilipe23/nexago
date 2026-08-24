@@ -67,6 +67,10 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
           <ar-icon name="download" [size]="14" />
           Relatórios
         </a>
+        <a routerLink="/painel/financeiro/notas" class="ar-mini-btn">
+          <ar-icon name="card" [size]="14" />
+          Notas fiscais
+        </a>
         <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="showNotice('Extrato completo em breve.')">
           <ar-icon name="download" [size]="14" />
           Exportar extrato

@@ -134,6 +134,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/financeiro/notas',
+    title: 'Notas fiscais — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/finance/panel-fiscal-invoices.component').then(
+        (m) => m.PanelFiscalInvoicesComponent,
+      ),
+  },
+  {
     path: 'painel/comandas',
     title: 'Comandas — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('comandas')],

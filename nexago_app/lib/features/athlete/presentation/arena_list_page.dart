@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/map/mapbox_config.dart';
 import '../../../core/router/routes.dart';
+import '../../../core/location/location_permission_status.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/location/user_location_snapshot.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -27,6 +28,7 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/favorites_providers.dart';
 import 'favorite_success_page.dart';
+import 'widgets/arena_search/arena_location_permission_banner.dart';
 import 'widgets/arena_search/arena_map_controls.dart';
 import 'widgets/arena_search/arena_map_sheet.dart';
 import 'widgets/arena_search/arena_map_top_bar.dart';
@@ -47,7 +49,8 @@ class ArenaListPage extends ConsumerStatefulWidget {
   ConsumerState<ArenaListPage> createState() => _ArenaListPageState();
 }
 
-class _ArenaListPageState extends ConsumerState<ArenaListPage> {
+class _ArenaListPageState extends ConsumerState<ArenaListPage>
+    with WidgetsBindingObserver {
   late ArenaSearchFilters _filters;
   final Map<String, bool> _favoriteOverrides = <String, bool>{};
   final Set<String> _favoritePendingArenaIds = <String>{};
@@ -58,11 +61,18 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   String? _focusedArenaId;
   bool _isLocating = false;
 
-  /// Vira `true` quando o atleta concede a localização tocando no botão.
+  /// Última situação conhecida da permissão de localização.
   ///
-  /// Existe porque a permissão pode ser concedida DEPOIS que a aba abriu, e o
-  /// marcador precisa acender na hora, sem esperar o provider reemitir.
-  bool _locationGrantedByTap = false;
+  /// Nulo até a primeira checagem. Guardado aqui, e não num provider, porque
+  /// muda por fora do app — o atleta vai aos Ajustes e volta — e quem precisa
+  /// reagir é esta tela: acender o marcador do mapa e mostrar (ou tirar) o
+  /// aviso com o atalho.
+  LocationPermissionStatus? _permissionStatus;
+
+  /// Impede dois pedidos ao mesmo tempo. O sistema recusa o segundo com erro,
+  /// e é fácil chegar duas vezes: abrir na aba já dispara, e o `ref.listen`
+  /// dispara de novo se o atleta sair e voltar antes do primeiro terminar.
+  bool _askingPermission = false;
 
   // Memória do último recorte, para os pinos manterem a mesma identidade entre
   // reconstruções. Sem isso o `ArenaMapView` acharia que a lista mudou a cada
@@ -73,18 +83,88 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _filters = _filtersWithProfileSport(
       ref.read(athleteProfileProvider).valueOrNull,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _syncProfileSportDefault();
+      // A aba vive num `IndexedStack`: esta tela é construída no boot, atrás da
+      // Início. Só há "entrar" quando ela é a aba da vez — o que pode já ser
+      // verdade agora, se o app abriu direto aqui (deep link, ou o atleta
+      // voltando para onde estava).
+      if (ref.read(athleteShellTabIndexProvider) ==
+          athleteShellReservarTabIndex) {
+        unawaited(_ensureLocationPermission());
+      } else {
+        unawaited(_refreshLocationStatus());
+      }
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchDebounce?.cancel();
     super.dispose();
+  }
+
+  /// Reconfere ao voltar dos Ajustes.
+  ///
+  /// O atleta sai do app pelo atalho do aviso, liga a localização e volta. Nada
+  /// disso passa pelo Flutter: sem reconferir aqui, ele encontra o mesmo mapa e
+  /// o mesmo aviso de antes, como se não tivesse adiantado.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state != AppLifecycleState.resumed) return;
+    if (ref.read(athleteShellTabIndexProvider) != athleteShellReservarTabIndex) {
+      return;
+    }
+    unawaited(_refreshLocationStatus());
+  }
+
+  // ------------------------------------------------------------ localização
+
+  /// Pede a permissão, se ainda houver diálogo do sistema para mostrar.
+  Future<void> _ensureLocationPermission() async {
+    if (_askingPermission) return;
+    _askingPermission = true;
+    try {
+      final status =
+          await ref.read(userLocationServiceProvider).ensurePermission();
+      if (!mounted) return;
+      _applyPermissionStatus(status);
+    } finally {
+      _askingPermission = false;
+    }
+  }
+
+  Future<void> _refreshLocationStatus() async {
+    final status = await ref.read(userLocationServiceProvider).checkStatus();
+    if (!mounted) return;
+    _applyPermissionStatus(status);
+  }
+
+  void _applyPermissionStatus(LocationPermissionStatus status) {
+    if (_permissionStatus != status) {
+      setState(() => _permissionStatus = status);
+    }
+    if (status != LocationPermissionStatus.granted) return;
+
+    // O provider já resolveu antes da permissão existir, e guardou um snapshot
+    // sem coordenada. Sem refazer a conta, conceder não muda nada na tela.
+    final atual = ref.read(userLocationProvider).valueOrNull;
+    if (atual == null || !atual.hasCoordinates) {
+      ref.invalidate(userLocationProvider);
+    }
+  }
+
+  Future<void> _openLocationSettings(LocationSettingsNudge nudge) async {
+    await ref
+        .read(userLocationServiceProvider)
+        .openSettings(app: nudge.opensAppSettings);
   }
 
   // ---------------------------------------------------------------- filtros
@@ -336,8 +416,15 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     setState(() => _isLocating = true);
 
     try {
-      final snapshot =
-          await ref.read(userLocationServiceProvider).tryCurrentPosition();
+      // O pedido tem que sair daqui: `tryCurrentPosition` só usa a permissão
+      // que já existe. Sem isto o botão não funcionaria para quem recusou ao
+      // entrar na aba e mudou de ideia depois.
+      final service = ref.read(userLocationServiceProvider);
+      final status = await service.ensurePermission();
+      if (!mounted) return;
+      _applyPermissionStatus(status);
+
+      final snapshot = await service.tryCurrentPosition();
       if (!mounted) return;
 
       if (snapshot == null || !snapshot.hasCoordinates) {
@@ -348,10 +435,6 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           isError: true,
         );
         return;
-      }
-
-      if (!_locationGrantedByTap) {
-        setState(() => _locationGrantedByTap = true);
       }
 
       await _mapController.flyTo(
@@ -493,6 +576,13 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     // sabermos onde o atleta está — e o GPS leva segundos para responder.
     ref.watch(userLocationProvider);
 
+    // Entrar na aba é o momento de pedir a permissão: aqui a localização é o
+    // assunto da tela, e o diálogo do sistema chega explicado pelo contexto.
+    ref.listen(athleteShellTabIndexProvider, (previous, next) {
+      if (next != athleteShellReservarTabIndex || previous == next) return;
+      unawaited(_ensureLocationPermission());
+    });
+
     final userId = ref.watch(authProvider).valueOrNull?.uid;
     final storedFavorites =
         (ref.watch(favoriteArenaIdsProvider).valueOrNull ?? const <String>[])
@@ -631,10 +721,10 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
             controller: _mapController,
             initialCenter: _initialCenter(filtered),
             logoPadding: EdgeInsets.only(bottom: bottomInset + 16),
-            // Coordenada conhecida significa permissão já concedida. Ligar o
-            // marcador antes disso faria o Mapbox pedir a permissão sozinho,
-            // do nada, assim que a aba abrisse.
-            showUserLocation: _locationGrantedByTap || _hasGrantedLocation(),
+            // Só com a permissão na mão. Ligar o marcador antes faria o Mapbox
+            // disparar o próprio pedido, por fora do nosso — dois diálogos
+            // para a mesma coisa, um deles fora de qualquer ação do atleta.
+            showUserLocation: _hasGrantedLocation(),
             onPinTap: (arenaId) => _onPinTap(arenaId, split),
           ),
         ),
@@ -692,7 +782,11 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         .toList(growable: false);
   }
 
+  /// A permissão vale a partir do que o sistema respondeu; a coordenada, como
+  /// segunda testemunha, para o marcador acender já na primeira montagem —
+  /// antes da checagem assíncrona voltar.
   bool _hasGrantedLocation() {
+    if (_permissionStatus == LocationPermissionStatus.granted) return true;
     final location = ref.watch(userLocationProvider).valueOrNull;
     return location?.hasCoordinates ?? false;
   }
@@ -706,6 +800,10 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   }
 
   Widget _buildHeaderOverlay({required bool compact}) {
+    final nudge = _permissionStatus == null
+        ? null
+        : locationSettingsNudgeFor(_permissionStatus!);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -731,6 +829,16 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
             ],
           ),
         ),
+        if (nudge != null) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ArenaLocationPermissionBanner(
+              nudge: nudge,
+              onOpenSettings: () => unawaited(_openLocationSettings(nudge)),
+            ),
+          ),
+        ],
         if (compact) const SizedBox(height: 8),
       ],
     );

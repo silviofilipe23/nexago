@@ -25,14 +25,21 @@ class MyTournamentsHomeSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final regsAsync = ref.watch(myTournamentRegistrationsProvider);
+    // Watch cru só pra saber se o stream de staff já emitiu — o provider
+    // filtrado devolve [] tanto pra "ainda carregando" quanto pra "vazio de
+    // verdade", e sem essa distinção a seção colapsa e reabre (gap incluso)
+    // assim que o staff chega depois das inscrições.
+    final staffLoaded = ref.watch(myTournamentStaffEntriesProvider).hasValue;
     final staff = ref.watch(myOngoingTournamentStaffEntriesProvider);
 
-    // Só quando os dados chegaram e não há nada pra mostrar a seção fica
-    // sem gap — enquanto carrega ou dá erro sempre há algo visível (skeleton,
-    // aviso de erro ou staff conhecido), então reservamos o espaço.
+    // Só quando os dois streams chegaram e não há nada pra mostrar a seção
+    // fica sem gap — enquanto carrega ou dá erro sempre há algo visível
+    // (skeleton, aviso de erro ou staff conhecido), então reservamos o espaço.
     final isConfirmedEmpty = regsAsync.maybeWhen(
       data: (regs) =>
-          sortRegistrationsForHomePreview(regs).isEmpty && staff.isEmpty,
+          staffLoaded &&
+          sortRegistrationsForHomePreview(regs).isEmpty &&
+          staff.isEmpty,
       orElse: () => false,
     );
 
@@ -42,7 +49,9 @@ class MyTournamentsHomeSection extends ConsumerWidget {
             sortRegistrationsForHomePreview(regs).take(_previewLimit).toList();
         final staffPreview = staff.take(_previewLimit).toList();
         if (regPreview.isEmpty && staffPreview.isEmpty) {
-          return const SizedBox.shrink();
+          return staffLoaded
+              ? const SizedBox.shrink()
+              : const _MyTournamentsHomeSectionSkeleton();
         }
 
         // Staff primeiro (acesso operacional), depois inscrições — no máximo 3.

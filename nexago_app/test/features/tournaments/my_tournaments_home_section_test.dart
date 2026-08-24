@@ -147,13 +147,17 @@ void main() {
     );
   });
 
-  group('MyTournamentsHomeSection — BUG conhecido (flicker de layout)', () {
+  group('MyTournamentsHomeSection — fix do flicker de layout', () {
     testWidgets(
-      'atleta só-staff: a seção colapsa (Size.zero) e depois reaparece se o '
-      'stream de staff resolver DEPOIS do stream de inscrições — isConfirmedEmpty '
-      '(my_tournaments_home_section.dart:33-37) só olha o AsyncValue de '
-      'regsAsync, ignorando se myTournamentStaffEntriesProvider ainda está '
-      'carregando. Reprodução: ver relatório do QA / my_tournaments_home_section.dart.',
+      'atleta só-staff: NÃO colapsa (Size.zero) enquanto o stream de staff '
+      'ainda não resolveu, mesmo com o stream de inscrições (síncrono) já '
+      'tendo emitido vazio — antes, `isConfirmedEmpty` só olhava o AsyncValue '
+      'de regsAsync e ignorava se myTournamentStaffEntriesProvider ainda '
+      'estava carregando, causando um layout shift de Size.zero → tamanho '
+      'final assim que o staff chegava. Agora `staffLoaded` '
+      '(myTournamentStaffEntriesProvider.hasValue) trava o colapso até os '
+      'dois streams resolverem: mostra o skeleton (com gap reservado) '
+      'enquanto o staff ainda não emitiu.',
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
@@ -162,7 +166,7 @@ void main() {
                 (ref) => Stream.value(const <MyTournamentRegistration>[]),
               ),
               // Staff real (StreamProvider cru) chega só depois de 50ms —
-              // isConfirmedEmpty não espera por ele.
+              // a seção não deve colapsar antes disso.
               myTournamentStaffEntriesProvider.overrideWith(
                 (ref) => Stream.fromFuture(
                   Future.delayed(
@@ -183,8 +187,18 @@ void main() {
         // do stream de staff.
         await tester.pump(const Duration(milliseconds: 1));
 
-        final collapsedSize =
+        final pendingSize =
             tester.getSize(find.byType(MyTournamentsHomeSection));
+
+        // Comportamento CORRIGIDO: enquanto o staff ainda não resolveu, a
+        // seção mostra o skeleton (header + linhas shimmer) em vez de
+        // colapsar — nunca há um frame com Size.zero. As checagens de texto
+        // precisam rodar AQUI, antes de avançar o pump — `find.text` lê a
+        // árvore de widgets ATUAL, não um snapshot do `pendingSize`.
+        expect(pendingSize, isNot(Size.zero));
+        expect(pendingSize.height, greaterThan(0));
+        expect(find.text('Meus torneios'), findsOneWidget);
+        expect(find.text('Torneio Staff'), findsNothing);
 
         await tester.pump(const Duration(milliseconds: 60));
         await tester.pump();
@@ -192,15 +206,12 @@ void main() {
         final finalSize =
             tester.getSize(find.byType(MyTournamentsHomeSection));
 
-        // Comportamento ATUAL (bug): a seção colapsa para Size.zero e depois
-        // "pula" para o tamanho final quando o staff chega — layout shift
-        // visível para qualquer atleta que seja staff mas não tenha
-        // inscrição própria. O ideal seria nunca colapsar enquanto o staff
-        // ainda não resolveu.
-        expect(collapsedSize, Size.zero);
+        // `staffLoaded` vira true assim que o staff chega, revelando a linha
+        // de staff real no lugar do skeleton.
+        expect(finalSize, isNot(Size.zero));
         expect(finalSize.height, greaterThan(0));
+        expect(find.text('Torneio Staff'), findsOneWidget);
       },
-      skip: true,
     );
   });
 }

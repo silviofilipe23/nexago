@@ -5,6 +5,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../auth/widgets/auth_form_widgets.dart';
+import 'widgets/onboarding_logout_button.dart';
 
 /// Tela 00 — Boas-vindas pós-cadastro.
 class AthleteOnboardingWelcomePage extends StatelessWidget {
@@ -20,6 +21,13 @@ class AthleteOnboardingWelcomePage extends StatelessWidget {
         child: Stack(
           children: [
             const AuthCanvasGlow(),
+            const Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(0, 8, 24, 0),
+                child: OnboardingLogoutButton(),
+              ),
+            ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

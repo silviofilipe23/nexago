@@ -106,6 +106,84 @@ void main() {
   );
 
   testWidgets(
+    'acompanha o provider AO VIVO: quando o stream emite um novo valor sem '
+    'nenhum toque no switch, o valor exibido muda sozinho — não fica preso '
+    'ao valor capturado no primeiro build (o que aconteceria se a tela '
+    'copiasse config.dynamicRescheduleEnabled pra um campo local, como '
+    '_avoidConflict/_respectDeps/_scheduleFrom já fazem hoje)',
+    (tester) async {
+      final controller = StreamController<TournamentMatchOpsConfig>();
+      addTearDown(controller.close);
+      scheduleService = _FakeMatchScheduleService();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            organizerMatchScheduleServiceProvider
+                .overrideWithValue(scheduleService),
+            organizerMatchOpsConfigProvider(tournamentId)
+                .overrideWith((ref) => controller.stream),
+            organizerTournamentCourtsProvider(tournamentId).overrideWith(
+              (ref) => Stream.value(const <TournamentCourt>[]),
+            ),
+            organizerTournamentMatchesProvider(tournamentId).overrideWith(
+              (ref) => Stream.value(const <TournamentMatch>[]),
+            ),
+            organizerMatchCardsByIdProvider(tournamentId).overrideWith(
+              (ref) => Stream.value(<String, TournamentMatchCardViewModel>{}),
+            ),
+            organizerTournamentDetailProvider(tournamentId).overrideWith(
+              (ref) => Stream.value(
+                const OrganizerTournamentDetailState(isLoading: false),
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: OrganizerAutoSchedulePage(tournamentId: tournamentId),
+          ),
+        ),
+      );
+
+      controller.add(
+        const TournamentMatchOpsConfig(dynamicRescheduleEnabled: false),
+      );
+      // Dois `pump()`: o primeiro drena o microtask do `StreamController`
+      // (repropaga pelos providers combinados); o segundo renderiza o frame
+      // com o novo `config`. Mesmo padrão já usado com `matchController` em
+      // `organizer_match_live_table_full_mode_test.dart`.
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester.widget<SwitchListTile>(dynamicRescheduleSwitch()).value,
+        isFalse,
+      );
+
+      // Segundo valor DIFERENTE, direto do "Firestore" — sem nenhum tap no
+      // switch.
+      controller.add(
+        const TournamentMatchOpsConfig(dynamicRescheduleEnabled: true),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester.widget<SwitchListTile>(dynamicRescheduleSwitch()).value,
+        isTrue,
+        reason: 'o switch deveria refletir o provider ao vivo, não um valor '
+            'capturado uma vez em initState/campo local',
+      );
+      expect(
+        scheduleService.updateMatchOpsSettingsCalls,
+        isEmpty,
+        reason: 'a mudança veio só do stream — nenhum tap aconteceu, então '
+            'a callable não deveria ter sido chamada',
+      );
+    },
+  );
+
+  testWidgets(
     'tocar no switch (desligado) chama updateMatchOpsSettings com o '
     'tournamentId certo e value=true (o oposto do atual)',
     (tester) async {

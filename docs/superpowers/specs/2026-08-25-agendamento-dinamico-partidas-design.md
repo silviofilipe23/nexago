@@ -96,10 +96,18 @@ comportamento atual preservado por padrão). Todos os três gatilhos verificam e
 flag antes de chamar `recalculateCourtSchedule`; torneio sem a flag não sofre
 nenhuma mudança de comportamento.
 
-Toggle exposto onde `matchOps` já é editado hoje:
-- App organizador: tela/provider de `organizer_auto_schedule_page.dart` /
-  `match_ops_providers.dart` (mesmo lugar de `defaultMatchDurationMin`).
-- Painel web: `agendamento.component.ts` (espelha a mesma configuração).
+**Achado durante o plano:** não existe hoje NENHUMA tela (app ou painel web) que
+edite `matchOps` — os valores (`defaultMatchDurationMin`, `minRestBetweenMatchesMin`
+etc.) só existem com o default gravado na inicialização das quadras
+(`ensureCourtsInitialized`, `organizer_match_ops_repository.dart:50-82`); não há
+callable de "salvar configurações de agendamento". Decisão: não criar uma tela de
+configurações completa para isso. Adiciona-se (a) uma callable pequena e dedicada,
+`updateMatchOpsSettings` (recebe `tournamentId` + `dynamicRescheduleEnabled`, grava
+merge em `matchOps`), e (b) um switch avulso em
+`organizer_auto_schedule_page.dart` (app organizador), que é a tela
+conceitualmente mais próxima (mesma tela que já dispara o auto-agendamento). O
+painel web fica fora do v1 — o app já cobre o organizador, e espelhar o toggle lá
+sem uma tela de configurações existente teria o mesmo problema.
 
 ### D5. Notificação ao atleta
 

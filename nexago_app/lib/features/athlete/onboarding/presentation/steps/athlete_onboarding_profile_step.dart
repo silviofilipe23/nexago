@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/deep_link/deep_link_providers.dart';
 import '../../../../../core/media/profile_image_crop_config.dart';
 import '../../../../../core/media/profile_image_picker.dart';
@@ -143,6 +144,13 @@ class _AthleteOnboardingProfileStepState
       }
       if (!mounted) return;
       showAppSnackBar(context, _submitErrorMessage(e), isError: true);
+      if (e.code == 'unauthenticated') {
+        // Sessão sem conta por trás (token ainda válido, mas o usuário foi
+        // apagado) — tentar de novo nunca vai funcionar. O GoRouter já manda
+        // pro login sozinho assim que o auth zera (ver app_router.dart), daí
+        // só disparar o signOut em vez de navegar na mão.
+        await ref.read(appSignOutProvider)();
+      }
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('onboarding profile submit: $e\n$st');
@@ -161,6 +169,9 @@ class _AthleteOnboardingProfileStepState
   String _submitErrorMessage(FirebaseException e) {
     if (e.code == 'permission-denied') {
       return 'Sem permissão para salvar o perfil. Entre novamente e tente outra vez.';
+    }
+    if (e.code == 'unauthenticated') {
+      return 'Sua sessão expirou. Entre novamente para concluir o cadastro.';
     }
     return 'Não foi possível salvar o perfil. Tente novamente.';
   }

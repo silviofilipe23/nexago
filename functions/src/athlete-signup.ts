@@ -33,7 +33,21 @@ export const grantAthleteRole = onCall(async (request) => {
   }
 
   const auth = getAuth();
-  const user = await auth.getUser(uid);
+  let user;
+  try {
+    user = await auth.getUser(uid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      // Token ainda válido (JWT não expirou) mas a conta foi apagada depois
+      // que o cliente o obteve — sessão órfã, não um erro interno real.
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
   const existingRoles = rolesFromClaims(user.customClaims);
   const nextRoles = withAthleteRole(existingRoles);
 

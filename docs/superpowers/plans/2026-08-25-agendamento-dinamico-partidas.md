@@ -344,6 +344,176 @@ EOF
 
 ---
 
+## Task 1b: Corrigir bug de descanso mínimo em `allocateCourtSlots`
+
+**Inserida durante a execução** (não estava no plano original) — achado da
+Task 1: o núcleo de alocação extraído tem um bug PRÉ-EXISTENTE (já em
+produção antes desta refatoração, só nunca coberto por teste de unidade até
+agora) em `allocateCourtSlots`. `chosenStart`/`chosenCourt` são semeados a
+partir do horário BRUTO (sem ajuste de conflito) da quadra `courts[0]`; como
+o ajuste de descanso mínimo por dupla (`avoidAthleteConflict`/
+`teamBusyUntil`) só pode empurrar o horário PARA FRENTE, o candidato ajustado
+da própria quadra semente nunca consegue "vencer" esse valor bruto na
+comparação `start < chosenStart`. Na prática isso IGNORA
+`minRestBetweenMatchesMin` sempre que nenhuma OUTRA quadra oferece um horário
+mais cedo que o valor bruto da quadra 0 — o que acontece SEMPRE no caso de
+uma quadra só. Isso é fatal para a Task 3-4 (`recalculateCourtSchedule`), que
+SEMPRE chama `allocateCourtSlots` com um array de UMA quadra só — sem esta
+correção, a garantia do spec D1 ("respeita minRestBetweenMatchesMin") nunca
+funcionaria de fato na cascata. Corrigir aqui, numa task própria com seu
+próprio teste e revisão, em vez de dentro da Task 1 (refatoração pura, sem
+mudança de comportamento) ou da Task 4 (motor da cascata — não é o lugar de
+mexer no núcleo compartilhado).
+
+A correção: computar o candidato de CADA quadra (já com o ajuste de conflito
+aplicado) e escolher o menor entre todos, em vez de comparar um valor
+ajustado contra um valor bruto de uma quadra "semente" fora do loop.
+
+**Files:**
+- Modify: `functions/src/match-schedule-allocation.ts` (função `allocateCourtSlots`)
+- Modify: `functions/src/match-schedule-allocation.test.ts` (o teste que hoje caracteriza o bug volta a esperar o comportamento correto; adiciona um caso com 2 quadras)
+
+**Interfaces:** nenhuma mudança de assinatura — mesmos parâmetros e retorno de `allocateCourtSlots`; só a lógica interna do loop muda.
+
+- [ ] **Step 1: Atualizar o teste que hoje documenta o bug para exigir o comportamento CORRETO**
+
+Em `functions/src/match-schedule-allocation.test.ts`, substituir o teste
+`"[bug conhecido, preservado] com 1 quadra só, o descanso mínimo da dupla NÃO empurra o início quando essa é a única candidata"`
+(e o comentário acima dele) por:
+
+```ts
+  it("com 1 quadra só, o descanso mínimo da dupla EMPURRA o início (bug corrigido)", () => {
+    const dayStart = new Date("2026-08-25T10:00:00-03:00");
+    const busyUntil = new Date(dayStart.getTime() + 45 * 60 * 1000);
+    const docs = [fakeDoc("m1", {matchNumber: 1, teamAId: "t1", teamBId: "t2"})];
+
+    const slots = allocateCourtSlots({
+      courts: [{id: "court-1"}],
+      unscheduled: docs,
+      courtBusyUntil: {"court-1": dayStart},
+      teamBusyUntil: {t1: busyUntil},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+
+    assert.equal(slots[0].start.getTime(), busyUntil.getTime());
+  });
+
+  it("com 2 quadras, o descanso mínimo da dupla também EMPURRA o início mesmo quando as duas quadras estão livres desde o dayStart", () => {
+    const dayStart = new Date("2026-08-25T10:00:00-03:00");
+    const busyUntil = new Date(dayStart.getTime() + 45 * 60 * 1000);
+    const docs = [fakeDoc("m1", {matchNumber: 1, teamAId: "t1", teamBId: "t2"})];
+
+    const slots = allocateCourtSlots({
+      courts: [{id: "court-1"}, {id: "court-2"}],
+      unscheduled: docs,
+      courtBusyUntil: {"court-1": dayStart, "court-2": dayStart},
+      teamBusyUntil: {t1: busyUntil},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+
+    assert.equal(slots[0].start.getTime(), busyUntil.getTime());
+  });
+```
+
+- [ ] **Step 2: Rodar e ver falhar contra o código atual (ainda com o bug)**
+
+Run: `npm run build && node --test lib/match-schedule-allocation.test.js`
+Expected: FAIL nos 2 testes novos/alterados (código atual ainda ignora o descanso mínimo)
+
+- [ ] **Step 3: Corrigir `allocateCourtSlots`**
+
+Em `functions/src/match-schedule-allocation.ts`, substituir todo o corpo do
+`for (const doc of sorted) { ... }` (da linha `const data = doc.data();` até
+o fechamento do bloco, ANTES de `const end = new Date(...)`) por:
+
+```ts
+  for (const doc of sorted) {
+    const data = doc.data();
+
+    const candidates = courts.map((court) => {
+      let start = courtBusyUntil[court.id] ?? dayStart;
+      if (start < dayStart) start = new Date(dayStart);
+
+      if (avoidAthleteConflict) {
+        for (const tid of [data.teamAId, data.teamBId]) {
+          if (typeof tid !== "string" || !tid.trim()) continue;
+          const busy = teamBusyUntil[tid];
+          if (busy && busy > start) start = busy;
+        }
+      }
+
+      return {courtId: court.id, start};
+    });
+    // `courts` nunca é vazio (ambos os chamadores garantem isso), então
+    // `reduce` sem valor inicial é seguro e tipa como não-opcional.
+    const chosen = candidates.reduce((best, c) => (c.start < best.start ? c : best));
+    const chosenCourt = chosen.courtId;
+    const chosenStart = chosen.start;
+
+    const end = new Date(chosenStart.getTime() + durationMin * 60 * 1000);
+    slots.push({matchId: doc.id, courtId: chosenCourt, start: chosenStart, end});
+    courtBusyUntil[chosenCourt] = end;
+
+    if (avoidAthleteConflict) {
+      const teamRestUntil = new Date(end.getTime() + minRestMin * 60 * 1000);
+      for (const tid of [data.teamAId, data.teamBId]) {
+        if (typeof tid !== "string" || !tid.trim()) continue;
+        teamBusyUntil[tid] = teamRestUntil;
+      }
+    }
+  }
+```
+
+(A ideia: antes, `chosenStart`/`chosenCourt` eram semeados FORA do loop a
+partir do valor BRUTO de `courts[0]`, e o loop só comparava um valor já
+ajustado contra essa semente bruta — por isso a quadra semente nunca perdia
+para o próprio ajuste dela mesma. Agora todo candidato, incluindo
+`courts[0]`, passa pelo mesmo cálculo de ajuste ANTES de qualquer
+comparação, e o menor entre todos vence de forma justa.)
+
+- [ ] **Step 4: Rodar e ver passar — TODOS os testes do arquivo, não só os 2 novos**
+
+Run: `npm run build && node --test lib/match-schedule-allocation.test.js`
+Expected: PASS em todos (os 2 testes que já passavam antes — ordenação por
+matchNumber e escolha da quadra mais livre entre várias — continuam
+passando; os 2 corrigidos/novos do Step 1 agora também passam)
+
+- [ ] **Step 5: Rodar a suíte de `organizer-match-ops` inteira para confirmar que `autoScheduleTournamentDay` não regrediu**
+
+Run: `npm run build && node --test lib/organizer-match-ops.test.js lib/organizer-match-ops.live-score.test.js lib/organizer-match-ops.revert-live.test.js lib/match-schedule-allocation.test.js`
+Expected: PASS em todos — a correção deixa `autoScheduleTournamentDay` mais
+correto (respeita descanso mínimo em mais casos), e nenhum teste existente
+dependia do comportamento buggy.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add functions/src/match-schedule-allocation.ts functions/src/match-schedule-allocation.test.ts
+git commit -m "$(cat <<'EOF'
+fix(functions): descanso mínimo ignorado com 1 quadra em allocateCourtSlots
+
+chosenStart/chosenCourt eram semeados do valor BRUTO (sem ajuste de
+conflito) da quadra courts[0], e o ajuste de descanso mínimo só empurra pra
+frente — então o candidato ajustado da própria quadra semente nunca vencia
+essa semente bruta. Na prática isso ignorava minRestBetweenMatchesMin
+sempre que nenhuma outra quadra oferecia hora mais cedo, o que acontecia
+SEMPRE no caso de 1 quadra só. Bug pré-existente em produção (autoScheduleTournamentDay),
+achado pelo teste de unidade escrito ao extrair allocateCourtSlots — crítico
+de corrigir antes da Task 3-4, que sempre chama a função com 1 quadra só.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
 ## Task 2: Helper de horário na parede de São Paulo (`eventTimeLabel`)
 
 A notificação de mudança de horário (Task 4) precisa formatar um `Date` como

@@ -72,6 +72,19 @@ class OrganizerMatchScheduleService {
     return _normalizeCallableMap(result.data);
   }
 
+  Future<bool> updateMatchOpsSettings({
+    required String tournamentId,
+    required bool dynamicRescheduleEnabled,
+  }) async {
+    final callable = _functions.httpsCallable('updateMatchOpsSettings');
+    final result = await callable.call({
+      'tournamentId': tournamentId.trim(),
+      'dynamicRescheduleEnabled': dynamicRescheduleEnabled,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map? ?? {});
+    return data['dynamicRescheduleEnabled'] == true;
+  }
+
   static Map<String, dynamic> _normalizeCallableMap(dynamic raw) {
     if (raw is! Map) return {};
     final map = Map<String, dynamic>.from(raw);

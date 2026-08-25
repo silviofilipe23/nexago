@@ -40,7 +40,13 @@ import {
   type CompletionMatch,
 } from "./tournament-completion";
 import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {
+  allocateCourtSlots,
+  loadTournamentMatches,
+} from "./match-schedule-allocation";
+import {handleDynamicRescheduleOnMatchUpdate} from "./match-dynamic-reschedule";
 
+export {compareByMatchNumber} from "./match-schedule-allocation";
 
 
 
@@ -150,23 +156,6 @@ function detectCourtOverlap(
     }
   }
   return null;
-}
-
-async function loadTournamentMatches(
-  db: Firestore,
-  projectId: string,
-  tournamentId: string,
-  dayKey?: string,
-): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
-  let query: FirebaseFirestore.Query = db
-    .collection(artifactsMatchesPath(projectId))
-    .where("tournamentId", "==", tournamentId);
-  const dk = dayKey?.trim();
-  if (dk) {
-    query = query.where("dayKey", "==", dk);
-  }
-  const snap = await query.get();
-  return snap.docs;
 }
 
 async function getMatchOrThrow(
@@ -1016,19 +1005,36 @@ export const advanceBracketWinner = onCall(async (request) => {
   return {ok: true, ...result};
 });
 
-/**
- * Compara duas partidas pela numeração GLOBAL cronológica (`matchNumber`).
- * NÃO comparar por `round`: em dupla eliminação, WB, LB, 3º lugar e final têm
- * cada um sua própria contagem de round reiniciando em 1, então "round" não é
- * uma sequência global — comparar por ele antes do matchNumber agendava a
- * final e o 3º lugar (round 1 na sua chave) antes da WB/LB R2.
- */
-export function compareByMatchNumber(
-  a: {matchNumber?: number},
-  b: {matchNumber?: number},
-): number {
-  return (a.matchNumber ?? 0) - (b.matchNumber ?? 0);
+export async function updateMatchOpsSettingsCore(
+  db: Firestore,
+  uid: string,
+  tournamentId: string,
+  dynamicRescheduleEnabled: boolean,
+): Promise<{ok: true; dynamicRescheduleEnabled: boolean}> {
+  await assertCanManageTournament(db, uid, tournamentId);
+  await db.doc(`tournaments/${tournamentId}`).set(
+    {
+      matchOps: {dynamicRescheduleEnabled},
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+  return {ok: true, dynamicRescheduleEnabled};
 }
+
+export const updateMatchOpsSettings = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const tournamentId = (request.data?.tournamentId as string)?.trim();
+  if (!tournamentId) {
+    throw new HttpsError("invalid-argument", "tournamentId obrigatório");
+  }
+  const dynamicRescheduleEnabled = request.data?.dynamicRescheduleEnabled === true;
+
+  const db = getFirestore();
+  return updateMatchOpsSettingsCore(db, uid, tournamentId, dynamicRescheduleEnabled);
+});
 
 export const autoScheduleTournamentDay = onCall(async (request) => {
   const uid = request.auth?.uid;
@@ -1118,59 +1124,22 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
     courtId: string;
     start: string;
     end: string;
-  }> = [];
+  }> = allocateCourtSlots({
+    courts,
+    unscheduled,
+    courtBusyUntil,
+    teamBusyUntil,
+    durationMin: duration,
+    minRestMin: minRest,
+    avoidAthleteConflict,
+    dayStart,
+  }).map((slot) => ({
+    matchId: slot.matchId,
+    courtId: slot.courtId,
+    start: slot.start.toISOString(),
+    end: slot.end.toISOString(),
+  }));
   const skipped: Array<{matchId: string; reason: string}> = [];
-
-  // Sequência de jogos: matchNumber já é a numeração GLOBAL cronológica
-  // (grupos intercalados 1..N, depois o mata-mata em ordem de dependência).
-  // Ver compareByMatchNumber para o porquê de não ordenar por `round`.
-  const sorted = [...unscheduled].sort((a, b) =>
-    compareByMatchNumber(a.data(), b.data()),
-  );
-
-  for (const doc of sorted) {
-    const data = doc.data();
-    let chosenCourt = courts[0].id;
-    let chosenStart = courtBusyUntil[chosenCourt] ?? dayStart;
-    if (chosenStart < dayStart) chosenStart = new Date(dayStart);
-
-    for (const court of courts) {
-      let start = courtBusyUntil[court.id] ?? dayStart;
-      if (start < dayStart) start = new Date(dayStart);
-
-      if (avoidAthleteConflict) {
-        for (const tid of [data.teamAId, data.teamBId]) {
-          if (typeof tid !== "string" || !tid.trim()) continue;
-          const busy = teamBusyUntil[tid];
-          if (busy && busy > start) {
-            start = busy;
-          }
-        }
-      }
-
-      if (start < chosenStart) {
-        chosenStart = start;
-        chosenCourt = court.id;
-      }
-    }
-
-    const end = new Date(chosenStart.getTime() + duration * 60 * 1000);
-    slots.push({
-      matchId: doc.id,
-      courtId: chosenCourt,
-      start: chosenStart.toISOString(),
-      end: end.toISOString(),
-    });
-    courtBusyUntil[chosenCourt] = end;
-
-    if (avoidAthleteConflict) {
-      const teamRestUntil = new Date(end.getTime() + minRest * 60 * 1000);
-      for (const tid of [data.teamAId, data.teamBId]) {
-        if (typeof tid !== "string" || !tid.trim()) continue;
-        teamBusyUntil[tid] = teamRestUntil;
-      }
-    }
-  }
 
   let applied = 0;
   if (!preview) {
@@ -1216,6 +1185,11 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
         scheduleEndTime: Timestamp.fromDate(end),
         dayKey,
         queueStatus: "waiting",
+        // Marca a grade como escrita PELO agendador, não por um organizador
+        // mexendo numa partida: sem isso, cada uma das N escritas deste lote
+        // pareceria um reagendamento manual externo e dispararia sua própria
+        // cascata, embaralhando a grade recém-montada.
+        scheduleRecalcAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
       applied++;
@@ -1343,11 +1317,17 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
       | Record<string, unknown>
       | undefined;
 
-    if (!shouldPropagateMatchAdvance(before, after) || !after) return;
-
     const db = getFirestore();
     const projectId = event.params.appId;
     const matchId = event.params.matchId;
+
+    try {
+      await handleDynamicRescheduleOnMatchUpdate(db, projectId, matchId, before, after);
+    } catch (e) {
+      logger.error("onTournamentMatchCompletedAdvance: reagendamento dinâmico falhou", {matchId, e});
+    }
+
+    if (!shouldPropagateMatchAdvance(before, after) || !after) return;
 
     try {
       await advanceBracketWinnerInternal(db, projectId, after);

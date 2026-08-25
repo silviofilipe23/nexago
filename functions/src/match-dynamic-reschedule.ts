@@ -159,12 +159,17 @@ export async function recalculateCourtSchedule(
     if (!doc) continue;
     const data = doc.data();
     const oldStart = data.scheduleTime ? (data.scheduleTime as Timestamp).toDate() : null;
-    await doc.ref.update({
-      scheduleTime: Timestamp.fromDate(slot.start),
-      scheduleEndTime: Timestamp.fromDate(slot.end),
-      scheduleRecalcAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    try {
+      await doc.ref.update({
+        scheduleTime: Timestamp.fromDate(slot.start),
+        scheduleEndTime: Timestamp.fromDate(slot.end),
+        scheduleRecalcAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      logger.warn("recalculateCourtSchedule: falha ao atualizar partida", {matchId: slot.matchId, e});
+      continue;
+    }
     shifts.push({
       matchId: slot.matchId,
       teamAId: String(data.teamAId ?? ""),

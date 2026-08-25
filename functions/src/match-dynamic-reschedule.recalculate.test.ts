@@ -122,6 +122,69 @@ describe("recalculateCourtSchedule", () => {
 
     assert.deepEqual(shifts, []);
   });
+
+  it("continua as outras partidas quando a escrita de uma delas falha (best-effort)", async () => {
+    const fake = new FakeFirestore();
+    seedMatch(fake, "trigger-match", {status: "Completed", matchNumber: 1});
+    seedMatch(fake, "next-match", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:00:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+    seedMatch(fake, "third-match", {
+      matchNumber: 3,
+      scheduleTime: ts("2026-08-25T15:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:30:00-03:00"),
+      teamAId: "team-e",
+      teamBId: "team-f",
+    });
+
+    // Simula uma falha transitória do Firestore SÓ na escrita de "next-match"
+    // (a primeira da fila) sobrescrevendo o método privado `write` da
+    // instância — mesma técnica de monkeypatch já usada acima para
+    // `deliverNotificationToUser`, sem alterar o helper compartilhado.
+    const failingPath = `${MATCHES_PATH}/next-match`;
+    type WriteFn = (
+      path: string,
+      data: Record<string, unknown>,
+      opts?: {merge?: boolean},
+    ) => void;
+    const fakeWithWrite = fake as unknown as {write: WriteFn};
+    const originalWrite = fakeWithWrite.write.bind(fake);
+    fakeWithWrite.write = (path, data, opts) => {
+      if (path === failingPath) throw new Error("firestore indisponível (simulado)");
+      originalWrite(path, data, opts);
+    };
+
+    const shifts = await recalculateCourtSchedule(
+      db(fake),
+      PROJECT_ID,
+      {
+        tournamentId: TOURNAMENT_ID,
+        dayKey: DAY_KEY,
+        courtId: COURT_ID,
+        anchor: new Date("2026-08-25T14:20:00-03:00"),
+        triggerMatchId: "trigger-match",
+      },
+      {durationMin: 30, minRestMin: 30},
+    );
+
+    // "next-match" falhou e foi excluída do retorno (sem notificação órfã);
+    // "third-match" continuou sendo processada normalmente.
+    assert.equal(shifts.length, 1);
+    assert.equal(shifts[0].matchId, "third-match");
+
+    const untouchedNext = (await fake.doc(`${MATCHES_PATH}/next-match`).get()).data();
+    assert.equal(
+      (untouchedNext?.scheduleTime as Timestamp).toMillis(),
+      ts("2026-08-25T14:30:00-03:00").toMillis(),
+    );
+
+    const updatedThird = (await fake.doc(`${MATCHES_PATH}/third-match`).get()).data();
+    assert.ok(updatedThird?.scheduleRecalcAt);
+  });
 });
 
 describe("notifyScheduleShifts", () => {

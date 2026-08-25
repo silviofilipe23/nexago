@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -752,6 +755,28 @@ class LiveTableActionBar extends StatelessWidget {
 /// Sem cabeçalho nem coluna central — só os painéis e a barra de baixo; o
 /// resto das ações antigas (formato, placar completo, histórico, modo
 /// exibição, sair do modo full) mora atrás do botão "⋮".
+/// Fase do tempo técnico em andamento — `ended` é estado terminal (chegou a
+/// 0s), fica exibido até o mesário fechar, não fecha sozinho.
+enum LiveTableTimeoutPhase { running, paused, ended }
+
+/// Instantâneo do tempo técnico ativo — `null` em [LiveTableFullModeMesa]
+/// significa nenhum tempo rodando (mesa liberada).
+class LiveTableActiveTimeout {
+  const LiveTableActiveTimeout({
+    required this.teamLabel,
+    required this.timeoutNumber,
+    required this.remainingSeconds,
+    required this.totalSeconds,
+    required this.phase,
+  });
+
+  final String teamLabel;
+  final int timeoutNumber;
+  final int remainingSeconds;
+  final int totalSeconds;
+  final LiveTableTimeoutPhase phase;
+}
+
 class LiveTableFullModeMesa extends StatelessWidget {
   const LiveTableFullModeMesa({
     super.key,
@@ -773,6 +798,10 @@ class LiveTableFullModeMesa extends StatelessWidget {
     required this.onAddTimeout,
     required this.onUndo,
     required this.onMore,
+    this.activeTimeout,
+    this.onPauseTimeout,
+    this.onResumeTimeout,
+    this.onEndTimeout,
   });
 
   final LiveTableTeamData teamA;
@@ -793,6 +822,11 @@ class LiveTableFullModeMesa extends StatelessWidget {
   final VoidCallback onAddTimeout;
   final VoidCallback onUndo;
   final VoidCallback onMore;
+
+  final LiveTableActiveTimeout? activeTimeout;
+  final VoidCallback? onPauseTimeout;
+  final VoidCallback? onResumeTimeout;
+  final VoidCallback? onEndTimeout;
 
   @override
   Widget build(BuildContext context) {
@@ -899,6 +933,18 @@ class LiveTableFullModeMesa extends StatelessWidget {
                 onPressed: onMore,
               ),
             ),
+            // Por último no Stack: pinta por cima e absorve todo toque nos
+            // painéis/barra/⋮ embaixo enquanto o tempo técnico roda — não
+            // precisa desabilitar cada um deles à parte.
+            if (activeTimeout != null)
+              Positioned.fill(
+                child: LiveTableTechnicalTimeoutOverlay(
+                  timeout: activeTimeout!,
+                  onPause: onPauseTimeout,
+                  onResume: onResumeTimeout,
+                  onEnd: onEndTimeout,
+                ),
+              ),
           ],
         ),
       ),
@@ -1042,6 +1088,242 @@ class _FullModeTeamPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Overlay do tempo técnico: anel de progresso + contagem regressiva. Cobre a
+/// mesa inteira (o placar fica visível borrado atrás) enquanto o tempo roda.
+class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
+  const LiveTableTechnicalTimeoutOverlay({
+    super.key,
+    required this.timeout,
+    this.onPause,
+    this.onResume,
+    this.onEnd,
+  });
+
+  final LiveTableActiveTimeout timeout;
+  final VoidCallback? onPause;
+  final VoidCallback? onResume;
+  final VoidCallback? onEnd;
+
+  static const _criticalThresholdSeconds = 10;
+
+  @override
+  Widget build(BuildContext context) {
+    final isEnded = timeout.phase == LiveTableTimeoutPhase.ended;
+    final isCritical =
+        !isEnded && timeout.remainingSeconds <= _criticalThresholdSeconds;
+    final ringColor = isEnded
+        ? AppColors.win
+        : (isCritical ? AppColors.live : AppColors.brand);
+    final progress = isEnded
+        ? 1.0
+        : (timeout.remainingSeconds / timeout.totalSeconds).clamp(0.0, 1.0);
+    final minutes = timeout.remainingSeconds ~/ 60;
+    final seconds = (timeout.remainingSeconds % 60).toString().padLeft(2, '0');
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(color: Colors.black.withValues(alpha: 0.68)),
+          ),
+        ),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'TEMPO TÉCNICO · 1 MINUTO',
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurfaceMuted,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    timeout.teamLabel,
+                    style: AppTypography.soraRegular(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.themeColors.surfaceRaised,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${timeout.timeoutNumber}º tempo do time',
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: 280,
+                height: 280,
+                child: CustomPaint(
+                  painter: _TimeoutRingPainter(
+                    progress: progress,
+                    color: ringColor,
+                    trackColor: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.14,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$minutes:$seconds',
+                      style: AppTypography.mono(
+                        fontSize: 56,
+                        fontWeight: FontWeight.w800,
+                        color: isEnded || isCritical
+                            ? ringColor
+                            : context.themeColors.onSurface,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (isEnded)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.win.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.win.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    'TEMPO ENCERRADO',
+                    style: AppTypography.mono(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.win,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isEnded) ...[
+                    OutlinedButton.icon(
+                      onPressed:
+                          timeout.phase == LiveTableTimeoutPhase.paused
+                              ? onResume
+                              : onPause,
+                      icon: Icon(
+                        timeout.phase == LiveTableTimeoutPhase.paused
+                            ? Icons.play_arrow_rounded
+                            : Icons.pause_rounded,
+                      ),
+                      label: Text(
+                        timeout.phase == LiveTableTimeoutPhase.paused
+                            ? 'Retomar'
+                            : 'Pausar',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: context.themeColors.onSurface,
+                        side: BorderSide(
+                          color: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.3),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  FilledButton(
+                    onPressed: onEnd,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.black,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text('Encerrar tempo'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimeoutRingPainter extends CustomPainter {
+  const _TimeoutRingPainter({
+    required this.progress,
+    required this.color,
+    required this.trackColor,
+  });
+
+  final double progress;
+  final Color color;
+  final Color trackColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide - _strokeWidth) / 2;
+    final track = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeWidth;
+    canvas.drawCircle(center, radius, track);
+
+    final arc = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress,
+      false,
+      arc,
+    );
+  }
+
+  static const _strokeWidth = 14.0;
+
+  @override
+  bool shouldRepaint(_TimeoutRingPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.color != color ||
+      oldDelegate.trackColor != trackColor;
 }
 
 class _ActionBarButton extends StatelessWidget {

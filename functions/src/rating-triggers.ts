@@ -83,7 +83,21 @@ export const onTournamentMatchCompletedUpdateRatings = onDocumentUpdated(
 async function superAdminOrThrow(uid: string | undefined): Promise<string> {
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
   const {getAuth} = await import("firebase-admin/auth");
-  const caller: UserRecord = await getAuth().getUser(uid);
+  let caller: UserRecord;
+  try {
+    caller = await getAuth().getUser(uid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      // Token ainda válido (JWT não expirou) mas a conta foi apagada depois
+      // que o cliente o obteve — sessão órfã, não um erro interno real.
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
   if (!callerIsSuperAdmin(caller)) {
     throw new HttpsError(
       "permission-denied",

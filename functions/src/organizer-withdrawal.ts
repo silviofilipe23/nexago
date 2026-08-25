@@ -31,7 +31,21 @@ import {ARENA_WITHDRAWAL_AUTO_MAX_REAIS} from "./arena-booking-payment-constants
 const ORGANIZER_WITHDRAWALS = "organizerWithdrawals";
 
 async function assertPlatformAdmin(uid: string): Promise<void> {
-  const caller = await getAuth().getUser(uid);
+  let caller;
+  try {
+    caller = await getAuth().getUser(uid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      // Token ainda válido (JWT não expirou) mas a conta foi apagada depois
+      // que o cliente o obteve — sessão órfã, não um erro interno real.
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
   if (!callerIsOrganizer(caller) && !callerIsSuperAdmin(caller)) {
     throw new HttpsError(
       "permission-denied",

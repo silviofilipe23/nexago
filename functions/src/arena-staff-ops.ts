@@ -345,7 +345,21 @@ export const acceptArenaStaffInvite = onCall(async (request) => {
   const used = (await db.collection(`arenas/${arenaId}/staff`).count().get()).data().count;
   assertSeatAvailable(seats, used);
 
-  const user = await getAuth().getUser(uid);
+  let user;
+  try {
+    user = await getAuth().getUser(uid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      // Token ainda válido (JWT não expirou) mas a conta foi apagada depois
+      // que o cliente o obteve — sessão órfã, não um erro interno real.
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
   await createStaffDoc(
     arenaId,
     uid,

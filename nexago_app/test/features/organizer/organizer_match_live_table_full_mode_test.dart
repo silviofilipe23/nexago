@@ -228,6 +228,22 @@ void main() {
         matching: fullModePanel(),
       );
 
+  // `_TimeoutTeamCard` é privado (mesmo truque de `fullModePanel()`) — os
+  // dois cartões do seletor de "Tempo técnico". Só é seguro chamar isto com
+  // o seletor aberto: o painel da mesa (atrás, ainda montado sob o
+  // `Positioned.fill` do seletor) também mostra o mesmo label da dupla, mas
+  // não é um `_TimeoutTeamCard`, então o `ancestor` escopado por tipo não
+  // bate nele — `find.ancestor` aceita múltiplos matches em `of` e filtra
+  // pelos ancestrais que também batem em `matching`.
+  Finder timeoutTeamCard() => find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_TimeoutTeamCard',
+      );
+
+  Finder timeoutCardWithLabel(String label) => find.ancestor(
+        of: find.text(label),
+        matching: timeoutTeamCard(),
+      );
+
   // Os dois pontinhos de tempo técnico são `Container`s 7×7 sem outro jeito
   // público de inspecionar `timeouts` (widget privado) — filtramos pelas
   // constraints exatas que só eles têm no painel (o badge "SAQUE" não tem
@@ -285,6 +301,23 @@ void main() {
     for (var i = 0; i < seconds; i++) {
       await tester.pump(const Duration(seconds: 1));
     }
+  }
+
+  // Abre o seletor de equipe do "Tempo técnico" (só o botão da barra, sem
+  // escolher ninguém ainda).
+  Future<void> openTimeoutPicker(WidgetTester tester) async {
+    await tester.tap(find.text('Tempo técnico'));
+    await tester.pump();
+  }
+
+  // Fluxo completo de "chamar tempo técnico" pós-refatoração: toca o botão
+  // da barra (só abre o seletor) e então escolhe o cartão da equipe —
+  // reaproveitado pelos testes que só se importam com o overlay de
+  // contagem já aberto, sem repetir os dois toques em cada um.
+  Future<void> callTechnicalTimeout(WidgetTester tester, String teamLabel) async {
+    await openTimeoutPicker(tester);
+    await tester.tap(timeoutCardWithLabel(teamLabel));
+    await tester.pump();
   }
 
   group('modo full desligado por padrão', () {
@@ -464,9 +497,255 @@ void main() {
     );
   });
 
+  group('Tempo técnico: seletor de equipe', () {
+    testWidgets(
+      'abre ao tocar em "Tempo técnico", sem incrementar nem abrir a '
+      'contagem ainda; a mesa por trás não responde a toque',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await openTimeoutPicker(tester);
+
+        expect(find.byType(LiveTableTimeoutTeamPicker), findsOneWidget);
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 0);
+        expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 0);
+
+        // A mesa por trás (painel, "Trocar saque", "⋮") não responde a
+        // toque enquanto o seletor está aberto — mesmo tratamento do
+        // overlay de contagem que já cobria a mesa inteira. Toca no canto
+        // superior esquerdo do painel de A (NÃO no centro: o seletor fica
+        // centralizado na tela inteira, então o centro do painel coincide
+        // com o próprio cartão de A do seletor — tocar ali seria uma
+        // escolha legítima do seletor, não um vazamento pro painel).
+        final panelATopLeft = tester.getTopLeft(panelWithLabel(teamALabel));
+        await tester.tapAt(panelATopLeft + const Offset(12, 12));
+        await tester.pump();
+        await tester.pump();
+        expect(fakeRepo.pointWrites, isEmpty);
+        expect(
+          filledTimeoutDots(tester, panelWithLabel(teamALabel)),
+          0,
+          reason: 'tocar num canto vazio do painel (fora do cartão do '
+              'seletor) não deveria escolher nenhuma equipe',
+        );
+
+        await tester.tap(find.text('Trocar saque'), warnIfMissed: false);
+        await tester.pump();
+        expect(fakeRepo.updateFieldsCalls, isEmpty);
+
+        await tester.tap(
+          find.byIcon(Icons.more_vert_rounded),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+        expect(find.text('Placar completo'), findsNothing);
+
+        // Nada do que foi tentado acima fechou o seletor.
+        expect(find.byType(LiveTableTimeoutTeamPicker), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'cada cartão mostra o rótulo de saque certo (SAQUE/RECEPÇÃO) e o '
+      'texto de disponibilidade certo, conforme os tempos já usados',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        Future<void> openPicker() => openTimeoutPicker(tester);
+
+        void expectCard(String label, String serveLabel, String availability) {
+          final card = timeoutCardWithLabel(label);
+          expect(
+            find.descendant(of: card, matching: find.text(serveLabel)),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: card, matching: find.text(availability)),
+            findsOneWidget,
+          );
+        }
+
+        const twoAvailableLabel = '2 disponíveis';
+
+        // 0 usados: A saca ("SAQUE"), B recebe ("RECEPÇÃO"); ambos com os
+        // 2 tempos ainda disponíveis.
+        await openPicker();
+        expectCard(teamALabel, 'SAQUE', twoAvailableLabel);
+        expectCard(teamBLabel, 'RECEPÇÃO', twoAvailableLabel);
+
+        // Escolhe A -> 1 usado, singular "disponível".
+        await tester.tap(timeoutCardWithLabel(teamALabel));
+        await tester.pump();
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+
+        await openPicker();
+        expectCard(teamALabel, 'SAQUE', '1 disponível');
+        expectCard(teamBLabel, 'RECEPÇÃO', twoAvailableLabel);
+
+        // Escolhe A de novo -> 2 usados, "sem tempo".
+        await tester.tap(timeoutCardWithLabel(teamALabel));
+        await tester.pump();
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+
+        await openPicker();
+        expectCard(teamALabel, 'SAQUE', 'sem tempo');
+        expectCard(teamBLabel, 'RECEPÇÃO', twoAvailableLabel);
+      },
+    );
+
+    testWidgets(
+      'cartão com os 2 tempos já usados fica desabilitado: tocar nele não '
+      'incrementa nem abre a contagem',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        // Gasta os 2 tempos de A.
+        for (var i = 0; i < 2; i++) {
+          await openTimeoutPicker(tester);
+          await tester.tap(timeoutCardWithLabel(teamALabel));
+          await tester.pump();
+          await tester.tap(find.text('Encerrar tempo'));
+          await tester.pump();
+        }
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 2);
+
+        await openTimeoutPicker(tester);
+        await tester.tap(timeoutCardWithLabel(teamALabel));
+        await tester.pump();
+
+        expect(
+          find.byType(LiveTableTechnicalTimeoutOverlay),
+          findsNothing,
+          reason: 'cartão travado em 2 não deveria abrir a contagem',
+        );
+        expect(
+          find.byType(LiveTableTimeoutTeamPicker),
+          findsOneWidget,
+          reason: 'tocar num cartão travado não fecha o seletor',
+        );
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 2);
+      },
+    );
+
+    testWidgets(
+      '"Cancelar" fecha o seletor sem incrementar nada e sem abrir a '
+      'contagem — a mesa volta a responder a toque normalmente',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await openTimeoutPicker(tester);
+        expect(find.byType(LiveTableTimeoutTeamPicker), findsOneWidget);
+
+        await tester.tap(find.text('Cancelar'));
+        await tester.pump();
+
+        expect(find.byType(LiveTableTimeoutTeamPicker), findsNothing);
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 0);
+        expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 0);
+
+        // Mesa volta a responder a toque normalmente.
+        await tester.tap(panelWithLabel(teamALabel));
+        await tester.pump();
+        await tester.pump();
+        expect(fakeRepo.pointWrites, hasLength(1));
+        expect(fakeRepo.pointWrites.single.pointEvent['side'], 'A');
+      },
+    );
+
+    testWidgets(
+      'escolher uma equipe no seletor credita e abre a contagem PRA ELA — '
+      'não mais pra quem está sacando (o saque virou só rótulo '
+      'informativo no cartão)',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await openTimeoutPicker(tester);
+        // A está sacando, mas o mesário escolhe B.
+        await tester.tap(timeoutCardWithLabel(teamBLabel));
+        await tester.pump();
+
+        expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 1);
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 0);
+
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
+        final timeout = overlayTimeout(tester);
+        expect(timeout.teamLabel, teamBLabel);
+        expect(timeout.timeoutNumber, 1);
+      },
+    );
+
+    testWidgets(
+      'com "Trocar quadra" ativado antes de abrir o seletor, o cartão da '
+      'ESQUERDA credita o tempo técnico no lado REAL certo',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Trocar quadra'));
+        await tester.pump();
+
+        await openTimeoutPicker(tester);
+
+        // O cartão da esquerda no seletor também segue a Quadra: mostra B
+        // primeiro.
+        final cardA = tester.getCenter(timeoutCardWithLabel(teamALabel)).dx;
+        final cardB = tester.getCenter(timeoutCardWithLabel(teamBLabel)).dx;
+        expect(
+          cardB,
+          lessThan(cardA),
+          reason: 'depois de "Trocar quadra" o cartão de B deveria '
+              'aparecer à esquerda no seletor',
+        );
+
+        // Escolhe o cartão da ESQUERDA (mostra B) — tem que creditar o
+        // tempo técnico pra B de verdade, não pra A só por estar à
+        // esquerda.
+        await tester.tap(timeoutCardWithLabel(teamBLabel));
+        await tester.pump();
+
+        expect(
+          filledTimeoutDots(tester, panelWithLabel(teamBLabel)),
+          1,
+          reason: 'o cartão da esquerda (visualmente B após o swap) tem '
+              'que creditar o tempo técnico no time B real, não no A',
+        );
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 0);
+        expect(overlayTimeout(tester).teamLabel, teamBLabel);
+      },
+    );
+  });
+
   group('Tempo técnico', () {
     testWidgets(
-      'botão da barra incrementa o lado que está sacando, trava em 2, e o '
+      'botão da barra abre o seletor; escolher a equipe incrementa o lado '
+      'certo, trava em 2 (cartão fica desabilitado no seletor), e o '
       '"−" do painel decrementa só aquele lado, com piso 0 — fechando o '
       'overlay (via "Encerrar tempo") entre cada chamada',
       (tester) async {
@@ -482,9 +761,9 @@ void main() {
         expect(filledTimeoutDots(tester, panelA), 0);
         expect(filledTimeoutDots(tester, panelB), 0);
 
-        // 1ª chamada: incrementa E abre o overlay bloqueando a mesa.
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        // 1ª chamada: abre o seletor, escolhe A -> incrementa E abre o
+        // overlay bloqueando a mesa.
+        await callTechnicalTimeout(tester, teamALabel);
         expect(filledTimeoutDots(tester, panelA), 1);
         expect(filledTimeoutDots(tester, panelB), 0);
         expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
@@ -496,20 +775,31 @@ void main() {
         await tester.pump();
         expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
 
-        // 2ª chamada: incrementa de novo.
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        // 2ª chamada: escolhe A de novo, incrementa pra 2.
+        await callTechnicalTimeout(tester, teamALabel);
         expect(filledTimeoutDots(tester, panelA), 2);
 
         await tester.tap(find.text('Encerrar tempo'));
         await tester.pump();
 
-        // 3ª chamada: trava em 2, não passa (nem incrementa, nem abre
-        // overlay).
-        await tester.tap(find.text('Tempo técnico'));
+        // 3ª chamada: o seletor abre normalmente, mas o cartão de A já
+        // travou em 2 — tocar nele não incrementa nem abre o overlay.
+        await openTimeoutPicker(tester);
+        expect(find.byType(LiveTableTimeoutTeamPicker), findsOneWidget);
+        await tester.tap(timeoutCardWithLabel(teamALabel));
         await tester.pump();
         expect(filledTimeoutDots(tester, panelA), 2);
         expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
+        expect(
+          find.byType(LiveTableTimeoutTeamPicker),
+          findsOneWidget,
+          reason: 'cartão travado não incrementa, então o seletor continua '
+              'aberto',
+        );
+
+        await tester.tap(find.text('Cancelar'));
+        await tester.pump();
+        expect(find.byType(LiveTableTimeoutTeamPicker), findsNothing);
 
         // "−" no painel de B (nunca usou tempo técnico) fica no piso 0.
         await tester.tap(
@@ -549,8 +839,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
         expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 1);
         expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 0);
 
@@ -581,8 +870,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
 
         // Fecha o overlay antes de tocar no "−" — aberto, ele absorveria o
         // toque antes dele chegar no painel por trás.
@@ -620,8 +908,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
 
         expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
         final timeout = overlayTimeout(tester);
@@ -643,8 +930,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
         expect(overlayTimeout(tester).remainingSeconds, 60);
 
         await pumpSeconds(tester, 1);
@@ -665,8 +951,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
 
         await pumpSeconds(tester, 60);
 
@@ -695,8 +980,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
         await pumpSeconds(tester, 1);
         expect(overlayTimeout(tester).remainingSeconds, 59);
 
@@ -730,8 +1014,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
         await pumpSeconds(tester, 3);
         expect(overlayTimeout(tester).remainingSeconds, 57);
 
@@ -758,8 +1041,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
 
         // Painel A: não credita ponto.
         await tester.tap(
@@ -798,8 +1080,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
         systemChromeCalls.clear();
 
         List<MethodCall> soundCalls() => systemChromeCalls
@@ -882,8 +1163,7 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo técnico'));
-        await tester.pump();
+        await callTechnicalTimeout(tester, teamALabel);
         expect(timeoutRingPainter(tester).color, AppColors.brand);
 
         // 60 -> 11: ainda não crítico.

@@ -59,6 +59,7 @@ class _OrganizerMatchLiveTablePageState
   /// próprio — `_maybeTickTechnicalTimeout` só age quando `_timeoutSide`
   /// não é nulo e a fase é `running`.
   static const _timeoutDurationSeconds = 60;
+  bool _timeoutPickerOpen = false;
   String? _timeoutSide;
   int _timeoutNumber = 0;
   int _timeoutRemainingSeconds = _timeoutDurationSeconds;
@@ -115,20 +116,25 @@ class _OrganizerMatchLiveTablePageState
     _timeouts = const {'A': 0, 'B': 0};
   }
 
-  /// Chama o tempo técnico da dupla que está sacando: conta como usado na
-  /// hora (mesma regra de vôlei — chamado é chamado, mesmo que o mesário
-  /// encerre a contagem antes do minuto acabar) e abre o overlay.
-  void _startTechnicalTimeout(TournamentMatch match) {
-    final servingId = match.servingTeamId.trim();
-    final side = servingId == match.teamAId
-        ? 'A'
-        : servingId == match.teamBId
-            ? 'B'
-            : null;
-    if (side == null || _timeoutSide != null) return;
+  /// "Tempo técnico" abre o seletor primeiro — o mesário escolhe a equipe
+  /// (não é mais inferido de quem está sacando; a tela só mostra isso como
+  /// contexto no cartão).
+  void _openTimeoutTeamPicker() {
+    if (_timeoutSide != null || _timeoutPickerOpen) return;
+    setState(() => _timeoutPickerOpen = true);
+  }
+
+  void _cancelTimeoutTeamPicker() =>
+      setState(() => _timeoutPickerOpen = false);
+
+  /// Conta o tempo como usado na hora da escolha (mesma regra de vôlei —
+  /// chamado é chamado, mesmo que o mesário encerre a contagem antes do
+  /// minuto acabar) e abre o overlay de contagem pra essa equipe.
+  void _chooseTimeoutTeam(String side) {
     final current = _timeouts[side] ?? 0;
     if (current >= 2) return;
     setState(() {
+      _timeoutPickerOpen = false;
       _timeouts = {..._timeouts, side: current + 1};
       _timeoutSide = side;
       _timeoutNumber = current + 1;
@@ -758,7 +764,9 @@ class _OrganizerMatchLiveTablePageState
                 }
 
                 if (_fullMode) {
-                  final fullModeEnabled = actionsEnabled && _timeoutSide == null;
+                  final fullModeEnabled = actionsEnabled &&
+                      _timeoutSide == null &&
+                      !_timeoutPickerOpen;
                   final needsServe = MatchScoringLogic.needsStartingServe(
                     servingTeamId: match.servingTeamId,
                     status: match.status,
@@ -803,7 +811,7 @@ class _OrganizerMatchLiveTablePageState
                         _removeTimeout(_sidesSwapped ? 'A' : 'B'),
                     onSwapServe: _swapServe,
                     onSwapSides: _swapSides,
-                    onAddTimeout: () => _startTechnicalTimeout(match),
+                    onAddTimeout: _openTimeoutTeamPicker,
                     onUndo: _undoLastPoint,
                     activeTimeout: _timeoutSide == null
                         ? null
@@ -818,6 +826,12 @@ class _OrganizerMatchLiveTablePageState
                     onPauseTimeout: _pauseTechnicalTimeout,
                     onResumeTimeout: _resumeTechnicalTimeout,
                     onEndTimeout: _endTechnicalTimeout,
+                    timeoutPickerOpen: _timeoutPickerOpen,
+                    onPickTimeoutTeamA: () =>
+                        _chooseTimeoutTeam(_sidesSwapped ? 'B' : 'A'),
+                    onPickTimeoutTeamB: () =>
+                        _chooseTimeoutTeam(_sidesSwapped ? 'A' : 'B'),
+                    onCancelTimeoutPicker: _cancelTimeoutTeamPicker,
                     onMore: () => _showFullModeMoreMenu(
                       match: match,
                       teamA: teamA,

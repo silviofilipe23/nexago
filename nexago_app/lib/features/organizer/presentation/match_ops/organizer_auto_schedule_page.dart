@@ -40,6 +40,7 @@ class _OrganizerAutoSchedulePageState
     extends ConsumerState<OrganizerAutoSchedulePage> {
   bool _avoidConflict = true;
   bool _respectDeps = true;
+  bool _savingDynamicReschedule = false;
   bool _loading = false;
   Map<String, dynamic>? _preview;
   String _scheduleFrom = kDefaultMatchOpsDayStart;
@@ -224,6 +225,23 @@ class _OrganizerAutoSchedulePageState
       if (mounted && generation == _runGeneration) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _toggleDynamicReschedule(bool value) async {
+    setState(() => _savingDynamicReschedule = true);
+    try {
+      final service = ref.read(organizerMatchScheduleServiceProvider);
+      await service.updateMatchOpsSettings(
+        tournamentId: widget.tournamentId,
+        dynamicRescheduleEnabled: value,
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyScheduleError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _savingDynamicReschedule = false);
     }
   }
 
@@ -416,6 +434,19 @@ class _OrganizerAutoSchedulePageState
                           setState(() => _respectDeps = v);
                           _run(preview: true);
                         },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Reagendamento dinâmico'),
+                  subtitle: const Text(
+                    'Recalcula automaticamente o horário das próximas '
+                    'partidas da quadra quando uma termina antes/depois ou '
+                    'vira W.O.',
+                  ),
+                  value: config.dynamicRescheduleEnabled,
+                  onChanged: _savingDynamicReschedule
+                      ? null
+                      : _toggleDynamicReschedule,
                 ),
                 if (scheduleFromSlots.isNotEmpty)
                   Padding(

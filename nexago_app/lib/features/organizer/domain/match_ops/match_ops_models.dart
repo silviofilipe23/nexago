@@ -130,6 +130,7 @@ class TournamentMatchOpsConfig {
     this.avoidAthleteConflict = true,
     this.respectBracketDeps = true,
     this.seedOnPrimeCourt = false,
+    this.dynamicRescheduleEnabled = false,
   });
 
   final String activeDayKey;
@@ -141,6 +142,7 @@ class TournamentMatchOpsConfig {
   final bool avoidAthleteConflict;
   final bool respectBracketDeps;
   final bool seedOnPrimeCourt;
+  final bool dynamicRescheduleEnabled;
 
   factory TournamentMatchOpsConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null || map.isEmpty) return const TournamentMatchOpsConfig();
@@ -162,6 +164,7 @@ class TournamentMatchOpsConfig {
           rules is Map ? rules['respectBracketDeps'] != false : true,
       seedOnPrimeCourt:
           rules is Map ? rules['seedOnPrimeCourt'] == true : false,
+      dynamicRescheduleEnabled: map['dynamicRescheduleEnabled'] == true,
     );
   }
 
@@ -177,6 +180,7 @@ class TournamentMatchOpsConfig {
           'respectBracketDeps': respectBracketDeps,
           'seedOnPrimeCourt': seedOnPrimeCourt,
         },
+        'dynamicRescheduleEnabled': dynamicRescheduleEnabled,
       };
 }
 

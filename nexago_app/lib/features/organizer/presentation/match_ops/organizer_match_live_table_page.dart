@@ -78,7 +78,8 @@ class _OrganizerMatchLiveTablePageState
   /// Bipe curto nos 3s finais, bipe mais longo (som de alerta) ao chegar a
   /// 0 — só sons de sistema, sem asset/pacote de áudio novo no app.
   void _maybeTickTechnicalTimeout() {
-    if (_timeoutSide == null || _timeoutPhase != LiveTableTimeoutPhase.running) {
+    if (_timeoutSide == null ||
+        _timeoutPhase != LiveTableTimeoutPhase.running) {
       return;
     }
     final next = _timeoutRemainingSeconds - 1;
@@ -124,8 +125,7 @@ class _OrganizerMatchLiveTablePageState
     setState(() => _timeoutPickerOpen = true);
   }
 
-  void _cancelTimeoutTeamPicker() =>
-      setState(() => _timeoutPickerOpen = false);
+  void _cancelTimeoutTeamPicker() => setState(() => _timeoutPickerOpen = false);
 
   /// Conta o tempo como usado na hora da escolha (mesma regra de vôlei —
   /// chamado é chamado, mesmo que o mesário encerre a contagem antes do
@@ -235,14 +235,14 @@ class _OrganizerMatchLiveTablePageState
                       );
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.fullscreen_rounded),
-                    title: const Text('Modo exibição'),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _enterPresentMode();
-                    },
-                  ),
+                  // ListTile(
+                  //   leading: const Icon(Icons.fullscreen_rounded),
+                  //   title: const Text('Modo exibição'),
+                  //   onTap: () {
+                  //     Navigator.pop(sheetContext);
+                  //     _enterPresentMode();
+                  //   },
+                  // ),
                   ListTile(
                     leading: const Icon(Icons.close_rounded),
                     title: const Text('Sair do modo full'),
@@ -338,8 +338,9 @@ class _OrganizerMatchLiveTablePageState
                       side: BorderSide(
                         color: option == match.bestOf
                             ? AppColors.brand
-                            : context.themeColors.onSurfaceMuted
-                                .withValues(alpha: 0.3),
+                            : context.themeColors.onSurfaceMuted.withValues(
+                                alpha: 0.3,
+                              ),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -471,12 +472,13 @@ class _OrganizerMatchLiveTablePageState
     required LiveTableTeamData teamA,
     required LiveTableTeamData teamB,
   }) async {
-    final events = (ref
-                .read(organizerMatchPointEventsProvider(widget.matchId))
-                .valueOrNull ??
-            const [])
-        .whereType<TournamentMatchPointEvent>()
-        .toList();
+    final events =
+        (ref
+                    .read(organizerMatchPointEventsProvider(widget.matchId))
+                    .valueOrNull ??
+                const [])
+            .whereType<TournamentMatchPointEvent>()
+            .toList();
     final hasPartialScore =
         match.sets.any((s) => s.a > 0 || s.b > 0) || events.isNotEmpty;
 
@@ -520,7 +522,9 @@ class _OrganizerMatchLiveTablePageState
   ) async {
     setState(() => _saving = true);
     try {
-      await ref.read(organizerMatchScheduleServiceProvider).submitMatchResult(
+      await ref
+          .read(organizerMatchScheduleServiceProvider)
+          .submitMatchResult(
             matchId: widget.matchId,
             sets: sets.map((s) => {'a': s.a, 'b': s.b}).toList(),
             bestOf: bestOf,
@@ -579,10 +583,12 @@ class _OrganizerMatchLiveTablePageState
 
     setState(() => _saving = true);
     try {
-      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
-        matchId: widget.matchId,
-        fields: {'servingTeamId': teamId},
-      );
+      await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .updateMatchFields(
+            matchId: widget.matchId,
+            fields: {'servingTeamId': teamId},
+          );
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -604,10 +610,12 @@ class _OrganizerMatchLiveTablePageState
 
     setState(() => _saving = true);
     try {
-      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
-        matchId: widget.matchId,
-        fields: {'servingTeamId': next},
-      );
+      await ref
+          .read(tournamentMatchesRepositoryProvider)
+          .updateMatchFields(
+            matchId: widget.matchId,
+            fields: {'servingTeamId': next},
+          );
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -666,16 +674,20 @@ class _OrganizerMatchLiveTablePageState
 
   @override
   Widget build(BuildContext context) {
-    final matchAsync = ref.watch(organizerMatchByIdProvider((
-      tournamentId: widget.tournamentId,
-      matchId: widget.matchId,
-    )));
-    final pointEventsAsync =
-        ref.watch(organizerMatchPointEventsProvider(widget.matchId));
+    final matchAsync = ref.watch(
+      organizerMatchByIdProvider((
+        tournamentId: widget.tournamentId,
+        matchId: widget.matchId,
+      )),
+    );
+    final pointEventsAsync = ref.watch(
+      organizerMatchPointEventsProvider(widget.matchId),
+    );
     final enrichedCard = ref
         .watch(organizerMatchCardsByIdProvider(widget.tournamentId))
         .valueOrNull?[widget.matchId];
-    final tournamentCategories = ref
+    final tournamentCategories =
+        ref
             .watch(organizerTournamentDetailProvider(widget.tournamentId))
             .valueOrNull
             ?.categories ??
@@ -751,10 +763,7 @@ class _OrganizerMatchLiveTablePageState
                       match,
                       sideA: !_sidesSwapped,
                     ),
-                    isServingB: liveTableIsServing(
-                      match,
-                      sideA: _sidesSwapped,
-                    ),
+                    isServingB: liveTableIsServing(match, sideA: _sidesSwapped),
                     setsWonA: _sidesSwapped ? setsWonB : setsWonA,
                     setsWonB: _sidesSwapped ? setsWonA : setsWonB,
                     enabled: actionsEnabled,
@@ -764,7 +773,8 @@ class _OrganizerMatchLiveTablePageState
                 }
 
                 if (_fullMode) {
-                  final fullModeEnabled = actionsEnabled &&
+                  final fullModeEnabled =
+                      actionsEnabled &&
                       _timeoutSide == null &&
                       !_timeoutPickerOpen;
                   final needsServe = MatchScoringLogic.needsStartingServe(
@@ -796,10 +806,7 @@ class _OrganizerMatchLiveTablePageState
                       match,
                       sideA: !_sidesSwapped,
                     ),
-                    isServingB: liveTableIsServing(
-                      match,
-                      sideA: _sidesSwapped,
-                    ),
+                    isServingB: liveTableIsServing(match, sideA: _sidesSwapped),
                     timeoutsA: _timeouts[_sidesSwapped ? 'B' : 'A'] ?? 0,
                     timeoutsB: _timeouts[_sidesSwapped ? 'A' : 'B'] ?? 0,
                     enabled: fullModeEnabled,
@@ -816,8 +823,9 @@ class _OrganizerMatchLiveTablePageState
                     activeTimeout: _timeoutSide == null
                         ? null
                         : LiveTableActiveTimeout(
-                            teamLabel:
-                                _timeoutSide == 'A' ? teamA.label : teamB.label,
+                            teamLabel: _timeoutSide == 'A'
+                                ? teamA.label
+                                : teamB.label,
                             timeoutNumber: _timeoutNumber,
                             remainingSeconds: _timeoutRemainingSeconds,
                             totalSeconds: _timeoutDurationSeconds,
@@ -852,10 +860,7 @@ class _OrganizerMatchLiveTablePageState
                         fullModeActive: _fullMode,
                         onToggleFullMode: _toggleFullMode,
                       ),
-                      LiveTableSetStrip(
-                        sets: sets,
-                        currentSetIndex: setIdx,
-                      ),
+                      LiveTableSetStrip(sets: sets, currentSetIndex: setIdx),
                       if (MatchScoringLogic.needsStartingServe(
                         servingTeamId: match.servingTeamId,
                         status: match.status,

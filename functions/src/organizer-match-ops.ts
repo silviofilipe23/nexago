@@ -44,6 +44,7 @@ import {
   allocateCourtSlots,
   loadTournamentMatches,
 } from "./match-schedule-allocation";
+import {handleDynamicRescheduleOnMatchUpdate} from "./match-dynamic-reschedule";
 
 export {compareByMatchNumber} from "./match-schedule-allocation";
 
@@ -1280,11 +1281,17 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
       | Record<string, unknown>
       | undefined;
 
-    if (!shouldPropagateMatchAdvance(before, after) || !after) return;
-
     const db = getFirestore();
     const projectId = event.params.appId;
     const matchId = event.params.matchId;
+
+    try {
+      await handleDynamicRescheduleOnMatchUpdate(db, projectId, matchId, before, after);
+    } catch (e) {
+      logger.error("onTournamentMatchCompletedAdvance: reagendamento dinâmico falhou", {matchId, e});
+    }
+
+    if (!shouldPropagateMatchAdvance(before, after) || !after) return;
 
     try {
       await advanceBracketWinnerInternal(db, projectId, after);

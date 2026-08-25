@@ -324,8 +324,6 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
     this.seedA,
     this.seedB,
     this.enabled = true,
-    this.timeoutsA,
-    this.timeoutsB,
   });
 
   final LiveTableTeamData teamA;
@@ -341,8 +339,6 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
   final int? seedA;
   final int? seedB;
   final bool enabled;
-  final int? timeoutsA;
-  final int? timeoutsB;
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +355,6 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
               enabled: enabled,
               onAddPoint: onAddPointA,
               onSubtract: onSubtractA,
-              timeoutCount: timeoutsA,
             ),
           ),
           const SizedBox(width: 10),
@@ -372,7 +367,6 @@ class LiveTableTeamScoreBoard extends StatelessWidget {
               enabled: enabled,
               onAddPoint: onAddPointB,
               onSubtract: onSubtractB,
-              timeoutCount: timeoutsB,
             ),
           ),
         ],
@@ -391,7 +385,6 @@ class LiveTableTeamScoreCard extends StatelessWidget {
     this.onAddPoint,
     this.onSubtract,
     this.enabled = true,
-    this.timeoutCount,
   });
 
   final LiveTableTeamData team;
@@ -401,10 +394,6 @@ class LiveTableTeamScoreCard extends StatelessWidget {
   final VoidCallback? onAddPoint;
   final VoidCallback? onSubtract;
   final bool enabled;
-
-  /// Tempos técnicos já usados por essa dupla no set atual (0–2). `null`
-  /// esconde os pontinhos — só aparecem com o modo full ligado.
-  final int? timeoutCount;
 
   @override
   Widget build(BuildContext context) {
@@ -494,29 +483,6 @@ class LiveTableTeamScoreCard extends StatelessWidget {
               height: 1,
             ),
           ),
-          if (timeoutCount != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < 2; i++) ...[
-                  if (i > 0) const SizedBox(width: 4),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i < timeoutCount!
-                          ? AppColors.brand
-                          : context.themeColors.onSurfaceMuted.withValues(
-                              alpha: 0.25,
-                            ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -780,68 +746,299 @@ class LiveTableActionBar extends StatelessWidget {
   }
 }
 
-/// Ferramentas extras do modo full — pro mesário que também é o próprio
-/// árbitro, sem mais ninguém na mesa: trocar o lado de exibição, marcar tempo
-/// técnico e entrar no modo exibição (tela virada pros atletas).
-class LiveTableFullModeBar extends StatelessWidget {
-  const LiveTableFullModeBar({
+/// Mesa dedicada do modo full — pro mesário que também é o próprio árbitro,
+/// sem mais ninguém ajudando: dois painéis gigantes, o toque em qualquer
+/// lugar de um deles marca ponto (ou escolhe quem saca, antes do 1º ponto).
+/// Sem cabeçalho nem coluna central — só os painéis e a barra de baixo; o
+/// resto das ações antigas (formato, placar completo, histórico, modo
+/// exibição, sair do modo full) mora atrás do botão "⋮".
+class LiveTableFullModeMesa extends StatelessWidget {
+  const LiveTableFullModeMesa({
     super.key,
+    required this.teamA,
+    required this.teamB,
+    required this.scoreA,
+    required this.scoreB,
+    required this.isServingA,
+    required this.isServingB,
+    required this.timeoutsA,
+    required this.timeoutsB,
     required this.enabled,
-    required this.sidesSwapped,
+    required this.onTapA,
+    required this.onTapB,
+    required this.onRemoveTimeoutA,
+    required this.onRemoveTimeoutB,
+    required this.onSwapServe,
     required this.onSwapSides,
     required this.onAddTimeout,
-    required this.onEnterPresent,
+    required this.onUndo,
+    required this.onMore,
   });
 
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final int scoreA;
+  final int scoreB;
+  final bool isServingA;
+  final bool isServingB;
+  final int timeoutsA;
+  final int timeoutsB;
   final bool enabled;
-  final bool sidesSwapped;
+  final VoidCallback onTapA;
+  final VoidCallback onTapB;
+  final VoidCallback onRemoveTimeoutA;
+  final VoidCallback onRemoveTimeoutB;
+  final VoidCallback onSwapServe;
   final VoidCallback onSwapSides;
   final VoidCallback onAddTimeout;
-  final VoidCallback onEnterPresent;
+  final VoidCallback onUndo;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
-    final mutedBorder = context.themeColors.onSurfaceMuted.withValues(
-      alpha: 0.14,
+    return ColoredBox(
+      color: context.themeColors.canvas,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _FullModeTeamPanel(
+                          team: teamA,
+                          score: scoreA,
+                          isServing: isServingA,
+                          timeouts: timeoutsA,
+                          enabled: enabled,
+                          onTap: onTapA,
+                          onRemoveTimeout: onRemoveTimeoutA,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        color: context.themeColors.onSurfaceMuted.withValues(
+                          alpha: 0.14,
+                        ),
+                      ),
+                      Expanded(
+                        child: _FullModeTeamPanel(
+                          team: teamB,
+                          score: scoreB,
+                          isServing: isServingB,
+                          timeouts: timeoutsB,
+                          enabled: enabled,
+                          onTap: onTapB,
+                          onRemoveTimeout: onRemoveTimeoutB,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _ActionBarButton(
+                          label: 'Trocar saque',
+                          icon: Icons.circle,
+                          iconColor: AppColors.brand,
+                          enabled: enabled,
+                          onPressed: onSwapServe,
+                          borderColor: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.14),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ActionBarButton(
+                          label: 'Trocar quadra',
+                          icon: Icons.swap_horiz_rounded,
+                          enabled: enabled,
+                          onPressed: onSwapSides,
+                          borderColor: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.14),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ActionBarButton(
+                          label: 'Tempo técnico',
+                          icon: Icons.timer_outlined,
+                          enabled: enabled,
+                          onPressed: onAddTimeout,
+                          borderColor: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.14),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ActionBarButton(
+                          label: 'Desfazer',
+                          icon: Icons.undo_rounded,
+                          enabled: enabled,
+                          onPressed: onUndo,
+                          borderColor: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: _LiveTableIconButton(
+                icon: Icons.more_vert_rounded,
+                tooltip: 'Mais opções',
+                onPressed: onMore,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
+  }
+}
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ActionBarButton(
-              label: sidesSwapped ? 'Quadra (invertida)' : 'Quadra',
-              icon: Icons.swap_horiz_rounded,
-              enabled: enabled,
-              onPressed: onSwapSides,
-              borderColor: mutedBorder,
-            ),
+class _FullModeTeamPanel extends StatelessWidget {
+  const _FullModeTeamPanel({
+    required this.team,
+    required this.score,
+    required this.isServing,
+    required this.timeouts,
+    required this.enabled,
+    required this.onTap,
+    required this.onRemoveTimeout,
+  });
+
+  final LiveTableTeamData team;
+  final int score;
+  final bool isServing;
+  final int timeouts;
+  final bool enabled;
+  final VoidCallback onTap;
+  final VoidCallback onRemoveTimeout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isServing
+          ? AppColors.brand.withValues(alpha: 0.06)
+          : Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    team.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.soraRegular(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                    ),
+                  ),
+                  if (isServing) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'SAQUE',
+                        style: AppTypography.mono(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.black,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Expanded(
+                child: FittedBox(
+                  child: Text(
+                    '$score',
+                    style: AppTypography.mono(
+                      fontSize: 160,
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'TEMPO',
+                    style: AppTypography.mono(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurfaceMuted,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  for (var i = 0; i < 2; i++) ...[
+                    if (i > 0) const SizedBox(width: 4),
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: i < timeouts
+                            ? AppColors.brand
+                            : context.themeColors.onSurfaceMuted.withValues(
+                                alpha: 0.25,
+                              ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  _LiveTableIconButton(
+                    icon: Icons.remove_rounded,
+                    onPressed: enabled ? onRemoveTimeout : () {},
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'TOQUE PARA MARCAR PONTO',
+                style: AppTypography.mono(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.6,
+                  ),
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _ActionBarButton(
-              label: 'Tempo',
-              icon: Icons.timer_outlined,
-              enabled: enabled,
-              onPressed: onAddTimeout,
-              borderColor: mutedBorder,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            // Sempre disponível, mesmo com a partida encerrada ou salvando:
-            // é só visualização, não mexe em placar.
-            child: _ActionBarButton(
-              label: 'Modo exibição',
-              icon: Icons.fullscreen_rounded,
-              iconColor: AppColors.brand,
-              enabled: true,
-              onPressed: onEnterPresent,
-              borderColor: AppColors.brand.withValues(alpha: 0.28),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

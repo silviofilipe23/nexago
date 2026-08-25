@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/organizer/data/match_point_write.dart';
 import 'package:nexago_app/features/organizer/data/organizer_match_schedule_service.dart';
@@ -18,40 +19,32 @@ import 'package:nexago_app/features/tournaments/data/tournament_matches_reposito
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_point_event.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_set.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:wakelock_plus_platform_interface/wakelock_plus_platform_interface.dart';
 
-/// Cobertura do "modo full" da mesa ao vivo do organizador (mesário que
-/// também é o próprio árbitro, sem mais ninguém ajudando): Quadra (inverter
-/// lados), Tempo (contador de tempo técnico) e Modo exibição (tela cheia
-/// virada pros atletas). Nenhuma das três ferramentas grava no Firestore —
-/// são só estado local de tela (`_fullMode`/`_sidesSwapped`/`_timeouts`/
-/// `_presentMode` em `organizer_match_live_table_page.dart`).
+/// Cobertura da mesa DEDICADA do "modo full" (`LiveTableFullModeMesa`), que
+/// substitui a TELA INTEIRA quando o mesário liga o toggle no cabeçalho da
+/// mesa normal — não é mais uma barra extra dentro da mesa pequena (esse
+/// desenho foi removido). A mesa pequena, quando o modo full está desligado,
+/// volta a ser exatamente a de antes (sem Quadra/Tempo/nada extra).
 ///
-/// Duas armadilhas de infraestrutura de teste, verificadas empiricamente
-/// antes de escrever os casos abaixo (ver relatório):
+/// Duas armadilhas de infraestrutura de teste já confirmadas empiricamente
+/// pelo agente anterior (preservadas aqui porque a tela ainda tem os mesmos
+/// dois pontos de contato — `_presentMode` e o `Timer.periodic` do relógio):
 ///
-/// 1. `SystemChrome.setEnabledSystemUIMode` NÃO é no-op por padrão no
-///    `flutter test` puro — sem mockar `SystemChannels.platform`, o
-///    `invokeMethod` trava para sempre (confirmado: um teste sem o mock
-///    estourou o timeout de 10 minutos). É preciso registrar um
-///    `setMockMethodCallHandler` em `setUp`.
-/// 2. `wakelock_plus` (pacote novo, sem fake oficial exportado) expõe
-///    `wakelockPlusPlatformInstance` — uma variável top-level
-///    `@visibleForTesting` em `package:wakelock_plus/wakelock_plus.dart` —
-///    exatamente para isto: basta atribuir um fake que `extends
-///    WakelockPlusPlatformInterface` (pacote `wakelock_plus_platform_interface`,
-///    adicionado como dev_dependency só para este teste).
+/// 1. `SystemChrome.setEnabledSystemUIMode` trava para sempre em
+///    `flutter test` puro sem mockar `SystemChannels.platform` — necessário
+///    registrar `setMockMethodCallHandler` em `setUp`.
+/// 2. `wakelock_plus` não expõe fake oficial: usamos a variável top-level
+///    `@visibleForTesting` `wakelockPlusPlatformInstance` com um fake que
+///    estende `WakelockPlusPlatformInterface`.
 ///
-/// A tela também tem um `Timer.periodic` (relógio decorrido) que nunca some
-/// sozinho: por isso os testes aqui usam sempre `tester.pump()` explícito,
-/// nunca `pumpAndSettle()` (que ficaria martelando pump() por até 10 minutos
-/// esperando o timer parar de agendar frames, e estouraria por timeout). O
-/// framework troca a árvore por um `Container` ao final de cada teste e faz
-/// um `pump()` — isso já dispara `dispose()` (que cancela o timer) antes da
-/// checagem de "timer pendente", então não precisa de limpeza manual.
+/// A tela tem um `Timer.periodic` (relógio decorrido) que nunca some
+/// sozinho — por isso todos os testes usam `tester.pump()` explícito, nunca
+/// `pumpAndSettle()`.
 void main() {
   const tournamentId = 't1';
   const matchId = 'm1';
@@ -85,7 +78,7 @@ void main() {
   TournamentMatch buildMatch({
     String servingTeamId = teamAId,
     int currentSetIndex = 0,
-    List<TournamentMatchSet> sets = const [TournamentMatchSet(a: 5, b: 3)],
+    List<TournamentMatchSet> sets = const [TournamentMatchSet(a: 0, b: 0)],
     String status = TournamentMatchStatus.inProgress,
     int bestOf = 3,
   }) {
@@ -116,12 +109,12 @@ void main() {
   Future<GoRouter> pumpLiveTable(
     WidgetTester tester, {
     required TournamentMatch initialMatch,
+    List<TournamentMatchPointEvent> pointEvents = const [],
     // Achado à parte (não é sobre o modo full em si): o layout NORMAL desta
-    // tela (fora do modo exibição) já estoura `RenderFlex overflow` na
-    // superfície padrão do `flutter test` (800×600) assim que a barra do
-    // modo full aparece — sobra só ~30px de altura. Usar uma altura generosa
-    // aqui evita que esse overflow (achado real, reportado à parte) mascare
-    // os testes de estado que não são sobre pixel-perfect layout.
+    // tela já estoura `RenderFlex overflow` na superfície padrão do
+    // `flutter test` (800×600) — usar uma altura generosa evita que esse
+    // overflow (achado real, já reportado antes) mascare os testes de
+    // estado que não são sobre pixel-perfect layout.
     Size surfaceSize = const Size(800, 1200),
   }) async {
     tester.view.physicalSize = surfaceSize;
@@ -131,9 +124,9 @@ void main() {
     fakeRepo = _FakeMatchesRepository(initialMatch);
     // Single-subscription (não `.broadcast()`) DE PROPÓSITO: eventos
     // adicionados antes de qualquer `listen()` ficam enfileirados e são
-    // entregues assim que o provider assina o stream (o que só acontece
-    // depois do `router.push` montar a página) — um `.broadcast()` teria
-    // DESCARTADO o valor inicial por falta de assinante na hora do `add`.
+    // entregues assim que o provider assina o stream — um `.broadcast()`
+    // teria DESCARTADO o valor inicial por falta de assinante na hora do
+    // `add`.
     matchController = StreamController<TournamentMatch?>();
     addTearDown(matchController.close);
 
@@ -177,8 +170,9 @@ void main() {
             tournamentId: tournamentId,
             matchId: matchId,
           )).overrideWith((ref) => matchController.stream),
-          organizerMatchPointEventsProvider(matchId)
-              .overrideWith((ref) => Stream.value(const <dynamic>[])),
+          organizerMatchPointEventsProvider(matchId).overrideWith(
+            (ref) => Stream<List<dynamic>>.value(pointEvents),
+          ),
           organizerMatchCardsByIdProvider(tournamentId).overrideWith(
             (ref) => Stream.value(<String, TournamentMatchCardViewModel>{}),
           ),
@@ -199,29 +193,19 @@ void main() {
     await tester.pump();
     // A transição de push (slide-in do Material) ainda está em andamento
     // depois de um `pump()` só — sem isso, o cabeçalho fica temporariamente
-    // fora da faixa 0..width (ex.: x=964 numa tela de 800px) e qualquer
-    // `tester.tap()` no ícone falha o hit-test. Não dá pra usar
-    // `pumpAndSettle()` aqui (o relógio decorrido da tela é um
-    // `Timer.periodic` que nunca some sozinho), então avançamos o relógio
-    // fake por uma duração fixa suficiente pra a animação da rota terminar.
+    // fora da faixa 0..width e qualquer `tester.tap()` no ícone falha o
+    // hit-test. `pumpAndSettle()` não serve aqui (o relógio decorrido é um
+    // `Timer.periodic` que nunca some sozinho).
     await tester.pump(const Duration(milliseconds: 400));
 
     return router;
   }
 
-  List<LiveTableTeamScoreCard> scoreCards(WidgetTester tester) {
-    return tester
-        .widgetList<LiveTableTeamScoreCard>(find.byType(LiveTableTeamScoreCard))
-        .toList();
-  }
-
   Future<void> toggleFullMode(WidgetTester tester) async {
     // Não usar `find.byIcon(Icons.tune_rounded)` puro: o mesmo ícone também
     // aparece no chip "Formato: Melhor de 3" (`_FormatChip`), sem relação
-    // com o modo full. E `find.byTooltip` bate na caixa do `Tooltip`/
-    // `RawTooltip`, cuja geometria não necessariamente coincide com o botão
-    // visível (gera "would not hit test"). Escopar por `LiveTableHeader` —
-    // só existe UM tune_rounded ali dentro — resolve os dois problemas.
+    // com o modo full. Escopar por `LiveTableHeader` — só existe UM
+    // tune_rounded ali dentro — resolve o problema.
     await tester.tap(
       find.descendant(
         of: find.byType(LiveTableHeader),
@@ -231,85 +215,299 @@ void main() {
     await tester.pump();
   }
 
+  // `_FullModeTeamPanel` é privado (outra library) — localizamos pelo nome
+  // via `runtimeType.toString()`, o mesmo truque já usado em outros testes
+  // do repositório para widgets privados.
+  Finder fullModePanel() => find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_FullModeTeamPanel',
+      );
+
+  // Só é seguro chamar isto DEPOIS de entrar no modo full: a mesa pequena
+  // também mostra o mesmo texto do label da dupla (`LiveTableTeamScoreCard`),
+  // então antes do toggle o `find.text(label)` bateria no widget errado.
+  Finder panelWithLabel(String label) => find.ancestor(
+        of: find.text(label),
+        matching: fullModePanel(),
+      );
+
+  // Os dois pontinhos de tempo técnico são `Container`s 7×7 sem outro jeito
+  // público de inspecionar `timeouts` (widget privado) — filtramos pelas
+  // constraints exatas que só eles têm no painel (o badge "SAQUE" não tem
+  // width/height fixos) e contamos quantos estão pintados com AppColors.brand.
+  int filledTimeoutDots(WidgetTester tester, Finder panel) {
+    final dots = tester
+        .widgetList<Container>(
+          find.descendant(of: panel, matching: find.byType(Container)),
+        )
+        .where((c) {
+      final constraints = c.constraints;
+      return constraints != null &&
+          constraints.maxWidth == 7 &&
+          constraints.maxHeight == 7;
+    }).toList();
+    expect(
+      dots,
+      hasLength(2),
+      reason: 'cada painel do modo full deveria ter exatamente 2 pontinhos '
+          'de tempo técnico',
+    );
+    return dots
+        .where((c) => (c.decoration as BoxDecoration?)?.color == AppColors.brand)
+        .length;
+  }
+
   group('modo full desligado por padrão', () {
     testWidgets(
-      'sem barra de ferramentas e sem pontinhos de tempo técnico',
+      'mostra a mesa pequena de sempre, sem a mesa dedicada do modo full',
       (tester) async {
         await pumpLiveTable(tester, initialMatch: buildMatch());
 
-        expect(find.byType(LiveTableFullModeBar), findsNothing);
-
-        final cards = scoreCards(tester);
-        expect(cards, hasLength(2));
-        expect(cards[0].timeoutCount, isNull);
-        expect(cards[1].timeoutCount, isNull);
+        expect(find.byType(LiveTableFullModeMesa), findsNothing);
+        expect(find.byType(LiveTableHeader), findsOneWidget);
+        expect(find.byType(LiveTableSetStrip), findsOneWidget);
+        expect(find.byType(LiveTableTeamScoreBoard), findsOneWidget);
+        expect(find.byType(LiveTableActionBar), findsOneWidget);
       },
     );
   });
 
   group('alternar modo full', () {
     testWidgets(
-      'tocar no ícone do cabeçalho revela a barra; tocar de novo esconde',
+      'ligar troca a TELA INTEIRA pra mesa dedicada; a mesa pequena some '
+      'por completo (não é mais uma barra extra)',
       (tester) async {
         await pumpLiveTable(tester, initialMatch: buildMatch());
 
-        expect(find.byType(LiveTableFullModeBar), findsNothing);
-
         await toggleFullMode(tester);
-        expect(find.byType(LiveTableFullModeBar), findsOneWidget);
 
-        await toggleFullMode(tester);
-        expect(find.byType(LiveTableFullModeBar), findsNothing);
+        expect(find.byType(LiveTableFullModeMesa), findsOneWidget);
+        expect(find.byType(LiveTableHeader), findsNothing);
+        expect(find.byType(LiveTableSetStrip), findsNothing);
+        expect(find.byType(LiveTableTeamScoreBoard), findsNothing);
+        expect(find.byType(LiveTableActionBar), findsNothing);
       },
     );
   });
 
-  group('Quadra (inverter lados)', () {
+  group('marcar ponto tocando em qualquer lugar do painel', () {
+    testWidgets('painel da dupla A credita ponto pro lado A de verdade', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch());
+      await toggleFullMode(tester);
+
+      await tester.tap(panelWithLabel(teamALabel));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeRepo.pointWrites, hasLength(1));
+      expect(fakeRepo.pointWrites.single.pointEvent['side'], 'A');
+    });
+
+    testWidgets('painel da dupla B credita ponto pro lado B de verdade', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch());
+      await toggleFullMode(tester);
+
+      await tester.tap(panelWithLabel(teamBLabel));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeRepo.pointWrites, hasLength(1));
+      expect(fakeRepo.pointWrites.single.pointEvent['side'], 'B');
+    });
+  });
+
+  group('Trocar quadra', () {
     testWidgets(
-      'troca a ordem visual e credita o ponto no lado REAL certo',
+      'troca a ordem visual e o painel que aparece à ESQUERDA credita o '
+      'lado REAL certo',
+      (tester) async {
+        await pumpLiveTable(tester, initialMatch: buildMatch());
+        await toggleFullMode(tester);
+
+        // Antes de inverter: A está à esquerda de B.
+        final beforeA = tester.getCenter(find.text(teamALabel)).dx;
+        final beforeB = tester.getCenter(find.text(teamBLabel)).dx;
+        expect(beforeA, lessThan(beforeB));
+
+        await tester.tap(find.text('Trocar quadra'));
+        await tester.pump();
+
+        // Depois de inverter: B passa a aparecer à esquerda.
+        final afterA = tester.getCenter(find.text(teamALabel)).dx;
+        final afterB = tester.getCenter(find.text(teamBLabel)).dx;
+        expect(
+          afterB,
+          lessThan(afterA),
+          reason:
+              'depois de "Trocar quadra" a dupla B deveria aparecer à esquerda',
+        );
+
+        // Tocar no painel da ESQUERDA (agora mostra a dupla B) tem que
+        // creditar o ponto pra B de verdade — não pra A só porque A
+        // "nasceu" no slot esquerdo.
+        await tester.tap(panelWithLabel(teamBLabel));
+        await tester.pump();
+        await tester.pump();
+
+        expect(fakeRepo.pointWrites, hasLength(1));
+        expect(
+          fakeRepo.pointWrites.single.pointEvent['side'],
+          'B',
+          reason: 'o painel da esquerda (visualmente B após o swap) tem que '
+              'creditar o time B real, não o A',
+        );
+      },
+    );
+  });
+
+  group('sem saque definido ainda', () {
+    testWidgets(
+      'tocar no painel ESCOLHE quem saca sem marcar ponto; só depois de '
+      'escolhido o toque marca ponto de verdade',
       (tester) async {
         await pumpLiveTable(
           tester,
-          initialMatch: buildMatch(
-            servingTeamId: teamAId,
-            sets: const [TournamentMatchSet(a: 5, b: 3)],
-          ),
+          initialMatch: buildMatch(servingTeamId: ''),
         );
         await toggleFullMode(tester);
 
-        // Antes de inverter: esquerda = A, direita = B.
-        var cards = scoreCards(tester);
-        expect(cards[0].team.label, teamALabel);
-        expect(cards[0].score, 5);
-        expect(cards[1].team.label, teamBLabel);
-        expect(cards[1].score, 3);
-
-        await tester.tap(find.text('Quadra'));
+        await tester.tap(panelWithLabel(teamALabel));
+        await tester.pump();
         await tester.pump();
 
-        // Depois de inverter: a barra avisa "invertida" e a ordem visual virou.
-        expect(find.text('Quadra (invertida)'), findsOneWidget);
-        cards = scoreCards(tester);
         expect(
-          cards[0].team.label,
-          teamBLabel,
-          reason: 'esquerda deveria mostrar a dupla B depois da troca',
+          fakeRepo.pointWrites,
+          isEmpty,
+          reason: 'antes de escolher quem saca, o toque não pode marcar ponto',
         );
-        expect(cards[0].score, 3);
+        expect(fakeRepo.updateFieldsCalls, hasLength(1));
         expect(
-          cards[1].team.label,
-          teamALabel,
-          reason: 'direita deveria mostrar a dupla A depois da troca',
+          fakeRepo.updateFieldsCalls.single.fields['servingTeamId'],
+          teamAId,
         );
-        expect(cards[1].score, 5);
 
-        // Tocar "+" na dupla que agora está à ESQUERDA (visualmente B) tem
-        // que creditar o ponto pra B de verdade — não pra A só porque A
-        // "nasceu" no slot esquerdo.
+        // Simula o Firestore devolvendo o saque já definido.
+        matchController.add(buildMatch(servingTeamId: teamAId));
+        await tester.pump();
+        await tester.pump();
+
+        await tester.tap(panelWithLabel(teamALabel));
+        await tester.pump();
+        await tester.pump();
+
+        expect(fakeRepo.pointWrites, hasLength(1));
+        expect(fakeRepo.pointWrites.single.pointEvent['side'], 'A');
+      },
+    );
+  });
+
+  group('Tempo técnico', () {
+    testWidgets(
+      'botão da barra incrementa o lado que está sacando, trava em 2, e o '
+      '"−" do painel decrementa só aquele lado, com piso 0',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        final panelA = panelWithLabel(teamALabel);
+        final panelB = panelWithLabel(teamBLabel);
+
+        expect(filledTimeoutDots(tester, panelA), 0);
+        expect(filledTimeoutDots(tester, panelB), 0);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelA), 1);
+        expect(filledTimeoutDots(tester, panelB), 0);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelA), 2);
+
+        // 3ª chamada: trava em 2, não passa.
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelA), 2);
+
+        // "−" no painel de B (nunca usou tempo técnico) fica no piso 0.
         await tester.tap(
           find.descendant(
-            of: find.byType(LiveTableTeamScoreCard).at(0),
-            matching: find.byIcon(Icons.add_rounded),
+            of: panelB,
+            matching: find.byIcon(Icons.remove_rounded),
+          ),
+        );
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelB), 0);
+
+        // "−" no painel de A desconta só o de A.
+        await tester.tap(
+          find.descendant(
+            of: panelA,
+            matching: find.byIcon(Icons.remove_rounded),
+          ),
+        );
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelA), 1);
+        expect(filledTimeoutDots(tester, panelB), 0);
+
+        // Tempo técnico é 100% estado local de tela — nada disso grava no
+        // Firestore.
+        expect(fakeRepo.pointWrites, isEmpty);
+        expect(fakeRepo.updateFieldsCalls, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'os pontinhos acompanham a Quadra: depois de inverter, aparecem no '
+      'painel da direita',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 1);
+        expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 0);
+
+        await tester.tap(find.text('Trocar quadra'));
+        await tester.pump();
+
+        expect(
+          filledTimeoutDots(tester, panelWithLabel(teamALabel)),
+          1,
+          reason: 'o tempo marcado tem que ter seguido a dupla, não a posição',
+        );
+        expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 0);
+      },
+    );
+
+    testWidgets(
+      'tocar no "−" dentro do painel NÃO marca ponto (o gesto aninhado não '
+      'vaza pro toque do painel maior)',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+
+        final panelA = panelWithLabel(teamALabel);
+        await tester.tap(
+          find.descendant(
+            of: panelA,
+            matching: find.byIcon(Icons.remove_rounded),
           ),
         );
         await tester.pump();
@@ -317,149 +515,73 @@ void main() {
 
         expect(
           fakeRepo.pointWrites,
-          hasLength(1),
-          reason: 'recordPointTransaction deveria ter sido chamado uma vez',
+          isEmpty,
+          reason: 'o toque no "−" vazou pro onTap do painel e marcou ponto',
         );
-        expect(
-          fakeRepo.pointWrites.single.pointEvent['side'],
-          'B',
-          reason: 'o "+" da esquerda (visualmente B após o swap) tem que '
-              'creditar o time B real, não o A',
-        );
+        expect(fakeRepo.updateFieldsCalls, isEmpty);
       },
     );
   });
 
-  group('Tempo (tempo técnico)', () {
+  group('barra de baixo: trocar saque / desfazer', () {
     testWidgets(
-      'incrementa o lado que está sacando, trava em 2, e reseta ao trocar de set',
+      '"Trocar saque" grava o outro time como sacador',
       (tester) async {
-        final match = buildMatch(
-          servingTeamId: teamAId,
-          sets: const [TournamentMatchSet(a: 0, b: 0)],
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
         );
-        await pumpLiveTable(tester, initialMatch: match);
         await toggleFullMode(tester);
 
-        expect(scoreCards(tester)[0].timeoutCount, 0);
-
-        await tester.tap(find.text('Tempo'));
+        await tester.tap(find.text('Trocar saque'));
         await tester.pump();
-        expect(scoreCards(tester)[0].timeoutCount, 1);
 
-        await tester.tap(find.text('Tempo'));
-        await tester.pump();
-        expect(scoreCards(tester)[0].timeoutCount, 2);
-
-        // 3ª chamada: trava em 2, não passa.
-        await tester.tap(find.text('Tempo'));
-        await tester.pump();
-        expect(scoreCards(tester)[0].timeoutCount, 2);
-
-        // Troca de set (novo valor emitido no stream do provider) zera.
-        matchController.add(
-          buildMatch(
-            servingTeamId: teamAId,
-            currentSetIndex: 1,
-            sets: const [
-              TournamentMatchSet(a: 21, b: 15),
-              TournamentMatchSet(a: 0, b: 0),
-            ],
-          ),
+        expect(fakeRepo.updateFieldsCalls, hasLength(1));
+        expect(
+          fakeRepo.updateFieldsCalls.single.fields['servingTeamId'],
+          teamBId,
         );
-        await tester.pump();
-        await tester.pump();
-
-        expect(scoreCards(tester)[0].timeoutCount, 0);
       },
     );
 
     testWidgets(
-      'os pontinhos acompanham a Quadra: depois de inverter, aparecem no '
-      'card da direita',
+      '"Desfazer" grava um evento undo-point do lado do último ponto',
       (tester) async {
-        // A mesma regra do ponto: `_addTimeout` credita o lado REAL que
-        // saca, mas quem decide em qual CARD (esquerda/direita) os
-        // pontinhos aparecem é a Quadra. Sem este teste, um bug que
-        // trocasse `timeoutsA`/`timeoutsB` sem respeitar `_sidesSwapped`
-        // passaria despercebido.
         await pumpLiveTable(
           tester,
           initialMatch: buildMatch(
             servingTeamId: teamAId,
-            sets: const [TournamentMatchSet(a: 0, b: 0)],
+            sets: const [TournamentMatchSet(a: 5, b: 3)],
           ),
+          pointEvents: [
+            TournamentMatchPointEvent(
+              seq: 1,
+              type: 'point',
+              setIndex: 0,
+              scoreA: 5,
+              scoreB: 3,
+              side: 'A',
+              ts: DateTime(2026, 6, 16, 10, 5),
+            ),
+          ],
         );
         await toggleFullMode(tester);
 
-        await tester.tap(find.text('Tempo'));
+        await tester.tap(find.text('Desfazer'));
         await tester.pump();
-        expect(scoreCards(tester)[0].timeoutCount, 1);
-        expect(scoreCards(tester)[1].timeoutCount, 0);
-
-        await tester.tap(find.text('Quadra'));
         await tester.pump();
 
-        expect(
-          scoreCards(tester)[0].timeoutCount,
-          0,
-          reason: 'esquerda agora mostra B (que nunca sacou/marcou tempo)',
-        );
-        expect(
-          scoreCards(tester)[1].timeoutCount,
-          1,
-          reason: 'direita agora mostra A — o tempo marcado tem que ter '
-              'seguido a dupla, não a posição',
-        );
+        expect(fakeRepo.pointWrites, hasLength(1));
+        expect(fakeRepo.pointWrites.single.pointEvent['type'], 'undo-point');
+        expect(fakeRepo.pointWrites.single.pointEvent['side'], 'A');
       },
     );
   });
 
-  group('Modo exibição', () {
+  group('partida completada desabilita a mesa, exceto o menu "⋮"', () {
     testWidgets(
-      'troca para LiveTablePresentView; sair volta ao layout normal; '
-      'liga/desliga wakelock e o modo de UI do sistema',
-      (tester) async {
-        await pumpLiveTable(tester, initialMatch: buildMatch());
-        await toggleFullMode(tester);
-
-        expect(find.byType(LiveTablePresentView), findsNothing);
-        expect(find.byType(LiveTableHeader), findsOneWidget);
-
-        await tester.tap(find.text('Modo exibição'));
-        await tester.pump();
-        await tester.pump();
-
-        expect(find.byType(LiveTablePresentView), findsOneWidget);
-        expect(find.byType(LiveTableHeader), findsNothing);
-        expect(
-          fakeWakelock.toggles.last,
-          isTrue,
-          reason: 'entrar no modo exibição deveria ligar o wakelock',
-        );
-        expect(
-          systemChromeCalls.last.arguments,
-          'SystemUiMode.immersiveSticky',
-        );
-
-        await tester.tap(find.byIcon(Icons.fullscreen_exit_rounded));
-        await tester.pump();
-        await tester.pump();
-
-        expect(find.byType(LiveTablePresentView), findsNothing);
-        expect(find.byType(LiveTableHeader), findsOneWidget);
-        expect(
-          fakeWakelock.toggles.last,
-          isFalse,
-          reason: 'sair do modo exibição deveria desligar o wakelock',
-        );
-        expect(systemChromeCalls.last.arguments, 'SystemUiMode.edgeToEdge');
-      },
-    );
-
-    testWidgets(
-      'continua tocável mesmo com a partida já completada (enabled: false '
-      'no resto da barra)',
+      'os 4 botões da barra e o toque nos painéis ficam desabilitados; '
+      'o "⋮" continua tocável',
       (tester) async {
         await pumpLiveTable(
           tester,
@@ -467,111 +589,163 @@ void main() {
         );
         await toggleFullMode(tester);
 
-        // Quadra some visual: tocar não faz nada (desabilitado).
-        await tester.tap(find.text('Quadra'));
+        await tester.tap(panelWithLabel(teamALabel));
         await tester.pump();
+        await tester.pump();
+        expect(fakeRepo.pointWrites, isEmpty);
+
+        await tester.tap(find.text('Trocar saque'));
+        await tester.pump();
+        expect(fakeRepo.updateFieldsCalls, isEmpty);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 0);
+
+        await tester.tap(find.text('Desfazer'));
+        await tester.pump();
+        await tester.pump();
+        expect(fakeRepo.pointWrites, isEmpty);
+
+        final beforeA = tester.getCenter(find.text(teamALabel)).dx;
+        await tester.tap(find.text('Trocar quadra'));
+        await tester.pump();
+        final afterA = tester.getCenter(find.text(teamALabel)).dx;
         expect(
-          find.text('Quadra (invertida)'),
-          findsNothing,
-          reason: 'partida completada deveria desabilitar Quadra',
+          afterA,
+          beforeA,
+          reason: '"Trocar quadra" desabilitado não deveria mudar nada',
         );
 
-        // Modo exibição continua funcionando.
-        await tester.tap(find.text('Modo exibição'));
+        // O "⋮" continua tocável mesmo com tudo o mais desabilitado.
+        await tester.tap(find.byIcon(Icons.more_vert_rounded));
         await tester.pump();
+        expect(find.text('Placar completo'), findsOneWidget);
+      },
+    );
+  });
+
+  group('menu "⋮" (mais opções)', () {
+    testWidgets(
+      'abre com os itens certos quando a partida NÃO está completada',
+      (tester) async {
+        await pumpLiveTable(tester, initialMatch: buildMatch());
+        await toggleFullMode(tester);
+
+        await tester.tap(find.byIcon(Icons.more_vert_rounded));
         await tester.pump();
 
-        expect(find.byType(LiveTablePresentView), findsOneWidget);
+        expect(find.text('Alterar formato'), findsOneWidget);
+        expect(find.text('Placar completo'), findsOneWidget);
+        expect(find.text('Histórico'), findsOneWidget);
+        expect(find.text('Modo exibição'), findsOneWidget);
+        expect(find.text('Sair do modo full'), findsOneWidget);
       },
     );
 
     testWidgets(
-      'em paisagem usa o layout lado a lado (times na mesma altura)',
+      '"Alterar formato" não aparece quando a partida está completada',
       (tester) async {
-        // Largura > altura (paisagem), com altura generosa o bastante pra
-        // não esbarrar no overflow do layout normal (ver nota em
-        // `pumpLiveTable` sobre `RenderFlex overflow` com a barra do modo
-        // full) — o que queremos testar aqui é a orientação dentro de
-        // `LiveTablePresentView`, não o encaixe da tela normal.
         await pumpLiveTable(
           tester,
-          initialMatch: buildMatch(),
-          surfaceSize: const Size(1200, 700),
+          initialMatch: buildMatch(status: TournamentMatchStatus.completed),
         );
         await toggleFullMode(tester);
-        await tester.tap(find.text('Modo exibição'));
-        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.more_vert_rounded));
         await tester.pump();
 
-        final dyA = tester.getCenter(find.text(teamALabel)).dy;
-        final dyB = tester.getCenter(find.text(teamBLabel)).dy;
-        expect(
-          (dyA - dyB).abs(),
-          lessThan(20),
-          reason: 'em paisagem as duas duplas ficam lado a lado (mesma '
-              'altura), não empilhadas',
-        );
+        expect(find.text('Alterar formato'), findsNothing);
+        expect(find.text('Placar completo'), findsOneWidget);
       },
     );
 
+    testWidgets('"Alterar formato" abre a folha de troca de sets', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch());
+      await toggleFullMode(tester);
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Alterar formato'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Quantidade de sets'), findsOneWidget);
+    });
+
+    testWidgets('"Placar completo" abre a folha de placar completo', (
+      tester,
+    ) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch());
+      await toggleFullMode(tester);
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Placar completo'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(LiveTableQuickScoreSheet), findsOneWidget);
+    });
+
+    testWidgets('"Histórico" navega pra tela de histórico', (tester) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch());
+      await toggleFullMode(tester);
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Histórico'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('summary stub'), findsOneWidget);
+    });
+
+    testWidgets('"Modo exibição" entra em present mode', (tester) async {
+      await pumpLiveTable(tester, initialMatch: buildMatch());
+      await toggleFullMode(tester);
+
+      await tester.tap(find.byIcon(Icons.more_vert_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Modo exibição'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(LiveTablePresentView), findsOneWidget);
+      expect(find.byType(LiveTableFullModeMesa), findsNothing);
+      expect(
+        fakeWakelock.toggles.last,
+        isTrue,
+        reason: 'entrar no modo exibição deveria ligar o wakelock',
+      );
+      expect(
+        systemChromeCalls.last.arguments,
+        'SystemUiMode.immersiveSticky',
+      );
+    });
+
     testWidgets(
-      'em retrato usa o layout empilhado (times em alturas bem diferentes)',
+      '"Sair do modo full" volta pra mesa pequena (a mesa dedicada some da '
+      'árvore)',
       (tester) async {
-        await pumpLiveTable(
-          tester,
-          initialMatch: buildMatch(),
-          surfaceSize: const Size(400, 900),
-        );
+        await pumpLiveTable(tester, initialMatch: buildMatch());
         await toggleFullMode(tester);
-        await tester.tap(find.text('Modo exibição'));
-        await tester.pump();
-        await tester.pump();
+        expect(find.byType(LiveTableFullModeMesa), findsOneWidget);
 
-        final dyA = tester.getCenter(find.text(teamALabel)).dy;
-        final dyB = tester.getCenter(find.text(teamBLabel)).dy;
-        expect(
-          (dyA - dyB).abs(),
-          greaterThan(100),
-          reason: 'em retrato as duplas ficam empilhadas (alturas bem '
-              'diferentes), não lado a lado',
-        );
-      },
-    );
-
-    testWidgets(
-      'dispose com _presentMode ainda ativo não lança exceção e restaura '
-      'UI/wakelock',
-      (tester) async {
-        final router = await pumpLiveTable(tester, initialMatch: buildMatch());
-        await toggleFullMode(tester);
-        await tester.tap(find.text('Modo exibição'));
+        await tester.tap(find.byIcon(Icons.more_vert_rounded));
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.text('Sair do modo full'));
         await tester.pump();
 
-        expect(find.byType(LiveTablePresentView), findsOneWidget);
-
-        // Sai da tela SEM tocar em "sair" — só navega pra trás, como um
-        // mesário que aperta o botão físico de voltar do Android.
-        router.pop();
-        await tester.pump();
-        // A transição reversa (slide-out) do Navigator só termina de
-        // verdade com o relógio avançado o bastante — sem isso a página
-        // antiga fica presa na árvore em transição, `dispose()` (que é quem
-        // restaura wakelock/UI) ainda não rodou, e as checagens abaixo veem
-        // o estado de ANTES de sair. 1s cobre com folga a duração padrão da
-        // transição do Material.
-        await tester.pump(const Duration(milliseconds: 1000));
-
-        expect(tester.takeException(), isNull);
-        expect(find.text('home stub'), findsOneWidget);
-        expect(
-          find.byType(OrganizerMatchLiveTablePage),
-          findsNothing,
-          reason: 'a página antiga precisa ter sido desmontada (dispose) '
-              'pra restaurar wakelock/UI',
-        );
-        expect(fakeWakelock.toggles.last, isFalse);
-        expect(systemChromeCalls.last.arguments, 'SystemUiMode.edgeToEdge');
+        expect(find.byType(LiveTableFullModeMesa), findsNothing);
+        expect(find.byType(LiveTableHeader), findsOneWidget);
       },
     );
   });
@@ -579,12 +753,10 @@ void main() {
 
 /// Fake do wakelock: `wakelock_plus` não expõe um fake oficial da platform
 /// interface, então estendemos a classe abstrata diretamente (o mesmo padrão
-/// que o próprio pacote usa no seu teste interno,
-/// `ExtendsWakelockPlusPlatform`). Atribuído à variável top-level
-/// `wakelockPlusPlatformInstance` (não ao setter de
+/// que o próprio pacote usa no seu teste interno). Atribuído à variável
+/// top-level `wakelockPlusPlatformInstance` (não ao setter de
 /// `WakelockPlusPlatformInterface.instance` — `WakelockPlus.enable/disable`
-/// lê a variável top-level, capturada uma única vez na carga da lib; setar
-/// só o `.instance` não teria efeito nas chamadas já em cache).
+/// lê a variável top-level, capturada uma única vez na carga da lib).
 class _FakeWakelockPlusPlatform extends WakelockPlusPlatformInterface {
   final List<bool> toggles = [];
   bool _enabled = false;
@@ -634,8 +806,8 @@ class _FakeMatchesRepository implements TournamentMatchesRepository {
 }
 
 /// Dublê do serviço de callables — nenhum dos cenários de modo full aciona
-/// "Placar completo"/W.O., então qualquer chamada aqui é sinal de teste
-/// tocando em algo que não deveria.
+/// "Placar completo"/W.O. de fato (só abrimos a folha), então qualquer
+/// chamada aqui é sinal de teste tocando em algo que não deveria.
 class _FakeScheduleService implements OrganizerMatchScheduleService {
   @override
   dynamic noSuchMethod(Invocation invocation) {

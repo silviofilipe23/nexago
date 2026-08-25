@@ -1185,6 +1185,11 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
         scheduleEndTime: Timestamp.fromDate(end),
         dayKey,
         queueStatus: "waiting",
+        // Marca a grade como escrita PELO agendador, não por um organizador
+        // mexendo numa partida: sem isso, cada uma das N escritas deste lote
+        // pareceria um reagendamento manual externo e dispararia sua própria
+        // cascata, embaralhando a grade recém-montada.
+        scheduleRecalcAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
       applied++;

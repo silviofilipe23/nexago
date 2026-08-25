@@ -8,6 +8,7 @@ import {
   recalculateCourtSchedule,
   notifyScheduleShifts,
   handleDynamicRescheduleOnMatchUpdate,
+  determineRecalcTrigger,
 } from "./match-dynamic-reschedule";
 import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
@@ -85,6 +86,7 @@ describe("recalculateCourtSchedule", () => {
         courtId: COURT_ID,
         anchor: new Date("2026-08-25T14:20:00-03:00"),
         triggerMatchId: "trigger-match",
+        matchNumber: 1,
       },
       {durationMin: 30, minRestMin: 30},
     );
@@ -116,6 +118,7 @@ describe("recalculateCourtSchedule", () => {
         courtId: COURT_ID,
         anchor: new Date("2026-08-25T14:20:00-03:00"),
         triggerMatchId: "trigger-match",
+        matchNumber: 1,
       },
       {durationMin: 30, minRestMin: 30},
     );
@@ -167,6 +170,7 @@ describe("recalculateCourtSchedule", () => {
         courtId: COURT_ID,
         anchor: new Date("2026-08-25T14:20:00-03:00"),
         triggerMatchId: "trigger-match",
+        matchNumber: 1,
       },
       {durationMin: 30, minRestMin: 30},
     );
@@ -187,8 +191,176 @@ describe("recalculateCourtSchedule", () => {
   });
 });
 
+/**
+ * Composição dos DOIS estágios (`determineRecalcTrigger` -> `recalculateCourtSchedule`).
+ * As suítes de unidade cobriam cada estágio isolado com um `trigger` escrito à
+ * mão, então nenhuma delas via o contrato REAL entre eles: a âncora do
+ * reagendamento manual e o recorte da fila por `matchNumber`. É aqui que o
+ * bug de "m1/m2 arrastadas + colisão de quadra" aparece.
+ */
+describe("cascata ponta a ponta: reagendamento manual", () => {
+  /** Intervalos [start, end) das partidas da quadra, lidos do store. */
+  async function courtIntervals(
+    fake: FakeFirestore,
+    ids: string[],
+  ): Promise<Array<{id: string; start: number; end: number}>> {
+    const out: Array<{id: string; start: number; end: number}> = [];
+    for (const id of ids) {
+      const d = (await fake.doc(`${MATCHES_PATH}/${id}`).get()).data();
+      if (!d?.scheduleTime) continue;
+      const start = (d.scheduleTime as Timestamp).toMillis();
+      const end = d.scheduleEndTime ?
+        (d.scheduleEndTime as Timestamp).toMillis() :
+        start + 30 * 60 * 1000;
+      out.push({id, start, end});
+    }
+    return out;
+  }
+
+  function seedQueue(fake: FakeFirestore): void {
+    seedMatch(fake, "m1", {
+      matchNumber: 1,
+      scheduleTime: ts("2026-08-25T14:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
+      teamAId: "team-a",
+      teamBId: "team-b",
+    });
+    seedMatch(fake, "m2", {
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T14:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:00:00-03:00"),
+      teamAId: "team-c",
+      teamBId: "team-d",
+    });
+    // m3 já gravada com o horário NOVO (é o que o trigger do Firestore vê).
+    seedMatch(fake, "m3", {
+      matchNumber: 3,
+      scheduleTime: ts("2026-08-25T18:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T18:30:00-03:00"),
+      teamAId: "team-e",
+      teamBId: "team-f",
+    });
+  }
+
+  const beforeM3 = {
+    tournamentId: TOURNAMENT_ID,
+    dayKey: DAY_KEY,
+    courtId: COURT_ID,
+    status: "Scheduled",
+    queueStatus: "waiting",
+    matchNumber: 3,
+    scheduleTime: ts("2026-08-25T15:00:00-03:00"),
+    scheduleEndTime: ts("2026-08-25T15:30:00-03:00"),
+  };
+  const afterM3 = {
+    ...beforeM3,
+    scheduleTime: ts("2026-08-25T18:00:00-03:00"),
+    scheduleEndTime: ts("2026-08-25T18:30:00-03:00"),
+  };
+
+  it("mover m3 pra bem mais tarde NÃO arrasta m1/m2 nem colide com m3", async () => {
+    const fake = new FakeFirestore();
+    seedQueue(fake);
+
+    const trigger = determineRecalcTrigger("m3", beforeM3, afterM3, 30);
+    assert.ok(trigger, "reagendamento manual deve produzir um trigger");
+
+    await recalculateCourtSchedule(db(fake), PROJECT_ID, trigger, {
+      durationMin: 30,
+      minRestMin: 30,
+    });
+
+    // (a) quem ninguém tocou fica exatamente onde estava
+    const m1 = (await fake.doc(`${MATCHES_PATH}/m1`).get()).data();
+    const m2 = (await fake.doc(`${MATCHES_PATH}/m2`).get()).data();
+    assert.equal(
+      (m1?.scheduleTime as Timestamp).toMillis(),
+      ts("2026-08-25T14:00:00-03:00").toMillis(),
+      "m1 não devia se mexer",
+    );
+    assert.equal(
+      (m2?.scheduleTime as Timestamp).toMillis(),
+      ts("2026-08-25T14:30:00-03:00").toMillis(),
+      "m2 não devia se mexer",
+    );
+
+    // (b) nenhuma partida da quadra sobrepõe o intervalo de m3
+    const intervals = await courtIntervals(fake, ["m1", "m2", "m3"]);
+    const m3Interval = intervals.find((i) => i.id === "m3");
+    assert.ok(m3Interval);
+    for (const other of intervals) {
+      if (other.id === "m3") continue;
+      const overlaps: boolean =other.start < m3Interval.end && m3Interval.start < other.end;
+      assert.equal(overlaps, false, `${other.id} colide com m3 na mesma quadra`);
+    }
+  });
+
+  it("a fila DEPOIS de m3 recomeça no FIM de m3, não no início dela", async () => {
+    const fake = new FakeFirestore();
+    seedQueue(fake);
+    seedMatch(fake, "m4", {
+      matchNumber: 4,
+      scheduleTime: ts("2026-08-25T15:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T16:00:00-03:00"),
+      teamAId: "team-g",
+      teamBId: "team-h",
+    });
+
+    const trigger = determineRecalcTrigger("m3", beforeM3, afterM3, 30);
+    assert.ok(trigger);
+
+    const shifts = await recalculateCourtSchedule(db(fake), PROJECT_ID, trigger, {
+      durationMin: 30,
+      minRestMin: 30,
+    });
+
+    assert.deepEqual(
+      shifts.map((s) => s.matchId),
+      ["m4"],
+      "só a fila POSTERIOR a m3 pode ser reagendada",
+    );
+    assert.equal(
+      shifts[0].newStart.toISOString(),
+      new Date("2026-08-25T18:30:00-03:00").toISOString(),
+      "âncora é o FIM de m3 (18:30), não o início (18:00)",
+    );
+
+    const intervals = await courtIntervals(fake, ["m1", "m2", "m3", "m4"]);
+    for (const a of intervals) {
+      for (const b of intervals) {
+        if (a.id >= b.id) continue;
+        const overlaps: boolean =a.start < b.end && b.start < a.end;
+        assert.equal(overlaps, false, `${a.id} colide com ${b.id}`);
+      }
+    }
+  });
+});
+
 describe("notifyScheduleShifts", () => {
   afterEach(mockDeliver);
+
+  it("notifica TODOS os integrantes de trio/quarteto (memberUids), não só 2", async () => {
+    mockDeliver();
+    const fake = new FakeFirestore();
+    fake.seedDoc(`${TEAMS_PATH}/team-trio`, {memberUids: ["p1", "p2", "p3"]});
+    fake.seedDoc(`${TEAMS_PATH}/team-quarteto`, {memberUids: ["q1", "q2", "q3", "q4"]});
+
+    await notifyScheduleShifts(db(fake), PROJECT_ID, TOURNAMENT_ID, [
+      {
+        matchId: "next-match",
+        teamAId: "team-trio",
+        teamBId: "team-quarteto",
+        oldStart: new Date("2026-08-25T14:30:00-03:00"),
+        newStart: new Date("2026-08-25T15:30:00-03:00"),
+        courtLabel: "Quadra 1",
+      },
+    ]);
+
+    assert.deepEqual(
+      sent.map((n) => n.userId).sort(),
+      ["p1", "p2", "p3", "q1", "q2", "q3", "q4"],
+    );
+  });
 
   it("notifica os dois times quando o desvio é >= 10min", async () => {
     mockDeliver();

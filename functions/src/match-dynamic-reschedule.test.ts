@@ -76,14 +76,65 @@ describe("determineRecalcTrigger", () => {
     assert.equal(determineRecalcTrigger(MATCH_ID, before, after, DEFAULT_DURATION), null);
   });
 
-  it("dispara no reagendamento manual (scheduleTime mudou numa partida ainda não iniciada)", () => {
+  it("dispara no reagendamento manual ancorado no FIM da partida movida", () => {
+    const before = baseMatch({
+      scheduleTime: ts("2026-08-25T14:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T14:30:00-03:00"),
+    });
+    const after = baseMatch({
+      scheduleTime: ts("2026-08-25T15:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:45:00-03:00"), // duração custom de 45min
+      matchNumber: 3,
+    });
+
+    const trigger = determineRecalcTrigger(MATCH_ID, before, after, DEFAULT_DURATION);
+
+    assert.ok(trigger);
+    // A quadra só fica livre quando a partida movida ACABA — ancorar no início
+    // dela jogaria a fila por cima dela mesma.
+    assert.equal(trigger?.anchor.toISOString(), new Date("2026-08-25T15:45:00-03:00").toISOString());
+    assert.equal(trigger?.matchNumber, 3);
+  });
+
+  it("no reagendamento manual sem scheduleEndTime, cai na duração padrão", () => {
     const before = baseMatch({scheduleTime: ts("2026-08-25T14:00:00-03:00")});
     const after = baseMatch({scheduleTime: ts("2026-08-25T15:00:00-03:00")});
 
     const trigger = determineRecalcTrigger(MATCH_ID, before, after, DEFAULT_DURATION);
 
     assert.ok(trigger);
-    assert.equal(trigger?.anchor.toISOString(), new Date("2026-08-25T15:00:00-03:00").toISOString());
+    assert.equal(trigger?.anchor.toISOString(), new Date("2026-08-25T15:30:00-03:00").toISOString());
+  });
+
+  it("carrega o matchNumber do gatilho nos três caminhos (recorte da fila)", () => {
+    const completed = determineRecalcTrigger(
+      MATCH_ID,
+      baseMatch({status: "In Progress", matchNumber: 7}),
+      baseMatch({status: "Completed", matchNumber: 7, matchEndedAt: ts("2026-08-25T14:20:00-03:00")}),
+      DEFAULT_DURATION,
+    );
+    assert.equal(completed?.matchNumber, 7);
+
+    const lateStart = determineRecalcTrigger(
+      MATCH_ID,
+      baseMatch({queueStatus: "waiting", matchNumber: 8}),
+      baseMatch({
+        queueStatus: "on_court",
+        matchNumber: 8,
+        matchStartedAt: ts("2026-08-25T14:15:00-03:00"),
+      }),
+      DEFAULT_DURATION,
+    );
+    assert.equal(lateStart?.matchNumber, 8);
+
+    // Sem matchNumber no doc, 0 significa "toda a fila da quadra".
+    const semNumero = determineRecalcTrigger(
+      MATCH_ID,
+      baseMatch({status: "In Progress"}),
+      baseMatch({status: "Completed", matchEndedAt: ts("2026-08-25T14:20:00-03:00")}),
+      DEFAULT_DURATION,
+    );
+    assert.equal(semNumero?.matchNumber, 0);
   });
 
   it("dispara quando a quadra muda manualmente, mesmo com o mesmo scheduleTime", () => {
@@ -105,6 +156,33 @@ describe("determineRecalcTrigger", () => {
       scheduleTime: ts("2026-08-25T15:00:00-03:00"), // a própria cascata mudou isso
       scheduleRecalcAt: ts("2026-08-25T13:30:00-03:00"), // e carimbou de novo
     });
+
+    assert.equal(determineRecalcTrigger(MATCH_ID, before, after, DEFAULT_DURATION), null);
+  });
+
+  it("NÃO dispara para o próprio auto-agendamento em lote (carimba scheduleRecalcAt na MESMA escrita)", () => {
+    // `autoScheduleTournamentDay` grava scheduleTime/courtId pela primeira vez
+    // em N partidas de uma tacada só. Sem o carimbo, cada uma dessas escritas
+    // pareceria um "reagendamento manual externo" e dispararia sua PRÓPRIA
+    // cascata, embaralhando a grade que o lote acabou de montar.
+    const before = {
+      tournamentId: TOURNAMENT_ID,
+      dayKey: "",
+      courtId: "",
+      status: "Scheduled",
+      matchNumber: 2,
+    };
+    const after = {
+      tournamentId: TOURNAMENT_ID,
+      dayKey: DAY_KEY,
+      courtId: COURT_ID,
+      status: "Scheduled",
+      queueStatus: "waiting",
+      matchNumber: 2,
+      scheduleTime: ts("2026-08-25T15:00:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T15:30:00-03:00"),
+      scheduleRecalcAt: ts("2026-08-25T13:00:00-03:00"),
+    };
 
     assert.equal(determineRecalcTrigger(MATCH_ID, before, after, DEFAULT_DURATION), null);
   });

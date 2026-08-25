@@ -7,7 +7,7 @@ import * as logger from "firebase-functions/logger";
 import {isMatchCanceled, isMatchCompleted} from "./match-status";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {eventTimeLabel} from "./event-timezone";
-import {artifactsTeamsPath} from "./firebase-paths";
+import {loadTeamMemberUids} from "./tournament-team-roster";
 import {allocateCourtSlots, loadTournamentMatches} from "./match-schedule-allocation";
 
 /** Mudança de horário abaixo disso não dispara push nem conta como "atraso". */
@@ -19,6 +19,13 @@ export interface RecalcTrigger {
   courtId: string;
   anchor: Date;
   triggerMatchId: string;
+  /**
+   * Posição da partida-gatilho na fila da quadra. A cascata só pode empurrar
+   * quem vem DEPOIS dela: reagendar quem já está antes na fila arrasta
+   * partidas que ninguém tocou (e, com a âncora no fim do gatilho, ainda as
+   * jogaria por cima dele).
+   */
+  matchNumber: number;
 }
 
 /**
@@ -54,7 +61,14 @@ export function determineRecalcTrigger(
   if (isCompletedNow && !wasCompleted) {
     const endedAt = after.matchEndedAt as Timestamp | undefined;
     if (!endedAt) return null;
-    return {tournamentId, dayKey, courtId, anchor: endedAt.toDate(), triggerMatchId: matchId};
+    return {
+      tournamentId,
+      dayKey,
+      courtId,
+      anchor: endedAt.toDate(),
+      triggerMatchId: matchId,
+      matchNumber: Number(after.matchNumber ?? 0),
+    };
   }
 
   const wasOnCourt = before?.queueStatus === "on_court";
@@ -66,7 +80,14 @@ export function determineRecalcTrigger(
     const delayMin = (startedAt.toMillis() - scheduled.toMillis()) / 60000;
     if (delayMin < SCHEDULE_DRIFT_THRESHOLD_MIN) return null;
     const anchor = new Date(startedAt.toDate().getTime() + defaultDurationMin * 60 * 1000);
-    return {tournamentId, dayKey, courtId, anchor, triggerMatchId: matchId};
+    return {
+      tournamentId,
+      dayKey,
+      courtId,
+      anchor,
+      triggerMatchId: matchId,
+      matchNumber: Number(after.matchNumber ?? 0),
+    };
   }
 
   if (isCompletedNow || isOnCourtNow) return null;
@@ -78,7 +99,21 @@ export function determineRecalcTrigger(
   const timeChanged = afterTime.toMillis() !== (beforeTime?.toMillis() ?? -1);
   const courtChanged = courtId !== beforeCourtId;
   if (timeChanged || courtChanged) {
-    return {tournamentId, dayKey, courtId, anchor: afterTime.toDate(), triggerMatchId: matchId};
+    // A âncora é "quando a quadra fica livre para a PRÓXIMA partida", ou seja
+    // o FIM da partida movida — usar o início dela alocaria a fila por cima
+    // dela mesma.
+    const afterEnd = after.scheduleEndTime as Timestamp | undefined;
+    const anchor = afterEnd ?
+      afterEnd.toDate() :
+      new Date(afterTime.toDate().getTime() + defaultDurationMin * 60 * 1000);
+    return {
+      tournamentId,
+      dayKey,
+      courtId,
+      anchor,
+      triggerMatchId: matchId,
+      matchNumber: Number(after.matchNumber ?? 0),
+    };
   }
 
   return null;
@@ -117,6 +152,8 @@ export async function recalculateCourtSchedule(
     if (doc.id === trigger.triggerMatchId) return false;
     const d = doc.data();
     if (String(d.courtId ?? "").trim() !== trigger.courtId) return false;
+    // Só a fila POSTERIOR ao gatilho: quem já passou por ele não é afetado.
+    if (Number(d.matchNumber ?? 0) <= trigger.matchNumber) return false;
     if (isMatchCompleted(d.status) || isMatchCanceled(d.status)) return false;
     if (d.queueStatus === "on_court" || d.queueStatus === "completed") return false;
     return true;
@@ -196,12 +233,8 @@ export async function notifyScheduleShifts(
 
     for (const teamId of [shift.teamAId, shift.teamBId]) {
       if (!teamId) continue;
-      const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
-      const team = teamSnap.data();
-      if (!team) continue;
-      const players = [team.player1Id, team.player2Id].filter(
-        (v): v is string => typeof v === "string" && v.trim() !== "",
-      );
+      // Elenco COMPLETO (trio/quarteto/quinteto incluídos), não só player1/2.
+      const players = await loadTeamMemberUids(db, projectId, teamId);
       for (const playerId of players) {
         try {
           await deliverNotificationToUser({

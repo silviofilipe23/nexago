@@ -181,60 +181,76 @@ class _OrganizerMatchLiveTablePageState
   }) async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!match.isCompleted)
-              ListTile(
-                leading: const Icon(Icons.tune_rounded),
-                title: const Text('Alterar formato'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _showFormatSheet(match);
-                },
+      builder: (sheetContext) {
+        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.9;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!match.isCompleted)
+                    ListTile(
+                      leading: const Icon(Icons.tune_rounded),
+                      title: const Text('Alterar formato'),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _showFormatSheet(match);
+                      },
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.edit_note_rounded),
+                    title: const Text('Placar completo'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openQuickScoreSheet(
+                        match: match,
+                        teamA: teamA,
+                        teamB: teamB,
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.schedule_rounded),
+                    title: const Text('Histórico'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push(
+                        organizerMatchSummaryPath(
+                          widget.tournamentId,
+                          widget.matchId,
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.fullscreen_rounded),
+                    title: const Text('Modo exibição'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _enterPresentMode();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.close_rounded),
+                    title: const Text('Sair do modo full'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _toggleFullMode();
+                    },
+                  ),
+                ],
               ),
-            ListTile(
-              leading: const Icon(Icons.edit_note_rounded),
-              title: const Text('Placar completo'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openQuickScoreSheet(match: match, teamA: teamA, teamB: teamB);
-              },
             ),
-            ListTile(
-              leading: const Icon(Icons.schedule_rounded),
-              title: const Text('Histórico'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                context.push(
-                  organizerMatchSummaryPath(widget.tournamentId, widget.matchId),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.fullscreen_rounded),
-              title: const Text('Modo exibição'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _enterPresentMode();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.close_rounded),
-              title: const Text('Sair do modo full'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _toggleFullMode();
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -455,8 +471,8 @@ class _OrganizerMatchLiveTablePageState
             const [])
         .whereType<TournamentMatchPointEvent>()
         .toList();
-    final hasPartialScore = match.sets.any((s) => s.a > 0 || s.b > 0) ||
-        events.isNotEmpty;
+    final hasPartialScore =
+        match.sets.any((s) => s.a > 0 || s.b > 0) || events.isNotEmpty;
 
     if (hasPartialScore && mounted) {
       final replace = await showDialog<bool>(
@@ -524,7 +540,9 @@ class _OrganizerMatchLiveTablePageState
     if (winnerTeamId.trim().isEmpty) return;
     setState(() => _saving = true);
     try {
-      await ref.read(organizerMatchScheduleServiceProvider).declareMatchWalkover(
+      await ref
+          .read(organizerMatchScheduleServiceProvider)
+          .declareMatchWalkover(
             matchId: widget.matchId,
             winnerTeamId: winnerTeamId,
           );
@@ -556,9 +574,9 @@ class _OrganizerMatchLiveTablePageState
     setState(() => _saving = true);
     try {
       await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
-            matchId: widget.matchId,
-            fields: {'servingTeamId': teamId},
-          );
+        matchId: widget.matchId,
+        fields: {'servingTeamId': teamId},
+      );
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -581,9 +599,9 @@ class _OrganizerMatchLiveTablePageState
     setState(() => _saving = true);
     try {
       await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
-            matchId: widget.matchId,
-            fields: {'servingTeamId': next},
-          );
+        matchId: widget.matchId,
+        fields: {'servingTeamId': next},
+      );
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -651,8 +669,7 @@ class _OrganizerMatchLiveTablePageState
     final enrichedCard = ref
         .watch(organizerMatchCardsByIdProvider(widget.tournamentId))
         .valueOrNull?[widget.matchId];
-    final tournamentCategories =
-        ref
+    final tournamentCategories = ref
             .watch(organizerTournamentDetailProvider(widget.tournamentId))
             .valueOrNull
             ?.categories ??
@@ -809,119 +826,117 @@ class _OrganizerMatchLiveTablePageState
                   );
                 }
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    LiveTableHeader(
-                      courtLabel: court.isNotEmpty ? court : '—',
-                      titleLabel: title.isNotEmpty ? title : 'Partida',
-                      elapsedLabel: _elapsedLabel(match),
-                      onBack: () => context.pop(),
-                      fullModeActive: _fullMode,
-                      onToggleFullMode: _toggleFullMode,
-                    ),
-                    LiveTableSetStrip(
-                      sets: sets,
-                      currentSetIndex: setIdx,
-                    ),
-                    if (MatchScoringLogic.needsStartingServe(
-                      servingTeamId: match.servingTeamId,
-                      status: match.status,
-                      teamAId: match.teamAId,
-                      teamBId: match.teamBId,
-                    ))
-                      LiveTableStartingServe(
+                return SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LiveTableHeader(
+                        courtLabel: court.isNotEmpty ? court : '—',
+                        titleLabel: title.isNotEmpty ? title : 'Partida',
+                        elapsedLabel: _elapsedLabel(match),
+                        onBack: () => context.pop(),
+                        fullModeActive: _fullMode,
+                        onToggleFullMode: _toggleFullMode,
+                      ),
+                      LiveTableSetStrip(
+                        sets: sets,
+                        currentSetIndex: setIdx,
+                      ),
+                      if (MatchScoringLogic.needsStartingServe(
+                        servingTeamId: match.servingTeamId,
+                        status: match.status,
+                        teamAId: match.teamAId,
+                        teamBId: match.teamBId,
+                      ))
+                        LiveTableStartingServe(
+                          teamA: teamA,
+                          teamB: teamB,
+                          enabled: !_saving,
+                          onChoose: _chooseServe,
+                        ),
+                      LiveTableTeamScoreBoard(
                         teamA: teamA,
                         teamB: teamB,
-                        enabled: !_saving,
-                        onChoose: _chooseServe,
-                      ),
-                    LiveTableTeamScoreBoard(
-                      teamA: teamA,
-                      teamB: teamB,
-                      scoreA: liveTableCurrentSetScore(match, sideA: true),
-                      scoreB: liveTableCurrentSetScore(match, sideA: false),
-                      isServingA: liveTableIsServing(match, sideA: true),
-                      isServingB: liveTableIsServing(match, sideA: false),
-                      seedA: liveTableTeamSeed(match, sideA: true),
-                      seedB: liveTableTeamSeed(match, sideA: false),
-                      enabled: actionsEnabled,
-                      onAddPointA: () => _point('A'),
-                      onAddPointB: () => _point('B'),
-                      onSubtractA: () => _undoIfSide('A'),
-                      onSubtractB: () => _undoIfSide('B'),
-                    ),
-                    LiveTableSetRules(
-                      rulesLabel: rules,
-                      setPointHint: setPoint,
-                      bestOf: match.bestOf,
-                      formatEnabled: !_saving && !match.isCompleted,
-                      onChangeFormat: () => _showFormatSheet(match),
-                    ),
-                    if (!match.isCompleted)
-                      LiveTableQuickScoreEntry(
+                        scoreA: liveTableCurrentSetScore(match, sideA: true),
+                        scoreB: liveTableCurrentSetScore(match, sideA: false),
+                        isServingA: liveTableIsServing(match, sideA: true),
+                        isServingB: liveTableIsServing(match, sideA: false),
+                        seedA: liveTableTeamSeed(match, sideA: true),
+                        seedB: liveTableTeamSeed(match, sideA: false),
                         enabled: actionsEnabled,
-                        onTap: () => _openQuickScoreSheet(
+                        onAddPointA: () => _point('A'),
+                        onAddPointB: () => _point('B'),
+                        onSubtractA: () => _undoIfSide('A'),
+                        onSubtractB: () => _undoIfSide('B'),
+                      ),
+                      LiveTableSetRules(
+                        rulesLabel: rules,
+                        setPointHint: setPoint,
+                        bestOf: match.bestOf,
+                        formatEnabled: !_saving && !match.isCompleted,
+                        onChangeFormat: () => _showFormatSheet(match),
+                      ),
+                      if (!match.isCompleted)
+                        LiveTableQuickScoreEntry(
+                          enabled: actionsEnabled,
+                          onTap: () => _openQuickScoreSheet(
+                            match: match,
+                            teamA: teamA,
+                            teamB: teamB,
+                          ),
+                        ),
+                      LiveTableActionBar(
+                        enabled: actionsEnabled,
+                        onUndo: _undoLastPoint,
+                        onSwapServe: _swapServe,
+                        onQuickScore: () => _openQuickScoreSheet(
                           match: match,
                           teamA: teamA,
                           teamB: teamB,
                         ),
-                      ),
-                    LiveTableActionBar(
-                      enabled: actionsEnabled,
-                      onUndo: _undoLastPoint,
-                      onSwapServe: _swapServe,
-                      onQuickScore: () => _openQuickScoreSheet(
-                        match: match,
-                        teamA: teamA,
-                        teamB: teamB,
-                      ),
-                      onHistory: () => context.push(
-                        organizerMatchSummaryPath(
-                          widget.tournamentId,
-                          widget.matchId,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: LiveTablePointFeed(
-                          setIndex: setIdx,
-                          events: events,
-                          teamA: teamA,
-                          teamB: teamB,
-                        ),
-                      ),
-                    ),
-                    if (match.isCompleted)
-                      SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                          child: FilledButton(
-                            onPressed: () => context.push(
-                              organizerMatchValidatePath(
-                                widget.tournamentId,
-                                widget.matchId,
-                              ),
-                            ),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: AppColors.black,
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              textStyle: AppTypography.soraRegular(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            child: const Text('Validar resultado'),
+                        onHistory: () => context.push(
+                          organizerMatchSummaryPath(
+                            widget.tournamentId,
+                            widget.matchId,
                           ),
                         ),
                       ),
-                  ],
+                      LiveTablePointFeed(
+                        setIndex: setIdx,
+                        events: events,
+                        teamA: teamA,
+                        teamB: teamB,
+                      ),
+                      if (match.isCompleted)
+                        SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: FilledButton(
+                              onPressed: () => context.push(
+                                organizerMatchValidatePath(
+                                  widget.tournamentId,
+                                  widget.matchId,
+                                ),
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.brand,
+                                foregroundColor: AppColors.black,
+                                minimumSize: const Size.fromHeight(48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                textStyle: AppTypography.soraRegular(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              child: const Text('Validar resultado'),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 );
               },
             ),

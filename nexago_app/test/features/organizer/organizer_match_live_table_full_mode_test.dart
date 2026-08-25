@@ -110,11 +110,9 @@ void main() {
     WidgetTester tester, {
     required TournamentMatch initialMatch,
     List<TournamentMatchPointEvent> pointEvents = const [],
-    // Achado à parte (não é sobre o modo full em si): o layout NORMAL desta
-    // tela já estoura `RenderFlex overflow` na superfície padrão do
-    // `flutter test` (800×600) — usar uma altura generosa evita que esse
-    // overflow (achado real, já reportado antes) mascare os testes de
-    // estado que não são sobre pixel-perfect layout.
+    // Altura generosa no harness padrão: os testes de estado do modo full
+    // não dependem de pixel-perfect. O overflow da mesa pequena em
+    // landscape é coberto à parte (viewport 734×373).
     Size surfaceSize = const Size(800, 1200),
   }) async {
     tester.view.physicalSize = surfaceSize;
@@ -300,6 +298,35 @@ void main() {
         expect(find.byType(LiveTableSetStrip), findsOneWidget);
         expect(find.byType(LiveTableTeamScoreBoard), findsOneWidget);
         expect(find.byType(LiveTableActionBar), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'mesa pequena não estoura em viewport baixo (landscape)',
+      (tester) async {
+        // Constraint real do overflow: Column com placar + regras + atalhos
+        // dentro de ~373px (SafeArea em landscape). A altura 1200 do harness
+        // escondia exatamente este caso.
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(),
+          surfaceSize: const Size(734, 373),
+        );
+
+        expect(find.byType(LiveTableTeamScoreBoard), findsOneWidget);
+        expect(find.byType(LiveTableFullModeMesa), findsNothing);
+
+        final overflows = <Object>[];
+        for (;;) {
+          final exception = tester.takeException();
+          if (exception == null) break;
+          overflows.add(exception);
+        }
+        expect(
+          overflows,
+          isEmpty,
+          reason: 'a mesa pequena precisa caber (ou rolar) em altura curta',
+        );
       },
     );
   });
@@ -989,6 +1016,37 @@ void main() {
         expect(find.text('Histórico'), findsOneWidget);
         expect(find.text('Modo exibição'), findsOneWidget);
         expect(find.text('Sair do modo full'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'não estoura em viewport baixo (landscape)',
+      (tester) async {
+        // 5 ListTiles (~280px) vs teto padrão do sheet (9/16 de ~373px ≈ 210).
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(),
+          surfaceSize: const Size(734, 373),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.byIcon(Icons.more_vert_rounded));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('Sair do modo full'), findsOneWidget);
+
+        final overflows = <Object>[];
+        for (;;) {
+          final exception = tester.takeException();
+          if (exception == null) break;
+          overflows.add(exception);
+        }
+        expect(
+          overflows,
+          isEmpty,
+          reason: 'o menu ⋮ precisa caber (ou rolar) em altura curta',
+        );
       },
     );
 

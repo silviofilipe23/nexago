@@ -408,39 +408,41 @@ class _AthleteHomeSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        MediaQuery.paddingOf(context).top,
-        AppSpacing.screenH,
-        0,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          SizedBox(height: AppSpacing.lg),
-          NexaSkeleton(width: 160, height: 20),
-          SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
-              SizedBox(width: AppSpacing.md),
-              Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
-              SizedBox(width: AppSpacing.md),
-              Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
-            ],
-          ),
-          SizedBox(height: AppSpacing.sectionGap),
-          NexaSkeleton(width: 200, height: 16),
-          SizedBox(height: AppSpacing.md),
-          NexaSkeleton(height: 148, radius: AppRadii.lgAll),
-        ],
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          MediaQuery.paddingOf(context).top,
+          AppSpacing.screenH,
+          0,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            SizedBox(height: AppSpacing.lg),
+            NexaSkeleton(width: 160, height: 20),
+            SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+                SizedBox(width: AppSpacing.md),
+                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+              ],
+            ),
+            SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+                SizedBox(width: AppSpacing.md),
+                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+              ],
+            ),
+            SizedBox(height: AppSpacing.sectionGap),
+            NexaSkeleton(width: 200, height: 16),
+            SizedBox(height: AppSpacing.md),
+            NexaSkeleton(height: 148, radius: AppRadii.lgAll),
+          ],
+        ),
       ),
     );
   }

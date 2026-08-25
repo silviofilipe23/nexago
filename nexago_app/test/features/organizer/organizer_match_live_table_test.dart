@@ -131,6 +131,55 @@ void main() {
     );
   });
 
+  testWidgets(
+    'LiveTableFullModeMesa não estoura o nome da dupla em tela de celular',
+    (tester) async {
+      // ~iPhone 14: cada painel do modo full fica com ~172px úteis — o mesmo
+      // constraint do overflow em produção (Row sem Flexible no label).
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        wrap(
+          LiveTableFullModeMesa(
+            teamA: team('Alessandra Fernandes / Beatriz Albuquerque'),
+            teamB: team('Constantino Silveira / Domingos Cavalcante'),
+            scoreA: 18,
+            scoreB: 16,
+            isServingA: true,
+            isServingB: false,
+            timeoutsA: 1,
+            timeoutsB: 0,
+            enabled: true,
+            onTapA: () {},
+            onTapB: () {},
+            onRemoveTimeoutA: () {},
+            onRemoveTimeoutB: () {},
+            onSwapServe: () {},
+            onSwapSides: () {},
+            onAddTimeout: () {},
+            onUndo: () {},
+            onMore: () {},
+          ),
+        ),
+      );
+
+      final overflows = <Object>[];
+      for (;;) {
+        final exception = tester.takeException();
+        if (exception == null) break;
+        overflows.add(exception);
+      }
+      expect(
+        overflows,
+        isEmpty,
+        reason: 'nomes longos + chip SAQUE não podem estourar o painel',
+      );
+      expect(find.text('SAQUE'), findsOneWidget);
+    },
+  );
+
   testWidgets('LiveTableStartingServe pergunta e devolve a dupla escolhida', (
     tester,
   ) async {

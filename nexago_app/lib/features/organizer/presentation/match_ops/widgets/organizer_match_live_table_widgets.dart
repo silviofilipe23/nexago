@@ -259,7 +259,9 @@ class _SetStripCard extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 9,
               fontWeight: FontWeight.w800,
-              color: isActive ? AppColors.live : context.themeColors.onSurfaceMuted,
+              color: isActive
+                  ? AppColors.live
+                  : context.themeColors.onSurfaceMuted,
               letterSpacing: 0.4,
             ),
           ),
@@ -282,7 +284,9 @@ class _SetStripCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -535,7 +539,9 @@ class _ScoreControlButton extends StatelessWidget {
       height: height,
       child: Material(
         color: filled
-            ? (enabled ? AppColors.brand : AppColors.brand.withValues(alpha: 0.35))
+            ? (enabled
+                  ? AppColors.brand
+                  : AppColors.brand.withValues(alpha: 0.35))
             : context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
@@ -630,11 +636,7 @@ class LiveTableSetRules extends StatelessWidget {
 }
 
 class _FormatChip extends StatelessWidget {
-  const _FormatChip({
-    required this.label,
-    required this.enabled,
-    this.onTap,
-  });
+  const _FormatChip({required this.label, required this.enabled, this.onTap});
 
   final String label;
   final bool enabled;
@@ -987,15 +989,17 @@ class _FullModeTeamPanel extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    team.label,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.soraRegular(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
+                  Flexible(
+                    child: Text(
+                      team.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurface,
+                      ),
                     ),
                   ),
                   if (isServing) ...[
@@ -1063,11 +1067,11 @@ class _FullModeTeamPanel extends StatelessWidget {
                       ),
                     ),
                   ],
-                  const SizedBox(width: 8),
-                  _LiveTableIconButton(
-                    icon: Icons.remove_rounded,
-                    onPressed: enabled ? onRemoveTimeout : () {},
-                  ),
+                  // const SizedBox(width: 8),
+                  // _LiveTableIconButton(
+                  //   icon: Icons.remove_rounded,
+                  //   onPressed: enabled ? onRemoveTimeout : () {},
+                  // ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -1474,8 +1478,9 @@ class _PointFeedRow extends StatelessWidget {
     final description = playerName.isNotEmpty
         ? '$actionLabel · $playerName'
         : actionLabel;
-    final dotColor =
-        isSideA ? AppColors.brand : context.themeColors.onSurfaceMuted;
+    final dotColor = isSideA
+        ? AppColors.brand
+        : context.themeColors.onSurfaceMuted;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1484,10 +1489,7 @@ class _PointFeedRow extends StatelessWidget {
           Container(
             width: 7,
             height: 7,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
           Text(
@@ -1903,9 +1905,7 @@ class _PresentUndoButton extends StatelessWidget {
         icon: Icons.undo_rounded,
         enabled: enabled,
         onPressed: onPressed,
-        borderColor: context.themeColors.onSurfaceMuted.withValues(
-          alpha: 0.14,
-        ),
+        borderColor: context.themeColors.onSurfaceMuted.withValues(alpha: 0.14),
       ),
     );
   }
@@ -2136,9 +2136,9 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
 
   void _revalidateSets({bool requireMatchWinner = false}) {
     setState(() {
-      _setErrors =
-          _validateSubmission(requireMatchWinner: requireMatchWinner)
-              .errorsBySetIndex;
+      _setErrors = _validateSubmission(
+        requireMatchWinner: requireMatchWinner,
+      ).errorsBySetIndex;
     });
   }
 
@@ -2165,8 +2165,9 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
         a: (a ?? current.a).clamp(0, 99),
         b: (b ?? current.b).clamp(0, 99),
       );
-      _setErrors =
-          _validateSubmission(requireMatchWinner: false).errorsBySetIndex;
+      _setErrors = _validateSubmission(
+        requireMatchWinner: false,
+      ).errorsBySetIndex;
     });
   }
 
@@ -2175,8 +2176,9 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
     setState(() {
       _sets.add(const TournamentMatchSet(a: 0, b: 0));
       _syncSetRowKeys();
-      _setErrors =
-          _validateSubmission(requireMatchWinner: false).errorsBySetIndex;
+      _setErrors = _validateSubmission(
+        requireMatchWinner: false,
+      ).errorsBySetIndex;
     });
   }
 
@@ -2216,8 +2218,9 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                       side: BorderSide(
                         color: option == _bestOf
                             ? AppColors.brand
-                            : context.themeColors.onSurfaceMuted
-                                .withValues(alpha: 0.3),
+                            : context.themeColors.onSurfaceMuted.withValues(
+                                alpha: 0.3,
+                              ),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -2230,8 +2233,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
       ),
     );
     if (choice == null || choice == _bestOf) return;
-    if (choice < _bestOf &&
-        MatchScoringLogic.playedSetsCount(_sets) > choice) {
+    if (choice < _bestOf && MatchScoringLogic.playedSetsCount(_sets) > choice) {
       if (mounted) {
         _showMessage(
           'Não dá para mudar para ${matchBestOfLabel(choice)}: '
@@ -2250,8 +2252,9 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
         _sets.add(const TournamentMatchSet(a: 0, b: 0));
       }
       _syncSetRowKeys();
-      _setErrors =
-          _validateSubmission(requireMatchWinner: false).errorsBySetIndex;
+      _setErrors = _validateSubmission(
+        requireMatchWinner: false,
+      ).errorsBySetIndex;
     });
   }
 
@@ -2334,19 +2337,13 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToFirstSetError();
       });
-      showAppSnackBar(
-        context,
-        result.firstMessage ?? 'Informe placar válido.',
-      );
+      showAppSnackBar(context, result.firstMessage ?? 'Informe placar válido.');
       return;
     }
 
     setState(() => _saving = true);
     try {
-      await widget.onSubmit(
-        List<TournamentMatchSet>.from(_sets),
-        _bestOf,
-      );
+      await widget.onSubmit(List<TournamentMatchSet>.from(_sets), _bestOf);
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -2374,8 +2371,8 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
     final winnerLabel = winnerId == widget.match.teamAId
         ? widget.teamA.label
         : winnerId == widget.match.teamBId
-            ? widget.teamB.label
-            : null;
+        ? widget.teamB.label
+        : null;
     final hasWinner = winnerLabel != null;
 
     return Column(
@@ -2482,9 +2479,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                 ),
               ],
               const SizedBox(height: 8),
-              _QuickScoreWoRow(
-                onPressed: _saving ? null : _showWoSheet,
-              ),
+              _QuickScoreWoRow(onPressed: _saving ? null : _showWoSheet),
             ],
           ),
         ),
@@ -2513,13 +2508,17 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                         color: Colors.black,
                       ),
                     )
-                  : const Icon(Icons.check_rounded, size: 18, color: Colors.black),
+                  : const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: Colors.black,
+                    ),
               label: Text(
                 _saving
                     ? 'Salvando…'
                     : hasWinner
-                        ? 'Confirmar · $winnerLabel venceu'
-                        : 'Confirmar placar',
+                    ? 'Confirmar · $winnerLabel venceu'
+                    : 'Confirmar placar',
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: hasWinner ? AppColors.win : AppColors.brand,
@@ -2573,7 +2572,9 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color: aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -2606,7 +2607,9 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color: bWins ? AppColors.win : context.themeColors.onSurface,
+                    color: bWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -2826,7 +2829,8 @@ class _QuickScoreNumericField extends StatefulWidget {
   final VoidCallback? onCommitted;
 
   @override
-  State<_QuickScoreNumericField> createState() => _QuickScoreNumericFieldState();
+  State<_QuickScoreNumericField> createState() =>
+      _QuickScoreNumericFieldState();
 }
 
 class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
@@ -2899,8 +2903,8 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
     final borderColor = widget.hasError
         ? AppColors.live.withValues(alpha: 0.65)
         : widget.isWinning
-            ? AppColors.win.withValues(alpha: 0.45)
-            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
+        ? AppColors.win.withValues(alpha: 0.45)
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
 
     return SizedBox(
       width: 56,
@@ -2916,8 +2920,8 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
           color: widget.hasError
               ? AppColors.live
               : widget.isWinning
-                  ? AppColors.win
-                  : context.themeColors.onSurface,
+              ? AppColors.win
+              : context.themeColors.onSurface,
           height: 1.1,
         ),
         decoration: InputDecoration(
@@ -3134,7 +3138,7 @@ String _liveTableEnrichedTeamLabel(
 }
 
 (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
-    _liveTablePlayersFromLabel(String teamLabel, String teamId) {
+_liveTablePlayersFromLabel(String teamLabel, String teamId) {
   final names = teamLabel
       .split('/')
       .map((p) => p.trim())
@@ -3218,8 +3222,8 @@ bool _isCompletedSet(TournamentMatchSet set) {
 }
 
 int liveTableCurrentSetScore(TournamentMatch match, {required bool sideA}) {
-  final idx = match.currentSetIndex ??
-      (match.sets.isEmpty ? 0 : match.sets.length - 1);
+  final idx =
+      match.currentSetIndex ?? (match.sets.isEmpty ? 0 : match.sets.length - 1);
   if (match.sets.isEmpty || idx < 0 || idx >= match.sets.length) return 0;
   final set = match.sets[idx];
   return sideA ? set.a : set.b;

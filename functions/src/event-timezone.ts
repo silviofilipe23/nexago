@@ -15,3 +15,12 @@ export function eventDateFromDayKeyAndTime(
   const mm = String(minute).padStart(2, "0");
   return new Date(`${dayKey}T${hh}:${mm}:00-03:00`);
 }
+
+/** `HH:mm` na parede de São Paulo (nunca usar `Date.getHours` cru — vira UTC). */
+export function eventTimeLabel(d: Date): string {
+  return d.toLocaleTimeString("pt-BR", {
+    timeZone: EVENT_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

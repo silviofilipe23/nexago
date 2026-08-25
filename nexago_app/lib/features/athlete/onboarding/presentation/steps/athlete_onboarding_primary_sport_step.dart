@@ -6,6 +6,7 @@ import '../../../../../core/router/routes.dart';
 import '../../domain/athlete_onboarding_draft.dart';
 import '../../domain/athlete_onboarding_options.dart';
 import '../../domain/athlete_onboarding_providers.dart';
+import '../widgets/onboarding_logout_button.dart';
 import '../widgets/onboarding_progress_header.dart';
 import '../widgets/onboarding_scaffold.dart';
 import '../widgets/onboarding_sport_tile.dart';
@@ -25,6 +26,7 @@ class AthleteOnboardingPrimarySportStep extends ConsumerWidget {
         currentStep: step.stepIndex,
         totalSteps: AthleteOnboardingOptions.totalSteps,
         onBack: () => context.go(AppRoutes.athleteOnboardingWelcome),
+        trailing: const OnboardingLogoutButton(),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

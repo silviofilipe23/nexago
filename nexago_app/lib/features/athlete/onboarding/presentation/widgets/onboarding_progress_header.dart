@@ -11,11 +11,15 @@ class OnboardingProgressHeader extends StatelessWidget {
     required this.currentStep,
     required this.totalSteps,
     this.onBack,
+    this.trailing,
   });
 
   final int currentStep;
   final int totalSteps;
   final VoidCallback? onBack;
+
+  /// Ação extra ao lado do contador (ex.: sair do onboarding).
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +57,10 @@ class OnboardingProgressHeader extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
         ),
+        if (trailing != null) ...[
+          SizedBox(width: 12),
+          trailing!,
+        ],
       ],
     );
   }

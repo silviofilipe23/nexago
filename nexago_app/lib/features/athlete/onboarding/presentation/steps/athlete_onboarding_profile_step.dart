@@ -21,6 +21,7 @@ import '../../domain/athlete_onboarding_draft.dart';
 import '../../domain/athlete_onboarding_options.dart';
 import '../../domain/athlete_onboarding_providers.dart';
 import '../utils/onboarding_input_formatters.dart';
+import '../widgets/onboarding_logout_button.dart';
 import '../widgets/onboarding_progress_header.dart';
 import '../widgets/onboarding_scaffold.dart';
 import '../widgets/onboarding_step_header.dart';
@@ -188,6 +189,7 @@ class _AthleteOnboardingProfileStepState
         currentStep: step.stepIndex,
         totalSteps: AthleteOnboardingOptions.totalSteps,
         onBack: () => context.go(AppRoutes.athleteOnboardingLevel),
+        trailing: const OnboardingLogoutButton(),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

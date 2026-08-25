@@ -284,9 +284,8 @@ class _SetStripCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: aWins
-                        ? AppColors.win
-                        : context.themeColors.onSurface,
+                    color:
+                        aWins ? AppColors.win : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -540,8 +539,8 @@ class _ScoreControlButton extends StatelessWidget {
       child: Material(
         color: filled
             ? (enabled
-                  ? AppColors.brand
-                  : AppColors.brand.withValues(alpha: 0.35))
+                ? AppColors.brand
+                : AppColors.brand.withValues(alpha: 0.35))
             : context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
@@ -644,9 +643,8 @@ class _FormatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = enabled
-        ? AppColors.brand
-        : context.themeColors.onSurfaceMuted;
+    final color =
+        enabled ? AppColors.brand : context.themeColors.onSurfaceMuted;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1421,149 +1419,171 @@ class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
           ),
         ),
         Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'TEMPO TÉCNICO · 1 MINUTO',
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurfaceMuted,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    timeout.teamLabel,
-                    style: AppTypography.soraRegular(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.themeColors.surfaceRaised,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${timeout.timeoutNumber}º tempo do time',
-                      style: AppTypography.mono(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: context.themeColors.onSurfaceMuted,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: 280,
-                height: 280,
-                child: CustomPaint(
-                  painter: _TimeoutRingPainter(
-                    progress: progress,
-                    color: ringColor,
-                    trackColor: context.themeColors.onSurfaceMuted.withValues(
-                      alpha: 0.14,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$minutes:$seconds',
-                      style: AppTypography.mono(
-                        fontSize: 56,
-                        fontWeight: FontWeight.w800,
-                        color: isEnded || isCritical
-                            ? ringColor
-                            : context.themeColors.onSurface,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (isEnded)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.win.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.win.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(
-                    'TEMPO ENCERRADO',
-                    style: AppTypography.mono(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.win,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!isEnded) ...[
-                    OutlinedButton.icon(
-                      onPressed:
-                          timeout.phase == LiveTableTimeoutPhase.paused
-                              ? onResume
-                              : onPause,
-                      icon: Icon(
-                        timeout.phase == LiveTableTimeoutPhase.paused
-                            ? Icons.play_arrow_rounded
-                            : Icons.pause_rounded,
-                      ),
-                      label: Text(
-                        timeout.phase == LiveTableTimeoutPhase.paused
-                            ? 'Retomar'
-                            : 'Pausar',
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.themeColors.onSurface,
-                        side: BorderSide(
-                          color: context.themeColors.onSurfaceMuted
-                              .withValues(alpha: 0.3),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'TEMPO TÉCNICO · 1 MINUTO',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.mono(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: context.themeColors.onSurfaceMuted,
+                            letterSpacing: 0.6,
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                timeout.teamLabel,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.soraRegular(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: context.themeColors.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: context.themeColors.surfaceRaised,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${timeout.timeoutNumber}º tempo do time',
+                                style: AppTypography.mono(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.themeColors.onSurfaceMuted,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: 280,
+                          height: 280,
+                          child: CustomPaint(
+                            painter: _TimeoutRingPainter(
+                              progress: progress,
+                              color: ringColor,
+                              trackColor:
+                                  context.themeColors.onSurfaceMuted.withValues(
+                                alpha: 0.14,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$minutes:$seconds',
+                                style: AppTypography.mono(
+                                  fontSize: 56,
+                                  fontWeight: FontWeight.w800,
+                                  color: isEnded || isCritical
+                                      ? ringColor
+                                      : context.themeColors.onSurface,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (isEnded)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.win.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: AppColors.win.withValues(alpha: 0.4)),
+                            ),
+                            child: Text(
+                              'TEMPO ENCERRADO',
+                              style: AppTypography.mono(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.win,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            if (!isEnded)
+                              OutlinedButton.icon(
+                                onPressed: timeout.phase ==
+                                        LiveTableTimeoutPhase.paused
+                                    ? onResume
+                                    : onPause,
+                                icon: Icon(
+                                  timeout.phase == LiveTableTimeoutPhase.paused
+                                      ? Icons.play_arrow_rounded
+                                      : Icons.pause_rounded,
+                                ),
+                                label: Text(
+                                  timeout.phase == LiveTableTimeoutPhase.paused
+                                      ? 'Retomar'
+                                      : 'Pausar',
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor:
+                                      context.themeColors.onSurface,
+                                  side: BorderSide(
+                                    color: context.themeColors.onSurfaceMuted
+                                        .withValues(alpha: 0.3),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            FilledButton(
+                              onPressed: onEnd,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.brand,
+                                foregroundColor: AppColors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: const Text('Encerrar tempo'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                  ],
-                  FilledButton(
-                    onPressed: onEnd,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text('Encerrar tempo'),
                   ),
-                ],
-              ),
-            ],
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -1760,12 +1780,10 @@ class _PointFeedRow extends StatelessWidget {
         ? team.player1.name.trim().split(' ').first
         : team.label.split('/').first.trim();
     final actionLabel = event.isUndoPoint ? 'Desfeito' : 'Ponto';
-    final description = playerName.isNotEmpty
-        ? '$actionLabel · $playerName'
-        : actionLabel;
-    final dotColor = isSideA
-        ? AppColors.brand
-        : context.themeColors.onSurfaceMuted;
+    final description =
+        playerName.isNotEmpty ? '$actionLabel · $playerName' : actionLabel;
+    final dotColor =
+        isSideA ? AppColors.brand : context.themeColors.onSurfaceMuted;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -2310,11 +2328,11 @@ class _StartingServeOption extends StatelessWidget {
   }
 }
 
-typedef LiveTableQuickScoreSubmit =
-    Future<void> Function(List<TournamentMatchSet> sets, int bestOf);
+typedef LiveTableQuickScoreSubmit = Future<void> Function(
+    List<TournamentMatchSet> sets, int bestOf);
 
-typedef LiveTableQuickScoreWalkover =
-    Future<void> Function(String winnerTeamId);
+typedef LiveTableQuickScoreWalkover = Future<void> Function(
+    String winnerTeamId);
 
 Future<void> showLiveTableQuickScoreSheet({
   required BuildContext context,
@@ -2656,8 +2674,8 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
     final winnerLabel = winnerId == widget.match.teamAId
         ? widget.teamA.label
         : winnerId == widget.match.teamBId
-        ? widget.teamB.label
-        : null;
+            ? widget.teamB.label
+            : null;
     final hasWinner = winnerLabel != null;
 
     return Column(
@@ -2724,8 +2742,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
               const SizedBox(height: 20),
               _QuickScoreSectionHeader(
                 title: 'GAMES POR SET',
-                trailing:
-                    'set até ${MatchScoringLogic.defaultSetPoints} · '
+                trailing: 'set até ${MatchScoringLogic.defaultSetPoints} · '
                     'decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
               ),
               const SizedBox(height: 12),
@@ -2802,8 +2819,8 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                 _saving
                     ? 'Salvando…'
                     : hasWinner
-                    ? 'Confirmar · $winnerLabel venceu'
-                    : 'Confirmar placar',
+                        ? 'Confirmar · $winnerLabel venceu'
+                        : 'Confirmar placar',
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: hasWinner ? AppColors.win : AppColors.brand,
@@ -2857,9 +2874,8 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color: aWins
-                        ? AppColors.win
-                        : context.themeColors.onSurface,
+                    color:
+                        aWins ? AppColors.win : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -2892,9 +2908,8 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color: bWins
-                        ? AppColors.win
-                        : context.themeColors.onSurface,
+                    color:
+                        bWins ? AppColors.win : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -3188,8 +3203,8 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
     final borderColor = widget.hasError
         ? AppColors.live.withValues(alpha: 0.65)
         : widget.isWinning
-        ? AppColors.win.withValues(alpha: 0.45)
-        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
+            ? AppColors.win.withValues(alpha: 0.45)
+            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
 
     return SizedBox(
       width: 56,
@@ -3205,8 +3220,8 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
           color: widget.hasError
               ? AppColors.live
               : widget.isWinning
-              ? AppColors.win
-              : context.themeColors.onSurface,
+                  ? AppColors.win
+                  : context.themeColors.onSurface,
           height: 1.1,
         ),
         decoration: InputDecoration(
@@ -3423,7 +3438,7 @@ String _liveTableEnrichedTeamLabel(
 }
 
 (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
-_liveTablePlayersFromLabel(String teamLabel, String teamId) {
+    _liveTablePlayersFromLabel(String teamLabel, String teamId) {
   final names = teamLabel
       .split('/')
       .map((p) => p.trim())

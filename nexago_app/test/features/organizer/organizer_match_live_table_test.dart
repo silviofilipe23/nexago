@@ -180,6 +180,84 @@ void main() {
     },
   );
 
+  testWidgets(
+    'LiveTableTechnicalTimeoutOverlay não estoura nome longo em celular',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        wrap(
+          LiveTableTechnicalTimeoutOverlay(
+            timeout: const LiveTableActiveTimeout(
+              teamLabel:
+                  'Alessandra Fernandes / Beatriz Albuquerque da Silva',
+              timeoutNumber: 1,
+              remainingSeconds: 45,
+              totalSeconds: 60,
+              phase: LiveTableTimeoutPhase.running,
+            ),
+            onPause: () {},
+            onEnd: () {},
+          ),
+        ),
+      );
+
+      final overflows = <Object>[];
+      for (;;) {
+        final exception = tester.takeException();
+        if (exception == null) break;
+        overflows.add(exception);
+      }
+      expect(
+        overflows,
+        isEmpty,
+        reason: 'nome da dupla + chip do tempo não podem estourar o overlay',
+      );
+      expect(find.text('1º tempo do time'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'LiveTableTechnicalTimeoutOverlay não estoura em landscape curto',
+    (tester) async {
+      // Constraint real: anel 280 + título/botões ≈ 455px dentro de 373px.
+      tester.view.physicalSize = const Size(734, 373);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        wrap(
+          LiveTableTechnicalTimeoutOverlay(
+            timeout: const LiveTableActiveTimeout(
+              teamLabel: 'Marcos / Victor',
+              timeoutNumber: 1,
+              remainingSeconds: 45,
+              totalSeconds: 60,
+              phase: LiveTableTimeoutPhase.running,
+            ),
+            onPause: () {},
+            onEnd: () {},
+          ),
+        ),
+      );
+
+      final overflows = <Object>[];
+      for (;;) {
+        final exception = tester.takeException();
+        if (exception == null) break;
+        overflows.add(exception);
+      }
+      expect(
+        overflows,
+        isEmpty,
+        reason: 'o overlay precisa caber (ou encolher) em altura curta',
+      );
+      expect(find.text('0:45'), findsOneWidget);
+    },
+  );
+
   testWidgets('LiveTableStartingServe pergunta e devolve a dupla escolhida', (
     tester,
   ) async {

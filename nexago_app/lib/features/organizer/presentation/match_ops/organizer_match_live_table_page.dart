@@ -54,12 +54,43 @@ class _OrganizerMatchLiveTablePageState
   int? _timeoutsSetIndex;
   bool _presentMode = false;
 
+  /// Overlay do tempo técnico em andamento (null = nenhum rodando). Usa o
+  /// mesmo `_clockTimer` de 1s do relógio decorrido em vez de um timer
+  /// próprio — `_maybeTickTechnicalTimeout` só age quando `_timeoutSide`
+  /// não é nulo e a fase é `running`.
+  static const _timeoutDurationSeconds = 60;
+  String? _timeoutSide;
+  int _timeoutNumber = 0;
+  int _timeoutRemainingSeconds = _timeoutDurationSeconds;
+  LiveTableTimeoutPhase _timeoutPhase = LiveTableTimeoutPhase.running;
+
   @override
   void initState() {
     super.initState();
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      _maybeTickTechnicalTimeout();
+      setState(() {});
     });
+  }
+
+  /// Bipe curto nos 3s finais, bipe mais longo (som de alerta) ao chegar a
+  /// 0 — só sons de sistema, sem asset/pacote de áudio novo no app.
+  void _maybeTickTechnicalTimeout() {
+    if (_timeoutSide == null || _timeoutPhase != LiveTableTimeoutPhase.running) {
+      return;
+    }
+    final next = _timeoutRemainingSeconds - 1;
+    if (next <= 0) {
+      _timeoutRemainingSeconds = 0;
+      _timeoutPhase = LiveTableTimeoutPhase.ended;
+      SystemSound.play(SystemSoundType.alert);
+      return;
+    }
+    _timeoutRemainingSeconds = next;
+    if (next <= 3) {
+      SystemSound.play(SystemSoundType.click);
+    }
   }
 
   @override
@@ -84,27 +115,49 @@ class _OrganizerMatchLiveTablePageState
     _timeouts = const {'A': 0, 'B': 0};
   }
 
-  void _addTimeout(TournamentMatch match) {
+  /// Chama o tempo técnico da dupla que está sacando: conta como usado na
+  /// hora (mesma regra de vôlei — chamado é chamado, mesmo que o mesário
+  /// encerre a contagem antes do minuto acabar) e abre o overlay.
+  void _startTechnicalTimeout(TournamentMatch match) {
     final servingId = match.servingTeamId.trim();
     final side = servingId == match.teamAId
         ? 'A'
         : servingId == match.teamBId
             ? 'B'
             : null;
-    if (side == null) return;
+    if (side == null || _timeoutSide != null) return;
     final current = _timeouts[side] ?? 0;
     if (current >= 2) return;
-    setState(() => _timeouts = {..._timeouts, side: current + 1});
+    setState(() {
+      _timeouts = {..._timeouts, side: current + 1};
+      _timeoutSide = side;
+      _timeoutNumber = current + 1;
+      _timeoutRemainingSeconds = _timeoutDurationSeconds;
+      _timeoutPhase = LiveTableTimeoutPhase.running;
+    });
   }
 
   /// Desconta um tempo técnico lançado por engano — cada painel tem o seu
   /// próprio botão, não depende de quem está sacando como o "Tempo técnico"
-  /// da barra de baixo.
+  /// da barra de baixo. Só relevante fora do overlay (que já cobre o caso
+  /// de "chamei sem querer" via "Encerrar tempo").
   void _removeTimeout(String side) {
     final current = _timeouts[side] ?? 0;
     if (current <= 0) return;
     setState(() => _timeouts = {..._timeouts, side: current - 1});
   }
+
+  void _pauseTechnicalTimeout() {
+    if (_timeoutPhase != LiveTableTimeoutPhase.running) return;
+    setState(() => _timeoutPhase = LiveTableTimeoutPhase.paused);
+  }
+
+  void _resumeTechnicalTimeout() {
+    if (_timeoutPhase != LiveTableTimeoutPhase.paused) return;
+    setState(() => _timeoutPhase = LiveTableTimeoutPhase.running);
+  }
+
+  void _endTechnicalTimeout() => setState(() => _timeoutSide = null);
 
   Future<void> _enterPresentMode() async {
     setState(() => _presentMode = true);
@@ -688,6 +741,7 @@ class _OrganizerMatchLiveTablePageState
                 }
 
                 if (_fullMode) {
+                  final fullModeEnabled = actionsEnabled && _timeoutSide == null;
                   final needsServe = MatchScoringLogic.needsStartingServe(
                     servingTeamId: match.servingTeamId,
                     status: match.status,
@@ -723,7 +777,7 @@ class _OrganizerMatchLiveTablePageState
                     ),
                     timeoutsA: _timeouts[_sidesSwapped ? 'B' : 'A'] ?? 0,
                     timeoutsB: _timeouts[_sidesSwapped ? 'A' : 'B'] ?? 0,
-                    enabled: actionsEnabled,
+                    enabled: fullModeEnabled,
                     onTapA: () => handleTap(_sidesSwapped ? 'B' : 'A'),
                     onTapB: () => handleTap(_sidesSwapped ? 'A' : 'B'),
                     onRemoveTimeoutA: () =>
@@ -732,8 +786,21 @@ class _OrganizerMatchLiveTablePageState
                         _removeTimeout(_sidesSwapped ? 'A' : 'B'),
                     onSwapServe: _swapServe,
                     onSwapSides: _swapSides,
-                    onAddTimeout: () => _addTimeout(match),
+                    onAddTimeout: () => _startTechnicalTimeout(match),
                     onUndo: _undoLastPoint,
+                    activeTimeout: _timeoutSide == null
+                        ? null
+                        : LiveTableActiveTimeout(
+                            teamLabel:
+                                _timeoutSide == 'A' ? teamA.label : teamB.label,
+                            timeoutNumber: _timeoutNumber,
+                            remainingSeconds: _timeoutRemainingSeconds,
+                            totalSeconds: _timeoutDurationSeconds,
+                            phase: _timeoutPhase,
+                          ),
+                    onPauseTimeout: _pauseTechnicalTimeout,
+                    onResumeTimeout: _resumeTechnicalTimeout,
+                    onEndTimeout: _endTechnicalTimeout,
                     onMore: () => _showFullModeMoreMenu(
                       match: match,
                       teamA: teamA,

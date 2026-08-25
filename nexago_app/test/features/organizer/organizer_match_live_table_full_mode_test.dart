@@ -256,6 +256,39 @@ void main() {
         .length;
   }
 
+  // Lê o `LiveTableActiveTimeout` que a tela passou pro overlay — mais
+  // confiável que reler texto renderizado (o "M:SS" e o label da dupla
+  // aparecem tanto no painel coberto quanto no overlay).
+  LiveTableActiveTimeout overlayTimeout(WidgetTester tester) => tester
+      .widget<LiveTableTechnicalTimeoutOverlay>(
+        find.byType(LiveTableTechnicalTimeoutOverlay),
+      )
+      .timeout;
+
+  // `_TimeoutRingPainter` é privado (mesmo truque de `_FullModeTeamPanel`):
+  // localizamos o `CustomPaint` pelo `runtimeType` do painter e lemos
+  // `color`/`progress` via `dynamic` — os NOMES dos campos não são privados,
+  // só a classe é.
+  dynamic timeoutRingPainter(WidgetTester tester) {
+    final customPaint = tester.widget<CustomPaint>(
+      find.byWidgetPredicate(
+        (w) =>
+            w is CustomPaint &&
+            w.painter.runtimeType.toString() == '_TimeoutRingPainter',
+      ),
+    );
+    return customPaint.painter;
+  }
+
+  // Avança o relógio em blocos de 1s — o mesmo `Timer.periodic` do relógio
+  // decorrido tambem dá o tick do tempo técnico (`_maybeTickTechnicalTimeout`
+  // roda antes do `setState` geral). `pumpAndSettle()` nunca serve aqui.
+  Future<void> pumpSeconds(WidgetTester tester, int seconds) async {
+    for (var i = 0; i < seconds; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+  }
+
   group('modo full desligado por padrão', () {
     testWidgets(
       'mostra a mesa pequena de sempre, sem a mesa dedicada do modo full',
@@ -407,7 +440,8 @@ void main() {
   group('Tempo técnico', () {
     testWidgets(
       'botão da barra incrementa o lado que está sacando, trava em 2, e o '
-      '"−" do painel decrementa só aquele lado, com piso 0',
+      '"−" do painel decrementa só aquele lado, com piso 0 — fechando o '
+      'overlay (via "Encerrar tempo") entre cada chamada',
       (tester) async {
         await pumpLiveTable(
           tester,
@@ -421,19 +455,34 @@ void main() {
         expect(filledTimeoutDots(tester, panelA), 0);
         expect(filledTimeoutDots(tester, panelB), 0);
 
+        // 1ª chamada: incrementa E abre o overlay bloqueando a mesa.
         await tester.tap(find.text('Tempo técnico'));
         await tester.pump();
         expect(filledTimeoutDots(tester, panelA), 1);
         expect(filledTimeoutDots(tester, panelB), 0);
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
 
+        // Fecha o overlay pra poder chamar de novo — enquanto ele está
+        // aberto, a barra de baixo (inclusive o próprio "Tempo técnico")
+        // não recebe toque.
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
+
+        // 2ª chamada: incrementa de novo.
         await tester.tap(find.text('Tempo técnico'));
         await tester.pump();
         expect(filledTimeoutDots(tester, panelA), 2);
 
-        // 3ª chamada: trava em 2, não passa.
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+
+        // 3ª chamada: trava em 2, não passa (nem incrementa, nem abre
+        // overlay).
         await tester.tap(find.text('Tempo técnico'));
         await tester.pump();
         expect(filledTimeoutDots(tester, panelA), 2);
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
 
         // "−" no painel de B (nunca usou tempo técnico) fica no piso 0.
         await tester.tap(
@@ -478,6 +527,11 @@ void main() {
         expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 1);
         expect(filledTimeoutDots(tester, panelWithLabel(teamBLabel)), 0);
 
+        // Fecha o overlay antes de continuar — aberto, ele cobre a mesa
+        // inteira (inclusive "Trocar quadra") e absorve o toque.
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+
         await tester.tap(find.text('Trocar quadra'));
         await tester.pump();
 
@@ -503,6 +557,11 @@ void main() {
         await tester.tap(find.text('Tempo técnico'));
         await tester.pump();
 
+        // Fecha o overlay antes de tocar no "−" — aberto, ele absorveria o
+        // toque antes dele chegar no painel por trás.
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+
         final panelA = panelWithLabel(teamALabel);
         await tester.tap(
           find.descendant(
@@ -519,6 +578,296 @@ void main() {
           reason: 'o toque no "−" vazou pro onTap do painel e marcou ponto',
         );
         expect(fakeRepo.updateFieldsCalls, isEmpty);
+      },
+    );
+  });
+
+  group('Tempo técnico: overlay de contagem regressiva', () {
+    testWidgets(
+      'tocar "Tempo técnico" abre o overlay com o time e o número do tempo '
+      'certos, contando 60s a partir do início',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
+        final timeout = overlayTimeout(tester);
+        expect(timeout.teamLabel, teamALabel);
+        expect(timeout.timeoutNumber, 1);
+        expect(timeout.remainingSeconds, 60);
+        expect(timeout.totalSeconds, 60);
+        expect(timeout.phase, LiveTableTimeoutPhase.running);
+        expect(find.text('1º tempo do time'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a contagem regressiva desce 1 segundo a cada tick do relógio da tela',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(overlayTimeout(tester).remainingSeconds, 60);
+
+        await pumpSeconds(tester, 1);
+        expect(overlayTimeout(tester).remainingSeconds, 59);
+
+        await pumpSeconds(tester, 5);
+        expect(overlayTimeout(tester).remainingSeconds, 54);
+      },
+    );
+
+    testWidgets(
+      'chegando a 0: fase vira ended, mostra "TEMPO ENCERRADO" e some o '
+      'botão "Pausar" (só "Encerrar tempo" fica)',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+
+        await pumpSeconds(tester, 60);
+
+        final timeout = overlayTimeout(tester);
+        expect(timeout.remainingSeconds, 0);
+        expect(timeout.phase, LiveTableTimeoutPhase.ended);
+        expect(find.text('TEMPO ENCERRADO'), findsOneWidget);
+        expect(find.text('Pausar'), findsNothing);
+        expect(find.text('Retomar'), findsNothing);
+        expect(find.text('Encerrar tempo'), findsOneWidget);
+        expect(
+          timeoutRingPainter(tester).color,
+          AppColors.win,
+          reason: 'tempo encerrado deveria pintar o anel de verde',
+        );
+      },
+    );
+
+    testWidgets(
+      '"Pausar" trava a contagem (não desce mais) e "Retomar" volta a '
+      'descer de onde parou',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        await pumpSeconds(tester, 1);
+        expect(overlayTimeout(tester).remainingSeconds, 59);
+
+        await tester.tap(find.text('Pausar'));
+        await tester.pump();
+        expect(overlayTimeout(tester).phase, LiveTableTimeoutPhase.paused);
+
+        await pumpSeconds(tester, 5);
+        expect(
+          overlayTimeout(tester).remainingSeconds,
+          59,
+          reason: 'pausado, o contador não deveria descer',
+        );
+
+        await tester.tap(find.text('Retomar'));
+        await tester.pump();
+        expect(overlayTimeout(tester).phase, LiveTableTimeoutPhase.running);
+
+        await pumpSeconds(tester, 1);
+        expect(overlayTimeout(tester).remainingSeconds, 58);
+      },
+    );
+
+    testWidgets(
+      '"Encerrar tempo" durante a contagem (antes de chegar a 0) fecha o '
+      'overlay na hora sem desfazer o incremento do contador',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        await pumpSeconds(tester, 3);
+        expect(overlayTimeout(tester).remainingSeconds, 57);
+
+        await tester.tap(find.text('Encerrar tempo'));
+        await tester.pump();
+
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
+        expect(find.byType(LiveTableFullModeMesa), findsOneWidget);
+        expect(
+          filledTimeoutDots(tester, panelWithLabel(teamALabel)),
+          1,
+          reason: 'encerrar o tempo antes do fim não desfaz o "chamado"',
+        );
+      },
+    );
+
+    testWidgets(
+      'com o overlay aberto, a mesa por trás (painéis, barra de baixo e '
+      '"⋮") não responde a toque',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+
+        // Painel A: não credita ponto.
+        await tester.tap(
+          panelWithLabel(teamALabel),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(fakeRepo.pointWrites, isEmpty);
+
+        // "Trocar saque": não grava nada.
+        await tester.tap(find.text('Trocar saque'), warnIfMissed: false);
+        await tester.pump();
+        expect(fakeRepo.updateFieldsCalls, isEmpty);
+
+        // "⋮": não abre o menu de mais opções.
+        await tester.tap(
+          find.byIcon(Icons.more_vert_rounded),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+        expect(find.text('Placar completo'), findsNothing);
+
+        // O overlay continua aberto o tempo todo — nada disso o fechou.
+        expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'sons: "click" nos ticks em que o valor mostrado passa a ser 3, 2 e '
+      '1; "alert" só ao chegar a 0; nada antes disso',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        systemChromeCalls.clear();
+
+        List<MethodCall> soundCalls() => systemChromeCalls
+            .where((c) => c.method == 'SystemSound.play')
+            .toList();
+
+        // 60 -> 11: ainda longe do fim, nenhum som.
+        await pumpSeconds(tester, 49);
+        expect(overlayTimeout(tester).remainingSeconds, 11);
+        expect(
+          soundCalls(),
+          isEmpty,
+          reason: 'a 11s restantes nenhum som deveria ter tocado ainda',
+        );
+
+        // 11 -> 10: ainda sem som (o gatilho é o valor MOSTRADO ser <= 3).
+        await pumpSeconds(tester, 1);
+        expect(overlayTimeout(tester).remainingSeconds, 10);
+        expect(soundCalls(), isEmpty);
+
+        // 10 -> 3: sétimo tick abaixo chega no "3" e toca 1 click.
+        await pumpSeconds(tester, 7);
+        expect(overlayTimeout(tester).remainingSeconds, 3);
+        expect(
+          soundCalls()
+              .where((c) => c.arguments == 'SystemSoundType.click')
+              .length,
+          1,
+        );
+        expect(
+          soundCalls()
+              .where((c) => c.arguments == 'SystemSoundType.alert')
+              .length,
+          0,
+        );
+
+        // 3 -> 2 -> 1: mais 2 clicks (3 no total).
+        await pumpSeconds(tester, 2);
+        expect(overlayTimeout(tester).remainingSeconds, 1);
+        expect(
+          soundCalls()
+              .where((c) => c.arguments == 'SystemSoundType.click')
+              .length,
+          3,
+        );
+        expect(
+          soundCalls()
+              .where((c) => c.arguments == 'SystemSoundType.alert')
+              .length,
+          0,
+        );
+
+        // 1 -> 0: alert, sem 4º click.
+        await pumpSeconds(tester, 1);
+        expect(overlayTimeout(tester).remainingSeconds, 0);
+        expect(overlayTimeout(tester).phase, LiveTableTimeoutPhase.ended);
+        expect(
+          soundCalls()
+              .where((c) => c.arguments == 'SystemSoundType.click')
+              .length,
+          3,
+          reason: 'chegar a 0 não deveria disparar um 4º click',
+        );
+        expect(
+          soundCalls()
+              .where((c) => c.arguments == 'SystemSoundType.alert')
+              .length,
+          1,
+        );
+      },
+    );
+
+    testWidgets(
+      'cor crítica: com 10s ou menos restantes (e ainda rodando) o anel '
+      'usa AppColors.live em vez de AppColors.brand',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+
+        await tester.tap(find.text('Tempo técnico'));
+        await tester.pump();
+        expect(timeoutRingPainter(tester).color, AppColors.brand);
+
+        // 60 -> 11: ainda não crítico.
+        await pumpSeconds(tester, 49);
+        expect(overlayTimeout(tester).remainingSeconds, 11);
+        expect(timeoutRingPainter(tester).color, AppColors.brand);
+
+        // 11 -> 10: crítico a partir daqui.
+        await pumpSeconds(tester, 1);
+        expect(overlayTimeout(tester).remainingSeconds, 10);
+        expect(timeoutRingPainter(tester).color, AppColors.live);
       },
     );
   });

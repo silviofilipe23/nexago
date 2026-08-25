@@ -802,6 +802,10 @@ class LiveTableFullModeMesa extends StatelessWidget {
     this.onPauseTimeout,
     this.onResumeTimeout,
     this.onEndTimeout,
+    this.timeoutPickerOpen = false,
+    this.onPickTimeoutTeamA,
+    this.onPickTimeoutTeamB,
+    this.onCancelTimeoutPicker,
   });
 
   final LiveTableTeamData teamA;
@@ -827,6 +831,13 @@ class LiveTableFullModeMesa extends StatelessWidget {
   final VoidCallback? onPauseTimeout;
   final VoidCallback? onResumeTimeout;
   final VoidCallback? onEndTimeout;
+
+  /// Seletor de equipe exibido ANTES do overlay de contagem — "Tempo
+  /// técnico" não infere mais o lado pelo saque, o mesário escolhe.
+  final bool timeoutPickerOpen;
+  final VoidCallback? onPickTimeoutTeamA;
+  final VoidCallback? onPickTimeoutTeamB;
+  final VoidCallback? onCancelTimeoutPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -934,9 +945,24 @@ class LiveTableFullModeMesa extends StatelessWidget {
               ),
             ),
             // Por último no Stack: pinta por cima e absorve todo toque nos
-            // painéis/barra/⋮ embaixo enquanto o tempo técnico roda — não
-            // precisa desabilitar cada um deles à parte.
-            if (activeTimeout != null)
+            // painéis/barra/⋮ embaixo enquanto o tempo técnico roda (ou o
+            // seletor de equipe está aberto) — não precisa desabilitar cada
+            // um deles à parte. Os dois nunca ficam ativos ao mesmo tempo.
+            if (timeoutPickerOpen)
+              Positioned.fill(
+                child: LiveTableTimeoutTeamPicker(
+                  teamA: teamA,
+                  teamB: teamB,
+                  isServingA: isServingA,
+                  isServingB: isServingB,
+                  timeoutsA: timeoutsA,
+                  timeoutsB: timeoutsB,
+                  onPickA: onPickTimeoutTeamA,
+                  onPickB: onPickTimeoutTeamB,
+                  onCancel: onCancelTimeoutPicker,
+                ),
+              )
+            else if (activeTimeout != null)
               Positioned.fill(
                 child: LiveTableTechnicalTimeoutOverlay(
                   timeout: activeTimeout!,
@@ -1083,6 +1109,265 @@ class _FullModeTeamPanel extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cor do badge da equipe A no seletor de tempo técnico — não existe um
+/// esquema "A/B" em [AppColors] hoje; B reaproveita [AppColors.brand] (já é
+/// o laranja usado pra "SAQUE"/destaque em toda a mesa), então só A precisa
+/// de uma cor própria pra distinguir os dois cartões.
+const _timeoutPickerSideAColor = Color(0xFF4F6BFF);
+
+/// Seletor de equipe do tempo técnico: aparece ANTES da contagem, cobrindo a
+/// mesa inteira (mesmo tratamento do overlay de contagem — fundo borrado).
+/// "Tempo técnico" não infere mais o lado pelo saque; o mesário escolhe.
+class LiveTableTimeoutTeamPicker extends StatelessWidget {
+  const LiveTableTimeoutTeamPicker({
+    super.key,
+    required this.teamA,
+    required this.teamB,
+    required this.isServingA,
+    required this.isServingB,
+    required this.timeoutsA,
+    required this.timeoutsB,
+    this.onPickA,
+    this.onPickB,
+    this.onCancel,
+  });
+
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final bool isServingA;
+  final bool isServingB;
+  final int timeoutsA;
+  final int timeoutsB;
+  final VoidCallback? onPickA;
+  final VoidCallback? onPickB;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(color: Colors.black.withValues(alpha: 0.68)),
+          ),
+        ),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'QUAL EQUIPE SOLICITOU O TEMPO?',
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurfaceMuted,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _TimeoutTeamCard(
+                        side: 'A',
+                        accentColor: _timeoutPickerSideAColor,
+                        team: teamA,
+                        isServing: isServingA,
+                        timeoutsUsed: timeoutsA,
+                        onTap: timeoutsA < 2 ? onPickA : null,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _TimeoutTeamCard(
+                        side: 'B',
+                        accentColor: AppColors.brand,
+                        team: teamB,
+                        isServing: isServingB,
+                        timeoutsUsed: timeoutsB,
+                        onTap: timeoutsB < 2 ? onPickB : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton(
+                onPressed: onCancel,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: context.themeColors.onSurface,
+                  side: BorderSide(
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.3,
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimeoutTeamCard extends StatelessWidget {
+  const _TimeoutTeamCard({
+    required this.side,
+    required this.accentColor,
+    required this.team,
+    required this.isServing,
+    required this.timeoutsUsed,
+    this.onTap,
+  });
+
+  final String side;
+  final Color accentColor;
+  final LiveTableTeamData team;
+  final bool isServing;
+  final int timeoutsUsed;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final available = 2 - timeoutsUsed;
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.45,
+      child: Material(
+        color: context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.14,
+                ),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        side,
+                        style: AppTypography.mono(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isServing ? 'SAQUE' : 'RECEPÇÃO',
+                      style: AppTypography.mono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurfaceMuted,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  team.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.soraRegular(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text(
+                      'TEMPOS',
+                      style: AppTypography.mono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurfaceMuted,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    for (var i = 0; i < 2; i++) ...[
+                      if (i > 0) const SizedBox(width: 4),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i < timeoutsUsed
+                              ? AppColors.brand
+                              : context.themeColors.onSurfaceMuted
+                                  .withValues(alpha: 0.25),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.themeColors.canvas,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      available > 0
+                          ? '$available ${available == 1 ? 'disponível' : 'disponíveis'}'
+                          : 'sem tempo',
+                      style: AppTypography.mono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

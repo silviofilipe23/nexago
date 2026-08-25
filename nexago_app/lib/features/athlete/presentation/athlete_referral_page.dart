@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/deep_link/app_domains.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -104,7 +105,7 @@ class AthleteReferralPage extends ConsumerWidget {
   String _shareText(String code) =>
       'Vem jogar comigo no nexaGO! Use meu código de indicação $code ao se '
       'cadastrar — quando você jogar sua primeira partida, a gente ganha XP. '
-      'Baixe o app: https://nexago.app';
+      'Baixe o app: ${AppShareLinks.appDownload}';
 
   PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
     return NexaAppBar(

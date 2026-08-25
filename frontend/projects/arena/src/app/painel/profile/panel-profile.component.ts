@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ARENA_AMENITIES_EMPTY } from '@nexago/arena-discovery';
 import { ArenaContextService } from '../data/arena-context.service';
@@ -16,7 +16,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { ToggleComponent } from '../ui/toggle.component';
-import { fetchArenaProfile, saveArenaBasicInfo, uploadArenaImage, validateArenaImageFile, type ArenaImageKind } from './arena-profile-repository';
+import { arenaProfileFromDoc, saveArenaBasicInfo, uploadArenaImage, validateArenaImageFile, type ArenaImageKind } from './arena-profile-repository';
 
 function initialsOfName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -40,7 +40,7 @@ function initialsOfName(name: string): string {
   template: `
     <ar-panel-shell>
       <ar-page-header title="Perfil da arena" subtitle="Como os atletas veem a arena no app">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || loading()" (click)="save()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || arenaLoading()" (click)="save()">
           <ar-icon name="check" [size]="14" />
           {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
         </button>
@@ -49,10 +49,8 @@ function initialsOfName(name: string): string {
       <div class="body">
         @if (arenaNotFound()) {
           <p class="state-text">Nenhuma arena vinculada à sua conta ainda. Fale com o suporte para concluir o cadastro.</p>
-        } @else if (arenaLoading() || loading()) {
+        } @else if (arenaLoading()) {
           <p class="state-text">Carregando perfil…</p>
-        } @else if (loadError(); as err) {
-          <p class="state-text">{{ err }}</p>
         } @else if (profile()) {
           <div class="main-grid">
             <div class="col-left">
@@ -596,8 +594,6 @@ export class PanelProfileComponent {
   protected readonly courtsCount = computed(() => this.arenaContext.courtsCount());
 
   protected readonly profile = signal<ArenaProfile | null>(null);
-  protected readonly loading = signal(true);
-  protected readonly loadError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
   protected readonly coverUploading = signal(false);
@@ -620,20 +616,17 @@ export class PanelProfileComponent {
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
       if (!arenaId) return;
-      void this.load(arenaId);
+      // Semente única por arena: o doc do contexto é ao vivo, e reagir a ele reescreveria os
+      // campos por baixo de quem está editando. Ler daqui não custa ida ao servidor.
+      this.seedFromContext();
     });
   }
 
-  private async load(arenaId: string): Promise<void> {
-    this.loading.set(true);
-    this.loadError.set(null);
-    try {
-      this.profile.set(await fetchArenaProfile(arenaFirestore(), arenaId));
-    } catch {
-      this.loadError.set('Não foi possível carregar o perfil.');
-    } finally {
-      this.loading.set(false);
-    }
+  /** Relê o doc que o contexto mantém — sempre `untracked`: reagir a ele reescreveria os campos
+   *  por baixo de quem está editando. */
+  private seedFromContext(): void {
+    const data = untracked(() => this.arenaContext.arenaDocData());
+    this.profile.set(data ? arenaProfileFromDoc(data) : null);
   }
 
   protected toggleSport(sport: string): void {
@@ -706,7 +699,9 @@ export class PanelProfileComponent {
         onlinePaymentEnabled: this.onlinePaymentEnabled(),
         onsitePaymentEnabled: this.onsitePaymentEnabled(),
       });
-      await this.load(arenaId);
+      // Sem reler o doc: o SDK aplica a escrita local antes mesmo do ack do servidor, então o
+      // contexto já reflete o que acabou de ser salvo (inclusive nome/descrição já aparados).
+      this.seedFromContext();
     } catch (err) {
       this.saveError.set(err instanceof Error ? err.message : 'Não foi possível salvar o perfil.');
     } finally {

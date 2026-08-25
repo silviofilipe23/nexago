@@ -218,9 +218,6 @@ class _DetailBody extends StatelessWidget {
           onTournament: () => _onTournament(context),
           onRematch: () => showAppSnackBar(context, 'Em breve.'),
           onOpponentProfile: () => showAppSnackBar(context, 'Em breve.'),
-          onShare: detail.sharePoster != null
-              ? () => showMatchDetailShareSheet(context, detail.sharePoster!)
-              : null,
         ),
       ],
     );
@@ -305,25 +302,25 @@ class _DetailBody extends StatelessWidget {
     final tournamentId = detail.tournamentId?.trim() ?? '';
     return [
       MatchDetailLiveScorePanel(detail: detail),
-      SizedBox(height: 20),
-      if (tournamentId.isNotEmpty && detail.id.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => context.pushNamed(
-                AppRouteNames.publicMatchLive,
-                pathParameters: {
-                  'tournamentId': tournamentId,
-                  'matchId': detail.id,
-                },
-              ),
-              icon: const Icon(Icons.live_tv_rounded),
-              label: const Text('Compartilhar transmissão ao vivo'),
-            ),
-          ),
-        ),
+      // SizedBox(height: 20),
+      // if (tournamentId.isNotEmpty && detail.id.isNotEmpty)
+      //   Padding(
+      //     padding: const EdgeInsets.only(bottom: 16),
+      //     child: SizedBox(
+      //       width: double.infinity,
+      //       child: OutlinedButton.icon(
+      //         onPressed: () => context.pushNamed(
+      //           AppRouteNames.publicMatchLive,
+      //           pathParameters: {
+      //             'tournamentId': tournamentId,
+      //             'matchId': detail.id,
+      //           },
+      //         ),
+      //         icon: const Icon(Icons.live_tv_rounded),
+      //         label: const Text('Compartilhar transmissão ao vivo'),
+      //       ),
+      //     ),
+      //   ),
       if (detail.momentumInfo != null) ...[
         MatchDetailMomentumSection(
           momentum: detail.momentumInfo!,

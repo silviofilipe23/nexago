@@ -1,0 +1,365 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/tournaments/domain/category_age_eligibility.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_shell_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+
+TournamentCategoryOffer offer({
+  bool registrationClosed = false,
+  bool isCompleted = false,
+  int? teamSize,
+}) {
+  return TournamentCategoryOffer(
+    id: 'cat-1',
+    name: 'Misto Iniciante',
+    entryFee: 140,
+    registrationClosed: registrationClosed,
+    isCompleted: isCompleted,
+    teamSize: teamSize,
+  );
+}
+
+void main() {
+  group('registrationCategoryStatus — ordem das checagens', () {
+    // A ordem é contrato, copiada do shell da web. Estes casos existem porque
+    // trocar duas linhas de lugar muda o que o atleta vê sem quebrar nada.
+    test('já inscrito ganha de encerrada e de lotada', () {
+      final status = registrationCategoryStatus(
+        offer: offer(registrationClosed: true),
+        alreadyRegistered: true,
+        spotsLeft: 0,
+      );
+
+      expect(status.badge, 'JÁ INSCRITO');
+      expect(status.blocked, isFalse);
+    });
+
+    // O beco sem saída da inscrição solo pendente: se "JÁ INSCRITO" bloqueasse,
+    // quem reservou sem parceiro não teria caminho de volta ao convite.
+    test('já inscrito NUNCA bloqueia', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: true,
+        spotsLeft: 5,
+        eligibility: const RegistrationEligibilityInput(levelBlocked: true),
+      );
+
+      expect(status.blocked, isFalse);
+      expect(status.isRegistered, isTrue);
+    });
+
+    test('encerrada ganha de lotada', () {
+      final status = registrationCategoryStatus(
+        offer: offer(registrationClosed: true),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+      );
+
+      expect(status.badge, 'ENCERRADA');
+      expect(status.blocked, isTrue);
+    });
+
+    test('categoria concluída conta como encerrada', () {
+      final status = registrationCategoryStatus(
+        offer: offer(isCompleted: true),
+        alreadyRegistered: false,
+        spotsLeft: 8,
+      );
+
+      expect(status.badge, 'ENCERRADA');
+    });
+
+    test('lotada ganha da elegibilidade', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        eligibility: const RegistrationEligibilityInput(genderBlocked: true),
+      );
+
+      expect(status.badge, 'LOTADO');
+    });
+
+    // Capacidade desconhecida (sem teto, ou contagem ainda carregando) não pode
+    // virar "LOTADO" no escuro — barraria inscrição válida.
+    test('vagas desconhecidas não viram lotado', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: null,
+      );
+
+      expect(status.badge, isNull);
+      expect(status.blocked, isFalse);
+    });
+
+    test('categoria livre e elegível não tem selo nem bloqueio', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 3,
+      );
+
+      expect(status.badge, isNull);
+      expect(status.blocked, isFalse);
+      expect(status.message, isNull);
+    });
+  });
+
+  group('registrationCategoryStatus — elegibilidade', () {
+    test('gênero bloqueia com selo próprio', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 3,
+        eligibility: const RegistrationEligibilityInput(genderBlocked: true),
+      );
+
+      expect(status.badge, 'GÊNERO');
+      expect(status.blocked, isTrue);
+      expect(status.message, isNotNull);
+    });
+
+    test('idade usa o selo e a mensagem do avaliador de idade', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 3,
+        eligibility: const RegistrationEligibilityInput(
+          ageEligibility: AgeEligibility.missingBirthDate,
+        ),
+      );
+
+      expect(status.badge, 'COMPLETE SUA DATA DE NASCIMENTO');
+      expect(status.blocked, isTrue);
+    });
+
+    // Piso e teto de nível dão o mesmo selo mas mensagens diferentes: uma diz
+    // "seu nível é acima", a outra "o mínimo é acima do seu".
+    test('abaixo do piso e acima do teto se distinguem pela mensagem', () {
+      final below = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 3,
+        eligibility: const RegistrationEligibilityInput(belowMinLevel: true),
+      );
+      final above = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 3,
+        eligibility: const RegistrationEligibilityInput(levelBlocked: true),
+      );
+
+      expect(below.badge, 'NÍVEL');
+      expect(above.badge, 'NÍVEL');
+      expect(below.message, isNot(equals(above.message)));
+      expect(below.message, contains('mínimo'));
+      expect(above.message, contains('acima desta categoria'));
+    });
+  });
+
+  group('registrationCardState', () {
+    test('convite recebido vem antes de tudo', () {
+      expect(
+        registrationCardState(
+          hasReceivedInvite: true,
+          hasRegistration: false,
+          partnerPending: false,
+          isPaid: false,
+        ),
+        RegistrationCardState.receivedInvite,
+      );
+    });
+
+    // Aceitar o convite cria a inscrição; a partir daí quem manda é ela, senão
+    // o cartão continuaria oferecendo "aceitar" de um convite já respondido.
+    test('inscrição existente ganha do convite recebido', () {
+      expect(
+        registrationCardState(
+          hasReceivedInvite: true,
+          hasRegistration: true,
+          partnerPending: true,
+          isPaid: false,
+        ),
+        RegistrationCardState.awaitingRoster,
+      );
+    });
+
+    test('sem inscrição e sem convite: reservar vaga', () {
+      expect(
+        registrationCardState(
+          hasReceivedInvite: false,
+          hasRegistration: false,
+          partnerPending: false,
+          isPaid: false,
+        ),
+        RegistrationCardState.notRegistered,
+      );
+    });
+
+    test('elenco fechado e não pago: pagamento', () {
+      expect(
+        registrationCardState(
+          hasReceivedInvite: false,
+          hasRegistration: true,
+          partnerPending: false,
+          isPaid: false,
+        ),
+        RegistrationCardState.awaitingPayment,
+      );
+    });
+
+    test('pago: confirmada', () {
+      expect(
+        registrationCardState(
+          hasReceivedInvite: false,
+          hasRegistration: true,
+          partnerPending: false,
+          isPaid: true,
+        ),
+        RegistrationCardState.confirmed,
+      );
+    });
+  });
+
+  group('registrationSummaryStatusLabel', () {
+    test('sem inscrição', () {
+      expect(
+        registrationSummaryStatusLabel(
+          hasRegistration: false,
+          partnerPending: false,
+          isPaid: false,
+          isTeamCategory: false,
+          rosterCount: 0,
+          teamSize: 2,
+          sentInviteCount: 0,
+        ),
+        'Não inscrito',
+      );
+    });
+
+    test('dupla sem convite enviado', () {
+      expect(
+        registrationSummaryStatusLabel(
+          hasRegistration: true,
+          partnerPending: true,
+          isPaid: false,
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          sentInviteCount: 0,
+        ),
+        'Falta parceiro',
+      );
+    });
+
+    test('dupla com um e com vários convites', () {
+      String label(int n) => registrationSummaryStatusLabel(
+        hasRegistration: true,
+        partnerPending: true,
+        isPaid: false,
+        isTeamCategory: false,
+        rosterCount: 1,
+        teamSize: 2,
+        sentInviteCount: n,
+      );
+
+      expect(label(1), 'Convite enviado');
+      expect(label(3), 'Convites enviados');
+    });
+
+    test('equipe mostra o elenco', () {
+      expect(
+        registrationSummaryStatusLabel(
+          hasRegistration: true,
+          partnerPending: true,
+          isPaid: false,
+          isTeamCategory: true,
+          rosterCount: 3,
+          teamSize: 4,
+          sentInviteCount: 1,
+        ),
+        'Elenco 3/4',
+      );
+    });
+
+    test('fechada e paga', () {
+      expect(
+        registrationSummaryStatusLabel(
+          hasRegistration: true,
+          partnerPending: false,
+          isPaid: false,
+          isTeamCategory: false,
+          rosterCount: 2,
+          teamSize: 2,
+          sentInviteCount: 0,
+        ),
+        'Aguardando pagamento',
+      );
+      expect(
+        registrationSummaryStatusLabel(
+          hasRegistration: true,
+          partnerPending: false,
+          isPaid: true,
+          isTeamCategory: false,
+          rosterCount: 2,
+          teamSize: 2,
+          sentInviteCount: 0,
+        ),
+        'Confirmada',
+      );
+    });
+  });
+
+  group('registrationRemainingInviteSlots', () {
+    // Convidar várias pessoas para a mesma vaga de dupla é caminho legítimo: o
+    // primeiro aceite fecha e o backend derruba os demais. Descontar o convite
+    // pendente escondia a busca e prendia o atleta a quem não respondia.
+    test('dupla mantém a vaga aberta mesmo com convites pendentes', () {
+      expect(
+        registrationRemainingInviteSlots(
+          teamSize: null,
+          rosterCount: 1,
+          pendingInviteCount: 0,
+        ),
+        1,
+      );
+      expect(
+        registrationRemainingInviteSlots(
+          teamSize: null,
+          rosterCount: 1,
+          pendingInviteCount: 3,
+        ),
+        1,
+      );
+    });
+
+    test('equipe desconta elenco e convites pendentes', () {
+      expect(
+        registrationRemainingInviteSlots(
+          teamSize: 4,
+          rosterCount: 2,
+          pendingInviteCount: 1,
+        ),
+        1,
+      );
+    });
+
+    test('nunca devolve negativo', () {
+      expect(
+        registrationRemainingInviteSlots(
+          teamSize: 4,
+          rosterCount: 3,
+          pendingInviteCount: 3,
+        ),
+        0,
+      );
+    });
+  });
+
+  group('registrationCardStepNumber', () {
+    test('uniforme empurra "Sua inscrição" para o passo 3', () {
+      expect(registrationCardStepNumber(uniformRequired: true), 3);
+      expect(registrationCardStepNumber(uniformRequired: false), 2);
+    });
+  });
+}

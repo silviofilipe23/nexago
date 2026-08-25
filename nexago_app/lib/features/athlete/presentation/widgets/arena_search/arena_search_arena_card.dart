@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/formatting/app_currency_format.dart';
+import '../../../../../core/text/safe_display_text.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
 import '../../../../arenas/domain/arena_search_filter_logic.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
@@ -42,8 +43,9 @@ class ArenaSearchArenaCard extends StatelessWidget {
     final result = item.result;
     final arena = result.arena;
     final place = arenaPlaceFields(arena);
-    final location =
-        '${place.city}${place.state.isNotEmpty ? ', ${place.state}' : ''}';
+    final location = sanitizeUtf16(
+      '${place.city}${place.state.isNotEmpty ? ', ${place.state}' : ''}',
+    );
     final courts = result.availableCourtsCount;
     final courtsLabel = courts == 1 ? '1 QUADRA' : '$courts QUADRAS';
     final kmLabel = item.kmDistance != null
@@ -62,7 +64,9 @@ class ArenaSearchArenaCard extends StatelessWidget {
       _ => '—',
     };
     final courtLine = result.courtName != null && result.courtName!.isNotEmpty
-        ? '${result.courtName}${result.minutesDistance != null && result.minutesDistance! > 0 ? ' · em ${result.minutesDistance} min' : ''}'
+        ? sanitizeUtf16(
+            '${result.courtName}${result.minutesDistance != null && result.minutesDistance! > 0 ? ' · em ${result.minutesDistance} min' : ''}',
+          )
         : 'Sem horário no dia';
 
     return Material(

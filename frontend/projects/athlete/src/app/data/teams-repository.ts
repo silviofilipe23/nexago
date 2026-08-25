@@ -12,6 +12,10 @@ export interface ArenaTeam {
   player2Id: string;
   teamName: string | null;
   gender: string | null;
+  /** 3–5 nas equipes nomeadas (trio/quarteto/quinteto); dupla legada não grava. */
+  teamSize: number | null;
+  /** Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2). */
+  memberUids: readonly string[];
   createdAt: Date | null;
 }
 
@@ -21,18 +25,39 @@ function teamsCol(db: Firestore, projectId: string) {
 
 function teamFromDoc(id: string, data: Record<string, unknown>): ArenaTeam {
   const createdAtRaw = data['createdAt'] as { toDate?: () => Date } | undefined;
+  const memberUidsRaw = data['memberUids'];
   return {
     id,
     player1Id: typeof data['player1Id'] === 'string' ? data['player1Id'] : '',
     player2Id: typeof data['player2Id'] === 'string' ? data['player2Id'] : '',
     teamName: typeof data['teamName'] === 'string' && data['teamName'].trim() ? data['teamName'].trim() : null,
     gender: typeof data['gender'] === 'string' && data['gender'].trim() ? data['gender'].trim() : null,
+    teamSize: typeof data['teamSize'] === 'number' && data['teamSize'] >= 3 ? data['teamSize'] : null,
+    memberUids: Array.isArray(memberUidsRaw) ? memberUidsRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0) : [],
     createdAt: typeof createdAtRaw?.toDate === 'function' ? createdAtRaw.toDate() : null,
   };
 }
 
 export function teamIsLookingForPartner(team: Pick<ArenaTeam, 'player1Id' | 'player2Id'>): boolean {
   return team.player1Id === team.player2Id;
+}
+
+/** uids do elenco — `memberUids` (equipe nomeada) vence; dupla legada cai em player1/2.
+ *  Espelha `extractTeamMemberUids` (`functions/src/tournament-team-category.ts`), com dedup:
+ *  a dupla incompleta (player1 === player2) conta o atleta uma vez só — sem isso o modo
+ *  Temporada/Individual soma os pontos dela em dobro. */
+export function teamMemberIds(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids'>): string[] {
+  const out: string[] = [];
+  const push = (raw: string) => {
+    const id = raw.trim();
+    if (id && !out.includes(id)) out.push(id);
+  };
+  for (const raw of team.memberUids) push(raw);
+  if (out.length === 0) {
+    push(team.player1Id);
+    push(team.player2Id);
+  }
+  return out;
 }
 
 export async function fetchTeam(db: Firestore, projectId: string, teamId: string): Promise<ArenaTeam | null> {
@@ -176,32 +201,83 @@ export async function fetchMatchesForTeam(db: Firestore, projectId: string, team
   return [...byId.values()].sort((a, b) => (b.matchEndedAt?.getTime() ?? 0) - (a.matchEndedAt?.getTime() ?? 0));
 }
 
-/** Rótulo de rodada abreviado (F/SF/QF/O16/R32) a partir do `matchType`/round — usado pra
- *  "melhor campanha" quando o time não venceu a final. Aproximação simples (não tenta
- *  reproduzir o layout de bracket inteiro, só a rotulagem de fase). */
-export function roundShortLabel(matchType: string): string {
-  const t = matchType.trim().toLowerCase();
-  if (t.includes('final') && !t.includes('semi') && !t.includes('quarter')) return 'F';
-  if (t.includes('third') || t.includes('3')) return '3º';
-  if (t.includes('semi')) return 'SF';
-  if (t.includes('quarter')) return 'QF';
-  if (t.includes('16')) return 'O16';
-  if (t.includes('32')) return 'R32';
-  return t.toUpperCase() || '—';
+interface RoundLabel {
+  /** Forma compacta, ao lado do nome do torneio no card de partida ("Copa VH · SF"). */
+  short: string;
+  /** Forma por extenso (histórico do atleta e atividade do perfil público). */
+  full: string;
 }
 
-/** `Final` / `Semifinal` / `Quartas de final` etc — mesmas pistas de `roundShortLabel`, mas por
- *  extenso (histórico do atleta e perfil público). */
-export function roundFullLabel(matchType: string): string {
+/**
+ * Fases pelo `matchType` do doc da partida. Uma tabela só para as duas funções abaixo — elas
+ * nasceram como duas escadas de `includes()` separadas e drift(aram): a abreviada tratava
+ * 'Round of 32' como disputa de 3º lugar (o teste `t.includes('3')` casa o "32") e a por extenso
+ * não conhecia WB/LB.
+ *
+ * As chaves cobrem o que os geradores gravam (`functions/src/category-bracket-builders.ts`:
+ * 'group', 'knockout', 'Final', 'Third Place', 'WB', 'LB') e a forma em inglês por extenso de
+ * chaves antigas. WB/LB ficam em 'WB'/'LB' de propósito: é assim que a chave e o Modo Focus já
+ * mostram os dois lados da dupla eliminação (`bracket-tree.ts`, `KNOCKOUT_LABELS` em
+ * `tournaments/tournament-live.selectors.ts`) — inventar "chave dos perdedores" só aqui seria um
+ * vocabulário a mais para o atleta decorar.
+ *
+ * 'knockout' é o valor mais comum e o que menos informa: `buildSingleEliminationMatches` grava
+ * esse mesmo texto em TODA rodada que não é a final, então quartas, oitavas e semifinal chegam
+ * aqui indistinguíveis. Quem separa uma da outra é o `round` cruzado com as rodadas de mata-mata
+ * da CATEGORIA (`knockoutLabelOf`/`positionalKnockoutLabelOf`, `tournament-live.selectors.ts`) — e
+ * nenhuma das três telas que chamam daqui tem essa lista: todas carregam só as partidas DO TIME
+ * (`fetchMatchesForTeam`), uma carreira inteira espalhada por vários torneios. Derivar a fase
+ * exigiria um `fetchMatchesForCategory` por torneio+categoria do histórico (a chave inteira lida
+ * de novo, N torneios = N idas ao Firestore) para enfeitar uma linha de contexto. Então a fase
+ * para em 'Mata-mata': vago, mas verdadeiro e em português — nunca o "KNOCKOUT" que a versão
+ * anterior vazava ao capitalizar o `matchType` cru.
+ */
+const ROUND_LABELS: Record<string, RoundLabel> = {
+  group: { short: 'Grupos', full: 'Fase de grupos' },
+  knockout: { short: 'Mata-mata', full: 'Mata-mata' },
+  final: { short: 'F', full: 'Final' },
+  'grand final': { short: 'F', full: 'Grand final' },
+  grand_final: { short: 'F', full: 'Grand final' },
+  'third place': { short: '3º', full: 'Disputa de 3º lugar' },
+  third_place: { short: '3º', full: 'Disputa de 3º lugar' },
+  'semi-final': { short: 'SF', full: 'Semifinal' },
+  semifinal: { short: 'SF', full: 'Semifinal' },
+  'quarter-final': { short: 'QF', full: 'Quartas de final' },
+  quarterfinal: { short: 'QF', full: 'Quartas de final' },
+  'round of 16': { short: 'O16', full: 'Oitavas de final' },
+  'round of 32': { short: 'R32', full: '16 avos de final' },
+  wb: { short: 'WB', full: 'WB' },
+  lb: { short: 'LB', full: 'LB' },
+};
+
+/** `null` quando o `matchType` não identifica fase nenhuma — quem chama decide o fallback. */
+function roundLabelOf(matchType: string): RoundLabel | null {
   const t = matchType.trim().toLowerCase();
-  if (t.includes('final') && !t.includes('semi') && !t.includes('quarter') && !t.includes('third')) return 'Final';
-  if (t.includes('third') || t.includes('bronze')) return 'Disputa de 3º lugar';
-  if (t.includes('semi')) return 'Semifinal';
-  if (t.includes('quarter')) return 'Quartas de final';
-  if (t.includes('16')) return 'Oitavas de final';
-  if (t.includes('32')) return 'Rodada de 32';
-  if (t.includes('group') || t.includes('pool')) return 'Fase de grupos';
-  return 'Partida';
+  if (!t) return null;
+  const exact = ROUND_LABELS[t];
+  if (exact) return exact;
+
+  // Fases escritas à mão em chaves antigas ('Semi Final', 'Bronze match'…). Do mais específico
+  // para o mais genérico: 'final' fica por último porque semifinal, quartas e disputa de 3º
+  // também contêm a palavra.
+  if (t.includes('third') || t.includes('bronze')) return ROUND_LABELS['third place']!;
+  if (t.includes('semi')) return ROUND_LABELS['semifinal']!;
+  if (t.includes('quarter')) return ROUND_LABELS['quarterfinal']!;
+  if (t.includes('16')) return ROUND_LABELS['round of 16']!;
+  if (t.includes('32')) return ROUND_LABELS['round of 32']!;
+  if (t.includes('group') || t.includes('pool')) return ROUND_LABELS['group']!;
+  if (t.includes('final')) return ROUND_LABELS['final']!;
+  return null;
+}
+
+/** Fase abreviada (F/SF/QF/O16/R32) — o contexto compacto do card de partida da equipe. */
+export function roundShortLabel(matchType: string): string {
+  return roundLabelOf(matchType)?.short ?? '—';
+}
+
+/** A mesma fase por extenso — histórico do atleta e atividade do perfil público. */
+export function roundFullLabel(matchType: string): string {
+  return roundLabelOf(matchType)?.full ?? 'Partida';
 }
 
 function isFinalMatchType(matchType: string): boolean {

@@ -4,12 +4,21 @@ import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import { formatPhoneBR, telLink, whatsAppLink } from '../data/phone-contact';
 import {
   PAY_LABEL,
   PAY_TONE,
   type InscricaoAction,
+  type InscricaoAthlete,
   type InscricaoRow,
 } from './inscricoes.model';
+
+/** Links prontos de um telefone válido — `null` quando não dá pra contatar. */
+interface PhoneLinks {
+  label: string;
+  whatsapp: string;
+  tel: string;
+}
 
 /** Lista de inscrições — só apresentação: recebe as linhas prontas e emite a ação escolhida.
  *
@@ -124,11 +133,40 @@ import {
                     <ul class="og-insc-athletes">
                       @for (a of r.athletes; track a.name) {
                         <li>
-                          <span class="nm">{{ a.name }}</span>
-                          <span class="lgpd" [class.ok]="a.lgpdAccepted">
-                            <og-icon [name]="a.lgpdAccepted ? 'check' : 'alert'" [size]="12" />
-                            {{ a.lgpdAccepted ? 'Termo de imagem aceito' : 'Termo de imagem pendente' }}
+                          <span class="who">
+                            <span class="nm">{{ a.name }}</span>
+                            <span class="lgpd" [class.ok]="a.lgpdAccepted">
+                              <og-icon [name]="a.lgpdAccepted ? 'check' : 'alert'" [size]="12" />
+                              {{ a.lgpdAccepted ? 'Termo de imagem aceito' : 'Termo de imagem pendente' }}
+                            </span>
                           </span>
+
+                          <!-- Contato direto: o telefone só existe aqui, dentro da gaveta. Na
+                               linha da lista seria PII exposta em toda varredura da tela. -->
+                          @if (phoneOf(a); as phone) {
+                            <span class="contact">
+                              <a class="og-mini-btn" [href]="phone.whatsapp" target="_blank" rel="noopener"
+                                 [attr.aria-label]="'Abrir WhatsApp de ' + a.name + ', ' + phone.label">
+                                <og-icon name="whatsapp" [size]="13" />WhatsApp
+                              </a>
+                              <a class="og-mini-btn num" [href]="phone.tel"
+                                 [attr.aria-label]="'Ligar para ' + a.name + ', ' + phone.label">
+                                <og-icon name="phone" [size]="13" />{{ phone.label }}
+                              </a>
+                              <button type="button" class="og-mini-btn"
+                                      [attr.aria-label]="'Copiar telefone de ' + a.name"
+                                      (click)="copyPhone(a)">
+                                <og-icon [name]="copiedPhone() === a.phone ? 'check' : 'copy'" [size]="13" />
+                                {{ copiedPhone() === a.phone ? 'Copiado' : 'Copiar' }}
+                              </button>
+                            </span>
+                          } @else if (a.phone) {
+                            <!-- Tem número gravado, mas não é telefone BR válido: mostrar o que
+                                 está cadastrado é melhor que um botão que abre conversa errada. -->
+                            <span class="contact-none">Telefone inválido: {{ a.phone }}</span>
+                          } @else {
+                            <span class="contact-none">Sem telefone cadastrado</span>
+                          }
                         </li>
                       }
                     </ul>
@@ -187,6 +225,16 @@ import {
                           {{ busyKey() === 'resend:' + r.id ? 'Reenviando…' : 'Reenviar cobrança' }}
                         </button>
                       }
+                    } @else if (r.canRevertPayment) {
+                      <!-- Contraparte de "Confirmar pagamento": só aparece na baixa que o
+                           organizador lançou. Pagamento recebido pela plataforma não tem
+                           botão — o dinheiro está numa conta e sai por estorno. -->
+                      <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="emitAction('revert-payment', r)">
+                        @if (busyKey() === 'revert-payment:' + r.id) {
+                          <app-nx-spinner [size]="12" />
+                        }
+                        {{ busyKey() === 'revert-payment:' + r.id ? 'Revertendo…' : 'Reverter pagamento' }}
+                      </button>
                     }
                     @if (r.pay !== 'espera') {
                       <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="emitAction('waitlist', r)">
@@ -509,11 +557,44 @@ import {
       gap: 6px;
     }
 
+    /* Cada atleta é um bloco: identidade em cima, contato embaixo. Numa linha só, o par
+       "WhatsApp + Ligar" empurrava o termo de imagem pra fora em qualquer largura de painel. */
     .og-insc-athletes li {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .og-insc-athletes li + li {
+      padding-top: 10px;
+      border-top: 1px dashed var(--nx-line);
+    }
+
+    .og-insc-athletes .who {
       display: flex;
       align-items: baseline;
       gap: 12px;
       flex-wrap: wrap;
+    }
+
+    .og-insc-athletes .contact {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* O botão de ligar é a etiqueta E a ação: o número tem de ler como número. */
+    .og-insc-athletes .contact .num {
+      font-family: var(--nx-font-mono);
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+
+    .og-insc-athletes .contact-none {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
     }
 
     .og-insc-athletes .nm {
@@ -689,6 +770,12 @@ import {
       .og-insc-inline-meta .m-cat {
         display: inline;
       }
+
+      /* O recuo alinha a gaveta com a coluna do nome — no card estreito ele custa 74px de uma
+         largura que já é a que falta, e os botões de contato passam a cair um por linha. */
+      .og-insc-drawer {
+        padding-left: 0;
+      }
     }
   `,
 })
@@ -725,17 +812,54 @@ export class OgInscricoesListComponent {
   /** Resposta opcional ao atleta; uma só porque só uma gaveta abre por vez. */
   protected readonly note = signal('');
 
+  /** Telefone copiado por último — troca o rótulo do botão pra "Copiado". */
+  protected readonly copiedPhone = signal('');
+
+  /** `phoneOf` roda a cada ciclo de detecção; o cache evita remontar os mesmos links (e devolver
+   *  um objeto novo, que faria o `@if … as` piscar) a cada render da gaveta. */
+  private readonly phoneCache = new Map<string, PhoneLinks | null>();
+
   /** A plataforma não devolve dinheiro — o organizador precisa ler isso antes de aprovar. */
   protected readonly refundNotice =
     'Aprovar remove a inscrição e libera a vaga. A nexaGO não processa o reembolso — ' +
     'combine a devolução diretamente com o atleta.';
 
   constructor() {
-    // Trocar de gaveta não pode levar junto o rascunho de resposta escrito pra outra dupla.
+    // Trocar de gaveta não pode levar junto o rascunho de resposta escrito pra outra dupla —
+    // nem o "Copiado" de um telefone que não está mais na tela.
     effect(() => {
       this.openId();
       this.note.set('');
+      this.copiedPhone.set('');
     });
+  }
+
+  /** Links de contato do atleta, ou `null` se não há telefone utilizável. */
+  protected phoneOf(a: InscricaoAthlete): PhoneLinks | null {
+    const raw = a.phone;
+    if (!raw) return null;
+    const cached = this.phoneCache.get(raw);
+    if (cached !== undefined) return cached;
+
+    const whatsapp = whatsAppLink(raw);
+    const tel = telLink(raw);
+    const links = whatsapp && tel ? { label: formatPhoneBR(raw), whatsapp, tel } : null;
+    this.phoneCache.set(raw, links);
+    return links;
+  }
+
+  /** Copiar serve pro que os links não cobrem: colar num grupo, numa planilha, num sistema de
+   *  fora. Sem área de transferência (contexto inseguro, permissão negada) o rótulo não muda —
+   *  não adianta dizer "Copiado" quando nada foi. */
+  protected async copyPhone(a: InscricaoAthlete): Promise<void> {
+    const links = this.phoneOf(a);
+    if (!links) return;
+    try {
+      await navigator.clipboard.writeText(links.label);
+      this.copiedPhone.set(a.phone);
+    } catch {
+      /* sem clipboard: o número continua visível e selecionável no botão de ligar */
+    }
   }
 
   /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */

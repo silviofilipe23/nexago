@@ -35,6 +35,104 @@ void main() {
     });
   });
 
+  group('suggestCategoryName / categoryTags — faixa de nível (Elite vs Livre)', () {
+    test('preset Elite (Open–Open) nomeia "Elite", não fica igual a Livre', () {
+      const elite = TournamentCategoryDraft(
+        id: 'c1',
+        skillLevel: TournamentSkillLevel.open,
+        minLevel: 'Open',
+      );
+      expect(suggestCategoryName(elite), 'Masculino Elite');
+      expect(categoryTags(elite), contains('Elite'));
+    });
+
+    test('preset Livre (Iniciante 1–Open) segue sem ruído de nível', () {
+      const livre = TournamentCategoryDraft(
+        id: 'c1',
+        skillLevel: TournamentSkillLevel.open,
+        minLevel: 'Iniciante 1',
+      );
+      expect(suggestCategoryName(livre), 'Masculino');
+      expect(categoryTags(livre), isNot(contains('Livre')));
+      expect(categoryTags(livre).any((t) => t.contains('Iniciante')), isFalse);
+    });
+
+    test('preset Open (faixa-ponte Avançado 1–Open) nomeia "Open"', () {
+      const openBridge = TournamentCategoryDraft(
+        id: 'c1',
+        skillLevel: TournamentSkillLevel.open,
+        minLevel: 'Avançado 1',
+      );
+      expect(suggestCategoryName(openBridge), 'Masculino Open');
+      expect(categoryTags(openBridge), contains('Open'));
+    });
+
+    test('faixa legada (minLevel vazio) preserva o comportamento de hoje', () {
+      const legacyOpen = TournamentCategoryDraft(
+        id: 'c1',
+        skillLevel: TournamentSkillLevel.open,
+      );
+      expect(suggestCategoryName(legacyOpen), 'Masculino');
+      expect(categoryTags(legacyOpen).any((t) => t.contains('Open')), isFalse);
+
+      const legacyBeginner = TournamentCategoryDraft(
+        id: 'c1',
+        skillLevel: TournamentSkillLevel.beginner,
+      );
+      expect(suggestCategoryName(legacyBeginner), 'Masculino Iniciante');
+      expect(categoryTags(legacyBeginner), contains('Iniciante'));
+    });
+  });
+
+  group('skillLevelOptionsForSport', () {
+    test('editor oferece a escada de 7', () {
+      final options = skillLevelOptionsForSport(TournamentSport.beachVolleyball);
+      expect(options.length, 7);
+      expect(skillLevelLabel(TournamentSkillLevel.avancado1), 'Avançado 1');
+      expect(skillLevelLabel(TournamentSkillLevel.avancado2), 'Avançado 2');
+    });
+  });
+
+  group('categoryLevelPresets', () {
+    test('presets de faixa espelham a tabela canônica', () {
+      final byLabel = {for (final p in categoryLevelPresets) p.label: p};
+      expect(byLabel['Open']!.minLevel, 'Avançado 1');
+      expect(byLabel['Open']!.maxSkillLevel, TournamentSkillLevel.open);
+      expect(byLabel['Elite']!.minLevel, 'Open');
+      expect(byLabel['Elite']!.maxSkillLevel, TournamentSkillLevel.open);
+      expect(byLabel['Livre']!.minLevel, 'Iniciante 1');
+      expect(byLabel['Avançado']!.maxSkillLevel, TournamentSkillLevel.avancado2);
+      expect(categoryLevelPresets, hasLength(6));
+    });
+  });
+
+  group('activeCategoryLevelPreset', () {
+    test('casa faixa exata e devolve null pra legado', () {
+      final draft = emptyCategoryDraft('c1').copyWith(
+        skillLevel: TournamentSkillLevel.open,
+        minLevel: 'Avançado 1',
+      );
+      expect(activeCategoryLevelPreset(draft), 'Open');
+      expect(
+        activeCategoryLevelPreset(draft.copyWith(minLevel: '')),
+        isNull, // sem piso = legado, nunca um preset
+      );
+      expect(
+        activeCategoryLevelPreset(draft.copyWith(minLevel: 'Open')),
+        'Elite',
+      );
+    });
+  });
+
+  group('emptyCategoryDraft', () {
+    test('categoria nova nasce num preset real (Livre), nunca em faixa legada', () {
+      final draft = emptyCategoryDraft('c1');
+      expect(activeCategoryLevelPreset(draft), 'Livre');
+      expect(draft.minLevel, 'Iniciante 1');
+      expect(draft.skillLevel, TournamentSkillLevel.open);
+    });
+  });
+
   group('labels de disputa de equipe', () {
     test('categoryDisputeLabel mapeia trio/quarteto/quinteto', () {
       expect(categoryDisputeLabel(TournamentCategoryDispute.trio), 'Trio');
@@ -230,6 +328,12 @@ void main() {
       expect(draft.registrationClosesAt, DateTime(2026, 6, 6));
       // Fim padrão = início quando não informado.
       expect(draft.endAt, DateTime(2026, 6, 6));
+      // Categoria expressa também nasce no preset Livre (mesmo invariante
+      // do editor manual) em vez de faixa legada sem piso.
+      expect(
+        activeCategoryLevelPreset(draft.categories.single),
+        'Livre',
+      );
     });
 
     test('keeps a valid multi-day range and clamps inverted end', () {

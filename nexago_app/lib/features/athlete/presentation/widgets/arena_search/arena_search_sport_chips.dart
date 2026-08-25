@@ -1,10 +1,31 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
 
-/// Ícone do chip de esporte (busca Reservar + card de arena).
+/// Vocabulário de esporte da busca: rótulo e ícone de cada opção.
+///
+/// Fonte única — a folha de filtros e o card de arena leem daqui. Duplicar a
+/// lista faria uma superfície ganhar um esporte novo e a outra não.
+const List<(ArenaSportChip chip, String label, IconData icon)>
+    arenaSearchSportOptions = [
+  (ArenaSportChip.all, 'Todos', Icons.grid_view_rounded),
+  (
+    ArenaSportChip.beachVolleyball,
+    'Vôlei de praia',
+    Icons.sports_volleyball_rounded,
+  ),
+  (ArenaSportChip.beachTennis, 'Beach tênis', Icons.sports_tennis_rounded),
+  (ArenaSportChip.tennis, 'Tênis', Icons.sports_baseball_rounded),
+  (ArenaSportChip.padel, 'Padel', Icons.sports_handball_rounded),
+  (
+    ArenaSportChip.volleyball,
+    'Vôlei de quadra',
+    Icons.sports_volleyball_rounded,
+  ),
+  (ArenaSportChip.football, 'Futebol', Icons.sports_football_rounded),
+];
+
+/// Ícone do esporte (folha de filtros + card de arena).
 IconData arenaSearchSportChipIcon(ArenaSportChip chip) {
   return switch (chip) {
     ArenaSportChip.all => Icons.grid_view_rounded,
@@ -17,75 +38,10 @@ IconData arenaSearchSportChipIcon(ArenaSportChip chip) {
   };
 }
 
-class ArenaSearchSportChips extends StatelessWidget {
-  const ArenaSearchSportChips({
-    super.key,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ArenaSportChip selected;
-  final ValueChanged<ArenaSportChip> onSelected;
-
-  static const _options = [
-    (ArenaSportChip.all, 'Todos', Icons.grid_view_rounded),
-    (
-      ArenaSportChip.beachVolleyball,
-      'Vôlei de praia',
-      Icons.sports_volleyball_rounded,
-    ),
-    (ArenaSportChip.beachTennis, 'Beach tênis', Icons.sports_tennis_rounded),
-    (ArenaSportChip.tennis, 'Tênis', Icons.sports_baseball_rounded),
-    (ArenaSportChip.padel, 'Padel', Icons.sports_handball_rounded),
-    (
-      ArenaSportChip.volleyball,
-      'Vôlei de quadra',
-      Icons.sports_volleyball_rounded,
-    ),
-    (ArenaSportChip.football, 'Futebol', Icons.sports_football_rounded),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _options.length,
-        separatorBuilder: (_, __) => SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final (chip, label, icon) = _options[index];
-          final isSelected = selected == chip;
-          return FilterChip(
-            selected: isSelected,
-            showCheckmark: false,
-            avatar: Icon(
-              icon,
-              size: 18,
-              color: isSelected
-                  ? AppColors.black
-                  : context.themeColors.onSurfaceMuted,
-            ),
-            label: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: isSelected
-                    ? AppColors.black
-                    : context.themeColors.onSurface,
-              ),
-            ),
-            selectedColor: AppColors.brand,
-            backgroundColor: context.themeColors.surfaceCard,
-            side: BorderSide(
-              color: isSelected
-                  ? AppColors.brand
-                  : context.themeColors.surfaceRaised,
-            ),
-            onSelected: (_) => onSelected(chip),
-          );
-        },
-      ),
-    );
+/// Rótulo do esporte, para quem só tem o valor em mãos.
+String arenaSearchSportChipLabel(ArenaSportChip chip) {
+  for (final option in arenaSearchSportOptions) {
+    if (option.$1 == chip) return option.$2;
   }
+  return 'Todos';
 }

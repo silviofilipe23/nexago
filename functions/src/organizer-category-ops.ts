@@ -20,6 +20,15 @@ import {
   organizerDirectConfirmPaidAmount,
 } from "./organizer-category-ops-payments";
 import {
+  PAYMENT_REVERT_BLOCK_MESSAGE,
+  PAYMENT_SNAPSHOT_FIELD,
+  buildPaymentRevertNotificationBody,
+  buildPaymentRevertPlan,
+  paymentRevertBlock,
+  paymentSnapshotOf,
+  shouldCapturePaymentSnapshot,
+} from "./organizer-payment-revert";
+import {
   loadTournamentData,
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
@@ -391,6 +400,13 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
     paymentVerifiedByOrganizer: true,
     paymentVerifiedAt: FieldValue.serverTimestamp(),
     paymentVerifiedByUid: uid,
+    // Retrato do estado ANTES da baixa: é o que
+    // `organizerRevertRegistrationPayment` usa para desfazer exatamente esta
+    // escrita (parcela já paga pelo app, fila de espera, declaração do atleta)
+    // em vez de jogar a inscrição num "pendente" genérico.
+    ...(shouldCapturePaymentSnapshot(data) ?
+      {[PAYMENT_SNAPSHOT_FIELD]: paymentSnapshotOf(data)} :
+      {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -438,6 +454,106 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
   }
 
   return {ok: true};
+});
+
+/**
+ * Desfaz a baixa manual de pagamento — o organizador confirmou na dupla errada
+ * e precisa voltar atrás.
+ *
+ * Só reverte o que ele mesmo lançou (`paymentMethod: organizer_direct`):
+ * pagamento recebido pela plataforma tem dinheiro real do outro lado e sai por
+ * estorno, não por edição de doc. A inscrição volta ao estado guardado na
+ * confirmação (`paymentBeforeConfirm`) — pendente, "A conferir" ou fila —, e a
+ * vaga NÃO é liberada: quem tira a dupla da categoria é a remoção.
+ */
+export const organizerRevertRegistrationPayment = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const registrationId = (request.data?.registrationId as string)?.trim();
+  if (!registrationId) {
+    throw new HttpsError("invalid-argument", "registrationId obrigatório");
+  }
+
+  const db = getFirestore();
+  const projectId = getFirebaseProjectId();
+  const ref = db.doc(`${artifactsInscriptionsPath(projectId)}/${registrationId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Inscrição não encontrada");
+
+  const data = snap.data() ?? {};
+  const tournamentId = (data.tournamentId as string)?.trim();
+  if (!tournamentId) throw new HttpsError("failed-precondition", "Torneio inválido");
+
+  await assertCanManageTournament(db, uid, tournamentId);
+
+  const block = paymentRevertBlock(data);
+  if (block) {
+    throw new HttpsError(
+      "failed-precondition",
+      PAYMENT_REVERT_BLOCK_MESSAGE[block],
+    );
+  }
+
+  const plan = buildPaymentRevertPlan(data);
+  await ref.update({
+    ...plan.set,
+    ...Object.fromEntries(
+      plan.clear.map((field) => [field, FieldValue.delete()]),
+    ),
+    // Rastro de quem desfez: a inscrição continua viva, então cabe no próprio
+    // doc (a remoção, que deleta, é que precisa de coleção de auditoria).
+    paymentRevertedAt: FieldValue.serverTimestamp(),
+    paymentRevertedByUid: uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // O atleta viu "Pago" e a inscrição volta a não paga: sem aviso ele só
+  // descobre por acaso, abrindo o app.
+  try {
+    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+    const teamSnap = teamId ?
+      await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get() :
+      null;
+    const athleteUids = registrationAthleteUids(
+      data,
+      teamSnap?.exists ? teamSnap.data() : null,
+    );
+    const tournament = await loadTournamentData(db, projectId, tournamentId);
+    const body = buildPaymentRevertNotificationBody({
+      tournamentName: String(tournament?.name ?? ""),
+      outcome: plan.outcome,
+    });
+    await Promise.all(
+      athleteUids.map((athleteUid) =>
+        deliverNotificationToUser({
+          userId: athleteUid,
+          title: "Pagamento revertido",
+          body,
+          type: "tournament_payment_reverted",
+          data: {
+            tournamentId,
+            registrationId,
+            url: `/torneios/${tournamentId}`,
+          },
+        }).catch(() => undefined),
+      ),
+    );
+  } catch (notifyError) {
+    logger.warn("Falha ao notificar reversão de pagamento", {
+      registrationId,
+      notifyError,
+    });
+  }
+
+  logger.info("Organizer reverted registration payment", {
+    registrationId,
+    tournamentId,
+    uid,
+    outcome: plan.outcome,
+  });
+
+  return {ok: true, outcome: plan.outcome};
 });
 
 export const organizerMoveToWaitlist = onCall(async (request) => {

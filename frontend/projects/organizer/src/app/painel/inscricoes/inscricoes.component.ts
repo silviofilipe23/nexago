@@ -1,18 +1,24 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
+import { fetchAthletePhones } from '../data/athlete-contacts-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
+import { formatPhoneBR } from '../data/phone-contact';
 import {
   confirmRegistrationPayment,
+  createTeamRegistration,
   moveToWaitlist,
   removeFromCategory,
   resendRegistrationPayment,
   respondCancellationRequest,
+  revertRegistrationPayment,
 } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
+import { uniformCategoryConfigs } from '../data/uniforms';
 import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
+import { OgNovaInscricaoComponent, type NovaInscricaoSubmit } from './nova-inscricao.component';
 import {
   INSCRICAO_TABS,
   LGPD_LABEL,
@@ -33,6 +39,9 @@ interface PendingConfirm {
   title: string;
   message: string;
   confirmLabel: string;
+  /** Botão vermelho; padrão. `false` fica pra ação que não apaga nada — reverter
+   *  pagamento mexe em dinheiro, mas a inscrição continua onde está. */
+  destructive?: boolean;
   /** Texto exigido no diálogo; `run` recebe o que foi digitado (vazio quando não há prompt). */
   prompt?: ConfirmPrompt;
   run: (value: string) => void;
@@ -43,6 +52,10 @@ interface PendingConfirm {
  *  espera, remover da categoria e reenviar cobrança — todas via Cloud Functions com validação
  *  no servidor. O torneio vem da rota (`/painel/eventos/:id/inscricoes`).
  *
+ *  A exceção é "Reverter pagamento", que ainda só existe aqui: desfaz a baixa manual quando o
+ *  organizador confirma na dupla errada. Só a baixa dele é reversível — pagamento recebido pela
+ *  plataforma tem dinheiro numa conta e sai por estorno, não por edição de doc.
+ *
  *  Este componente cuida de dados, filtros e ações; o desenho da lista é do
  *  `og-inscricoes-list`. Os contadores por situação vivem nas próprias abas de filtro — a fila
  *  de cards de KPI que existia aqui repetia números que já estavam uma linha abaixo, e empurrava
@@ -50,7 +63,13 @@ interface PendingConfirm {
 @Component({
   selector: 'og-inscricoes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgIconComponent, OgInscricoesListComponent, OgConfirmDialogComponent],
+  imports: [
+    OgPageHeaderComponent,
+    OgIconComponent,
+    OgInscricoesListComponent,
+    OgNovaInscricaoComponent,
+    OgConfirmDialogComponent,
+  ],
   template: `
     <og-page-header title="Inscrições" [subtitle]="headerSubtitle()">
       <label class="og-insc-search">
@@ -66,11 +85,28 @@ interface PendingConfirm {
       <button type="button" class="og-mini-btn" [disabled]="filtered().length === 0" (click)="exportCsv()">
         <og-icon name="download" [size]="14" />Exportar
       </button>
+      @if (categorias().length > 0) {
+        <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="busy()" (click)="toggleNova()">
+          <og-icon [name]="creating() ? 'close' : 'plus'" [size]="14" />
+          {{ creating() ? 'Fechar' : 'Nova inscrição' }}
+        </button>
+      }
     </og-page-header>
 
     <div class="og-content">
       @if (feedback(); as fb) {
         <div class="og-banner" [class.win]="fb.ok" role="status">{{ fb.message }}</div>
+      }
+
+      @if (creating()) {
+        <og-nova-inscricao
+          [categorias]="categorias()"
+          [uniformConfigs]="uniformConfigs()"
+          [categoriaInicial]="categoryFilter()"
+          [busy]="busy()"
+          (submitted)="onCreate($event)"
+          (cancelled)="toggleNova()"
+        />
       }
 
       @if (categorias().length > 1) {
@@ -132,7 +168,7 @@ interface PendingConfirm {
         [title]="c.title"
         [message]="c.message"
         [confirmLabel]="c.confirmLabel"
-        [destructive]="true"
+        [destructive]="c.destructive ?? true"
         [busy]="busy()"
         [prompt]="c.prompt ?? null"
         (confirmed)="c.run($event)"
@@ -146,6 +182,9 @@ interface PendingConfirm {
       align-items: center;
       gap: 9px;
       width: 268px;
+      /* Os 268px são a largura desejada, não uma exigência: no cabeçalho estreito de
+         tablet a busca encolhe junto com as outras ações em vez de empurrar a linha. */
+      max-width: 100%;
       height: 38px;
       padding: 0 12px;
       background: var(--nx-surface-0);
@@ -153,6 +192,12 @@ interface PendingConfirm {
       border-radius: var(--nx-r-2);
       color: var(--nx-text-dim);
       transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+
+    @media (pointer: coarse) {
+      .og-insc-search {
+        height: 44px;
+      }
     }
 
     .og-insc-search:focus-within {
@@ -214,6 +259,10 @@ interface PendingConfirm {
 })
 export class InscricoesComponent {
   readonly id = input<string>('');
+  /** Vem do deep-link da notificação (`?registrationId=...`) — abre e rola até a linha. */
+  readonly registrationId = input<string>('');
+
+  private readonly injector = inject(Injector);
 
   protected readonly tabs = INSCRICAO_TABS;
   protected readonly tab = signal<InscricaoTab>('todos');
@@ -225,12 +274,18 @@ export class InscricoesComponent {
   /** Qual ação/inscrição está processando (`'confirm:<id>'` etc.) — o botão certo mostra spinner. */
   protected readonly busyKey = signal<string | null>(null);
   protected readonly actionsFor = signal<string | null>(null);
+  /** Formulário de inscrição criada pelo organizador aberto. */
+  protected readonly creating = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly rows = signal<InscricaoRow[]>([]);
 
   protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
+
+  /** Exigência de uniforme por categoria — mesma fonte da tela de Uniformes, com a herança
+   *  das flags da raiz resolvida. */
+  protected readonly uniformConfigs = computed(() => uniformCategoryConfigs(this.tournament()));
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -291,7 +346,14 @@ export class InscricoesComponent {
 
   private async load(tid: string): Promise<void> {
     try {
-      const [tournament, inscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
+      // O telefone vem de um callable à parte (`users` é fechado, `public_profiles` é sem PII) e
+      // é acessório: entra na MESMA rodada de rede das inscrições e, se falhar, volta vazio —
+      // a lista carrega igual, só sem o contato.
+      const [tournament, inscriptions, phones] = await Promise.all([
+        getTournament(tid),
+        listInscriptions(tid),
+        fetchAthletePhones(tid),
+      ]);
       this.tournament.set(tournament);
       const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
       // No modo direto o atleta DECLARA que pagou; no modo app o dinheiro entrou de verdade.
@@ -305,8 +367,9 @@ export class InscricoesComponent {
                 name: p.name,
                 photoUrl: p.photoUrl,
                 lgpdAccepted: accepted.has(p.uid),
+                phone: phones.get(p.uid) ?? '',
               }))
-            : [{ name: insc.teamName, photoUrl: null, lgpdAccepted: false }];
+            : [{ name: insc.teamName, photoUrl: null, lgpdAccepted: false, phone: '' }];
         const missing = insc.participants.filter((p) => !accepted.has(p.uid));
         const lgpd: LgpdStatus =
           insc.participants.length > 0 && missing.length === 0
@@ -333,6 +396,9 @@ export class InscricoesComponent {
           categoriaId: insc.categoryId,
           categoria,
           pay,
+          // Só a baixa que o organizador lançou é reversível — e só faz sentido oferecer
+          // desfazer o que está valendo como "Pago" agora.
+          canRevertPayment: pay === 'pago' && insc.paidByOrganizer,
           payTitle:
             pay === 'conferir'
               ? 'Os atletas declararam ter pago o Pix do organizador. Confira o recebimento e confirme.'
@@ -358,9 +424,22 @@ export class InscricoesComponent {
       });
       rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
       this.rows.set(rows);
+      this.openFromDeepLink(rows);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Notificação de nova inscrição/pagamento/cancelamento leva direto pra dupla — expande a
+   *  gaveta de ações e rola até ela, sem depender de o organizador achá-la na lista. */
+  private openFromDeepLink(rows: InscricaoRow[]): void {
+    const target = this.registrationId();
+    if (!target || !rows.some((r) => r.id === target)) return;
+    this.actionsFor.set(target);
+    afterNextRender(
+      () => document.getElementById(`insc-drawer-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      { injector: this.injector },
+    );
   }
 
   private matchesTab(r: InscricaoRow, tab: InscricaoTab): boolean {
@@ -406,6 +485,38 @@ export class InscricoesComponent {
     this.actionsFor.update((cur) => (cur === id ? null : id));
   }
 
+  protected toggleNova(): void {
+    this.creating.update((cur) => !cur);
+    this.feedback.set(null);
+  }
+
+  /** A inscrição pode nascer de dois jeitos, e o organizador precisa saber qual aconteceu:
+   *  dupla nova na lista, ou a reserva que um dos atletas já tinha, agora fechada — sem esse
+   *  aviso ele procura uma linha nova que não existe. */
+  protected onCreate(form: NovaInscricaoSubmit): void {
+    const categoria = this.categorias().find((c) => c.id === form.categoryId)?.name ?? 'categoria';
+    void this.run(
+      'create',
+      async () => {
+        const result = await createTeamRegistration({
+          tournamentId: this.id(),
+          categoryId: form.categoryId,
+          athleteUids: form.athleteUids,
+          markAsPaid: form.markAsPaid,
+          uniforms: form.uniforms,
+        });
+        this.creating.set(false);
+        return result;
+      },
+      (result) => {
+        const base = result.merged
+          ? `Dupla fechada em ${categoria} sobre a inscrição que o atleta já tinha.`
+          : `Dupla inscrita em ${categoria}.`;
+        return result.waitlist ? `${base} A categoria está lotada: entrou na lista de espera.` : base;
+      },
+    );
+  }
+
   protected onAction(a: InscricaoAction): void {
     const { kind, row, note } = a;
     switch (kind) {
@@ -414,6 +525,25 @@ export class InscricoesComponent {
         return;
       case 'resend':
         void this.run(`resend:${row.id}`, () => resendRegistrationPayment(row.id), `Cobrança reenviada pra ${row.name}.`);
+        return;
+      // Desfazer a baixa não apaga a inscrição nem libera a vaga, mas mexe em dinheiro
+      // (sai da arrecadação) e o atleta é avisado — vale a confirmação.
+      case 'revert-payment':
+        this.pendingConfirm.set({
+          title: 'Reverter pagamento',
+          message:
+            `A confirmação de pagamento de ${row.name} é desfeita e a inscrição volta ao ` +
+            'estado anterior. A vaga continua com a dupla; o valor sai da arrecadação do ' +
+            'torneio e o atleta é avisado.',
+          confirmLabel: 'Reverter pagamento',
+          destructive: false,
+          run: () =>
+            void this.run(
+              `revert-payment:${row.id}`,
+              () => revertRegistrationPayment(row.id),
+              (result) => revertedMessage(row.name, result.outcome),
+            ),
+        });
         return;
       case 'waitlist':
         void this.run(`waitlist:${row.id}`, () => moveToWaitlist(row.id), `${row.name} movido pra lista de espera.`);
@@ -466,14 +596,23 @@ export class InscricoesComponent {
     }
   }
 
-  private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
+  /** `okMessage` aceita função porque nem toda ação sabe o resultado antes de rodar — criar
+   *  inscrição, por exemplo, só descobre no retorno se fundiu com uma reserva existente. */
+  private async run<T>(
+    key: string,
+    action: () => Promise<T>,
+    okMessage: string | ((result: T) => string),
+  ): Promise<void> {
     this.busy.set(true);
     this.busyKey.set(key);
     this.feedback.set(null);
     try {
-      await action();
+      const result = await action();
       this.pendingConfirm.set(null);
-      this.feedback.set({ ok: true, message: okMessage });
+      this.feedback.set({
+        ok: true,
+        message: typeof okMessage === 'function' ? okMessage(result) : okMessage,
+      });
       this.actionsFor.set(null);
       const tid = this.id();
       if (tid) {
@@ -492,10 +631,13 @@ export class InscricoesComponent {
   /** Exporta o que está na tela (mesmos filtros e busca), separado por `;` e com BOM — é assim
    *  que o Excel em pt-BR abre o arquivo já nas colunas certas e com acento. */
   protected exportCsv(): void {
-    const head = ['Dupla', 'Atletas', 'Categoria', 'Inscrita em', 'Pagamento', 'Termo de imagem', 'Cancelamento'];
+    const head = ['Dupla', 'Atletas', 'Telefones', 'Categoria', 'Inscrita em', 'Pagamento', 'Termo de imagem', 'Cancelamento'];
     const lines = this.filtered().map((r) => [
       r.name,
       r.athletes.map((a) => a.name).join(' | '),
+      // Mesmo separador e MESMA ordem da coluna "Atletas": quem lê a planilha casa telefone com
+      // atleta pela posição, então quem não tem número ocupa a posição com '—' em vez de sumir.
+      r.athletes.map((a) => (a.phone ? formatPhoneBR(a.phone) : '—')).join(' | '),
       r.categoria,
       r.dateLong,
       PAY_LABEL[r.pay] + (r.payNote ? ` (${r.payNote})` : ''),
@@ -507,6 +649,23 @@ export class InscricoesComponent {
     const slug = normalizeSearch(name).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'torneio';
     downloadFile(`inscricoes-${slug}.csv`, new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
     this.feedback.set({ ok: true, message: `${lines.length} inscrições exportadas.` });
+  }
+}
+
+/** O estado pra onde a inscrição volta depende do que havia ANTES da baixa (declaração dos
+ *  atletas, fila, parcela já paga) — quem sabe isso é o servidor, então a mensagem segue o
+ *  `outcome` dele em vez de adivinhar pela linha na tela. */
+function revertedMessage(name: string, outcome: string | undefined): string {
+  const base = `Pagamento de ${name} revertido.`;
+  switch (outcome) {
+    case 'toVerify':
+      return `${base} A inscrição voltou para “A conferir” — a declaração dos atletas continua valendo.`;
+    case 'waitlist':
+      return `${base} A inscrição voltou para a lista de espera.`;
+    case 'paid':
+      return `${base} A inscrição voltou ao pagamento que já constava antes da confirmação.`;
+    default:
+      return `${base} A inscrição voltou para “Pendente”.`;
   }
 }
 

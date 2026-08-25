@@ -2,9 +2,13 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   levelRank,
+  levelDisplayLabel,
+  levelCodeForRank,
+  levelLabelForRank,
   tournamentSportToLevelSportCode,
   resolveAthleteLevelRank,
   categoryLevelRank,
+  categoryMinLevelRank,
   isTeamEligible,
   assertTeamLevelEligibility,
 } from "./category-level-eligibility";
@@ -23,7 +27,7 @@ function mockDb(usersByUid: Record<string, Record<string, unknown> | null>) {
 }
 
 describe("category-level-eligibility · níveis", () => {
-  it("rankeia códigos novos e labels (escada de 5 do vôlei)", () => {
+  it("rankeia códigos novos e labels (escada de 7, todos os esportes)", () => {
     assert.equal(levelRank("iniciante_1"), 0);
     assert.equal(levelRank("Iniciante 1"), 0);
     assert.equal(levelRank("iniciante_2"), 1);
@@ -32,8 +36,8 @@ describe("category-level-eligibility · níveis", () => {
     assert.equal(levelRank("Intermediário 1"), 2);
     assert.equal(levelRank("intermediario_2"), 3);
     assert.equal(levelRank("Intermediário 2"), 3);
-    assert.equal(levelRank("open"), 5);
-    assert.equal(levelRank("Open"), 5);
+    assert.equal(levelRank("open"), 6);
+    assert.equal(levelRank("Open"), 6);
   });
 
   it("legados se comportam como o degrau inferior do split (aliasing)", () => {
@@ -43,7 +47,7 @@ describe("category-level-eligibility · níveis", () => {
     assert.equal(levelRank("Intermediário"), 2);
     assert.equal(levelRank("basico"), 0);
     assert.equal(levelRank("Básico"), 0);
-    assert.equal(levelRank("livre"), 5);
+    assert.equal(levelRank("livre"), 6);
     assert.equal(levelRank(""), null);
     assert.equal(levelRank("xpto"), null);
     assert.equal(levelRank(undefined), null);
@@ -54,6 +58,28 @@ describe("category-level-eligibility · níveis", () => {
     assert.ok(levelRank("iniciante_2")! < levelRank("intermediario_1")!);
     assert.ok(levelRank("intermediario_1")! < levelRank("intermediario_2")!);
     assert.ok(levelRank("intermediario_2")! < levelRank("open")!);
+  });
+
+  it("rankeia os degraus Avançado e Open no rank 6 (escada de 7)", () => {
+    assert.equal(levelRank("avancado_1"), 4);
+    assert.equal(levelRank("Avançado 1"), 4);
+    assert.equal(levelRank("avancado_2"), 5);
+    assert.equal(levelRank("Avançado 2"), 5);
+    assert.equal(levelRank("open"), 6);
+    assert.equal(levelRank("Open"), 6);
+    assert.equal(levelRank("livre"), 6);
+    assert.equal(levelRank("Open / federado"), 6);
+  });
+
+  it("labels e códigos canônicos dos degraus novos", () => {
+    assert.equal(levelDisplayLabel("avancado_1"), "Avançado 1");
+    assert.equal(levelDisplayLabel("avancado_2"), "Avançado 2");
+    assert.equal(levelCodeForRank(4), "avancado_1");
+    assert.equal(levelCodeForRank(5), "avancado_2");
+    assert.equal(levelCodeForRank(6), "open");
+    assert.equal(levelLabelForRank(4), "Avançado 1");
+    assert.equal(levelLabelForRank(5), "Avançado 2");
+    assert.equal(levelLabelForRank(6), "Open");
   });
 });
 
@@ -77,7 +103,7 @@ describe("category-level-eligibility · resolução de nível do atleta", () => 
       level: "iniciante",
       sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}},
     };
-    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 5);
+    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 6);
   });
 
   it("ignora o campo fantasma levelsBySportFirestore (nunca foi escrito)", () => {
@@ -113,7 +139,7 @@ describe("category-level-eligibility · resolução de nível do atleta", () => 
       level: "open",
       sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "iniciante"}},
     };
-    assert.equal(resolveAthleteLevelRank(user, null), 5);
+    assert.equal(resolveAthleteLevelRank(user, null), 6);
   });
 });
 
@@ -123,12 +149,12 @@ describe("category-level-eligibility · nível da categoria", () => {
     assert.equal(categoryLevelRank({level: "Iniciante 2"}), 1);
     assert.equal(categoryLevelRank({level: "Intermediário"}), 2);
     assert.equal(categoryLevelRank({level: "Intermediário 2"}), 3);
-    assert.equal(categoryLevelRank({level: "Open"}), 5);
+    assert.equal(categoryLevelRank({level: "Open"}), 6);
   });
 
   it("categoria sem nível → Open (aceita todos)", () => {
-    assert.equal(categoryLevelRank({}), 5);
-    assert.equal(categoryLevelRank(null), 5);
+    assert.equal(categoryLevelRank({}), 6);
+    assert.equal(categoryLevelRank(null), 6);
   });
 
   it("categoria legada aceita atleta do degrau superior do split", () => {
@@ -155,6 +181,55 @@ describe("category-level-eligibility · regra do mais forte (dupla)", () => {
 
   it("dupla vazia é sempre elegível", () => {
     assert.equal(isTeamEligible({categoryRank: 0, athleteRanks: []}), true);
+  });
+});
+
+describe("category-level-eligibility · piso (minLevel)", () => {
+  it("minLevel ausente/desconhecido resolve para 0 (comportamento atual)", () => {
+    assert.equal(categoryMinLevelRank(null), 0);
+    assert.equal(categoryMinLevelRank({}), 0);
+    assert.equal(categoryMinLevelRank({minLevel: "???"}), 0);
+    assert.equal(categoryMinLevelRank({minLevel: "Avançado 1"}), 4);
+    assert.equal(categoryMinLevelRank({minLevel: "avancado_1"}), 4);
+  });
+
+  it("faixa: piso barra o mais fraco, teto barra o mais forte", () => {
+    // Elite 4–6: Avançado 1 + Open entram; Intermediário 2 não.
+    assert.equal(isTeamEligible({categoryRank: 6, categoryMinRank: 4, athleteRanks: [4, 6]}), true);
+    assert.equal(isTeamEligible({categoryRank: 6, categoryMinRank: 4, athleteRanks: [3, 6]}), false);
+    // Sem categoryMinRank: igual a hoje.
+    assert.equal(isTeamEligible({categoryRank: 2, athleteRanks: [0, 2]}), true);
+    // Dupla vazia sempre elegível.
+    assert.equal(isTeamEligible({categoryRank: 6, categoryMinRank: 4, athleteRanks: []}), true);
+  });
+
+  it("assert recusa por piso nomeando o atleta fraco", async () => {
+    const db = mockDb({
+      forte: {name: "Ana", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
+      fraco: {name: "Bia", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "intermediario_2"}}},
+    });
+    await assert.rejects(
+      () => assertTeamLevelEligibility({
+        db: db as never,
+        tournament: {sport: "beachVolleyball"},
+        category: {categoryName: "Elite", level: "Open", minLevel: "Avançado 1"},
+        uids: ["forte", "fraco"],
+      }),
+      (err: {message: string}) => err.message.includes("Bia") && err.message.includes("nível mínimo"),
+    );
+  });
+
+  it("assert aceita a dupla dentro da faixa (piso ativo carrega usuários mesmo com teto Open)", async () => {
+    const db = mockDb({
+      a1: {name: "Ana", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "avancado_1"}}},
+      op: {name: "Bia", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
+    });
+    await assert.doesNotReject(() => assertTeamLevelEligibility({
+      db: db as never,
+      tournament: {sport: "beachVolleyball"},
+      category: {categoryName: "Elite", level: "Open", minLevel: "Avançado 1"},
+      uids: ["a1", "op"],
+    }));
   });
 });
 

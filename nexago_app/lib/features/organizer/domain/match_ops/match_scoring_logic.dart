@@ -1,5 +1,6 @@
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
+import '../../../tournaments/domain/tournament_match_status.dart';
 
 /// Um problema encontrado na validação de placar completo / lançamento rápido.
 class QuickScoreValidationIssue {
@@ -114,9 +115,40 @@ abstract final class MatchScoringLogic {
     return defaultSetPoints;
   }
 
-  /// Aplica ponto ao set atual; retorna novos sets e índice do set.
-  static ({List<TournamentMatchSet> sets, int currentSetIndex, String? winnerId})
-      applyPoint({
+  /// Quem fica com o saque depois de mexer no placar. Do 1º ponto em diante o rally resolve
+  /// sozinho — quem marca, saca —, MENOS na virada de set: pela regra do vôlei de praia o saque
+  /// ALTERNA a cada set, e quem abre o próximo não é dedutível do placar (o vencedor do último
+  /// ponto é sempre o vencedor do set, então herdar daria sempre a mesma dupla). Devolvendo `''`
+  /// o campo volta a "ninguém com o saque" e a faixa "Quem começa sacando?" — a mesma regra
+  /// [needsStartingServe] da abertura — reaparece pro mesário abrir o set seguinte.
+  ///
+  /// Partida encerrada mantém o último sacador: o set fechou, mas não há próximo set pra abrir e
+  /// o telão continua mostrando o selo na partida finalizada.
+  ///
+  /// Espelha `servingTeamIdAfterScore` de `live-scoring.ts`: as três mesas (app, organizador e
+  /// portal do atleta) têm que virar o set do mesmo jeito.
+  static String _servingTeamIdAfterScore({
+    required List<TournamentMatchSet> sets,
+    required int setIndex,
+    required String side,
+    required String teamAId,
+    required String teamBId,
+    required int bestOf,
+  }) {
+    final setClosed = setWinnerSide(sets, setIndex, bestOf: bestOf) != null;
+    if (setClosed && matchWinnerId(sets: sets, teamAId: teamAId, teamBId: teamBId, bestOf: bestOf) == null) {
+      return '';
+    }
+    return side.toUpperCase() == 'A' ? teamAId : teamBId;
+  }
+
+  /// Aplica ponto ao set atual; retorna novos sets, índice do set e quem fica com o saque.
+  static ({
+    List<TournamentMatchSet> sets,
+    int currentSetIndex,
+    String? winnerId,
+    String servingTeamId,
+  }) applyPoint({
     required List<TournamentMatchSet> sets,
     required int currentSetIndex,
     required String side,
@@ -158,6 +190,14 @@ abstract final class MatchScoringLogic {
       sets: working,
       currentSetIndex: nextSetIndex,
       winnerId: winner,
+      servingTeamId: _servingTeamIdAfterScore(
+        sets: working,
+        setIndex: idx,
+        side: side,
+        teamAId: teamAId,
+        teamBId: teamBId,
+        bestOf: bestOf,
+      ),
     );
   }
 
@@ -217,25 +257,49 @@ abstract final class MatchScoringLogic {
     );
   }
 
-  /// Desfaz último ponto do set atual.
-  static ({List<TournamentMatchSet> sets, int currentSetIndex}) undoPoint({
+  /// Desfaz último ponto do set atual. Devolve o saque pelo mesmo critério do ponto, avaliado
+  /// no set que sobrou: desfazer o ponto que abriu um set devolve a mesa ao set anterior JÁ
+  /// FECHADO, e aí a pergunta "Quem começa sacando?" tem que voltar.
+  static ({List<TournamentMatchSet> sets, int currentSetIndex, String servingTeamId}) undoPoint({
     required List<TournamentMatchSet> sets,
     required int currentSetIndex,
     required String side,
+    required String teamAId,
+    required String teamBId,
+    int bestOf = 3,
   }) {
-    if (sets.isEmpty) return (sets: sets, currentSetIndex: currentSetIndex);
+    String serving(List<TournamentMatchSet> s, int setIndex) => _servingTeamIdAfterScore(
+          sets: s,
+          setIndex: setIndex,
+          side: side,
+          teamAId: teamAId,
+          teamBId: teamBId,
+          bestOf: bestOf,
+        );
+
+    final isA = side.toUpperCase() == 'A';
+    if (sets.isEmpty) {
+      return (
+        sets: sets,
+        currentSetIndex: currentSetIndex,
+        servingTeamId: isA ? teamAId : teamBId,
+      );
+    }
 
     final idx = currentSetIndex.clamp(0, sets.length - 1);
     final working = List<TournamentMatchSet>.from(sets);
     final current = working[idx];
-    final isA = side.toUpperCase() == 'A';
 
     final newA = isA ? (current.a - 1).clamp(0, 999) : current.a;
     final newB = isA ? current.b : (current.b - 1).clamp(0, 999);
 
     if (newA == 0 && newB == 0 && idx > 0) {
       working.removeAt(idx);
-      return (sets: working, currentSetIndex: idx - 1);
+      return (
+        sets: working,
+        currentSetIndex: idx - 1,
+        servingTeamId: serving(working, idx - 1),
+      );
     }
 
     working[idx] = TournamentMatchSet(
@@ -244,7 +308,7 @@ abstract final class MatchScoringLogic {
       startedAt: current.startedAt,
       endedAt: current.endedAt,
     );
-    return (sets: working, currentSetIndex: idx);
+    return (sets: working, currentSetIndex: idx, servingTeamId: serving(working, idx));
   }
 
   static String setsScoreLabel(TournamentMatch match) {
@@ -397,6 +461,26 @@ abstract final class MatchScoringLogic {
       return 'set point em $remaining';
     }
     return null;
+  }
+
+  /// Quem ABRE o saque é o único momento que o rally não resolve: do 1º ponto em diante
+  /// `servingTeamId` é sempre quem marcou. Enquanto ninguém está com o saque a mesa pergunta —
+  /// inclusive com a partida já ao vivo, porque o mesário pode ter iniciado e só depois lembrado.
+  /// Cala em partida encerrada/cancelada e enquanto a chave não definiu os dois lados (não existe
+  /// teamId pra gravar). Espelha `needsStartingServe` de `live-scoring.ts`: as três mesas
+  /// (app, organizador e portal do atleta) têm que perguntar na MESMA janela.
+  static bool needsStartingServe({
+    required String servingTeamId,
+    required String status,
+    required String teamAId,
+    required String teamBId,
+  }) {
+    if (TournamentMatchStatus.isCompleted(status) ||
+        TournamentMatchStatus.isCanceled(status)) {
+      return false;
+    }
+    if (teamAId.trim().isEmpty || teamBId.trim().isEmpty) return false;
+    return servingTeamId.trim().isEmpty;
   }
 
   static String formatPointEventTime(DateTime ts) {

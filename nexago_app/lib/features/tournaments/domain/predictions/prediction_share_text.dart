@@ -1,4 +1,10 @@
+import 'package:nexago_app/core/brand/nexa_hashtag.dart';
+import 'package:nexago_app/core/links/nexago_links.dart';
+import 'package:nexago_app/core/text/safe_display_text.dart';
+
 import 'tournament_predictions_logic.dart';
+
+export 'package:nexago_app/core/links/nexago_links.dart' show kAthletePortalBaseUrl;
 
 /// Texto, link e conteúdo do card de compartilhamento do ranking de palpites.
 ///
@@ -10,9 +16,7 @@ import 'tournament_predictions_logic.dart';
 /// Quantas posições do topo entram na imagem.
 const int kPredictionShareTopCount = 3;
 
-/// Base pública do portal do atleta. O app compartilha o link da web porque é
-/// ele que abre em qualquer celular, com ou sem o app instalado.
-const String kAthletePortalBaseUrl = 'https://atleta.nexago.com.br';
+
 
 class PredictionShareRow {
   const PredictionShareRow({
@@ -55,14 +59,7 @@ class PredictionShareData {
 /// "Marcelo Antunes" → "Marcelo A.". Preserva o primeiro nome inteiro (é como a
 /// pessoa se reconhece) e reduz o resto à inicial.
 String shortDisplayName(String? fullName) {
-  final parts = (fullName ?? '')
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return 'Atleta';
-  if (parts.length == 1) return parts.first;
-  return '${parts.first} ${parts.last[0].toUpperCase()}.';
+  return shortPersonLabel(fullName ?? '');
 }
 
 /// `/torneios/{id}/palpites` no portal do atleta. A rota é protegida, mas o
@@ -110,6 +107,10 @@ PredictionShareData buildPredictionShareData({
 /// Legenda que acompanha a imagem na folha nativa. Curta de propósito: no
 /// WhatsApp o texto longo come o espaço do preview.
 String predictionShareText(PredictionShareData data, String url) {
+  return withNexaHashtag(_predictionShareLine(data, url));
+}
+
+String _predictionShareLine(PredictionShareData data, String url) {
   final where = data.tournamentName != null ? ' do ${data.tournamentName}' : '';
   final me = data.me;
   if (me != null) {

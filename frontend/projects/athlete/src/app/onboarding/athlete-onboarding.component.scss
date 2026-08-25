@@ -287,6 +287,11 @@
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-r-3);
   margin-bottom: 16px;
+
+  // Foto é obrigatória: sem foto o card fica em erro, igual aos campos do form.
+  &.ob-photo-row--error {
+    border-color: var(--nx-live);
+  }
 }
 
 .ob-photo-input {
@@ -372,6 +377,48 @@
   font-family: var(--nx-font-ui);
   font-size: 11px;
   color: var(--nx-text-mute);
+
+  &.ob-photo-hint--error {
+    color: var(--nx-live);
+  }
+}
+
+// ── UF + cidade ──────────────────────────────────────────────
+// Par lado a lado no desktop; empilhado no celular, onde 2 selects de 50px
+// dividindo 375px espremem o rótulo da UF.
+.ob-location-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+
+  // Sem isto os campos estouram a coluna do formulário: item de grid nasce com
+  // `min-width: auto`, e a opção mais longa do select ("Mato Grosso do Sul
+  // (MS)") vira o mínimo do campo. Medido: 224px + 249px numa coluna de 400px.
+  > .nx-field {
+    min-width: 0;
+  }
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ob-select {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--nx-font-ui);
+  /* 16px (não 15px) evita o zoom automático do iOS Safari ao focar o campo. */
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--nx-text);
+  appearance: none;
+
+  &:disabled {
+    color: var(--nx-text-dim);
+  }
 }
 
 .ob-mini-btn {

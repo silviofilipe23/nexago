@@ -105,7 +105,7 @@ describe("declaredLevelFor / seedRatingState", () => {
 
   it("seed usa o initialRating do nível declarado (legados por aliasing)", () => {
     const open = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "open");
-    assert.equal(open.rating, 1900);
+    assert.equal(open.rating, 2200);
     assert.equal(open.levelCode, "open");
 
     const legacy = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "intermediario");
@@ -197,6 +197,28 @@ describe("applyMatchRatingUpdate", () => {
     assert.equal(missing.reason, "tournament_not_found");
   });
 
+  // Incidente 18/08 (Copa Goiás): winnerId com o id do TORNEIO fazia
+  // `won` ser falso dos dois lados — derrota de Glicko para os 4 atletas.
+  it("vencedor fora dos dois lados não move rating nem grava evento", async () => {
+    const db = seededDb();
+    const result = await applyMatchRatingUpdate(db as never, PROJECT, {
+      matchId: "m1",
+      match: match({winnerId: "T1"}),
+    });
+    assert.equal(result.processed, false);
+    assert.equal(result.reason, "winner_not_in_match");
+
+    assert.equal(
+      db.store.get(
+        `${ratingEventsPath(PROJECT)}/${ratingEventId("VOLEI_PRAIA", "m1")}`,
+      ),
+      undefined,
+    );
+    for (const uid of ["a1", "a2", "b1", "b2"]) {
+      assert.equal(ratingDocOf(db, uid), undefined, uid);
+    }
+  });
+
   it("flag ratingEnabled=false desliga a engine (kill switch)", async () => {
     const db = seededDb();
     db.seedDoc("ratingLadders/VOLEI_PRAIA", {flags: {ratingEnabled: false}});
@@ -218,8 +240,8 @@ describe("applyMatchRatingUpdate", () => {
     const doc = ratingDocOf(db, "a1")!;
     assert.equal(doc.seededFromLevel, "open");
     assert.equal(doc.levelCode, "open");
-    // Favorito (1900) vencendo dupla 1600: sobe pouco, mas sobe.
-    assert.ok((doc.rating as number) > 1900);
+    // Favorito (2200) vencendo dupla 1600: sobe pouco, mas sobe.
+    assert.ok((doc.rating as number) > 2200);
   });
 
   it("correção de vencedor superseda o evento e replaya == recomputar do zero", async () => {

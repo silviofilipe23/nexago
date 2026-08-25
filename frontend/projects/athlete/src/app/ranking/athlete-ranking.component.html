@@ -18,7 +18,12 @@
         <span class="rk-search-kbd" aria-hidden="true">⌘K</span>
       </label>
       <at-bell />
-      <a routerLink="/perfil" class="rk-header-avatar">{{ headerInitials() }}</a>
+      <a routerLink="/perfil" class="rk-header-avatar">
+        <span class="rk-header-avatar-fallback">{{ headerInitials() }}</span>
+        @if (myPhotoUrl(); as photo) {
+          <img class="rk-avatar-img" [src]="photo" alt="" loading="lazy" />
+        }
+      </a>
     </div>
   </header>
 
@@ -102,6 +107,40 @@
           }
         </select>
       </label>
+
+      <label class="rk-filter-btn">
+        <span>{{ genderLabel(genderFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select
+          class="rk-native-select"
+          aria-label="Gênero"
+          [value]="genderFilter()"
+          (change)="setGender($any($event.target).value)"
+        >
+          @for (g of genderOptions; track g) {
+            <option [value]="g">{{ genderLabel(g) }}</option>
+          }
+        </select>
+      </label>
+
+      <!-- Formato só existe no ranking de times: linha individual não tem dupla/trio/…,
+           então no modo Individual o filtro some (e volta pra "Todos" ao trocar de modo). -->
+      @if (isMode('doubles')) {
+        <label class="rk-filter-btn">
+          <span>{{ formatLabel(formatFilter()) }}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <select
+            class="rk-native-select"
+            aria-label="Formato"
+            [value]="formatFilter()"
+            (change)="setFormat($any($event.target).value)"
+          >
+            @for (f of formatOptions; track f) {
+              <option [value]="f">{{ formatLabel(f) }}</option>
+            }
+          </select>
+        </label>
+      }
     </div>
 
     <div class="rk-main-grid">
@@ -140,7 +179,13 @@
             <div class="rk-podium">
               @for (p of podium(); track p.id) {
                 <div class="rk-podium-place" [attr.data-place]="p.rank">
-                  <span class="rk-podium-badge">{{ p.rank }}</span>
+                  <span class="rk-podium-badge">
+                    <ng-container
+                      [ngTemplateOutlet]="avatarStack"
+                      [ngTemplateOutletContext]="{ $implicit: p.avatars, link: p.profileLink, name: p.name }"
+                    />
+                    <span class="rk-podium-rank">{{ p.rank }}</span>
+                  </span>
                   <p class="rk-podium-name">{{ p.name }}</p>
                   <p class="rk-podium-city">{{ p.city }}</p>
                   <div class="rk-podium-pedestal">
@@ -177,7 +222,10 @@
             @if (selfEntry(); as self) {
               <div class="rk-self-row">
                 <span class="rk-self-rank">#{{ self.rank }}</span>
-                <span class="rk-self-avatar">{{ headerInitials() }}</span>
+                <ng-container
+                  [ngTemplateOutlet]="avatarStack"
+                  [ngTemplateOutletContext]="{ $implicit: selfAvatars(), link: self.profileLink, name: self.name }"
+                />
                 <div class="rk-self-info">
                   <p class="rk-self-name">{{ self.name }}</p>
                   <p class="rk-self-city">{{ self.city }}</p>
@@ -228,7 +276,10 @@
     @let p = asRow(item);
     <div class="rk-row">
       <span class="rk-row-rank">{{ p.rank }}</span>
-      <span class="rk-row-avatar">{{ rowInitials(p.name) }}</span>
+      <ng-container
+        [ngTemplateOutlet]="avatarStack"
+        [ngTemplateOutletContext]="{ $implicit: p.avatars, link: p.profileLink, name: p.name }"
+      />
       <div class="rk-row-info">
         <p class="rk-row-name">{{ p.name }}</p>
         <p class="rk-row-city">{{ p.city }}</p>
@@ -244,5 +295,40 @@
         }
       </span>
     </div>
+  </ng-template>
+
+  <!-- Fotos do participante: uma no individual, duas na dupla (o par se sobrepõe).
+       Sem foto pública, fica nas iniciais. Com perfil pra abrir, o bloco vira link — do atleta
+       no Individual, da dupla no Duplas; sem perfil (atleta sem espelho público, dupla
+       incompleta) segue decorativo. `asAvatars`/`asLink` só reancoram o tipo do contexto. -->
+  <ng-template #avatarStack let-list let-link="link" let-name="name">
+    @let avatars = asAvatars(list);
+    @if (asLink(link); as profileLink) {
+      <a
+        class="rk-avatars rk-avatars--link"
+        [class.rk-avatars--pair]="avatars.length > 1"
+        [routerLink]="profileLink"
+        [queryParams]="{ from: 'ranking' }"
+        [attr.aria-label]="'Ver perfil de ' + name"
+      >
+        <ng-container [ngTemplateOutlet]="avatarFaces" [ngTemplateOutletContext]="{ $implicit: avatars }" />
+      </a>
+    } @else {
+      <span class="rk-avatars" [class.rk-avatars--pair]="avatars.length > 1" aria-hidden="true">
+        <ng-container [ngTemplateOutlet]="avatarFaces" [ngTemplateOutletContext]="{ $implicit: avatars }" />
+      </span>
+    }
+  </ng-template>
+
+  <!-- Desenho das fotos em si, compartilhado pelas duas versões (link e decorativa). -->
+  <ng-template #avatarFaces let-list>
+    @for (a of asAvatars(list); track $index) {
+      <span class="rk-avatar">
+        <span class="rk-avatar-initials">{{ a.initials }}</span>
+        @if (a.url; as photo) {
+          <img class="rk-avatar-img" [src]="photo" alt="" loading="lazy" />
+        }
+      </span>
+    }
   </ng-template>
 </app-at-panel-shell>

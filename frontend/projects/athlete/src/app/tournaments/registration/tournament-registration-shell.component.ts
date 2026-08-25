@@ -14,19 +14,19 @@ import {
   createTeamRegistration,
   declinePartnerInvite,
   EMPTY_UNIFORM_SLOT,
-  fetchMyPendingPartnerInvites,
-  fetchMyRegistrations,
-  fetchMySentPendingInvites,
   leaveTeamRegistration,
   registerSolo,
   sendPartnerInvite,
   setRegistrationUniform,
   TournamentRegistrationError,
+  watchMyRegistrations,
+  watchMySentPendingInvites,
   type AthleteTournamentRegistration,
   type SentPartnerInvite,
   type TournamentPartnerInvite,
   type UniformInput,
 } from '../../data/tournament-registrations-repository';
+import { PartnerInvitesService } from '../../data/partner-invites.service';
 import {
   categoryFormatLabel,
   categoryGenderDetail,
@@ -36,7 +36,12 @@ import {
   type TournamentCategoryOffer,
   type TournamentSummary,
 } from '../../data/tournaments-repository';
-import { evaluateCategoryEligibility, normalizeAthleteGender } from '../tournament-eligibility';
+import {
+  evaluateCategoryEligibility,
+  partnerMatchesRequiredGender,
+  resolveLevelConfirmationPrompt,
+  type LevelConfirmationPrompt,
+} from '../tournament-eligibility';
 import {
   categoryRequiresUniform,
   defaultJerseyNameForAthlete,
@@ -48,14 +53,27 @@ import {
 } from '../tournament-uniform';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
-import { NxInlineMessageComponent, NxToastService } from '../../shared/feedback';
+import { NxBlockingDialogComponent, NxInlineMessageComponent, NxToastService } from '../../shared/feedback';
 import {
+  formatMissingStepsList,
   readPartnerLinkInviteMarker,
   savePartnerLinkInviteMarker,
   type PartnerLinkInviteMarker,
 } from '../../shared/partner-invite/partner-invite';
 import { LgpdConsentBoxComponent } from '../../shared/lgpd/lgpd-consent-box.component';
+import { uniformSlotForUid } from '../../painel/registration-progress';
 import { InvitePartnerDialogComponent } from './invite-partner-dialog.component';
+import {
+  pickRegistrationSharePhrase,
+  registrationShareDateLabel,
+  registrationShareFooter,
+  registrationShareLocationLine,
+  registrationShareSlotLabel,
+  registrationShareable,
+  type RegistrationShareData,
+} from './registration-share';
+import { RegistrationShareDialogComponent } from './registration-share-dialog.component';
+import { UniformAutoSaver, type UniformAutoSaveState } from './uniform-autosave';
 import { UniformFormComponent } from './uniform-form.component';
 
 function titleCase(input: string): string {
@@ -122,7 +140,9 @@ interface CategoryStatus {
     NxSpinnerComponent,
     InvitePartnerDialogComponent,
     NxInlineMessageComponent,
+    NxBlockingDialogComponent,
     LgpdConsentBoxComponent,
+    RegistrationShareDialogComponent,
   ],
   templateUrl: './tournament-registration-shell.component.html',
   styleUrl: './tournament-registration-shell.component.scss',
@@ -135,6 +155,7 @@ export class TournamentRegistrationShellComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly toasts = inject(NxToastService);
+  private readonly partnerInvites = inject(PartnerInvitesService);
   private searchDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly accountLabel = computed(() => {
@@ -168,6 +189,25 @@ export class TournamentRegistrationShellComponent {
   protected readonly myRegistrations = signal<AthleteTournamentRegistration[]>([]);
   protected readonly enrolledCounts = signal<Map<string, number>>(new Map());
 
+  // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
+  /** Dialog aberto quando `resolveLevelConfirmationPrompt` decide que esta seria a 1ª
+   *  inscrição ativa do atleta no esporte do torneio — última chance de ajustar o nível
+   *  antes de travar pra sempre (`levelLocked`, gravado por trigger de backend). */
+  protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
+  private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+  /** Ponto de fetch do perfil pro gate — campo (não método), pra dar um lugar de troca em
+   *  teste sem bater no Firestore real. Sempre um fetch FRESCO: a decisão "já travou?" não
+   *  pode usar nem o signal `profile` (fica `null` em erro por design, permissivo pras outras
+   *  checagens de elegibilidade) nem um valor stale — só o resultado atual, awaitado de
+   *  verdade (mirror do fix I1 da Task 6/Flutter). Sem sessão OU sem Firestore é a MESMA
+   *  falha de resolução pro gate: rejeita, quem chama bloqueia — nunca decide no escuro. */
+  protected fetchLevelGateProfile = (): Promise<MyAthleteProfile | null> => {
+    const db = this.firestore;
+    const uid = this.auth.user()?.uid;
+    if (!db || !uid) return Promise.reject(new Error('Sem sessão ou conexão com o Firestore.'));
+    return fetchMyAthleteProfile(db, uid);
+  };
+
   /** Inscrição na categoria selecionada — deriva da lista (que ganha a recém-criada). */
   protected readonly registration = computed<AthleteTournamentRegistration | null>(() => {
     const category = this.selectedCategory();
@@ -177,9 +217,18 @@ export class TournamentRegistrationShellComponent {
   protected readonly registering = signal(false);
 
   protected readonly uniform = signal<UniformSelection | null>(null);
-  protected readonly savingUniform = signal(false);
-  protected readonly uniformSaved = signal(false);
+  /** Estado da gravação automática — é o que o selo do card mostra. */
+  protected readonly uniformSaveState = signal<UniformAutoSaveState>('idle');
+  protected readonly uniformSaved = computed(() => this.uniformSaveState() === 'saved');
+  protected readonly savingUniform = computed(() => this.uniformSaveState() === 'saving');
+  protected readonly uniformSaveFailed = computed(() => this.uniformSaveState() === 'failed');
   private uniformCategoryId: string | null = null;
+  private uniformHydratedRegistrationId: string | null = null;
+  /** Sem botão: a escolha grava sozinha. Ver `uniform-autosave.ts`. */
+  private readonly uniformSaver = new UniformAutoSaver({
+    save: (value) => this.writeUniform(value),
+    onStateChange: (state) => this.uniformSaveState.set(state),
+  });
 
   protected readonly uniformRequired = computed(() => {
     const category = this.selectedCategory();
@@ -225,8 +274,18 @@ export class TournamentRegistrationShellComponent {
   protected readonly referralCode = computed(() => this.auth.user()?.uid ?? '');
 
   /** Convite QUE EU RECEBI pra essa categoria — aceitar/recusar direto aqui, sem depender
-   *  de o atleta achar a Agenda (é onde a aceitação sempre viveu até então). */
-  protected readonly receivedInvite = signal<TournamentPartnerInvite | null>(null);
+   *  de o atleta achar a Agenda (é onde a aceitação sempre viveu até então). Vem do store ao
+   *  vivo: o convite pode chegar com a tela já aberta. */
+  protected readonly receivedInvite = computed<TournamentPartnerInvite | null>(() => {
+    const tournamentId = this.tournamentId();
+    const category = this.selectedCategory();
+    if (!tournamentId || !category) return null;
+    return (
+      this.partnerInvites
+        .pending()
+        .find(({ invite }) => invite.tournamentId === tournamentId && invite.categoryId === category.id)?.invite ?? null
+    );
+  });
   protected readonly acceptingInvite = signal(false);
   protected readonly decliningInvite = signal(false);
 
@@ -297,9 +356,61 @@ export class TournamentRegistrationShellComponent {
   });
   protected readonly leavingTeam = signal(false);
 
+  // ── Compartilhar a inscrição (card instagramável, paridade com o app) ───
+  protected readonly showShareDialog = signal(false);
+
+  /** Mesma regra da aba `minha-inscricao` — mora em `registration-share.ts` justamente para as
+   *  duas telas não divergirem. Coincide com o ramo `@else` do template. */
+  protected readonly registrationConfirmed = computed(() => {
+    const reg = this.registration();
+    return reg != null && registrationShareable(reg);
+  });
+
+  protected readonly shareData = computed<RegistrationShareData | null>(() => {
+    const reg = this.registration();
+    const category = this.selectedCategory();
+    const t = this.listing();
+    if (!reg || !category || !t || !this.registrationConfirmed()) return null;
+
+    const roster = this.rosterMembers();
+    // Elenco ainda carregando (ou indisponível): o card sai com o próprio atleta, em vez de
+    // travar o botão — melhor um card com um nome do que nenhum card.
+    const athletes =
+      roster.length > 0
+        ? roster.map((member) => ({ name: this.shareCardNameOf(member), photo: member.photoUrl }))
+        : [{ name: this.accountLabel(), photo: null }];
+
+    return {
+      headline: pickRegistrationSharePhrase(reg.id, { team: reg.teamSize != null }),
+      slotLabel: registrationShareSlotLabel(this.enrolledCounts().get(category.id) ?? null, category.maxTeams),
+      tournamentName: t.name,
+      dateLabel: registrationShareDateLabel(t.startAt, t.endAt, t.dateLabel),
+      categoryName: category.categoryName,
+      locationLine: registrationShareLocationLine(t.location, t.city),
+      footerLabel: registrationShareFooter(t.startAt),
+      athletes,
+      teamName: reg.teamName,
+    };
+  });
+
+  /** Na lista de elenco a própria linha aparece como "Você" quando o perfil público não tem nome.
+   *  Impresso no card isso não faz sentido — ali vale o nome da conta. */
+  private shareCardNameOf(member: { name: string; isMe: boolean }): string {
+    return member.isMe && member.name === 'Você' ? this.accountLabel() : member.name;
+  }
+
+  protected openShareDialog(): void {
+    this.showShareDialog.set(true);
+  }
+
+  protected closeShareDialog(): void {
+    this.showShareDialog.set(false);
+  }
+
   constructor() {
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.searchDebounceHandle);
+      this.uniformSaver.dispose();
     });
 
     effect(() => {
@@ -307,23 +418,27 @@ export class TournamentRegistrationShellComponent {
       void this.loadTournament(id);
     });
 
-    effect(() => {
-      const id = this.tournamentId();
-      const uid = this.auth.user()?.uid;
-      void this.loadMyRegistrations(id, uid);
-    });
-
-    // Convite que ALGUÉM me enviou pra essa categoria — mostrado direto na tela, em vez de
-    // só na Agenda.
-    effect(() => {
-      const uid = this.auth.user()?.uid;
+    // Minhas inscrições neste torneio, ao vivo: o aceite do parceiro acontece do outro lado e
+    // muda a inscrição por baixo da tela (sai o `partnerPending`, entra o elenco e o pagamento).
+    // Sem listener, quem convidou ficava olhando "aguardando parceiro" até recarregar.
+    effect((onCleanup) => {
       const tournamentId = this.tournamentId();
-      const category = this.selectedCategory();
-      if (!uid || !tournamentId || !category) {
-        this.receivedInvite.set(null);
+      const uid = this.auth.user()?.uid;
+      const db = this.firestore;
+      const projectId = environment.firebase.projectId;
+      if (!db || !projectId || !uid || !tournamentId) {
+        this.myRegistrations.set([]);
         return;
       }
-      void this.loadReceivedInvite(uid, tournamentId, category.id);
+      onCleanup(
+        watchMyRegistrations(
+          db,
+          projectId,
+          uid,
+          (all) => this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId)),
+          () => this.myRegistrations.set([]),
+        ),
+      );
     });
 
     effect(() => {
@@ -334,16 +449,27 @@ export class TournamentRegistrationShellComponent {
     // Convites que eu enviei e ainda tão pendentes — mostra "aguardando resposta" em vez de
     // deixar a busca vazia (recarregar a página não deve esconder que já convidei alguém).
     // Pode ter mais de um: o atleta pode convidar várias pessoas, o primeiro aceite cancela
-    // os demais (markStaleInvitesAfterAccept no backend).
-    effect(() => {
+    // os demais (markStaleInvitesAfterAccept no backend). Ao vivo: a resposta do parceiro
+    // chega sem gesto meu e a lista tem de refletir isso na hora.
+    effect((onCleanup) => {
       const reg = this.registration();
       const uid = this.auth.user()?.uid;
       const tournamentId = this.tournamentId();
-      if (!reg?.partnerPending || !uid || !tournamentId) {
+      const db = this.firestore;
+      if (!reg?.partnerPending || !uid || !tournamentId || !db) {
         this.sentPendingInvites.set([]);
         return;
       }
-      void this.loadSentPendingInvites(uid, tournamentId, reg.categoryId);
+      onCleanup(
+        watchMySentPendingInvites(
+          db,
+          uid,
+          tournamentId,
+          reg.categoryId,
+          (invites) => this.sentPendingInvites.set(invites),
+          () => this.sentPendingInvites.set([]),
+        ),
+      );
     });
 
     // Marcador local "convite por link enviado" acompanha a categoria selecionada.
@@ -355,11 +481,13 @@ export class TournamentRegistrationShellComponent {
       );
     });
 
-    // Elenco da equipe (nomes/fotos) — só em categoria de equipe com inscrição.
+    // Elenco (nomes/fotos) de QUALQUER inscrição, não só das de equipe: a dupla também precisa
+    // dele para o card compartilhável. Na tela o elenco continua aparecendo só em categoria de
+    // equipe — quem renderiza está dentro de `@if (isTeamCategory())`.
     effect(() => {
       const reg = this.registration();
       const uid = this.auth.user()?.uid ?? null;
-      if (!reg || reg.teamSize == null) {
+      if (!reg) {
         this.rosterMembers.set([]);
         return;
       }
@@ -374,14 +502,14 @@ export class TournamentRegistrationShellComponent {
       if (!category || !categoryRequiresUniform(category)) {
         this.uniformCategoryId = null;
         this.uniform.set(null);
-        this.uniformSaved.set(false);
+        this.uniformSaver.reset();
         return;
       }
       const fullName = profile?.fullName ?? this.accountLabel();
       const nickname = profile?.nickname ?? null;
       if (this.uniformCategoryId !== category.id) {
         this.uniformCategoryId = category.id;
-        this.uniformSaved.set(false);
+        this.uniformSaver.reset();
         this.uniform.set(defaultUniformSelectionForCategory(category, fullName, nickname));
         return;
       }
@@ -390,6 +518,36 @@ export class TournamentRegistrationShellComponent {
         const name = defaultJerseyNameForAthlete(fullName, nickname);
         if (name) this.uniform.set({ ...current, jerseyName: name });
       }
+    });
+
+    // O que JÁ está gravado na inscrição manda na tela. Sem isso o card mostraria
+    // os padrões (M/10/sobrenome) mesmo pra quem escolheu GG pelo app — e o
+    // auto-save apagaria a escolha real na primeira mexida.
+    effect(() => {
+      const category = this.selectedCategory();
+      const reg = this.registration();
+      const uid = this.auth.user()?.uid ?? null;
+      if (!category || !categoryRequiresUniform(category) || !reg || !uid) {
+        this.uniformHydratedRegistrationId = null;
+        return;
+      }
+      if (this.uniformHydratedRegistrationId === reg.id) return;
+      this.uniformHydratedRegistrationId = reg.id;
+      const stored: UniformSelection = { ...uniformSlotForUid(reg, uid) };
+      untracked(() => {
+        if (isUniformSelectionComplete(category, stored)) {
+          this.uniform.set(stored);
+          this.uniformSaver.markSaved(stored);
+          return;
+        }
+        // Inscrição sem uniforme nenhum (o app não coleta na hora da vaga):
+        // os padrões da tela viram a escolha assim que o atleta abre. Melhor um
+        // tamanho editável no pedido do organizador do que uma linha em branco.
+        const current = this.uniform();
+        if (current && isUniformSelectionComplete(category, current)) {
+          this.uniformSaver.saveNow(current);
+        }
+      });
     });
   }
 
@@ -416,42 +574,6 @@ export class TournamentRegistrationShellComponent {
     }
   }
 
-  private async loadMyRegistrations(tournamentId: string, uid: string | undefined): Promise<void> {
-    const db = this.firestore;
-    const projectId = environment.firebase.projectId;
-    if (!db || !projectId || !uid || !tournamentId) {
-      this.myRegistrations.set([]);
-      return;
-    }
-    try {
-      const all = await fetchMyRegistrations(db, projectId, uid);
-      this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId));
-    } catch {
-      this.myRegistrations.set([]);
-    }
-  }
-
-  private async loadReceivedInvite(uid: string, tournamentId: string, categoryId: string): Promise<void> {
-    const db = this.firestore;
-    if (!db) return;
-    try {
-      const invites = await fetchMyPendingPartnerInvites(db, uid);
-      this.receivedInvite.set(invites.find((i) => i.tournamentId === tournamentId && i.categoryId === categoryId) ?? null);
-    } catch {
-      this.receivedInvite.set(null);
-    }
-  }
-
-  private async loadSentPendingInvites(uid: string, tournamentId: string, categoryId: string): Promise<void> {
-    const db = this.firestore;
-    if (!db) return;
-    try {
-      this.sentPendingInvites.set(await fetchMySentPendingInvites(db, uid, tournamentId, categoryId));
-    } catch {
-      this.sentPendingInvites.set([]);
-    }
-  }
-
   private async loadProfile(uid: string): Promise<void> {
     const db = this.firestore;
     if (!db) return;
@@ -460,6 +582,48 @@ export class TournamentRegistrationShellComponent {
     } catch {
       // Sem perfil, a elegibilidade fica permissiva — o backend segue autoritativo.
     }
+  }
+
+  /** Último checkpoint antes de criar a 1ª inscrição/aceite (mesma posição que o app Flutter
+   *  usa: depois do termo LGPD, antes do `setState`/signal que trava o botão em "enviando").
+   *  `true` → segue a submissão (nada pra confirmar, ou o atleta confirmou). `false` → NÃO
+   *  cria nada; ou a busca do perfil falhou (bloqueia, não decide no escuro) ou o atleta
+   *  escolheu "Ajustar nível" (o dialog já disparou a navegação). */
+  private async ensureLevelConfirmed(): Promise<boolean> {
+    // Uma confirmação já pendente não pode ser sobrescrita — um segundo clique no CTA antes do
+    // dialog renderizar perderia o resolver da primeira chamada, que nunca mais resolveria.
+    if (this.levelConfirmationResolve) return false;
+    const tournamentSport = this.listing()?.sport ?? null;
+    let prompt: LevelConfirmationPrompt | null;
+    try {
+      prompt = await resolveLevelConfirmationPrompt(this.fetchLevelGateProfile(), tournamentSport);
+    } catch {
+      this.toasts.error(
+        'Não foi possível confirmar seu nível',
+        'Não conseguimos verificar seu nível agora. Tente novamente em instantes.',
+      );
+      return false;
+    }
+    if (!prompt) return true;
+    this.levelConfirmationPrompt.set(prompt);
+    return new Promise<boolean>((resolve) => {
+      this.levelConfirmationResolve = resolve;
+    });
+  }
+
+  protected confirmLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(true);
+    this.levelConfirmationResolve = null;
+  }
+
+  /** "Ajustar nível": nada é submetido — o dialog fecha e leva pra tela onde o nível se
+   *  edita, mesma rota que `/perfil` já usa pra "Gerenciar esportes e níveis". */
+  protected adjustLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(false);
+    this.levelConfirmationResolve = null;
+    void this.router.navigate(['/perfil/esportes']);
   }
 
   private async loadRoster(reg: AthleteTournamentRegistration, myUid: string | null): Promise<void> {
@@ -527,36 +691,33 @@ export class TournamentRegistrationShellComponent {
     this.showCategoryPicker.update((v) => !v);
   }
 
+  /** Escolheu → grava sozinho. Antes da vaga existir não há onde gravar: aí o
+   *  uniforme viaja junto da reserva (`persistUniformAfterRegistration`) ou do
+   *  convite (`inviterUniform`/`inviteeUniform`). */
   protected onUniformChange(next: UniformSelection): void {
     this.uniform.set(next);
-    this.uniformSaved.set(false);
-  }
-
-  protected async saveUniform(): Promise<void> {
+    if (!this.registration()) return;
     const category = this.selectedCategory();
-    const reg = this.registration();
-    const selection = this.uniform();
-    if (!category || !reg || !selection || this.savingUniform()) return;
-    const error = validateUniformSelection(category, selection);
-    if (error) {
-      this.uniformError.set(error);
+    if (!category) return;
+    if (!isUniformSelectionComplete(category, next)) {
+      // Meia escolha não vira gravação — e nem vira erro enquanto o atleta
+      // ainda está decidindo; o selo só volta pra "Pendente".
+      this.uniformSaver.cancelPending();
       return;
     }
     this.uniformError.set(null);
-    this.savingUniform.set(true);
-    try {
-      await setRegistrationUniform(athleteFunctions(), reg.id, toUniformInput(selection));
-      this.uniformSaved.set(true);
-      this.toasts.success('Uniforme salvo', 'Sua escolha já está registrada na inscrição.');
-    } catch (err) {
-      this.toasts.error(
-        'Não foi possível salvar o uniforme',
-        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Sua escolha continua aqui.',
-        { label: 'Tentar novamente', run: () => void this.saveUniform() },
-      );
-    } finally {
-      this.savingUniform.set(false);
-    }
+    this.uniformSaver.schedule(next);
+  }
+
+  protected retryUniformSave(): void {
+    this.uniformSaver.retry();
+  }
+
+  /** Gravação de verdade por trás do auto-save. */
+  private async writeUniform(selection: UniformSelection): Promise<void> {
+    const reg = this.registration();
+    if (!reg) throw new TournamentRegistrationError('Sua inscrição ainda não foi criada.');
+    await setRegistrationUniform(athleteFunctions(), reg.id, toUniformInput(selection));
   }
 
   protected async registerSoloForCategory(): Promise<void> {
@@ -578,6 +739,7 @@ export class TournamentRegistrationShellComponent {
       );
       return;
     }
+    if (!(await this.ensureLevelConfirmed())) return;
     this.registering.set(true);
     try {
       const result = await registerSolo(athleteFunctions(), tournamentId, category.id, undefined, { lgpdAccepted: true });
@@ -607,7 +769,7 @@ export class TournamentRegistrationShellComponent {
         },
       ]);
       this.toasts.success('Inscrição criada', 'Falta só formar a dupla — convide seu parceiro para garantir a vaga.');
-      await this.persistUniformAfterRegistration(category, result.registrationId);
+      this.persistUniformAfterRegistration(category);
     } catch (err) {
       this.toasts.error(
         'Não foi possível concluir a inscrição',
@@ -644,6 +806,7 @@ export class TournamentRegistrationShellComponent {
       );
       return;
     }
+    if (!(await this.ensureLevelConfirmed())) return;
     const teamName = this.teamNameNormalized();
     this.registering.set(true);
     try {
@@ -683,7 +846,7 @@ export class TournamentRegistrationShellComponent {
         'Equipe criada',
         `${teamName} está com a vaga reservada — convide os atletas para completar o elenco.`,
       );
-      await this.persistUniformAfterRegistration(category, result.registrationId);
+      this.persistUniformAfterRegistration(category);
     } catch (err) {
       this.toasts.error(
         'Não foi possível criar a equipe',
@@ -717,17 +880,12 @@ export class TournamentRegistrationShellComponent {
   }
 
   /** Mesmo par de chamadas do app (solo com `uniform: null` + `setRegistrationUniform`), sem
-   *  clique extra quando a seleção já está completa. Falha aqui não desfaz a vaga — o cartão
-   *  de uniforme continua oferecendo "Salvar uniforme". */
-  private async persistUniformAfterRegistration(category: TournamentCategoryOffer, registrationId: string): Promise<void> {
+   *  clique extra. Falha aqui não desfaz a vaga — o cartão de uniforme acusa e oferece
+   *  "Tentar novamente", em vez de engolir o erro como antes. */
+  private persistUniformAfterRegistration(category: TournamentCategoryOffer): void {
     const selection = this.uniform();
     if (!categoryRequiresUniform(category) || !selection || !isUniformSelectionComplete(category, selection)) return;
-    try {
-      await setRegistrationUniform(athleteFunctions(), registrationId, toUniformInput(selection));
-      this.uniformSaved.set(true);
-    } catch {
-      // Sem notice: a vaga já foi criada; o atleta salva pelo botão do cartão.
-    }
+    this.uniformSaver.saveNow(selection);
   }
 
   protected onPartnerQueryInput(value: string): void {
@@ -748,20 +906,7 @@ export class TournamentRegistrationShellComponent {
       const uid = this.auth.user()?.uid;
       const alreadyInvited = new Set(this.sentPendingInvites().map((i) => i.inviteeUid));
       const alreadyInRoster = new Set(this.registration()?.participantUids ?? []);
-      const category = this.selectedCategory();
-      // Dupla Masculino/Feminino só aceita parceiro do mesmo gênero (Misto não filtra).
-      // Equipe: livre e misto não filtram (a composição exata é conta do backend, que valida
-      // elenco + convites pendentes); só composição de gênero único filtra aqui.
-      let requiredGender: 'M' | 'F' | null = null;
-      if (category != null) {
-        if (category.teamSize != null) {
-          const comp = category.genderComposition;
-          if (comp?.women === 0) requiredGender = 'M';
-          else if (comp?.men === 0) requiredGender = 'F';
-        } else if (category.genderType !== 'Mix') {
-          requiredGender = category.genderType;
-        }
-      }
+      const requiredGender = this.requiredPartnerGender();
       const results = await searchAthleteDirectory(db, term);
       this.partnerResults.set(
         results.filter(
@@ -769,13 +914,34 @@ export class TournamentRegistrationShellComponent {
             p.id !== uid &&
             !alreadyInvited.has(p.id) &&
             !alreadyInRoster.has(p.id) &&
-            (requiredGender == null || normalizeAthleteGender(p.gender) === requiredGender),
+            partnerMatchesRequiredGender(p.gender, requiredGender),
         ),
       );
       this.lastSearchedTerm.set(term.trim());
     } finally {
       this.searchingPartner.set(false);
     }
+  }
+
+  /** Gênero exigido do parceiro pela categoria: Dupla Masculino/Feminino só aceita o mesmo
+   *  gênero (Misto não filtra). Equipe: livre e misto não filtram (a composição exata é conta
+   *  do backend, que valida elenco + convites pendentes); só composição de gênero único filtra. */
+  protected readonly requiredPartnerGender = computed<'M' | 'F' | null>(() => {
+    const category = this.selectedCategory();
+    if (category == null) return null;
+    if (category.teamSize != null) {
+      const comp = category.genderComposition;
+      if (comp?.women === 0) return 'M';
+      if (comp?.men === 0) return 'F';
+      return null;
+    }
+    return category.genderType !== 'Mix' ? category.genderType : null;
+  });
+
+  /** Candidato sem gênero no perfil em categoria de gênero fixo — a linha avisa a pendência
+   *  (o filtro deixa passar de propósito; o aceite valida no servidor). */
+  protected partnerMissingGender(p: AthletePublicProfile): boolean {
+    return this.requiredPartnerGender() != null && !p.gender?.trim();
   }
 
   protected openInviteDialog(): void {
@@ -827,7 +993,7 @@ export class TournamentRegistrationShellComponent {
 
     this.invitingId.set(candidate.id);
     try {
-      await sendPartnerInvite(athleteFunctions(), {
+      const sent = await sendPartnerInvite(athleteFunctions(), {
         tournamentId,
         categoryId: category.id,
         inviteeUid: candidate.id,
@@ -836,22 +1002,30 @@ export class TournamentRegistrationShellComponent {
         ...(inviterUniform ? { inviterUniform } : {}),
         ...(this.myLgpdConsentMissing() && this.lgpdAccepted() ? { lgpdAccepted: true } : {}),
       });
-      this.toasts.success(
-        'Convite enviado',
-        this.isTeamCategory()
-          ? `${candidate.displayName} precisa aceitar para entrar na equipe.`
-          : `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`,
-      );
+      // Parceiro com cadastro incompleto não consegue aceitar: sem o aviso o
+      // convite ficava "aguardando resposta" até expirar sem ninguém saber.
+      if (sent.inviteeProfileReady === false) {
+        this.toasts.warning(
+          'Convite enviado — falta um passo do parceiro',
+          `Avise ${candidate.displayName}: falta completar ${formatMissingStepsList(sent.inviteeMissingSteps)} no perfil para poder aceitar.`,
+        );
+      } else {
+        this.toasts.success(
+          'Convite enviado',
+          this.isTeamCategory()
+            ? `${candidate.displayName} precisa aceitar para entrar na equipe.`
+            : `${candidate.displayName} precisa aceitar para a dupla ficar de pé.`,
+        );
+      }
       this.partnerResults.set([]);
       this.partnerQuery.set('');
-      await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
+      // A lista de "aguardando resposta" é do listener — o convite recém-criado entra sozinho.
     } catch (err) {
       // 409 / already-exists = convite ainda válido — trata como ok (já foi enviado).
       if (err instanceof TournamentRegistrationError && err.isPendingInviteConflict) {
         this.toasts.info('Convite já enviado', `${candidate.displayName} ainda não respondeu. Aguarde ou convide outra pessoa.`);
         this.partnerResults.set([]);
         this.partnerQuery.set('');
-        await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
       } else {
         this.toasts.error(
           'Não foi possível enviar o convite',
@@ -868,7 +1042,6 @@ export class TournamentRegistrationShellComponent {
     this.cancelingInviteId.set(invite.id);
     try {
       await cancelSentPartnerInvite(athleteFunctions(), invite.id);
-      this.sentPendingInvites.update((list) => list.filter((i) => i.id !== invite.id));
       this.toasts.success('Convite cancelado', `${invite.inviteeName} não vai mais receber o pedido de dupla.`);
     } catch (err) {
       this.toasts.error(
@@ -906,6 +1079,7 @@ export class TournamentRegistrationShellComponent {
       inviteeUniform = toUniformInput(selection!);
     }
 
+    if (!(await this.ensureLevelConfirmed())) return;
     this.acceptingInvite.set(true);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform, { lgpdAccepted: true });
@@ -917,10 +1091,8 @@ export class TournamentRegistrationShellComponent {
       } else {
         this.toasts.success('Dupla formada', `Você e ${invite.inviterName} estão inscritos. Falta o pagamento para confirmar a vaga.`);
       }
-      this.receivedInvite.set(null);
-      const uid = this.auth.user()?.uid;
-      const tournamentId = this.tournamentId();
-      if (uid && tournamentId) await this.loadMyRegistrations(tournamentId, uid);
+      this.partnerInvites.markAnswered(invite.id);
+      // A inscrição criada pelo aceite chega pelo listener de `myRegistrations`.
     } catch (err) {
       this.toasts.error(
         'Não foi possível aceitar o convite',
@@ -939,7 +1111,7 @@ export class TournamentRegistrationShellComponent {
     try {
       await declinePartnerInvite(athleteFunctions(), invite.id);
       this.toasts.success('Convite recusado', `${invite.inviterName} foi avisado e pode convidar outra pessoa.`);
-      this.receivedInvite.set(null);
+      this.partnerInvites.markAnswered(invite.id);
     } catch (err) {
       this.toasts.error(
         'Não foi possível recusar o convite',

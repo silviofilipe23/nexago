@@ -15,6 +15,8 @@ TournamentCreateSession _session() {
           id: 'c1',
           name: 'Open',
           bracketSystem: TournamentBracketSystem.doubleElimination,
+          skillLevel: TournamentSkillLevel.open,
+          minLevel: 'Avançado 1',
           prizes: [
             TournamentCategoryPrizeDraft(
               position: '1',
@@ -49,6 +51,27 @@ void main() {
 
     test('toJson writes version 2', () {
       expect(_session().toJson()['version'], 2);
+    });
+
+    test('preserves the category minLevel (chosen preset floor)', () {
+      final restored = TournamentCreateSession.fromJson(_session().toJson());
+      expect(restored!.draft.categories.first.minLevel, 'Avançado 1');
+    });
+
+    test('category without minLevel round-trips as empty (legacy)', () {
+      final legacySession = TournamentCreateSession(
+        managerUid: 'mgr-1',
+        currentStep: TournamentCreateStep.categories,
+        updatedAt: DateTime(2026, 1, 10, 9, 30),
+        draft: const TournamentCreateDraft(
+          name: 'Legado',
+          categories: [TournamentCategoryDraft(id: 'c1')],
+        ),
+      );
+      final restored = TournamentCreateSession.fromJson(
+        legacySession.toJson(),
+      );
+      expect(restored!.draft.categories.first.minLevel, '');
     });
   });
 

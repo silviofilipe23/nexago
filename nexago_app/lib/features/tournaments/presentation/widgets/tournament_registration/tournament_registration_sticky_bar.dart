@@ -8,35 +8,20 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
     super.key,
     required this.enabled,
     required this.onConfirm,
-    this.metaLabel,
-    this.totalLabel,
     this.ctaLabel = 'Continuar',
     this.ctaSubtitle,
-    this.priceBoxLabel,
-    this.priceBoxValue,
     this.submitting = false,
   });
 
   final bool enabled;
   final VoidCallback onConfirm;
-  final String? metaLabel;
-  final String? totalLabel;
   final String ctaLabel;
   final String? ctaSubtitle;
-  final String? priceBoxLabel;
-  final String? priceBoxValue;
   final bool submitting;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showPriceBox =
-        (priceBoxLabel?.isNotEmpty == true) &&
-        (priceBoxValue?.isNotEmpty == true);
-    final showMeta =
-        !showPriceBox &&
-        ((metaLabel != null && metaLabel!.isNotEmpty) ||
-            (totalLabel != null && totalLabel!.isNotEmpty));
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -49,136 +34,61 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (showPriceBox)
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: context.themeColors.surfaceRaised,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: context.themeColors.onSurfaceMuted.withValues(
-                          alpha: 0.12,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          priceBoxLabel!,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          priceBoxValue!,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.brand,
-                            height: 1,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
+              SizedBox(
+                height: 48,
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: enabled && !submitting ? onConfirm : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
+                    disabledBackgroundColor: context.themeColors.surfaceRaised,
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                )
-              else if (showMeta)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (metaLabel != null && metaLabel!.isNotEmpty)
-                        Text(
-                          metaLabel!,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w600,
+                  child: submitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.black,
                           ),
-                        ),
-                      if (totalLabel != null && totalLabel!.isNotEmpty) ...[
-                        SizedBox(height: 2),
-                        Text(
-                          totalLabel!,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.brand,
-                            height: 1,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                )
-              else
-                Spacer(),
-              SizedBox(width: 12),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: enabled && !submitting ? onConfirm : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.black,
-                        disabledBackgroundColor:
-                            context.themeColors.surfaceRaised,
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      child: submitting
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: AppColors.black,
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              ctaLabel,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
                               ),
-                            )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  ctaLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                SizedBox(width: 6),
-                                Icon(Icons.arrow_forward_rounded, size: 20),
-                              ],
                             ),
-                    ),
-                  ),
-                  if (ctaSubtitle != null && ctaSubtitle!.isNotEmpty) ...[
-                    SizedBox(height: 4),
-                    Text(
-                      ctaSubtitle!,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: context.themeColors.onSurfaceMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
+                            const SizedBox(width: 6),
+                            const Icon(Icons.arrow_forward_rounded, size: 20),
+                          ],
+                        ),
+                ),
               ),
+              if (ctaSubtitle != null && ctaSubtitle!.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  ctaSubtitle!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

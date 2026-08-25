@@ -7,12 +7,15 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
+import { FinanceOverviewComponent } from './finance-overview.component';
 import {
   WithdrawalsRepository,
   type PendingWithdrawal,
   type WithdrawalDecision,
   type WithdrawalKind,
 } from './data/withdrawals.repository';
+
+type PageTab = 'overview' | 'withdrawals';
 
 interface KindTab {
   kind: WithdrawalKind;
@@ -84,109 +87,125 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
     PillComponent,
     IconComponent,
     ConfirmDialogComponent,
+    FinanceOverviewComponent,
   ],
   template: `
     <bo-panel-shell>
-      <bo-page-header title="Financeiro" [subtitle]="subtitle()">
-        <button type="button" class="bo-mini-btn" [disabled]="loading()" (click)="load()">
-          <bo-icon name="swap" [size]="13" />
-          Atualizar
-        </button>
+      <bo-page-header title="Financeiro" [subtitle]="page() === 'overview' ? 'Visão do dia a dia — MRR, custos e break-even' : subtitle()">
+        @if (page() === 'withdrawals') {
+          <button type="button" class="bo-mini-btn" [disabled]="loading()" (click)="load()">
+            <bo-icon name="swap" [size]="13" />
+            Atualizar
+          </button>
+        }
       </bo-page-header>
 
       <div class="bo-filter-bar">
         <div class="bo-chart-tabs">
-          @for (tab of tabs; track tab.kind) {
-            <button type="button" [class.active]="activeKind() === tab.kind" (click)="select(tab.kind)">
-              {{ tab.label }}
-            </button>
-          }
+          <button type="button" [class.active]="page() === 'overview'" (click)="page.set('overview')">
+            Visão geral
+          </button>
+          <button type="button" [class.active]="page() === 'withdrawals'" (click)="showWithdrawals()">
+            Saques
+          </button>
         </div>
       </div>
 
       <div class="body">
-        @if (feedback(); as message) {
-          <div class="bo-feedback">
-            <bo-icon name="check" [size]="15" />
-            <span>{{ message }}</span>
-          </div>
-        }
-
-        <div class="kpi-grid">
-          <bo-kpi-mini label="Saques pendentes" [value]="pendingCount()" />
-          <bo-kpi-mini label="Total a repassar" [value]="pendingTotal()" />
-          <bo-kpi-mini label="Maior solicitação" [value]="biggest()" />
-          <bo-kpi-mini
-            label="Com falha de repasse"
-            [value]="failedCount()"
-            [tone]="hasFailures() ? 'red' : 'neutral'"
-          />
-        </div>
-
-        <bo-panel-card
-          pad="sm"
-          [kicker]="activeKind() === 'organizer' ? 'organizerWithdrawals' : 'arenaWithdrawals'"
-          title="Saques aguardando revisão"
-        >
-          @switch (state().kind) {
-            @case ('loading') {
-              <p class="status">Carregando saques pendentes…</p>
-            }
-            @case ('error') {
-              <div class="bo-alert">
-                <bo-icon name="alert" [size]="16" />
-                <span>{{ errorMessage() }}</span>
-              </div>
-              <button type="button" class="bo-mini-btn retry" (click)="load()">Tentar de novo</button>
-            }
-            @case ('ok') {
-              <div class="table-head">
-                <span>Solicitante</span>
-                <span>Chave PIX</span>
-                <span class="right">Valor</span>
-                <span class="right">Solicitado em</span>
-                <span></span>
-              </div>
-
-              <div>
-                @for (row of rows(); track row.id) {
-                  <div class="table-row">
-                    <div class="cell-who">
-                      <div class="who-name">{{ row.requesterName }}</div>
-                      <div class="who-id">{{ row.requesterId }}</div>
-                      @if (row.payoutError) {
-                        <div class="who-error">
-                          <bo-pill tone="red">Falha anterior</bo-pill>
-                          <span>{{ row.payoutError }}</span>
-                        </div>
-                      }
-                    </div>
-                    <div class="cell-pix">{{ row.pixKey || '—' }}</div>
-                    <div class="right cell-amount">{{ money(row.amountReais) }}</div>
-                    <div class="right cell-date">{{ dateOf(row) }}</div>
-                    <div class="cell-actions">
-                      <button
-                        type="button"
-                        class="bo-mini-btn bo-mini-btn-primary"
-                        (click)="ask(row, 'approved')"
-                      >
-                        Aprovar e pagar
-                      </button>
-                      <button type="button" class="bo-mini-btn" (click)="ask(row, 'approved_manual')">
-                        Pago por fora
-                      </button>
-                      <button type="button" class="bo-ghost-btn danger" (click)="ask(row, 'rejected')">
-                        Recusar
-                      </button>
-                    </div>
-                  </div>
-                } @empty {
-                  <p class="status">Nenhum saque pendente nesta fila.</p>
-                }
-              </div>
-            }
+        @if (page() === 'overview') {
+          <bo-finance-overview />
+        } @else {
+          @if (feedback(); as message) {
+            <div class="bo-feedback">
+              <bo-icon name="check" [size]="15" />
+              <span>{{ message }}</span>
+            </div>
           }
-        </bo-panel-card>
+
+          <div class="bo-chart-tabs kind-tabs">
+            @for (tab of tabs; track tab.kind) {
+              <button type="button" [class.active]="activeKind() === tab.kind" (click)="select(tab.kind)">
+                {{ tab.label }}
+              </button>
+            }
+          </div>
+
+          <div class="kpi-grid">
+            <bo-kpi-mini label="Saques pendentes" [value]="pendingCount()" />
+            <bo-kpi-mini label="Total a repassar" [value]="pendingTotal()" />
+            <bo-kpi-mini label="Maior solicitação" [value]="biggest()" />
+            <bo-kpi-mini
+              label="Com falha de repasse"
+              [value]="failedCount()"
+              [tone]="hasFailures() ? 'red' : 'neutral'"
+            />
+          </div>
+
+          <bo-panel-card
+            pad="sm"
+            [kicker]="activeKind() === 'organizer' ? 'organizerWithdrawals' : 'arenaWithdrawals'"
+            title="Saques aguardando revisão"
+          >
+            @switch (state().kind) {
+              @case ('loading') {
+                <p class="status">Carregando saques pendentes…</p>
+              }
+              @case ('error') {
+                <div class="bo-alert">
+                  <bo-icon name="alert" [size]="16" />
+                  <span>{{ errorMessage() }}</span>
+                </div>
+                <button type="button" class="bo-mini-btn retry" (click)="load()">Tentar de novo</button>
+              }
+              @case ('ok') {
+                <div class="table-head">
+                  <span>Solicitante</span>
+                  <span>Chave PIX</span>
+                  <span class="right">Valor</span>
+                  <span class="right">Solicitado em</span>
+                  <span></span>
+                </div>
+
+                <div>
+                  @for (row of rows(); track row.id) {
+                    <div class="table-row">
+                      <div class="cell-who">
+                        <div class="who-name">{{ row.requesterName }}</div>
+                        <div class="who-id">{{ row.requesterId }}</div>
+                        @if (row.payoutError) {
+                          <div class="who-error">
+                            <bo-pill tone="red">Falha anterior</bo-pill>
+                            <span>{{ row.payoutError }}</span>
+                          </div>
+                        }
+                      </div>
+                      <div class="cell-pix">{{ row.pixKey || '—' }}</div>
+                      <div class="right cell-amount">{{ money(row.amountReais) }}</div>
+                      <div class="right cell-date">{{ dateOf(row) }}</div>
+                      <div class="cell-actions">
+                        <button
+                          type="button"
+                          class="bo-mini-btn bo-mini-btn-primary"
+                          (click)="ask(row, 'approved')"
+                        >
+                          Aprovar e pagar
+                        </button>
+                        <button type="button" class="bo-mini-btn" (click)="ask(row, 'approved_manual')">
+                          Pago por fora
+                        </button>
+                        <button type="button" class="bo-ghost-btn danger" (click)="ask(row, 'rejected')">
+                          Recusar
+                        </button>
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="status">Nenhum saque pendente nesta fila.</p>
+                  }
+                </div>
+              }
+            }
+          </bo-panel-card>
+        }
       </div>
 
       @if (pending(); as decision) {
@@ -240,12 +259,15 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
       overflow: auto;
     }
 
+    .kind-tabs {
+      align-self: flex-start;
+    }
+
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
     }
-
 
     .status {
       margin: 16px 0 4px;
@@ -447,6 +469,7 @@ export class PanelFinanceiroComponent {
   protected readonly tabs = TABS;
   protected readonly copy = DECISION_COPY;
 
+  protected readonly page = signal<PageTab>('overview');
   protected readonly activeKind = signal<WithdrawalKind>('organizer');
   protected readonly state = signal<LoadState>({ kind: 'loading' });
   protected readonly pending = signal<PendingDecision | null>(null);
@@ -455,9 +478,7 @@ export class PanelFinanceiroComponent {
   protected readonly submitError = signal<string | null>(null);
   protected readonly feedback = signal<string | null>(null);
 
-  constructor() {
-    void this.load();
-  }
+  private withdrawalsLoaded = false;
 
   protected readonly rows = computed<readonly PendingWithdrawal[]>(() => {
     const state = this.state();
@@ -513,6 +534,14 @@ export class PanelFinanceiroComponent {
     this.activeKind.set(kind);
     this.feedback.set(null);
     void this.load();
+  }
+
+  protected showWithdrawals(): void {
+    this.page.set('withdrawals');
+    if (!this.withdrawalsLoaded) {
+      this.withdrawalsLoaded = true;
+      void this.load();
+    }
   }
 
   protected async load(): Promise<void> {

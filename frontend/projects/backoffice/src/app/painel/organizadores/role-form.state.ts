@@ -5,7 +5,9 @@ import {
   LIMIT_OPTIONS,
   PAYOUT_OPTIONS,
   ROLE_PERMISSIONS,
+  cityStateLabel,
   type AccountType,
+  type CommissionOption,
   type VerificationItem,
 } from './organizadores.data';
 
@@ -19,6 +21,8 @@ export interface RoleFormSubject {
   badge: string;
   brand: string;
   city: string;
+  /** Sigla da UF (`'PB'`); `''` quando a conta não tem estado gravado. */
+  state: string;
   accountType: AccountType;
   document: string;
   documentStatus: string;
@@ -46,6 +50,7 @@ export class OrganizerRoleForm {
 
   readonly brand = linkedSignal(() => this.subject()?.brand ?? '');
   readonly city = linkedSignal(() => this.subject()?.city ?? '');
+  readonly state = linkedSignal(() => this.subject()?.state ?? '');
   readonly accountType = linkedSignal<AccountType>(
     () => this.subject()?.accountType ?? 'Pessoa física (CPF)',
   );
@@ -53,24 +58,20 @@ export class OrganizerRoleForm {
   readonly email = linkedSignal(() => this.subject()?.email ?? '');
   readonly whatsapp = linkedSignal(() => this.subject()?.whatsapp ?? '');
 
-  readonly pixOptions = computed(() => {
-    const subject = this.subject();
-    if (!subject) {
-      return [];
-    }
-    const docLabel = subject.accountType === 'Pessoa jurídica (CNPJ)' ? 'CNPJ' : 'CPF';
-    return [
-      ...(subject.document ? [`${subject.document} (${docLabel})`] : []),
-      ...(subject.email ? [`${subject.email} (e-mail)`] : []),
-      ...(subject.whatsapp ? [`${subject.whatsapp} (telefone)`] : []),
-      'Chave aleatória',
-    ];
-  });
-  readonly pixKey = linkedSignal(() => this.pixOptions()[0] ?? '');
-
-  readonly commission = signal(COMMISSION_OPTIONS[0]!);
+  readonly commission = signal<CommissionOption>(COMMISSION_OPTIONS[0]!);
   readonly payout = signal(PAYOUT_OPTIONS[0]!);
   readonly limit = signal(LIMIT_OPTIONS[0]!);
+
+  /** `'João Pessoa · PB'` — só para exibir; o gravado são os dois campos. */
+  readonly cityLabel = computed(() => cityStateLabel(this.city(), this.state()));
+
+  /**
+   * Chave PIX de SAQUE lida de `organizerWallets/{uid}` — exibição apenas.
+   * O backoffice não grava: a carteira é write-only por Cloud Function e o
+   * destino do dinheiro é escolha do próprio organizador, no portal dele.
+   * `''` = não configurada.
+   */
+  readonly payoutPixKey = signal('');
 
   readonly permissions = signal<readonly string[]>(DEFAULT_PERMISSIONS);
 
@@ -92,8 +93,8 @@ export class OrganizerRoleForm {
     () => this.hasVerification() && this.verificationDone() === this.verification().length,
   );
 
-  /** Só a porcentagem, para o resumo lateral ("8% por inscrição (padrão)" → "8%"). */
-  readonly commissionShort = computed(() => this.commission().split(' ')[0] ?? EMPTY);
+  /** Só a porcentagem, para o resumo lateral. */
+  readonly commissionShort = computed(() => `${this.commission().percent}%`);
 
   readonly permissionsLabel = computed(
     () => `${this.permissions().length} de ${ROLE_PERMISSIONS.length} ativas`,
@@ -106,6 +107,7 @@ export class OrganizerRoleForm {
         { label: 'Conta', value: EMPTY },
         { label: 'Papel atual', value: EMPTY },
         { label: 'Marca', value: EMPTY },
+        { label: 'Cidade', value: EMPTY },
         { label: 'Documento', value: EMPTY },
         { label: 'Verificação', value: EMPTY },
         { label: 'Comissão', value: EMPTY },
@@ -116,6 +118,7 @@ export class OrganizerRoleForm {
       { label: 'Conta', value: subject.name },
       { label: 'Papel atual', value: subject.badge || EMPTY },
       { label: 'Marca', value: this.brand() || subject.name },
+      { label: 'Cidade', value: this.cityLabel() || EMPTY },
       {
         label: 'Documento',
         value: subject.documentStatus || EMPTY,
@@ -132,6 +135,34 @@ export class OrganizerRoleForm {
       { label: 'Permissões', value: this.permissionsLabel() },
     ];
   });
+
+  /**
+   * O que vai para `saveOrganizerRegistration`. Dois destinos, por
+   * sensibilidade: `profile` é o mesmo mapa que o organizador edita no portal
+   * dele (`users/{uid}.organizerProfile`, legível por autenticado quando a
+   * conta também é atleta); `terms` é o doc admin-only `organizers/{uid}`, onde
+   * ficam documento e condições comerciais.
+   *
+   * `logoUrl` fica de fora de propósito: o backoffice não sobe logo, e mandar
+   * `null` apagaria a que o organizador já tinha.
+   */
+  readonly registration = computed(() => ({
+    profile: {
+      orgName: this.brand().trim(),
+      contactEmail: this.email().trim(),
+      contactPhone: this.whatsapp().replace(/\D/g, ''),
+      city: this.city().trim(),
+      state: this.state().trim(),
+    },
+    terms: {
+      accountType: this.accountType(),
+      document: this.document().trim(),
+      commissionPercent: this.commission().percent,
+      payoutSchedule: this.payout(),
+      tournamentLimit: this.limit(),
+      permissions: [...this.permissions()],
+    },
+  }));
 
   isEnabled(permissionId: string): boolean {
     return this.permissions().includes(permissionId);

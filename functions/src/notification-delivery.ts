@@ -159,11 +159,19 @@ export async function getUserNotificationChannels(
 }
 
 async function sendWebPushToSubscriptions(
+  userId: string,
   subscriptions: StoredWebPushSubscription[],
   payload: Record<string, unknown>
 ): Promise<{sent: number; failed: number}> {
-  if (subscriptions.length === 0) return {sent: 0, failed: 0};
+  if (subscriptions.length === 0) {
+    logger.info(`Web Push: nenhuma assinatura para usuário ${userId}`);
+    return {sent: 0, failed: 0};
+  }
   if (!configureWebPushIfPossible()) {
+    logger.warn(
+      `Web Push não configurado (secrets WEB_PUSH_* ausentes nesta function) — ` +
+      `${subscriptions.length} assinatura(s) de ${userId} não enviada(s)`
+    );
     return {sent: 0, failed: subscriptions.length};
   }
 
@@ -179,10 +187,24 @@ async function sendWebPushToSubscriptions(
           JSON.stringify(payload)
         );
         sent += 1;
+        logger.info(`Web Push send ok user=${userId} doc=${subscription.id}`);
       } catch (error: unknown) {
         failed += 1;
         const statusCode = (error as {statusCode?: number})?.statusCode;
-        if (statusCode === 404 || statusCode === 410) {
+        const body = (error as {body?: string})?.body;
+        logger.warn(
+          `Web Push send falhou user=${userId} doc=${subscription.id} status=${statusCode}:`,
+          body ?? (error as Error)?.message ?? error
+        );
+        // 404/410: endpoint não existe mais (usuário desinstalou/revogou). 400 com esse motivo:
+        // assinatura foi criada com uma chave VAPID diferente da atual — nunca vai funcionar,
+        // reenviar não resolve (foi assim que achamos a `sub_wmbyj6`, órfã desde março).
+        const permanentFailure =
+          statusCode === 404 ||
+          statusCode === 410 ||
+          (statusCode === 400 && (body ?? "").includes("VapidPkHashMismatch"));
+        if (permanentFailure) {
+          logger.warn(`Web Push assinatura inválida removida user=${userId} doc=${subscription.id}`);
           await db
             .doc(`users/${subscription.userId}/webPushSubscriptions/${subscription.id}`)
             .delete()
@@ -190,6 +212,10 @@ async function sendWebPushToSubscriptions(
         }
       }
     })
+  );
+
+  logger.info(
+    `Web Push deliver user=${userId}: ${sent} ok, ${failed} falha(s), ${subscriptions.length} assinatura(s)`
   );
 
   return {sent, failed};
@@ -318,7 +344,7 @@ export async function deliverNotificationToUser(
     fcmSuccessful = fcmResult.sent;
     fcmFailed = fcmResult.failed;
 
-    webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
+    webPushResult = await sendWebPushToSubscriptions(userId, webPushSubscriptions, {
       notification: {title, body},
       data: {...data, type},
       requireInteraction,

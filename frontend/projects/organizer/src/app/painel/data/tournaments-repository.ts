@@ -17,6 +17,8 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { organizerFirestore } from './firestore';
+import { collectedFromDoc } from './tournament-collected';
+import type { TournamentPaymentMode } from './tournament-create.model';
 import type { OrganizerMatchOpsConfig, OrganizerTournament, OrganizerTournamentCategory, OrganizerTournamentStatus, TelaoConfig } from './tournament.model';
 
 /** `tournaments/{id}` (top-level, leitura pública, espelha `TournamentDocumentMapper`/
@@ -82,6 +84,7 @@ function categoryFromRaw(raw: unknown): OrganizerTournamentCategory | null {
     id,
     name: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
     maxTeams: numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']),
+    entryFee: numberOf(o['entryFee']) ?? 0,
     teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
     bracketFormat: optionalStr(o['bracketFormat']),
     teamsPerGroup: numberOf(o['teamsPerGroup']) ?? 4,
@@ -119,7 +122,7 @@ function courtsFromRaw(raw: unknown, courtsCount: number): { id: string; name: s
   return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
 
-function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
+export function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   return {
@@ -130,6 +133,7 @@ function telaoConfigFromRaw(raw: unknown): TelaoConfig | null {
     autoRotate: o['autoRotate'] !== false,
     showStreak: o['showStreak'] !== false,
     showFinalMode: o['showFinalMode'] !== false,
+    showPublicQr: o['showPublicQr'] !== false,
   };
 }
 
@@ -149,6 +153,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
   const capacityFallback = categories.reduce((sum, c) => sum + (c.maxTeams ?? 0), 0);
   const statusRaw = optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '';
   const courtsCount = numberOf(data['courtsCount']) ?? 4;
+  const paymentMode: TournamentPaymentMode = data['paymentMode'] === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard';
   return {
     id,
     name: optionalStr(data['name']) ?? 'Torneio',
@@ -164,7 +169,8 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     visibility: data['visibility'] === 'publicListing' ? 'publicListing' : 'linkOnly',
     // Mesma leitura do wizard (`tournament-create-mapper.ts`): só `directWithOrganizer` explícito
     // sai do padrão de cobrança pelo app.
-    paymentMode: data['paymentMode'] === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
+    paymentMode,
+    collected: collectedFromDoc(data, paymentMode),
     startAt: toDate(data['startAt']),
     endAt: toDate(data['endAt']),
     city: optionalStr(data['city']),
@@ -189,7 +195,7 @@ export function effectiveTelaoConfig(t: OrganizerTournament): TelaoConfig {
   const allCourtIds = t.courts.map((c) => c.id);
   const cfg = t.bigScreen;
   if (!cfg) {
-    return { courtIds: allCourtIds, showUpcoming: true, showCall: true, showAvatars: true, autoRotate: true, showStreak: true, showFinalMode: true };
+    return { courtIds: allCourtIds, showUpcoming: true, showCall: true, showAvatars: true, autoRotate: true, showStreak: true, showFinalMode: true, showPublicQr: true };
   }
   const courtIds = cfg.courtIds.filter((id) => allCourtIds.includes(id));
   return { ...cfg, courtIds: courtIds.length > 0 ? courtIds : allCourtIds };

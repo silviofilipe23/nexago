@@ -14,7 +14,6 @@ class MatchDetailFooter extends StatelessWidget {
     this.onTournament,
     this.onRematch,
     this.onOpponentProfile,
-    this.onShare,
   });
 
   final MatchDetailFooterKind kind;
@@ -22,7 +21,6 @@ class MatchDetailFooter extends StatelessWidget {
   final VoidCallback? onTournament;
   final VoidCallback? onRematch;
   final VoidCallback? onOpponentProfile;
-  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +31,11 @@ class MatchDetailFooter extends StatelessWidget {
         onRematch: onRematch,
         onOpponentProfile: onOpponentProfile,
       ),
-      MatchDetailFooterKind.live => _LiveFooter(onShare: onShare),
+      MatchDetailFooterKind.live => const _LiveFooter(),
       MatchDetailFooterKind.scheduled => const SizedBox.shrink(),
       MatchDetailFooterKind.spectator => _SpectatorFooter(
         hideTournament: hideTournamentAction,
         onTournament: onTournament,
-        onShare: onShare,
       ),
     };
   }
@@ -96,9 +93,7 @@ class _CompletedFooter extends StatelessWidget {
 }
 
 class _LiveFooter extends StatelessWidget {
-  const _LiveFooter({this.onShare});
-
-  final VoidCallback? onShare;
+  const _LiveFooter();
 
   @override
   Widget build(BuildContext context) {
@@ -133,36 +128,21 @@ class _LiveFooter extends StatelessWidget {
             ),
           ),
         ),
-        _OutlineButton(
-          icon: Icons.ios_share_rounded,
-          label: 'Compartilhar',
-          onTap: onShare ?? () => showAppSnackBar(context, 'Em breve.'),
-        ),
       ],
     );
   }
 }
 
 class _SpectatorFooter extends StatelessWidget {
-  const _SpectatorFooter({
-    required this.hideTournament,
-    this.onTournament,
-    this.onShare,
-  });
+  const _SpectatorFooter({required this.hideTournament, this.onTournament});
 
   final bool hideTournament;
   final VoidCallback? onTournament;
-  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
     return _FooterActionsRow(
       children: [
-        _OutlineButton(
-          icon: Icons.ios_share_rounded,
-          label: 'Compartilhar',
-          onTap: onShare ?? () => showAppSnackBar(context, 'Em breve.'),
-        ),
         if (!hideTournament)
           _OutlineButton(
             icon: Icons.emoji_events_outlined,

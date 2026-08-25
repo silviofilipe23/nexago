@@ -1,0 +1,176 @@
+<div class="jr">
+  @if (headline(); as h) {
+    <section class="jr-headline" [attr.data-kind]="h.kind">
+      @if (h.kind === 'champion') {
+        <span class="jr-headline__kicker">Fim de jornada</span>
+        <h1 class="jr-headline__title">Campeão da categoria!</h1>
+      } @else {
+        <span class="jr-headline__kicker">Rumo ao título</span>
+        <h1 class="jr-headline__title">{{ h.text }}</h1>
+      }
+    </section>
+  }
+
+  @if (enrolledLabel() || qualified()) {
+    <div class="jr-chips">
+      @if (enrolledLabel(); as label) {
+        <span class="jr-chip">{{ label }}</span>
+      }
+      @if (qualified()) {
+        <span class="jr-chip jr-chip--win">Classificado</span>
+      }
+    </div>
+  }
+
+  <section class="jr-card">
+    <header class="jr-card__head">
+      <h2 class="jr-card__title">Caminho até a final</h2>
+      @if (canShareCampaign()) {
+        <button type="button" class="jr-share" (click)="shareOpen.set(true)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+          Compartilhar campanha
+        </button>
+      }
+    </header>
+    @if (steps().length === 0) {
+      <p class="jr-empty">Sua chave ainda não foi sorteada.</p>
+    } @else {
+      <ol class="jr-path">
+        @for (step of steps(); track step.id) {
+          <li class="jr-step" [attr.data-status]="step.status">
+            <span class="jr-step__rail" aria-hidden="true">
+              <span class="jr-step__dot">
+                @if (step.status === 'win') {
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+                    <path d="M9.55 17.575 4.025 12.05l1.4-1.4 4.125 4.125 9.025-9.025 1.4 1.4Z" />
+                  </svg>
+                }
+              </span>
+              <span class="jr-step__line"></span>
+            </span>
+
+            <div class="jr-step__body">
+              <p class="jr-step__meta">
+                <span class="jr-step__phase">{{ step.phaseLabel }}</span>
+                @if (step.metaLabel) {
+                  <span class="jr-step__when">{{ step.metaLabel }}</span>
+                }
+                <span class="jr-step__score">{{ step.scoreLabel }}</span>
+              </p>
+
+              @if (step.matchId) {
+                <a [routerLink]="['../../partida', step.matchId]" class="jr-step__opponent">{{ step.opponentName }}</a>
+              } @else {
+                <span class="jr-step__opponent">{{ step.opponentName }}</span>
+              }
+
+              @if (step.detailLabel) {
+                <p class="jr-step__detail">{{ step.detailLabel }}</p>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </section>
+
+  <section class="jr-card">
+    <h2 class="jr-card__title">Seus números no torneio</h2>
+    <dl class="jr-stats">
+      <div class="jr-stat">
+        <dt>Sets</dt>
+        <dd>{{ numbers().setsWon }}–{{ numbers().setsLost }}</dd>
+      </div>
+      <div class="jr-stat">
+        <dt>Pontos</dt>
+        <dd>{{ numbers().points }}</dd>
+      </div>
+      <div class="jr-stat">
+        <dt>Pontos por set</dt>
+        <dd>{{ numbers().pointsPerSet }}</dd>
+      </div>
+      <div class="jr-stat">
+        <dt>Partidas</dt>
+        <dd>{{ numbers().matches }}</dd>
+      </div>
+    </dl>
+
+    @if (numbers().sets.length > 0) {
+      <div class="jr-bars" role="img" aria-label="Pontos por set, você contra o adversário, em cada partida encerrada">
+        @for (bar of numbers().sets; track bar.label) {
+          <div class="jr-bar-group">
+            <div class="jr-bar-pair">
+              <span class="jr-bar jr-bar--mine" [style.height.%]="(bar.mine / maxSetValue()) * 100"></span>
+              <span class="jr-bar jr-bar--theirs" [style.height.%]="(bar.theirs / maxSetValue()) * 100"></span>
+            </div>
+            <span class="jr-bar-group__label">{{ bar.label }}</span>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="jr-empty">Nenhuma partida encerrada ainda.</p>
+    }
+  </section>
+
+  @if (possibleOpponents().length > 0) {
+    <section class="jr-card">
+      <h2 class="jr-card__title">Quem pode cruzar com você</h2>
+      <ul class="jr-opponents">
+        @for (opp of possibleOpponents(); track opp.teamId) {
+          <li class="jr-opponent">
+            <span class="jr-duo-avatars" aria-hidden="true">
+              @for (p of opp.players; track $index) {
+                <span class="duo-avatar">
+                  @if (p.photo) {
+                    <img [src]="p.photo" alt="" loading="lazy" />
+                  } @else {
+                    {{ p.initial }}
+                  }
+                </span>
+              }
+            </span>
+            <div class="jr-opponent__body">
+              <strong class="jr-opponent__name">{{ opp.name }}</strong>
+              @if (opp.campaign.length > 0) {
+                <dl class="jr-opponent__campaign">
+                  @for (entry of opp.campaign; track entry.label) {
+                    <div class="jr-opponent__campaign-row">
+                      <dt>{{ entry.label }}</dt>
+                      <dd>{{ entry.detail }}</dd>
+                    </div>
+                  }
+                </dl>
+              } @else {
+                <span class="jr-opponent__empty">Primeira partida no torneio.</span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (prizeRows().length > 0) {
+    <section class="jr-card">
+      <h2 class="jr-card__title">O que este torneio muda</h2>
+      <ul class="jr-prizes">
+        @for (prize of prizeRows(); track prize.position) {
+          <li class="jr-prize" [class.jr-prize--guaranteed]="prize.guaranteed">
+            <span class="jr-prize__position">{{ prize.position }}º</span>
+            <span class="jr-prize__label">{{ prize.label }}</span>
+            @if (prize.valueLabel) {
+              <span class="jr-prize__value">{{ prize.valueLabel }}</span>
+            }
+            @if (prize.guaranteed) {
+              <span class="jr-prize__badge">Garantido</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (shareOpen() && campaignData(); as data) {
+    <app-campaign-share-dialog [data]="data" (closed)="shareOpen.set(false)" />
+  }
+</div>

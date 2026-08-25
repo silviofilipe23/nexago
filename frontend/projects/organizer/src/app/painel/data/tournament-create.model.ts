@@ -26,7 +26,16 @@ export type AgeBand =
   | 'plus50'
   | 'plus55'
   | 'plus60';
-export type SkillLevel = 'beginner' | 'intermediate' | 'open' | 'iniciante1' | 'iniciante2' | 'intermediario1' | 'intermediario2';
+export type SkillLevel =
+  | 'beginner'
+  | 'intermediate'
+  | 'open'
+  | 'iniciante1'
+  | 'iniciante2'
+  | 'intermediario1'
+  | 'intermediario2'
+  | 'avancado1'
+  | 'avancado2';
 export type AgeReference = 'tournamentStart' | 'yearEnd' | 'registration';
 
 export interface CategoryPrizeDraft {
@@ -47,6 +56,8 @@ export interface TournamentCategoryDraft {
   womenCount: number;
   ageBand: AgeBand;
   skillLevel: SkillLevel;
+  /** Nível mínimo da faixa (preset "Elite" etc.) — `null` = sem piso, categorias sem faixa. */
+  minSkillLevel: SkillLevel | null;
   ageReference: AgeReference;
   ageCustomEnabled: boolean;
   ageMinYears: number | null;
@@ -110,6 +121,9 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     womenCount: 1,
     ageBand: 'open',
     skillLevel: 'open',
+    // Preset "Livre" (iniciante1–open) — categoria nova nasce com chip ativo e piso EXPLÍCITO,
+    // nunca em `null` (marca reservada pra faixa legada — ver `CATEGORY_LEVEL_PRESETS`).
+    minSkillLevel: 'iniciante1',
     ageReference: 'tournamentStart',
     ageCustomEnabled: false,
     ageMinYears: null,
@@ -313,14 +327,35 @@ export const SKILL_LEVEL_LABEL: Record<SkillLevel, string> = {
   iniciante2: 'Iniciante 2',
   intermediario1: 'Intermediário 1',
   intermediario2: 'Intermediário 2',
+  avancado1: 'Avançado 1',
+  avancado2: 'Avançado 2',
 };
 
-/** Escada única de 5 níveis para categorias novas de TODOS os esportes.
+/** Escada única de 7 níveis para categorias novas de TODOS os esportes.
  *  Os membros legados de `SkillLevel` (`beginner`/`intermediate`) seguem no
  *  tipo só pra reabrir categorias antigas — o editor não os oferece mais. */
 export function skillLevelOptionsForSport(sport: TournamentSport): SkillLevel[] {
-  return ['iniciante1', 'iniciante2', 'intermediario1', 'intermediario2', 'open'];
+  return ['iniciante1', 'iniciante2', 'intermediario1', 'intermediario2', 'avancado1', 'avancado2', 'open'];
 }
+
+export interface CategoryLevelPreset {
+  label: string;
+  min: SkillLevel;
+  max: SkillLevel;
+}
+
+/** Faixas prontas de nível (spec emendada 18/08). "Open" é a faixa-ponte
+ *  4–6 que fecha chave com topo pequeno; "Elite" é só o degrau Open (topo).
+ *  "Livre" grava piso EXPLÍCITO iniciante1 — `minLevel` ausente no doc é
+ *  marca de categoria LEGADA (regra antiga só-teto), nunca um preset. */
+export const CATEGORY_LEVEL_PRESETS: readonly CategoryLevelPreset[] = [
+  { label: 'Iniciante', min: 'iniciante1', max: 'iniciante2' },
+  { label: 'Intermediário', min: 'intermediario1', max: 'intermediario2' },
+  { label: 'Avançado', min: 'avancado1', max: 'avancado2' },
+  { label: 'Open', min: 'avancado1', max: 'open' },
+  { label: 'Elite', min: 'open', max: 'open' },
+  { label: 'Livre', min: 'iniciante1', max: 'open' },
+];
 
 export const BRACKET_FORMAT_FIRESTORE: Record<TournamentBracketSystem, string> = {
   groupsThenKnockout: 'groups_knockout',
@@ -365,7 +400,16 @@ export function suggestCategoryName(category: TournamentCategoryDraft): string {
     parts.push(GENDER_LABEL[category.gender]);
   }
   if (category.ageBand !== 'open') parts.push(AGE_BAND_LABEL[category.ageBand]);
-  if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
+    // Faixa de um único degrau (preset "Elite": min = max) — rótulo simples, sem "mín.".
+    parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  } else {
+    if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+    // Piso rank 0 (iniciante1) é o preset "Livre" — piso padrão, sem ruído no nome.
+    if (category.minSkillLevel && category.minSkillLevel !== 'iniciante1') {
+      parts.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+    }
+  }
   return parts.join(' ').trim();
 }
 
@@ -375,7 +419,16 @@ export function categoryTags(category: TournamentCategoryDraft): string[] {
     : (genderCompositionShort(category) ?? GENDER_SHORT[category.gender]);
   const tags = [genderTag, DISPUTE_LABEL[category.dispute]];
   if (category.ageBand !== 'open') tags.push(AGE_BAND_LABEL[category.ageBand]);
-  if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  if (category.minSkillLevel != null && category.minSkillLevel === category.skillLevel) {
+    // Faixa de um único degrau (preset "Elite": min = max) — rótulo simples, sem "mín.".
+    tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  } else {
+    if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+    // Piso rank 0 (iniciante1) é o preset "Livre" — piso padrão, sem ruído na tag.
+    if (category.minSkillLevel && category.minSkillLevel !== 'iniciante1') {
+      tags.push(`mín. ${SKILL_LEVEL_LABEL[category.minSkillLevel]}`);
+    }
+  }
   return tags;
 }
 

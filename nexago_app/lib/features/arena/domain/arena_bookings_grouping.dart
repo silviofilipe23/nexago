@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 import 'arena_booking_labels.dart';
 import 'arena_date_utils.dart';
@@ -26,12 +27,7 @@ abstract final class ArenaBookingsGrouping {
   }
 
   static String athleteInitials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts.first.substring(0, 1).toUpperCase();
-    }
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    return initialsFromDisplayName(name);
   }
 
   static double? amountReais(Map<String, dynamic> data) {

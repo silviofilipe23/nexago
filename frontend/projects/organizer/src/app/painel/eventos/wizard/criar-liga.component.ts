@@ -26,6 +26,7 @@ import {
 import {
   AGE_BAND_LABEL,
   BRACKET_SYSTEM_SHORT_LABEL,
+  CATEGORY_LEVEL_PRESETS,
   DISPUTE_LABEL,
   DISPUTE_OPTIONS,
   GENDER_LABEL,
@@ -34,7 +35,6 @@ import {
   type AgeBand,
   type CategoryDispute,
   type CategoryGender,
-  type SkillLevel,
   type TournamentCategoryDraft,
   type TournamentSport,
   categoryTags,
@@ -43,7 +43,6 @@ import {
   emptyCategoryDraft,
   isTeamDispute,
   normalizeCategoryComposition,
-  skillLevelOptionsForSport,
   suggestCategoryName,
 } from '../../data/tournament-create.model';
 import { OgAddTileComponent } from '../../ui/add-tile.component';
@@ -55,7 +54,7 @@ import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgSelectChipsComponent } from '../../ui/select-chips.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../../ui/toggle-row.component';
-import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -176,9 +175,15 @@ function inputToDate(v: string): Date | null {
                 </og-form-field>
               </div>
               <div style="margin-top:16px">
-                <og-form-field label="Nível">
-                  <og-select-chips [options]="skillOptions()" [active]="skillLabel[cat().skillLevel]" (changed)="setCatSkill($event)" />
+                <og-form-field label="Faixa de nível">
+                  <og-select-chips [options]="levelPresetOptions" [active]="activeLevelPreset() ?? ''" (changed)="setCatLevelPreset($event)" />
                 </og-form-field>
+                @if (cat().minSkillLevel != null && cat().minSkillLevel !== 'iniciante1') {
+                  <p class="og-wizard-hint">Piso de nível: atletas sem nível declarado não conseguem se inscrever nesta categoria.</p>
+                }
+                @if (activeLevelPreset() === null) {
+                  <p class="og-wizard-hint">Faixa personalizada (legado): {{ levelRangeLabel() }} — escolha um preset para alterar.</p>
+                }
               </div>
               <div class="og-field-grid" style="margin-top:16px">
                 <og-stepper-static label="Vagas por etapa" [value]="'' + cat().spots" [suffix]="catUnit()" (bump)="bumpCatSpots($event)" />
@@ -490,7 +495,22 @@ export class CriarLigaComponent {
     this.catIsTeam() && this.cat().genderFree ? 'Livre' : GENDER_LABEL[this.cat().gender],
   );
 
-  protected readonly skillOptions = computed(() => skillLevelOptionsForSport(this.draft().sport).map((s) => SKILL_LEVEL_LABEL[s]));
+  protected readonly levelPresetOptions = CATEGORY_LEVEL_PRESETS.map((p) => p.label);
+
+  /** Preset cujo (min,max) casa com o draft; `null` = faixa legada (sem preset — nenhum chip
+   *  ativo, mostra a faixa gravada em texto). */
+  protected readonly activeLevelPreset = computed(() => {
+    const c = this.cat();
+    const hit = CATEGORY_LEVEL_PRESETS.find((p) => p.min === c.minSkillLevel && p.max === c.skillLevel);
+    return hit?.label ?? null;
+  });
+
+  /** Faixa gravada formatada pro aviso de legado ("Avançado 1–Open"; sem piso → só o teto). */
+  protected readonly levelRangeLabel = computed(() => {
+    const c = this.cat();
+    const max = this.skillLabel[c.skillLevel];
+    return c.minSkillLevel ? `${this.skillLabel[c.minSkillLevel]}–${max}` : max;
+  });
 
   protected readonly flow = computed(() => (this.subView() === 'categoria' ? 'Categoria da liga' : this.subView() === 'etapa' ? 'Etapa' : 'Criar liga'));
   protected readonly title = computed(() => (this.subView() === 'categoria' ? 'Builder de categoria' : this.subView() === 'etapa' ? 'Editar etapa' : TITLES[this.step()]!));
@@ -613,9 +633,9 @@ export class CriarLigaComponent {
     if (band) this.patchCat({ ageBand: band });
   }
 
-  protected setCatSkill(label: string): void {
-    const level = (Object.keys(SKILL_LEVEL_LABEL) as SkillLevel[]).find((s) => SKILL_LEVEL_LABEL[s] === label);
-    if (level) this.patchCat({ skillLevel: level });
+  protected setCatLevelPreset(label: string): void {
+    const preset = CATEGORY_LEVEL_PRESETS.find((p) => p.label === label);
+    if (preset) this.patchCat({ minSkillLevel: preset.min, skillLevel: preset.max });
   }
 
   protected bumpCatSpots(delta: number): void {

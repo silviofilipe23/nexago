@@ -2,6 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/firebase/firebase_providers.dart';
+import '../../../tournaments/data/tournament_detail_lookup.dart';
+import '../../../tournaments/domain/tournament_detail_model.dart';
+import '../../../tournaments/domain/tournament_listing_status.dart';
 import 'tournament_staff_models.dart';
 
 /// Torneio em que o usuário logado atua como staff — espelho
@@ -67,6 +71,27 @@ final myTournamentStaffEntriesProvider =
     });
     return entries;
   });
+});
+
+final _staffTournamentDetailProvider =
+    FutureProvider.family<TournamentDetail?, String>((ref, tournamentId) {
+  return loadTournamentDetailById(ref.watch(firestoreProvider), tournamentId);
+});
+
+/// Staff ativo com torneio ainda não cancelado/concluído — usado na Home,
+/// que só deve destacar torneios em aberto. O guard de rotas continua usando
+/// [myTournamentStaffEntriesProvider] sem esse filtro.
+final myOngoingTournamentStaffEntriesProvider =
+    Provider<List<MyTournamentStaffEntry>>((ref) {
+  final entries =
+      ref.watch(myTournamentStaffEntriesProvider).valueOrNull ?? const [];
+  return entries.where((entry) {
+    final detail = ref
+        .watch(_staffTournamentDetailProvider(entry.tournamentId))
+        .valueOrNull;
+    if (detail == null) return true;
+    return !isTournamentTerminal(detail.status);
+  }).toList();
 });
 
 /// Papel de staff do usuário logado em um torneio (null = não é staff).

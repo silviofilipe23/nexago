@@ -64,8 +64,8 @@ enum TournamentAgeBand {
 
 /// Nível da categoria. `beginner`/`intermediate` são a escada legada de 3
 /// níveis (mantidos para parse de categorias antigas e para esportes sem
-/// escada própria); `iniciante1..intermediario2` + `open` formam a escada de
-/// 5 níveis do vôlei (ranks unificados com o perfil do atleta).
+/// escada própria); `iniciante1..avancado2` + `open` formam a escada de
+/// 7 níveis do vôlei (ranks unificados com o perfil do atleta).
 enum TournamentSkillLevel {
   beginner,
   intermediate,
@@ -74,6 +74,8 @@ enum TournamentSkillLevel {
   iniciante2,
   intermediario1,
   intermediario2,
+  avancado1,
+  avancado2,
 }
 
 /// Referência usada para calcular a idade do atleta nas restrições etárias.
@@ -132,6 +134,7 @@ class TournamentCategoryDraft {
     this.genderFree = false,
     this.menCount,
     this.womenCount,
+    this.minLevel = '',
   });
 
   final String id;
@@ -170,6 +173,15 @@ class TournamentCategoryDraft {
   final int? menCount;
   final int? womenCount;
 
+  /// Faixa de nível (label, ex.: "Avançado 1") gravada pelo portal web em
+  /// `minLevel` — piso da categoria (`''` = sem piso, só em categoria
+  /// legada). O editor do app agora expõe esse campo via os chips de preset
+  /// de faixa (`categoryLevelPresets`/`activeCategoryLevelPreset` em
+  /// `tournament_create_logic.dart`) — fora dos 6 presets, o valor só
+  /// sobrevive pelo roundtrip de edição preservando o que outra superfície
+  /// gravou (mesmo contrato de [genderFree]/[menCount]).
+  final String minLevel;
+
   TournamentCategoryDraft copyWith({
     String? id,
     String? name,
@@ -196,6 +208,7 @@ class TournamentCategoryDraft {
     bool? genderFree,
     int? menCount,
     int? womenCount,
+    String? minLevel,
   }) {
     return TournamentCategoryDraft(
       id: id ?? this.id,
@@ -222,6 +235,7 @@ class TournamentCategoryDraft {
       genderFree: genderFree ?? this.genderFree,
       menCount: menCount ?? this.menCount,
       womenCount: womenCount ?? this.womenCount,
+      minLevel: minLevel ?? this.minLevel,
     );
   }
 }

@@ -265,4 +265,17 @@
   @if (lgpdConsentRequest()) {
     <app-lgpd-consent-dialog (confirmed)="confirmLgpdConsent()" (cancelled)="lgpdConsentRequest.set(null)" />
   }
+
+  @if (levelConfirmationPrompt(); as prompt) {
+    <app-nx-blocking-dialog
+      tone="info"
+      role="dialog"
+      heading="Confirme seu nível"
+      [body]="'Você vai se inscrever como ' + prompt.levelLabel + ' em ' + prompt.sportLabel + '. Após a inscrição, o nível só poderá subir.'"
+      primaryLabel="Confirmar e continuar"
+      secondaryLabel="Ajustar nível"
+      (primary)="confirmLevelPrompt()"
+      (secondary)="adjustLevelPrompt()"
+    />
+  }
 </app-at-panel-shell>

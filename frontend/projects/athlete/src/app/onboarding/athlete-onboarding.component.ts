@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { BrLocationsService } from '@nexago/br-locations';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
+import { LEVEL_OPTIONS } from '@nexago/levels';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { sanitizeReturnUrl } from '../auth/redirect-url';
@@ -24,29 +26,10 @@ import { peekPartnerInviteContext, takePartnerInviteContext } from '../shared/pa
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
 
-export interface LevelOption {
-  code: string;
-  label: string;
-  desc: string;
-}
-
 export interface GoalOption {
   code: string;
   label: string;
 }
-
-/** Escada única de 5 níveis (iniciante_1 < iniciante_2 < intermediario_1 < intermediario_2 < open),
- *  mesmos código e labels lidos por firestore.rules / category-level-eligibility.ts /
- *  athlete_profile_options.dart — aplicada a qualquer esporte escolhido. */
-const LEVELS: LevelOption[] = [
-  { code: 'iniciante_1', label: 'Iniciante 1', desc: 'Estou começando ou jogo pouco tempo.' },
-  { code: 'iniciante_2', label: 'Iniciante 2', desc: 'Jogo com regularidade mas ainda não conheço as regras.' },
-  { code: 'intermediario_1', label: 'Intermediário 1', desc: 'Jogo com regularidade e conheço as regras.' },
-  { code: 'intermediario_2', label: 'Intermediário 2', desc: 'Boa técnica e bastante experiência de quadra.' },
-  { code: 'open', label: 'Open', desc: 'Participo de torneios e busco performance.' },
-];
-
-const DEFAULT_LEVEL = 'intermediario_1';
 
 /** Mesmos códigos de athlete_firestore_codes.dart. */
 const GOALS: GoalOption[] = [
@@ -82,18 +65,21 @@ export class AthleteOnboardingComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly brLocations = inject(BrLocationsService);
   private readonly firestore = createFirestore();
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly sports = SPORT_CATALOG;
-  protected readonly levels = LEVELS;
+  protected readonly levels = LEVEL_OPTIONS;
   protected readonly goals = GOALS;
   protected readonly genders = GENDERS;
 
   protected readonly step = signal<ObStep>(1);
 
   protected readonly selectedSportCode = signal<string>(SPORT_CATALOG[0]!.code);
-  protected readonly selectedLevelCode = signal<string>(DEFAULT_LEVEL);
+  /** Nasce vazio — nada de default silencioso. O atleta precisa escolher um
+   *  nível explicitamente antes de avançar (`levelChosen` trava o passo 2). */
+  protected readonly selectedLevelCode = signal<string>('');
   protected readonly selectedGoalCodes = signal<ReadonlySet<string>>(
     new Set(['JOGAR_DIVERSAO', 'COMPETIR']),
   );
@@ -101,6 +87,9 @@ export class AthleteOnboardingComponent {
   protected readonly selectedSport = computed(
     () => this.sports.find((s) => s.code === this.selectedSportCode()) ?? this.sports[0]!,
   );
+
+  /** Gate do passo 2 (nível) — vazio bloqueia "Continuar". */
+  protected readonly levelChosen = computed(() => this.selectedLevelCode() !== '');
 
   protected readonly name = signal(this.initialName());
   protected readonly nickname = signal('');
@@ -110,6 +99,13 @@ export class AthleteOnboardingComponent {
   protected readonly birthDateNativeMin = MIN_NATIVE_BIRTH_DATE_ISO;
   protected readonly birthDateNativeMax = maxNativeBirthDateIso();
   protected readonly gender = signal<string | null>(null);
+
+  /** UF (sigla) e cidade do IBGE. Obrigatórias: o gate de torneios do servidor
+   *  (`athlete-tournament-access.ts`) já exigia as duas depois do cadastro. */
+  protected readonly state = signal('');
+  protected readonly city = signal('');
+  protected readonly cityOptions = computed(() => this.brLocations.citiesFor(this.state()));
+
   protected readonly touched = signal(false);
 
   protected readonly notice = signal<string | null>(null);
@@ -126,20 +122,33 @@ export class AthleteOnboardingComponent {
   protected readonly nameError = computed(() =>
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
-  protected readonly phoneError = computed(() =>
-    this.touched() && !this.phoneVerified() ? 'Verifique seu WhatsApp' : null,
-  );
   protected readonly birthDateError = computed(() =>
     this.touched() ? validateBirthDate(this.birthDateInput()) : null,
   );
   protected readonly genderError = computed(() => (this.touched() && !this.gender() ? 'Obrigatório' : null));
+  protected readonly stateError = computed(() => (this.touched() && !this.state() ? 'Obrigatório' : null));
+  protected readonly cityError = computed(() => (this.touched() && !this.city() ? 'Obrigatório' : null));
+  protected readonly photoError = computed(() =>
+    this.touched() && !this.photoFile() ? 'Escolha uma foto pra concluir' : null,
+  );
 
+  /** Telefone verificado ficou de fora: o SMS não chega para parte dos
+   *  atletas e travava o cadastro. Quem pula verifica depois no perfil — o
+   *  gate de torneios do servidor (`athlete-tournament-access.ts`) continua
+   *  exigindo `phoneVerified` na inscrição. */
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
-      this.phoneVerified() &&
       validateBirthDate(this.birthDateInput()) == null &&
-      this.gender() != null,
+      this.gender() != null &&
+      this.state() !== '' &&
+      this.city() !== '' &&
+      this.photoFile() != null &&
+      // F7 (review): a escolha obrigatória de nível (`levelChosen`) até aqui só era
+      // aplicada pelo `[disabled]` do botão "Continuar" do passo 2 — a invariante não
+      // valia na escrita de verdade (`submitProfile`). Entrar aqui fecha em `submitProfile`
+      // (`if (!profileFormValid()) return`), não só na UI do passo 2.
+      this.levelChosen(),
   );
 
   private initialName(): string {
@@ -173,6 +182,14 @@ export class AthleteOnboardingComponent {
 
   protected isGoalSelected(code: string): boolean {
     return this.selectedGoalCodes().has(code);
+  }
+
+  /** Trocar a UF invalida a cidade escolhida — senão sobraria uma cidade de
+   *  outro estado no cadastro. */
+  protected selectState(uf: string): void {
+    if (uf === this.state()) return;
+    this.state.set(uf);
+    this.city.set('');
   }
 
   /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
@@ -266,7 +283,9 @@ export class AthleteOnboardingComponent {
     const sportCode = this.selectedSportCode();
     const levelCode = this.selectedLevelCode();
     const fullName = this.name().trim();
-    const photoFile = this.photoFile();
+    const photoFile = this.photoFile()!;
+    const city = this.city();
+    const state = this.state();
 
     this.submitting.set(true);
     this.submitError.set(null);
@@ -282,6 +301,21 @@ export class AthleteOnboardingComponent {
       await grantAthleteRole();
       await this.auth.user()?.getIdToken(true);
 
+      // A foto é obrigatória e sobe ANTES do perfil: se o Storage falhar, nada
+      // é gravado e o atleta repete o envio. Gravar primeiro deixaria um
+      // cadastro concluído sem imagem — exatamente o que precisamos evitar.
+      let photoUrl: string;
+      try {
+        const jpeg = await prepareAvatarJpeg(photoFile);
+        photoUrl = await uploadAthleteAvatar(athleteStorage(), uid, jpeg);
+      } catch (photoErr) {
+        if (!environment.production) {
+          console.error('[onboarding] avatar upload error', photoErr);
+        }
+        this.submitError.set('Não foi possível enviar sua foto. Verifique a conexão e tente de novo.');
+        return;
+      }
+
       const userDocRef = doc(this.firestore, 'users', uid);
 
       await Promise.all([
@@ -292,6 +326,9 @@ export class AthleteOnboardingComponent {
             nickname: this.nickname().trim() || null,
             gender: this.gender(),
             birthDate: isoBirthDate,
+            city,
+            state,
+            profilePhotoUrl: photoUrl,
             goals: Array.from(this.selectedGoalCodes()),
             sportOnboarding: {
               version: 1,
@@ -311,26 +348,13 @@ export class AthleteOnboardingComponent {
             fullName,
             displayName: this.nickname().trim() || fullName,
             primarySport: sportCode,
+            city,
+            state,
             updatedAt: serverTimestamp(),
           },
           { merge: true },
         ),
       ]);
-
-      // Foto opcional: perfil já salvo; falha no Storage não bloqueia o onboarding
-      // (mesmo contrato do app em athlete_onboarding_providers.dart).
-      if (photoFile) {
-        try {
-          const jpeg = await prepareAvatarJpeg(photoFile);
-          const url = await uploadAthleteAvatar(athleteStorage(), uid, jpeg);
-          await setDoc(userDocRef, { profilePhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
-        } catch (photoErr) {
-          if (!environment.production) {
-            console.error('[onboarding] avatar upload error', photoErr);
-          }
-          this.showNotice('Cadastro concluído. A foto não foi enviada — você pode adicionar depois no perfil.');
-        }
-      }
 
       this.step.set(5);
     } catch (err) {

@@ -34,6 +34,36 @@ export type ConfirmedInscriptionPayment = {
   cents: number;
 };
 
+/** Recorte da arrecadação de um torneio, em centavos. `toVerifyCents` é um SUBCONJUNTO de
+ *  `viaOrganizerCents` (dinheiro declarado que ainda não teve baixa), não uma quarta parcela:
+ *  `totalCents === viaAppCents + viaOrganizerCents`. */
+export type TournamentCollectedStats = {
+  totalCents: number;
+  viaAppCents: number;
+  viaOrganizerCents: number;
+  toVerifyCents: number;
+};
+
+export const EMPTY_COLLECTED_STATS: TournamentCollectedStats = {
+  totalCents: 0,
+  viaAppCents: 0,
+  viaOrganizerCents: 0,
+  toVerifyCents: 0,
+};
+
+/** MESMA âncora que o portal usa pro selo "A conferir" (`inscriptions-repository.ts`):
+ *  `declaredPaidAt` (e não `paymentChannel`) para que inscrições diretas ANTERIORES ao fluxo de
+ *  declaração não entrem retroativamente numa fila de conferência que ninguém vai fazer. Se esta
+ *  regra divergir da do selo, o organizador vê um valor "a conferir" que não bate com as
+ *  inscrições marcadas "A conferir" na tela de Inscrições. */
+export function isAwaitingOrganizerVerification(
+  inscription: Record<string, unknown>,
+): boolean {
+  const declared = inscription.declaredPaidAt;
+  if (declared === null || declared === undefined) return false;
+  return inscription.paymentVerifiedByOrganizer !== true;
+}
+
 export function confirmedInscriptionPayment(params: {
   inscription: Record<string, unknown>;
   entryFeeCents: number;
@@ -72,21 +102,36 @@ function categoryFeeLookup(
   return lookup;
 }
 
-export function computeTournamentCollectedCents(
+export function computeTournamentCollectedStats(
   tournament: Record<string, unknown>,
   inscriptions: Array<Record<string, unknown>>,
-): number {
+): TournamentCollectedStats {
   const feeByCategoryKey = categoryFeeLookup(tournament);
-  let total = 0;
+  let viaAppCents = 0;
+  let viaOrganizerCents = 0;
+  let toVerifyCents = 0;
 
   for (const inscription of inscriptions) {
     const categoryId = String(inscription.categoryId ?? "").trim();
     const entryFeeCents = feeByCategoryKey.get(categoryId) ?? 0;
     const payment = confirmedInscriptionPayment({inscription, entryFeeCents});
-    if (payment) total += payment.cents;
+    if (!payment) continue;
+    if (payment.channel === "viaApp") {
+      viaAppCents += payment.cents;
+      continue;
+    }
+    viaOrganizerCents += payment.cents;
+    if (isAwaitingOrganizerVerification(inscription)) {
+      toVerifyCents += payment.cents;
+    }
   }
 
-  return total;
+  return {
+    totalCents: viaAppCents + viaOrganizerCents,
+    viaAppCents,
+    viaOrganizerCents,
+    toVerifyCents,
+  };
 }
 
 function extractTournamentId(data: unknown): string {
@@ -95,16 +140,35 @@ function extractTournamentId(data: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-export async function recomputeTournamentCollectedCents(
+/** `null` = campo AUSENTE no doc, que é diferente de zero. Sem essa distinção, torneio antigo
+ *  sem arrecadação nunca ganharia os campos do recorte (o total bateria em 0 e a escrita seria
+ *  pulada), e o portal ficaria preso no fallback pelo `paymentMode` pra sempre. */
+function storedCents(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+}
+
+function isCollectedUpToDate(
+  tournament: Record<string, unknown>,
+  stats: TournamentCollectedStats,
+): boolean {
+  return (
+    storedCents(tournament.collectedCents) === stats.totalCents &&
+    storedCents(tournament.collectedViaAppCents) === stats.viaAppCents &&
+    storedCents(tournament.collectedViaOrganizerCents) === stats.viaOrganizerCents &&
+    storedCents(tournament.collectedToVerifyCents) === stats.toVerifyCents
+  );
+}
+
+export async function recomputeTournamentCollectedStats(
   db: Firestore,
   projectId: string,
   tournamentId: string,
-): Promise<number> {
+): Promise<TournamentCollectedStats> {
   const tid = tournamentId.trim();
-  if (!tid) return 0;
+  if (!tid) return EMPTY_COLLECTED_STATS;
 
   const tournamentSnap = await db.doc(`tournaments/${tid}`).get();
-  if (!tournamentSnap.exists) return 0;
+  if (!tournamentSnap.exists) return EMPTY_COLLECTED_STATS;
 
   const tournament = tournamentSnap.data() ?? {};
   const inscriptionsSnap = await db
@@ -113,17 +177,20 @@ export async function recomputeTournamentCollectedCents(
     .get();
 
   const inscriptions = inscriptionsSnap.docs.map((doc) => doc.data());
-  const collectedCents = computeTournamentCollectedCents(tournament, inscriptions);
-  const current =
-    typeof tournament.collectedCents === "number" && Number.isFinite(tournament.collectedCents) ?
-      Math.round(tournament.collectedCents) :
-      0;
+  const stats = computeTournamentCollectedStats(tournament, inscriptions);
 
-  if (current !== collectedCents) {
-    await db.doc(`tournaments/${tid}`).set({collectedCents}, {merge: true});
+  if (!isCollectedUpToDate(tournament, stats)) {
+    // `collectedCents` continua sendo o total: o app Flutter e o portal da arena já o leem, e
+    // mudar seu significado quebraria as duas superfícies.
+    await db.doc(`tournaments/${tid}`).set({
+      collectedCents: stats.totalCents,
+      collectedViaAppCents: stats.viaAppCents,
+      collectedViaOrganizerCents: stats.viaOrganizerCents,
+      collectedToVerifyCents: stats.toVerifyCents,
+    }, {merge: true});
   }
 
-  return collectedCents;
+  return stats;
 }
 
 export const onTournamentInscriptionWriteSyncCollectedCents = onDocumentWritten(
@@ -142,7 +209,7 @@ export const onTournamentInscriptionWriteSyncCollectedCents = onDocumentWritten(
     await Promise.all(
       [...tournamentIds].map(async (tournamentId) => {
         try {
-          await recomputeTournamentCollectedCents(db, projectId, tournamentId);
+          await recomputeTournamentCollectedStats(db, projectId, tournamentId);
         } catch (err) {
           logger.error("tournament-collected-stats: recompute failed", {
             tournamentId,

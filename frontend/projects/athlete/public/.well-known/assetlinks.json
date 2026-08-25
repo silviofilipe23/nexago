@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "br.com.nexago.nexago_app",
       "sha256_cert_fingerprints": [
-        "9A:24:F4:77:7B:E7:FE:36:94:65:51:5A:AA:4D:C3:84:F3:2C:4E:A3:6D:E1:3A:04:20:75:A8:CF:E7:3C:75:B2"
+        "9A:24:F4:77:7B:E7:FE:36:94:65:51:5A:AA:4D:C3:84:F3:2C:4E:A3:6D:E1:3A:04:20:75:A8:CF:E7:3C:75:B2",
+        "10:74:FB:90:32:35:FF:66:8B:D2:6C:77:D8:A2:3C:B5:BC:FC:E4:A8:0C:4B:DC:F0:54:56:A2:3E:E9:8D:78:28"
       ]
     }
   }

@@ -149,16 +149,22 @@ export async function processArenaSubscriptionAsaasNotification(
         // mantém o dueDate do pagamento
       }
     }
+    const billingData = (await billingRef.get()).data() ?? {};
+    const planCycle = billingData["cycle"] === "yearly" ? "yearly" : "monthly";
+
     await arenaRef.set(
       {
         planTier: tier,
         planStatus: "active",
         planActiveUntil: activeUntil,
+        // Espelha `billing/subscription.cycle` no doc da arena — permite somar
+        // MRR/ARR sem ler a subcoleção de billing de cada arena (ver
+        // `backoffice-finance.ts`).
+        planCycle,
         planUpdatedAt: FieldValue.serverTimestamp(),
       },
       {merge: true},
     );
-    const billingData = (await billingRef.get()).data() ?? {};
     const paidActivation = shouldMarkActivationPaid(billingData, paymentId);
 
     await billingRef.set(

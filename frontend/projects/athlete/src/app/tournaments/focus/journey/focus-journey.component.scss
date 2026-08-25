@@ -1,0 +1,508 @@
+// Seção "Trajetória" do Modo Focus. Reaproveita os mesmos mixins de card/kicker/avatares que
+// `focus-now.component.scss` já usa nesta pasta (`tl` = `tournaments/_tournament-live.scss`),
+// com o prefixo `jr-` (journey) pro BEM próprio da seção.
+@use '../../tournament-live' as tl;
+
+@include tl.live-pulse-keyframes;
+
+:host {
+  display: block;
+}
+
+.jr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-5);
+}
+
+.jr-card {
+  @include tl.card;
+}
+
+.jr-card__title {
+  @include tl.card-title;
+}
+
+.jr-empty {
+  @include tl.empty-state;
+  padding: var(--nx-s-6) 0 var(--nx-s-4);
+}
+
+// ── Manchete ─────────────────────────────────────────────────
+// Mesmo desenho de card cheio + kicker + título grande das seções "chamado"/"ao vivo" do Agora —
+// aqui em duas variantes: contagem regressiva (laranja) e campeão (verde), nunca a mesma cor pras
+// duas, senão "0 vitórias" e "3 vitórias" pareceriam o mesmo tipo de notícia.
+.jr-headline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nx-s-2);
+  border: 1px solid rgba(255, 106, 26, 0.45);
+  border-radius: var(--nx-r-4);
+  background:
+    radial-gradient(120% 140% at 50% 0%, rgba(255, 106, 26, 0.16), transparent 62%),
+    var(--nx-surface-0);
+  padding: var(--nx-s-6) var(--nx-s-5);
+  text-align: center;
+
+  &[data-kind='champion'] {
+    border-color: rgba(43, 209, 126, 0.45);
+    background:
+      radial-gradient(120% 140% at 50% 0%, rgba(43, 209, 126, 0.2), transparent 62%),
+      var(--nx-surface-0);
+  }
+}
+
+.jr-headline__kicker {
+  @include tl.kicker;
+  color: var(--nx-orange-400);
+
+  .jr-headline[data-kind='champion'] & {
+    color: var(--nx-win);
+  }
+}
+
+.jr-headline__title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: clamp(22px, 5vw, 32px);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--nx-text);
+}
+
+// ── Chips ────────────────────────────────────────────────────
+.jr-chips {
+  display: flex;
+  gap: var(--nx-s-2);
+  flex-wrap: wrap;
+}
+
+.jr-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-1);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-mute);
+
+  &--win {
+    border-color: rgba(43, 209, 126, 0.4);
+    background: rgba(43, 209, 126, 0.1);
+    color: var(--nx-win);
+  }
+}
+
+// ── Caminho até a final ──────────────────────────────────────
+// Linha do tempo vertical: trilho (marcador + conector) à esquerda, degrau à direita. Quem conta
+// o estado é o MARCADOR — o texto ao lado nunca repete "V"/"D", como no protótipo.
+.jr-path {
+  list-style: none;
+  margin: 0;
+  padding: var(--nx-s-2) 0 0;
+}
+
+.jr-step {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--nx-s-3);
+  padding-bottom: var(--nx-s-5);
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+// O conector estica até o fim do degrau (`1fr`) e some no último — senão a timeline terminaria
+// num traço solto embaixo do marcador da final.
+.jr-step__rail {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  justify-items: center;
+  gap: var(--nx-s-1);
+}
+
+.jr-step__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--nx-line-strong);
+  border-radius: 50%;
+  background: var(--nx-surface-0);
+  color: var(--nx-win);
+
+  .jr-step[data-status='win'] & {
+    border-color: var(--nx-win);
+  }
+
+  .jr-step[data-status='loss'] & {
+    border-color: var(--nx-live);
+  }
+
+  .jr-step[data-status='live'] &,
+  .jr-step[data-status='next'] & {
+    border-width: 3px;
+    border-color: var(--nx-orange-500);
+    box-shadow: 0 0 0 4px rgba(255, 106, 26, 0.12);
+  }
+}
+
+.jr-step__line {
+  width: 2px;
+  min-height: 10px;
+  align-self: stretch;
+  border-radius: 1px;
+  background: var(--nx-line-strong);
+
+  // Verde só saindo de uma partida vencida: o trecho da campanha que o atleta já percorreu.
+  .jr-step[data-status='win'] & {
+    background: var(--nx-win);
+  }
+
+  .jr-step:last-child & {
+    display: none;
+  }
+}
+
+.jr-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-1);
+  min-width: 0;
+}
+
+// `wrap` porque a linha carrega fase + horário + quadra + placar: numa quadra com nome longo
+// ("Q. central") a 375px o placar desceria pra segunda linha em vez de vazar pra fora do card.
+.jr-step__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nx-s-2);
+  margin: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.jr-step__phase {
+  font-weight: 700;
+
+  .jr-step[data-status='win'] & {
+    color: var(--nx-win);
+  }
+
+  .jr-step[data-status='loss'] & {
+    color: var(--nx-live);
+  }
+
+  .jr-step[data-status='live'] &,
+  .jr-step[data-status='next'] & {
+    color: var(--nx-orange-500);
+  }
+}
+
+.jr-step__when {
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-step__score {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  // A linha inteira é caixa alta, menos aqui: o "vs" do protótipo é minúsculo, e é ele que
+  // segura a coluna enquanto não há placar.
+  text-transform: none;
+
+  .jr-step[data-status='win'] & {
+    color: var(--nx-win);
+  }
+
+  .jr-step[data-status='loss'] & {
+    color: var(--nx-live);
+  }
+
+  .jr-step[data-status='live'] & {
+    color: var(--nx-orange-500);
+  }
+}
+
+.jr-step__opponent {
+  align-self: flex-start;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--nx-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--nx-orange-400);
+  }
+
+  .jr-step[data-status='upcoming'] & {
+    color: var(--nx-text-mute);
+  }
+}
+
+.jr-step__detail {
+  margin: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+// ── Seus números no torneio ──────────────────────────────────
+.jr-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--nx-s-4);
+  margin: 0 0 var(--nx-s-5);
+
+  @media (max-width: 560px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.jr-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  dt {
+    font-family: var(--nx-font-mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--nx-text-dim);
+  }
+
+  dd {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-size: clamp(18px, 3vw, 24px);
+    font-weight: 700;
+    color: var(--nx-text);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Barras de CSS puro, sem lib de gráfico: cada set vira uma coluna com duas barras (você ×
+// adversário) crescendo do chão, altura em `style.height.%` sobre o par de valores mais alto do
+// torneio inteiro — assim a régua é a mesma em todas as colunas.
+.jr-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--nx-s-4);
+  height: 140px;
+  padding: 0 var(--nx-s-1) var(--nx-s-2);
+  overflow-x: auto;
+}
+
+.jr-bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nx-s-2);
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+.jr-bar-pair {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex: 1 1 auto;
+}
+
+.jr-bar {
+  width: 10px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--nx-line-strong);
+
+  &--mine {
+    background: var(--nx-orange-500);
+  }
+
+  &--theirs {
+    background: var(--nx-text-dim);
+  }
+}
+
+.jr-bar-group__label {
+  flex-shrink: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+}
+
+// ── Quem pode cruzar com você ────────────────────────────────
+.jr-opponents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jr-opponent {
+  display: flex;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-4) 0;
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.jr-duo-avatars {
+  @include tl.duo-avatars(38px);
+  flex-shrink: 0;
+}
+
+.jr-opponent__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+  min-width: 0;
+}
+
+.jr-opponent__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.jr-opponent__empty {
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.jr-opponent__campaign {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.jr-opponent__campaign-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nx-s-2);
+  font-size: 12px;
+
+  dt {
+    color: var(--nx-text-dim);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--nx-text-mute);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── O que este torneio muda ──────────────────────────────────
+.jr-prizes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jr-prize {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3) var(--nx-s-2);
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    border-top: none;
+  }
+
+  &--guaranteed {
+    margin: 0 calc(var(--nx-s-2) * -1);
+    padding-inline: var(--nx-s-3);
+    border-radius: var(--nx-r-2);
+    background: rgba(43, 209, 126, 0.08);
+    border-top-color: transparent;
+  }
+}
+
+.jr-prize__position {
+  font-family: var(--nx-font-mono);
+  font-size: 13px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-prize__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.jr-prize__value {
+  font-family: var(--nx-font-mono);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.jr-prize__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid rgba(43, 209, 126, 0.4);
+  background: rgba(43, 209, 126, 0.14);
+  color: var(--nx-win);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.jr-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.jr-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--nx-text, #f4f4f5);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: rgb(255 255 255 / 0.08);
+  }
+}

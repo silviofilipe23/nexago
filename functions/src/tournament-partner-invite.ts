@@ -6,10 +6,27 @@ import {
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {assertCanRegisterInTournament} from "./athlete-tournament-access";
+import {
+  assertCanRegisterInTournament,
+  loadUserAccessData,
+  missingTournamentProfileRequirementLabels,
+} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
-import {deliverNotificationToUser, markTournamentPartnerInviteInboxResponse} from "./notification-delivery";
+import {
+  assertMixedDuoGenderEligibility,
+  assertTeamGenderEligibility,
+  categoryIsMixedDuo,
+  categoryRequiredGenderBucket,
+} from "./category-gender-eligibility";
+import {
+  deliverNotificationToUser,
+  markTournamentPartnerInviteInboxResponse,
+  WEB_PUSH_PUBLIC_KEY,
+  WEB_PUSH_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
+} from "./notification-delivery";
+import {tournamentManagerUids} from "./tournament-acl";
 import {
   assertTournamentAcceptsRegistration,
   findCategory,
@@ -49,6 +66,7 @@ import {
   registrationTeamSize,
   teamJoinDenialMessage,
 } from "./tournament-team-category";
+import {resolveUniformSlot} from "./tournament-registration-uniform";
 import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster";
 import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
@@ -60,6 +78,35 @@ const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 // opcional no payload (apps antigos não enviam); quando presente, fica
 // registrado na inscrição para o organizador consultar.
 export const LGPD_TERM_VERSION = "2026-08";
+
+/** Situação do CONVIDADO no gate de perfil de torneio, devolvida no envio do
+ *  convite. O envio nunca bloqueia por pendência do convidado — quem valida é
+ *  o aceite (`assertCanRegisterInTournament`) — mas sem isto o convidante fica
+ *  esperando um aceite que não pode acontecer, sem saber o motivo. */
+async function inviteeProfileReadiness(
+  db: Firestore,
+  inviteeUid: string,
+  category?: Record<string, unknown> | null,
+): Promise<{inviteeProfileReady: boolean; inviteeMissingSteps: string[]}> {
+  const data = await loadUserAccessData(db, inviteeUid);
+  const missing = missingTournamentProfileRequirementLabels(data);
+  // Categoria de gênero fixo com convidado sem gênero no perfil: o aceite vai
+  // exigir (assertTeamGenderEligibility), então a pendência entra na lista.
+  // Conflito declarado nem chega aqui — o envio já bloqueou.
+  const rawGender = typeof data?.gender === "string" ? data.gender.trim() : "";
+  const genderMatters =
+    categoryRequiredGenderBucket(category) != null ||
+    // Dupla mista também exige gênero declarado no aceite (para saber se fecha
+    // 1H+1M); sem isto o convidante esperava um aceite impossível.
+    categoryIsMixedDuo(category);
+  if (!rawGender && genderMatters) {
+    missing.push("gênero");
+  }
+  return {
+    inviteeProfileReady: missing.length === 0,
+    inviteeMissingSteps: missing,
+  };
+}
 
 
 
@@ -215,8 +262,9 @@ function uniformToInviteFields(
 
 type UniformSlot = "Player1" | "Player2";
 
-/** Uniforme no slot do atleta — quem é player1 depende de qual inscrição sobrevive. */
-function registrationUniformForSlot(
+/** Uniforme no slot do atleta — quem é player1 depende de qual inscrição sobrevive.
+ *  Exportado para a inscrição criada pelo organizador gravar nos MESMOS campos. */
+export function registrationUniformForSlot(
   uniform: UniformPayload,
   slot: UniformSlot,
 ): Record<string, string | number> {
@@ -566,7 +614,11 @@ async function sendTeamCategoryInvite(params: {
   inviterName: string;
   inviteeUid: string;
   inviteeName: string;
-}): Promise<{inviteId: string}> {
+}): Promise<{
+  inviteId: string;
+  inviteeProfileReady: boolean;
+  inviteeMissingSteps: string[];
+}> {
   const {
     db,
     projectId,
@@ -759,20 +811,41 @@ async function sendTeamCategoryInvite(params: {
     teamId,
   });
 
-  return {inviteId: ref.id};
+  return {inviteId: ref.id, ...(await inviteeProfileReadiness(db, inviteeUid))};
 }
 
-export const sendTournamentPartnerInvite = onCall(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) {
-    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
-  }
+/**
+ * Parâmetros de {@link sendPartnerInviteFor}.
+ */
+export interface SendPartnerInviteParams {
+  /** Quem convida (autenticado). */
+  uid: string;
+  tournamentId: string;
+  categoryId: string;
+  inviteeUid: string;
+  inviteeName: string;
+  inviterName: string;
+  lgpdAccepted?: boolean;
+  inviterUniform?: unknown;
+}
 
-  const tournamentId = (request.data?.tournamentId as string | undefined)?.trim() ?? "";
-  const categoryId = (request.data?.categoryId as string | undefined)?.trim() ?? "";
-  const inviteeUid = (request.data?.inviteeUid as string | undefined)?.trim() ?? "";
-  const inviteeName = (request.data?.inviteeName as string | undefined)?.trim() ?? "Atleta";
-  const inviterName = (request.data?.inviterName as string | undefined)?.trim() ?? "Atleta";
+/**
+ * Cria o convite de parceiro — TODA a validação e o efeito de
+ * `sendTournamentPartnerInvite`, sem depender do `request`.
+ *
+ * Existe separado porque o convite por link (`claimExternalPartnerInvite`)
+ * precisa exatamente disto em nome de quem compartilhou o link: duas cópias da
+ * validação divergiriam, e é justamente a validação que protege a categoria.
+ */
+export async function sendPartnerInviteFor(
+  params: SendPartnerInviteParams,
+): Promise<{inviteId: string; inviteeProfileReady: boolean; inviteeMissingSteps: string[]}> {
+  const uid = params.uid;
+  const tournamentId = params.tournamentId.trim();
+  const categoryId = params.categoryId.trim();
+  const inviteeUid = params.inviteeUid.trim();
+  const inviteeName = params.inviteeName.trim() || "Atleta";
+  const inviterName = params.inviterName.trim() || "Atleta";
 
   if (!tournamentId || !categoryId || !inviteeUid) {
     throw new HttpsError(
@@ -817,6 +890,26 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     category,
     uids: [uid, inviteeUid],
   });
+  // Gênero declarado incompatível bloqueia já aqui; AUSENTE não — o convite é
+  // o empurrão pro parceiro completar o perfil (a resposta avisa o convidante)
+  // e o aceite valida com requireDeclared. Equipe (trio+) não passa por esta
+  // validação: a composição por buckets cuida no ramo próprio.
+  await assertTeamGenderEligibility({
+    db,
+    category,
+    uids: [uid, inviteeUid],
+    requireDeclared: false,
+  });
+  // Dupla MISTA: o gênero exigido é relacional (o parceiro tem de ser o oposto
+  // de quem convida), então não cabe em `assertTeamGenderEligibility`, que
+  // valida um gênero fixo da categoria. Mesma política de pendência: mesmo
+  // gênero DECLARADO bloqueia aqui; ausente espera o aceite.
+  await assertMixedDuoGenderEligibility({
+    db,
+    category,
+    uids: [uid, inviteeUid],
+    requireDeclared: false,
+  });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
@@ -840,8 +933,8 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   }
 
   const uniformRequired = categoryRequiresUniform(category);
-  const inviterLgpdAccepted = request.data?.lgpdAccepted === true;
-  const inviterUniform = parseUniformPayload(request.data?.inviterUniform);
+  const inviterLgpdAccepted = params.lgpdAccepted === true;
+  const inviterUniform = parseUniformPayload(params.inviterUniform);
   // Uniforme é opcional na inscrição (coletado depois); valida só se enviado.
   validateUniformPayload(
     category,
@@ -951,7 +1044,27 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     inviteeUid,
   });
 
-  return {inviteId: ref.id};
+  return {
+    inviteId: ref.id,
+    ...(await inviteeProfileReadiness(db, inviteeUid, category)),
+  };
+}
+
+export const sendTournamentPartnerInvite = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+  }
+  return await sendPartnerInviteFor({
+    uid,
+    tournamentId: (request.data?.tournamentId as string | undefined) ?? "",
+    categoryId: (request.data?.categoryId as string | undefined) ?? "",
+    inviteeUid: (request.data?.inviteeUid as string | undefined) ?? "",
+    inviteeName: (request.data?.inviteeName as string | undefined) ?? "",
+    inviterName: (request.data?.inviterName as string | undefined) ?? "",
+    lgpdAccepted: request.data?.lgpdAccepted === true,
+    inviterUniform: request.data?.inviterUniform,
+  });
 });
 
 /**
@@ -1020,6 +1133,16 @@ export const registerSoloTournament = onCall(async (request) => {
     category,
     uids: [uid],
   });
+  // Reserva solo garante vaga em categoria de gênero fixo, então o próprio
+  // atleta precisa ter gênero declarado e compatível já aqui (requireDeclared)
+  // — antes disso o servidor confiava só na pré-validação client-side. Equipe
+  // (trio+) nunca chega aqui: bloqueada acima.
+  await assertTeamGenderEligibility({
+    db,
+    category,
+    uids: [uid],
+    requireDeclared: true,
+  });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
   const lgpdAccepted = request.data?.lgpdAccepted === true;
@@ -1064,7 +1187,30 @@ export const registerSoloTournament = onCall(async (request) => {
         }
       : {}),
   };
-  await regRef.set(regData);
+  // A criação entra numa transação com uma releitura ESTREITA (só inscrições
+  // deste atleta neste torneio, pelo índice `tournamentId + participantUids`).
+  // A checagem larga acima cobre o legado, mas ela lê e escreve fora de
+  // transação: dois toques simultâneos no botão liam "sem inscrição" ao mesmo
+  // tempo e criavam DUAS reservas para o mesmo atleta — a segunda ficava
+  // invisível no app (a tela mapeia uma inscrição por categoria) e comia uma
+  // vaga da categoria para sempre.
+  await db.runTransaction(async (tx) => {
+    const mine = await tx.get(
+      inscriptionsRef
+        .where("tournamentId", "==", tournamentId)
+        .where("participantUids", "array-contains", uid),
+    );
+    const alreadyInCategory = mine.docs.some((doc) =>
+      categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
+    );
+    if (alreadyInCategory) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Você já possui inscrição nesta categoria.",
+      );
+    }
+    tx.set(regRef, regData);
+  });
 
   await markStaleCreateInvitesAfterSolo(db, tournamentId, categoryId, uid);
 
@@ -1274,7 +1420,54 @@ export const cancelTournamentRegistration = onCall({
   return {ok: true, registrationId};
 });
 
-export const acceptTournamentPartnerInvite = onCall(async (request) => {
+/** Avisa quem opera o torneio que uma inscrição fechou o elenco (dupla completa ou equipe no
+ *  tamanho da categoria). Pagamento é aviso à parte — este é só sobre a vaga estar ocupada. */
+async function notifyOrganizersRegistrationCompleted({
+  db,
+  registrationId,
+  tournamentId,
+  categoryId,
+  categoryName,
+  teamName,
+}: {
+  db: Firestore;
+  registrationId: string;
+  tournamentId: string;
+  categoryId: string;
+  categoryName: string;
+  teamName: string | null;
+}): Promise<void> {
+  const recipients = await tournamentManagerUids(db, tournamentId);
+  if (recipients.length === 0) {
+    logger.info(`Nenhum recipient (managerId/staff) pra notificar inscrição em ${tournamentId}`);
+    return;
+  }
+  logger.info(`Notificando inscrição completa: tournamentId=${tournamentId} recipients=${recipients.join(",")}`);
+
+  const who = teamName?.trim() || "Uma dupla";
+  const where = categoryName ? ` em ${categoryName}` : "";
+
+  await Promise.all(
+    recipients.map((recipientUid) =>
+      deliverNotificationToUser({
+        userId: recipientUid,
+        title: "Nova inscrição",
+        body: `${who} se inscreveu${where}.`,
+        type: "tournament_registration_created",
+        data: {
+          tournamentId,
+          registrationId,
+          categoryId,
+          url: `/painel/eventos/${tournamentId}/inscricoes?registrationId=${registrationId}`,
+        },
+      }).catch(() => undefined),
+    ),
+  );
+}
+
+export const acceptTournamentPartnerInvite = onCall({
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
@@ -1300,6 +1493,21 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     throw new HttpsError("not-found", "Convite não encontrado.");
   }
   const invitePreviewData = invitePreview.data()!;
+  // Expiração é decidida FORA da transação: marcar `expired` lá dentro e em
+  // seguida lançar descarta a escrita junto com a transação abortada, e o
+  // convite ficava "pending" para sempre. Só toca em convite ainda pendente —
+  // aceito/recusado/cancelado continua respondendo pelo status próprio.
+  if (invitePreviewData.status === "pending") {
+    const previewExpiresAt = invitePreviewData.expiresAt as Timestamp | undefined;
+    if (
+      previewExpiresAt &&
+      typeof previewExpiresAt.toMillis === "function" &&
+      previewExpiresAt.toMillis() < Date.now()
+    ) {
+      await inviteRef.update({status: "expired"});
+      throw new HttpsError("failed-precondition", "Este convite expirou.");
+    }
+  }
   const previewTournamentId = invitePreviewData.tournamentId as string;
   const previewCategoryId = invitePreviewData.categoryId as string;
   const previewTournament = await loadTournamentDataForInvite(
@@ -1341,6 +1549,24 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     category: previewCategory,
     uids: [invitePreviewData.inviterUid as string | undefined, uid],
   });
+  // Dupla de gênero fixo fecha aqui: os DOIS precisam ter gênero declarado e
+  // compatível (requireDeclared). Equipe valida composição na transação.
+  if (!isTeamCategory(previewCategory)) {
+    await assertTeamGenderEligibility({
+      db,
+      category: previewCategory,
+      uids: [invitePreviewData.inviterUid as string | undefined, uid],
+      requireDeclared: true,
+    });
+    // Dupla mista fecha aqui: os dois precisam ter gênero declarado e ser de
+    // gêneros diferentes.
+    await assertMixedDuoGenderEligibility({
+      db,
+      category: previewCategory,
+      uids: [invitePreviewData.inviterUid as string | undefined, uid],
+      requireDeclared: true,
+    });
+  }
   // Uniforme do convidado é opcional (informado depois); valida só se enviado.
   validateUniformPayload(
     previewCategory,
@@ -1362,9 +1588,10 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
       throw new HttpsError("failed-precondition", "Este convite não está mais pendente.");
     }
 
+    // Segunda linha de defesa (o convite pode expirar entre o preview e aqui).
+    // Sem escrita: a transação aborta e descartaria qualquer `tx.update`.
     const expiresAt = invite.expiresAt as Timestamp | undefined;
     if (expiresAt && expiresAt.toMillis() < Date.now()) {
-      tx.update(inviteRef, {status: "expired"});
       throw new HttpsError("failed-precondition", "Este convite expirou.");
     }
 
@@ -1858,6 +2085,27 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     }
   }
 
+  // Dupla fecha ao aceitar (sempre 2/2); equipe só quando o elenco chega ao teamSize.
+  const rosterNowComplete =
+    teamResult.isTeamInvite === true ? teamResult.rosterComplete === true : true;
+  if (rosterNowComplete) {
+    try {
+      await notifyOrganizersRegistrationCompleted({
+        db,
+        registrationId,
+        tournamentId,
+        categoryId,
+        categoryName: previewCategory.categoryName,
+        teamName: teamResult.isTeamInvite === true ? (teamResult.teamName ?? null) : null,
+      });
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar organizador da inscrição completa", {
+        inviteId,
+        notifyError,
+      });
+    }
+  }
+
   try {
     await markTournamentPartnerInviteInboxResponse(uid, inviteId, "accepted", {
       tournamentId,
@@ -1932,7 +2180,8 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
 /**
  * Define/atualiza o uniforme do atleta na sua inscrição APÓS a inscrição
  * (modelo "informar uniforme depois"). O caller só altera o próprio slot
- * (player1/player2). Valida o tamanho contra a categoria.
+ * (player1/player2, ou `uniformByUid` em equipe). Vale também na RESERVA SOLO,
+ * antes de a dupla existir. Valida o tamanho contra a categoria.
  */
 export const setRegistrationUniform = onCall(async (request) => {
   const uid = request.auth?.uid;
@@ -1963,25 +2212,17 @@ export const setRegistrationUniform = onCall(async (request) => {
   }
   const registration = regSnap.data()!;
 
+  // Reserva solo NÃO tem doc em `teams` (a equipe nasce quando o parceiro
+  // aceita o convite), então a autorização não pode sair do doc da equipe —
+  // quem decide é `resolveUniformSlot`, que cai pra própria inscrição nesse
+  // caso. Sem isso, informar o uniforme antes de fechar a dupla é impossível.
   const teamId = (registration.teamId as string | undefined)?.trim() ?? "";
-  if (!teamId) {
-    throw new HttpsError("failed-precondition", "Equipe inválida.");
-  }
-  const teamSnap = await db
-    .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
-    .get();
-  const team = teamSnap.data() ?? {};
-  const isTeamRegistration =
-    registrationTeamSize(registration, null) >= MIN_TEAM_CATEGORY_SIZE;
-  const player1Id =
-    typeof team.player1Id === "string" ? team.player1Id.trim() : "";
-  const player2Id =
-    typeof team.player2Id === "string" ? team.player2Id.trim() : "";
-  const isPlayer1 = player1Id === uid;
-  const isPlayer2 = player2Id === uid;
-  const isTeamMember =
-    isTeamRegistration && extractTeamMemberUids(team).includes(uid);
-  if (!isPlayer1 && !isPlayer2 && !isTeamMember) {
+  const team = teamId
+    ? (await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get()).data() ??
+      {}
+    : null;
+  const slot = resolveUniformSlot(registration, team, uid);
+  if (!slot) {
     throw new HttpsError(
       "permission-denied",
       "Você não é um dos atletas desta inscrição.",
@@ -2004,11 +2245,12 @@ export const setRegistrationUniform = onCall(async (request) => {
 
   // Equipe (trio+): uniforme por atleta no mapa `uniformByUid`; dupla mantém
   // os slots legados Player1/Player2.
-  const update = isTeamRegistration
-    ? {[`uniformByUid.${uid}`]: uniformByUidEntry(uniform)}
-    : isPlayer1
-      ? registrationUniformPlayer1(uniform)
-      : registrationUniformPlayer2(uniform);
+  const update =
+    slot === "byUid"
+      ? {[`uniformByUid.${uid}`]: uniformByUidEntry(uniform)}
+      : slot === "player1"
+        ? registrationUniformPlayer1(uniform)
+        : registrationUniformPlayer2(uniform);
 
   await regRef.update({
     ...update,

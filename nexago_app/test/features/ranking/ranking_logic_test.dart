@@ -7,34 +7,35 @@ import 'package:nexago_app/features/ranking/domain/ranking_logic.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_models.dart';
 
 void main() {
-  group('sumBestNPoints', () {
-    test('sums top 5 results', () {
+  group('sumPoints', () {
+    test('sums every result, without discarding any', () {
       expect(
-        sumBestNPoints([10, 50, 30, 40, 20, 100, 5]),
-        240,
+        sumPoints([10, 50, 30, 40, 20, 100, 5]),
+        255,
       );
     });
 
     test('returns 0 for empty list', () {
-      expect(sumBestNPoints([]), 0);
+      expect(sumPoints([]), 0);
     });
   });
 
   group('buildAthleteRankingRowsFromPointsByAthlete', () {
-    test('assigns ranks by best N sum', () {
+    test('assigns ranks by total sum, counting past the 5th result', () {
       final rows = buildAthleteRankingRowsFromPointsByAthlete(
         {
-          'a': [100, 80, 60],
-          'b': [90, 90, 90, 90, 90],
+          // Melhores 5 = 330, soma = 360: o 6º resultado decide a liderança.
+          'a': [100, 80, 60, 50, 40, 30],
+          'b': [70, 70, 70, 70, 70],
         },
         year: 2026,
       );
 
-      expect(rows.first.athleteId, 'b');
+      expect(rows.first.athleteId, 'a');
       expect(rows.first.rank, 1);
-      expect(rows.first.totalPoints, 450);
-      expect(rows.last.athleteId, 'a');
-      expect(rows.last.totalPoints, 240);
+      expect(rows.first.totalPoints, 360);
+      expect(rows.last.athleteId, 'b');
+      expect(rows.last.totalPoints, 350);
     });
   });
 
@@ -140,17 +141,19 @@ void main() {
   });
 
   group('buildTeamRankingRowsFromPointsByTeam', () {
-    test('assigns ranks by best N sum', () {
+    test('assigns ranks by total sum, counting past the 5th result', () {
       final rows = buildTeamRankingRowsFromPointsByTeam(
         {
-          't1': [100, 80],
-          't2': [90, 90, 90, 90, 90],
+          // Melhores 5 = 330, soma = 360: o 6º resultado decide a liderança.
+          't1': [100, 80, 60, 50, 40, 30],
+          't2': [70, 70, 70, 70, 70],
         },
         year: 2026,
       );
 
-      expect(rows.first.teamId, 't2');
+      expect(rows.first.teamId, 't1');
       expect(rows.first.rank, 1);
+      expect(rows.first.totalPoints, 360);
     });
   });
 
@@ -211,11 +214,78 @@ void main() {
   });
 
   group('getPointsByPlaceFromTotal', () {
-    test('sums to total distributed', () {
+    // NOTA (fase 3, tarefa 5): esta função pertence à tabela custom de LIGA
+    // (rankingPointsBaseSum=446), propositalmente fora do escopo da fase 3
+    // — "ranking de liga mantém tabela própria e fica fora dos pesos" (spec
+    // 2026-08-17-category-presets-ranking-weights-design.md). Como ela usa
+    // `pointsByPlace` como peso relativo normalizado por esse baseSum fixo,
+    // a tabela ×10 (1000/800/.../330) faz os pesos 2..8 somarem 3220 — acima
+    // do baseSum 446 — e o clamp de map[1] satura em 0. Não é regressão de
+    // produto: nenhuma tela chama esta função hoje (grep em lib/), e o único
+    // uso real do irmão `getPointsForPlaceFromLeagueConfig`
+    // (league_create_ranking_page.dart) nunca cai no fallback pra
+    // `pointsByPlace`, pois `effectiveRankingPoints` sempre popula 1..4 via
+    // `defaultLeagueRankingPoints`. Documentando o comportamento atual em vez
+    // de inventar uma invariante que a função não cumpre mais.
+    test('com pointsByPlace ×10 e baseSum legado, satura em map[1]=0', () {
       const total = 446;
       final map = getPointsByPlaceFromTotal(total);
-      expect(map.values.fold(0, (a, b) => a + b), total);
-      expect(map[1], greaterThan(0));
+      expect(map[1], 0);
+      expect(map.values.fold(0, (a, b) => a + b), 3220);
+    });
+
+    test('total 0 continua zerando todas as posições', () {
+      final map = getPointsByPlaceFromTotal(0);
+      expect(map.values.every((v) => v == 0), isTrue);
+    });
+  });
+
+  group('escada por fase alcançada (espelho do backend)', () {
+    test('9º-16º valem 200 e 17º-32º valem 130', () {
+      expect(getPointsForPlace(9), 200);
+      expect(getPointsForPlace(16), 200);
+      expect(getPointsForPlace(17), 130);
+      expect(getPointsForPlace(32), 130);
+    });
+
+    test('pódio e quartas não mudaram', () {
+      expect(getPointsForPlace(1), 1000);
+      expect(getPointsForPlace(5), 330);
+      expect(getPointsForPlace(8), 330);
+    });
+
+    test('além de 32 não há degrau de mata-mata', () {
+      expect(getPointsForPlace(33), 0);
+    });
+
+    test('nenhum degrau paga menos que a participação do backend (100)', () {
+      for (final topo in pointsLadderRanges.values) {
+        expect(getPointsForPlace(topo), greaterThanOrEqualTo(100));
+      }
+    });
+  });
+
+  group('getPointsForPlace', () {
+    test('tabela base ×10 (fase 3): 1º/2º/3º/4º e quartas (5º-8º)', () {
+      expect(getPointsForPlace(1), 1000);
+      expect(getPointsForPlace(2), 800);
+      expect(getPointsForPlace(3), 600);
+      expect(getPointsForPlace(4), 500);
+      expect(getPointsForPlace(5), 330);
+      expect(getPointsForPlace(6), 330);
+      expect(getPointsForPlace(7), 330);
+      expect(getPointsForPlace(8), 330);
+    });
+  });
+
+  group('categoryPresetWeights', () {
+    test('espelha os pesos de CATEGORY_PRESETS (fase 3, exibição apenas)', () {
+      expect(categoryPresetWeights['Elite'], 1.2);
+      expect(categoryPresetWeights['Open'], 1.0);
+      expect(categoryPresetWeights['Avançado'], 0.5);
+      expect(categoryPresetWeights['Intermediário'], 0.25);
+      expect(categoryPresetWeights['Iniciante'], 0.125);
+      expect(categoryPresetWeights['Livre'], 0.125);
     });
   });
 
@@ -273,7 +343,7 @@ void main() {
         primarySportFirestoreId: 'VOLEI_PRAIA',
         levelsBySportFirestore: {'VOLEI_PRAIA': 'open'},
       );
-      expect(teamLevelRank(p1, p2), 5);
+      expect(teamLevelRank(p1, p2), 6);
     });
 
     test('falls back to the resolved player when the other has no level', () {
@@ -307,10 +377,44 @@ void main() {
           tournamentsCount: 2,
         ),
       ];
-      final filtered = filterAthleteRowsByLevel(rows, 5, {'a1': 2, 'a2': 5});
+      final filtered = filterAthleteRowsByLevel(
+        rows,
+        RankingLevelFilter.avancado,
+        {'a1': 2, 'a2': 5},
+      );
       expect(filtered.length, 1);
       expect(filtered.first.athleteId, 'a2');
       expect(filtered.first.rank, 1);
+    });
+
+    test('o grupo pega os dois degraus da faixa', () {
+      final rows = [
+        const AthleteRankingRow(
+          rank: 1,
+          athleteId: 'a1',
+          totalPoints: 500,
+          tournamentsCount: 2,
+        ),
+        const AthleteRankingRow(
+          rank: 2,
+          athleteId: 'a2',
+          totalPoints: 400,
+          tournamentsCount: 2,
+        ),
+        const AthleteRankingRow(
+          rank: 3,
+          athleteId: 'a3',
+          totalPoints: 300,
+          tournamentsCount: 2,
+        ),
+      ];
+      final filtered = filterAthleteRowsByLevel(
+        rows,
+        RankingLevelFilter.iniciante,
+        {'a1': 0, 'a2': 1, 'a3': 2},
+      );
+      expect(filtered.map((r) => r.athleteId), ['a1', 'a2']);
+      expect(filtered.map((r) => r.rank), [1, 2]);
     });
 
     test(
@@ -324,12 +428,16 @@ void main() {
             tournamentsCount: 2,
           ),
         ];
-        final filtered = filterAthleteRowsByLevel(rows, 5, {'a1': null});
+        final filtered = filterAthleteRowsByLevel(
+          rows,
+          RankingLevelFilter.avancado,
+          {'a1': null},
+        );
         expect(filtered, isEmpty);
       },
     );
 
-    test('returns all rows unchanged when levelRank is null', () {
+    test('returns all rows unchanged when the filter is all', () {
       final rows = [
         const AthleteRankingRow(
           rank: 1,
@@ -338,7 +446,10 @@ void main() {
           tournamentsCount: 2,
         ),
       ];
-      expect(filterAthleteRowsByLevel(rows, null, {'a1': null}), rows);
+      expect(
+        filterAthleteRowsByLevel(rows, RankingLevelFilter.all, {'a1': null}),
+        rows,
+      );
     });
   });
 
@@ -358,10 +469,214 @@ void main() {
           tournamentsCount: 2,
         ),
       ];
-      final filtered = filterTeamRowsByLevel(rows, 0, {'t1': 0, 't2': 5});
+      final filtered = filterTeamRowsByLevel(
+        rows,
+        RankingLevelFilter.iniciante,
+        {'t1': 0, 't2': 5},
+      );
       expect(filtered.length, 1);
       expect(filtered.first.teamId, 't1');
       expect(filtered.first.rank, 1);
+    });
+  });
+
+  group('rankingTeamFormat', () {
+    test('teamSize da equipe nomeada (3–5) define o formato', () {
+      expect(
+        rankingTeamFormat(teamSize: 3, memberCount: 1),
+        RankingFormatFilter.trio,
+      );
+      expect(
+        rankingTeamFormat(teamSize: 4, memberCount: 2),
+        RankingFormatFilter.quarteto,
+      );
+      expect(
+        rankingTeamFormat(teamSize: 5, memberCount: 5),
+        RankingFormatFilter.quinteto,
+      );
+    });
+
+    test('sem teamSize cai no elenco; dupla legada (sem memberUids) é dupla',
+        () {
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 0),
+        RankingFormatFilter.dupla,
+      );
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 2),
+        RankingFormatFilter.dupla,
+      );
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 4),
+        RankingFormatFilter.quarteto,
+      );
+    });
+
+    test('nunca devolve all; acima de 5 satura em quinteto', () {
+      for (var size = 0; size <= 8; size++) {
+        expect(
+          rankingTeamFormat(teamSize: size, memberCount: 0),
+          isNot(RankingFormatFilter.all),
+        );
+        expect(
+          rankingTeamFormat(teamSize: null, memberCount: size),
+          isNot(RankingFormatFilter.all),
+        );
+      }
+      expect(
+        rankingTeamFormat(teamSize: 6, memberCount: 2),
+        RankingFormatFilter.quinteto,
+      );
+      expect(
+        rankingTeamFormat(teamSize: null, memberCount: 7),
+        RankingFormatFilter.quinteto,
+      );
+    });
+  });
+
+  group('filterTeamRowsByFormat', () {
+    final rows = [
+      const TeamRankingRow(
+        rank: 1,
+        teamId: 'dupla1',
+        totalPoints: 500,
+        tournamentsCount: 2,
+      ),
+      const TeamRankingRow(
+        rank: 2,
+        teamId: 'trio1',
+        totalPoints: 400,
+        tournamentsCount: 2,
+      ),
+      const TeamRankingRow(
+        rank: 3,
+        teamId: 'trio2',
+        totalPoints: 300,
+        tournamentsCount: 1,
+      ),
+      const TeamRankingRow(
+        rank: 4,
+        teamId: 'semDoc',
+        totalPoints: 200,
+        tournamentsCount: 1,
+      ),
+    ];
+    final formatByTeam = <String, RankingFormatFilter?>{
+      'dupla1': RankingFormatFilter.dupla,
+      'trio1': RankingFormatFilter.trio,
+      'trio2': RankingFormatFilter.trio,
+      'semDoc': null,
+    };
+
+    test('all mantém as linhas e as posições', () {
+      expect(
+        filterTeamRowsByFormat(rows, RankingFormatFilter.all, formatByTeam),
+        rows,
+      );
+    });
+
+    test('filtra pelo formato e renumera; formato desconhecido só entra em all',
+        () {
+      final trios =
+          filterTeamRowsByFormat(rows, RankingFormatFilter.trio, formatByTeam);
+      expect(trios.map((r) => r.teamId), ['trio1', 'trio2']);
+      expect(trios.map((r) => r.rank), [1, 2]);
+
+      final duplas =
+          filterTeamRowsByFormat(rows, RankingFormatFilter.dupla, formatByTeam);
+      expect(duplas.map((r) => r.teamId), ['dupla1']);
+    });
+  });
+
+  group('RankingLevelFilter', () {
+    test('cada grupo cobre os degraus da escada de 7', () {
+      const byGroup = {
+        RankingLevelFilter.iniciante: [0, 1],
+        RankingLevelFilter.intermediario: [2, 3],
+        RankingLevelFilter.avancado: [4, 5],
+        RankingLevelFilter.open: [6],
+      };
+      for (final entry in byGroup.entries) {
+        for (var rank = 0; rank <= 6; rank++) {
+          expect(
+            entry.key.matchesRank(rank),
+            entry.value.contains(rank),
+            reason: '${entry.key.name} x rank $rank',
+          );
+        }
+      }
+    });
+
+    test('os 4 grupos cobrem a escada inteira, sem degrau órfão', () {
+      for (var rank = 0; rank <= 6; rank++) {
+        final matches = RankingLevelFilter.values
+            .where((f) => f != RankingLevelFilter.all)
+            .where((f) => f.matchesRank(rank));
+        expect(matches.length, 1, reason: 'rank $rank');
+      }
+    });
+
+    test('all aceita tudo, inclusive quem não tem nível resolvido', () {
+      expect(RankingLevelFilter.all.matchesRank(null), isTrue);
+      for (var rank = 0; rank <= 6; rank++) {
+        expect(RankingLevelFilter.all.matchesRank(rank), isTrue);
+      }
+    });
+
+    test('escolher um grupo esconde quem não tem nível resolvido', () {
+      for (final filter in RankingLevelFilter.values) {
+        if (filter == RankingLevelFilter.all) continue;
+        expect(filter.matchesRank(null), isFalse, reason: filter.name);
+      }
+    });
+
+    test('rótulos são os do filtro', () {
+      expect(RankingLevelFilter.all.label, 'Todos os níveis');
+      expect(RankingLevelFilter.iniciante.label, 'Iniciante');
+      expect(RankingLevelFilter.intermediario.label, 'Intermediário');
+      expect(RankingLevelFilter.avancado.label, 'Avançado');
+      expect(RankingLevelFilter.open.label, 'Open');
+    });
+  });
+
+  group('RankingPageFilter', () {
+    test('default: modo atletas, gênero e formato em all, sem ano/nível', () {
+      const filter = RankingPageFilter();
+      expect(filter.mode, RankingListMode.athletes);
+      expect(filter.gender, RankingGenderFilter.all);
+      expect(filter.format, RankingFormatFilter.all);
+      expect(filter.year, isNull);
+      expect(filter.level, RankingLevelFilter.all);
+      expect(filter.isGeneralMode, isTrue);
+    });
+
+    test('copyWith(format:) troca só o formato e preserva o resto', () {
+      const base = RankingPageFilter(
+        mode: RankingListMode.teams,
+        year: 2026,
+        gender: RankingGenderFilter.female,
+        level: RankingLevelFilter.intermediario,
+      );
+      final updated = base.copyWith(format: RankingFormatFilter.quarteto);
+      expect(updated.format, RankingFormatFilter.quarteto);
+      expect(updated.mode, RankingListMode.teams);
+      expect(updated.year, 2026);
+      expect(updated.gender, RankingGenderFilter.female);
+      expect(updated.level, RankingLevelFilter.intermediario);
+    });
+
+    test('copyWith sem argumentos e troca de ano preservam o formato', () {
+      const base = RankingPageFilter(
+        mode: RankingListMode.teams,
+        year: 2026,
+        format: RankingFormatFilter.trio,
+      );
+      expect(base.copyWith().format, RankingFormatFilter.trio);
+
+      final geral = base.copyWith(year: () => null);
+      expect(geral.year, isNull);
+      expect(geral.format, RankingFormatFilter.trio);
+      expect(geral.isGeneralMode, isTrue);
     });
   });
 }

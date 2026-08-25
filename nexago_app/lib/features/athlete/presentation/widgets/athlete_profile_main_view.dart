@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../core/text/safe_display_text.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
@@ -1026,11 +1027,7 @@ class _AthleteProfilePlaysWithSection extends ConsumerWidget {
 }
 
 String _shortPartnerName(String fullName) {
-  final parts = fullName.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || parts.first.isEmpty) return 'Atleta';
-  if (parts.length == 1) return parts.first;
-  final lastInitial = parts.last[0].toUpperCase();
-  return '${parts.first} $lastInitial.';
+  return shortPersonLabel(fullName);
 }
 
 class _StatsGrid extends StatelessWidget {

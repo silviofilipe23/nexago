@@ -1,0 +1,632 @@
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { matchClosedSets, matchIsLive, matchSetWins, type TournamentMatch } from '../../../data/matches-repository';
+import type { TournamentPrize } from '../../../data/tournaments-repository';
+import { isDoubleElimination } from '../../bracket-tree';
+import { campaignShareDataOf, type CampaignShareData } from '../../campaign/campaign-share';
+import { CampaignShareDialogComponent } from '../../campaign/campaign-share-dialog.component';
+import { shortCourtLabelOf, timeLabelOf } from '../../tournament-format';
+import {
+  byScheduleTime,
+  campaignOf,
+  groupLabelOf,
+  isDecidingRound,
+  isPending,
+  knockoutLabelOf,
+  outcomeOf,
+  qualificationOf,
+  roundDisplayNumberOf,
+  roundGroupsOf,
+  sideOf,
+  type CampaignEntry,
+  type MatchOutcome,
+} from '../../tournament-live.selectors';
+import { TournamentLiveStore, type DuoPlayer } from '../../tournament-live.store';
+import { guaranteedPrizeOf, happyPathOf, knockoutRounds, pendingKnockoutsOf, tournamentNumbersOf, winsToTitleOf } from '../focus-journey';
+import { focusViewContextOf, type FocusViewContext } from '../focus-views';
+
+/**
+ * `winsToTitleOf` (Task 5) devolve três respostas — ver a doc dela em `focus-journey.ts` — e cada
+ * uma vira um desenho de manchete diferente. Modelar como união discriminada em vez de deixar `0`
+ * cair no mesmo ramo textual de `1`/`N` evita reintroduzir o bug que a própria doc avisa: "0
+ * vitórias" não é uma contagem regressiva, é o título já na mão.
+ */
+export type JourneyHeadline = { kind: 'champion' } | { kind: 'countdown'; text: string };
+
+export function journeyHeadlineOf(wins: number | null): JourneyHeadline | null {
+  if (wins == null) return null;
+  if (wins === 0) return { kind: 'champion' };
+  return { kind: 'countdown', text: wins === 1 ? '1 vitória até o título.' : `${wins} vitórias até o título.` };
+}
+
+/**
+ * A pior colocação ainda possível a partir de uma campanha que precisa de `wins` vitórias pro
+ * título. Em eliminação simples esse número de vitórias restantes já denuncia o tamanho da chave
+ * que falta disputar — 1 vitória é a final (chave de 2), 2 vitórias é a semifinal (chave de 4) — e
+ * perder a próxima partida encerra a campanha nessa chave, não antes. É a mesma leitura do
+ * exemplo que a doc de `guaranteedPrizeOf` já usa: "quem está na final termina no máximo em 2º" é
+ * `2 ** 1`.
+ */
+export function bestPossiblePlaceOf(wins: number): number {
+  return 2 ** wins;
+}
+
+/**
+ * A pior colocação que a posição REAL do atleta na chave ainda permite — vivo, com uma partida
+ * de mata-mata pendente numa fase, OU já eliminado nela. `2 ** (rodadas restantes a partir da
+ * fase de referência)`, a mesma régua de `bestPossiblePlaceOf`, mas aplicada à fase em que o
+ * atleta REALMENTE está, não à contagem de vitórias que faltam pro título.
+ *
+ * NÃO deriva de `winsToTitleOf`, de propósito. `winsToTitleOf` responde "quantas vitórias faltam
+ * pro título" — uma pergunta que deixa de fazer sentido assim que o atleta perde, e por isso ela
+ * devolve `null` nesse momento (ver a doc dela em `focus-journey.ts`). Só que "o que a premiação
+ * já garante" é uma pergunta DIFERENTE, que continua fazendo sentido depois da eliminação: quem
+ * venceu a quartas e perdeu a semifinal, numa chave QF/SF/F, segue garantido em 4º — e este app
+ * modela uma disputa de 3º lugar de verdade (`KNOCKOUT_LABELS['third place']`,
+ * `category-bracket-builders.ts`) que essa dupla ainda vai jogar por dinheiro real. As duas
+ * perguntas só COINCIDEM enquanto o atleta segue vivo — encadear esta função a `winsToTitleOf`
+ * faria a premiação já garantida sumir do card bem no momento em que o atleta mais quer ver o
+ * que ele já embolsou.
+ *
+ * A fase de referência NÃO é "a de round mais alto que o atleta aparece" — essa foi a primeira
+ * versão desta função, e se mostrou insegura: a disputa de 3º lugar recebe o MESMO round da
+ * final (`category-bracket-builders.ts` — "3º lugar: perdedores das semifinais", `round:
+ * roundStart + totalRounds - 1`, igual ao da final) e `loserAdvance` cria essa partida pendente
+ * no INSTANTE em que a semifinal termina (`category-bracket-advance.ts`). Um atleta que perdeu a
+ * semifinal já tem, na mesma leitura, uma partida de 3º lugar pendente NO ROUND DA FINAL —
+ * "pegar o round mais alto" devolvia 2 ali, dizendo a um eliminado na semifinal que ele estava
+ * garantido vice-campeão. A regra certa escolhe a referência pelo SIGNIFICADO, não pelo round:
+ *
+ * - Dupla eliminação: `null`. A ladder não é uma sequência única — WB e LB numeram rounds
+ *   independentemente a partir de 1 (`category-bracket-builders.ts`) — então qualquer contagem
+ *   sobre o round misturando as duas não tem sentido. Mesma guarda de `winsToTitleOf`, mesmo
+ *   motivo; usa o mesmo `isDoubleElimination` em vez de reinventar a detecção.
+ * - Se o atleta já PERDEU alguma partida do mata-mata: a referência é a derrota MAIS CEDO (menor
+ *   round). Em eliminação simples uma derrota encerra a campanha, então é a derrota mais cedo que
+ *   fixa a colocação — isso ignora sozinho uma disputa de 3º lugar ainda pendente (não é uma
+ *   derrota) e também cobre quem perdeu a própria disputa de 3º lugar (a derrota mais cedo
+ *   continua sendo a da semifinal, então a pior colocação continua 4º, o valor certo).
+ * - Senão: a referência é a partida de mata-mata PENDENTE mais cedo (menor round), calculada por
+ *   `pendingKnockoutsOf` (`focus-journey.ts`) — nunca a de round mais alto, nunca anterior à
+ *   última partida já VENCIDA, e nunca um bye já consumido. Achado N1 do round 3 de review,
+ *   confirmado por execução contra `buildSingleEliminationMatches`: um BYE é gravado como partida
+ *   real (`A=mine, B=—`, `status: Scheduled`) e NUNCA é jogado — sem um piso, "a pendente mais
+ *   cedo" ancorava nesse bye pra sempre, e um atleta que recebeu bye na 1ª rodada (todo mata-mata
+ *   que não é potência de 2 tem algum — 6 duplas → 2 byes, 12 → 4) lia a chave inteira como
+ *   pendência ("8º"/"16º") não importa quantas fases reais já tivesse vencido depois. O piso por
+ *   si só (`wonRoundsFloorOf`) não bastou: até o atleta vencer a PRIMEIRA partida real, o piso é
+ *   `-Infinity` e o bye — propagado pra rodada seguinte NA CONSTRUÇÃO da chave, antes de qualquer
+ *   partida ser jogada — continua sendo "a pendente mais cedo". `pendingKnockoutsOf` fecha essa
+ *   janela reconhecendo o bye pelo que ele é: uma partida pendente de slot vazio em que o atleta
+ *   já aparece numa rodada posterior (achado do round 5; ver a doc de `isConsumedByeOf`,
+ *   `focus-journey.ts`, pro porquê o slot vazio sozinho não basta). Compartilhada com
+ *   `winsToTitleOf` — achados do round 4 (o mesmo bug do piso existia lá, visível na manchete "N
+ *   vitórias do título") e do round 5 (o mesmo bug do bye "ainda não vencido nada" também) — pra
+ *   não duplicar a regra de novo.
+ *
+ * Conservadorismo deliberado: quem VENCE a disputa de 3º lugar está de fato garantido em 3º, mas
+ * esta função continua devolvendo 4º, porque a referência permanece a derrota da semifinal. Não
+ * adicione um caso especial pra espremer esse último degrau — sub-informar uma garantia é seguro;
+ * super-informar é exatamente o bug que esta função existe pra evitar (ver o histórico acima).
+ *
+ * A detecção de campeão (nenhuma derrota, nenhuma pendência a partir do piso) é por `matchType
+ * === 'final'`, não por `round === lastRound` — achado N2 do round 3: a mesma colisão de round da
+ * disputa de 3º lugar (acima) também alcançava o campeão, só que blindada apenas pela ORDEM dos
+ * `if`s (derrota checada antes), sem nenhuma blindagem própria. Latente, não alcançável hoje (não
+ * há caminho de escrita que produza um mata-mata completed sem `winnerId`), mas key-ar por tipo
+ * em vez de por round elimina essa dependência de ordem por completo.
+ *
+ * `null` também quando o atleta não tem NENHUMA partida de mata-mata na categoria — sem posição
+ * na chave, não há o que garantir. Mesma condição do gate `inKnockout` do componente; mantida
+ * aqui também pra a função ficar íntegra sozinha.
+ */
+export function bracketWorstPlaceOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): number | null {
+  const categoryMatches = matches.filter((m) => m.categoryId === categoryId);
+  if (isDoubleElimination(categoryMatches)) return null;
+
+  const rounds = knockoutRounds(matches, categoryId);
+  const myKnockouts = categoryMatches.filter((m) => !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) !== null);
+  if (myKnockouts.length === 0) return null;
+
+  const losses = myKnockouts.filter((m) => outcomeOf(m, myTeamIds) === 'loss');
+  if (losses.length > 0) {
+    const earliestLoss = losses.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));
+    return 2 ** (rounds.length - rounds.indexOf(earliestLoss.round));
+  }
+
+  // Piso + byes já consumidos (achados N1/round 3, round 4 e round 5 de review — ver
+  // `pendingKnockoutsOf` em `focus-journey.ts`, compartilhada com `winsToTitleOf` em vez de
+  // duplicada aqui: a cópia foi exatamente o que deixou a segunda desatualizada até o round 4).
+  const pending = pendingKnockoutsOf(myKnockouts, myTeamIds);
+  if (pending.length > 0) {
+    const earliestPending = pending.reduce((earliest, m) => (m.round < earliest.round ? m : earliest));
+    return 2 ** (rounds.length - rounds.indexOf(earliestPending.round));
+  }
+
+  // Sem derrota nenhuma e sem pendência nenhuma (a partir do piso): só resta o campeão, que
+  // venceu a FINAL — checado pelo `matchType` (achado N2 do round 3: nunca por `round`, o mesmo
+  // erro de fundo que a disputa de 3º lugar já expôs para `losses`/`pending` acima — ver a doc da
+  // função). O gerador grava a final como `matchType: 'Final'` exatamente
+  // (`category-bracket-builders.ts`); comparação case-insensitive no valor trim() pelo mesmo
+  // motivo de `knockoutLabelOf` (`tournament-live.selectors.ts`).
+  const champion = myKnockouts.some((m) => m.matchType.trim().toLowerCase() === 'final' && outcomeOf(m, myTeamIds) === 'win');
+  return champion ? 1 : null;
+}
+
+export interface JourneyPath {
+  mine: readonly TournamentMatch[];
+  future: readonly TournamentMatch[];
+}
+
+/**
+ * Caminho até a final: as partidas do atleta em ordem, seguidas das fases de mata-mata ainda sem
+ * dono. Extraída como função pura (parâmetros crus, não `this.store`) pra ser testável sem
+ * `TestBed` — ver `focus-journey.component.spec.ts`.
+ */
+export function journeyPathOf(matches: readonly TournamentMatch[], categoryId: string, myTeamIds: ReadonlySet<string>): JourneyPath {
+  const mine = matches.filter((m) => m.categoryId === categoryId && sideOf(m, myTeamIds) !== null).sort(byScheduleTime);
+  const future = matches
+    .filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) === null && isPending(m))
+    .sort((a, b) => a.round - b.round);
+  return { mine, future };
+}
+
+export interface JourneyFutureRow {
+  round: number;
+  phaseLabel: string;
+  /** Só quando a fase já tem horário real marcado pelo organizador — nunca uma estimativa
+   *  calculada a partir da duração média das partidas. */
+  timeLabel: string | null;
+}
+
+/**
+ * Uma linha por fase restante. `future` pode conter várias partidas do MESMO round — grupos
+ * paralelos da chave que ainda não têm dono nenhum, dos dois lados — mas a jornada é uma linha do
+ * tempo do atleta, não uma lista de partidas de outras duplas: cada fase aparece uma vez só.
+ *
+ * `knockoutRoundsOfCategory` vem à parte porque `future` já é um RECORTE (só as fases ainda sem
+ * dono) — não dá pra recalcular a partir dele a lista completa de rounds da categoria que
+ * `knockoutLabelOf` precisa pra saber a distância até a final.
+ */
+export function futurePhasesOf(future: readonly TournamentMatch[], knockoutRoundsOfCategory: readonly number[]): JourneyFutureRow[] {
+  const seenRounds = new Set<number>();
+  const rows: JourneyFutureRow[] = [];
+  for (const m of future) {
+    if (seenRounds.has(m.round)) continue;
+    seenRounds.add(m.round);
+    rows.push({ round: m.round, phaseLabel: knockoutLabelOf(m, knockoutRoundsOfCategory), timeLabel: m.scheduleTime ? timeLabelOf(m.scheduleTime) : null });
+  }
+  return rows;
+}
+
+export interface PossibleOpponent {
+  teamId: string;
+  name: string;
+  players: [DuoPlayer, DuoPlayer];
+  campaign: CampaignEntry[];
+}
+
+/**
+ * Duplas que podem cruzar com o atleta: só quando o slot da chave já tem dono — nunca um time
+ * vazio ("a definir") — e nunca uma partida de grupo (ninguém "cruza" no mata-mata antes dele
+ * existir).
+ *
+ * Filtra também por `isPending`: sem isso, uma partida de mata-mata JÁ ENCERRADA entre duas
+ * duplas que não são o atleta continuaria listando as duas — inclusive a que perdeu e já foi
+ * eliminada, que não pode mais cruzar com ninguém. Uma vez que o vencedor avança, ele reaparece
+ * no slot preenchido da PRÓXIMA partida (se ainda pendente); a partida antiga, resolvida, sai da
+ * lista.
+ */
+export function possibleOpponentsOf(
+  matches: readonly TournamentMatch[],
+  categoryId: string,
+  myTeamIds: ReadonlySet<string>,
+  duoNameOf: (teamId: string) => string,
+  duoPlayersOf: (teamId: string) => [DuoPlayer, DuoPlayer],
+): PossibleOpponent[] {
+  return matches
+    .filter((m) => m.categoryId === categoryId && !m.poolId && !m.isGroupMatch && sideOf(m, myTeamIds) === null && isPending(m))
+    .flatMap((m) => [m.teamAId, m.teamBId])
+    .filter((id) => id.length > 0 && !myTeamIds.has(id))
+    .filter((id, i, all) => all.indexOf(id) === i)
+    .map((teamId) => ({
+      teamId,
+      name: duoNameOf(teamId),
+      players: duoPlayersOf(teamId),
+      campaign: campaignOf(matches, teamId, duoNameOf, knockoutRounds(matches, categoryId)),
+    }));
+}
+
+/** WB e LB numeram rodadas por conta própria, então o rótulo carrega a chave junto — o mesmo
+ *  "WB · Rodada 2" que o atleta lê nas colunas da aba Chave (`columnLabelOf`, `bracket-tree.ts`).
+ *  Vale pras partidas dele e pros degraus do caminho feliz: uma convenção só na mesma lista. */
+function knockoutStepLabelOf(m: TournamentMatch, knockoutRoundsOfCategory: readonly number[]): string {
+  const type = m.matchType.trim().toUpperCase();
+  return type === 'WB' || type === 'LB' ? `${type} · Rodada ${m.round}` : knockoutLabelOf(m, knockoutRoundsOfCategory);
+}
+
+/** Fase de grupos vira só "Rodada N": o grupo do atleta é o contexto da tela inteira (a seção
+ *  Grupo já se intitula "Grupo A · Classificação parcial"), então repetir "Grupo A ·" em cada
+ *  degrau só roubaria a largura da linha mono no celular. Mesma leitura do protótipo. */
+function phaseLabelOf(matches: readonly TournamentMatch[], m: TournamentMatch): string {
+  return m.poolId
+    ? `Rodada ${roundDisplayNumberOf(matches, m.poolId, m.round)}`
+    : knockoutStepLabelOf(m, knockoutRounds(matches, m.categoryId));
+}
+
+/** "21-15 · 21-12" do PONTO DE VISTA DO ATLETA. `matchClosedSets` guarda os sets crus (lado A
+ *  primeiro); quando o atleta é o lado B, a leitura direta inverteria o placar — pareceria que
+ *  ele perdeu o set que venceu. */
+function mySetsLabelOf(m: TournamentMatch, side: 'A' | 'B'): string | null {
+  const sets = matchClosedSets(m);
+  if (sets.length === 0) return null;
+  return sets.map((s) => (side === 'A' ? `${s.a}-${s.b}` : `${s.b}-${s.a}`)).join(' · ');
+}
+
+/**
+ * Estado do degrau na linha do tempo — é ele que pinta o marcador e o rótulo da fase.
+ * `next` é a partida que o atleta vai jogar A SEGUIR (`store.nextMatch()`), o degrau laranja
+ * "você está aqui" do protótipo; `upcoming` são as fases depois dela.
+ */
+export type JourneyStepStatus = 'win' | 'loss' | 'live' | 'next' | 'upcoming';
+
+/** Uma linha da "Caminho até a final": tanto uma partida do atleta quanto uma fase ainda sem
+ *  dono. Um tipo só porque a timeline é uma sequência contínua — o trilho não sabe (nem deve
+ *  saber) onde termina o que já tem adversário e começa o que ainda vai ser sorteado. */
+export interface JourneyStepRow {
+  /** `matchId` nas partidas do atleta; `fase-<round>` nas fases ainda sem dono. */
+  id: string;
+  status: JourneyStepStatus;
+  phaseLabel: string;
+  /** "9:00 · Q3" — horário e quadra, só o que o organizador REALMENTE marcou. Sem os dois,
+   *  `null`: esta tela nunca estima horário (ver `futurePhasesOf`). */
+  metaLabel: string | null;
+  opponentName: string;
+  /** A linha de baixo: os sets já jogados, o que a partida decide ou a premiação do título. */
+  detailLabel: string | null;
+  /** "2 – 0" a partir do momento em que há set jogado; "vs" enquanto não há. */
+  scoreLabel: string;
+  /** `null` quando não há partida pra abrir (fase sem dono, ou slot ainda vazio). */
+  matchId: string | null;
+}
+
+const VS_LABEL = 'vs';
+
+function isFinalPhaseLabel(phaseLabel: string): boolean {
+  return phaseLabel === 'Final' || phaseLabel === 'Grand final';
+}
+
+/**
+ * Quadra do jeito curto que cabe na linha mono: "3" e "Quadra 3" viram "Q3" (`shortCourtLabelOf`,
+ * a mesma abreviação das tabelas). Quadra COM NOME sai como o organizador escreveu — "Central",
+ * "Q. central" —, nunca por `shortCourtLabelOf`, que corta em 4 letras e transformaria o nome em
+ * charada ("CENT"), nem por `courtLabelOf`, que prefixaria um "Quadra" redundante.
+ */
+function courtChipOf(courtName: string | null): string | null {
+  const court = courtName?.trim() ?? '';
+  if (!court) return null;
+  return /\d/.test(court) ? shortCourtLabelOf(court) : court;
+}
+
+/** "09:00 · Q3". */
+function metaLabelOf(m: TournamentMatch): string | null {
+  const parts = [m.scheduleTime ? timeLabelOf(m.scheduleTime) : null, courtChipOf(m.courtName)].filter((p): p is string => p != null);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+/**
+ * A linha de baixo do degrau, na ordem em que ela importa pro atleta: o que JÁ aconteceu (sets),
+ * depois o que está em jogo (título, classificação do grupo) e por fim de onde sai o adversário.
+ *
+ * "decide a classificação do grupo" repete a redação de `noteOf` (`focus-views.ts`) de propósito:
+ * o protótipo escreve "decide o 1º do grupo", mas afirmar POSIÇÃO exigiria simular o desempate —
+ * o mesmo que `qualificationOf` se recusa a fazer antes do grupo encerrar.
+ */
+function detailLabelOf(
+  ctx: FocusViewContext,
+  m: TournamentMatch,
+  side: 'A' | 'B',
+  phaseLabel: string,
+  finalPrizeLabel: string | null,
+  hasPendingGroupMatches: boolean,
+): string | null {
+  const sets = mySetsLabelOf(m, side);
+  if (sets) return sets;
+  if (isFinalPhaseLabel(phaseLabel)) return finalPrizeLabel;
+  if (m.poolId && isPending(m) && isDecidingRound(roundGroupsOf(ctx.matches, m.poolId), m.round)) {
+    return 'decide a classificação do grupo';
+  }
+  // Mata-mata com o slot do adversário ainda vazio enquanto os grupos correm: é literalmente de
+  // onde ele sai. Sem grupo pendente a frase seria falsa — aí o adversário sai de outra partida
+  // de mata-mata.
+  const opponentId = side === 'A' ? m.teamBId : m.teamAId;
+  if (!m.poolId && !opponentId && hasPendingGroupMatches) return 'sai ao fim dos grupos';
+  return null;
+}
+
+function journeyStepOfMatch(
+  ctx: FocusViewContext,
+  m: TournamentMatch,
+  nextMatchId: string | null,
+  finalPrizeLabel: string | null,
+  hasPendingGroupMatches: boolean,
+): JourneyStepRow {
+  // `m` vem de `journeyPathOf(...).mine`, que já filtrou por `sideOf(...) !== null` — a asserção
+  // só documenta essa garantia, não introduz um caso novo.
+  const side = sideOf(m, ctx.myTeamIds)!;
+  const opponentId = side === 'A' ? m.teamBId : m.teamAId;
+  const opponentDescription = side === 'A' ? m.teamBDescription : m.teamADescription;
+  const outcome: MatchOutcome = outcomeOf(m, ctx.myTeamIds);
+  const live = matchIsLive(m);
+  const phaseLabel = phaseLabelOf(ctx.matches, m);
+  const [setsA, setsB] = matchSetWins(m);
+  const [mySets, theirSets] = side === 'A' ? [setsA, setsB] : [setsB, setsA];
+
+  return {
+    id: m.id,
+    status: outcome ?? (live ? 'live' : m.id === nextMatchId ? 'next' : 'upcoming'),
+    phaseLabel,
+    metaLabel: metaLabelOf(m),
+    opponentName: ctx.duoNameOf(opponentId, opponentDescription),
+    detailLabel: detailLabelOf(ctx, m, side, phaseLabel, finalPrizeLabel, hasPendingGroupMatches),
+    // O placar em SETS fica na coluna da direita e o detalhe dos games na linha de baixo — a
+    // leitura do protótipo. `matchSetWins` já conta o set em andamento, então vale pro ao vivo.
+    scoreLabel: outcome != null || live ? `${mySets} – ${theirSets}` : VS_LABEL,
+    matchId: m.teamAId && m.teamBId ? m.id : null,
+  };
+}
+
+/**
+ * Os degraus do CAMINHO FELIZ na dupla eliminação (`happyPathOf`), a partir do segundo: o
+ * primeiro é a próxima partida do próprio atleta e já entrou pela lista dele.
+ *
+ * O adversário sai do slot que sobra: `winnerAdvanceSlot` da partida ANTERIOR diz em qual lado o
+ * atleta cairia, então o outro lado é de quem ele enfrentaria. Se esse lado já tem dupla, o nome
+ * aparece; senão fica "A definir" — nunca uma dupla adivinhada.
+ */
+function happyPathStepsOf(
+  ctx: FocusViewContext,
+  happyPath: readonly TournamentMatch[],
+  knockoutRoundsOfCategory: readonly number[],
+  finalPrizeLabel: string | null,
+): JourneyStepRow[] {
+  return happyPath.slice(1).map((m, index) => {
+    const mySlot = happyPath[index]!.winnerAdvanceSlot;
+    const opponentId = mySlot === 'A' ? m.teamBId : mySlot === 'B' ? m.teamAId : '';
+    const opponentDescription = mySlot === 'A' ? m.teamBDescription : mySlot === 'B' ? m.teamADescription : null;
+    const phaseLabel = knockoutStepLabelOf(m, knockoutRoundsOfCategory);
+    return {
+      id: m.id,
+      status: 'upcoming' as const,
+      phaseLabel,
+      metaLabel: metaLabelOf(m),
+      opponentName: mySlot ? ctx.duoNameOf(opponentId, opponentDescription) : 'A definir',
+      detailLabel: isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
+      scoreLabel: VS_LABEL,
+      matchId: null,
+    };
+  });
+}
+
+/**
+ * A timeline inteira: as partidas do atleta em ordem, seguidas do que ainda vem pela frente.
+ * Função pura (parâmetros crus, não `this.store`) pra ser testável sem `TestBed`.
+ *
+ * O "pela frente" tem duas fontes, e é o formato da categoria que decide:
+ *
+ * - **Dupla eliminação** (`happyPath` preenchido): o caminho feliz da fiação — as partidas que o
+ *   atleta ainda precisa vencer a partir de onde está. Agrupar por rodada ali fundiria WB e LB,
+ *   que numeram rodadas independentes, e a lista viraria uma sequência que ninguém joga.
+ * - **Eliminação simples** (`happyPath` nulo): as fases ainda sem dono, uma linha por rodada
+ *   (`futurePhasesOf`), com adversário "A definir" e sem horário estimado.
+ */
+export function journeyStepsOf(
+  ctx: FocusViewContext,
+  path: JourneyPath,
+  knockoutRoundsOfCategory: readonly number[],
+  nextMatchId: string | null,
+  finalPrizeLabel: string | null,
+  happyPath: readonly TournamentMatch[] | null = null,
+): JourneyStepRow[] {
+  const hasPendingGroupMatches = ctx.matches.some((m) => m.poolId && isPending(m));
+  const mine = path.mine.map((m) => journeyStepOfMatch(ctx, m, nextMatchId, finalPrizeLabel, hasPendingGroupMatches));
+  const future = happyPath
+    ? happyPathStepsOf(ctx, happyPath, knockoutRoundsOfCategory, finalPrizeLabel)
+    : futurePhasesOf(path.future, knockoutRoundsOfCategory).map<JourneyStepRow>((row) => ({
+        id: `fase-${row.round}`,
+        status: 'upcoming',
+        phaseLabel: row.phaseLabel,
+        metaLabel: row.timeLabel,
+        opponentName: 'A definir',
+        detailLabel: isFinalPhaseLabel(row.phaseLabel) ? finalPrizeLabel : null,
+        scoreLabel: VS_LABEL,
+        matchId: null,
+      }));
+  return [...mine, ...future];
+}
+
+export interface JourneyPrizeRow {
+  position: number;
+  label: string;
+  /** `null` quando o prêmio não tem valor em dinheiro cadastrado (ex.: só troféu). */
+  valueLabel: string | null;
+  guaranteed: boolean;
+}
+
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/**
+ * Seção "Trajetória" do Modo Focus: o caminho do atleta na chave, os números reais da campanha,
+ * quem pode cruzar com ele no mata-mata e o que a tabela de premiação já garante.
+ *
+ * Fora do escopo por decisão de produto (ver o brief da Task 8): projeção de ranking, XP/nível,
+ * aproveitamento ou erros (nenhuma estatística ponto a ponto é coletada), "últimos 5" ou scouting
+ * dos adversários (exigiria histórico entre torneios que esta seção não carrega).
+ */
+@Component({
+  selector: 'app-focus-journey',
+  imports: [RouterLink, CampaignShareDialogComponent],
+  templateUrl: './focus-journey.component.html',
+  styleUrl: './focus-journey.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class FocusJourneyComponent {
+  protected readonly store = inject(TournamentLiveStore);
+
+  /** Fotografia do store consumida pelas funções puras — ver a documentação de `FocusViewContext`
+   *  (`focus-views.ts`) sobre por que essa indireção existe: nada aqui depende do relógio, então
+   *  fica de fora do `ctx` e nunca precisa entrar nele. */
+  private readonly ctx = computed(() => focusViewContextOf(this.store));
+
+  protected readonly shareOpen = signal(false);
+
+  /**
+   * Tudo que o card de campanha precisa, ou `null` quando falta o torneio, a categoria em foco ou
+   * o time do atleta nela.
+   */
+  protected readonly campaignData = computed<CampaignShareData | null>(() => {
+    const tournament = this.store.tournament();
+    const category = this.store.focusCategory();
+    const categoryId = this.store.focusCategoryId();
+    const teamId = this.store.myTeamIdInFocus();
+    if (!tournament || !category || !categoryId || !teamId) return null;
+    return campaignShareDataOf({
+      matches: this.store.matches(),
+      categoryId,
+      myTeamIds: this.store.myTeamIds(),
+      duoNameOf: (id, fallback) => this.store.duoNameOf(id, fallback),
+      teamName: this.store.duoNameOf(teamId),
+      players: this.store.duoPlayersOf(teamId),
+      categoryName: category.categoryName,
+      teamSize: category.teamSize,
+      tournamentName: tournament.name,
+      locationName: tournament.location || null,
+      startAt: tournament.startAt,
+      endAt: tournament.endAt,
+    });
+  });
+
+  /**
+   * O card só é oferecido com pelo menos uma partida ENCERRADA na categoria — antes disso não há
+   * campanha nenhuma para contar — e nunca em categoria de EQUIPE (trio+): o desenho tem lugar
+   * para dois atletas, e `duoPlayersOf` devolve exatamente dois. Melhor não oferecer do que sair
+   * com o elenco pela metade.
+   */
+  protected readonly canShareCampaign = computed(() => {
+    const category = this.store.focusCategory();
+    if (!category || category.teamSize != null) return false;
+    return (this.campaignData()?.trajectory.rows.length ?? 0) > 0;
+  });
+
+  protected readonly winsToTitle = computed(() =>
+    winsToTitleOf(this.store.matches(), this.store.focusCategoryId() ?? '', this.store.myTeamIds()),
+  );
+
+  protected readonly headline = computed(() => journeyHeadlineOf(this.winsToTitle()));
+
+  protected readonly enrolledLabel = computed(() => {
+    const categoryId = this.store.focusCategoryId();
+    const count = categoryId ? (this.store.enrolledByCategory().get(categoryId) ?? null) : null;
+    if (count == null) return null;
+    return count === 1 ? '1 dupla' : `${count} duplas`;
+  });
+
+  /** "Classificado" só quando o grupo já encerrou E o atleta avançou — nunca durante o grupo,
+   *  pelo mesmo motivo de `qualificationOf`: afirmar classificação antes do fim exigiria simular
+   *  o desempate. */
+  protected readonly qualified = computed(() => {
+    const poolId = this.store.focusPoolId();
+    const category = this.store.focusCategory();
+    const categoryId = this.store.focusCategoryId();
+    if (!poolId || !category || !categoryId) return false;
+    // Partidas da categoria, não do torneio: `qualificationOf` conta as pendentes do grupo por
+    // `poolId`, e 'Grupo A' existe em toda categoria (ver `buildGroupStandings`).
+    const info = qualificationOf(
+      this.store.matchesOfCategory(categoryId),
+      poolId,
+      this.store.myTeamIdInFocus(),
+      this.store.standingsOf(categoryId, poolId),
+      category.qualifiersPerGroup,
+    );
+    return info?.decided === true && info.qualifies;
+  });
+
+  private readonly path = computed<JourneyPath>(() =>
+    journeyPathOf(this.store.matches(), this.store.focusCategoryId() ?? '', this.store.myTeamIds()),
+  );
+
+  /** O que a premiação paga ao campeão — a linha de baixo do degrau da final no protótipo. Só o
+   *  dinheiro: pontos por colocação não existem em `tournamentPrizes` (`{position, value,
+   *  label}`), e esta tela não inventa número nenhum. */
+  private readonly finalPrizeLabel = computed<string | null>(() => {
+    const champion = this.prizes().find((p) => p.position === 1);
+    return champion && champion.value > 0 ? formatBRL(champion.value) : null;
+  });
+
+  /** Só na dupla eliminação: o que vem pela frente sai da fiação (ver `journeyStepsOf`). Na
+   *  eliminação simples fica `null` e a timeline segue com as fases por rodada, que é a derivação
+   *  verificada por fuzz contra o gerador. */
+  private readonly happyPath = computed<TournamentMatch[] | null>(() => {
+    const categoryId = this.store.focusCategoryId() ?? '';
+    const categoryMatches = this.store.matchesOfCategory(categoryId);
+    return isDoubleElimination(categoryMatches) ? happyPathOf(categoryMatches, categoryId, this.store.myTeamIds()) : null;
+  });
+
+  protected readonly steps = computed<JourneyStepRow[]>(() =>
+    journeyStepsOf(
+      this.ctx(),
+      this.path(),
+      knockoutRounds(this.store.matches(), this.store.focusCategoryId() ?? ''),
+      this.store.nextMatch()?.id ?? null,
+      this.finalPrizeLabel(),
+      this.happyPath(),
+    ),
+  );
+
+  /** Já tem assento confirmado no mata-mata (não só nos grupos) — ver o gate em `guaranteedPrize`
+   *  logo abaixo sobre por que isso importa. */
+  private readonly inKnockout = computed(() => this.path().mine.some((m) => !m.poolId && !m.isGroupMatch));
+
+  protected readonly numbers = computed(() => tournamentNumbersOf(this.store.matches(), this.store.myTeamIds()));
+
+  protected readonly maxSetValue = computed(() => this.numbers().sets.reduce((max, s) => Math.max(max, s.mine, s.theirs), 1));
+
+  protected readonly possibleOpponents = computed<PossibleOpponent[]>(() => {
+    const categoryId = this.store.focusCategoryId();
+    if (!categoryId) return [];
+    const ctx = this.ctx();
+    return possibleOpponentsOf(ctx.matches, categoryId, ctx.myTeamIds, ctx.duoNameOf, ctx.duoPlayersOf);
+  });
+
+  private readonly prizes = computed(() => this.store.tournament()?.tournamentPrizes ?? []);
+
+  /**
+   * Gate em `inKnockout`, não em `winsToTitle()`: um atleta ainda nos grupos pode nem se
+   * classificar pro mata-mata, então nenhuma colocação está garantida antes de um assento
+   * confirmado na chave (mesmo raciocínio de sempre — ver `inKnockout` acima). A colocação em si
+   * vem de `bracketWorstPlaceOf`, não de `winsToTitle()`: essa última fica `null` assim que o
+   * atleta perde uma partida do mata-mata, e a premiação já garantida NÃO deveria desaparecer
+   * nesse momento — ver a doc de `bracketWorstPlaceOf` pro porquê.
+   */
+  protected readonly guaranteedPrize = computed<TournamentPrize | null>(() => {
+    if (!this.inKnockout()) return null;
+    const worstPlace = bracketWorstPlaceOf(this.store.matches(), this.store.focusCategoryId() ?? '', this.store.myTeamIds());
+    if (worstPlace == null) return null;
+    return guaranteedPrizeOf(this.prizes(), worstPlace);
+  });
+
+  protected readonly prizeRows = computed<JourneyPrizeRow[]>(() => {
+    const guaranteed = this.guaranteedPrize();
+    return this.prizes()
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((p) => ({
+        position: p.position,
+        label: p.label ?? `${p.position}º lugar`,
+        valueLabel: p.value > 0 ? formatBRL(p.value) : null,
+        guaranteed: guaranteed != null && guaranteed.position === p.position,
+      }));
+  });
+}

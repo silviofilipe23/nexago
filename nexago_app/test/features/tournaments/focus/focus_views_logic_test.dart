@@ -1,0 +1,427 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/features/tournaments/domain/focus/focus_views_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_group_standings_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
+
+TournamentMatch _match({
+  required String id,
+  String teamAId = 'meu',
+  String teamBId = 'rival',
+  String poolId = 'A',
+  String status = TournamentMatchStatus.scheduled,
+  int round = 1,
+  int matchNumber = 1,
+  String? winnerId,
+  DateTime? scheduleTime,
+}) {
+  return TournamentMatch(
+    id: id,
+    tournamentId: 't1',
+    categoryId: 'c1',
+    round: round,
+    matchType: poolId.isEmpty ? 'knockout' : 'group',
+    poolId: poolId,
+    teamAId: teamAId,
+    teamBId: teamBId,
+    status: status,
+    resultA: '',
+    resultB: '',
+    isGroupMatch: poolId.isNotEmpty,
+    matchNumber: matchNumber,
+    winnerId: winnerId,
+    scheduleTime: scheduleTime,
+  );
+}
+
+TournamentPoolStandingsRow _row(
+  int rank,
+  String teamId, {
+  int wins = 0,
+  int losses = 0,
+}) {
+  return TournamentPoolStandingsRow(
+    rank: rank,
+    teamId: teamId,
+    displayName: teamId,
+    wins: wins,
+    losses: losses,
+    setsWon: 0,
+    setsLost: 0,
+    points: wins * 3,
+    qualifies: rank <= 2,
+    isAthleteTeam: teamId == 'meu',
+  );
+}
+
+FocusViewContext _ctx({
+  required List<TournamentMatch> matches,
+  TournamentMatch? nextMatch,
+  Map<String, List<TournamentPoolStandingsRow>> standings = const {},
+}) {
+  return FocusViewContext(
+    matches: matches,
+    myTeamIds: const {'meu'},
+    duoNameOf: (teamId, [fallback]) => fallback ?? teamId,
+    standingsOf: (poolId) => standings[poolId] ?? const [],
+    nextMatch: nextMatch,
+  );
+}
+
+void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR', null);
+  });
+
+  group('ordinalOf', () {
+    test('formata a posição em português', () {
+      expect(ordinalOf(1), '1º');
+      expect(ordinalOf(4), '4º');
+    });
+  });
+
+  group('timelineOf', () {
+    test('devolve time nulo sem horário e marca a próxima', () {
+      final proxima = _match(
+        id: 'prox',
+        scheduleTime: DateTime(2026, 8, 20, 15),
+      );
+      final semHorario = _match(id: 'sem', matchNumber: 2);
+      final ctx = _ctx(
+        matches: [proxima, semHorario],
+        nextMatch: proxima,
+      );
+
+      final entries = timelineOf(ctx, [proxima, semHorario]);
+
+      expect(entries[0].time, isNotNull);
+      expect(entries[0].state, TimelineState.next);
+      expect(entries[1].time, isNull);
+      expect(entries[1].state, TimelineState.upcoming);
+    });
+
+    test('partida encerrada traz o resultado sob a ótica do atleta', () {
+      final vencida = _match(
+        id: 'v',
+        status: TournamentMatchStatus.completed,
+        winnerId: 'meu',
+        scheduleTime: DateTime(2026, 8, 20, 9),
+      );
+      final ctx = _ctx(matches: [vencida]);
+
+      final [entry] = timelineOf(ctx, [vencida]);
+
+      expect(entry.state, TimelineState.done);
+      expect(entry.outcome, TimelineOutcome.win);
+    });
+
+    test('sem adversário definido a linha não é clicável', () {
+      final slot = _match(id: 'slot', teamBId: '', poolId: '');
+      final ctx = _ctx(matches: [slot]);
+
+      final [entry] = timelineOf(ctx, [slot]);
+
+      expect(entry.clickable, isFalse);
+    });
+  });
+
+  group('focusCountdownProgress', () {
+    test('mede o intervalo desde o fim do jogo anterior', () {
+      final progress = focusCountdownProgress(
+        previousEndedAt: DateTime(2026, 8, 20, 10),
+        scheduleTime: DateTime(2026, 8, 20, 12),
+        now: DateTime(2026, 8, 20, 11),
+      );
+
+      expect(progress, 0.5);
+    });
+
+    test('sem jogo anterior a barra some — não inventa origem', () {
+      expect(
+        focusCountdownProgress(
+          previousEndedAt: null,
+          scheduleTime: DateTime(2026, 8, 20, 12),
+          now: DateTime(2026, 8, 20, 11),
+        ),
+        isNull,
+      );
+    });
+
+    test('trava entre 0 e 1 quando a partida atrasa', () {
+      final progress = focusCountdownProgress(
+        previousEndedAt: DateTime(2026, 8, 20, 10),
+        scheduleTime: DateTime(2026, 8, 20, 12),
+        now: DateTime(2026, 8, 20, 13),
+      );
+
+      expect(progress, 1.0);
+    });
+  });
+
+  group('countdownClockOf', () {
+    final now = DateTime(2026, 8, 20, 14, 0);
+
+    test('formata como relógio', () {
+      expect(countdownClockOf(DateTime(2026, 8, 20, 14, 42, 18), now), '42:18');
+      expect(countdownClockOf(DateTime(2026, 8, 20, 15, 2, 30), now), '1:02:30');
+    });
+
+    test('horário passado devolve null — nada de contagem negativa', () {
+      expect(countdownClockOf(DateTime(2026, 8, 20, 13, 30), now), isNull);
+    });
+  });
+
+  group('countdownLabelOf', () {
+    final now = DateTime(2026, 8, 20, 14, 0);
+
+    test('menos de meio minuto vira "começa agora"', () {
+      // O arredondamento é o mesmo do portal (`Math.round`): 30s já arredonda
+      // pra 1 min nos dois. O limite real é meio minuto.
+      expect(
+        countdownLabelOf(DateTime(2026, 8, 20, 14, 0, 20), now),
+        'começa agora',
+      );
+      expect(
+        countdownLabelOf(DateTime(2026, 8, 20, 14, 0, 30), now),
+        'começa em 1 min',
+      );
+    });
+
+    test('minutos e horas', () {
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 14, 40), now),
+          'começa em 40 min');
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 16, 0), now),
+          'começa em 2h');
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 16, 15), now),
+          'começa em 2h15');
+    });
+
+    test('passado vira atraso, não contagem negativa', () {
+      expect(countdownLabelOf(DateTime(2026, 8, 20, 13, 30), now),
+          'atrasada 30 min');
+    });
+
+    test('sem horário devolve null', () {
+      expect(countdownLabelOf(null, now), isNull);
+    });
+  });
+
+  group('nextMatchViewOf', () {
+    test('monta o kicker, os chips e o lado do atleta', () {
+      final proxima = _match(
+        id: 'prox',
+        scheduleTime: DateTime(2026, 8, 20, 15),
+      );
+      final ctx = _ctx(
+        matches: [proxima],
+        nextMatch: proxima,
+        standings: {
+          'A': [_row(1, 'meu', wins: 2)],
+        },
+      );
+
+      final view = nextMatchViewOf(ctx, DateTime(2026, 8, 20, 14, 30))!;
+
+      expect(view.matchId, 'prox');
+      expect(view.kicker, startsWith('Sua próxima partida'));
+      expect(view.bestOfLabel, 'MD3');
+      expect(view.formatLabel, 'MD3 · 21 PTS');
+      expect(view.countdownClock, '30:00');
+      expect(view.countdown, 'começa em 30 min');
+      expect(view.sideA.isMe, isTrue);
+      expect(view.sideA.standingLine, '1º · 2V 0D');
+      expect(view.sideB.isMe, isFalse);
+    });
+
+    test('ao vivo não mostra contagem regressiva', () {
+      final aoVivo = _match(
+        id: 'live',
+        status: TournamentMatchStatus.inProgress,
+        scheduleTime: DateTime(2026, 8, 20, 14),
+      );
+      final ctx = _ctx(matches: [aoVivo], nextMatch: aoVivo);
+
+      final view = nextMatchViewOf(ctx, DateTime(2026, 8, 20, 14, 30))!;
+
+      expect(view.live, isTrue);
+      expect(view.countdown, isNull);
+    });
+
+    test('sem próxima partida devolve null', () {
+      final ctx = _ctx(matches: const []);
+      expect(nextMatchViewOf(ctx, DateTime(2026, 8, 20, 14)), isNull);
+    });
+  });
+
+  group('timelineOf — fases futuras', () {
+    TournamentMatch fase({
+      required String id,
+      required int round,
+      String? descA,
+      String? descB,
+      DateTime? scheduleTime,
+    }) {
+      return TournamentMatch(
+        id: id, tournamentId: 't1', categoryId: 'c1', round: round,
+        matchType: 'knockout', poolId: '', teamAId: '', teamBId: '',
+        teamADescription: descA, teamBDescription: descB,
+        status: TournamentMatchStatus.scheduled, resultA: '', resultB: '',
+        isGroupMatch: false, matchNumber: 10 + round,
+        scheduleTime: scheduleTime,
+      );
+    }
+
+    test('mostra o cruzamento declarado, compactado', () {
+      // "1º Grupo B" vira "1º B": na linha da ordem do dia a palavra "Grupo"
+      // repetida dos dois lados só rouba largura.
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [
+          fase(id: 'q', round: 2, descA: '1º Grupo B', descB: '2º Grupo A'),
+        ],
+      );
+
+      expect(entries.single.opponentName, '1º B vs 2º A');
+      expect(entries.single.note, 'a definir');
+      expect(entries.single.matchId, isNull);
+    });
+
+    test('sem cruzamento declarado, diz "se classificar"', () {
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [fase(id: 'sf', round: 3)],
+      );
+
+      expect(entries.single.opponentName, isNull);
+      expect(entries.single.note, 'se classificar');
+    });
+
+    test('uma linha por RODADA, não uma por partida sem dono', () {
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [
+          fase(id: 'q1', round: 2, descA: '1º Grupo A', descB: '2º Grupo B'),
+          fase(id: 'q2', round: 2, descA: '1º Grupo B', descB: '2º Grupo A'),
+        ],
+      );
+
+      expect(entries.length, 1);
+    });
+
+    test('não inventa horário para fase que o organizador não marcou', () {
+      final entries = timelineOf(
+        _ctx(matches: const []),
+        const [],
+        futurePhases: [fase(id: 'q', round: 2)],
+      );
+
+      expect(entries.single.time, isNull);
+    });
+  });
+
+  group('timelineOf — rótulos', () {
+    test('fase de grupos vira "R" + posição da rodada, não o round cru', () {
+      // O `round` do Firestore começa em zero em muitos torneios; "R0" não
+      // significa nada para o atleta.
+      final r0 = _match(id: 'a', scheduleTime: DateTime(2026, 8, 20, 9));
+      final ctx = _ctx(matches: [r0]);
+
+      expect(timelineOf(ctx, [r0]).single.phaseLabel, 'R1');
+    });
+  });
+
+  group('standingLineOf', () {
+    test('devolve "1º do grupo · 2V 0D"', () {
+      final ctx = _ctx(
+        matches: const [],
+        standings: {
+          'A': [_row(1, 'meu', wins: 2)],
+        },
+      );
+
+      expect(standingLineOf(ctx, 'meu', 'A'), '1º · 2V 0D');
+    });
+
+    test('devolve null para time fora do grupo', () {
+      final ctx = _ctx(matches: const [], standings: const {'A': []});
+      expect(standingLineOf(ctx, 'ninguem', 'A'), isNull);
+    });
+  });
+
+  group('qualificationNoteOf', () {
+    test('grupo em aberto informa a posição e o que falta, sem afirmar avanço',
+        () {
+      final matches = [
+        _match(
+          id: 'jogada',
+          status: TournamentMatchStatus.completed,
+          winnerId: 'meu',
+        ),
+        _match(id: 'pendente', matchNumber: 2),
+      ];
+      final ctx = _ctx(
+        matches: matches,
+        standings: {
+          'A': [_row(1, 'meu', wins: 1), _row(2, 'rival')],
+        },
+      );
+
+      final note = qualificationNoteOf(ctx, 'A', 2, 'meu');
+
+      expect(note!.text, contains('Falta 1 partida no grupo'));
+      expect(note.text, isNot(contains('avançou')));
+      expect(note.tone, QualificationTone.neutral);
+    });
+
+    test('grupo encerrado e classificado afirma o avanço', () {
+      final matches = [
+        _match(
+          id: 'jogada',
+          status: TournamentMatchStatus.completed,
+          winnerId: 'meu',
+        ),
+      ];
+      final ctx = _ctx(
+        matches: matches,
+        standings: {
+          'A': [_row(1, 'meu', wins: 1), _row(2, 'rival')],
+        },
+      );
+
+      final note = qualificationNoteOf(ctx, 'A', 2, 'meu');
+
+      expect(note!.text, contains('avançou'));
+      expect(note.tone, QualificationTone.win);
+    });
+
+    test('grupo encerrado fora da faixa não promete nada', () {
+      final matches = [
+        _match(
+          id: 'jogada',
+          status: TournamentMatchStatus.completed,
+          winnerId: 'rival',
+        ),
+      ];
+      final ctx = _ctx(
+        matches: matches,
+        standings: {
+          'A': [_row(1, 'rival'), _row(2, 'outro'), _row(3, 'meu')],
+        },
+      );
+
+      final note = qualificationNoteOf(ctx, 'A', 2, 'meu');
+
+      expect(note!.tone, QualificationTone.neutral);
+      expect(note.text, contains('Passavam os 2 primeiros'));
+    });
+
+    test('sem time no grupo devolve null', () {
+      final ctx = _ctx(matches: const [], standings: const {'A': []});
+      expect(qualificationNoteOf(ctx, 'A', 2, 'meu'), isNull);
+    });
+  });
+}

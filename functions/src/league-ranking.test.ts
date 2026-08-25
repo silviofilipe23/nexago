@@ -1,12 +1,17 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
+import type {Firestore} from "firebase-admin/firestore";
+import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   effectivePointsFromStageResults,
+  loadTeamAthleteIds,
   parseCountingStagesMode,
+  bracketContextFromMatches,
   placementPoints,
   pointsForBucket,
   pointsForPlace,
   resolveLeaguePlacementsFromMatch,
+  tryAwardLeagueStagePointsForMatch,
 } from "./league-ranking";
 
 const DEFAULT_TABLE = {
@@ -212,6 +217,41 @@ describe("resolveLeaguePlacementsFromMatch", () => {
     );
     assert.deepEqual(awards, [{teamId: "team-b", bucket: "quarters"}]);
   });
+
+  // Incidente 18/08 (Copa Goiás): a disputa de 3º lugar tinha winnerId igual ao
+  // id do TORNEIO. Sem guarda, o loser virava teamAId e o 3º lugar era premiado
+  // a um time inexistente — com dois times marcados em 4º na mesma categoria.
+  it("nega colocação quando o vencedor não é nenhum dos dois lados", () => {
+    const strayWinner = {winnerId: "tournament-copa-goias"};
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "Third Place", ...strayWinner}),
+        {hasThirdPlaceMatch: true},
+      ),
+      [],
+    );
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "Final", ...strayWinner}),
+        noThirdPlace,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "Semifinal", ...strayWinner}),
+        noThirdPlace,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      resolveLeaguePlacementsFromMatch(
+        completedMatch({matchType: "LB", round: 2, ...strayWinner}),
+        {...noThirdPlace, isDoubleElimination: true, maxLbRound: 2},
+      ),
+      [],
+    );
+  });
 });
 
 describe("effectivePointsFromStageResults", () => {
@@ -253,5 +293,259 @@ describe("effectivePointsFromStageResults", () => {
       ),
       150,
     );
+  });
+});
+
+describe("loadTeamAthleteIds", () => {
+  const projectId = "proj-test";
+  const teamPath = (teamId: string) =>
+    `artifacts/${projectId}/public/data/teams/${teamId}`;
+  const db = (fake: FakeFirestore) => fake as unknown as Firestore;
+
+  it("usa memberUids quando existir (equipe trio/quarteto/quinteto)", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(teamPath("team-1"), {
+      memberUids: ["cap", "m2", "m3", "m4"],
+      player1Id: "cap",
+      player2Id: "m2",
+    });
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-1"),
+      ["cap", "m2", "m3", "m4"],
+    );
+  });
+
+  it("deduplica e ignora entradas vazias de memberUids", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(teamPath("team-1"), {
+      memberUids: ["cap", " ", "cap", "m2"],
+    });
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-1"),
+      ["cap", "m2"],
+    );
+  });
+
+  it("cai em player1Id/player2Id na dupla legada sem memberUids", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(teamPath("team-1"), {player1Id: "p1", player2Id: "p2"});
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-1"),
+      ["p1", "p2"],
+    );
+  });
+
+  it("retorna vazio para doc inexistente", async () => {
+    const fake = new FakeFirestore();
+    assert.deepEqual(
+      await loadTeamAthleteIds(db(fake), projectId, "team-x"),
+      [],
+    );
+  });
+});
+
+describe("tryAwardLeagueStagePointsForMatch — bucket groups por preset", () => {
+  const PROJECT = "proj";
+
+  function leagueSeededDb(categoryPresetFields: Record<string, unknown>): FakeFirestore {
+    const fake = new FakeFirestore();
+    fake.seedDoc("tournaments/T1", {
+      leagueId: "L1",
+      leagueStageId: "stage-1",
+      leagueStageOrder: 1,
+      categories: [{categoryName: "C1", ...categoryPresetFields}],
+    });
+    fake.seedDoc("leagues/L1", {});
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/teams/tC`, {player1Id: "c1"});
+    // A final marca tA/tB como times de mata-mata; tC fica de fora (só grupos).
+    fake.seedDoc(`artifacts/${PROJECT}/public/data/matches/m-final`, finalMatch());
+    for (const teamId of ["tA", "tB", "tC"]) {
+      fake.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i-${teamId}`, {
+        tournamentId: "T1",
+        categoryId: "C1",
+        teamId,
+        isPaid: true,
+      });
+    }
+    return fake;
+  }
+
+  function finalMatch(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: "m-final",
+      status: "Completed",
+      tournamentId: "T1",
+      categoryId: "C1",
+      teamAId: "tA",
+      teamBId: "tB",
+      winnerId: "tA",
+      matchType: "Final",
+      ...overrides,
+    };
+  }
+
+  it("Livre não concede bucket groups (times fora do mata-mata ficam sem pontos)", async () => {
+    const fake = leagueSeededDb({level: "Open", minLevel: "Iniciante 1"});
+    const result = await tryAwardLeagueStagePointsForMatch(
+      fake as never,
+      PROJECT,
+      finalMatch(),
+    );
+
+    assert.equal(
+      fake.store.get(`artifacts/${PROJECT}/public/data/leagueTeamRankings/L1_C1_tC`),
+      undefined,
+    );
+    // A final segue pontuando normalmente (não é o bucket groups).
+    assert.equal(result.teamsUpdated, 2);
+  });
+
+  it("Intermediário (controle) segue concedendo groups", async () => {
+    const fake = leagueSeededDb({level: "Intermediário 2", minLevel: "Intermediário 1"});
+    const result = await tryAwardLeagueStagePointsForMatch(
+      fake as never,
+      PROJECT,
+      finalMatch(),
+    );
+
+    const groupsTeam = fake.store.get(
+      `artifacts/${PROJECT}/public/data/leagueTeamRankings/L1_C1_tC`,
+    )!;
+    assert.equal(groupsTeam.totalPoints, 40);
+    assert.equal(result.teamsUpdated, 3);
+  });
+});
+
+describe("escada por fase alcançada — tabela da liga", () => {
+  it("default ganha oitavas e 16-avos", () => {
+    assert.strictEqual(pointsForBucket({}, "r16"), 60);
+    assert.strictEqual(pointsForBucket({}, "r32"), 45);
+  });
+
+  it("tabela customizada SEM os degraus novos cai no default deles", () => {
+    // Liga criada antes desta mudança: só tem as chaves antigas.
+    const antiga = {"1": 500, "2": 300, "3": 200, "4": 150, quarters: 90, groups: 50};
+    assert.strictEqual(pointsForBucket(antiga, "quarters"), 90); // respeita o custom
+    assert.strictEqual(pointsForBucket(antiga, "r16"), 60); // default do degrau novo
+    assert.strictEqual(pointsForBucket(antiga, "r32"), 45);
+  });
+
+  it("degrau customizado é respeitado", () => {
+    assert.strictEqual(pointsForBucket({r16: 70}, "r16"), 70);
+  });
+});
+
+/**
+ * Atalho de partida da chave materializada: `winnerAdvance` marca a fiação e
+ * `loserAdvance` marca que o perdedor segue vivo (final da LB → disputa de 3º).
+ */
+const chave = (matchType: string, round: number, perdedorSegueVivo = false) => ({
+  matchType,
+  round,
+  winnerAdvance: {matchNumber: 999, teamSlot: "teamAId"},
+  ...(perdedorSegueVivo
+    ? {loserAdvance: {matchNumber: 998, teamSlot: "teamAId"}}
+    : {}),
+});
+const varias = (n: number, matchType: string, round: number) =>
+  Array.from({length: n}, () => chave(matchType, round));
+
+describe("resolvedor com degrau por fase — dupla eliminação de 22", () => {
+  const matches = [
+    ...varias(6, "LB", 1),
+    ...varias(4, "LB", 2),
+    ...varias(4, "LB", 3),
+    ...varias(2, "LB", 4),
+    ...varias(2, "LB", 5),
+    chave("LB", 6, true),
+    chave("THIRD_PLACE", 1),
+    chave("FINAL", 1),
+  ];
+  const context = bracketContextFromMatches(matches);
+
+  const perdaNaLb = (round: number) =>
+    resolveLeaguePlacementsFromMatch(
+      {
+        status: "completed",
+        matchType: "LB",
+        round,
+        teamAId: "vencedor",
+        teamBId: "perdedor",
+        winnerId: "vencedor",
+      },
+      {
+        hasThirdPlaceMatch: context.hasThirdPlaceMatch,
+        isDoubleElimination: context.isDoubleElimination,
+        maxLbRound: context.maxLbRound,
+        knockoutFinalRound: context.knockoutFinalRound,
+        tiers: context.tiers,
+      },
+    );
+
+  it("quem cai na primeira rodada da LB não recebe mais o balde de quartas", () => {
+    assert.deepStrictEqual(perdaNaLb(1), [{teamId: "perdedor", bucket: "r32"}]);
+  });
+
+  it("as rodadas do meio caem em oitavas", () => {
+    assert.deepStrictEqual(perdaNaLb(2), [{teamId: "perdedor", bucket: "r16"}]);
+    assert.deepStrictEqual(perdaNaLb(3), [{teamId: "perdedor", bucket: "r16"}]);
+  });
+
+  it("as duas últimas rodadas antes do pódio continuam em quartas", () => {
+    assert.deepStrictEqual(perdaNaLb(4), [{teamId: "perdedor", bucket: "quarters"}]);
+    assert.deepStrictEqual(perdaNaLb(5), [{teamId: "perdedor", bucket: "quarters"}]);
+  });
+});
+
+describe("resolvedor com degrau por fase — mata-mata simples de 32", () => {
+  it("primeira rodada vira 16-avos e as quartas continuam quartas", () => {
+    const matches = [
+      ...varias(16, "knockout", 1),
+      ...varias(8, "knockout", 2),
+      ...varias(4, "knockout", 3),
+      chave("knockout", 4, true),
+      chave("knockout", 4, true),
+      chave("FINAL", 5),
+      chave("THIRD_PLACE", 5),
+    ];
+    const context = bracketContextFromMatches(matches);
+    const perda = (round: number) =>
+      resolveLeaguePlacementsFromMatch(
+        {
+          status: "completed",
+          matchType: "knockout",
+          round,
+          teamAId: "v",
+          teamBId: "p",
+          winnerId: "v",
+        },
+        {
+          hasThirdPlaceMatch: context.hasThirdPlaceMatch,
+          knockoutFinalRound: context.knockoutFinalRound,
+          tiers: context.tiers,
+        },
+      );
+    assert.deepStrictEqual(perda(1), [{teamId: "p", bucket: "r32"}]);
+    assert.deepStrictEqual(perda(2), [{teamId: "p", bucket: "r16"}]);
+    assert.deepStrictEqual(perda(3), [{teamId: "p", bucket: "quarters"}]);
+  });
+});
+
+describe("resolvedor sem mapa de degraus (compatibilidade)", () => {
+  it("contexto sem `tiers` mantém o comportamento antigo: quartas", () => {
+    const placements = resolveLeaguePlacementsFromMatch(
+      {
+        status: "completed",
+        matchType: "LB",
+        round: 1,
+        teamAId: "v",
+        teamBId: "p",
+        winnerId: "v",
+      },
+      {hasThirdPlaceMatch: true, isDoubleElimination: true, maxLbRound: 6},
+    );
+    assert.deepStrictEqual(placements, [{teamId: "p", bucket: "quarters"}]);
   });
 });

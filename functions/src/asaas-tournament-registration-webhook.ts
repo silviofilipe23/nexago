@@ -30,8 +30,9 @@ import {
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {tournamentManagerUids} from "./tournament-acl";
 import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
-import {TOURNAMENT_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
+import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
@@ -211,12 +212,16 @@ export async function processTournamentRegistrationAsaasNotification(
     // (o processedRef acima já protege contra reprocessamento).
     if (organizerId) {
       try {
+        // Comissão negociada no cadastro do organizador; sem cadastro (ou com
+        // valor fora da faixa) cai nos 8% padrão.
+        const organizerSnap = await db.doc(`organizers/${organizerId}`).get();
+        const feePercent = resolveOrganizerTournamentFeePercent(organizerSnap.data());
         await creditOrganizerWalletFromRegistration(db, organizerId, {
           registrationId,
           payerUid,
           paymentId,
           grossReais: paidOnline,
-          platformFeeReais: computePlatformFeeReais(paidOnline, TOURNAMENT_FEE_PERCENT),
+          platformFeeReais: computePlatformFeeReais(paidOnline, feePercent),
         });
       } catch (walletErr) {
         logger.error(
@@ -263,6 +268,36 @@ export async function processTournamentRegistrationAsaasNotification(
               url,
             },
           }),
+        ),
+      );
+
+      // Avisa quem opera o torneio que o Pix do gateway confirmou sozinho — o organizador não
+      // precisa conferir nada aqui (diferente do pagamento direto, que ele mesmo confirma).
+      const teamNameLabel = typeof regData.teamName === "string" ? regData.teamName.trim() : "";
+      const categoryLabel = tournament
+        ? String(
+            findCategory(tournament, categoryId)?.categoryName ??
+              findCategory(tournament, categoryId)?.name ??
+              "",
+          ).trim()
+        : "";
+      const organizerRecipients = await tournamentManagerUids(db, tournamentId, tournament ?? undefined);
+      await Promise.all(
+        organizerRecipients.map((recipientUid) =>
+          deliverNotificationToUser({
+            userId: recipientUid,
+            title: "Pagamento confirmado",
+            body: `${teamNameLabel || "Uma dupla"} confirmou o pagamento${
+              categoryLabel ? ` em ${categoryLabel}` : ""
+            }.`,
+            type: "tournament_payment_confirmed",
+            data: {
+              tournamentId,
+              registrationId,
+              categoryId,
+              url: `/painel/eventos/${tournamentId}/inscricoes?registrationId=${registrationId}`,
+            },
+          }).catch(() => undefined),
         ),
       );
     }

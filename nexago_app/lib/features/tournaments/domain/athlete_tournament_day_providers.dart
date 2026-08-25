@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/time/nexago_event_timezone.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../data/tournament_matches_repository.dart';
 import 'athlete_tournament_day_logic.dart';
@@ -11,42 +12,79 @@ import 'my_tournaments_logic.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_match.dart';
 
-final athleteNextMatchProvider =
-    FutureProvider.autoDispose<AthleteNextMatch?>((ref) async {
+/// Inscrições do dia + partidas por torneio, carregadas UMA vez.
+///
+/// Home (botão Focus), sheet de convite e próximos consumidores leem daqui —
+/// sem isso cada um faria o mesmo `getByTournamentId` no Firestore.
+class AthleteEventDayContext {
+  const AthleteEventDayContext({
+    required this.registrations,
+    required this.matchesByTournament,
+    required this.now,
+  });
+
+  final List<MyTournamentRegistration> registrations;
+  final Map<String, List<TournamentMatch>> matchesByTournament;
+  final DateTime now;
+}
+
+final athleteEventDayContextProvider =
+    FutureProvider.autoDispose<AthleteEventDayContext>((ref) async {
   final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';
-  if (uid.isEmpty) return null;
+  if (uid.isEmpty) {
+    return AthleteEventDayContext(
+      registrations: const [],
+      matchesByTournament: const {},
+      now: nexagoEventNow(),
+    );
+  }
 
   final regs = await ref.watch(myTournamentRegistrationsProvider.future);
   final eventDayRegs = regs.where(registrationShowsAsLiveToday).where((r) {
     final teamId = r.teamId?.trim() ?? '';
     return teamId.isNotEmpty && r.isPaid;
   }).toList();
-  if (eventDayRegs.isEmpty) return null;
 
-  final matchesRepo = TournamentMatchesRepository(FirebaseFirestore.instance);
   final matchesByTournament = <String, List<TournamentMatch>>{};
-  for (final reg in eventDayRegs) {
-    matchesByTournament.putIfAbsent(
-      reg.tournamentId,
-      () => [],
+  if (eventDayRegs.isNotEmpty) {
+    final matchesRepo = TournamentMatchesRepository(FirebaseFirestore.instance);
+    for (final reg in eventDayRegs) {
+      matchesByTournament.putIfAbsent(reg.tournamentId, () => []);
+    }
+    // Uma leitura por torneio do dia. Em prática 1; no pior caso poucos.
+    await Future.wait(
+      matchesByTournament.keys.map((tournamentId) async {
+        matchesByTournament[tournamentId] =
+            await matchesRepo.getByTournamentId(tournamentId);
+      }),
     );
   }
-  await Future.wait(
-    matchesByTournament.keys.map((tournamentId) async {
-      matchesByTournament[tournamentId] =
-          await matchesRepo.getByTournamentId(tournamentId);
-    }),
+
+  return AthleteEventDayContext(
+    registrations: eventDayRegs,
+    matchesByTournament: matchesByTournament,
+    // Um instante só para o laço inteiro: resolvido a cada volta, um atleta com
+    // torneios em paralelo poderia ser avaliado em dois dias diferentes na mesma
+    // passagem, se ela cruzar a meia-noite.
+    now: nexagoEventNow(),
   );
+});
+
+final athleteNextMatchProvider =
+    FutureProvider.autoDispose<AthleteNextMatch?>((ref) async {
+  final ctx = await ref.watch(athleteEventDayContextProvider.future);
+  if (ctx.registrations.isEmpty) return null;
 
   AthleteNextMatch? best;
-  for (final reg in eventDayRegs) {
+  for (final reg in ctx.registrations) {
     final teamId = reg.teamId!.trim();
-    final matches = matchesByTournament[reg.tournamentId] ?? const [];
+    final matches = ctx.matchesByTournament[reg.tournamentId] ?? const [];
     final candidate = pickAthleteNextMatch(
       matches: matches,
       teamId: teamId,
       tournamentId: reg.tournamentId,
       tournamentName: reg.tournamentName,
+      today: ctx.now,
     );
     if (candidate == null) continue;
     if (best == null ||
@@ -57,6 +95,18 @@ final athleteNextMatchProvider =
   }
 
   return best;
+});
+
+/// Torneio para o botão Focus da home — ver [pickAthleteFocusHomeTarget].
+final athleteFocusHomeTargetProvider =
+    FutureProvider.autoDispose<AthleteFocusHomeTarget?>((ref) async {
+  final ctx = await ref.watch(athleteEventDayContextProvider.future);
+  if (ctx.registrations.isEmpty) return null;
+  return pickAthleteFocusHomeTarget(
+    registrations: ctx.registrations,
+    matchesByTournament: ctx.matchesByTournament,
+    today: ctx.now,
+  );
 });
 
 Stream<AthleteNextMatch?> _watchCourtCallMatch(

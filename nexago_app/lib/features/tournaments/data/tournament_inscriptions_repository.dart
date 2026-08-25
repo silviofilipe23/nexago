@@ -15,20 +15,30 @@ class UserCategoryRegistration {
   const UserCategoryRegistration({
     required this.registrationId,
     required this.isPaid,
+    this.partnerPending = false,
   });
 
   final String registrationId;
   final bool isPaid;
 
+  /// Reserva solo: vaga guardada com o parceiro em aberto.
+  final bool partnerPending;
+
+  /// Inscrição começada e não terminada — falta parceiro ou falta pagar. É o
+  /// que distingue "já inscrito" de "continue de onde parou": a tela precisa
+  /// levar de volta à inscrição existente em vez de tratar como concluída.
+  bool get isIncomplete => partnerPending || !isPaid;
+
   @override
   bool operator ==(Object other) {
     return other is UserCategoryRegistration &&
         other.registrationId == registrationId &&
-        other.isPaid == isPaid;
+        other.isPaid == isPaid &&
+        other.partnerPending == partnerPending;
   }
 
   @override
-  int get hashCode => Object.hash(registrationId, isPaid);
+  int get hashCode => Object.hash(registrationId, isPaid, partnerPending);
 }
 
 /// `categoryId` → inscrição do atleta no torneio.
@@ -45,14 +55,21 @@ typedef OrganizerInscriptionWithTeam = ({
   Map<String, dynamic>? team,
 });
 
-/// Agrega inscrições confirmadas (`isPaid == true`) por `categoryId`.
+/// Vagas ocupadas por `categoryId`: **1 documento de inscrição = 1 vaga**.
+///
+/// Conta também a inscrição ainda não paga, porque ela ocupa a vaga de fato —
+/// é o que "Vaga reservada!" promete ao atleta, e é a mesma conta que o
+/// servidor aplica em `assertTournamentAcceptsRegistration` e que o portal do
+/// atleta já usava. Contar só as pagas (como era aqui) fazia a tela anunciar
+/// vagas que o servidor recusaria.
+///
+/// Fila de espera fica de fora: quem está na fila não ocupa vaga.
 TournamentCategoryEnrollmentCounts countInscriptionsByCategoryData(
   Iterable<Map<String, dynamic>> rows,
 ) {
   final counts = <String, int>{};
   for (final data in rows) {
-    if (data['isPaid'] != true) continue;
-    if (data['waitlist'] == true) continue; // fila não conta como confirmada
+    if (data['waitlist'] == true) continue;
     final categoryId = (data['categoryId'] as String?)?.trim() ?? '';
     if (categoryId.isEmpty) continue;
     counts[categoryId] = (counts[categoryId] ?? 0) + 1;
@@ -97,6 +114,18 @@ Map<String, bool> userWaitlistByCategoryData(
 }
 
 /// Atleta participa da inscrição (dupla com equipe ou solo pendente).
+/// O atleta faz parte desta inscrição?
+///
+/// A busca é uma UNIÃO de todos os lugares onde um integrante pode estar, e
+/// não uma cadeia que para no primeiro doc encontrado. O doc de `teams` tem só
+/// dois slots fixos (`player1Id`/`player2Id`), herdados da dupla; em categoria
+/// de EQUIPE (trio/quarteto/quinteto) o elenco completo mora em
+/// `team.memberUids` e em `inscription.participantUids`.
+///
+/// Parar nos dois slots quando existia doc de equipe deixava o TERCEIRO
+/// integrante em diante invisível para o app: a tela de inscrição oferecia
+/// criar a equipe de novo, o selo "já inscrito" sumia da categoria e a barra do
+/// torneio convidava a se inscrever numa vaga que já era dele.
 bool athleteIsInscriptionMember({
   required String uid,
   required Map<String, dynamic> inscription,
@@ -104,21 +133,22 @@ bool athleteIsInscriptionMember({
 }) {
   final id = uid.trim();
   if (id.isEmpty) return false;
-  if (team != null) {
-    final p1 = (team['player1Id'] as String?)?.trim();
-    final p2 = (team['player2Id'] as String?)?.trim();
-    return p1 == id || p2 == id;
-  }
-  final player1Id = (inscription['player1Id'] as String?)?.trim();
-  if (player1Id == id) return true;
-  final participants = inscription['participantUids'];
-  if (participants is List) {
-    return participants
+
+  bool inList(dynamic raw) {
+    if (raw is! List) return false;
+    return raw
         .map((p) => p.toString().trim())
         .where((p) => p.isNotEmpty)
         .contains(id);
   }
-  return false;
+
+  if (team != null) {
+    if ((team['player1Id'] as String?)?.trim() == id) return true;
+    if ((team['player2Id'] as String?)?.trim() == id) return true;
+    if (inList(team['memberUids'])) return true;
+  }
+  if ((inscription['player1Id'] as String?)?.trim() == id) return true;
+  return inList(inscription['participantUids']);
 }
 
 /// Mapeia inscrições do atleta por `categoryId`. Pure helper para testes.
@@ -148,6 +178,7 @@ TournamentUserRegistrationsByCategory userRegistrationsByCategoryData(
     result[categoryId] = UserCategoryRegistration(
       registrationId: registrationId,
       isPaid: row.inscription['isPaid'] == true,
+      partnerPending: row.inscription['partnerPending'] == true,
     );
   }
   return result;
@@ -166,11 +197,17 @@ TournamentUserTeamIdsByCategory userTeamIdsByCategoryData(
   if (id.isEmpty) return const <String, String>{};
   final result = <String, String>{};
   for (final row in rows) {
-    final team = row.team;
-    if (team == null) continue;
-    final p1 = (team['player1Id'] as String?)?.trim();
-    final p2 = (team['player2Id'] as String?)?.trim();
-    if (p1 != id && p2 != id) continue;
+    // Mesma união de `athleteIsInscriptionMember`: parar nos dois slots fixos
+    // do time deixava o terceiro integrante de uma equipe sem `teamId`, e com
+    // ele sem o destaque das próprias partidas no torneio.
+    if (row.team == null) continue;
+    if (!athleteIsInscriptionMember(
+      uid: id,
+      inscription: row.inscription,
+      team: row.team,
+    )) {
+      continue;
+    }
     final categoryId =
         (row.inscription['categoryId'] as String?)?.trim() ?? '';
     final teamId = (row.inscription['teamId'] as String?)?.trim() ?? '';
@@ -181,7 +218,8 @@ TournamentUserTeamIdsByCategory userTeamIdsByCategoryData(
 }
 
 /// Reduz pares (inscrição, equipe) ao conjunto de `categoryId`s onde o atleta
-/// `uid` participa (player1 ou player2). Pure helper para testes.
+/// `uid` participa — elenco inteiro, não só os dois slots fixos. Pure helper
+/// para testes.
 Set<String> registeredCategoryIdsForUserData(
   Iterable<({Map<String, dynamic> inscription, Map<String, dynamic>? team})>
       rows,

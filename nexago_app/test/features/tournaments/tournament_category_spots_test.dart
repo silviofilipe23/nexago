@@ -164,4 +164,77 @@ void main() {
       );
     });
   });
+
+  group('tournamentEnrolledEntries', () {
+    const masc = TournamentCategoryOffer(
+      id: 'Masc',
+      name: 'Masculino C',
+      entryFee: 90,
+      maxTeams: 8,
+    );
+    const fem = TournamentCategoryOffer(
+      id: 'Fem',
+      name: 'Feminino C',
+      entryFee: 90,
+      maxTeams: 8,
+    );
+
+    test('soma a contagem viva de todas as categorias', () {
+      expect(
+        tournamentEnrolledEntries(
+          offers: const [masc, fem],
+          counts: const {'Masc': 5, 'Fem': 3},
+          countsResolved: true,
+          fallbackEnrolled: 0,
+        ),
+        8,
+      );
+    });
+
+    test('não passa da capacidade da categoria', () {
+      // Lista de espera pode encher mais que `maxTeams`; o card não deve anunciar 12 duplas
+      // numa categoria de 8.
+      expect(
+        tournamentEnrolledEntries(
+          offers: const [masc],
+          counts: const {'Masc': 12},
+          countsResolved: true,
+          fallbackEnrolled: 0,
+        ),
+        8,
+      );
+    });
+
+    test('cai no enrolledCount do documento quando não há categoria cadastrada', () {
+      expect(
+        tournamentEnrolledEntries(
+          offers: const [],
+          counts: const {},
+          countsResolved: true,
+          fallbackEnrolled: 7,
+        ),
+        7,
+      );
+    });
+
+    test('usa o spotsLeft das categorias enquanto a contagem viva não resolve', () {
+      expect(
+        tournamentEnrolledEntries(
+          offers: const [
+            TournamentCategoryOffer(
+              id: 'Masc',
+              name: 'Masculino C',
+              entryFee: 90,
+              maxTeams: 8,
+              spotsLeft: 2,
+            ),
+          ],
+          counts: const {},
+          countsResolved: false,
+          fallbackEnrolled: 0,
+        ),
+        6,
+      );
+    });
+  });
 }

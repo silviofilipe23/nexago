@@ -1,4 +1,4 @@
-import { isSetWon, targetPointsForSet } from './match-scoring';
+import { isSetWon, targetPointsForSet } from '@nexago/live-scoring';
 import type { TournamentMatch } from './matches-repository';
 
 /** Porte de `matchLiveCurrentSet`/`matchSetWins`/`matchClosedSets` do portal do ATLETA

@@ -10,7 +10,7 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
 import { OrganizersRepository, type OrganizerListRow } from './data/organizers.repository';
-import { ACCESS_REQUESTS, findAthlete, initialsOf } from './organizadores.data';
+import { ACCESS_REQUESTS, cityStateLabel, findAthlete, initialsOf } from './organizadores.data';
 import { roleLabels, userDisplayName } from './role-subject';
 import { OrganizadoresDemoComponent } from './ui/organizadores-demo.component';
 
@@ -741,7 +741,7 @@ export class PanelOrganizadoresComponent {
       name: athlete?.name ?? '—',
       initials: initialsOf(athlete?.name ?? ''),
       elo: athlete?.elo ?? '—',
-      city: athlete?.city ?? '—',
+      city: athlete ? cityStateLabel(athlete.city, athlete.state) : '—',
       reason: request.reason,
       age: request.age,
     };

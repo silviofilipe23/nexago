@@ -62,11 +62,13 @@ abstract final class AthleteFirestoreCodes {
     'Iniciante': 'iniciante',
     'Intermediário': 'intermediario',
     'Open': 'open',
-    // Escada de 5 níveis do vôlei (códigos com underscore no Firestore).
+    // Escada de 7 níveis do vôlei (códigos com underscore no Firestore).
     'Iniciante 1': 'iniciante_1',
     'Iniciante 2': 'iniciante_2',
     'Intermediário 1': 'intermediario_1',
     'Intermediário 2': 'intermediario_2',
+    'Avançado 1': 'avancado_1',
+    'Avançado 2': 'avancado_2',
   };
 
   static const Map<String, String> _levelFirestoreToLabel = {
@@ -78,6 +80,8 @@ abstract final class AthleteFirestoreCodes {
     'iniciante_2': 'Iniciante 2',
     'intermediario_1': 'Intermediário 1',
     'intermediario_2': 'Intermediário 2',
+    'avancado_1': 'Avançado 1',
+    'avancado_2': 'Avançado 2',
   };
 
   static String? sportAppToFirestore(String? appId) {

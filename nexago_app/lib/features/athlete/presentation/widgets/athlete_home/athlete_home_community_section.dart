@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../core/profiles/app_user_profile.dart';
 import '../../../../../core/router/routes.dart';
+import '../../../../../core/text/safe_display_text.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -57,13 +59,8 @@ class _CommunityRow extends StatelessWidget {
   final CommunityFeedItem item;
 
   static String _initialsOf(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return 'NX';
-    final first = parts.first[0];
-    final last = parts.length > 1 ? parts.last[0] : '';
-    final initials = (first + last).toUpperCase();
-    return initials.isEmpty ? 'NX' : initials;
+    final initials = initialsFromDisplayName(name);
+    return initials == '?' ? 'NX' : initials;
   }
 
   static double _hueOf(String text) {
@@ -111,7 +108,8 @@ class _CommunityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final hue = _hueOf(item.tournamentName);
+    final title = sanitizeUtf16(item.tournamentName);
+    final hue = _hueOf(title);
 
     return InkWell(
       onTap: item.tournamentId.isEmpty
@@ -143,7 +141,7 @@ class _CommunityRow extends StatelessWidget {
                 ),
               ),
               child: Text(
-                _initialsOf(item.tournamentName),
+                _initialsOf(title),
                 style: AppTypography.mono(
                   fontSize: 11,
                   color: Colors.white,
@@ -157,14 +155,14 @@ class _CommunityRow extends StatelessWidget {
                 TextSpan(
                   children: [
                     TextSpan(
-                      text: item.tournamentName,
+                      text: title,
                       style: AppTypography.bodyS.copyWith(
                         fontWeight: FontWeight.w700,
                         color: colors.onSurface,
                       ),
                     ),
                     TextSpan(
-                      text: ' ${_messageOf(item)}',
+                      text: ' ${sanitizeUtf16(_messageOf(item))}',
                       style: AppTypography.bodyS
                           .copyWith(color: colors.onSurfaceMuted),
                     ),

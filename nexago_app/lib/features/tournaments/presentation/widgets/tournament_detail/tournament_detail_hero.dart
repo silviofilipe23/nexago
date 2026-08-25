@@ -9,6 +9,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_labels.dart';
+import '../../../domain/tournament_listing_status.dart';
 
 /// Hero de conversão: capa imersiva, badges, título, meta, prêmio/inscrição e vagas.
 class TournamentDetailHero extends StatelessWidget {
@@ -170,6 +171,9 @@ class TournamentDetailHero extends StatelessWidget {
               _PrizeFeeCard(
                 prizeLabel: stats.prizeTotalLabel,
                 feeLabel: tournament.priceLabel,
+                // Torneio finalizado: taxa de inscrição é informação vencida —
+                // fica só o prêmio, como na aba Categorias.
+                showFee: !isTournamentTerminal(tournament.status),
               ),
               // const SizedBox(height: 10),
               // _SpotsCard(stats: stats, urgencyBanner: urgencyBanner),
@@ -318,10 +322,15 @@ class _MetaRow extends StatelessWidget {
 }
 
 class _PrizeFeeCard extends StatelessWidget {
-  const _PrizeFeeCard({required this.prizeLabel, required this.feeLabel});
+  const _PrizeFeeCard({
+    required this.prizeLabel,
+    required this.feeLabel,
+    required this.showFee,
+  });
 
   final String prizeLabel;
   final String feeLabel;
+  final bool showFee;
 
   @override
   Widget build(BuildContext context) {
@@ -342,9 +351,11 @@ class _PrizeFeeCard extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: context.themeColors.surfaceCard,
-                  borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(AppRadii.lg),
-                  ),
+                  borderRadius: showFee
+                      ? const BorderRadius.horizontal(
+                          left: Radius.circular(AppRadii.lg),
+                        )
+                      : AppRadii.lgAll,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
@@ -377,43 +388,47 @@ class _PrizeFeeCard extends StatelessWidget {
                 ),
               ),
             ),
-            Container(
-              width: 1,
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
-            ),
-            Expanded(
-              flex: 7,
-              child: ColoredBox(
-                color: AppColors.brand.withValues(alpha: 0.08),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionLabel(context, 'INSCRIÇÃO'),
-                      const SizedBox(height: 6),
-                      Text(
-                        feeLabel,
-                        style: AppTypography.soraRegular(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.brand,
-                          height: 1.05,
+            if (showFee) ...[
+              Container(
+                width: 1,
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.15,
+                ),
+              ),
+              Expanded(
+                flex: 7,
+                child: ColoredBox(
+                  color: AppColors.brand.withValues(alpha: 0.08),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionLabel(context, 'INSCRIÇÃO'),
+                        const SizedBox(height: 6),
+                        Text(
+                          feeLabel,
+                          style: AppTypography.soraRegular(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.brand,
+                            height: 1.05,
+                          ),
                         ),
-                      ),
-                      Text(
-                        'por dupla',
-                        style: AppTypography.soraRegular(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: context.themeColors.onSurfaceMuted,
+                        Text(
+                          'por dupla',
+                          style: AppTypography.soraRegular(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: context.themeColors.onSurfaceMuted,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

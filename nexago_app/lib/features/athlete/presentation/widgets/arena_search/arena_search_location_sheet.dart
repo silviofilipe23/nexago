@@ -54,13 +54,16 @@ Future<void> showArenaSearchLocationSheet({
                 ),
               SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () {
-                  ref.invalidate(userLocationProvider);
+                onPressed: () async {
                   Navigator.pop(ctx);
-                  showAppSnackBar(
-                    context,
-                    'Atualizando localização…',
-                  );
+                  showAppSnackBar(context, 'Atualizando localização…');
+                  // Pedir antes de invalidar: sem permissão o provider só
+                  // refaz a mesma conta e devolve o mesmo "não sei onde você
+                  // está" — o botão prometeria algo que não entrega.
+                  await ref
+                      .read(userLocationServiceProvider)
+                      .ensurePermission();
+                  ref.invalidate(userLocationProvider);
                 },
                 icon: Icon(Icons.my_location_rounded),
                 label: Text('Usar minha localização'),

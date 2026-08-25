@@ -2,11 +2,23 @@ import type { ArenaSportChip } from '@nexago/arena-discovery';
 import type { AthleteLevelLabel } from '../data/athlete-level';
 
 export type RankingMode = 'individual' | 'doubles';
-/** Os 5 tiers reais da escada (`data/athlete-level.ts`) — "Avançado"/"Profissional"
- *  eram sinônimos legados que o backend já normaliza pra Intermediário/Open, não tiers à parte. */
+/** Os 7 tiers reais da escada (`data/athlete-level.ts`) — "Profissional" era sinônimo
+ *  legado que o backend já normaliza pra Open, não um tier à parte. */
 export type RankingLevel = AthleteLevelLabel;
 export type FilterLevel = 'all' | RankingLevel;
 export type RankingPeriod = 'geral' | 'temporada';
+export type RankingGender = 'male' | 'female' | 'mixed';
+export type FilterGender = 'all' | RankingGender;
+/** Dupla é o formato legado sem `teamSize`; trio/quarteto/quinteto são as equipes
+ *  nomeadas (`teams/{id}.teamSize` 3–5, gravado na criação da inscrição). */
+export type TeamFormat = 'dupla' | 'trio' | 'quarteto' | 'quinteto';
+export type FilterFormat = 'all' | TeamFormat;
+
+/** Foto pública do atleta (`public_profiles/{uid}.avatarUrl`); `url` nulo cai nas iniciais. */
+export interface RankingAvatar {
+  url: string | null;
+  initials: string;
+}
 
 export interface RankingParticipant {
   id: string;
@@ -15,8 +27,18 @@ export interface RankingParticipant {
   points: number;
   level: RankingLevel | null;
   sport: ArenaSportChip;
+  /** Gênero do atleta (Individual) ou do time (Duplas) — null quando desconhecido,
+   *  e aí a linha só aparece com o filtro em "Todos". */
+  gender: RankingGender | null;
+  /** Só linha de time tem formato; no Individual fica null (o filtro nem aparece lá). */
+  format: TeamFormat | null;
   /** Variação de posição — sem dado real no backend hoje (sempre 0, sem seta). */
   trend: number;
+  /** Uma foto no modo Individual, duas no de Duplas — a linha é o time, não um atleta. */
+  avatars: readonly RankingAvatar[];
+  /** Rota do perfil aberta ao clicar na(s) foto(s): atleta no Individual, equipe nas Duplas.
+   *  `null` quando não há perfil pra abrir (atleta sem espelho público, dupla incompleta). */
+  profileLink: readonly string[] | null;
 }
 
 export interface RankingSelfEntry {

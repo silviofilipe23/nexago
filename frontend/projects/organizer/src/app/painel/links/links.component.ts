@@ -36,6 +36,19 @@ import { OgPageHeaderComponent } from '../ui/page-header.component';
       [suggestions]="suggestions()"
     />
   `,
+  styles: `
+    /* O gerenciador faz aqui o papel do .og-content (é ele que rola, e já nasce com
+       flex: 1 + min-height: 0 + overflow: auto), mas o padding dele é o da arena — o outro
+       portal que usa a lib, cujos breakpoints são 1180/720 e não têm o 1024 daqui. Sem este
+       recorte a tela Links ficava com 32px de lateral no celular contra os 20px de todas as
+       outras telas do painel, e os cards saíam 12px fora do prumo do cabeçalho.
+       O ajuste mora no consumidor de propósito: mudar a lib mexeria na arena junto. */
+    @media (max-width: 1023.98px) {
+      nx-link-manager {
+        padding: 16px 20px 24px;
+      }
+    }
+  `,
 })
 export class LinksComponent {
   private readonly auth = inject(AuthService);

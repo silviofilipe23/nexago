@@ -212,8 +212,13 @@ class _TournamentDetailContentState
   Widget build(BuildContext context) {
     final canRegister = canRegisterForTournament(widget.tournament.status);
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
-    final showBottomBar =
-        canRegister && widget.registrationResolved && !isAthleteRegistered;
+    // A barra continua aparecendo COM inscrição: ela é a porta de entrada da
+    // tela de inscrição, e lá o atleta acha o convite pendente, o uniforme e o
+    // pagamento — além de poder se inscrever numa segunda categoria, que várias
+    // categorias permitem (`maxRegistrationsPerAthlete`). Escondê-la com
+    // qualquer inscrição fechava todos esses caminhos de uma vez. O portal
+    // nunca escondeu.
+    final showBottomBar = canRegister && widget.registrationResolved;
     final topInset = MediaQuery.paddingOf(context).top;
     final spotsSubtitle =
         '${tournamentSpotsRemainingLabel(widget.stats)} · garante já';
@@ -234,57 +239,61 @@ class _TournamentDetailContentState
     final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
     final live = liveTournamentMatches(matches);
-    final hasMyMatchToday =
-        myTournamentDayTimeline(matches, athleteTeamIds, now).isNotEmpty ||
-            live.isNotEmpty;
-
     final isToday = tournamentIsEventToday(widget.tournament, now);
+    final hasMyMatchToday = myTournamentDayTimeline(
+          matches,
+          athleteTeamIds,
+          now,
+          tournamentRunningToday: isToday,
+        ).isNotEmpty ||
+        live.isNotEmpty;
 
     return Column(
       children: [
         SizedBox(height: topInset + AppSpacing.xs),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.screenH,
+            0,
+          ),
           child: Row(
             children: [
               NexaIconSquareButton(
                 icon: Icons.arrow_back_rounded,
                 onTap: () => _handleTournamentDetailBack(context),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isToday
+                          ? '${widget.tournament.name} — hoje'
+                          : widget.tournament.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleM
+                          .copyWith(color: context.themeColors.onSurface),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      tournamentDetailHeroMeta(widget.tournament, now),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.monoMeta
+                          .copyWith(color: context.themeColors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
               NexaIconSquareButton(
                 icon: Icons.ios_share_rounded,
                 onTap: () => _shareTournament(widget.tournament.name),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.sm,
-            AppSpacing.screenH,
-            0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                isToday
-                    ? '${widget.tournament.name} — hoje'
-                    : widget.tournament.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.titleL
-                    .copyWith(color: context.themeColors.onSurface),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                tournamentDetailHeroMeta(widget.tournament, now),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.monoMeta
-                    .copyWith(color: context.themeColors.onSurfaceMuted),
               ),
             ],
           ),
@@ -311,7 +320,7 @@ class _TournamentDetailContentState
                   showMinhaInscricao: isRegistered,
                   palpitesEnabled: tournamentHasDefinedMatchups(matches),
                   onOpenHoje: () => context.pushNamed(
-                    AppRouteNames.tournamentToday,
+                    AppRouteNames.tournamentFocus,
                     pathParameters: {'tournamentId': widget.tournament.id},
                   ),
                   onOpenCategorias: () => context.pushNamed(
@@ -343,7 +352,12 @@ class _TournamentDetailContentState
           TournamentDetailBottomBar(
             enabled: true,
             priceLabel: widget.tournament.priceLabel,
-            spotsSubtitle: spotsSubtitle,
+            spotsSubtitle: isAthleteRegistered
+                ? 'acompanhe sua inscrição'
+                : spotsSubtitle,
+            ctaLabel: isAthleteRegistered
+                ? 'Minha inscrição'
+                : 'Inscrever minha dupla',
             onPressed: _openRegistration,
           ),
       ],

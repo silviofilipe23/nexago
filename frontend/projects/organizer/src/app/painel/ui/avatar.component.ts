@@ -27,7 +27,10 @@ import { PersonPhotoService } from './person-photo.service';
   },
   template: `
     @if (photoUrl() && !photoFailed()) {
-      <img [src]="photoUrl()" alt="" (error)="photoFailed.set(true)" />
+      <!-- A origem é a foto de perfil de 1024px caindo num círculo de 32-40px: numa lista de 200
+           atletas, carregar e decodificar todas de uma vez trava o Safari do iPad. lazy deixa
+           entrar só o que está na tela; async tira a decodificação do caminho de renderização. -->
+      <img [src]="photoUrl()" alt="" loading="lazy" decoding="async" (error)="photoFailed.set(true)" />
     } @else {
       {{ initials() }}
     }

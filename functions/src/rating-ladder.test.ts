@@ -1,12 +1,15 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {parseLadderConfig} from "./rating-config";
+import {parseLadderConfig, adjacentLevel, resolveLadderLevel} from "./rating-config";
 import {
   applyLadderActions,
   applyPromotion,
   applyRelegation,
+  classifyLevelRankChange,
   computeZone,
   evaluateLadderTransition,
+  expectedLevelRankFor,
+  selfCorrectionRatingUpdate,
   type AthleteRatingState,
 } from "./rating-ladder";
 
@@ -90,7 +93,7 @@ describe("evaluateLadderTransition · promoção", () => {
 
   it("open (topo) nunca entra em promoção", () => {
     const {next, actions} = evaluateLadderTransition(
-      state({levelCode: "open", levelRank: 5, rating: 2400}),
+      state({levelCode: "open", levelRank: 6, rating: 2400}),
       config(),
       NOW,
       "match",
@@ -286,6 +289,9 @@ function mockDb() {
   };
 }
 
+/** Path do doc `athleteRatings` usado nos testes de `applyLadderActions`. */
+const RATING_REF_PATH = "athleteRatings/a1_VOLEI_PRAIA";
+
 describe("applyLadderActions · flags de rollout", () => {
   it("shadowMode suprime qualquer efeito externo (estado pendente persiste)", async () => {
     const db = mockDb();
@@ -296,7 +302,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "match",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
     assert.equal(db.writes.length, 0);
     assert.equal(final.ladderState, "promotion_pending");
     assert.equal(final.levelCode, "intermediario_1");
@@ -311,7 +323,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "match",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
     assert.equal(db.writes.length, 0);
     assert.equal(final.ladderState, "promotion_pending");
   });
@@ -325,7 +343,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "match",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
 
     assert.equal(final.levelCode, "intermediario_2");
     assert.equal(final.ladderState, "stable");
@@ -342,6 +366,20 @@ describe("applyLadderActions · flags de rollout", () => {
     assert.equal(history.data.reason, "promotion");
     assert.equal(history.data.toLevel, "intermediario_2");
     assert.equal(history.data.actor, "rating_engine");
+
+    const ratingWriteIndex = db.writes.findIndex((w) => w.path === RATING_REF_PATH);
+    const userWriteIndex = db.writes.findIndex((w) => w.path === "users/a1");
+    assert.ok(ratingWriteIndex >= 0, "athleteRatings deveria ter sido escrito");
+    assert.equal(
+      (db.writes[ratingWriteIndex].data as {levelCode?: string}).levelCode,
+      "intermediario_2",
+    );
+    assert.ok(
+      ratingWriteIndex < userWriteIndex,
+      "athleteRatings precisa ser gravado ANTES de users/{uid}: é a invariante de " +
+        "ordem que o guard anti-eco de onUserWrittenTrackLevelChanges assume ao " +
+        "comparar current.levelCode === newLevel.code",
+    );
   });
 
   it("auto-rebaixamento aplica o degrau abaixo com auditoria", async () => {
@@ -358,7 +396,13 @@ describe("applyLadderActions · flags de rollout", () => {
       NOW,
       "daily",
     );
-    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
+    const final = await applyLadderActions(
+      db as never,
+      evaluation,
+      cfg,
+      NOW,
+      db.doc(RATING_REF_PATH) as never,
+    );
 
     assert.equal(final.levelCode, "iniciante_2");
     assert.equal(final.ladderState, "stable");
@@ -367,5 +411,115 @@ describe("applyLadderActions · flags de rollout", () => {
     assert.equal(history.data.reason, "relegation");
     assert.equal(history.data.fromLevel, "intermediario_1");
     assert.equal(history.data.toLevel, "iniciante_2");
+
+    // F1 (code review): rebaixamento AUTOMÁTICO da engine precisa deixar
+    // `athleteRatings.levelCode` já no nível novo ANTES de `users/{uid}`
+    // mudar — senão o trigger `onUserWrittenTrackLevelChanges`, que reage à
+    // escrita de `users/{uid}`, pode ler `athleteRatings` ainda no nível
+    // ANTIGO (corrida vencida pelo write de `users/{uid}`) e classificar o
+    // rebaixamento da engine como downgrade do PRÓPRIO atleta — gravando um
+    // `levelHistory` espúrio com `reason: "self_correction"` e
+    // `actor: userId`, atribuindo ao atleta um rebaixamento que não foi dele.
+    const ratingWriteIndex = db.writes.findIndex((w) => w.path === RATING_REF_PATH);
+    const userWriteIndex = db.writes.findIndex((w) => w.path === "users/a1");
+    assert.ok(ratingWriteIndex >= 0, "athleteRatings deveria ter sido escrito");
+    assert.equal(
+      (db.writes[ratingWriteIndex].data as {levelCode?: string}).levelCode,
+      "iniciante_2",
+    );
+    assert.ok(
+      ratingWriteIndex < userWriteIndex,
+      "athleteRatings precisa ser gravado ANTES de users/{uid} — essa é a ordem " +
+        "que o script admin (athlete-level-admin.ts) já usa e que o guard " +
+        "anti-eco do trigger de levelsBySport pressupõe",
+    );
+  });
+});
+
+describe("escada de 7 degraus", () => {
+  const cfg = parseLadderConfig("VOLEI_PRAIA", undefined);
+
+  it("tem os 7 degraus com a régua do spec", () => {
+    assert.equal(cfg.levels.length, 7);
+    const byCode = Object.fromEntries(cfg.levels.map((l) => [l.code, l]));
+    assert.deepEqual(
+      [byCode.avancado_1.rank, byCode.avancado_1.initialRating, byCode.avancado_1.promoteAt, byCode.avancado_1.demoteAt],
+      [4, 1900, 2020, 1800],
+    );
+    assert.deepEqual(
+      [byCode.avancado_2.rank, byCode.avancado_2.initialRating, byCode.avancado_2.promoteAt, byCode.avancado_2.demoteAt],
+      [5, 2050, 2170, 1950],
+    );
+    assert.deepEqual(
+      [byCode.open.rank, byCode.open.initialRating, byCode.open.promoteAt, byCode.open.demoteAt],
+      [6, 2200, null, 2100],
+    );
+  });
+
+  it("adjacência atravessa os degraus novos", () => {
+    const int2 = cfg.levels.find((l) => l.code === "intermediario_2")!;
+    assert.equal(adjacentLevel(cfg, int2, "up")?.code, "avancado_1");
+    const open = cfg.levels.find((l) => l.code === "open")!;
+    assert.equal(adjacentLevel(cfg, open, "down")?.code, "avancado_2");
+  });
+
+  it("legado 'livre' resolve pro degrau open (rank 6)", () => {
+    assert.equal(resolveLadderLevel(cfg, "livre").code, "open");
+  });
+});
+
+describe("expectedLevelRankFor", () => {
+  const config = parseLadderConfig("VOLEI_PRAIA", undefined);
+  it("recalcula o rank pelo CÓDIGO, nunca pelo rank gravado", () => {
+    assert.equal(expectedLevelRankFor(config, "open"), 6); // doc antigo tinha 5
+    assert.equal(expectedLevelRankFor(config, "avancado_1"), 4);
+    assert.equal(expectedLevelRankFor(config, "livre"), 6); // legado → open
+    assert.equal(expectedLevelRankFor(config, ""), 0); // desconhecido → piso
+  });
+});
+
+describe("classifyLevelRankChange", () => {
+  it("esporte novo no perfil (beforeRank ausente) conta como upgrade", () => {
+    assert.equal(classifyLevelRankChange(null, 0), "upgrade");
+  });
+  it("rank sobe -> upgrade", () => {
+    assert.equal(classifyLevelRankChange(2, 4), "upgrade");
+  });
+  it("rank desce -> downgrade", () => {
+    assert.equal(classifyLevelRankChange(4, 2), "downgrade");
+  });
+  it("mesmo rank (rename/legado) -> none", () => {
+    assert.equal(classifyLevelRankChange(2, 2), "none");
+  });
+});
+
+describe("selfCorrectionRatingUpdate", () => {
+  const newLevel = {code: "iniciante_1", rank: 0, initialRating: 1200};
+
+  it("ratedMatches === 0: reseeda rating/RD/levelCode/levelRank para o piso do novo degrau", () => {
+    const current = state({
+      levelCode: "intermediario_1",
+      levelRank: 2,
+      rating: 1600,
+      rd: 90,
+      ratedMatches: 0,
+    });
+    const next = selfCorrectionRatingUpdate(current, newLevel, 300);
+    assert.deepEqual(next, {
+      ...current,
+      rating: 1200,
+      rd: 300,
+      levelCode: "iniciante_1",
+      levelRank: 0,
+    });
+  });
+
+  it("ratedMatches > 0: não mexe no rating (null — só a auditoria muda)", () => {
+    const current = state({ratedMatches: 5});
+    assert.equal(selfCorrectionRatingUpdate(current, newLevel, 300), null);
+  });
+
+  it("sem athleteRatings (current null): nada a reseedar", () => {
+    assert.equal(selfCorrectionRatingUpdate(null, newLevel, 300), null);
   });
 });

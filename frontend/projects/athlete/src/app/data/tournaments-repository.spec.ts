@@ -1,4 +1,4 @@
-import { categoryAcceptsRegistration, organizerPixOf, type RegistrationTournamentFields, type TournamentCategoryOffer } from './tournaments-repository';
+import { categoryAcceptsRegistration, organizerPixOf, tournamentIsFinishedOrCancelled, type RegistrationTournamentFields, type TournamentCategoryOffer } from './tournaments-repository';
 import { normalizePixKeyForBrCode } from './pix-brcode';
 
 describe('organizerPixOf', () => {
@@ -67,5 +67,24 @@ describe('categoryAcceptsRegistration', () => {
 
   it('mantém a inscrição aberta em torneio já em quadra — quem decide o fechamento é a categoria', () => {
     expect(categoryAcceptsRegistration(tournament({ rawStatus: 'live', liveMatchesNow: 2 }), category(), 6, NOW)).toBe(true);
+  });
+});
+
+describe('tournamentIsFinishedOrCancelled', () => {
+  it('acabou quando o organizador finalizou ou encerrou', () => {
+    expect(tournamentIsFinishedOrCancelled({ rawStatus: 'completed', isCancelled: false })).toBe(true);
+    expect(tournamentIsFinishedOrCancelled({ rawStatus: 'ended', isCancelled: false })).toBe(true);
+  });
+
+  it('acabou quando foi cancelado', () => {
+    // `rawStatusFromString` colapsa cancelado em `ended`; a flag é a garantia se isso mudar.
+    expect(tournamentIsFinishedOrCancelled({ rawStatus: 'ended', isCancelled: true })).toBe(true);
+    expect(tournamentIsFinishedOrCancelled({ rawStatus: null, isCancelled: true })).toBe(true);
+  });
+
+  it('não acabou enquanto está por vir, aberto ou rolando', () => {
+    for (const rawStatus of ['scheduled', 'open', 'bracketsReady', 'almostFull', 'live', null] as const) {
+      expect(tournamentIsFinishedOrCancelled({ rawStatus, isCancelled: false })).toBe(false);
+    }
   });
 });

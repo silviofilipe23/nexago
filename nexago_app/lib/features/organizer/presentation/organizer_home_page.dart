@@ -590,6 +590,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
         listenable: _tabBarCollapse,
         builder: (context, _) => NexaBottomNavBar(
           collapseProgress: _tabBarCollapse.progress,
+          isScrolling: _tabBarCollapse.isScrolling,
           currentIndex: _bottomNavIndex,
           onTap: (index) {
             if (index == 1) {

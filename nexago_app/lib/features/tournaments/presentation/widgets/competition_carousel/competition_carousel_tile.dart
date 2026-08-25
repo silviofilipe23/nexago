@@ -221,10 +221,17 @@ class _CoverImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = imageUrl?.trim();
     if (url != null && url.isNotEmpty) {
+      // Decodifica só no tamanho exibido — sem isso a imagem original (ex.:
+      // foto de câmera) é decodificada em resolução cheia pra caber num
+      // tile de 250x120, custando memória e frames a cada tile que entra
+      // em cena.
+      final dpr = MediaQuery.devicePixelRatioOf(context);
       return CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
         fadeInDuration: const Duration(milliseconds: 220),
+        memCacheWidth: (competitionCarouselTileWidth * dpr).round(),
+        memCacheHeight: (competitionCarouselImageHeight * dpr).round(),
         placeholder: (_, __) => const _CoverPlaceholder(),
         errorWidget: (_, __, ___) => const _CoverPlaceholder(),
       );

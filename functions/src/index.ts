@@ -24,6 +24,10 @@ import {
   setRegistrationUniform,
 } from "./tournament-partner-invite";
 import {
+  claimExternalPartnerInvite,
+  createExternalPartnerInvite,
+} from "./tournament-external-invite";
+import {
   createTournamentTeamRegistration,
   leaveTournamentTeamRegistration,
 } from "./tournament-team-registration";
@@ -54,6 +58,7 @@ import {onArenaReviewCreatedAwardXp} from "./arena-review-gamification";
 import {
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
+  organizerRevertRegistrationPayment,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,
   sendCategoryCommunication,
@@ -61,6 +66,9 @@ import {
   closeTournamentRegistrations,
   cancelTournament,
 } from "./organizer-category-ops";
+import {
+  organizerCreateTeamRegistration,
+} from "./organizer-create-registration";
 import {
   scheduleMatch,
   rescheduleMatch,
@@ -71,12 +79,14 @@ import {
   declareMatchWalkover,
   submitMatchResult,
   validateMatchResult,
+  revertMatchToScheduled,
   advanceBracketWinner,
   applyLeagueRankingForMatch,
   onTournamentMatchCompletedAdvance,
 } from "./organizer-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
+import {onInscriptionWrittenLockLevels} from "./tournament-level-lock";
 import {
   createArenaRecurringBooking,
   cancelArenaRecurringBooking,
@@ -154,6 +164,8 @@ export {
   asaasWebhook,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
   onArenaBookingStatusChangedSyncSlotHold,
+  createExternalPartnerInvite,
+  claimExternalPartnerInvite,
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,
@@ -186,6 +198,8 @@ export {
   onArenaReviewCreatedAwardXp,
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
+  organizerRevertRegistrationPayment,
+  organizerCreateTeamRegistration,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,
   sendCategoryCommunication,
@@ -201,11 +215,13 @@ export {
   declareMatchWalkover,
   submitMatchResult,
   validateMatchResult,
+  revertMatchToScheduled,
   advanceBracketWinner,
   applyLeagueRankingForMatch,
   onTournamentMatchCompletedAdvance,
   deleteOwnAccount,
   onTournamentInscriptionWriteSyncCollectedCents,
+  onInscriptionWrittenLockLevels,
   createArenaRecurringBooking,
   cancelArenaRecurringBooking,
   cancelArenaRecurringOccurrence,
@@ -223,6 +239,7 @@ export {
   recomputeAthleteRating,
   backfillRatingsAndResults,
   migrateAthleteLevels,
+  migrateAthleteRatingLevelRanks,
 } from "./rating-triggers";
 export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking";
 
@@ -245,6 +262,8 @@ export {
   removeUserRole,
   setUserRoles,
 } from "./user-role-ops";
+
+export {saveOrganizerRegistration} from "./organizer-registration";
 
 
 export {
@@ -405,3 +424,8 @@ export {onFiscalInvoiceRequested} from "./fiscal/invoice-processor";
 export {fiscalIssuerWebhook} from "./fiscal/invoice-webhook";
 export {emitActivationTestInvoice, onActivationTestInvoiceResolved} from "./fiscal/activation";
 export {retryFiscalInvoice} from "./fiscal/invoice-retry";
+export {
+  getFinanceOverview,
+  upsertPlatformCost,
+  deletePlatformCost,
+} from "./backoffice-finance";

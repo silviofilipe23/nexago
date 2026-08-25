@@ -6,8 +6,11 @@ import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_helpers.dart';
 import 'tournament_discovery_models.dart';
+import 'direct_payment_state.dart';
 import 'tournament_payment_mode.dart';
 import 'tournament_uniform_selection.dart';
+
+export 'direct_payment_state.dart';
 
 export 'tournament_uniform_selection.dart'
     show
@@ -17,6 +20,7 @@ export 'tournament_uniform_selection.dart'
         defaultJerseyNameForAthlete,
         defaultUniformSelectionForCategory,
         fillJerseyNameDefaultIfNeeded,
+        hydrateUniformSelection,
         isUniformSelectionComplete,
         kDefaultUniformSizeOptionsTop,
         kUniformChangeDeadlineDays,
@@ -49,6 +53,12 @@ bool registrationCancellableByAthlete({
   double paidAmount = 0,
 }) => !isPaid && sharePaidUids.isEmpty && paidAmount <= 0;
 
+/// Passo da inscrição.
+///
+/// Sobrevive à virada para a tela única só para as rotas antigas
+/// (`?step=payment`, gravado em notificações e links já enviados) continuarem
+/// entrando: a tela não navega mais por passos, e só `payment` ainda tem
+/// efeito — redireciona para a tela de pagamento.
 enum TournamentRegistrationStep { category, uniform, partner, waiting, payment }
 
 class TournamentRegistrationPartnerCandidate {
@@ -459,7 +469,14 @@ String registrationDualPaymentProgressLabel({
   List<String> sharePaidUids = const [],
   String? currentAthleteUid,
   bool isDirectOrganizerPayment = false,
+  DirectPaymentState? directPaymentState,
 }) {
+  // Pagamento direto: entre a declaração dos dois atletas e a conferência do
+  // organizador a vaga vale, mas ninguém viu o dinheiro ainda. Dizer
+  // "confirmada" aqui adianta uma etapa que não aconteceu.
+  if (directPaymentState == DirectPaymentState.waitingOrganizer) {
+    return 'Pagamento informado. O organizador vai conferir o recebimento.';
+  }
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
   if (!registrationRequiresPayment(quote) || isDirectOrganizerPayment) {
     final selfConfirmed = currentAthleteSharePaid(
@@ -506,6 +523,55 @@ String registrationDualPaymentProgressLabel({
     return 'Pagamento parcial: ${formatRegistrationMoney(paidAmount)} de ${formatRegistrationMoney(quote.displayTotal)}.';
   }
   return 'Aguardando o pagamento de cada atleta (sua parcela + parceiro).';
+}
+
+/// Copy e destino do aviso "convite aceito" que abre sozinho para quem convidou.
+class PartnerAcceptedFeedbackCopy {
+  const PartnerAcceptedFeedbackCopy({
+    required this.title,
+    required this.description,
+    required this.primaryLabel,
+    required this.goesToPayment,
+  });
+
+  final String title;
+  final String description;
+  final String primaryLabel;
+
+  /// `false` = o próximo passo é o elenco (convidar), não o pagamento.
+  final bool goesToPayment;
+}
+
+/// O que dizer quando um convite é aceito.
+///
+/// Em EQUIPE o aceite não fecha a inscrição: o elenco cresce até o `teamSize`.
+/// Anunciar "conclua o pagamento" com 2/4 manda o capitão para uma conta que
+/// ainda não existe e esconde a única ação que resta — convidar quem falta.
+/// Na dupla o aceite sempre fecha (2/2), e aí o pagamento é o passo certo.
+PartnerAcceptedFeedbackCopy partnerAcceptedFeedbackCopy({
+  required String firstName,
+  required bool isTeamInvite,
+  required bool rosterComplete,
+  int? rosterCount,
+  int? teamSize,
+}) {
+  if (isTeamInvite && !rosterComplete) {
+    final hasProgress =
+        rosterCount != null && teamSize != null && rosterCount > 0 && teamSize > 0;
+    final progress = hasProgress ? ' $rosterCount/$teamSize' : '';
+    return PartnerAcceptedFeedbackCopy(
+      title: '$firstName entrou na equipe',
+      description: 'Elenco$progress. Convide os atletas que faltam.',
+      primaryLabel: 'Convidar',
+      goesToPayment: false,
+    );
+  }
+  return PartnerAcceptedFeedbackCopy(
+    title: '$firstName aceitou!',
+    description: 'Conclua o pagamento da inscrição.',
+    primaryLabel: 'Pagar',
+    goesToPayment: true,
+  );
 }
 
 /// Sticky da inscrição só habilita ações quando o perfil permite torneios.

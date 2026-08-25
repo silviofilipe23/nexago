@@ -389,6 +389,13 @@ abstract final class AppRoutes {
   /// "Hoje" do torneio: `/torneios/:tournamentId/hoje`
   static const String tournamentToday = '/torneios/:tournamentId/hoje';
 
+  /// Modo Focus:
+  /// `/torneios/:tournamentId/focus?secao=agora|trajetoria|grupo|chave|arena`
+  static const String tournamentFocus = '/torneios/:tournamentId/focus';
+
+  /// Query que escolhe a seção de entrada do Modo Focus.
+  static const String focusSectionQuery = 'secao';
+
   /// "Minha inscrição": `/torneios/:tournamentId/minha-inscricao`
   static const String tournamentMyRegistration =
       '/torneios/:tournamentId/minha-inscricao';
@@ -424,6 +431,10 @@ abstract final class AppRoutes {
   static const String tournamentRegistration =
       '/torneios/:tournamentId/inscricao';
 
+  /// Pagamento da inscrição: `/torneios/:tournamentId/inscricao/pagamento`
+  static const String tournamentRegistrationPayment =
+      '/torneios/:tournamentId/inscricao/pagamento';
+
   /// PIX da inscrição: `/torneios/:tournamentId/inscricao/pix`
   static const String tournamentRegistrationPix =
       '/torneios/:tournamentId/inscricao/pix';
@@ -431,6 +442,10 @@ abstract final class AppRoutes {
   /// Sucesso da inscrição: `/torneios/:tournamentId/inscricao/sucesso`
   static const String tournamentRegistrationSuccess =
       '/torneios/:tournamentId/inscricao/sucesso';
+
+  /// Convite de dupla por LINK (parceiro sem conta): `/convite-dupla/:externalInviteId`
+  static const String tournamentExternalInvite =
+      '/convite-dupla/:externalInviteId';
 
   /// Convite de parceiro para torneio: `/torneios-convite/:inviteId`
   static const String tournamentPartnerInvite =
@@ -644,6 +659,7 @@ abstract final class AppRouteNames {
   static const String tournamentCategoryView = 'tournamentCategoryView';
   static const String tournamentGroupView = 'tournamentGroupView';
   static const String tournamentToday = 'tournamentToday';
+  static const String tournamentFocus = 'tournamentFocus';
   static const String tournamentMyRegistration = 'tournamentMyRegistration';
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';
@@ -652,10 +668,14 @@ abstract final class AppRouteNames {
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';
   static const String tournamentRegistration = 'tournamentRegistration';
+  static const String tournamentRegistrationPayment =
+      'tournamentRegistrationPayment';
   static const String tournamentRegistrationPix = 'tournamentRegistrationPix';
   static const String tournamentRegistrationSuccess =
       'tournamentRegistrationSuccess';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
+  static const String tournamentExternalInvite =
+      'tournamentExternalInvite';
   static const String leagueDetail = 'leagueDetail';
   static const String tournamentDiscoveryList = 'tournamentDiscoveryList';
   static const String athleteRanking = 'athleteRanking';

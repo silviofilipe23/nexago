@@ -88,10 +88,14 @@
               <div class="rg-step-title">
                 <span class="rg-step-num">2</span>
                 <h2>Uniforme</h2>
-                @if (uniformSaved()) {
-                  <span class="rg-uniform-status rg-uniform-status--ok">Salvo</span>
-                } @else if (registration()) {
-                  <span class="rg-uniform-status">Pendente</span>
+                @if (registration()) {
+                  @if (savingUniform()) {
+                    <span class="rg-uniform-status">Salvando…</span>
+                  } @else if (uniformSaved()) {
+                    <span class="rg-uniform-status rg-uniform-status--ok">Salvo</span>
+                  } @else if (!uniformSaveFailed()) {
+                    <span class="rg-uniform-status">Pendente</span>
+                  }
                 }
               </div>
 
@@ -103,15 +107,20 @@
                 />
               }
 
-              <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="savingUniform()" (valueChange)="onUniformChange($event)" />
+              @if (uniformSaveFailed()) {
+                <app-nx-inline-message
+                  class="rg-uniform-error"
+                  heading="Não foi possível salvar o uniforme"
+                  body="Sua escolha continua aqui na tela — só não chegou na inscrição."
+                  actionLabel="Tentar novamente"
+                  (action)="retryUniformSave()"
+                />
+              }
+
+              <app-uniform-form [category]="cat" [value]="uniform()!" (valueChange)="onUniformChange($event)" />
 
               @if (registration()) {
-                <button type="button" class="rg-btn-ghost rg-btn-save-uniform" [disabled]="savingUniform() || uniformSaved()" (click)="saveUniform()">
-                  @if (savingUniform()) {
-                    <app-nx-spinner [size]="14" />
-                  }
-                  {{ savingUniform() ? 'Salvando…' : uniformSaved() ? 'Uniforme salvo' : 'Salvar uniforme' }}
-                </button>
+                <p class="rg-uniform-note">Sua escolha é salva sozinha — não precisa confirmar.</p>
               } @else {
                 <p class="rg-uniform-note">Seu uniforme é enviado junto com a reserva da vaga.</p>
               }
@@ -329,6 +338,9 @@
                       <span class="rg-option-copy">
                         <span class="rg-option-title">{{ p.displayName }}</span>
                         <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
+                        @if (partnerMissingGender(p)) {
+                          <span class="rg-option-warn">Sem gênero no perfil — precisa completar para aceitar o convite</span>
+                        }
                       </span>
                       <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
                         @if (invitingId() === p.id) {
@@ -355,6 +367,15 @@
               <button type="button" class="rg-btn-primary" (click)="goToPayment()">Ir para pagamento</button>
             } @else {
               <p class="rg-empty-inline">Inscrição confirmada e paga — nos vemos na quadra! 🎾</p>
+              <button type="button" class="rg-btn-primary" (click)="openShareDialog()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+                </svg>
+                Compartilhar no story
+              </button>
             }
           </section>
         </div>
@@ -433,6 +454,23 @@
           [teamName]="registration()?.teamName ?? null"
           (closed)="closeInviteDialog()"
           (shared)="onExternalInviteShared($event)"
+        />
+      }
+
+      @if (showShareDialog() && shareData(); as share) {
+        <app-registration-share-dialog [data]="share" (closed)="closeShareDialog()" />
+      }
+
+      @if (levelConfirmationPrompt(); as prompt) {
+        <app-nx-blocking-dialog
+          tone="info"
+          role="dialog"
+          heading="Confirme seu nível"
+          [body]="'Você vai se inscrever como ' + prompt.levelLabel + ' em ' + prompt.sportLabel + '. Após a inscrição, o nível só poderá subir.'"
+          primaryLabel="Confirmar e continuar"
+          secondaryLabel="Ajustar nível"
+          (primary)="confirmLevelPrompt()"
+          (secondary)="adjustLevelPrompt()"
         />
       }
     </div>

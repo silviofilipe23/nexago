@@ -171,6 +171,67 @@ void main() {
     });
   });
 
+  group('multi-day event', () {
+    // Retrato do torneio seed de DEV: 20/08 08:00 a 23/08 20:00 (BRT).
+    final start = DateTime(2026, 8, 20, 8);
+    final end = DateTime(2026, 8, 23, 20);
+
+    test('isTournamentEventDay true on the first day', () {
+      expect(
+        isTournamentEventDay(
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 8, 20, 10),
+        ),
+        isTrue,
+      );
+    });
+
+    test('isTournamentEventDay true on a middle day', () {
+      expect(
+        isTournamentEventDay(
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 8, 21, 10),
+        ),
+        isTrue,
+      );
+    });
+
+    test('isTournamentEventDay true on the last day', () {
+      expect(
+        isTournamentEventDay(
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 8, 23, 10),
+        ),
+        isTrue,
+      );
+    });
+
+    test('isTournamentEventDay false before it starts', () {
+      expect(
+        isTournamentEventDay(
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 8, 19, 23),
+        ),
+        isFalse,
+      );
+    });
+
+    test('isTournamentEventDay false after the effective end', () {
+      expect(
+        isTournamentEventDay(
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 8, 23, 21),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   test('resolveListingStatus derives almostFull from spots', () {
     final status = resolveListingStatus(
       spotsLeft: 2,
@@ -231,5 +292,30 @@ void main() {
   test('isRegistrationListingClosed detects closed status', () {
     expect(isRegistrationListingClosed('closed'), isTrue);
     expect(isRegistrationListingClosed('open'), isFalse);
+  });
+
+  group('isTournamentTerminal', () {
+    test('true only for completed and ended (cancelled maps to ended)', () {
+      expect(isTournamentTerminal(TournamentListingStatus.completed), isTrue);
+      expect(isTournamentTerminal(TournamentListingStatus.ended), isTrue);
+      expect(
+        isTournamentTerminal(listingStatusFromRaw('cancelled')!),
+        isTrue,
+      );
+    });
+
+    test('false for every non-terminal status', () {
+      expect(isTournamentTerminal(TournamentListingStatus.scheduled), isFalse);
+      expect(isTournamentTerminal(TournamentListingStatus.open), isFalse);
+      expect(
+        isTournamentTerminal(TournamentListingStatus.almostFull),
+        isFalse,
+      );
+      expect(isTournamentTerminal(TournamentListingStatus.live), isFalse);
+      expect(
+        isTournamentTerminal(TournamentListingStatus.bracketsReady),
+        isFalse,
+      );
+    });
   });
 }

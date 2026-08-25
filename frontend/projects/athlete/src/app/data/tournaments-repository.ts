@@ -63,6 +63,8 @@ export interface TournamentCategoryOffer {
   maxTeams: number;
   spotsLeft: number;
   level: string | null;
+  /** Piso da categoria (nível mínimo exigido); `null` = sem piso, qualquer nível abaixo do teto entra. */
+  minLevel: string | null;
   genderType: TournamentGenderCat;
   /** Categoria de EQUIPE nomeada (trio/quarteto/quinteto): 3–5. `null` = dupla clássica. */
   teamSize: number | null;
@@ -140,6 +142,7 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     maxTeams,
     spotsLeft: numberOf(o['spotsLeft']) ?? maxTeams,
     level: optionalStr(o['level']),
+    minLevel: optionalStr(o['minLevel']),
     genderType: genderCatOf(o['genderType']),
     teamSize,
     genderFree,
@@ -391,6 +394,13 @@ export function categoryAcceptsRegistration(
  *  a data de início (não existe um campo dedicado de abertura de inscrição no schema). */
 export function registrationOpensAt(t: Pick<TournamentSummary, 'rawStatus' | 'startAt'>): Date | null {
   return t.rawStatus === 'scheduled' ? t.startAt : null;
+}
+
+/** O torneio já acabou pra quem opera: finalizado/concluído pelo organizador ou cancelado.
+ *  Só o status **gravado** conta — nada de `resolveTournamentRawStatus`, que deriva "acabou"
+ *  do `endAt`: um evento que fura o horário previsto sumiria da mesa no meio da rodada. */
+export function tournamentIsFinishedOrCancelled(t: Pick<TournamentSummary, 'rawStatus' | 'isCancelled'>): boolean {
+  return t.isCancelled || t.rawStatus === 'completed' || t.rawStatus === 'ended';
 }
 
 /** Torneios ocultos da listagem pública — rascunho/cancelado (`isPubliclyListedTournament`). */

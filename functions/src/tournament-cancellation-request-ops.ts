@@ -1,8 +1,13 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {assertCanManageTournament} from "./tournament-acl";
-import {deliverNotificationToUser} from "./notification-delivery";
+import {assertCanManageTournament, tournamentManagerUids} from "./tournament-acl";
+import {
+  deliverNotificationToUser,
+  WEB_PUSH_PUBLIC_KEY,
+  WEB_PUSH_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
+} from "./notification-delivery";
 import {
   artifactsInscriptionsPath,
   artifactsTeamsPath,
@@ -69,7 +74,9 @@ async function loadRegistrationContext(
  * plataforma não estorna: aprovado, o pedido só libera a vaga — a devolução do
  * valor é combinada entre os dois fora da plataforma.
  */
-export const requestRegistrationCancellation = onCall(async (request) => {
+export const requestRegistrationCancellation = onCall({
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
@@ -120,11 +127,9 @@ export const requestRegistrationCancellation = onCall(async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // O organizador não tem inbox (o sino do portal é decorativo): o push avisa
-  // agora e o badge na tela de inscrições é o que garante que ele veja depois.
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
-  const managerId = String(tournamentSnap.data()?.managerId ?? "").trim();
-  if (managerId) {
+  const recipients = await tournamentManagerUids(db, tournamentId, tournamentSnap.data());
+  if (recipients.length > 0) {
     const athleteSnap = await db.doc(`users/${uid}`).get();
     const athleteName =
       String(athleteSnap.data()?.fullName ?? athleteSnap.data()?.name ?? "").trim() ||
@@ -136,19 +141,23 @@ export const requestRegistrationCancellation = onCall(async (request) => {
     const categoryLabel = String(
       category?.categoryName ?? category?.name ?? "",
     ).trim();
-    await deliverNotificationToUser({
-      userId: managerId,
-      title: "Pedido de cancelamento",
-      body: `${athleteName} pediu o cancelamento da inscrição${
-        categoryLabel ? ` na categoria ${categoryLabel}` : ""
-      }.`,
-      type: "tournament_cancellation_requested",
-      data: {
-        tournamentId,
-        registrationId,
-        url: `/painel/eventos/${tournamentId}/inscricoes`,
-      },
-    }).catch(() => undefined);
+    await Promise.all(
+      recipients.map((recipientUid) =>
+        deliverNotificationToUser({
+          userId: recipientUid,
+          title: "Pedido de cancelamento",
+          body: `${athleteName} pediu o cancelamento da inscrição${
+            categoryLabel ? ` na categoria ${categoryLabel}` : ""
+          }.`,
+          type: "tournament_cancellation_requested",
+          data: {
+            tournamentId,
+            registrationId,
+            url: `/painel/eventos/${tournamentId}/inscricoes`,
+          },
+        }).catch(() => undefined),
+      ),
+    );
   }
 
   logger.info("Tournament cancellation requested", {

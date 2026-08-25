@@ -9,29 +9,41 @@ class RankingClassificationHeader extends StatelessWidget {
     super.key,
     required this.mode,
     required this.count,
+    this.yearLabel,
   });
 
   final RankingListMode mode;
   final int count;
 
+  /// Temporada aberta ('GERAL', '2026'…). Vem do filtro, que agora mora todo
+  /// dentro da folha — este é o único lugar da tela que diz qual é o recorte.
+  final String? yearLabel;
+
   @override
   Widget build(BuildContext context) {
     final unit = mode == RankingListMode.teams ? 'DUPLAS' : 'ATLETAS';
+    final meta =
+        yearLabel == null ? '$count $unit' : '$yearLabel · $count $unit';
 
     return Row(
       children: [
-        Text(
-          'Classificação',
-          style: AppTypography.soraRegular(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-            letterSpacing: -0.3,
+        // O título cede espaço primeiro: com fonte ampliada o contador é a
+        // informação que não pode virar reticências.
+        Expanded(
+          child: Text(
+            'Classificação',
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+              letterSpacing: -0.3,
+            ),
           ),
         ),
-        Spacer(),
+        SizedBox(width: 12),
         Text(
-          '$count $unit',
+          meta,
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w600,

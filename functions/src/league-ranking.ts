@@ -1,6 +1,14 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
-import {isMatchCompleted} from "./match-status";
+import * as logger from "firebase-functions/logger";
+import {isMatchCompleted, isWinnerInMatch, normalizeMatchType} from "./match-status";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath} from "./firebase-paths";
+import {extractTeamMemberUids} from "./tournament-team-category";
+import {categoryPreset} from "./category-presets";
+import {
+  type EliminationTierMap,
+  placementTiersFromMatches,
+} from "./bracket-placement-tiers";
+import {findCategory} from "./tournament-registration-guards";
 
 const DEFAULT_LEAGUE_POINTS: Record<string, number> = {
   "1": 450,
@@ -8,6 +16,8 @@ const DEFAULT_LEAGUE_POINTS: Record<string, number> = {
   "3": 180,
   "4": 120,
   quarters: 80,
+  r16: 60,
+  r32: 45,
   groups: 40,
 };
 
@@ -16,7 +26,7 @@ export type CountingStagesMode =
   | "best_3_of_5"
   | "all_stages";
 
-export type LeaguePlacementBucket = "quarters" | "groups";
+export type LeaguePlacementBucket = "quarters" | "r16" | "r32" | "groups";
 
 export interface LeaguePlacementAward {
   teamId: string;
@@ -34,6 +44,12 @@ export interface LeaguePlacementContext {
    * de 4 (round 1 = semifinal), comportamento legado.
    */
   knockoutFinalRound?: number;
+  /**
+   * Degraus por rodada eliminatória (`bracket-placement-tiers`). Ausente =
+   * comportamento legado (tudo em `quarters`) — mantido para que qualquer
+   * chamador não migrado continue premiando como antes, nunca a zero.
+   */
+  tiers?: EliminationTierMap;
 }
 
 function leagueTeamRankingsPath(projectId: string): string {
@@ -47,9 +63,7 @@ function leagueAthleteRankingsPath(projectId: string): string {
 
 
 
-export function normalizeMatchType(raw: unknown): string {
-  return String(raw ?? "").trim().toLowerCase().replace(/_/g, " ");
-}
+export {normalizeMatchType};
 
 function isFinalMatchType(matchType: string): boolean {
   return (
@@ -148,6 +162,20 @@ function winnerAndLoser(match: Record<string, unknown>): {
 
   const teamAId = (match.teamAId as string | undefined)?.trim() ?? "";
   const teamBId = (match.teamBId as string | undefined)?.trim() ?? "";
+  // Vencedor fora dos dois lados: NENHUMA colocação é concedida. Deduzir o
+  // perdedor por eliminação premiaria um time que não jogou a partida (e o
+  // outro lado levaria a colocação do perdedor sem ter perdido).
+  if (!isWinnerInMatch(winnerId, teamAId, teamBId)) {
+    logger.warn(
+      "league-ranking: winnerId fora da partida — colocação não concedida " +
+        `(match=${(match.id as string | undefined) ?? "?"}, ` +
+        `torneio=${(match.tournamentId as string | undefined) ?? "?"}, ` +
+        `categoria=${(match.categoryId as string | undefined) ?? "?"}, ` +
+        `winnerId=${winnerId}, teamAId=${teamAId}, teamBId=${teamBId})`,
+    );
+    return null;
+  }
+
   const loserId = winnerId === teamAId ? teamBId : teamAId;
   if (!loserId) return null;
 
@@ -159,13 +187,16 @@ function resolveDoubleEliminationLbPlacement(
   lbRound: number,
   maxLbRound: number,
   hasThirdPlaceMatch: boolean,
+  tiers: EliminationTierMap | undefined,
 ): LeaguePlacementAward {
+  // Degrau da fase alcançada; sem mapa, o balde legado de quartas.
+  const tier = tiers?.lb[lbRound] ?? "quarters";
   // Com disputa de 3º lugar — o caso de TODAS as plantas do NexaGO — o pódio
   // sai só dela: o perdedor da final da LB ainda joga o 3º lugar, e quem cai
   // antes disso está eliminado ANTES do pódio (5º ou pior). Sem essa partida
   // (chave legada), a final da LB decide o 3º e a rodada anterior o 4º.
   if (hasThirdPlaceMatch || maxLbRound <= 0) {
-    return {teamId: loserId, bucket: "quarters"};
+    return {teamId: loserId, bucket: tier};
   }
   if (lbRound === maxLbRound) {
     return {teamId: loserId, place: 3};
@@ -173,7 +204,7 @@ function resolveDoubleEliminationLbPlacement(
   if (lbRound === maxLbRound - 1 && maxLbRound >= 2) {
     return {teamId: loserId, place: 4};
   }
-  return {teamId: loserId, bucket: "quarters"};
+  return {teamId: loserId, bucket: tier};
 }
 
 /** Resolve colocações de liga concedidas ao encerrar uma partida. */
@@ -211,6 +242,7 @@ export function resolveLeaguePlacementsFromMatch(
           lbRound,
           maxLbRound,
           context.hasThirdPlaceMatch,
+          context.tiers,
         ),
       ];
     }
@@ -245,8 +277,12 @@ export function resolveLeaguePlacementsFromMatch(
     }
     if (round > 0) {
       // Qualquer outra rodada do mata-mata (1ª rodada, oitavas, quartas…):
-      // eliminado antes da semifinal.
-      return [{teamId: loserId, bucket: "quarters"}];
+      // eliminado antes da semifinal. O degrau sai da faixa de colocação que a
+      // rodada implica — 16-avos numa chave de 32, quartas numa de 8. Sem o
+      // mapa (chave sem fiação), cai no balde legado.
+      return [
+        {teamId: loserId, bucket: context.tiers?.knockout[round] ?? "quarters"},
+      ];
     }
   }
 
@@ -325,6 +361,7 @@ export interface CategoryBracketContext {
   maxLbRound: number;
   knockoutFinalRound: number;
   hasThirdPlaceMatch: boolean;
+  tiers: EliminationTierMap;
 }
 
 /** Deriva o contexto da chave das partidas da categoria (puro, testável). */
@@ -354,7 +391,13 @@ export function bracketContextFromMatches(
       if (round > knockoutFinalRound) knockoutFinalRound = round;
     }
   }
-  return {isDoubleElimination, maxLbRound, knockoutFinalRound, hasThirdPlaceMatch};
+  return {
+    isDoubleElimination,
+    maxLbRound,
+    knockoutFinalRound,
+    hasThirdPlaceMatch,
+    tiers: placementTiersFromMatches(matches),
+  };
 }
 
 export async function loadCategoryBracketContext(
@@ -379,13 +422,7 @@ export async function loadTeamAthleteIds(
 ): Promise<string[]> {
   const snap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   if (!snap.exists) return [];
-  const data = snap.data() ?? {};
-  const ids = new Set<string>();
-  const player1Id = (data.player1Id as string | undefined)?.trim();
-  const player2Id = (data.player2Id as string | undefined)?.trim();
-  if (player1Id) ids.add(player1Id);
-  if (player2Id && player2Id !== player1Id) ids.add(player2Id);
-  return [...ids];
+  return extractTeamMemberUids(snap.data());
 }
 
 export async function loadPaidTeamIds(
@@ -621,6 +658,7 @@ export async function tryAwardLeagueStagePointsForMatch(
     isDoubleElimination: bracketContext.isDoubleElimination,
     maxLbRound: bracketContext.maxLbRound,
     knockoutFinalRound: bracketContext.knockoutFinalRound,
+    tiers: bracketContext.tiers,
   });
 
   let teamsUpdated = 0;
@@ -645,7 +683,11 @@ export async function tryAwardLeagueStagePointsForMatch(
   }
 
   if (isNonGroupCompletedMatch(match)) {
-    teamsUpdated += await tryAwardGroupsPlacements(db, projectId, baseParams);
+    // Livre não concede participação (D6 emendada) — mesma regra do motor geral.
+    const preset = categoryPreset(findCategory(tournament as never, categoryId));
+    if (preset?.key !== "livre") {
+      teamsUpdated += await tryAwardGroupsPlacements(db, projectId, baseParams);
+    }
   }
 
   return {awarded: teamsUpdated > 0, teamsUpdated};

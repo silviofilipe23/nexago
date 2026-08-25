@@ -15,7 +15,7 @@ import { OgFormFieldComponent } from '../../ui/form-field.component';
 import { OgIconComponent } from '../../ui/icon.component';
 import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
-import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
 import { PanelContextService } from '../../shell/panel-context.service';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 

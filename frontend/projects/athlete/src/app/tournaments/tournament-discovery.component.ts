@@ -34,7 +34,12 @@ import type {
   FilterFormat,
 } from './tournament-discovery.models';
 import { collectLeagueTournamentIds } from './tournament-league.helpers';
-import { discoveryFillPercent, discoverySpotsOf } from './tournament-discovery.spots';
+import {
+  discoveryEnrolledLabel,
+  discoveryFillPercent,
+  discoveryShowsOffer,
+  discoverySpotsOf,
+} from './tournament-discovery.spots';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -115,6 +120,8 @@ export interface CompeteLeagueCard {
   badge: CompeteBadge;
   stageViews: CompeteStageView[];
   completedCount: number;
+  /** Todas as etapas concluídas — a liga acabou, então o card também para de anunciar preço. */
+  completed: boolean;
   dateRangeLabel: string | null;
   priceRangeLabel: string | null;
   categories: DiscoveryTournament['categories'];
@@ -323,11 +330,14 @@ export class TournamentDiscoveryComponent {
         .map((id) => byId.get(id))
         .filter((t): t is DiscoveryTournament => !!t);
 
+      const completedCount = stageViews.filter((s) => s.state === 'done').length;
+
       return {
         league,
         badge: leagueBadge(allLeagueTournaments, nowMs),
         stageViews,
-        completedCount: stageViews.filter((s) => s.state === 'done').length,
+        completedCount,
+        completed: stageViews.length > 0 && completedCount === stageViews.length,
         dateRangeLabel: dateRangeLabel(allLeagueTournaments),
         priceRangeLabel: priceRangeLabel(allLeagueTournaments),
         categories: [...new Set(allLeagueTournaments.flatMap((t) => t.categories))],
@@ -500,6 +510,15 @@ export class TournamentDiscoveryComponent {
 
   protected fillPercent(t: DiscoveryTournament): number {
     return discoveryFillPercent({ filled: t.enrolledCount, total: t.spotsTotal });
+  }
+
+  /** Torneio concluído esconde vaga livre e valor da inscrição — sobra a contagem de inscritos. */
+  protected showsOffer(t: DiscoveryTournament): boolean {
+    return discoveryShowsOffer(t.status);
+  }
+
+  protected enrolledLabel(t: DiscoveryTournament): string {
+    return discoveryEnrolledLabel(t.enrolledCount, t.format);
   }
 
   protected readonly heroGradient = heroGradient;

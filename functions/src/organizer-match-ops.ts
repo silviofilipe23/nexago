@@ -17,6 +17,7 @@ import {
   isMatchCanceled,
   isMatchCompleted,
   isMatchInProgress,
+  isWinnerInMatch,
 } from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
@@ -542,7 +543,7 @@ export const callMatchToCourt = onCall(async (request) => {
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   const tournamentId = data.tournamentId as string;
-  await assertCanManageTournament(db, uid, tournamentId);
+  await assertCanScoreTournament(db, uid, tournamentId);
 
   const checkIn = data.checkIn as Record<string, Record<string, string>> | undefined;
   const a = checkIn?.teamA?.status;
@@ -625,7 +626,7 @@ export const releaseMatchAfterCheckIn = onCall(async (request) => {
   const db = getFirestore();
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
-  await assertCanManageTournament(db, uid, data.tournamentId as string);
+  await assertCanScoreTournament(db, uid, data.tournamentId as string);
 
   const checkIn = data.checkIn as Record<string, Record<string, string>> | undefined;
   const a = checkIn?.teamA?.status;
@@ -667,6 +668,15 @@ export const declareMatchWalkover = onCall(async (request) => {
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
+
+  // O vencedor tem que ser um dos dois lados: `winnerId` corrompido premia
+  // colocação a um time que não jogou e quebra ranking e rating.
+  if (!isWinnerInMatch(winnerTeamId, data.teamAId, data.teamBId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "winnerTeamId não corresponde a nenhuma das equipes da partida",
+    );
+  }
 
   const loserId =
     data.teamAId === winnerTeamId ? data.teamBId : data.teamAId;
@@ -859,6 +869,96 @@ export const updateLiveMatchScore = onCall(async (request) => {
 
   const db = getFirestore();
   return updateLiveMatchScoreCore(db, uid, request.data ?? {});
+});
+
+/**
+ * Campos que devolvem a partida ao estado "agendada", desfazendo o início.
+ *
+ * Pura e exportada para o teste conseguir travar o CONJUNTO de campos limpos:
+ * qualquer resíduo do ao vivo que sobre aqui reaparece na mesa quando a partida
+ * for reiniciada (placar do jogo anterior, saque da outra dupla, feed replayando
+ * pontos que já não existem).
+ *
+ * O agendamento (`courtId`/`courtName`/`scheduleTime`/`dayKey`) e o `checkIn`
+ * ficam de propósito: a ação é "tirar do ao vivo", não "desagendar" — a partida
+ * volta para a agenda no mesmo horário e quadra, pronta para recomeçar.
+ */
+export function revertToScheduledFields(): Record<string, unknown> {
+  return {
+    status: MatchStatus.scheduled,
+    matchStartedAt: FieldValue.delete(),
+    matchEndedAt: FieldValue.delete(),
+    liveScore: FieldValue.delete(),
+    sets: FieldValue.delete(),
+    currentSetIndex: FieldValue.delete(),
+    servingTeamId: FieldValue.delete(),
+    resultA: FieldValue.delete(),
+    resultB: FieldValue.delete(),
+    winnerId: FieldValue.delete(),
+    queueStatus: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+/**
+ * Núcleo de `revertMatchToScheduled`, testável sem o wrapper `onCall`.
+ *
+ * Operação inversa do START da mesa (`updateLiveMatchScoreCore` zerado /
+ * `callMatchToCourt`), que não existia: uma partida iniciada por engano ficava
+ * presa ao vivo, contando em `tournaments.liveMatchesNow`, e `unscheduleMatch`
+ * recusa justamente partida em andamento. Usa o MESMO guard de quem inicia
+ * (`assertCanScoreTournament`) — quem pode pôr no ar pode tirar.
+ */
+export async function revertMatchToScheduledCore(
+  db: Firestore,
+  uid: string,
+  input: Record<string, unknown>,
+): Promise<{ok: true}> {
+  const matchId = (input.matchId as string | undefined)?.trim();
+  if (!matchId) throw new HttpsError("invalid-argument", "matchId obrigatório");
+
+  const projectId = getFirebaseProjectId();
+  const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
+  const tournamentId = data.tournamentId as string;
+  await assertCanScoreTournament(db, uid, tournamentId);
+
+  // Reverter uma partida encerrada desfaria também o avanço de chave e a
+  // pontuação de liga que o trigger de conclusão já propagou — fora de escopo.
+  if (isMatchCompleted(data.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Partida já encerrada não pode ser tirada do ao vivo",
+    );
+  }
+  if (!isMatchInProgress(data.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Só uma partida ao vivo pode ser tirada do ar",
+    );
+  }
+
+  await ref.update(revertToScheduledFields());
+
+  // Sem apagar o histórico, o feed da mesa replaya os pontos da tentativa
+  // anterior e o "desfazer último ponto" mira um evento fora do placar atual.
+  const events = await ref.collection("pointEvents").get();
+  await Promise.all(events.docs.map((doc) => doc.ref.delete()));
+
+  await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
+
+  return {ok: true};
+}
+
+/**
+ * Callable para o organizador/mesário tirar uma partida do ao vivo e devolvê-la
+ * para "agendada". Ver `revertMatchToScheduledCore`.
+ */
+export const revertMatchToScheduled = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const db = getFirestore();
+  return revertMatchToScheduledCore(db, uid, request.data ?? {});
 });
 
 export const validateMatchResult = onCall(async (request) => {

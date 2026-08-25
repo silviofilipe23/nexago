@@ -5,6 +5,8 @@ import '../../../arenas/domain/arena_club_session.dart';
 import '../../../arenas/domain/my_booking_item.dart';
 import '../../../friendly_match/domain/friendly_match_models.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/profiles/app_user_profile.dart';
+import '../../../../core/text/safe_display_text.dart';
 import '../../../tournaments/domain/my_tournaments_models.dart';
 import '../../../tournaments/domain/tournament_discovery_models.dart';
 import '../../../tournaments/domain/tournament_listing_status.dart';
@@ -169,15 +171,6 @@ AthleteAgendaItem? mapBookingToAgendaItem(
   );
 }
 
-String initialsFromDisplayName(String name) {
-  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) {
-    return parts.first.substring(0, 1).toUpperCase();
-  }
-  return '${parts.first[0]}${parts.elementAt(1)[0]}'.toUpperCase();
-}
-
 ({String displayName, String initials})? pickAgendaPartnerPreview(
   MyBookingItem item,
   String? currentAthleteUid,
@@ -194,7 +187,7 @@ String initialsFromDisplayName(String name) {
     if (raw == null || raw.isEmpty) continue;
     final parts = raw.split(RegExp(r'\s+'));
     final short = parts.length >= 2
-        ? '${parts.first} ${parts.last[0]}.'
+        ? '${parts.first} ${firstGraphemesUpper(parts.last, 1)}.'
         : parts.first;
     return (displayName: short, initials: initialsFromDisplayName(raw));
   }

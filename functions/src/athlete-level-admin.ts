@@ -24,6 +24,7 @@
 
 import {getAuth} from "firebase-admin/auth";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
+import type {Firestore} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {callerCanAccessBackoffice} from "./auth-roles";
@@ -32,8 +33,9 @@ import {
   LEVEL_CODES,
   levelDisplayLabel,
   levelRank,
+  tournamentSportToLevelSportCode,
 } from "./category-level-eligibility";
-import {getFirebaseProjectId} from "./firebase-paths";
+import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
   RATED_SPORT_CODES,
@@ -61,6 +63,11 @@ export const LEVEL_CHANGE_REASON_MAX = 500;
 
 /** Quantas entradas de `levelHistory` o diálogo mostra. */
 const HISTORY_LIMIT = 5;
+
+/** Mensagem repetida nos dois pontos que barram quem não é admin nem
+ *  organizador-em-promoção — extraída pra não divergir entre eles. */
+const ADMIN_ONLY_LEVEL_CHANGE_MESSAGE =
+  "Apenas administradores da plataforma podem alterar o nível de um atleta.";
 
 export type LevelChangeDirection = "seed" | "up" | "down" | "same";
 
@@ -146,6 +153,145 @@ export function planLevelChange(params: {
   };
 }
 
+export type LevelChangeAuthorizationResult =
+  | {mode: "admin"}
+  | {mode: "organizer"}
+  | {mode: "denied"; code: "permission-denied"; message: string};
+
+/**
+ * Decisão pura de FASE 1 de `setAthleteLevel` — quem pode agir, sem precisar
+ * do nível atual do atleta: admin da plataforma (qualquer torneio, sem
+ * `tournamentId`) OU organizador dono de um torneio DO MESMO ESPORTE em que
+ * o atleta tem inscrição ATIVA (achado da Task 1: cancelamento é hard delete
+ * do doc em `artifacts/.../inscriptions`, não há campo de status, então
+ * "ativa" == doc existe).
+ *
+ * A checagem de esporte (`tournamentSportCode === requestSportCode`) existe
+ * porque sem ela um organizador dono de um torneio de esporte A promoveria
+ * um atleta em QUALQUER esporte B só por ele estar inscrito nesse torneio —
+ * furo de autorização real (não é o mesmo "nível" que ele viu jogar).
+ *
+ * Direção (subir vs. descer) NÃO entra aqui de propósito: ela depende do
+ * nível atual do atleta, que só é lido DEPOIS que esta função autoriza —
+ * ler `users/{uid}` antes da autorização vira oráculo de existência pra
+ * quem não tem privilégio nenhum. Ver `planOrganizerPromotionDirection`
+ * (fase 2, chamada só por quem passou aqui).
+ *
+ * Checagens em cascata da mais básica pra mais específica (tournamentId →
+ * dono → esporte → inscrição): quem falha num degrau de baixo nunca chega
+ * ao próximo, então a mensagem devolvida é sempre a do motivo mais
+ * fundamental.
+ *
+ * Sem I/O de propósito — quem chama (`assertAdminOrPromotingOrganizer`)
+ * resolve os fatos (claims, doc do torneio, query de inscrições) e só então
+ * decide aqui, testável sem Firestore/Auth.
+ */
+export function planLevelChangeAuthorization(params: {
+  isAdmin: boolean;
+  tournamentId: string;
+  tournamentManagerId: string | null;
+  callerUid: string;
+  tournamentSportCode: string | null;
+  requestSportCode: string;
+  athleteHasActiveRegistration: boolean;
+}): LevelChangeAuthorizationResult {
+  const {
+    isAdmin,
+    tournamentId,
+    tournamentManagerId,
+    callerUid,
+    tournamentSportCode,
+    requestSportCode,
+    athleteHasActiveRegistration,
+  } = params;
+
+  if (isAdmin) return {mode: "admin"};
+
+  if (!tournamentId) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message: ADMIN_ONLY_LEVEL_CHANGE_MESSAGE,
+    };
+  }
+
+  if (!tournamentManagerId || tournamentManagerId !== callerUid) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message: "Você não é o organizador responsável por este torneio.",
+    };
+  }
+
+  if (!tournamentSportCode || tournamentSportCode !== requestSportCode) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message:
+        "Este torneio não é do esporte informado — o organizador só promove " +
+        "no esporte do próprio torneio.",
+    };
+  }
+
+  if (!athleteHasActiveRegistration) {
+    return {
+      mode: "denied",
+      code: "permission-denied",
+      message: "Este atleta não tem inscrição ativa neste torneio.",
+    };
+  }
+
+  return {mode: "organizer"};
+}
+
+/**
+ * Decisão pura de FASE 2 — só chamada depois que a fase 1 autorizou um
+ * organizador (admin nunca passa por aqui: pode ir em qualquer direção,
+ * como sempre pôde). `currentRank == null` (esporte sem nível declarado
+ * ainda) não é violação: não há degrau anterior pra "descer" — organizador
+ * pode semear o 1º nível daquele esporte.
+ */
+export function planOrganizerPromotionDirection(params: {
+  currentLevel: string | null;
+  targetLevel: string;
+}): {ok: true} | {ok: false; message: string} {
+  const currentRank = levelRank(params.currentLevel);
+  const targetRank = levelRank(params.targetLevel);
+  if (currentRank != null && targetRank != null && targetRank <= currentRank) {
+    return {
+      ok: false,
+      message: "Organizador só pode promover — o nível de um atleta nunca desce.",
+    };
+  }
+  return {ok: true};
+}
+
+/**
+ * Metadados de auditoria (`reason`/`note`/`actor`/`tournamentId`) do
+ * `levelHistory` — os únicos campos que mudam entre o caminho admin e o do
+ * organizador. O resto do doc (rating/RD/partidas) vem do `plan` de
+ * `planLevelChange`, sem duplicar aquela lógica aqui.
+ */
+export function levelHistoryAuditFields(params: {
+  mode: "admin" | "organizer";
+  callerUid: string;
+  note: string;
+  tournamentId: string;
+}): {reason: string; note: string | null; actor: string; tournamentId?: string} {
+  const {mode, callerUid, note, tournamentId} = params;
+  if (mode === "admin") {
+    return {reason: "admin_manual", note, actor: `backoffice:${callerUid}`};
+  }
+  // Organizador não é obrigado a digitar motivo (o gate real é a inscrição +
+  // a direção, validados antes de chegar aqui) — `note` fica `null` se vazio.
+  return {
+    reason: "organizer_promotion",
+    note: note || null,
+    actor: `organizer:${callerUid}`,
+    tournamentId,
+  };
+}
+
 function levelsBySportOf(data: Record<string, unknown> | undefined): Record<string, string> {
   const onboarding = data?.["sportOnboarding"];
   const bySport =
@@ -161,6 +307,68 @@ function levelsBySportOf(data: Record<string, unknown> | undefined): Record<stri
     }
   }
   return out;
+}
+
+/**
+ * Nível "efetivo" do atleta pro esporte, com o MESMO fallback usado pelo resto do backend
+ * (`resolveAthleteLevelRank` em category-level-eligibility.ts, autoritativa pra elegibilidade de
+ * categoria): per-sport primeiro, `level` legado global depois. Existe SÓ pra alimentar a
+ * checagem de direção do caminho organizador (`planOrganizerPromotionDirection`) — achado do
+ * review (F5): sem o fallback, um atleta cujo nível só existe no campo legado tinha
+ * `currentLevel` `null` ali, virava "seed" (sem degrau anterior pra violar) e o organizador
+ * conseguia setar um alvo ABAIXO do rank que `resolveAthleteLevelRank` já considerava dele.
+ *
+ * Não usada no restante de `setAthleteLevel` (o `currentLevel` que alimenta `planLevelChange` —
+ * `fromLevel`, direção exibida, realinhamento de rating — continua só per-sport, preservando o
+ * comportamento byte-idêntico do caminho admin documentado no topo do arquivo).
+ */
+export function effectiveCurrentLevelForSport(
+  data: Record<string, unknown> | undefined,
+  sportCode: string,
+): string | null {
+  const perSport = levelsBySportOf(data)[sportCode];
+  if (perSport) return perSport;
+  const legacy = data?.["level"];
+  return typeof legacy === "string" && legacy.trim() ? legacy.trim() : null;
+}
+
+/**
+ * Corpo de `sportOnboarding` da escrita de perfil de `setAthleteLevel` — o nível novo sempre, e
+ * o lock da janela de calibração SÓ no caminho organizador (achado do review, F1).
+ *
+ * Sem isto, o organizador promovia e o atleta — ainda destravado, já que o lock só é gravado
+ * pelo trigger assíncrono `onInscriptionWrittenLockLevels` (`tournament-level-lock.ts`) reagindo
+ * à MESMA inscrição — podia abrir "Esportes e níveis" e se autocorrigir pra baixo antes desse
+ * trigger rodar, desfazendo a promoção que o organizador acabou de confirmar ("o nível nunca
+ * desce"). A justificativa pra travar aqui, síncrono, já está provada dentro da autorização: o
+ * caminho organizador só chega até aqui depois de `assertAdminOrPromotingOrganizer` verificar
+ * `athleteHasActiveRegistration` PRA ESTE esporte (`:398`) — exatamente a condição que
+ * `onInscriptionWrittenLockLevels` usa pra travar. Não há motivo pra esperar o trigger quando a
+ * prova já está em mãos.
+ *
+ * `levelChangeBy` (achado do review, F4): marcador TRANSIENTE gravado nos dois caminhos —
+ * `"admin"` ou `"organizer"` — pra `onUserWrittenTrackLevelChanges` (rating-triggers.ts)
+ * distinguir "esta escrita em `levelsBySport` é privilegiada" de "isto é o próprio atleta
+ * mexendo no perfil", sem depender de `athleteRatings` existir (que sempre foi um proxy
+ * ambíguo: um self-correction genuíno dentro da janela — o caso mais comum, atleta que nunca
+ * jogou partida rateada — também não tem doc de rating). O trigger lê o marcador na MESMA
+ * escrita e o apaga em seguida; as rules (`levelChangeByUnchanged()` em `firestore.rules`)
+ * impedem o cliente de gravá-lo ou preservá-lo por conta própria.
+ */
+export function levelProfileWriteFields(params: {
+  mode: "admin" | "organizer";
+  sportCode: string;
+  level: string;
+}): Record<string, unknown> {
+  const {mode, sportCode, level} = params;
+  const sportOnboarding: Record<string, unknown> = {
+    levelsBySport: {[sportCode]: level},
+    levelChangeBy: mode,
+  };
+  if (mode === "organizer") {
+    sportOnboarding.levelLocked = {[sportCode]: true};
+  }
+  return sportOnboarding;
 }
 
 function primarySportOf(data: Record<string, unknown> | undefined): string | null {
@@ -179,12 +387,95 @@ async function assertBackofficeCaller(callerUid: string | undefined): Promise<st
   }
   const caller = await getAuth().getUser(callerUid);
   if (!callerCanAccessBackoffice(caller)) {
-    throw new HttpsError(
-      "permission-denied",
-      "Apenas administradores da plataforma podem alterar o nível de um atleta.",
-    );
+    throw new HttpsError("permission-denied", ADMIN_ONLY_LEVEL_CHANGE_MESSAGE);
   }
   return caller.email ?? callerUid;
+}
+
+/** Claims resolvidas do caller — só o que a fase 1 precisa saber dele. */
+export interface CallerPrivilege {
+  isAdmin: boolean;
+  actorLabel: string;
+}
+
+/** Resolução padrão via Firebase Auth — trocável em teste (ver
+ *  `assertAdminOrPromotingOrganizer`) pra não depender do Admin SDK real. */
+async function resolveCallerPrivilegeFromAuth(callerUid: string): Promise<CallerPrivilege> {
+  const caller = await getAuth().getUser(callerUid);
+  return {isAdmin: callerCanAccessBackoffice(caller), actorLabel: caller.email ?? callerUid};
+}
+
+/**
+ * FASE 1 de `setAthleteLevel` — resolve fatos (claims do caller, doc do
+ * torneio, query de inscrições) e delega a decisão a
+ * `planLevelChangeAuthorization`, lançando `HttpsError` no código/mensagem
+ * exatos que ela devolveu.
+ *
+ * Contrato de segurança: esta função é chamada ANTES de qualquer leitura de
+ * `users/{athleteUid}` em `setAthleteLevel` — de propósito. Sem essa ordem,
+ * um caller sem privilégio nenhum conseguiria diferenciar "uid existe"
+ * (→ `failed-precondition` de um passo mais adiante) de "uid não existe" só
+ * chamando o callable com uids arbitrários, virando oráculo de existência.
+ * Como esta função nunca toca `users/*` (só `tournaments/*` e a query de
+ * inscrições), ela não pode vazar essa informação mesmo se chamada primeiro.
+ *
+ * Só toca Firestore/Auth quando precisa: admin nunca lê torneio/inscrição;
+ * sem `tournamentId`/dono errado/esporte errado nunca chega a consultar
+ * inscrições.
+ *
+ * `resolveCallerPrivilege` é injetável só pra teste (mock sem Admin SDK real
+ * — produção sempre usa `resolveCallerPrivilegeFromAuth`).
+ */
+export async function assertAdminOrPromotingOrganizer(params: {
+  db: Firestore;
+  callerUid: string;
+  tournamentId: string;
+  athleteUid: string;
+  sportCode: string;
+  resolveCallerPrivilege?: (callerUid: string) => Promise<CallerPrivilege>;
+}): Promise<{mode: "admin" | "organizer"; actorLabel: string}> {
+  const {db, callerUid, tournamentId, athleteUid, sportCode} = params;
+  const resolveCallerPrivilege = params.resolveCallerPrivilege ?? resolveCallerPrivilegeFromAuth;
+
+  const {isAdmin, actorLabel} = await resolveCallerPrivilege(callerUid);
+
+  let tournamentManagerId: string | null = null;
+  let tournamentSportCode: string | null = null;
+  let athleteHasActiveRegistration = false;
+
+  if (!isAdmin && tournamentId) {
+    const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+    const tournamentData = tournamentSnap.data();
+    const managerId = tournamentData?.["managerId"];
+    tournamentManagerId = typeof managerId === "string" && managerId.trim() ? managerId : null;
+    tournamentSportCode = tournamentSportToLevelSportCode(tournamentData?.["sport"]);
+
+    if (tournamentManagerId === callerUid && tournamentSportCode === sportCode) {
+      const inscriptionSnap = await db
+        .collection(artifactsInscriptionsPath(getFirebaseProjectId()))
+        .where("tournamentId", "==", tournamentId)
+        .where("participantUids", "array-contains", athleteUid)
+        .limit(1)
+        .get();
+      athleteHasActiveRegistration = !inscriptionSnap.empty;
+    }
+  }
+
+  const decision = planLevelChangeAuthorization({
+    isAdmin,
+    tournamentId,
+    tournamentManagerId,
+    callerUid,
+    tournamentSportCode,
+    requestSportCode: sportCode,
+    athleteHasActiveRegistration,
+  });
+
+  if (decision.mode === "denied") {
+    throw new HttpsError(decision.code, decision.message);
+  }
+
+  return {mode: decision.mode, actorLabel};
 }
 
 function requireUid(raw: unknown): string {
@@ -264,17 +555,35 @@ export const getAthleteLevelState = onCall(async (request) => {
 });
 
 /**
- * Troca o nível declarado de um atleta em um esporte — inclusive para BAIXO.
- * Escreve rating (quando há o que realinhar), perfil e auditoria, nessa ordem,
- * e avisa o atleta. O motivo é interno: fica no `levelHistory`, não vai na
- * notificação.
+ * Troca o nível declarado de um atleta em um esporte. Dois caminhos:
+ *
+ * - **Admin da plataforma** (sem `tournamentId`): inclusive para BAIXO, como
+ *   sempre foi — comportamento byte-idêntico ao de antes desta função ganhar
+ *   o segundo caminho.
+ * - **Organizador** (`tournamentId` obrigatório): só pode SUBIR, e só quando
+ *   é dono do torneio E o atleta tem inscrição ativa nele — ele acabou de ver
+ *   o atleta jogar, é a melhor fonte de verdade disponível enquanto a escada
+ *   Glicko não acumulou volume. Motivo é opcional (o gate real é
+ *   dono+inscrito+direção, checados em `assertAdminOrPromotingOrganizer`).
+ *
+ * Escreve rating (quando há o que realinhar), perfil e auditoria, nessa
+ * ordem. Notifica o atleta só no caminho admin — a promoção do organizador
+ * fica fora do escopo desta rodada (ver report da task).
  */
 export const setAthleteLevel = onCall(async (request) => {
-  const actorLabel = await assertBackofficeCaller(request.auth?.uid);
-  const callerUid = request.auth!.uid;
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
 
   const raw = request.data as
-    | {uid?: unknown; sportCode?: unknown; level?: unknown; reason?: unknown}
+    | {
+        uid?: unknown;
+        sportCode?: unknown;
+        level?: unknown;
+        reason?: unknown;
+        tournamentId?: unknown;
+      }
     | undefined;
 
   const uid = requireUid(raw?.uid);
@@ -286,15 +595,26 @@ export const setAthleteLevel = onCall(async (request) => {
   if (!(LEVEL_CODES as readonly string[]).includes(level)) {
     throw new HttpsError("invalid-argument", "Nível inválido.");
   }
-  const reason = typeof raw?.reason === "string" ? raw.reason.trim() : "";
-  if (reason.length < LEVEL_CHANGE_REASON_MIN || reason.length > LEVEL_CHANGE_REASON_MAX) {
-    throw new HttpsError(
-      "invalid-argument",
-      `O motivo precisa ter de ${LEVEL_CHANGE_REASON_MIN} a ${LEVEL_CHANGE_REASON_MAX} caracteres.`,
-    );
-  }
+  const tournamentId = typeof raw?.tournamentId === "string" ? raw.tournamentId.trim() : "";
 
   const db = getFirestore();
+
+  // FASE 1 — quem pode agir. Roda ANTES de qualquer leitura de `users/{uid}`
+  // de propósito: um caller sem privilégio nenhum não pode usar a diferença
+  // entre "negado por falta de perfil" e "negado por falta de permissão"
+  // pra sondar quais uids existem na base (ver doc de
+  // `assertAdminOrPromotingOrganizer`).
+  const auth = await assertAdminOrPromotingOrganizer({
+    db,
+    callerUid,
+    tournamentId,
+    athleteUid: uid,
+    sportCode,
+  });
+
+  // FASE 2 — só quem passou a fase 1 chega aqui. Admin (qualquer uid, é o
+  // próprio ponto do caminho admin) ou organizador que já provou dono do
+  // torneio + mesmo esporte + ESTE atleta inscrito nele.
   const userRef = db.doc(`users/${uid}`);
   const userSnap = await userRef.get();
   if (!userSnap.exists) {
@@ -304,6 +624,33 @@ export const setAthleteLevel = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Este usuário ainda não tem perfil de atleta.");
   }
   const currentLevel = levelsBySportOf(userSnap.data())[sportCode] ?? null;
+
+  // Direção só é validável agora que o nível atual foi lido — e só importa
+  // pro organizador; admin sempre pôde ir em qualquer direção.
+  if (auth.mode === "organizer") {
+    // F5 (review): fallback pro legado global, igual ao resto do backend — `currentLevel`
+    // (usado no resto desta função) fica só per-sport de propósito, não aqui.
+    const direction = planOrganizerPromotionDirection({
+      currentLevel: effectiveCurrentLevelForSport(userSnap.data(), sportCode),
+      targetLevel: level,
+    });
+    if (!direction.ok) {
+      throw new HttpsError("failed-precondition", direction.message);
+    }
+  }
+
+  // Motivo digitado é obrigatório só no caminho admin (formulário do
+  // backoffice); o organizador não tem esse campo — o gate real dele já foi
+  // checado acima.
+  const rawReason = typeof raw?.reason === "string" ? raw.reason.trim() : "";
+  if (auth.mode === "admin") {
+    if (rawReason.length < LEVEL_CHANGE_REASON_MIN || rawReason.length > LEVEL_CHANGE_REASON_MAX) {
+      throw new HttpsError(
+        "invalid-argument",
+        `O motivo precisa ter de ${LEVEL_CHANGE_REASON_MIN} a ${LEVEL_CHANGE_REASON_MAX} caracteres.`,
+      );
+    }
+  }
 
   // Esporte fora da escada não tem doc de rating para realinhar.
   const rated = (RATED_SPORT_CODES as readonly string[]).includes(sportCode);
@@ -347,7 +694,7 @@ export const setAthleteLevel = onCall(async (request) => {
   if (profileChanged) {
     await userRef.set(
       {
-        sportOnboarding: {levelsBySport: {[sportCode]: level}},
+        sportOnboarding: levelProfileWriteFields({mode: auth.mode, sportCode, level}),
         updatedAt: FieldValue.serverTimestamp(),
       },
       {merge: true},
@@ -358,25 +705,25 @@ export const setAthleteLevel = onCall(async (request) => {
       sportCode,
       fromLevel: plan.fromLevel,
       toLevel: level,
-      reason: "admin_manual",
-      note: reason,
       rating: state ? Math.round(state.rating) : null,
       rd: state ? Math.round(state.rd) : null,
       ratedMatches: state ? state.ratedMatches : null,
-      actor: `backoffice:${callerUid}`,
-      actorLabel,
+      actorLabel: auth.actorLabel,
+      ...levelHistoryAuditFields({mode: auth.mode, callerUid, note: rawReason, tournamentId}),
       createdAt: FieldValue.serverTimestamp(),
     });
   }
 
   logger.info(
     `athlete-level: ${uid} em ${sportCode} ${plan.fromLevel ?? "(sem nível)"} → ${level} ` +
-      `(${plan.direction}) por ${actorLabel}`,
+      `(${plan.direction}) por ${auth.actorLabel} [${auth.mode}]`,
   );
 
   // O motivo é interno (staff para staff) — a notificação não o repete.
+  // Promoção pelo organizador NÃO notifica o atleta neste ciclo (fora do
+  // escopo desta task — ver report).
   let notified = false;
-  if (profileChanged) {
+  if (profileChanged && auth.mode === "admin") {
     try {
       await deliverNotificationToUser({
         userId: uid,

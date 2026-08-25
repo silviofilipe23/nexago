@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../auth/auth.service';
-import { BrLocationsService } from '../../shared/br-locations/br-locations.service';
+import { BrLocationsService } from '@nexago/br-locations';
 import { NxSkeletonComponent } from '../../shared/loading/nx-skeleton.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {

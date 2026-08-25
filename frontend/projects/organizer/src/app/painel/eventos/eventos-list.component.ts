@@ -5,6 +5,7 @@ import { LEAGUE_STATUS_LABEL, type League, type LeagueListingStatus } from '@nex
 import { listMyLeagues } from '../data/leagues-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
+import { formatCentsShort, sumCollected, type TournamentCollected } from '../data/tournament-collected';
 import { listAllTournaments, listMyTournaments, listOrganizerNames } from '../data/tournaments-repository';
 import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { OgChartTabsComponent } from '../ui/chart-tabs.component';
@@ -60,6 +61,8 @@ interface EventoCard {
   bucket: Bucket;
   /** Dono do torneio, só nos cards da aba Plataforma (torneio alheio). */
   ownerLabel: string | null;
+  /** `null` em liga: quem arrecada é cada etapa, que já entra na lista como torneio próprio. */
+  collected: TournamentCollected | null;
 }
 
 /** Lista de ligas e torneios organizados, com progresso de inscrição por evento. */
@@ -95,6 +98,31 @@ interface EventoCard {
           Torneios de todos os organizadores, para suporte. A lista por data não traz torneios sem data
           de início — esses aparecem na busca pelo nome.
         </p>
+      }
+
+      @if (showSummary()) {
+        <div class="og-arrecad-row">
+          <div class="og-arrecad-tile">
+            <div class="og-arrecad-label">Na plataforma</div>
+            <div class="og-arrecad-value">{{ money(summary().viaAppCents) }}</div>
+            <div class="og-arrecad-hint">Pix e cartão pelo app</div>
+          </div>
+          <div class="og-arrecad-tile">
+            <div class="og-arrecad-label">Por fora</div>
+            <div class="og-arrecad-value">{{ money(summary().viaOrganizerCents) }}</div>
+            @if (summary().toVerifyCents > 0) {
+              <div class="og-arrecad-hint warn">{{ money(summary().toVerifyCents) }} a conferir</div>
+            } @else {
+              <div class="og-arrecad-hint">Direto com você</div>
+            }
+          </div>
+        </div>
+        @if (summary().estimated && summary().totalCents > 0) {
+          <p class="og-arrecad-note">
+            Alguns torneios ainda não têm o valor separado por canal — neles a divisão seguiu a
+            forma de pagamento escolhida no torneio. O total continua exato.
+          </p>
+        }
       }
 
       @if (showSkeleton()) {
@@ -153,8 +181,10 @@ interface EventoCard {
                 <div class="og-evento-card-footer">
                   <div>
                     <div class="og-evento-card-footer-label">Arrecadado</div>
-                    <!-- mock (fase 2): arrecadação por evento fica no Financeiro (Task O7); sem dado real por evento ainda -->
-                    <div class="og-evento-card-footer-value">—</div>
+                    <div class="og-evento-card-footer-value">{{ e.collected ? money(e.collected.totalCents) : '—' }}</div>
+                    @if (splitLabel(e); as split) {
+                      <div class="og-evento-card-footer-split">{{ split }}</div>
+                    }
                   </div>
                   <span class="og-ghost-btn">{{ e.link ? 'Gerenciar' : 'Indisponível' }}</span>
                 </div>
@@ -171,7 +201,10 @@ interface EventoCard {
                 <p class="og-empty">Nenhum torneio encontrado.</p>
               }
             } @else {
-              <p class="og-empty">Nenhum torneio ou liga ainda — crie pelo app nexaGO</p>
+              <p class="og-empty">
+                Nenhum torneio ou liga ainda —
+                <a class="og-link-btn" routerLink="/painel/novo-evento">crie seu primeiro evento</a>
+              </p>
             }
           }
         </div>
@@ -187,10 +220,60 @@ interface EventoCard {
     </div>
   `,
   styles: `
+    /* Três colunas fixas viravam cartões de ~170px num tablet em retrato. Com auto-fit
+       a contagem sai da largura real: 3 no desktop, 2 no iPad retrato, 1 no mais estreito. */
     .og-eventos-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
+    }
+    /* Dois totalizadores lado a lado; abaixo de ~520px empilham em vez de espremer o valor. */
+    .og-arrecad-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin: 14px 0 16px;
+    }
+    .og-arrecad-tile {
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-4);
+      padding: 14px 16px;
+    }
+    .og-arrecad-label {
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-arrecad-value {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 26px;
+      color: var(--nx-text);
+      margin-top: 4px;
+    }
+    .og-arrecad-hint {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
+    }
+    .og-arrecad-hint.warn {
+      color: var(--nx-pending);
+    }
+    .og-arrecad-note {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: -8px 0 16px;
+    }
+    .og-evento-card-footer-split {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
     }
     .og-plataforma-bar {
       display: flex;
@@ -435,6 +518,7 @@ export class EventosListComponent {
       link: ['/painel/eventos', t.id],
       bucket: t.status === 'concluido' || t.status === 'cancelado' ? 'encerrados' : 'ativos',
       ownerLabel: null,
+      collected: t.collected,
     }));
 
     const ligas: EventoCard[] = this.leagues().map((l) => ({
@@ -451,6 +535,7 @@ export class EventosListComponent {
       link: ['/painel/ligas', l.id],
       bucket: l.listingStatus === 'closed' || l.listingStatus === 'cancelled' ? 'encerrados' : 'ativos',
       ownerLabel: null,
+      collected: null,
     }));
 
     return [...torneios, ...ligas];
@@ -475,6 +560,7 @@ export class EventosListComponent {
       link: ['/painel/eventos', t.id],
       bucket: t.status === 'concluido' || t.status === 'cancelado' ? 'encerrados' : 'ativos',
       ownerLabel: t.managerId === myUid ? 'Você' : (names.get(t.managerId) ?? 'Organizador não identificado'),
+      collected: t.collected,
     }));
   });
 
@@ -489,6 +575,15 @@ export class EventosListComponent {
     if (t === 'todos') return this.cards();
     return this.cards().filter((c) => c.bucket === t);
   });
+
+  /** Arrecadação somada dos torneios da aba atual. Escondida na aba Plataforma de propósito —
+   *  lá os torneios são de OUTROS organizadores, e um total ali seria dinheiro alheio somado
+   *  como se fosse seu. */
+  protected readonly summary = computed<TournamentCollected>(() =>
+    sumCollected(this.filtered().map((c) => c.collected).filter((c): c is TournamentCollected => c != null)),
+  );
+
+  protected readonly showSummary = computed(() => this.tab() !== 'plataforma' && !this.showSkeleton());
 
   constructor() {
     const uid = this.auth.user()?.uid;
@@ -568,6 +663,18 @@ export class EventosListComponent {
     if (!start) return 'Data a definir';
     if (!end || end.getTime() === start.getTime()) return SHORT_DATE.format(start);
     return `${SHORT_DATE.format(start)} – ${SHORT_DATE.format(end)}`;
+  }
+
+  protected money(cents: number): string {
+    return formatCentsShort(cents);
+  }
+
+  /** Recorte no rodapé do card só quando os DOIS canais têm valor — com um só, o total já diz
+   *  tudo e a linha extra vira ruído. */
+  protected splitLabel(e: EventoCard): string | null {
+    const c = e.collected;
+    if (!c || c.viaAppCents === 0 || c.viaOrganizerCents === 0) return null;
+    return `${this.money(c.viaAppCents)} app · ${this.money(c.viaOrganizerCents)} direto`;
   }
 
   protected progressPct(e: EventoCard): number {

@@ -19,19 +19,19 @@ void main() {
     });
 
     test('year2026 filters by year', () {
-      final filtered = filterMatches(bundle.matches, MatchHistoryFilter.year2026);
+      final filtered = filterMatches(
+        bundle.matches,
+        MatchHistoryFilter.year2026,
+      );
       expect(filtered.every((m) => m.playedAt.year == 2026), isTrue);
       expect(filtered.length, 19);
     });
 
-    test('year2025 filters by year', () {
-      final filtered = filterMatches(bundle.matches, MatchHistoryFilter.year2025);
-      expect(filtered.every((m) => m.playedAt.year == 2025), isTrue);
-      expect(filtered.length, 9);
-    });
-
     test('winsOnly returns only wins', () {
-      final filtered = filterMatches(bundle.matches, MatchHistoryFilter.winsOnly);
+      final filtered = filterMatches(
+        bundle.matches,
+        MatchHistoryFilter.winsOnly,
+      );
       expect(filtered.every((m) => m.isWin), isTrue);
       expect(filtered.length, 20);
     });
@@ -42,7 +42,10 @@ void main() {
       final groups = groupMatchesByMonth(bundle.matches);
       expect(groups.first.title, contains('2026'));
       for (var i = 0; i < groups.length - 1; i++) {
-        expect(groups[i].monthKey.compareTo(groups[i + 1].monthKey) >= 0, isTrue);
+        expect(
+          groups[i].monthKey.compareTo(groups[i + 1].monthKey) >= 0,
+          isTrue,
+        );
       }
     });
 

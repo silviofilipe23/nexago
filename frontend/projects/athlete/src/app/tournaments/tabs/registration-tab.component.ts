@@ -1,7 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
+import { fetchPublicProfilesByIds } from '../../data/public-profiles-repository';
 import {
   cancelMyRegistration,
   fetchTournamentOrganizerContact,
@@ -13,11 +17,35 @@ import {
 } from '../../data/tournament-registrations-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import { NxBlockingDialogComponent, NxToastService } from '../../shared/feedback';
+import {
+  pickRegistrationSharePhrase,
+  registrationShareDateLabel,
+  registrationShareFooter,
+  registrationShareLocationLine,
+  registrationShareSlotLabel,
+  registrationShareable,
+  type RegistrationShareData,
+} from '../registration/registration-share';
+import { campaignShareDataOf, type CampaignShareData } from '../campaign/campaign-share';
+import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.component';
+import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
 import { TournamentLiveStore } from '../tournament-live.store';
 import { registrationRosterView } from './registration-roster-cta';
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
+
+interface ShareAthleteProfile {
+  name: string;
+  photo: string | null;
 }
 
 export type RegistrationPaymentState = 'paid' | 'share-paid' | 'pending' | 'waitlist';
@@ -43,6 +71,11 @@ export interface RegistrationCard {
   uniformRequired: boolean;
   /** Cancelamento direto pelo atleta: só sem NENHUM pagamento na inscrição. */
   canCancel: boolean;
+  /** Inscrição fechada e paga — só aí o card compartilhável pode sair dizendo "confirmada". */
+  canShare: boolean;
+  /** A campanha desta categoria pode virar imagem: há partida encerrada e não é categoria de
+   *  equipe. Diferente de `canShare`, que é do card de INSCRIÇÃO. */
+  canShareCampaign: boolean;
   /** Com pagamento o caminho é pedir ao organizador — estes três estados. */
   cancellationState: 'none' | 'pending' | 'declined';
   cancellationResponseNote: string;
@@ -60,7 +93,7 @@ export const REFUND_PENDING_NOTICE =
  *  inscrição, então não precisa de estado vazio de "você não está inscrito". */
 @Component({
   selector: 'app-registration-tab',
-  imports: [RouterLink, NxBlockingDialogComponent],
+  imports: [RouterLink, NxBlockingDialogComponent, RegistrationShareDialogComponent, CampaignShareDialogComponent],
   templateUrl: './registration-tab.component.html',
   styleUrl: './registration-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -114,9 +147,141 @@ export class RegistrationTabComponent {
       uniform,
       uniformRequired: category?.uniformType != null && category.uniformType !== 'none',
       canCancel: registrationCancellable(r),
+      canShare: registrationShareable(r),
+      canShareCampaign: !isTeam && this.campaignDataOf(r.categoryId, r.teamId) != null,
       cancellationState: r.cancellationRequest?.status ?? 'none',
       cancellationResponseNote: r.cancellationRequest?.responseNote ?? '',
     };
+  }
+
+  // ——— Compartilhar a inscrição (card instagramável) ———
+
+  private readonly db = createFirestore();
+
+  /** Nome/foto dos participantes das MINHAS inscrições. O `profiles` do store é hidratado a
+   *  partir das partidas — antes de existir chave ele está vazio, e é justamente aí que o card
+   *  é compartilhado. Por isso esta aba busca os perfis por conta própria. */
+  private readonly athleteProfiles = signal<ReadonlyMap<string, ShareAthleteProfile>>(new Map());
+  private loadedProfilesKey = '';
+
+  /** Busca os perfis assim que as inscrições chegam, e não no clique: o diálogo desenha o card
+   *  na abertura, e esperar a rede ali deixaria os nomes saírem genéricos no primeiro traço. */
+  private readonly profilesLoader = effect(() => {
+    const uids = [...new Set(this.store.myRegistrations().flatMap((r) => r.participantUids))]
+      .filter((uid) => uid.length > 0)
+      .sort();
+    const key = uids.join(',');
+    if (key.length === 0 || key === this.loadedProfilesKey) return;
+    this.loadedProfilesKey = key;
+    void this.loadAthleteProfiles(uids);
+  });
+
+  private async loadAthleteProfiles(uids: string[]): Promise<void> {
+    const db = this.db;
+    if (!db) return;
+    try {
+      const profiles = await fetchPublicProfilesByIds(db, uids);
+      this.athleteProfiles.set(
+        new Map(
+          [...profiles].map(([uid, profile]) => [uid, { name: profile.displayName, photo: profile.avatarUrl ?? null }]),
+        ),
+      );
+    } catch {
+      // Sem os perfis o card cai no nome da conta e em "Atleta" — ver `fallbackNameOf`.
+      this.loadedProfilesKey = '';
+    }
+  }
+
+  /** Inscrição aberta no diálogo (id), `null` = diálogo fechado. */
+  protected readonly shareTargetId = signal<string | null>(null);
+
+  protected readonly shareData = computed<RegistrationShareData | null>(() => {
+    const id = this.shareTargetId();
+    const t = this.store.tournament();
+    if (!id || !t) return null;
+
+    const registration = this.store.myRegistrations().find((r) => r.id === id);
+    if (!registration) return null;
+    const category = t.categories.find((c) => c.id === registration.categoryId) ?? null;
+
+    const profiles = this.athleteProfiles();
+    const athletes = registration.participantUids.map((uid) => ({
+      name: profiles.get(uid)?.name ?? this.fallbackNameOf(uid),
+      photo: profiles.get(uid)?.photo ?? null,
+    }));
+
+    return {
+      headline: pickRegistrationSharePhrase(registration.id, { team: registration.teamSize != null }),
+      slotLabel: registrationShareSlotLabel(
+        category ? (this.store.enrolledByCategory().get(category.id) ?? null) : null,
+        category?.maxTeams ?? 0,
+      ),
+      tournamentName: t.name,
+      dateLabel: registrationShareDateLabel(t.startAt, t.endAt, t.dateLabel),
+      categoryName: category?.categoryName ?? registration.categoryId,
+      locationLine: registrationShareLocationLine(t.location, t.city),
+      footerLabel: registrationShareFooter(t.startAt),
+      athletes: athletes.length > 0 ? athletes : [{ name: this.fallbackNameOf(this.auth.user()?.uid ?? ''), photo: null }],
+      teamName: registration.teamName,
+    };
+  });
+
+  /** Perfil que não veio: o próprio atleta vira o nome da conta, os outros ficam genéricos —
+   *  melhor um card com um nome faltando do que nenhum card. */
+  private fallbackNameOf(uid: string): string {
+    if (uid.length > 0 && uid === this.auth.user()?.uid) {
+      const displayName = this.auth.user()?.displayName?.trim();
+      if (displayName) return displayName;
+    }
+    return 'Atleta';
+  }
+
+  protected readonly campaignTargetId = signal<string | null>(null);
+
+  /** Os dados do card da categoria, ou `null` quando não há campanha para contar (nenhuma
+   *  partida encerrada) ou falta o time da inscrição. */
+  private campaignDataOf(categoryId: string, teamId: string | null): CampaignShareData | null {
+    const tournament = this.store.tournament();
+    const category = tournament?.categories.find((c) => c.id === categoryId) ?? null;
+    if (!tournament || !category || !teamId) return null;
+    const data = campaignShareDataOf({
+      matches: this.store.matches(),
+      categoryId,
+      myTeamIds: this.store.myTeamIds(),
+      duoNameOf: (id, fallback) => this.store.duoNameOf(id, fallback),
+      teamName: this.store.duoNameOf(teamId),
+      players: this.store.duoPlayersOf(teamId),
+      categoryName: category.categoryName,
+      teamSize: category.teamSize,
+      tournamentName: tournament.name,
+      locationName: tournament.location || null,
+      startAt: tournament.startAt,
+      endAt: tournament.endAt,
+    });
+    return data.trajectory.rows.length > 0 ? data : null;
+  }
+
+  protected readonly campaignData = computed<CampaignShareData | null>(() => {
+    const id = this.campaignTargetId();
+    if (!id) return null;
+    const registration = this.store.myRegistrations().find((r) => r.id === id);
+    return registration ? this.campaignDataOf(registration.categoryId, registration.teamId) : null;
+  });
+
+  protected openCampaignShare(card: RegistrationCard): void {
+    this.campaignTargetId.set(card.id);
+  }
+
+  protected closeCampaignShare(): void {
+    this.campaignTargetId.set(null);
+  }
+
+  protected openShare(card: RegistrationCard): void {
+    this.shareTargetId.set(card.id);
+  }
+
+  protected closeShare(): void {
+    this.shareTargetId.set(null);
   }
 
   // ——— Pedido de cancelamento (inscrição paga) ———

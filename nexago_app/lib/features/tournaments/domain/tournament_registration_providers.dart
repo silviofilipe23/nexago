@@ -93,3 +93,16 @@ final tournamentRegistrationReceiptProvider =
     );
   },
 );
+
+/// Perfis públicos do elenco de uma inscrição, em lote — nome e foto para as
+/// linhas do elenco. Falha vira mapa vazio: o elenco ainda aparece, com
+/// "Você"/"Atleta" (ver `buildTeamRoster`).
+final registrationRosterProfilesProvider = FutureProvider.autoDispose
+    .family<Map<String, AppUserProfile>, List<String>>((ref, uids) async {
+  if (uids.isEmpty) return const {};
+  try {
+    return await ref.read(usersRepositoryProvider).getUsersByIds(uids);
+  } catch (_) {
+    return const {};
+  }
+});

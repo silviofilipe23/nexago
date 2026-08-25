@@ -48,6 +48,17 @@ void main() {
         'MA',
       );
     });
+
+    test('does not split emoji into unpaired UTF-16', () {
+      expect(
+        athleteInitials(_profile(name: '🏐 Beach')),
+        '🏐B',
+      );
+      expect(
+        athleteInitials(_profile(nickname: '🏐')),
+        '🏐',
+      );
+    });
   });
 
   group('athleteSecondaryLine', () {

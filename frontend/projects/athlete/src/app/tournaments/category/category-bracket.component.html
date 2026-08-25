@@ -4,10 +4,10 @@
       <section class="bx-card">
         <div class="bx-bracket-header">
           <div>
-            <span class="bx-card-kicker">{{ isPreview() ? 'Preenchida conforme os grupos terminam' : data.formatSummaryLabel }}</span>
+            <span class="bx-card-kicker">{{ isPreview() ? '' : data.formatSummaryLabel }}</span>
             <h2 class="bx-card-title">{{ isPreview() ? 'Eliminatória (prévia)' : 'Chave eliminatória' }}</h2>
           </div>
-          <button type="button" class="bx-export-link" (click)="exportBracket()">Exportar chave</button>
+          <!-- <button type="button" class="bx-export-link" (click)="exportBracket()">Exportar chave</button> -->
         </div>
         <ng-container [ngTemplateOutlet]="treeTpl"></ng-container>
       </section>
@@ -17,6 +17,18 @@
         <p class="bx-body-text">A chave desta categoria ainda não foi publicada pelo organizador.</p>
       </section>
     }
+  </div>
+} @else {
+  <!-- `bracketData()` é nulo sempre que a categoria não é encontrada: id vazio (link do Focus
+       compartilhado aberto por quem não está inscrito), id desconhecido, ou o torneio ainda não
+       carregou (`fetchTournament().catch(() => null)`). Sem este ramo a tela ficava
+       completamente em branco — a aba "Chave" do Focus não tem sidebar nem breadcrumb pra
+       sinalizar que algo deu errado. -->
+  <div class="bx-body">
+    <section class="bx-card">
+      <p class="bx-empty-title">Chave</p>
+      <p class="bx-body-text">Nada por aqui ainda — não encontramos esta categoria.</p>
+    </section>
   </div>
 }
 

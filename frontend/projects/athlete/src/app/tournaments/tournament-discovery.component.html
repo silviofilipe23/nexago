@@ -164,9 +164,13 @@
                       @for (c of t.categories; track c) {
                         <span class="cp-pill">{{ categoryPill(c) }}</span>
                       }
-                      <span class="cp-pill cp-pill--price">{{ t.priceLabel }}</span>
+                      @if (showsOffer(t)) {
+                        <span class="cp-pill cp-pill--price">{{ t.priceLabel }}</span>
+                      }
                     </div>
-                    @if (t.spotsTotal > 0) {
+                    @if (!showsOffer(t)) {
+                      <p class="cp-card-enrolled">{{ enrolledLabel(t) }}</p>
+                    } @else if (t.spotsTotal > 0) {
                       <div class="cp-progress" [attr.data-full]="t.spotsLeft <= 0">
                         <span class="cp-progress-fill" [style.width.%]="fillPercent(t)"></span>
                       </div>
@@ -221,7 +225,7 @@
                       @for (c of card.categories; track c) {
                         <span class="cp-pill">{{ categoryPill(c) }}</span>
                       }
-                      @if (card.priceRangeLabel) {
+                      @if (card.priceRangeLabel && !card.completed) {
                         <span class="cp-pill cp-pill--price">{{ card.priceRangeLabel }}</span>
                       }
                     </div>

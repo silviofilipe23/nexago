@@ -9,6 +9,7 @@ import '../search/search_keywords.dart';
 import '../firebase/firebase_providers.dart';
 import 'app_user_profile.dart';
 import 'app_user_profile.dart' show isPartnerListableProfile, sortPartnersForDisplay;
+import 'athlete_search_results.dart';
 
 class UsersRepositoryException implements Exception {
   UsersRepositoryException(this.message);
@@ -70,24 +71,43 @@ class UsersRepository {
     return result;
   }
 
+  /// O `array-contains` do Firestore aceita UM valor, então a consulta ancora
+  /// no token mais seletivo e traz uma página folgada — o `AND` dos demais
+  /// tokens e o ranqueamento acontecem no client, sem leitura extra.
+  static const int _searchFetchMultiplier = 4;
+  static const int _searchFetchCap = 100;
+
   /// Busca atletas por prefixo de palavra (`keywords` + `hasAthleteRole`).
+  ///
+  /// Aceita nome composto (`"joão silva"`), apelido colado (`"anapaula"` para
+  /// `@ana_paula`) e termo com ou sem acento.
   Future<List<AppUserProfile>> searchAthletesByKeywords(
     String term, {
     int max = 25,
   }) async {
-    final token = normalizeSearchTerm(term);
-    if (!isSearchTermLongEnough(term)) return [];
+    final tokens = searchQueryTokens(term);
+    final anchor = searchAnchorToken(tokens);
+    if (anchor.length < kSearchMinPrefixLength) return [];
+
+    final fetchLimit = min(max * _searchFetchMultiplier, _searchFetchCap);
 
     try {
-      final snap = await _publicProfiles
-          .where('hasAthleteRole', isEqualTo: true)
-          .where('keywords', arrayContains: token)
-          .limit(max)
-          .get();
-      return _finalizeAthleteResults(
-        snap.docs.map(AppUserProfile.fromFirestore),
-        max: max,
+      var docs = await _athleteKeywordDocs(
+        anchor,
+        limit: fetchLimit,
+        onlyFlagged: true,
       );
+      // Perfil antigo sem `hasAthleteRole` gravado (a CF de sync ainda não
+      // passou por ele) sumia da busca — repete sem a flag e confere o papel
+      // pelo `roles[]` do próprio doc.
+      if (docs.isEmpty) {
+        docs = await _athleteKeywordDocs(
+          anchor,
+          limit: fetchLimit,
+          onlyFlagged: false,
+        );
+      }
+      return rankAthleteSearchResults(docs, tokens, max: max);
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('UsersRepository.searchAthletesByKeywords failed: $e');
@@ -101,26 +121,42 @@ class UsersRepository {
     }
   }
 
+  Future<List<AthleteSearchDoc>> _athleteKeywordDocs(
+    String anchor, {
+    required int limit,
+    required bool onlyFlagged,
+  }) async {
+    Query<Map<String, dynamic>> query = _publicProfiles;
+    if (onlyFlagged) {
+      query = query.where('hasAthleteRole', isEqualTo: true);
+    }
+    final snap = await query
+        .where('keywords', arrayContains: anchor)
+        .limit(limit)
+        .get();
+    return snap.docs.map(AthleteSearchDoc.fromSnapshot).toList();
+  }
+
   /// Busca organizadores por prefixo de palavra (`keywords` + `hasOrganizerRole`).
   Future<List<AppUserProfile>> searchOrganizersByKeywords(
     String term, {
     int max = 25,
   }) async {
-    final token = normalizeSearchTerm(term);
-    if (!isSearchTermLongEnough(term)) return [];
+    final tokens = searchQueryTokens(term);
+    final anchor = searchAnchorToken(tokens);
+    if (anchor.length < kSearchMinPrefixLength) return [];
 
     try {
       final snap = await _publicProfiles
           .where('hasOrganizerRole', isEqualTo: true)
-          .where('keywords', arrayContains: token)
-          .limit(max)
+          .where('keywords', arrayContains: anchor)
+          .limit(min(max * _searchFetchMultiplier, _searchFetchCap))
           .get();
-      return sortPartnersForDisplay(
-        snap.docs
-            .map(AppUserProfile.fromFirestore)
-            .where(isPartnerListableProfile)
-            .take(max)
-            .toList(),
+      return rankProfileSearchResults(
+        snap.docs.map(AthleteSearchDoc.fromSnapshot).toList(),
+        tokens,
+        max: max,
+        hasRole: (d) => d.hasOrganizerRoleFlag,
       );
     } catch (e, stackTrace) {
       if (kDebugMode) {

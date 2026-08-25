@@ -14,6 +14,13 @@ import {
   type Firestore,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
+import {
+  profileMatchesSearchTokens,
+  searchAnchorToken,
+  searchQueryTokens,
+  searchRelevanceScore,
+  type SearchableProfile,
+} from '@nexago/search-keywords';
 import { RankingLevel } from '../ranking/athlete-ranking.models';
 
 /** Espelha `public_profiles/{uid}` (`functions/src/public-profile-sync.ts`) — mirror sem PII
@@ -62,9 +69,9 @@ export function levelRankOf(raw: string | null): number | null {
 }
 
 /** Label do nível a partir do rank unificado. Mapeamento EXATO por degrau —
- *  os ranks são 0,1,2,3,5 (rank 4 sem uso), então thresholds `<=` deslocavam
- *  3 dos 5 níveis (ex.: `intermediario_1` aparecia como "Iniciante 2").
- *  "Avançado"/"Profissional" não existem como tiers reais no backend. */
+ *  os ranks são 0–6 contíguos (escada de 7: Iniciante 1/2, Intermediário 1/2,
+ *  Avançado 1/2, Open), então thresholds `<=` deslocariam os níveis (ex.:
+ *  `intermediario_1` apareceria como "Iniciante 2"). */
 export function levelBucketOf(raw: string | null): RankingLevel | null {
   const rank = levelRankOf(raw);
   if (rank == null) return null;
@@ -175,23 +182,67 @@ export async function fetchAthleteDirectoryPage(
   return { profiles, nextCursor };
 }
 
-function normalizeSearchTerm(term: string): string {
-  return term
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
+/** O `array-contains` do Firestore aceita UM valor: a consulta ancora no token mais seletivo
+ *  ("de oliveira" vira `oliveira`) e traz uma página folgada. O `AND` dos demais tokens e a
+ *  ordem por relevância saem no client, do próprio doc — sem leitura extra. */
+const ATHLETE_SEARCH_FETCH_LIMIT = 60;
+const ATHLETE_SEARCH_LIMIT = 25;
 
 /** Busca por prefixo via `keywords array-contains` — mesmo índice composto
- *  (`hasAthleteRole+keywords CONTAINS`) já usado pelo app Flutter. */
+ *  (`hasAthleteRole+keywords CONTAINS`) já usado pelo app Flutter.
+ *
+ *  Aceita nome composto ("joão silva"), apelido colado ("anapaula" para `@ana_paula`) e termo
+ *  com ou sem acento. */
 export async function searchAthleteDirectory(db: Firestore, term: string): Promise<AthletePublicProfile[]> {
-  const normalized = normalizeSearchTerm(term);
-  if (!normalized) return [];
+  const tokens = searchQueryTokens(term);
+  const anchor = searchAnchorToken(tokens);
+  if (!anchor) return [];
+
   const snap = await getDocs(
-    query(collection(db, 'public_profiles'), where('hasAthleteRole', '==', true), where('keywords', 'array-contains', normalized), limit(25)),
+    query(
+      collection(db, 'public_profiles'),
+      where('hasAthleteRole', '==', true),
+      where('keywords', 'array-contains', anchor),
+      limit(ATHLETE_SEARCH_FETCH_LIMIT),
+    ),
   );
-  return snap.docs.map((d) => athletePublicProfileFromDoc(d.id, d.data() as Record<string, unknown>)).filter((p) => p.isDiscoverable);
+
+  const candidates = snap.docs
+    .map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      return { data, profile: athletePublicProfileFromDoc(d.id, data) };
+    })
+    .filter((c) => c.profile.isDiscoverable);
+
+  return rankAthleteDirectory(candidates, tokens).slice(0, ATHLETE_SEARCH_LIMIT);
+}
+
+function searchableOf(candidate: { data: Record<string, unknown>; profile: AthletePublicProfile }): SearchableProfile {
+  const keywords = candidate.data['keywords'];
+  return {
+    fullName: typeof candidate.data['fullName'] === 'string' ? (candidate.data['fullName'] as string) : candidate.profile.displayName,
+    nickname: typeof candidate.data['nickname'] === 'string' ? (candidate.data['nickname'] as string) : '',
+    keywords: Array.isArray(keywords) ? (keywords as string[]) : [],
+  };
+}
+
+/** Exportado para teste: o `AND` dos tokens e a ordem por relevância, já sem Firestore. */
+export function rankAthleteDirectory(
+  candidates: readonly { data: Record<string, unknown>; profile: AthletePublicProfile }[],
+  tokens: readonly string[],
+): AthletePublicProfile[] {
+  const strict = candidates.filter((c) => profileMatchesSearchTokens(searchableOf(c), tokens));
+  // Sem casamento completo, mostra quem casou com a âncora: quem digitou "joao souza" e não tem
+  // João Souza na base vê os Souza em vez de uma tela vazia.
+  const chosen = strict.length > 0 ? [...strict] : [...candidates];
+
+  return chosen
+    .sort((a, b) => {
+      const byScore = searchRelevanceScore(searchableOf(a), tokens) - searchRelevanceScore(searchableOf(b), tokens);
+      if (byScore !== 0) return byScore;
+      return a.profile.displayName.localeCompare(b.profile.displayName, 'pt-BR');
+    })
+    .map((c) => c.profile);
 }
 
 /** Atletas de olho em formar dupla (`role==athlete` + `lookingForPartner==true` — mesmo par de

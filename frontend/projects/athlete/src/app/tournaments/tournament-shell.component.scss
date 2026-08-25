@@ -31,6 +31,14 @@ router-outlet + * {
     padding: var(--nx-s-4) var(--nx-s-4) var(--nx-s-8);
     gap: var(--nx-s-4);
   }
+
+  // Barra fixa do Focus (~48px) acima da bottom nav (64px). Só no breakpoint em
+  // que a nav existe — senão o padding extra sobra no desktop.
+  @media (max-width: 900px) {
+    &.tsh--with-focus-entry {
+      padding-bottom: calc(var(--nx-s-8) + 56px);
+    }
+  }
 }
 
 // Altura real de 44px em vez do pseudo-elemento: o alvo ampliado por `::after` funciona no
@@ -134,18 +142,65 @@ router-outlet + * {
   }
 }
 
+// Abas + botão de retorno ao Focus na mesma linha; no celular a barra de abas rola e o botão
+// fica fixo à direita, sempre alcançável.
+.tsh-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  border-bottom: 1px solid var(--nx-line);
+}
+
 // Barra de abas: no mobile rola na horizontal com snap, mantendo a aba ativa alcançável
 // sem quebrar o scroll vertical da página.
 .tsh-tabs {
   display: flex;
+  flex: 1;
+  min-width: 0;
   gap: var(--nx-s-2);
-  border-bottom: 1px solid var(--nx-line);
   overflow-x: auto;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
 
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+// Porta de volta para quem dispensou o Focus hoje — cor sólida para se destacar das abas de
+// navegação comum, mesmo tratamento de alvo mínimo de 44px que o resto da casca.
+.tsh-focus-entry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 var(--nx-s-4);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: filter var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover,
+  &:focus-visible {
+    filter: brightness(1.08);
+  }
+
+  // Acima da bottom nav (64px, mesmo breakpoint do `.at-bottom-nav`), largura total.
+  @media (max-width: 900px) {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 64px;
+    z-index: 39;
+    width: 100%;
+    min-height: 48px;
+    border-radius: 0;
+    padding: 0 var(--nx-s-4);
   }
 }
 
@@ -177,13 +232,6 @@ router-outlet + * {
   color: var(--nx-text);
   font-weight: 700;
   border-bottom-color: var(--nx-orange-500);
-}
-
-.tsh-tab-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--nx-orange-500);
 }
 
 .tsh-empty {

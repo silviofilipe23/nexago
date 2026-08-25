@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
 import '../../../organizer/domain/tournament_staff/my_tournament_staff_providers.dart';
@@ -24,16 +25,33 @@ class MyTournamentsHomeSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final regsAsync = ref.watch(myTournamentRegistrationsProvider);
-    final staff =
-        ref.watch(myTournamentStaffEntriesProvider).valueOrNull ?? const [];
+    // Watch cru só pra saber se o stream de staff já emitiu — o provider
+    // filtrado devolve [] tanto pra "ainda carregando" quanto pra "vazio de
+    // verdade", e sem essa distinção a seção colapsa e reabre (gap incluso)
+    // assim que o staff chega depois das inscrições.
+    final staffLoaded = ref.watch(myTournamentStaffEntriesProvider).hasValue;
+    final staff = ref.watch(myOngoingTournamentStaffEntriesProvider);
 
-    return regsAsync.when(
+    // Só quando os dois streams chegaram e não há nada pra mostrar a seção
+    // fica sem gap — enquanto carrega ou dá erro sempre há algo visível
+    // (skeleton, aviso de erro ou staff conhecido), então reservamos o espaço.
+    final isConfirmedEmpty = regsAsync.maybeWhen(
+      data: (regs) =>
+          staffLoaded &&
+          sortRegistrationsForHomePreview(regs).isEmpty &&
+          staff.isEmpty,
+      orElse: () => false,
+    );
+
+    final content = regsAsync.when(
       data: (regs) {
         final regPreview =
             sortRegistrationsForHomePreview(regs).take(_previewLimit).toList();
         final staffPreview = staff.take(_previewLimit).toList();
         if (regPreview.isEmpty && staffPreview.isEmpty) {
-          return const SizedBox.shrink();
+          return staffLoaded
+              ? const SizedBox.shrink()
+              : const _MyTournamentsHomeSectionSkeleton();
         }
 
         // Staff primeiro (acesso operacional), depois inscrições — no máximo 3.
@@ -131,6 +149,12 @@ class MyTournamentsHomeSection extends ConsumerWidget {
           ],
         );
       },
+    );
+
+    if (isConfirmedEmpty) return content;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [content, const SizedBox(height: AppSpacing.sectionGap)],
     );
   }
 

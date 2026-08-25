@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { CityStateFieldComponent } from '../../ui/city-state-field.component';
 import { FieldComponent } from '../../ui/field.component';
 import { IconComponent, type PanelIconName } from '../../ui/icon.component';
 import type { PillTone } from '../../ui/pill.component';
@@ -6,7 +7,6 @@ import { StepCardComponent } from '../../ui/step-card.component';
 import { ToggleComponent } from '../../ui/toggle.component';
 import {
   ACCOUNT_TYPE_OPTIONS,
-  CITY_OPTIONS,
   COMMISSION_OPTIONS,
   LIMIT_OPTIONS,
   PAYOUT_OPTIONS,
@@ -30,7 +30,14 @@ const VERIFICATION_ICON: Record<VerificationState, PanelIconName> = {
 @Component({
   selector: 'bo-role-steps',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [StepCardComponent, FieldComponent, IconComponent, ToggleComponent, PersonRowComponent],
+  imports: [
+    StepCardComponent,
+    FieldComponent,
+    CityStateFieldComponent,
+    IconComponent,
+    ToggleComponent,
+    PersonRowComponent,
+  ],
   template: `
     @let account = subject();
     @let locked = !account;
@@ -69,7 +76,11 @@ const VERIFICATION_ICON: Record<VerificationState, PanelIconName> = {
       badgeTone="dim"
     >
       <div class="grid">
-        <bo-field label="Nome da marca / organização" hint="Opcional — sem marca, usamos o nome da conta">
+        <bo-field
+          class="span-2"
+          label="Nome da marca / organização"
+          hint="Opcional — sem marca, usamos o nome da conta"
+        >
           <input
             type="text"
             class="bo-input"
@@ -79,25 +90,19 @@ const VERIFICATION_ICON: Record<VerificationState, PanelIconName> = {
           />
         </bo-field>
 
-        <bo-field label="Cidade base">
-          <select class="bo-select" [value]="form().city()" (change)="form().city.set(value($event))">
-            @if (!form().city()) {
-              <option value="">Selecione a cidade</option>
-            }
-            @for (city of cityOptions(); track city) {
-              <option [value]="city">{{ city }}</option>
-            }
-          </select>
-        </bo-field>
+        <bo-city-state-field
+          stateLabel="Estado base"
+          cityLabel="Cidade base"
+          [state]="form().state()"
+          [city]="form().city()"
+          (stateChange)="form().state.set($event)"
+          (cityChange)="form().city.set($event)"
+        />
 
         <bo-field label="Tipo de conta">
-          <select
-            class="bo-select"
-            [value]="form().accountType()"
-            (change)="form().accountType.set(accountType($event))"
-          >
+          <select class="bo-select" (change)="form().accountType.set(accountType($event))">
             @for (type of accountTypeOptions; track type) {
-              <option [value]="type">{{ type }}</option>
+              <option [value]="type" [selected]="type === form().accountType()">{{ type }}</option>
             }
           </select>
         </bo-field>
@@ -180,38 +185,35 @@ const VERIFICATION_ICON: Record<VerificationState, PanelIconName> = {
       badgeTone="dim"
     >
       <div class="grid">
-        <bo-field label="Chave PIX para repasses">
-          <select class="bo-select" [value]="form().pixKey()" (change)="form().pixKey.set(value($event))">
-            @for (key of form().pixOptions(); track key) {
-              <option [value]="key">{{ key }}</option>
-            }
-          </select>
+        <bo-field
+          label="Chave PIX para repasses"
+          hint="Definida pelo organizador no painel dele — o backoffice não altera o destino do dinheiro"
+        >
+          <output class="bo-readonly">{{ form().payoutPixKey() || 'Não configurada' }}</output>
         </bo-field>
 
         <bo-field label="Comissão NexaGO" hint="Negociações especiais exigem aprovação do financeiro">
-          <select
-            class="bo-select"
-            [value]="form().commission()"
-            (change)="form().commission.set(value($event))"
-          >
-            @for (option of commissionOptions; track option) {
-              <option [value]="option">{{ option }}</option>
+          <select class="bo-select" (change)="setCommission($event)">
+            @for (option of commissionOptions; track option.percent) {
+              <option [value]="option.percent" [selected]="option.percent === form().commission().percent">
+                {{ option.label }}
+              </option>
             }
           </select>
         </bo-field>
 
         <bo-field label="Repasse">
-          <select class="bo-select" [value]="form().payout()" (change)="form().payout.set(value($event))">
+          <select class="bo-select" (change)="form().payout.set(value($event))">
             @for (option of payoutOptions; track option) {
-              <option [value]="option">{{ option }}</option>
+              <option [value]="option" [selected]="option === form().payout()">{{ option }}</option>
             }
           </select>
         </bo-field>
 
         <bo-field label="Limite por torneio" hint="Sobe automaticamente após 5 torneios sem disputas">
-          <select class="bo-select" [value]="form().limit()" (change)="form().limit.set(value($event))">
+          <select class="bo-select" (change)="form().limit.set(value($event))">
             @for (option of limitOptions; track option) {
-              <option [value]="option">{{ option }}</option>
+              <option [value]="option" [selected]="option === form().limit()">{{ option }}</option>
             }
           </select>
         </bo-field>
@@ -227,6 +229,10 @@ const VERIFICATION_ICON: Record<VerificationState, PanelIconName> = {
       badgeTone="dim"
     >
       <div>
+        <p class="step-empty perm-note">
+          Registro administrativo: as permissões ficam gravadas no cadastro, mas ainda não são
+          verificadas pelo app — quem tem a role de organizador acessa todos os fluxos.
+        </p>
         @for (permission of permissions; track permission.id) {
           <div class="perm-row" [class.locked]="permission.locked">
             <div class="perm-body">
@@ -262,11 +268,22 @@ const VERIFICATION_ICON: Record<VerificationState, PanelIconName> = {
       align-items: start;
     }
 
+    /* Sem isto a marca ocuparia meia linha e empurraria o par UF/Cidade para
+       fora do alinhamento. */
+    .grid .span-2 {
+      grid-column: 1 / -1;
+    }
+
     .step-empty {
       margin: 0;
       font-size: 12.5px;
       line-height: 1.5;
       color: var(--nx-text-dim);
+    }
+
+    .perm-note {
+      padding-bottom: 13px;
+      border-bottom: 1px solid var(--nx-line);
     }
 
     .check-row {
@@ -404,12 +421,6 @@ export class RoleStepsComponent {
 
   protected readonly draftBadge = computed(() => (this.draft() ? 'Não salvo' : ''));
 
-  /** A cidade da conta pode não estar na lista fixa — entra como primeira opção. */
-  protected readonly cityOptions = computed(() => {
-    const current = this.form().city();
-    return current && !CITY_OPTIONS.includes(current) ? [current, ...CITY_OPTIONS] : CITY_OPTIONS;
-  });
-
   protected verificationBadge(): string {
     return this.form().hasVerification() ? this.form().verificationLabel() : '';
   }
@@ -424,5 +435,14 @@ export class RoleStepsComponent {
 
   protected accountType(event: Event): AccountType {
     return this.value(event) as AccountType;
+  }
+
+  /** O `<option>` carrega o percentual; o formulário guarda a opção inteira. */
+  protected setCommission(event: Event): void {
+    const percent = Number(this.value(event));
+    const option = COMMISSION_OPTIONS.find((o) => o.percent === percent);
+    if (option) {
+      this.form().commission.set(option);
+    }
   }
 }

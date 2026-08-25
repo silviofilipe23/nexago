@@ -26,8 +26,40 @@ export const BOOKING_FEE_PERCENT_BY_TIER = {starter: 8, pro: 6, elite: 5} as con
 /** Taxa de reserva para arena sem plano titular (%). */
 export const BOOKING_FEE_PERCENT_NO_PLAN = 8;
 
-/** Taxa sobre inscrições de torneio (%). */
+/** Taxa padrão sobre inscrições de torneio (%), sem comissão negociada. */
 export const TOURNAMENT_FEE_PERCENT = 8;
+
+/**
+ * Teto de comissão negociada. Existe para que um valor corrompido ou gravado
+ * por engano no cadastro não vire desconto arbitrário sobre o dinheiro do
+ * organizador — fora da faixa, cai no padrão.
+ */
+export const MAX_COMMISSION_PERCENT = 20;
+
+/** Faixa aceita para `organizers/{uid}.commissionPercent`. */
+export function isValidCommissionPercent(percent: unknown): percent is number {
+  return (
+    typeof percent === "number" &&
+    Number.isFinite(percent) &&
+    percent >= 0 &&
+    percent <= MAX_COMMISSION_PERCENT
+  );
+}
+
+/**
+ * Taxa de inscrição para um organizador: a comissão negociada em
+ * `organizers/{uid}.commissionPercent` quando houver, senão o padrão.
+ * Espelha `resolveArenaBookingFeePercent` (arena-entitlement).
+ *
+ * `organizer` é o doc de `organizers/{uid}`; ausente (organizador sem cadastro
+ * pelo backoffice) resolve para o padrão, que é o comportamento de antes.
+ */
+export function resolveOrganizerTournamentFeePercent(
+  organizer: Record<string, unknown> | null | undefined,
+): number {
+  const negotiated = organizer?.["commissionPercent"];
+  return isValidCommissionPercent(negotiated) ? negotiated : TOURNAMENT_FEE_PERCENT;
+}
 
 /** Taxa sobre vagas de clubinho (%) — sem piso: tickets baixos (ex.: R$15). */
 export const CLUB_FEE_PERCENT = 5;

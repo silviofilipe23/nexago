@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Unsubscribe } from 'firebase/firestore';
 import { ArenaAccessService } from '../data/arena-access.service';
@@ -13,7 +13,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
 import {
   ArenaWalletError,
-  fetchArenaPayoutPix,
+  arenaPayoutPixFromDoc,
   requestArenaWithdrawal,
   saveArenaPayoutPix,
   watchArenaLedger,
@@ -704,12 +704,14 @@ export class PanelFinanceComponent {
       this.unsubLedger = watchArenaLedger(db, arenaId, (l) => this.ledger.set(l));
       this.unsubWithdrawals = watchArenaWithdrawals(db, arenaId, (w) => this.withdrawals.set(w));
 
-      void fetchArenaPayoutPix(db, arenaId).then((pix) => {
-        if (pix.pixKey) {
-          this.pixKey.set(pix.pixKey);
-          this.pixKeyType.set(pix.pixKeyType);
-        }
-      });
+      // Semente única por arena: o doc do contexto é ao vivo, e reagir a ele reescreveria a
+      // chave por baixo de quem está editando. Ler daqui não custa ida ao servidor.
+      const arenaDoc = untracked(() => this.arenaContext.arenaDocData());
+      const pix = arenaDoc ? arenaPayoutPixFromDoc(arenaDoc) : null;
+      if (pix?.pixKey) {
+        this.pixKey.set(pix.pixKey);
+        this.pixKeyType.set(pix.pixKeyType);
+      }
     });
   }
 

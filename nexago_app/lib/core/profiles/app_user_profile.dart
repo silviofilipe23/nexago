@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../auth/user_roles.dart';
+import '../text/safe_display_text.dart';
 
 /// Perfil em `users/{uid}` (paridade com web `AppUserProfile`).
 class AppUserProfile {
@@ -156,9 +157,9 @@ String resolveAppUserDisplayName(
     if (profile != null) readableNameCandidate(profile.fullName),
     if (profile != null) readableNameCandidate(profile.email),
   ]) {
-    if (candidate != null) return candidate;
+    if (candidate != null) return sanitizeUtf16(candidate);
   }
-  return fallback;
+  return sanitizeUtf16(fallback);
 }
 
 String? safeMatchTeamDescription(String? description) {
@@ -184,13 +185,7 @@ String appUserDisplayName(AppUserProfile user) {
 /// Nome curto p/ rótulos de dupla (ex.: "Ana C."), reduzindo colisão quando
 /// dois usuários compartilham o primeiro nome.
 String appUserShortLabel(AppUserProfile user) {
-  final display = appUserDisplayName(user).trim();
-  if (display.isEmpty) return '';
-  final parts =
-      display.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.length <= 1) return display;
-  final lastInitial = parts.last[0].toUpperCase();
-  return '${parts.first} $lastInitial.';
+  return shortPersonLabel(appUserDisplayName(user), fallback: '');
 }
 
 String? appUserSecondaryLine(AppUserProfile user) {
@@ -214,15 +209,14 @@ String appUserInitials(AppUserProfile user) {
 }
 
 String initialsFromDisplayName(String name) {
-  if (name.isEmpty) return '?';
-  final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
+  final parts =
+      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) {
-    return parts.first.length >= 2
-        ? parts.first.substring(0, 2).toUpperCase()
-        : parts.first.toUpperCase();
+    return firstGraphemesUpper(parts.first, 2);
   }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  return '${firstGraphemesUpper(parts.first, 1)}'
+      '${firstGraphemesUpper(parts.last, 1)}';
 }
 
 bool isPartnerListableProfile(AppUserProfile profile) {

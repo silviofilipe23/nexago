@@ -19,6 +19,8 @@ import {
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
+import {categoryPreset, LEGACY_CATEGORY_WEIGHT} from "./category-presets";
+import {findCategory} from "./tournament-registration-guards";
 
 /**
  * Ranking global por pontos (estilo federação) — preenche o schema que o app
@@ -26,21 +28,39 @@ import {artifactsPublicDataBase} from "./firebase-paths";
  * reutilizando a resolução de colocações da engine de liga mas SEM o gate de
  * `leagueId`: todo torneio pontua.
  *
- * Tabela autoritativa (paridade com `pointsByPlace` de
- * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 33
- * aos lugares 5-8). `tournaments/{id}.rankingWeight` (default 1.0) multiplica.
+ * Tabela autoritativa base 1000 (fase 3 — ×10 da base histórica 100, paridade
+ * de PROPORÇÕES com `pointsByPlace` de
+ * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 330
+ * aos lugares 5-8). Pontos = base × `pointsMultiplier`, onde
+ * `pointsMultiplier = presetWeight × tournaments/{id}.rankingWeight ×
+ * bracketSizeFactor(paidTeamsCount)` (`rankingWeight` default 1.0, grade do
+ * torneio). `presetWeight` NUNCA é lido de um campo gravado: deriva de
+ * `categoryPreset(category)` a partir de `level`/`minLevel` da categoria a
+ * cada premiação — categoria sem preset reconhecido (legada) cai em
+ * `LEGACY_CATEGORY_WEIGHT` (1). `bracketSizeFactor` (D7) protege o topo do
+ * ranking de chaves minúsculas premiando pódio cheio: some sozinho quando as
+ * duplas pagas da categoria chegam a 8. Arredondamento acontece uma única
+ * vez, no fim (`globalPointsForAward`).
  */
 export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
-  "1": 100,
-  "2": 80,
-  "3": 60,
-  "4": 50,
-  quarters: 33,
-  groups: 10,
+  "1": 1000,
+  "2": 800,
+  "3": 600,
+  "4": 500,
+  quarters: 330,
+  r16: 200,
+  r32: 130,
+  groups: 100,
 };
 
-/** Nº de melhores resultados que contam por ano (paridade com `bestNResults`). */
-export const BEST_N_RESULTS_PER_YEAR = 5;
+/**
+ * Carimbo de escala gravado em `tournamentCategoryResults` e nos docs de
+ * `athleteRankings`/`teamRankings` — versão 2 = base ×10 (fase 3, este
+ * arquivo). Docs escritos pelo motor a partir daqui já nascem carimbados;
+ * `functions/scripts/backfill-ranking-scale-x10.js` usa este mesmo valor
+ * como marca de idempotência ao migrar o histórico pré-×10.
+ */
+export const RANKING_SCALE_VERSION = 2;
 
 /** Menos de 10 duplas pagas = desafio: não pontua no ranking global. */
 export const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
@@ -58,6 +78,18 @@ export function isGlobalRankingEligible(params: {
   );
 }
 
+/**
+ * Modulador por tamanho de chave (D7): protege o ranking de chaves
+ * minúsculas no topo (Elite de 3 duplas valendo pódio cheio). Baseado nas
+ * duplas PAGAS da categoria — mesma contagem do gate de desafio. Some
+ * sozinho quando as chaves enchem.
+ */
+export function bracketSizeFactor(paidTeamsCount: number): number {
+  if (paidTeamsCount >= 8) return 1;
+  if (paidTeamsCount >= 4) return 0.6;
+  return 0.25;
+}
+
 export function tournamentCategoryResultsPath(projectId: string): string {
   return `${artifactsPublicDataBase(projectId)}/tournamentCategoryResults`;
 }
@@ -70,15 +102,29 @@ export function teamRankingsPath(projectId: string): string {
   return `${artifactsPublicDataBase(projectId)}/teamRankings`;
 }
 
-/** Colocação persistida: 1-4 direto; quartas→5; fase de grupos→9. */
+/**
+ * Colocação persistida: 1-4 direto; abaixo do pódio guarda o TOPO da faixa do
+ * degrau (quartas 5, oitavas 9, 16-avos 17). Participação é 0 — "sem colocação
+ * de mata-mata"; era 9 antes da escada por fase alcançada, e o script de
+ * re-derivação converte o histórico.
+ */
 export function finalPlaceForAward(award: LeaguePlacementAward): number {
   if (award.place != null) return award.place;
-  return award.bucket === "quarters" ? 5 : 9;
+  switch (award.bucket) {
+  case "quarters":
+    return 5;
+  case "r16":
+    return 9;
+  case "r32":
+    return 17;
+  default:
+    return 0;
+  }
 }
 
 export function globalPointsForAward(
   award: LeaguePlacementAward,
-  rankingWeight: number,
+  multiplier: number,
 ): number {
   const base =
     award.place != null
@@ -86,9 +132,9 @@ export function globalPointsForAward(
       : award.bucket != null
         ? DEFAULT_GLOBAL_POINTS[award.bucket] ?? 0
         : 0;
-  const weight =
-    Number.isFinite(rankingWeight) && rankingWeight > 0 ? rankingWeight : 1;
-  return Math.max(0, Math.round(base * weight));
+  const safeMultiplier =
+    Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  return Math.max(0, Math.round(base * safeMultiplier));
 }
 
 export interface GlobalRankingResultEntry {
@@ -100,8 +146,8 @@ export interface GlobalRankingResultEntry {
 }
 
 /**
- * Agregados do doc de ranking: `pointsByYear[y]` soma os melhores
- * [BEST_N_RESULTS_PER_YEAR] resultados do ano; `totalPoints` soma os anos.
+ * Agregados do doc de ranking: `pointsByYear[y]` soma TODOS os resultados do
+ * ano — sem descarte — e `totalPoints` soma os anos.
  */
 export function aggregateRankingResults(
   results: GlobalRankingResultEntry[],
@@ -120,12 +166,9 @@ export function aggregateRankingResults(
   const pointsByYear: Record<string, number> = {};
   let totalPoints = 0;
   for (const [year, points] of byYear) {
-    const best = points
-      .sort((a, b) => b - a)
-      .slice(0, BEST_N_RESULTS_PER_YEAR)
-      .reduce((sum, value) => sum + value, 0);
-    pointsByYear[year] = best;
-    totalPoints += best;
+    const yearPoints = points.reduce((sum, value) => sum + value, 0);
+    pointsByYear[year] = yearPoints;
+    totalPoints += yearPoints;
   }
   return {totalPoints, tournamentsCount: results.length, pointsByYear};
 }
@@ -191,7 +234,19 @@ async function upsertGlobalRankingDoc(
   const ref = db.collection(params.collectionPath).doc(params.docId);
   const snap = await ref.get();
   const prev = snap.data() ?? {};
-  const results = parseResults(prev.results);
+  let results = parseResults(prev.results);
+
+  // Migração on-write (paridade com backfill-ranking-scale-x10.js): se o doc
+  // existe mas ainda não foi carimbado na escala atual, reescala ×10 os
+  // `results[].points` ANTIGOS antes de mesclar a nova entrada. Sem isso, a
+  // janela deploy→script deixava o doc com pontos ×1 (antigos) e ×10 (novo)
+  // misturados, e mesmo assim carimbado com scaleVersion:2 — escapando pra
+  // sempre da varredura do script (mode A da corrida documentada no cabeçalho
+  // do backfill). Torna a janela deploy→script inofensiva.
+  const prevScaleVersion = Number(prev.scaleVersion) || 0;
+  if (snap.exists && prevScaleVersion < RANKING_SCALE_VERSION) {
+    results = results.map((row) => ({...row, points: Math.round(row.points * 10)}));
+  }
 
   const merged = upsertRankingResult(results, params.entry);
   if (merged == null) return false;
@@ -204,6 +259,7 @@ async function upsertGlobalRankingDoc(
       totalPoints: aggregates.totalPoints,
       tournamentsCount: aggregates.tournamentsCount,
       pointsByYear: aggregates.pointsByYear,
+      scaleVersion: RANKING_SCALE_VERSION,
       lastUpdated: FieldValue.serverTimestamp(),
     },
     {merge: true},
@@ -218,14 +274,14 @@ async function awardGlobalPlacement(
     tournamentId: string;
     categoryId: string;
     award: LeaguePlacementAward;
-    rankingWeight: number;
+    pointsMultiplier: number;
     year: number;
     completedAt: Date;
   },
 ): Promise<boolean> {
   const {tournamentId, categoryId, award} = params;
   const teamId = award.teamId;
-  const points = globalPointsForAward(award, params.rankingWeight);
+  const points = globalPointsForAward(award, params.pointsMultiplier);
   if (points <= 0) return false;
   const finalPlace = finalPlaceForAward(award);
 
@@ -249,6 +305,7 @@ async function awardGlobalPlacement(
     pointsEarned: points,
     year: params.year,
     completedAt: Timestamp.fromDate(params.completedAt),
+    scaleVersion: RANKING_SCALE_VERSION,
   });
 
   const entry: GlobalRankingResultEntry = {
@@ -311,9 +368,27 @@ export async function tryAwardGlobalRankingForMatch(
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   if (!tournamentSnap.exists) return {awarded: false, teamsUpdated: 0};
   const tournament = tournamentSnap.data() ?? {};
-  const rankingWeight = Number(tournament.rankingWeight ?? 1);
+  // Saneado na leitura: 0/negativo/NaN caem no default 1, em vez de deixar o
+  // guard do produto composto em `globalPointsForAward` colapsar TUDO pra 1
+  // (Livre pagaria 1000 igual ao topo do Elite). O guard do produto composto
+  // segue como última linha de defesa, não a única.
+  const rawRankingWeight = Number(tournament.rankingWeight ?? 1);
+  const rankingWeight =
+    Number.isFinite(rawRankingWeight) && rawRankingWeight > 0 ? rawRankingWeight : 1;
   const isLeagueStage = String(tournament.leagueId ?? "").trim().length > 0;
   const rankingEnabled = tournament.rankingEnabled !== false;
+
+  // Peso do preset NUNCA vem de campo gravado: deriva de level/minLevel da
+  // categoria a cada premiação (à prova de adulteração no cliente).
+  const category = findCategory(tournament as never, categoryId);
+  if (!category) {
+    logger.warn(
+      `globalRanking: categoria ${categoryId} não encontrada no torneio ${tournamentId} — ` +
+        `usando peso legado (${LEGACY_CATEGORY_WEIGHT})`,
+    );
+  }
+  const preset = categoryPreset(category);
+  const presetWeight = preset?.weight ?? LEGACY_CATEGORY_WEIGHT;
 
   const completedAt = parseMatchPlayedAt(match);
   const year = completedAt.getFullYear();
@@ -352,7 +427,9 @@ export async function tryAwardGlobalRankingForMatch(
     return {awarded: false, teamsUpdated: 0};
   }
 
-  const baseParams = {tournamentId, categoryId, rankingWeight, year, completedAt};
+  const pointsMultiplier =
+    presetWeight * rankingWeight * bracketSizeFactor(paidTeamIds.size);
+  const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt};
   let teamsUpdated = 0;
   for (const award of placements) {
     if (await awardGlobalPlacement(db, projectId, {...baseParams, award})) {
@@ -362,7 +439,9 @@ export async function tryAwardGlobalRankingForMatch(
 
   // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
   // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
-  if (shouldAwardGroupsBucket) {
+  // Livre não concede participação (D6 emendada): só pontua quem chega
+  // ao mata-mata — fecha o farm de "aparecer e levar o bucket groups".
+  if (shouldAwardGroupsBucket && preset?.key !== "livre") {
     const knockoutTeamIds = await loadKnockoutTeamIds(
       db,
       projectId,

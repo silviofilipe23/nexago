@@ -26,6 +26,74 @@
         (action)="reloadPanel()"
       />
     }
+
+
+    @if (focusDay.target(); as focusTarget) {
+      <!-- Fallback permanente pra quem saiu do Modo Focus (ou nunca entrou) e quer voltar — a
+           entrada automática dispara só uma vez por dia. Espelha o "Entrar no Focus" da casca
+           do torneio (`tournament-shell.component.html`). -->
+      <div class="at-card at-card--accent at-focus-banner">
+        <div class="at-focus-banner-copy">
+          <div class="at-card-kicker">Hoje tem torneio</div>
+          <p class="at-focus-banner-text">Sua partida do dia te espera no Modo Focus.</p>
+        </div>
+        <a [routerLink]="['/torneios', focusTarget.tournamentId, 'focus']" class="at-mini-btn at-mini-btn--primary">Entrar no Focus</a>
+      </div>
+    }
+    @for (campaign of recentCampaigns(); track campaign.tournamentId + campaign.categoryId) {
+      <div class="at-card at-card--accent at-campaign-card" [attr.data-placement]="campaign.placement">
+        <div class="at-campaign-body">
+          <div class="at-card-kicker">{{ campaignLabelOf(campaign) }}</div>
+          <div class="at-card-title">{{ campaign.tournamentName }}</div>
+          <div class="at-campaign-meta">
+            @if (campaign.categoryName) {
+              <span>{{ campaign.categoryName }}</span>
+            }
+            <span>{{ campaign.wins }}V · {{ campaign.losses }}D</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="at-campaign-cta"
+          [disabled]="campaignShareBusy() !== null"
+          (click)="openCampaignShare(campaign)"
+        >
+          @if (campaignShareBusy() === campaign.categoryId) {
+            Montando…
+          } @else {
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+            Compartilhar
+          }
+        </button>
+      </div>
+    }
+
+    @if (staffTournaments().length > 0) {
+      <!-- Operação: o atleta também é equipe de algum torneio (mesário/gestor). Fica no topo
+           do corpo, e não na coluna lateral, porque no celular a lateral cai pro fim da página
+           — no dia do evento a mesa não pode depender de rolagem. -->
+      <div class="at-card at-staff-card">
+        <div class="at-card-head">
+          <div>
+            <div class="at-card-kicker">Torneios que eu opero</div>
+            <div class="at-card-title">Mesa</div>
+          </div>
+          <a routerLink="/mesa" class="at-ghost-btn">Ver todos</a>
+        </div>
+        <div class="at-staff-list">
+          @for (entry of staffTournaments(); track entry.id) {
+            <a class="at-staff-row" [routerLink]="['/mesa', entry.id]">
+              <div class="at-staff-info">
+                <div class="at-staff-name">{{ entry.name }}</div>
+                <div class="at-staff-meta">{{ entry.roleLabel }} · lançar placares</div>
+              </div>
+              <span class="at-pill at-pill--orange">Abrir mesa</span>
+            </a>
+          }
+        </div>
+      </div>
+    }
+
     @if (bootLoading()) {
       <p class="at-visually-hidden" role="status">Carregando seu painel…</p>
       <div class="at-kpi-row" aria-hidden="true">
@@ -109,6 +177,19 @@
         secondaryLabel="Voltar"
         (primary)="confirmCancelRegistration()"
         (secondary)="closeCancelRegistration()"
+      />
+    }
+
+    @if (levelConfirmationPrompt(); as prompt) {
+      <app-nx-blocking-dialog
+        tone="info"
+        role="dialog"
+        heading="Confirme seu nível"
+        [body]="'Você vai se inscrever como ' + prompt.levelLabel + ' em ' + prompt.sportLabel + '. Após a inscrição, o nível só poderá subir.'"
+        primaryLabel="Confirmar e continuar"
+        secondaryLabel="Ajustar nível"
+        (primary)="confirmLevelPrompt()"
+        (secondary)="adjustLevelPrompt()"
       />
     }
 
@@ -321,3 +402,7 @@
     <app-lgpd-consent-dialog (confirmed)="confirmLgpdAndAccept()" (cancelled)="lgpdInviteToAccept.set(null)" />
   }
 </app-at-panel-shell>
+
+@if (campaignShareData(); as campaign) {
+  <app-campaign-share-dialog [data]="campaign" (closed)="campaignShareData.set(null)" />
+}

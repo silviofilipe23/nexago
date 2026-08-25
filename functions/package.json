@@ -10,12 +10,13 @@
     "deploy": "firebase deploy --only functions",
     "deploy:dev": "firebase use dev && firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "npm run build && node --test 'lib/**/*.test.js' test/seed-test-data-password.test.mjs test/unclaimed-arenas-data.test.mjs",
+    "test": "npm run build && node --test lib/**/*.test.js test/seed-test-data-password.test.mjs test/seed-tournament-categories.test.mjs test/unclaimed-arenas-data.test.mjs test/ranking-recompute.test.mjs test/bracket-placement-tiers-parity.test.mjs",
     "bulk-enroll": "node scripts/bulk-enroll-league-stage.js",
     "seed-tournament": "node scripts/seed-tournament-with-enrollments.js",
     "seed-tournament-today": "node scripts/seed-tournament-today-with-enrollments.js",
     "seed-test-data": "node scripts/seed-test-data.js",
-    "delete-test-data": "node scripts/delete-test-data.js"
+    "delete-test-data": "node scripts/delete-test-data.js",
+    "test:registrations": "npm run build && firebase emulators:exec --only firestore --project nexago-registration-matrix \"node --test --test-concurrency=1 test/registration-*.test.mjs\""
   },
   "engines": {
     "node": "22"

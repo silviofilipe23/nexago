@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import 'tournament_discovery_models.dart';
 import 'my_tournaments_logic.dart';
+import 'registration_progress_logic.dart';
 import 'tournament_partner_invite.dart';
 import 'tournament_registration_logic.dart';
 import 'tournament_registration_providers.dart';
@@ -64,6 +65,43 @@ Map<String, String> tournamentRegistrationQueryParams({
   return params;
 }
 
+/// Retomada de uma inscrição que JÁ EXISTE.
+///
+/// Carrega sempre o `registrationId`: sem ele a tela abre no passo de
+/// categoria, e lá a categoria já inscrita não abre a inscrição existente — o
+/// atleta que reservou solo ficava sem caminho até o convite do parceiro.
+///
+/// O destino é o passo de pagamento porque ele é o painel da inscrição: é onde
+/// moram o convite do parceiro (`showSoloPartnerInvite`), o uniforme, o
+/// pagamento e o cancelamento. `registrationId` vazio = nada a retomar, e o
+/// destino volta a ser o fluxo normal de inscrição.
+Map<String, String> tournamentRegistrationResumeParams({
+  required String categoryId,
+  required String registrationId,
+}) {
+  final reg = registrationId.trim();
+  if (reg.isEmpty) {
+    return tournamentRegistrationQueryParams(categoryId: categoryId);
+  }
+  return tournamentRegistrationQueryParams(
+    categoryId: categoryId,
+    registrationId: reg,
+    step: TournamentRegistrationStep.payment,
+  );
+}
+
+/// Destino do CTA "Continuar" da trilha de passos (Home do atleta e aba
+/// "Minha inscrição"). Vale para qualquer passo pendente — parceiro, uniforme
+/// ou pagamento —, porque todos são resolvidos a partir da inscrição existente.
+Map<String, String> registrationProgressResumeParams(
+  RegistrationProgress item,
+) {
+  return tournamentRegistrationResumeParams(
+    categoryId: item.categoryId,
+    registrationId: item.registrationId,
+  );
+}
+
 /// Abre inscrição no passo de pagamento após convite aceito.
 Map<String, String> tournamentRegistrationPaymentParams(
   TournamentPartnerInvite invite,
@@ -73,6 +111,19 @@ Map<String, String> tournamentRegistrationPaymentParams(
     registrationId: invite.registrationId,
     inviteId: invite.id,
     step: TournamentRegistrationStep.payment,
+  );
+}
+
+/// Abre a inscrição no ELENCO após um integrante entrar na equipe — o passo
+/// que resta quando o elenco ainda não fechou.
+Map<String, String> tournamentRegistrationRosterParams(
+  TournamentPartnerInvite invite,
+) {
+  return tournamentRegistrationQueryParams(
+    categoryId: invite.categoryId,
+    registrationId: invite.registrationId,
+    inviteId: invite.id,
+    step: TournamentRegistrationStep.partner,
   );
 }
 

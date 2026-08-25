@@ -49,6 +49,31 @@
         </a>
       }
 
+      @if (card.canShare) {
+        <button type="button" class="reg-cta reg-cta--share" (click)="openShare(card)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+          </svg>
+          Compartilhar no story
+        </button>
+      }
+
+      @if (card.canShareCampaign) {
+        <button type="button" class="reg-cta reg-cta--share" (click)="openCampaignShare(card)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+          </svg>
+          Compartilhar campanha
+        </button>
+      }
+
+
       @if (card.canCancel) {
         <button type="button" class="reg-cancel" (click)="askCancel(card)">Cancelar inscrição</button>
       } @else if (card.cancellationState === 'pending') {
@@ -98,6 +123,14 @@
         <button type="button" class="reg-cancel" (click)="openRequestForm(card)">Solicitar cancelamento</button>
       }
     </section>
+  }
+
+  @if (shareData(); as share) {
+    <app-registration-share-dialog [data]="share" (closed)="closeShare()" />
+  }
+
+  @if (campaignData(); as campaign) {
+    <app-campaign-share-dialog [data]="campaign" (closed)="closeCampaignShare()" />
   }
 
   @if (cancelTarget(); as target) {

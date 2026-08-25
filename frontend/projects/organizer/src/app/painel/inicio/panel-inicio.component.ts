@@ -66,9 +66,9 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
   imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent],
   template: `
     <og-page-header title="Início" subtitle="Visão geral dos seus torneios e ligas">
-      <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div>
-      <button type="button" class="og-bell-btn"><og-icon name="bell" [size]="17" /><span class="dot"></span></button>
-      <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/novo-torneio"><og-icon name="plus" [size]="14" />Criar evento</a>
+      <!-- <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div> -->
+      <!-- <button type="button" class="og-bell-btn"><og-icon name="bell" [size]="17" /><span class="dot"></span></button> -->
+      <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/novo-evento"><og-icon name="plus" [size]="14" />Criar evento</a>
     </og-page-header>
 
     <div class="og-content">
@@ -142,7 +142,10 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
                 <span class="og-ghost-btn">Abrir</span>
               </a>
             } @empty {
-              <p class="og-empty">Nenhum torneio ainda — crie pelo app nexaGO</p>
+              <p class="og-empty">
+                Nenhum torneio ainda —
+                <a class="og-empty-link" routerLink="/painel/novo-evento">crie seu primeiro evento</a>
+              </p>
             }
           </og-card>
 
@@ -329,6 +332,10 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
       color: var(--nx-text-mute);
       padding: 8px 0;
       margin: 0;
+    }
+    .og-empty-link {
+      color: var(--nx-orange-400);
+      text-decoration: underline;
     }
     .og-skeleton-line {
       height: 12px;

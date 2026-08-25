@@ -12,6 +12,10 @@ const Color kMatchCardBronze = Color(0xFFD08A5A);
 /// final e do 3º lugar (respiro + varredura), que no portal são as animações
 /// `mt-gold-breathe` / `mt-shimmer-sweep`.
 ///
+/// A casca não reserva espaçamento: o card ocupa toda a largura que recebe.
+/// Quem monta a lista é que aplica o padding de tela (`AppSpacing.screenH`) e o
+/// respiro entre cards — senão a margem soma com o padding e o card encolhe.
+///
 /// Ambas as animações somem com "reduzir movimento" ligado no sistema: o card
 /// continua ouro/bronze, só para de respirar.
 class TournamentMatchCardSkin extends StatefulWidget {
@@ -137,7 +141,6 @@ class _TournamentMatchCardSkinState extends State<TournamentMatchCardSkin>
 
     Widget card(double breath) {
       return Container(
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 14),
         decoration: BoxDecoration(
           color: widget.stage == null ? surface : null,
           gradient: widget.stage != null

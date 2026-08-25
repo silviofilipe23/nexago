@@ -2,37 +2,115 @@ import 'package:flutter/material.dart';
 
 enum RankingListMode { athletes, teams }
 
-enum RankingGenderFilter { all, male, female, mixed }
+enum RankingGenderFilter {
+  all('Todos'),
+  male('Masculino'),
+  female('Feminino'),
+  mixed('Misto');
+
+  const RankingGenderFilter(this.label);
+
+  /// Rótulo exibido na folha de filtros.
+  final String label;
+}
+
+/// Formato do time no ranking de duplas/equipes. Dupla é o formato legado sem
+/// `teamSize`; trio/quarteto/quinteto são as equipes nomeadas (`teamSize` 3–5).
+enum RankingFormatFilter {
+  all('Todos'),
+  dupla('Dupla'),
+  trio('Trio'),
+  quarteto('Quarteto'),
+  quinteto('Quinteto');
+
+  const RankingFormatFilter(this.label);
+
+  /// Rótulo exibido na folha de filtros.
+  final String label;
+}
+
+/// Faixa de nível no ranking. A escada canônica tem 7 degraus (ver
+/// `AthleteProfileOptions.levels`), mas o filtro agrupa em 4 faixas — é como o
+/// atleta lê o próprio nível, e 8 linhas soltas não cabiam na folha.
+/// Os degraus continuam intactos: só a lente de filtragem é mais larga.
+enum RankingLevelFilter {
+  all('Todos os níveis', 0, 6),
+  iniciante('Iniciante', 0, 1),
+  intermediario('Intermediário', 2, 3),
+  avancado('Avançado', 4, 5),
+  open('Open', 6, 6);
+
+  const RankingLevelFilter(this.label, this.minRank, this.maxRank);
+
+  /// Rótulo do chip e da folha.
+  final String label;
+
+  /// Faixa fechada de ranks da escada de 7 que a opção cobre.
+  final int minRank;
+  final int maxRank;
+
+  /// `null` (nível não resolvido) só passa em [all] — escolher uma faixa
+  /// esconde quem não tem nível, mesma regra do filtro por degrau exato.
+  bool matchesRank(int? rank) {
+    if (this == RankingLevelFilter.all) return true;
+    if (rank == null) return false;
+    return rank >= minRank && rank <= maxRank;
+  }
+}
 
 class RankingPageFilter {
   const RankingPageFilter({
     this.mode = RankingListMode.athletes,
     this.year,
     this.gender = RankingGenderFilter.all,
-    this.level,
+    this.format = RankingFormatFilter.all,
+    this.level = RankingLevelFilter.all,
   });
 
   final RankingListMode mode;
   final int? year;
   final RankingGenderFilter gender;
-  /// Rank de nível selecionado (`null` = todos os níveis).
-  final int? level;
+
+  /// Só vale no modo de duplas/equipes — linha individual não tem formato
+  /// (a tela esconde o chip e volta pra `all` ao trocar de modo).
+  final RankingFormatFilter format;
+
+  /// Faixa de nível selecionada (`all` = todos os níveis).
+  final RankingLevelFilter level;
 
   bool get isGeneralMode => year == null;
 
-  String get pointsModeLabel => isGeneralMode ? 'SOMA TOTAL' : 'MELHORES 5';
+  /// Temporada em curso, em texto. Vive no cabeçalho da lista porque os chips
+  /// de ano saíram da tela: sem isso, nada diz qual recorte está aberto.
+  String get seasonLabel => isGeneralMode ? 'GERAL' : '$year';
+
+  String get pointsModeLabel => isGeneralMode ? 'SOMA TOTAL' : 'SOMA DO ANO';
+
+  /// Algum recorte que não aparece em lugar nenhum da tela — é o que o ícone
+  /// da barra precisa denunciar.
+  ///
+  /// Ano e modo ficam de fora porque estão sempre à vista: o segmento
+  /// Equipes/Atletas é um controle da tela e a temporada vive no cabeçalho da
+  /// lista. Contar a temporada aqui deixaria o aviso aceso desde a abertura
+  /// (a tela nasce no ano corrente), avisando de nada.
+  bool get hasActiveFilters =>
+      gender != RankingGenderFilter.all ||
+      format != RankingFormatFilter.all ||
+      level != RankingLevelFilter.all;
 
   RankingPageFilter copyWith({
     RankingListMode? mode,
     int? Function()? year,
     RankingGenderFilter? gender,
-    int? Function()? level,
+    RankingFormatFilter? format,
+    RankingLevelFilter? level,
   }) {
     return RankingPageFilter(
       mode: mode ?? this.mode,
       year: year != null ? year() : this.year,
       gender: gender ?? this.gender,
-      level: level != null ? level() : this.level,
+      format: format ?? this.format,
+      level: level ?? this.level,
     );
   }
 }

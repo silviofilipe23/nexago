@@ -41,8 +41,52 @@ export function confirmRegistrationPayment(registrationId: string): Promise<unkn
   return call('organizerConfirmRegistrationPayment', { registrationId: registrationId.trim() });
 }
 
+/** Desfaz a baixa manual de pagamento (o organizador confirmou na dupla errada). O servidor
+ *  recusa pagamento recebido pela plataforma e devolve a inscrição ao estado anterior à
+ *  confirmação — `outcome` diz qual: pendente, a conferir, fila ou o pagamento que já constava. */
+export function revertRegistrationPayment(
+  registrationId: string,
+): Promise<{ ok?: boolean; outcome?: 'pending' | 'toVerify' | 'waitlist' | 'paid' }> {
+  return call('organizerRevertRegistrationPayment', { registrationId: registrationId.trim() });
+}
+
 export function moveToWaitlist(registrationId: string): Promise<unknown> {
   return call('organizerMoveToWaitlist', { registrationId: registrationId.trim() });
+}
+
+export interface TeamRegistrationUniform {
+  sizeTop?: string;
+  sizeShorts?: string;
+  jerseyNumber?: number;
+  jerseyName?: string;
+}
+
+export interface CreateTeamRegistrationResult {
+  registrationId: string;
+  teamId: string;
+  /** A dupla fechou sobre uma reserva que um dos atletas já tinha, em vez de nascer do zero. */
+  merged: boolean;
+  waitlist: boolean;
+}
+
+/** Inscreve uma dupla que não conseguiu se inscrever sozinha (prazo estourado, convite nunca
+ *  aceito, pagamento travado). O servidor decide se cria a dupla ou aproveita uma reserva
+ *  existente — e continua barrando nível, idade e dupla repetida na categoria. */
+export function createTeamRegistration(params: {
+  tournamentId: string;
+  categoryId: string;
+  athleteUids: readonly [string, string];
+  markAsPaid: boolean;
+  /** Uniforme por uid — obrigatório quando a categoria exige; o servidor valida os tamanhos. */
+  uniforms?: Record<string, TeamRegistrationUniform>;
+}): Promise<CreateTeamRegistrationResult> {
+  return call<CreateTeamRegistrationResult>('organizerCreateTeamRegistration', {
+    tournamentId: params.tournamentId.trim(),
+    categoryId: params.categoryId.trim(),
+    athleteUids: [params.athleteUids[0].trim(), params.athleteUids[1].trim()],
+    markAsPaid: params.markAsPaid,
+    uniforms: params.uniforms ?? {},
+  });
 }
 
 /** `description` é obrigatória: a inscrição é deletada, então esse texto é a única
@@ -56,6 +100,21 @@ export function removeFromCategory(registrationId: string, description: string):
 
 export function resendRegistrationPayment(registrationId: string): Promise<unknown> {
   return call('resendRegistrationPayment', { registrationId: registrationId.trim() });
+}
+
+/** Promove o nível de um atleta do torneio (Task 8 do plano de calibração) — mesma callable
+ *  `setAthleteLevel` do backoffice, aqui autorizada pelo caminho ORGANIZER (Task 3):
+ *  `tournamentId` prova que o caller é dono do torneio, `sportCode` tem que ser o esporte
+ *  DESSE torneio (o servidor rejeita divergência) e o atleta precisa ter inscrição ativa nele.
+ *  O servidor também garante a direção (só sobe) — a UI só evita oferecer o que já sabe que
+ *  vai falhar. */
+export function promoteAthleteLevel(params: { uid: string; sportCode: string; level: string; tournamentId: string }): Promise<unknown> {
+  return call('setAthleteLevel', {
+    uid: params.uid.trim(),
+    sportCode: params.sportCode.trim(),
+    level: params.level.trim(),
+    tournamentId: params.tournamentId.trim(),
+  });
 }
 
 /** Responde ao pedido de cancelamento do atleta. Aprovar remove a inscrição e libera
@@ -124,6 +183,14 @@ export function updateLiveMatchScore(params: { matchId: string; setsA: number; s
     currentGamesA: params.currentGamesA,
     currentGamesB: params.currentGamesB,
   });
+}
+
+/** Operação inversa do START da mesa: devolve a partida para `Scheduled`, limpa o placar
+ *  ao vivo (incluindo o histórico ponto a ponto) e tira do contador `liveMatchesNow`. O
+ *  agendamento e o check-in ficam intactos — é "tirar do ao vivo", não desagendar. O servidor
+ *  recusa partida já encerrada, porque a chave e o ranking já avançaram. */
+export function revertMatchToScheduled(matchId: string): Promise<{ ok?: boolean }> {
+  return call('revertMatchToScheduled', { matchId: matchId.trim() });
 }
 
 export function declareMatchWalkover(params: { matchId: string; winnerTeamId: string; loserStatus?: string }): Promise<unknown> {

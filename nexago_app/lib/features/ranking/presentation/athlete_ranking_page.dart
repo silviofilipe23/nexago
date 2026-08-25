@@ -16,14 +16,12 @@ import '../domain/ranking_list_models.dart';
 import '../domain/ranking_logic.dart';
 import '../domain/ranking_providers.dart';
 import 'widgets/ranking_classification_header.dart';
-import 'widgets/ranking_gender_filter_sheet.dart';
+import 'widgets/ranking_filters_sheet.dart';
 import 'widgets/ranking_how_it_works_sheet.dart';
-import 'widgets/ranking_level_filter_chip.dart';
 import 'widgets/ranking_list_tile.dart';
 import 'widgets/ranking_mode_segment.dart';
 import 'widgets/ranking_page_app_bar.dart';
 import 'widgets/ranking_podium.dart';
-import 'widgets/ranking_year_filter_row.dart';
 
 class AthleteRankingPage extends ConsumerStatefulWidget {
   const AthleteRankingPage({super.key});
@@ -64,7 +62,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     required RankingListEntry? userEntry,
   }) {
     final sessionKey =
-        '${filter.mode}|${filter.year}|${filter.gender}|${userEntry?.entityId}|${userEntry?.rank}';
+        '${filter.mode}|${filter.year}|${filter.gender}|${filter.format}|'
+        '${filter.level}|${userEntry?.entityId}|${userEntry?.rank}';
     if (_floatingSessionKey == sessionKey) return;
     _floatingSessionKey = sessionKey;
     _userCardFloating = true;
@@ -106,15 +105,14 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     });
   }
 
-  Future<void> _openGenderFilter() async {
-    final current = ref.read(rankingPageFilterProvider).gender;
-    final selected = await showRankingGenderFilterSheet(
-      context,
-      current: current,
+  Future<void> _openFilters() async {
+    final applied = await showRankingFiltersSheet(
+      context: context,
+      initial: ref.read(rankingPageFilterProvider),
+      yearOptions: ref.read(rankingYearOptionsProvider),
     );
-    if (selected == null || selected == current) return;
-    ref.read(rankingPageFilterProvider.notifier).state =
-        ref.read(rankingPageFilterProvider).copyWith(gender: selected);
+    if (applied == null || !mounted) return;
+    ref.read(rankingPageFilterProvider.notifier).state = applied;
   }
 
   void _openProfile(RankingListEntry entry, RankingListMode mode) {
@@ -163,7 +161,6 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final filter = ref.watch(rankingPageFilterProvider);
-    final yearOptions = ref.watch(rankingYearOptionsProvider);
     final entriesAsync = ref.watch(rankingListEntriesProvider);
 
     return Scaffold(
@@ -172,7 +169,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         searchOpen: _searchOpen,
         searchController: _searchController,
         onSearchToggle: _toggleSearch,
-        onFilterTap: _openGenderFilter,
+        onFilterTap: _openFilters,
+        filtersActive: filter.hasActiveFilters,
         onInfoTap: () => showRankingHowItWorksSheet(context),
       ),
       body: entriesAsync.when(
@@ -185,8 +183,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         data: (entries) {
           final visible = filterRankingEntriesBySearch(entries, _searchQuery);
           final isSearching = _searchQuery.trim().isNotEmpty;
-          final userEntry =
-              visible.where((e) => e.isCurrentUser).firstOrNull;
+          final userEntry = visible.where((e) => e.isCurrentUser).firstOrNull;
           final userInRest = userEntry != null && userEntry.rank > 3;
           final showFloatingUserCard =
               userInRest && _userCardFloating && !isSearching;
@@ -224,35 +221,15 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                     RankingModeSegment(
                       mode: filter.mode,
                       onChanged: (mode) {
+                        // Formato só existe no modo de duplas — um "trio"
+                        // preso no Individual esvaziaria a lista, e a folha
+                        // esconde a seção nesse modo: ninguém veria por quê.
                         ref.read(rankingPageFilterProvider.notifier).state =
-                            filter.copyWith(mode: mode);
-                      },
-                    ),
-                    SizedBox(height: 12),
-                    RankingYearFilterRow(
-                      yearOptions: [null, ...yearOptions],
-                      selectedYear: filter.year,
-                      modeLabel: filter.pointsModeLabel,
-                      onYearSelected: (year) {
-                        ref.read(rankingPageFilterProvider.notifier).state =
-                            RankingPageFilter(
-                          mode: filter.mode,
-                          year: year,
-                          gender: filter.gender,
-                          level: filter.level,
+                            filter.copyWith(
+                          mode: mode,
+                          format: RankingFormatFilter.all,
                         );
                       },
-                    ),
-                    SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: RankingLevelFilterChip(
-                        selectedRank: filter.level,
-                        onChanged: (rank) {
-                          ref.read(rankingPageFilterProvider.notifier).state =
-                              filter.copyWith(level: () => rank);
-                        },
-                      ),
                     ),
                     SizedBox(height: 20),
                     if (visible.isEmpty)
@@ -264,7 +241,12 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                           subtitle: _searchQuery.isNotEmpty
                               ? 'Nenhum resultado para "$_searchQuery".'
                               : filter.mode == RankingListMode.teams
-                                  ? 'Nenhuma dupla no ranking para este filtro.'
+                                  // Com filtro de trio+ ativo, "dupla" mentiria.
+                                  ? (filter.format == RankingFormatFilter.all ||
+                                          filter.format ==
+                                              RankingFormatFilter.dupla
+                                      ? 'Nenhuma dupla no ranking para este filtro.'
+                                      : 'Nenhuma equipe no ranking para este filtro.')
                                   : 'Nenhum atleta no ranking para este filtro.',
                         ),
                       )
@@ -321,6 +303,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         RankingClassificationHeader(
           mode: filter.mode,
           count: visible.length,
+          yearLabel: filter.seasonLabel,
         ),
         SizedBox(height: 10),
         for (final entry in sorted)
@@ -362,6 +345,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         RankingClassificationHeader(
           mode: filter.mode,
           count: visible.length,
+          yearLabel: filter.seasonLabel,
         ),
         SizedBox(height: 10),
         for (final entry in rest)

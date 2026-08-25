@@ -5,6 +5,7 @@ import { listInscriptions, type TournamentInscription } from '../data/inscriptio
 import { listMatches } from '../data/matches-repository';
 import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
+import { EMPTY_TOURNAMENT_COLLECTED, formatCentsShort } from '../data/tournament-collected';
 import { getTournament } from '../data/tournaments-repository';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -99,8 +100,10 @@ interface CategoriaRow {
           </div>
           <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">Arrecadado</div>
-            <!-- mock (fase 2): arrecadação por torneio fica no Financeiro (Task O7); sem dado real aqui ainda -->
-            <div class="og-kpi-value sm" style="color:var(--nx-win)">—</div>
+            <div class="og-kpi-value sm" style="color:var(--nx-win)">{{ money(collected().totalCents) }}</div>
+            @if (collectedSplit(); as split) {
+              <div class="og-torneio-kpi-split">{{ split }}</div>
+            }
           </div>
         </div>
 
@@ -178,6 +181,12 @@ interface CategoriaRow {
     }
   `,
   styles: `
+    .og-torneio-kpi-split {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+      margin-top: 3px;
+    }
     /* ── Hero de capa — background full-bleed que desvanece no fundo da página ──
        Margens negativas cancelam o padding do .og-content (22px 32px) e puxam a
        linha de KPIs 60px pra cima (gap 18 − 78), fazendo os cards flutuarem sobre
@@ -278,9 +287,10 @@ interface CategoriaRow {
       color: var(--nx-text);
       margin-top: 3px;
     }
+    /* Ver og-eventos-grid: a contagem de colunas sai da largura real, não de um número fixo. */
     .og-torneio-cats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
     }
     .og-torneio-cat {
@@ -442,6 +452,24 @@ export class TorneioDetalheComponent {
   protected readonly inscritosCount = computed(() => this.inscriptions().length);
   protected readonly pendentesCount = computed(() => this.inscriptions().filter((i) => !i.paid).length);
   protected readonly categoriasCount = computed(() => this.tournament()?.categories.length ?? 0);
+
+  protected readonly collected = computed(() => this.tournament()?.collected ?? EMPTY_TOURNAMENT_COLLECTED);
+
+  protected money(cents: number): string {
+    return formatCentsShort(cents);
+  }
+
+  /** Mesma regra do card na lista de eventos: recorte só quando os dois canais têm valor. O
+   *  "a conferir" aparece mesmo sozinho — é uma pendência de ação, não um detalhe. */
+  protected readonly collectedSplit = computed<string | null>(() => {
+    const c = this.collected();
+    const parts: string[] = [];
+    if (c.viaAppCents > 0 && c.viaOrganizerCents > 0) {
+      parts.push(`${formatCentsShort(c.viaAppCents)} app · ${formatCentsShort(c.viaOrganizerCents)} direto`);
+    }
+    if (c.toVerifyCents > 0) parts.push(`${formatCentsShort(c.toVerifyCents)} a conferir`);
+    return parts.length > 0 ? parts.join(' · ') : null;
+  });
 
   protected readonly categoriaRows = computed<CategoriaRow[]>(() => {
     const t = this.tournament();

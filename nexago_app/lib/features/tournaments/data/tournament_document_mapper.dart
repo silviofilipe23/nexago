@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
+import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_listing_status.dart';
@@ -42,6 +43,7 @@ abstract final class TournamentDocumentMapper {
   static TournamentDetail detailFromMap(String id, Map<String, dynamic> data) {
     final offers = _parseCategoryOffers(
       data['categories'],
+      categoryOpsRaw: data['categoryOps'],
       tournamentUniformRequired: data['uniformRequired'] == true,
       tournamentUniformNumberOnShirt: data['uniformNumberOnShirt'] == true,
       tournamentUniformNameOnShirt: data['uniformNameOnShirt'] == true,
@@ -152,8 +154,23 @@ abstract final class TournamentDocumentMapper {
     return value is num ? value.toInt() : null;
   }
 
+  /// `bracketFormatOverride` de `tournaments/{id}.categoryOps[categoryId]`.
+  ///
+  /// Vazio quando a chave ainda não foi publicada — aí o formato declarado na
+  /// categoria segue valendo.
+  static String _categoryOpsOverride(
+    dynamic categoryOpsRaw,
+    String categoryId,
+  ) {
+    if (categoryOpsRaw is! Map) return '';
+    final entry = categoryOpsRaw[categoryId];
+    if (entry is! Map) return '';
+    return _str(entry['bracketFormatOverride'])?.trim() ?? '';
+  }
+
   static List<TournamentCategoryOffer> _parseCategoryOffers(
     dynamic raw, {
+    dynamic categoryOpsRaw,
     bool tournamentUniformRequired = false,
     bool tournamentUniformNumberOnShirt = false,
     bool tournamentUniformNameOnShirt = false,
@@ -170,6 +187,15 @@ abstract final class TournamentDocumentMapper {
       final offerId = categoryId != null && categoryId.isNotEmpty
           ? categoryId
           : name;
+
+      // O formato com que a chave foi GERADA vence o que a categoria declarou
+      // — ver `effectiveBracketFormat`. Resolvido aqui, no mapper, para que
+      // TODA a superfície do atleta (nav do Focus, card de vidas, aba de
+      // chave, detalhe) enxergue o mesmo formato sem cada tela repetir a regra.
+      final bracketFormat = effectiveBracketFormat(
+        declared: _str(map['bracketFormat']) ?? '',
+        override: _categoryOpsOverride(categoryOpsRaw, offerId),
+      );
       final entryFee = _num(map['entryFee']) ?? 0;
       final maxTeams = _int(map['maxTeams']) ?? 0;
       final spotsTotalLegacy =
@@ -190,13 +216,14 @@ abstract final class TournamentDocumentMapper {
         maxTeams: capacity,
         spotsTotal: capacity,
         level: _str(map['level']) ?? '',
+        minLevel: _str(map['minLevel']) ?? '',
         ageBand: _str(map['ageBand']) ?? '',
         ageRestrictionMode: _pixField(map['ageRestriction'], 'mode'),
         ageMinYears: _ageRestrictionInt(map['ageRestriction'], 'minAge'),
         ageMaxYears: _ageRestrictionInt(map['ageRestriction'], 'maxAge'),
         ageReference: _pixField(map['ageRestriction'], 'reference'),
         genderType: _str(map['genderType']) ?? '',
-        bracketFormat: _str(map['bracketFormat']) ?? '',
+        bracketFormat: bracketFormat,
         registrationClosed: map['registrationClosed'] == true,
         isCompleted: map['isCompleted'] == true,
         prizes: _parseCategoryPrizes(map['prizes']),
@@ -249,13 +276,14 @@ abstract final class TournamentDocumentMapper {
           maxTeams: capacity,
           spotsTotal: capacity,
           level: _str(map['level']) ?? '',
+          minLevel: _str(map['minLevel']) ?? '',
           ageBand: _str(map['ageBand']) ?? '',
           ageRestrictionMode: _pixField(map['ageRestriction'], 'mode'),
           ageMinYears: _ageRestrictionInt(map['ageRestriction'], 'minAge'),
           ageMaxYears: _ageRestrictionInt(map['ageRestriction'], 'maxAge'),
           ageReference: _pixField(map['ageRestriction'], 'reference'),
           genderType: _str(map['genderType']) ?? '',
-          bracketFormat: _str(map['bracketFormat']) ?? '',
+          bracketFormat: bracketFormat,
           registrationClosed: map['registrationClosed'] == true,
           isCompleted: map['isCompleted'] == true,
           prizes: _parseCategoryPrizes(map['prizes']),

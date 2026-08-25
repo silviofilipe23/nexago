@@ -7,7 +7,7 @@ const fs = require("fs");
 const admin = require("firebase-admin");
 const {genderTypeDisplayLabel} = require("../lib/category-display-labels");
 const {
-  computeTournamentCollectedCents,
+  computeTournamentCollectedStats,
 } = require("../lib/tournament-collected-stats");
 const {
   ORGANIZER_DIRECT_PAYMENT_METHOD,
@@ -51,6 +51,8 @@ function resolveVolleyballLevelCode(raw) {
 
 const DEFAULT_ENTRY_FEE_CENTS = 18000;
 const MAX_TEAMS_PER_CATEGORY = 16;
+/** 10 = 5 níveis × 2 gêneros — quantas categorias `buildCategories()` gera. */
+const TOTAL_CATEGORIES = LEVELS.length * GENDERS.length;
 const COURTS_COUNT = 4;
 
 function argValue(flag) {
@@ -124,7 +126,21 @@ function defaultCourts(count) {
   }));
 }
 
-function buildCategories() {
+/**
+ * Categorias do torneio seed, na ordem `LEVELS` × `GENDERS`.
+ *
+ * @param {object} [options]
+ * @param {number} [options.maxCategories] Mantém só as N primeiras dessa
+ *   ordem. Sem o corte saem as 10 (5 níveis × 2 gêneros) — o default.
+ * @param {number} [options.maxTeamsPerCategory=16] Vagas por categoria. É
+ *   também o teto de duplas inscritas: `buildPairPlans` lê `maxTeams` do
+ *   próprio doc da categoria para dimensionar o pool de atletas.
+ */
+function buildCategories({maxCategories, maxTeamsPerCategory} = {}) {
+  const maxTeams =
+    Number.isInteger(maxTeamsPerCategory) && maxTeamsPerCategory > 0 ?
+      maxTeamsPerCategory :
+      MAX_TEAMS_PER_CATEGORY;
   const categories = [];
   for (const level of LEVELS) {
     for (const gender of GENDERS) {
@@ -137,9 +153,9 @@ function buildCategories() {
         ageBand: "open",
         ageRestriction: {mode: "none", reference: "tournamentStart"},
         level: level.label,
-        maxTeams: MAX_TEAMS_PER_CATEGORY,
-        spotsTotal: MAX_TEAMS_PER_CATEGORY,
-        spotsLeft: MAX_TEAMS_PER_CATEGORY,
+        maxTeams,
+        spotsTotal: maxTeams,
+        spotsLeft: maxTeams,
         entryFee: DEFAULT_ENTRY_FEE_CENTS / 100,
         entryFeeCents: DEFAULT_ENTRY_FEE_CENTS,
         useDefaultPrice: true,
@@ -155,6 +171,9 @@ function buildCategories() {
         uniformType: "none",
       });
     }
+  }
+  if (Number.isInteger(maxCategories) && maxCategories > 0) {
+    return categories.slice(0, Math.min(maxCategories, categories.length));
   }
   return categories;
 }
@@ -403,27 +422,44 @@ async function loadSeedAthletesByCategory(db) {
   return byCategory;
 }
 
-async function loadEnrolledUids(db, projectId, tournamentId) {
-  const enrolled = new Set();
+/**
+ * Uma leitura só das inscrições do torneio, com as DUAS coisas que o
+ * planejamento precisa: quem já está inscrito (para não inscrever de novo) e
+ * quantas duplas cada categoria já tem (para não estourar `maxTeams` numa
+ * segunda execução — o filtro por uid sozinho só enxerga o pool de atletas).
+ */
+async function loadEnrollmentState(db, projectId, tournamentId) {
+  const enrolledUids = new Set();
+  const teamsByCategory = new Map();
   const snap = await db
     .collection(artifactsInscriptionsPath(projectId))
     .where("tournamentId", "==", tournamentId)
     .get();
   for (const doc of snap.docs) {
     const data = doc.data();
-    const participants = Array.isArray(data.participantUids)
-      ? data.participantUids
-      : [];
+    const participants = Array.isArray(data.participantUids) ?
+      data.participantUids :
+      [];
     for (const uid of participants) {
-      if (uid) enrolled.add(String(uid).trim());
+      if (uid) enrolledUids.add(String(uid).trim());
     }
     const p1 = String(data.player1Id ?? "").trim();
-    if (p1) enrolled.add(p1);
+    if (p1) enrolledUids.add(p1);
+
+    if (data.waitlist === true) continue;
+    const categoryId = String(data.categoryId ?? "").trim();
+    if (!categoryId) continue;
+    teamsByCategory.set(categoryId, (teamsByCategory.get(categoryId) ?? 0) + 1);
   }
-  return enrolled;
+  return {enrolledUids, teamsByCategory};
 }
 
-function buildPairPlans(tournament, athletesByCategory, enrolledUids) {
+function buildPairPlans(
+  tournament,
+  athletesByCategory,
+  enrolledUids,
+  teamsByCategory = new Map(),
+) {
   const plans = [];
   for (const [categoryId, athletes] of athletesByCategory.entries()) {
     const available = athletes.filter((a) => !enrolledUids.has(a.uid));
@@ -433,8 +469,14 @@ function buildPairPlans(tournament, athletesByCategory, enrolledUids) {
     if (!category) continue;
 
     const maxTeams = Number(category.maxTeams) || MAX_TEAMS_PER_CATEGORY;
-    const maxAthletes = maxTeams * 2;
-    const pool = available.slice(0, maxAthletes);
+    // O teto é sobre as duplas da CATEGORIA, não sobre o pool de atletas: numa
+    // segunda execução sobram atletas não inscritos e, sem descontar as duplas
+    // que já existem, a categoria passaria de `maxTeams`.
+    const remainingTeams = Math.max(
+      0,
+      maxTeams - (teamsByCategory.get(categoryId) ?? 0),
+    );
+    const pool = available.slice(0, remainingTeams * 2);
 
     for (let i = 0; i + 1 < pool.length; i += 2) {
       plans.push({
@@ -514,14 +556,25 @@ async function refreshTournamentStats(db, projectId, tournamentId, tournament) {
     (i) => i.isPaid === true && i.waitlist !== true,
   );
   const enrolledCount = paidRegs.length;
-  const collectedCents = computeTournamentCollectedCents(tournament, inscriptions);
+  // Os quatro campos saem juntos, como no trigger
+  // `onTournamentInscriptionWriteSyncCollectedCents`: `collectedCents` é o
+  // total e os outros três são o recorte por canal. Gravar só o total deixaria
+  // o painel do organizador com uma divisão viaApp/viaOrganizer de outra época.
+  const stats = computeTournamentCollectedStats(tournament, inscriptions);
 
   await db.doc(`tournaments/${tournamentId}`).set(
-    {enrolledCount, collectedCents, updatedAt: FieldValue.serverTimestamp()},
+    {
+      enrolledCount,
+      collectedCents: stats.totalCents,
+      collectedViaAppCents: stats.viaAppCents,
+      collectedViaOrganizerCents: stats.viaOrganizerCents,
+      collectedToVerifyCents: stats.toVerifyCents,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
     {merge: true},
   );
 
-  return {enrolledCount, collectedCents};
+  return {enrolledCount, collectedCents: stats.totalCents};
 }
 
 /** Erro de aborto deliberado — o chamador imprime só a mensagem. */
@@ -589,6 +642,7 @@ async function runTournamentEnrollmentSeed({
   extraLogLines = () => [],
   args,
   requireSeedFlagOnReuse = false,
+  categoryOptions,
 }) {
   const {APPLY, projectId, MANAGER_UID, TOURNAMENT_NAME} =
     args || parseSeedArgs(defaultTournamentName);
@@ -602,7 +656,7 @@ async function runTournamentEnrollmentSeed({
     console.log(line);
   }
 
-  const categories = buildCategories();
+  const categories = buildCategories(categoryOptions);
   let tournament = await findTournamentByName(db, TOURNAMENT_NAME);
   let tournamentId;
 
@@ -613,6 +667,15 @@ async function runTournamentEnrollmentSeed({
       throw reuseAbortError(TOURNAMENT_NAME, tournament);
     }
     console.log(`\nTorneio existente reutilizado: ${tournamentId}`);
+    if (categoryOptions) {
+      // As categorias só são gravadas na CRIAÇÃO; num torneio reutilizado
+      // valem as que já estão no doc. Silenciar isso faria o operador achar
+      // que o corte pegou quando o volume real veio do torneio antigo.
+      console.log(
+        "  AVISO: limites de categoria/vagas NÃO se aplicam a torneio reutilizado —" +
+        " valem as categorias já gravadas nele. Use --tournament-name novo.",
+      );
+    }
   } else {
     tournamentId = db.collection("tournaments").doc().id;
     const doc = buildTournamentDoc(categories, TOURNAMENT_NAME);
@@ -634,7 +697,11 @@ async function runTournamentEnrollmentSeed({
   }
 
   const athletesByCategory = await loadSeedAthletesByCategory(db);
-  const enrolledUids = await loadEnrolledUids(db, projectId, tournamentId);
+  const {enrolledUids, teamsByCategory} = await loadEnrollmentState(
+    db,
+    projectId,
+    tournamentId,
+  );
 
   console.log("\nAtletas seed por categoria:");
   for (const [categoryId, athletes] of athletesByCategory.entries()) {
@@ -646,11 +713,26 @@ async function runTournamentEnrollmentSeed({
     tournament.data,
     athletesByCategory,
     enrolledUids,
+    teamsByCategory,
   );
   console.log(`\nPlanos de dupla pagas: ${plans.length}`);
 
   if (plans.length === 0) {
     console.log("Nada a inscrever. Rode seed-athletes.js antes ou todos já estão inscritos.");
+    // Sem duplas novas os contadores ainda podem estar defasados — é o estado
+    // que sobra de uma execução interrompida DEPOIS de gravar as inscrições.
+    // Recalcular aqui é o que deixa a rodada seguinte consertar isso sozinha.
+    if (APPLY) {
+      const stats = await refreshTournamentStats(
+        db,
+        projectId,
+        tournamentId,
+        tournament.data,
+      );
+      console.log(
+        `enrolledCount=${stats.enrolledCount} collectedCents=${stats.collectedCents}`,
+      );
+    }
     return;
   }
 
@@ -681,6 +763,8 @@ async function runTournamentEnrollmentSeed({
 module.exports = {
   LEVELS,
   GENDERS,
+  TOTAL_CATEGORIES,
+  MAX_TEAMS_PER_CATEGORY,
   dayKeyInSaoPaulo,
   buildCategories,
   buildTournamentDocFuture,

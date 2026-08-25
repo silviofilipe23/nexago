@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../../core/time/nexago_event_timezone.dart';
 import 'tournament_match.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
@@ -28,13 +29,18 @@ String matchTimeLabelForCard(TournamentMatch match, {DateTime? reference}) {
   final time = matchTimeForCard(match);
   if (time == null) return '';
 
-  final now = reference ?? DateTime.now();
-  final sameDay =
-      time.year == now.year && time.month == now.month && time.day == now.day;
+  // O mapper entrega os campos do doc como INSTANTE (DateTime marcado como
+  // UTC). Formatar esse valor direto imprime a hora de Greenwich — no
+  // horário de Brasília, 3h a mais. A parede do evento é sempre São Paulo.
+  final local = toNexagoEventLocal(time);
+  final now = toNexagoEventLocal(reference ?? DateTime.now());
+  final sameDay = local.year == now.year &&
+      local.month == now.month &&
+      local.day == now.day;
   if (sameDay) {
-    return DateFormat('HH:mm', 'pt_BR').format(time);
+    return DateFormat('HH:mm', 'pt_BR').format(local);
   }
-  return DateFormat('dd/MM · HH:mm', 'pt_BR').format(time);
+  return DateFormat('dd/MM · HH:mm', 'pt_BR').format(local);
 }
 
 String matchNumberLabelForCard(TournamentMatch match) {
@@ -65,14 +71,15 @@ String matchScheduleFooterLabelPt(TournamentMatch match) {
   if (time == null) {
     return court.isEmpty ? 'Sem horário' : '$court · sem horário';
   }
+  final local = toNexagoEventLocal(time);
   final weekdayRaw =
-      DateFormat('EEE', 'pt_BR').format(time).replaceAll('.', '');
+      DateFormat('EEE', 'pt_BR').format(local).replaceAll('.', '');
   final weekday = weekdayRaw.isEmpty
       ? ''
       : '${weekdayRaw[0].toUpperCase()}${weekdayRaw.substring(1)}';
   return [
-    '$weekday ${DateFormat('dd/MM', 'pt_BR').format(time)}'.trim(),
-    DateFormat('HH:mm', 'pt_BR').format(time),
+    '$weekday ${DateFormat('dd/MM', 'pt_BR').format(local)}'.trim(),
+    DateFormat('HH:mm', 'pt_BR').format(local),
     if (court.isNotEmpty) court,
   ].join(' · ');
 }
@@ -102,6 +109,19 @@ const _defaultBestOf = 3;
 const _defaultSetPoints = 21;
 const _tiebreakSetPoints = 15;
 const _minSetAdvantage = 2;
+
+/// Pontos que fecham um set normal e um tie-break. Expostos porque o Modo Focus
+/// mostra o formato da partida ao atleta ("MD3 · 21 PTS", "tie 15") e a régua
+/// tem que ser a MESMA que decide se o set acabou.
+int get matchSetPoints => _defaultSetPoints;
+int get matchTiebreakSetPoints => _tiebreakSetPoints;
+int get matchMinSetAdvantage => _minSetAdvantage;
+
+/// Pontos que fecham o set de índice [index] num jogo melhor-de-[bestOf].
+/// Mesma régua de [matchSetIsWon] — exposta para a simulação de cenários do
+/// Focus, que precisa gerar placares legais.
+int matchSetTargetPoints(int index, int bestOf) =>
+    bestOf == 3 && index == 2 ? _tiebreakSetPoints : _defaultSetPoints;
 
 int matchBestOf(TournamentMatch match) =>
     match.bestOf > 0 ? match.bestOf : _defaultBestOf;

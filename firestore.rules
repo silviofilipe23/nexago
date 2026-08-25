@@ -71,10 +71,24 @@ service cloud.firestore {
         request.resource.data.listingStatus is string &&
         isValidTournamentListingStatus(request.resource.data.listingStatus);
     }
+    function tournamentManagerId(tournamentId) {
+      return get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.managerId;
+    }
     function isTournamentOwner(tournamentId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
-        get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.managerId == request.auth.uid;
+        tournamentManagerId(tournamentId) == request.auth.uid;
+    }
+    /** Quem mexe na equipe do torneio: o dono e o super admin (suporte a torneio alheio).
+     *  Duas invariantes que valem para os dois: ninguém se adiciona, e o dono nunca vira
+     *  staff do próprio torneio — o acesso dele já vem de `managerId`, e um doc de staff no
+     *  nome dele apareceria como membro removível na lista. */
+    function canManageTournamentStaff(tournamentId, staffUserId) {
+      return request.auth != null &&
+        staffUserId != request.auth.uid &&
+        exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
+        tournamentManagerId(tournamentId) != staffUserId &&
+        (isSuperAdmin() || tournamentManagerId(tournamentId) == request.auth.uid);
     }
     function isTournamentStaff(tournamentId, allowedRoles) {
       return request.auth != null &&
@@ -100,18 +114,39 @@ service cloud.firestore {
         isTournamentStaff(tournamentId, ['manager', 'scorer'])
       );
     }
+    // Allowlists de escrita usam `affectedKeys()` (adicionadas + removidas + alteradas), NUNCA
+    // `changedKeys()`: esta última só enxerga chave presente nos DOIS lados do diff, então campo
+    // AUSENTE do documento escapava da lista inteira — dava pra criar `liveScore` (escrita
+    // exclusiva da Cloud Function) numa partida que ainda não tinha o campo.
+    // Coberto por `functions/test/mesa-scorer-point.rules.test.mjs`.
+    //
+    // `servingTeamId` é campo de PLACAR, não de configuração: a mesa ponto a ponto (app,
+    // organizador e portal do atleta) passa o saque pra quem marcou no MESMO update do ponto.
+    // Sem ele aqui, todo ponto de mesário voltava permission-denied enquanto o do gestor
+    // passava — o gestor cai em `managerCanOnlyEditMatchFields`, que já o listava.
+    // Coberto por `functions/test/mesa-scorer-point.rules.test.mjs`.
     function scorerCanOnlyEditScoreFields() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'resultA',
         'resultB',
         'winnerId',
         'status',
         'sets',
         'currentSetIndex',
+        'servingTeamId',
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',
         'pointEventSeq',
+        'checkIn',
+        'updatedAt'
+      ]);
+    }
+    // Mesário não gerencia o torneio, só mantém o contador de partidas ao vivo
+    // em dia depois de marcar ponto — nada além disso em `tournaments/{id}`.
+    function scorerCanOnlyEditLiveMatchesNowField() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'liveMatchesNow',
         'updatedAt'
       ]);
     }
@@ -186,7 +221,8 @@ service cloud.firestore {
         request.resource.data.player2Id == resource.data.player2Id;
     }
     function managerCanOnlyEditMatchFields() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'bestOf',
         'courtId',
         'courtName',
         'scheduleTime',
@@ -311,39 +347,86 @@ service cloud.firestore {
     // escrita dos clientes novos). Downgrade só via super admin (suporte).
     // Primeira definição é livre (campo ausente/valor desconhecido →
     // rank -1); sobrescrever nível conhecido por valor inválido é bloqueado.
-    // Escada única de 5 níveis para TODOS os esportes (Iniciante 1/2,
-    // Intermediário 1/2, Open no rank 5 — rank 4 sem uso, numeração fixa por
-    // compatibilidade com athleteRatings.levelRank). Legados se comportam
-    // como o degrau inferior do split (iniciante→0, intermediario→2).
+    //
+    // JANELA DE CORREÇÃO (15/08/2026): o ratchet POR ESPORTE só passa a
+    // valer depois que `sportOnboarding.levelLocked.{SPORT_CODE}` vira
+    // `true` — gravado só pelo trigger de backend na 1ª inscrição ativa
+    // naquele esporte (Task 1, `functions/src/tournament-level-lock.ts`).
+    // Antes do lock o dono pode descer livremente naquele esporte
+    // (autocorreção da autoavaliação inicial). Os campos legados globais
+    // (`level`, `sportProfile.level`) NÃO têm granularidade por esporte,
+    // então continuam ratcheted SEMPRE, lock ou não. O dono nunca escreve
+    // o próprio lock — só o backend (`levelLockedUnchanged()` abaixo).
+    // Escada de 7 níveis para TODOS os esportes: Iniciante 1/2 (0/1),
+    // Intermediário 1/2 (2/3), Avançado 1/2 (4/5), Open (6). Em 15/08/2026
+    // open foi renumerado de 5→6 (rank 4, antes vago, passou a Avançado 1)
+    // para abrir os dois degraus de Avançado; a partir daqui a numeração é
+    // fixa por compatibilidade com athleteRatings.levelRank — não reordenar
+    // de novo. Legados se comportam como o degrau inferior do split
+    // (iniciante→0, intermediario→2).
     // Lookup por map literal (barato) em vez de cadeias de `in` sobre listas:
     // a guarda roda para 9 esportes por update e a versão com ternários
-    // estourava o limite de expressões avaliadas por request.
-    function athleteLevelRank(value) {
-      let ranks = {
+    // estourava o limite de expressões avaliadas por request. O literal é
+    // montado UMA vez por request (`let ranks` em athleteLevelsNotDowngraded,
+    // que o rules avalia sob demanda e reaproveita) e desce por PARÂMETRO até
+    // cada comparação. Medido no emulador em 17/08/2026: com o literal dentro
+    // da função que rankeia, 5 esportes alterados numa tacada já estouravam o
+    // teto — e QUALQUER negação estourava, mesmo em perfil de um esporte só,
+    // porque o caminho negado ainda paga os ramos `isSuperAdmin()` /
+    // pré-cadastro e o match seguinte. Montando uma vez: 9 esportes mais os
+    // dois legados globais cabem, e a negação volta a vir da regra.
+    function athleteLevelRanks() {
+      return {
+    // O mapa de LOCKS (`sportOnboarding.levelLocked`) segue a mesma receita:
+    // lido de `resource.data` (doc ATUAL — nunca `request.resource.data`,
+    // senão o cliente se autodestrava) UMA VEZ em
+    // `athleteLevelsNotDowngraded()` e passado pronto por parâmetro; o check
+    // de lock curto-circuita ANTES do lookup de rank quando destravado.
         'iniciante': 0, 'Iniciante': 0, 'basico': 0, 'básico': 0,
         'Básico': 0, 'iniciante_1': 0, 'Iniciante 1': 0,
         'iniciante_2': 1, 'Iniciante 2': 1,
         'intermediario': 2, 'Intermediário': 2,
         'intermediario_1': 2, 'Intermediário 1': 2,
         'intermediario_2': 3, 'Intermediário 2': 3,
-        'open': 5, 'Open': 5, 'livre': 5, 'Livre': 5, 'Open / federado': 5
+        'avancado_1': 4, 'Avançado 1': 4,
+        'avancado_2': 5, 'Avançado 2': 5,
+        'open': 6, 'Open': 6, 'livre': 6, 'Livre': 6, 'Open / federado': 6
       };
+    }
+    // O mapa acima chega PRONTO por parâmetro: quem monta é o `let ranks` de
+    // `athleteLevelsNotDowngraded()`, uma vez por request. Rankear aqui dentro
+    // (versão anterior, com o literal no corpo da função) remontava as 22
+    // entradas a cada chamada — até 22 vezes por update, o que sozinho estoura
+    // o teto de 1000 expressões por request.
+    function athleteLevelRank(value, ranks) {
       return value is string ? ranks.get(value, -1) : -1;
     }
     function levelsBySportOf(data) {
       return data.get('sportOnboarding', {}).get('levelsBySport', {});
     }
+    function levelLockedOf(data) {
+      return data.get('sportOnboarding', {}).get('levelLocked', {});
+    }
+    function levelChangeByOf(data) {
+      return data.get('sportOnboarding', {}).get('levelChangeBy', null);
+    }
     // Valor inalterado curto-circuita ANTES de rankear: só o campo que mudou
     // paga o custo do lookup (essencial para caber no limite de expressões).
-    function levelNotLowered(reqValue, curValue) {
+    function levelNotLowered(reqValue, curValue, ranks) {
       return reqValue == curValue ||
-        athleteLevelRank(reqValue) >= athleteLevelRank(curValue);
+        athleteLevelRank(reqValue, ranks) >= athleteLevelRank(curValue, ranks);
     }
-    function sportLevelNotLowered(reqLevels, curLevels, sportId) {
-      return levelNotLowered(
-        reqLevels.get(sportId, null),
-        curLevels.get(sportId, null)
-      );
+    // Sem lock (ainda não houve 1ª inscrição ativa nesse esporte) o dono
+    // pode descer à vontade — `lockedSports` já foi lido de `resource.data`
+    // em `athleteLevelsNotDowngraded()`, então aqui é só um `.get` barato
+    // que curto-circuita ANTES do lookup de rank quando destravado.
+    function sportLevelNotLowered(reqLevels, curLevels, sportId, ranks, lockedSports) {
+      return !lockedSports.get(sportId, false) ||
+        levelNotLowered(
+          reqLevels.get(sportId, null),
+          curLevels.get(sportId, null),
+          ranks
+        );
     }
     // Guarda TODOS os esportes do perfil (rules não iteram mapas — a lista
     // espelha ATHLETE_SPORT_CODES em functions/src/category-level-eligibility.ts
@@ -351,27 +434,46 @@ service cloud.firestore {
     // fallback do backend para docs antigos. Mapa inalterado curto-circuita
     // os 9 checks por esporte (caso comum: update sem mexer em nível).
     function athleteLevelsNotDowngraded() {
+      let ranks = athleteLevelRanks();
       let reqLevels = levelsBySportOf(request.resource.data);
       let curLevels = levelsBySportOf(resource.data);
+      let lockedSports = levelLockedOf(resource.data);
       return levelNotLowered(
           request.resource.data.get('level', null),
-          resource.data.get('level', null)
+          resource.data.get('level', null),
+          ranks
         ) &&
         levelNotLowered(
           request.resource.data.get('sportProfile', {}).get('level', null),
-          resource.data.get('sportProfile', {}).get('level', null)
+          resource.data.get('sportProfile', {}).get('level', null),
+          ranks
         ) &&
         (reqLevels == curLevels || (
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'TENIS') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA') &&
-          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS')
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_PRAIA', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'VOLEI_QUADRA', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BEACH_TENNIS', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEVOLEI', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'FUTEBOL', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'BASQUETE', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'TENIS', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'CORRIDA', ranks, lockedSports) &&
+          sportLevelNotLowered(reqLevels, curLevels, 'OUTROS', ranks, lockedSports)
         ));
+    }
+    // O dono nunca escreve o lock em si — só o trigger de backend (Task 1)
+    // grava `sportOnboarding.levelLocked.{SPORT_CODE}` na 1ª inscrição
+    // ativa. Defaults `{}` dos dois lados: doc sem o mapa também passa.
+    function levelLockedUnchanged() {
+      return levelLockedOf(request.resource.data) == levelLockedOf(resource.data);
+    }
+    // Mesmo padrão de `levelLockedUnchanged()` acima: `sportOnboarding.levelChangeBy` é o
+    // marcador transiente que `setAthleteLevel` (admin/organizador, `levelProfileWriteFields`
+    // em athlete-level-admin.ts) grava na MESMA escrita que muda `levelsBySport`, pra
+    // `onUserWrittenTrackLevelChanges` (rating-triggers.ts) distinguir essa escrita de uma
+    // autocorreção do próprio atleta — e depois o backend o apaga. O dono nunca grava, apaga
+    // nem preserva um valor próprio nesse campo (F4 do review, 2ª volta).
+    function levelChangeByUnchanged() {
+      return levelChangeByOf(request.resource.data) == levelChangeByOf(resource.data);
     }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
@@ -615,7 +717,7 @@ service cloud.firestore {
           );
     }
     function isValidArenaProductStockUpdate() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'stockQuantity',
           'updatedAt'
         ]) &&
@@ -711,7 +813,7 @@ service cloud.firestore {
         isCreateTimestamp(data.createdAt);
     }
     function isValidArenaComandaUpdate() {
-      return         request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      return         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
           'itemsTotalCents',
           'totalCents',
@@ -955,6 +1057,25 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    // Cadastro administrativo do organizador (documento, tipo de conta e
+    // condições comerciais), gravado pelo backoffice via
+    // `saveOrganizerRegistration`. Fica fora de `users/{uid}` porque aquele doc
+    // é legível por qualquer autenticado quando a conta também é atleta, e aqui
+    // há PII (CPF/CNPJ).
+    //
+    // O dono lê o próprio cadastro (para ver a comissão que negociou), mas não
+    // escreve: `commissionPercent` é descontado de dinheiro real na confirmação
+    // do pagamento — deixá-lo editável pelo próprio organizador seria permitir
+    // que ele zerasse a taxa da plataforma.
+    match /organizers/{organizerId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        isAdmin() ||
+        request.auth.uid == organizerId
+      );
+      allow create, update, delete: if false;
+    }
+
     match /organizerWallets/{organizerId} {
       // Carteira do organizador (id = uid). Escrita só pelas Cloud Functions.
       allow read: if request.auth != null && (
@@ -1358,7 +1479,10 @@ service cloud.firestore {
     // keywords) — mantido por Cloud Function (onUserWrittenSyncPublicProfile).
     // É o diretório do app: busca de parceiro, ranking, equipes.
     match /public_profiles/{userId} {
-      allow read: if request.auth != null;
+      // Leitura pública: a página de acompanhamento do torneio (`/t/{id}`) roda sem login e
+      // precisa do nome/foto das duplas. A coleção é espelho SEM PII (apelido, nome de
+      // exibição e foto) — e-mail, telefone e nascimento vivem em `users`, que segue fechado.
+      allow read: if true;
       allow write: if false;
     }
 
@@ -1493,10 +1617,23 @@ service cloud.firestore {
               request.resource.data.phoneVerifiedAt == resource.data.phoneVerifiedAt
             )
           ) &&
-          athleteLevelsNotDowngraded()
+          athleteLevelsNotDowngraded() &&
+          // O lock em si é backend-only (gatilho da 1ª inscrição, Task 1) —
+          // o dono nunca grava/apaga/altera `sportOnboarding.levelLocked`,
+          // nem para se destravar nem para se travar antes da hora.
+          levelLockedUnchanged() &&
+          // O marcador de escrita privilegiada também é backend-only (F4 do
+          // review, 2ª volta) — mesmo motivo do lock acima.
+          levelChangeByUnchanged()
         ) ||
         isSuperAdmin() ||
-        isPartnerPreRegistrationUpdateByInviter(userId)
+        // F10 (review): este branch é um `||` alternativo ao do dono — sem
+        // `levelLockedUnchanged()` aqui, o convidador de um pré-cadastro de
+        // parceiro (stub sem conta ainda) podia alterar
+        // `sportOnboarding.levelLocked` da vítima na mesma tacada, campo que
+        // é backend-only em QUALQUER outro branch desta regra. Mesmo raciocínio
+        // estende `levelChangeByUnchanged()` pra este branch (F4, 2ª volta).
+        (isPartnerPreRegistrationUpdateByInviter(userId) && levelLockedUnchanged() && levelChangeByUnchanged())
       );
       
       // Deletar: apenas super admin pode deletar usuários (e apenas outros, não a si mesmo)
@@ -1767,8 +1904,24 @@ service cloud.firestore {
         organizerCanCreateTournament()
       );
       
-      // Atualizar/deletar: gestor do torneio, admin da plataforma ou gestor de torneios
-      allow update, delete: if request.auth != null && (
+      // Atualizar: gestor do torneio, admin da plataforma ou gestor de torneios —
+      // ou mesário, só pra manter `liveMatchesNow` em dia a cada ponto marcado
+      // (`TournamentLiveMatchesSync.syncForTournament`, chamado pelo app depois
+      // de cada `recordPointTransaction`).
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
+        resource.data.managerId == request.auth.uid ||
+        isTournamentStaff(tournamentId, ['manager']) ||
+        (
+          canScoreTournament(tournamentId) &&
+          scorerCanOnlyEditLiveMatchesNowField()
+        )
+      );
+
+      // Deletar: nunca o mesário — só quem já podia gerenciar o torneio.
+      allow delete: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
         (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
@@ -1781,13 +1934,16 @@ service cloud.firestore {
           canManageTournament(tournamentId) ||
           request.auth.uid == staffUserId
         );
-        // Somente o dono do torneio gerencia a equipe; dono não pode ser staff de si mesmo.
+        // Dono e super admin gerenciam a equipe (ver `canManageTournamentStaff`); sem
+        // convite/aceite, o acesso é imediato — daí `status` só aceitar 'active'.
         allow create, update: if request.auth != null &&
-          isTournamentOwner(tournamentId) &&
-          staffUserId != request.auth.uid &&
+          canManageTournamentStaff(tournamentId, staffUserId) &&
           request.resource.data.role in ['manager', 'scorer'] &&
           request.resource.data.status == 'active';
-        allow delete: if request.auth != null && isTournamentOwner(tournamentId);
+        // Remover não passa pela guarda do dono: se um doc de staff no nome dele existir
+        // (lixo de uma escrita anterior), alguém precisa conseguir apagar.
+        allow delete: if request.auth != null &&
+          (isTournamentOwner(tournamentId) || isSuperAdmin());
       }
 
       match /categoryCommunications/{commId} {
@@ -2106,6 +2262,19 @@ service cloud.firestore {
         resource.data.inviteeUid == request.auth.uid
       );
       allow list: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+
+    // Convite de dupla por LINK, para parceiro que ainda não tem conta.
+    // O id do doc é o token (aleatório, não adivinhável), então qualquer
+    // autenticado que tenha o link consegue ler para ver quem o chamou e para
+    // qual torneio — é o que a tela do convite mostra antes do resgate.
+    // `list` fica de fora de propósito: varrer a coleção mostraria os convites
+    // de todo mundo, e ninguém precisa disso. Escrita é só das callables
+    // (create/claim), que rodam com Admin SDK e não passam por estas regras.
+    match /tournamentExternalPartnerInvites/{externalInviteId} {
+      allow get: if request.auth != null;
+      allow list: if false;
       allow create, update, delete: if false;
     }
 

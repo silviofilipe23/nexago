@@ -64,6 +64,8 @@ abstract final class TournamentMatchMapper {
       bestOf: _bestOf(data['bestOf']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
+      loserAdvanceMatchNumber: _advanceMatchNumber(data['loserAdvance']),
+      loserAdvanceSlot: _advanceSlot(data['loserAdvance']),
       liveScore: _liveScore(data['liveScore']),
     );
   }

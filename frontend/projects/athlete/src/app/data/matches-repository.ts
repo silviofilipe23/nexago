@@ -224,14 +224,22 @@ export function matchBestOf(m: Pick<TournamentMatch, 'bestOf'>): number {
   return m.bestOf && m.bestOf > 0 ? m.bestOf : DEFAULT_BEST_OF;
 }
 
-/** Regras de set (espelho mínimo de `match_scoring_logic.dart`): alvo 21, decisivo até 15 no
- *  3º set de MD3, vantagem de 2 — o suficiente pra separar set fechado de set em andamento. */
+/** Regras de set (espelho mínimo de `match_scoring_logic.dart`, também replicado — e validado
+ *  de fato — em `functions/src/match-scoring.ts`): alvo 21, decisivo até 15 no 3º set de MD3,
+ *  vantagem de 2. As três cópias concordam, e nenhuma delas trata o 5º set de MD5 como
+ *  decisivo — ele também vai a 21. Não é uma lacuna deste espelho: é a regra em produção. */
 const DEFAULT_SET_POINTS = 21;
 const TIEBREAK_SET_POINTS = 15;
-const MIN_ADVANTAGE = 2;
+export const MIN_ADVANTAGE = 2;
+
+/** Alvo de pontos de um set pelo índice (0-based) dentro do formato — exportado pra quem precisa
+ *  montar placares hipotéticos legais (`focus-scenarios.ts`) sem duplicar os números mágicos. */
+export function setTargetPointsOf(index: number, bestOf: number): number {
+  return bestOf === 3 && index === 2 ? TIEBREAK_SET_POINTS : DEFAULT_SET_POINTS;
+}
 
 function setIsWon(s: MatchSet, index: number, bestOf: number): boolean {
-  const target = bestOf === 3 && index === 2 ? TIEBREAK_SET_POINTS : DEFAULT_SET_POINTS;
+  const target = setTargetPointsOf(index, bestOf);
   return (s.a >= target && s.a - s.b >= MIN_ADVANTAGE) || (s.b >= target && s.b - s.a >= MIN_ADVANTAGE);
 }
 
@@ -402,8 +410,16 @@ function parseLegacyResult(raw: string | null): number[] {
 /** Classificação de grupo (round-robin) — espelha `tournament_group_standings_logic.dart`,
  *  simplificado: desempate por vitórias → saldo de sets → saldo de games (sem head-to-head
  *  detalhado, que exigiria reconstruir todos os confrontos par a par). */
-export function buildGroupStandings(matches: readonly TournamentMatch[], poolId: string): GroupStanding[] {
-  const poolMatches = matches.filter((m) => m.poolId === poolId);
+/**
+ * Classificação de UM grupo. `categoryId` é obrigatório de propósito: `poolId` é único só dentro
+ * da categoria — os geradores numeram os grupos como 'A', 'B', 'C'… por categoria (o portal do
+ * organizador em `seeds.component.ts` e o app em `category_ops_logic.dart`, ambos
+ * `String.fromCharCode(65 + i)`), então TODA categoria de um torneio com fase de grupos tem um
+ * "Grupo A". Filtrar só por `poolId` sobre a lista do torneio inteiro (`store.matches()`) fundia
+ * o Grupo A da categoria do atleta com o Grupo A das outras: um grupo de 4 duplas aparecia com 8.
+ */
+export function buildGroupStandings(matches: readonly TournamentMatch[], categoryId: string, poolId: string): GroupStanding[] {
+  const poolMatches = matches.filter((m) => m.categoryId === categoryId && m.poolId === poolId);
   const byTeam = new Map<string, GroupStanding>();
   const ensure = (id: string) =>
     byTeam.get(id) ?? byTeam.set(id, { teamId: id, wins: 0, losses: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 }).get(id)!;

@@ -2,7 +2,6 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import {
   collection,
   doc,
-  getDoc,
   limit,
   onSnapshot,
   query,
@@ -21,7 +20,7 @@ import {
 } from './arena-plan.model';
 import { arenaFirestore } from './firestore';
 import { isArenaStaffRole, type ArenaStaffRole } from './arena-roles.model';
-import { resolveStaffArenaDocs } from './arena-staff-docs';
+import { watchStaffArenaDocs, type StaffArenaDocsWatcher } from './arena-staff-docs';
 
 export interface ArenaBrief {
   id: string;
@@ -72,11 +71,16 @@ function parseArenaDocData(id: string, data: Record<string, unknown>): ArenaDocD
  *  `users/{uid}/arenaStaff/{arenaId}`, escrito pelo trigger do convite) — e deriva
  *  titularidade/cargo/capabilities de plano. Fonte única para todas as telas do painel.
  *
- *  Mantém dois listeners ao vivo (`onSnapshot`), não uma leitura única: o plano da arena
- *  muda no servidor sem nenhuma ação do usuário no painel (webhook do Asaas confirmando
- *  pagamento, o sweeper diário `finalizeLapsedArenaPlans` pausando plano vencido, o trigger
- *  que incrementa/decrementa `courtsCount`), e a equipe muda quando o dono convida/revoga —
- *  com leitura única, essas mudanças só apareciam após recarregar a página inteira.
+ *  Tudo aqui é `onSnapshot`, nunca leitura única: o plano da arena muda no servidor sem
+ *  nenhuma ação do usuário no painel (webhook do Asaas confirmando pagamento, o sweeper diário
+ *  `finalizeLapsedArenaPlans` pausando plano vencido, o trigger que incrementa/decrementa
+ *  `courtsCount`), e a equipe muda quando o dono convida/revoga — com leitura única, essas
+ *  mudanças só apareciam após recarregar a página inteira. São três frentes: a query das
+ *  arenas do dono, o espelho de equipe, e um listener por arena de equipe
+ *  (`watchStaffArenaDocs`) — esta última era a exceção que ainda lia uma vez só.
+ *
+ *  Por ser tudo ao vivo, `arenaDocData()` é a fonte do doc `arenas/{id}` para as telas que
+ *  precisam dele inteiro (Perfil, Contatos, Financeiro): elas não refazem a leitura.
  *
  *  Um usuário pode ter mais de uma arena (várias como dono, várias como equipe, ou as duas
  *  combinações). Nesse caso nenhuma é escolhida automaticamente — `needsSelection()` fica
@@ -94,16 +98,12 @@ export class ArenaContextService {
    *  equipe (só entradas com `status === 'active'` contam). */
   private readonly staffMirror = signal<Map<string, ArenaStaffRole>>(new Map());
   /** O espelho traz nome/logo, mas as telas precisam do doc completo da arena (plano,
-   *  courtsCount) — lidos diretamente por id, já que `arenas` é de leitura pública. */
+   *  courtsCount, e os campos de Perfil/Contatos/Financeiro) — acompanhados por id, já que
+   *  `arenas` é de leitura pública. */
   private readonly staffArenaDocs = signal<Map<string, Record<string, unknown>>>(new Map());
   private readonly staffLoadingSignal = signal(true);
   private staffUnsubscribe: Unsubscribe | null = null;
-  /** Token de geração da resolução assíncrona de docs de equipe (`watchStaffMirror`). Bumped a
-   *  cada nova invocação do callback do listener e a cada teardown (troca de usuário/logout).
-   *  Uma escrita só é aplicada se o token capturado no início da invocação ainda for o mais
-   *  recente no momento de escrever — descarta silenciosamente respostas atrasadas de uma
-   *  invocação (ou usuário) que já foi superada. */
-  private staffGeneration = 0;
+  private staffDocsWatcher: StaffArenaDocsWatcher | null = null;
 
   private readonly selectedArenaIdSignal = signal<string | null>(null);
   private currentUid: string | null = null;
@@ -147,14 +147,28 @@ export class ArenaContextService {
 
   readonly selectedArenaId = computed(() => this.selectedArenaIdSignal());
 
-  private readonly arenaDoc = computed<ArenaDocData | null>(() => {
+  private readonly selectedEntry = computed<ArenaEntry | null>(() => {
     const entries = this.allArenaEntries();
     if (entries.length === 0) return null;
     const targetId = this.selectedArenaIdSignal() ?? (entries.length === 1 ? entries[0]!.id : null);
     if (!targetId) return null;
-    const entry = entries.find((e) => e.id === targetId);
+    return entries.find((e) => e.id === targetId) ?? null;
+  });
+
+  private readonly arenaDoc = computed<ArenaDocData | null>(() => {
+    const entry = this.selectedEntry();
     return entry ? parseArenaDocData(entry.id, entry.data) : null;
   });
+
+  /** Doc cru de `arenas/{arenaId}` da arena selecionada. As telas que precisam de campos além
+   *  de nome/logo/plano (Perfil, Contatos, Financeiro) leem daqui em vez de refazer um `getDoc`
+   *  do mesmo doc que este serviço já mantém — era uma ida ao servidor a mais só pra abrir a
+   *  tela. Só é seguro porque as duas fontes (dono e equipe) são listeners: o valor acompanha o
+   *  servidor, inclusive depois da própria tela salvar.
+   *
+   *  Quem semeia formulário com isto deve ler UMA vez (`untracked`), não reagir: um retorno do
+   *  servidor no meio da digitação reescreveria os campos por baixo de quem está editando. */
+  readonly arenaDocData = computed<Record<string, unknown> | null>(() => this.selectedEntry()?.data ?? null);
 
   readonly arenaId = computed(() => this.arenaDoc()?.id ?? null);
   readonly arenaName = computed(() => this.arenaDoc()?.name ?? null);
@@ -196,10 +210,11 @@ export class ArenaContextService {
       this.unsubscribe = null;
       this.staffUnsubscribe?.();
       this.staffUnsubscribe = null;
-      // Invalida qualquer resolução assíncrona de docs de equipe ainda em voo desta troca de
-      // usuário/logout em diante — sem isso, um `getDoc` que termina depois do reset abaixo
-      // reintroduziria dados do usuário anterior (achado de review, task 8 round 1).
-      this.staffGeneration++;
+      // Corta os listeners de doc de equipe desta troca de usuário/logout em diante — sem isso,
+      // um callback posterior reintroduziria dados do usuário anterior (achado de review,
+      // task 8 round 1). `stop()` também zera `staffArenaDocs` na hora.
+      this.staffDocsWatcher?.stop();
+      this.staffDocsWatcher = null;
 
       if (!ready) return;
       if (!user) {
@@ -270,16 +285,27 @@ export class ArenaContextService {
   private watchStaffMirror(uid: string): void {
     const db = arenaFirestore();
     this.staffLoadingSignal.set(true);
+
+    // Um listener por arena de equipe (ver `watchStaffArenaDocs`). Não há mais `await` no
+    // caminho — o que dispensa o token de geração que existia só pra descartar resposta
+    // atrasada de um usuário já trocado: `stop()` cancela as assinaturas, e depois disso
+    // nenhum callback roda.
+    this.staffDocsWatcher = watchStaffArenaDocs(
+      (arenaId, onDoc) =>
+        onSnapshot(
+          doc(db, 'arenas', arenaId),
+          (snap) => onDoc(snap.exists() ? (snap.data() as Record<string, unknown>) : null),
+          () => onDoc(null),
+        ),
+      (docs, settled) => {
+        this.staffArenaDocs.set(docs);
+        if (settled) this.staffLoadingSignal.set(false);
+      },
+    );
+
     this.staffUnsubscribe = onSnapshot(
       collection(db, 'users', uid, 'arenaStaff'),
-      async (snap) => {
-        // Ver comentário no campo `staffGeneration`: identifica esta invocação específica do
-        // callback. A parte síncrona abaixo (até `staffMirror.set`) sempre roda até o fim antes
-        // de qualquer outra invocação começar (JS de thread única), então não corre risco de
-        // sobreposição — só a escrita pós-`await` (`staffArenaDocs`/`staffLoadingSignal`)
-        // precisa checar se ainda é a invocação mais recente.
-        const generation = ++this.staffGeneration;
-
+      (snap) => {
         const roles = new Map<string, ArenaStaffRole>();
         for (const d of snap.docs) {
           const role = (d.data() as Record<string, unknown>)['role'];
@@ -287,38 +313,14 @@ export class ArenaContextService {
           if (isArenaStaffRole(role) && status === 'active') roles.set(d.id, role);
         }
         this.staffMirror.set(roles);
-
-        try {
-          const docs = await resolveStaffArenaDocs([...roles.keys()], (arenaId) =>
-            this.loadArenaDoc(db, arenaId),
-          );
-          if (generation !== this.staffGeneration) return;
-          this.staffArenaDocs.set(docs);
-        } catch {
-          // `resolveStaffArenaDocs` isola falha por leitura e nunca deveria rejeitar aqui,
-          // mas por segurança: uma falha inesperada não pode travar `loading` nem vazar como
-          // unhandled rejection (era exatamente o bug do achado 1 do review).
-          if (generation === this.staffGeneration) this.staffArenaDocs.set(new Map());
-        } finally {
-          if (generation === this.staffGeneration) this.staffLoadingSignal.set(false);
-        }
+        this.staffDocsWatcher?.sync([...roles.keys()]);
       },
       () => {
         this.staffMirror.set(new Map());
-        this.staffArenaDocs.set(new Map());
+        this.staffDocsWatcher?.sync([]);
         this.staffLoadingSignal.set(false);
       },
     );
-  }
-
-  /** Leitura direta de um doc `arenas/{id}` — `arenas` é de leitura pública, então não depende
-   *  do vínculo de equipe em si. Retorna `null` em vez de lançar quando o doc não existe. */
-  private async loadArenaDoc(
-    db: ReturnType<typeof arenaFirestore>,
-    arenaId: string,
-  ): Promise<Record<string, unknown> | null> {
-    const snap = await getDoc(doc(db, 'arenas', arenaId));
-    return snap.exists() ? (snap.data() as Record<string, unknown>) : null;
   }
 
   private readStoredSelection(uid: string): string | null {

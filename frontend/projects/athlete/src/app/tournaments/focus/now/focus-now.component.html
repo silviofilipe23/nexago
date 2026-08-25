@@ -1,0 +1,242 @@
+<div class="now">
+  @switch (state()) {
+    @case ('called') {
+      <section class="now-alert">
+        <p class="now-alert__kicker">Você foi chamado</p>
+        <h1 class="now-alert__title">{{ nextMatch()?.courtLabel ?? 'Sua quadra' }} liberada. Vai agora.</h1>
+        @if (calledAt(); as at) {
+          <p class="now-alert__when">A mesa chamou às {{ at }}.</p>
+        }
+        <button type="button" class="now-alert__cta" (click)="acknowledge()">Ok, estou indo</button>
+        <div class="now-alert__secondary">
+          <a [href]="mapsUrl()" target="_blank" rel="noopener" class="now-alert__link">{{ mapsLabel() }}</a>
+          @if (nextMatch(); as nm) {
+            <a [routerLink]="['../../partida', nm.matchId]" class="now-alert__link">Ver partida</a>
+          }
+        </div>
+      </section>
+    }
+
+    @case ('live') {
+      <section class="now-live">
+        @if (nextMatch(); as nm) {
+          <span class="now-live__kicker">{{ nm.kicker }}</span>
+          <div class="now-live__body">
+            <div class="now-side">
+              <span class="now-duo-avatars" aria-hidden="true">
+                @for (p of nm.sideA.players; track $index) {
+                  <span class="duo-avatar">
+                    @if (p.photo) {
+                      <img [src]="p.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ p.initial }}
+                    }
+                  </span>
+                }
+              </span>
+              <strong class="now-side__name">{{ nm.sideA.name }}</strong>
+            </div>
+
+            <div class="now-live__center">
+              <span class="now-live__flag"><span class="now-live__dot" aria-hidden="true"></span>Ao vivo</span>
+              <strong class="now-live__score">{{ nm.liveScoreLine ?? 'Em quadra' }}</strong>
+              @if (nm.courtLabel) {
+                <span class="now-live__court">{{ nm.courtLabel }}</span>
+              }
+            </div>
+
+            <div class="now-side now-side--right">
+              <span class="now-duo-avatars" aria-hidden="true">
+                @for (p of nm.sideB.players; track $index) {
+                  <span class="duo-avatar">
+                    @if (p.photo) {
+                      <img [src]="p.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ p.initial }}
+                    }
+                  </span>
+                }
+              </span>
+              <strong class="now-side__name">{{ nm.sideB.name }}</strong>
+            </div>
+          </div>
+
+          <a [routerLink]="['../../partida', nm.matchId]" class="now-btn-primary">Ver partida</a>
+        }
+      </section>
+    }
+
+    @case ('next') {
+      <section class="now-next">
+        @if (nextMatch(); as nm) {
+          <header class="now-next__top">
+            <span class="now-next__kicker">{{ nm.kicker }}</span>
+            @if (nm.checkedIn) {
+              <span class="now-next__checkin">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7" /></svg>
+                Check-in feito
+              </span>
+            }
+          </header>
+
+          <div class="now-next__body">
+            <div class="now-side">
+              <span class="now-duo-avatars" aria-hidden="true">
+                @for (p of nm.sideA.players; track $index) {
+                  <span class="duo-avatar">
+                    @if (p.photo) {
+                      <img [src]="p.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ p.initial }}
+                    }
+                  </span>
+                }
+              </span>
+              <strong class="now-side__name">{{ nm.sideA.name }}</strong>
+              @if (nm.sideA.standingLine) {
+                <span class="now-side__meta">{{ nm.sideA.standingLine }}</span>
+              }
+            </div>
+
+            <div class="now-next__center">
+              <strong class="now-next__clock">{{ nm.timeLabel }}</strong>
+              @if (nm.countdown) {
+                <span class="now-next__countdown">{{ nm.countdown }}</span>
+              }
+              <div class="now-next__chips">
+                @if (nm.numberLabel) {
+                  <span class="now-chip">{{ nm.numberLabel }}</span>
+                }
+                @if (nm.courtLabel) {
+                  <span class="now-chip">{{ nm.courtLabel }}</span>
+                }
+                <span class="now-chip">{{ nm.bestOfLabel }}</span>
+              </div>
+            </div>
+
+            <div class="now-side now-side--right">
+              <span class="now-duo-avatars" aria-hidden="true">
+                @for (p of nm.sideB.players; track $index) {
+                  <span class="duo-avatar">
+                    @if (p.photo) {
+                      <img [src]="p.photo" alt="" loading="lazy" />
+                    } @else {
+                      {{ p.initial }}
+                    }
+                  </span>
+                }
+              </span>
+              <strong class="now-side__name">{{ nm.sideB.name }}</strong>
+              @if (nm.sideB.standingLine) {
+                <span class="now-side__meta">{{ nm.sideB.standingLine }}</span>
+              }
+            </div>
+          </div>
+
+          <footer class="now-next__foot">
+            <a [routerLink]="['../../partida', nm.matchId]" class="now-btn-primary">Ver partida</a>
+            <a [href]="mapsUrl()" target="_blank" rel="noopener" class="now-btn-ghost">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+              {{ mapsLabel() }}
+            </a>
+            <button type="button" class="now-btn-ghost" (click)="shareOpen.set(true)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg>
+              Compartilhar
+            </button>
+            <span class="now-next__hint">Esteja na quadra alguns minutos antes — o organizador pode declarar W.O. por atraso.</span>
+          </footer>
+        }
+      </section>
+    }
+
+    @case ('pending-knockout') {
+      <section class="now-idle">
+        <!-- Fato da CATEGORIA, não promessa ao leitor: nem toda categoria tem fase de grupos
+             (mata-mata direto também chega aqui), e hasPendingKnockout não distingue quem
+             classificou de quem já foi eliminado no próprio mata-mata — ver o comentário de
+             `pendingKnockout` no componente sobre o que a trava de eliminação cobre e o que não
+             cobre. Por isso o texto nunca diz "seu adversário" nem menciona grupos. -->
+        <p class="now-idle__text">O mata-mata desta categoria ainda está sendo definido. Os confrontos e as quadras saem conforme as partidas pendentes terminam.</p>
+      </section>
+    }
+
+    @case ('idle') {
+      <section class="now-idle">
+        <p class="now-idle__text">Você não tem mais partidas pendentes neste torneio.</p>
+      </section>
+    }
+  }
+
+  <section class="now-card">
+    <h2 class="now-card__title">Ordem do seu dia</h2>
+    @if (timeline().length === 0) {
+      <p class="now-empty">Nenhuma partida sua hoje.</p>
+    } @else {
+      <ol class="now-timeline">
+        @for (entry of timeline(); track entry.matchId; let i = $index) {
+          @if (entry.time === null && (i === 0 || timeline()[i - 1].time !== null)) {
+            <li class="now-timeline__divider">Sem horário definido</li>
+          }
+          <li class="now-row" [attr.data-state]="entry.state">
+            <span class="now-row__time">{{ entry.time ?? '—' }}</span>
+            <span class="now-row__mark" aria-hidden="true">
+              @switch (entry.state) {
+                @case ('done') {
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7" /></svg>
+                }
+                @case ('live') {
+                  <span class="now-row__dot now-row__dot--live"></span>
+                }
+                @case ('next') {
+                  <span class="now-row__dot"></span>
+                }
+                @default {
+                  <span class="now-row__ring"></span>
+                }
+              }
+            </span>
+            <span class="now-row__body">
+              @if (entry.clickable) {
+                <a [routerLink]="['../../partida', entry.matchId]" class="now-row__title">{{ entry.title }}</a>
+              } @else {
+                <span class="now-row__title">{{ entry.title }}</span>
+              }
+              @if (entry.detail) {
+                <span class="now-row__detail">{{ entry.detail }}</span>
+              }
+            </span>
+            <span class="now-row__end">
+              @if (entry.outcomeLabel) {
+                <span class="now-outcome" [attr.data-outcome]="entry.outcome">{{ entry.outcomeLabel }}</span>
+              } @else if (entry.note) {
+                <span class="now-row__note">{{ entry.note }}</span>
+              }
+            </span>
+          </li>
+        }
+      </ol>
+    }
+  </section>
+
+  @if (announcements().length > 0) {
+    <section class="now-card">
+      <h2 class="now-card__title">Avisos do organizador</h2>
+      <ul class="now-announce-list">
+        @for (a of announcements(); track a.id) {
+          <li class="now-announce">
+            <span class="now-announce__time">{{ a.time }}</span>
+            <p class="now-announce__text">{{ a.message }}</p>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- Fora do `@switch`: o diálogo é o mesmo da tela da partida (`MatchShareDialogComponent`), e
+       recebe a partida CRUA do store — `nextMatch()` daqui é a view já formatada. -->
+  @if (shareOpen()) {
+    @if (store.nextMatch(); as raw) {
+      <app-match-share-dialog [match]="raw" (closed)="shareOpen.set(false)" />
+    }
+  }
+</div>

@@ -12,11 +12,16 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
     required this.candidate,
     required this.selected,
     required this.onTap,
+    this.sending = false,
   });
 
   final TournamentRegistrationPartnerCandidate candidate;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Convite em voo para ESTE atleta — trava só a linha dele, e o rótulo vira
+  /// "ENVIANDO…" (na tela única o toque já envia o convite, sem passo extra).
+  final bool sending;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +33,7 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
           : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: onTap,
+        onTap: sending ? null : onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -83,7 +88,16 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (selected)
+              if (sending)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.brand,
+                  ),
+                )
+              else if (selected)
                 Container(
                   width: 28,
                   height: 28,

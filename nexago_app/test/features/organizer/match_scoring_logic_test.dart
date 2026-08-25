@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_scoring_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_set.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 
 void main() {
   group('MatchScoringLogic', () {
@@ -234,6 +235,8 @@ void main() {
         sets: const [TournamentMatchSet(a: 5, b: 3)],
         currentSetIndex: 0,
         side: 'A',
+        teamAId: 'teamA',
+        teamBId: 'teamB',
       );
       expect(result.sets.first.a, 4);
     });
@@ -330,6 +333,150 @@ void main() {
         expect(result.completed, isFalse);
         expect(result.winnerId, isNull);
         expect(result.currentSetIndex, 1);
+      });
+    });
+
+    /// Espelha `needsStartingServe` de `live-scoring.ts` (portais web): quem ABRE o saque é o
+    /// único momento que o rally não resolve, e as três mesas têm que perguntar na mesma janela.
+    group('needsStartingServe', () {
+      bool needs({
+        String servingTeamId = '',
+        String status = TournamentMatchStatus.scheduled,
+        String teamAId = 'teamA',
+        String teamBId = 'teamB',
+      }) {
+        return MatchScoringLogic.needsStartingServe(
+          servingTeamId: servingTeamId,
+          status: status,
+          teamAId: teamAId,
+          teamBId: teamBId,
+        );
+      }
+
+      test('pergunta na partida agendada, antes do primeiro ponto', () {
+        expect(needs(), isTrue);
+      });
+
+      test('pergunta também com a partida já ao vivo', () {
+        expect(needs(status: TournamentMatchStatus.inProgress), isTrue);
+      });
+
+      test('cala quando o saque já tem dono', () {
+        expect(needs(servingTeamId: 'teamB'), isFalse);
+      });
+
+      test('trata saque em branco como sem dono', () {
+        expect(needs(servingTeamId: '   '), isTrue);
+      });
+
+      test('cala na partida encerrada e na cancelada', () {
+        expect(needs(status: TournamentMatchStatus.completed), isFalse);
+        expect(needs(status: TournamentMatchStatus.canceled), isFalse);
+      });
+
+      test('cala enquanto a chave não definiu os dois lados', () {
+        expect(needs(teamBId: ''), isFalse);
+        expect(needs(teamAId: ''), isFalse);
+      });
+    });
+
+    /// Virada de set: pela regra do vôlei de praia o saque ALTERNA a cada set, e quem abre o
+    /// set seguinte não é dedutível do placar (o vencedor do último ponto é sempre o vencedor
+    /// do set). Então o motor devolve saque vazio ao fechar o set e a faixa "Quem começa
+    /// sacando?" — a mesma da abertura — reaparece. Espelha `live-scoring.spec.ts`.
+    group('servingTeamId na virada de set', () {
+      ({List<TournamentMatchSet> sets, int currentSetIndex, String? winnerId, String servingTeamId})
+          point(List<TournamentMatchSet> sets, int idx, String side, {int bestOf = 3}) {
+        return MatchScoringLogic.applyPoint(
+          sets: sets,
+          currentSetIndex: idx,
+          side: side,
+          teamAId: 'teamA',
+          teamBId: 'teamB',
+          bestOf: bestOf,
+        );
+      }
+
+      ({List<TournamentMatchSet> sets, int currentSetIndex, String servingTeamId}) undo(
+        List<TournamentMatchSet> sets,
+        int idx,
+        String side,
+      ) {
+        return MatchScoringLogic.undoPoint(
+          sets: sets,
+          currentSetIndex: idx,
+          side: side,
+          teamAId: 'teamA',
+          teamBId: 'teamB',
+        );
+      }
+
+      test('ponto comum deixa o saque com quem marcou (o rally resolve)', () {
+        expect(point(const [TournamentMatchSet(a: 10, b: 8)], 0, 'A').servingTeamId, 'teamA');
+      });
+
+      test('esvazia o saque quando o ponto fecha o set e a partida continua', () {
+        final r = point(const [TournamentMatchSet(a: 20, b: 15)], 0, 'A');
+        expect(r.currentSetIndex, 1);
+        expect(r.servingTeamId, '');
+      });
+
+      test('esvazia também quando quem fecha o set é a dupla B', () {
+        expect(point(const [TournamentMatchSet(a: 15, b: 20)], 0, 'B').servingTeamId, '');
+      });
+
+      test('mantém o último sacador quando o ponto ENCERRA a partida', () {
+        final r = point(
+          const [TournamentMatchSet(a: 21, b: 15), TournamentMatchSet(a: 20, b: 10)],
+          1,
+          'A',
+        );
+        expect(r.winnerId, 'teamA');
+        expect(r.servingTeamId, 'teamA');
+      });
+
+      test('mantém o último sacador no set decisivo de MD3 (fecha em 15 e encerra)', () {
+        final r = point(
+          const [
+            TournamentMatchSet(a: 21, b: 15),
+            TournamentMatchSet(a: 10, b: 21),
+            TournamentMatchSet(a: 14, b: 9),
+          ],
+          2,
+          'A',
+        );
+        expect(r.servingTeamId, 'teamA');
+      });
+
+      test('set único (bestOf 1) não tem próximo set — mantém quem marcou', () {
+        expect(
+          point(const [TournamentMatchSet(a: 20, b: 18)], 0, 'A', bestOf: 1).servingTeamId,
+          'teamA',
+        );
+      });
+
+      test('21×20 não fecha o set, então não esvazia o saque', () {
+        expect(point(const [TournamentMatchSet(a: 20, b: 20)], 0, 'A').servingTeamId, 'teamA');
+      });
+
+      test('undo de ponto no meio do set devolve o saque a quem marcou', () {
+        expect(undo(const [TournamentMatchSet(a: 11, b: 8)], 0, 'A').servingTeamId, 'teamA');
+      });
+
+      test('undo do ponto que fechou o set reabre o set e devolve o saque a quem marcou', () {
+        final r = undo(const [TournamentMatchSet(a: 21, b: 15)], 0, 'A');
+        expect(r.sets.first.a, 20);
+        expect(r.servingTeamId, 'teamA');
+      });
+
+      test('undo do 1º ponto do set seguinte volta pro set fechado e reabre a pergunta', () {
+        final r = undo(
+          const [TournamentMatchSet(a: 21, b: 15), TournamentMatchSet(a: 1, b: 0)],
+          1,
+          'A',
+        );
+        expect(r.currentSetIndex, 0);
+        expect(r.servingTeamId, '');
       });
     });
   });

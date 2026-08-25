@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/match_history/head_to_head_repository.dart';
 import 'match_detail_section_header.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 
 const kMatchDetailIndividualHeadToHeadPastMatchLimit = 3;
 
@@ -231,6 +232,7 @@ class _PastMatchRow extends StatelessWidget {
         : 'Torneio';
     final playedAt = match.playedAt;
     if (playedAt == null) return tournament;
-    return '$tournament · ${DateFormat('MMM yy', 'pt_BR').format(playedAt)}';
+    return '$tournament · '
+        '${DateFormat('MMM yy', 'pt_BR').format(toNexagoEventLocal(playedAt))}';
   }
 }

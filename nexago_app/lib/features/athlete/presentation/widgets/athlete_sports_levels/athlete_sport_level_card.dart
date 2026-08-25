@@ -17,6 +17,7 @@ class AthleteSportLevelCard extends StatelessWidget {
     required this.onMakePrimary,
     this.lockedLevelRank = -1,
     this.enabled = true,
+    this.levelLocked = true,
   });
 
   final AthleteSportEnrollment enrollment;
@@ -26,9 +27,17 @@ class AthleteSportLevelCard extends StatelessWidget {
   final VoidCallback onMakePrimary;
 
   /// Rank do nível já salvo (regra "nível só sobe"): chips abaixo dele ficam
-  /// bloqueados visualmente. `-1` = sem nível salvo (tudo liberado).
+  /// bloqueados visualmente quando [levelLocked] é `true`. `-1` = sem nível
+  /// salvo (tudo liberado).
   final int lockedLevelRank;
   final bool enabled;
+
+  /// Janela de calibração: `true` quando este esporte já travou (1ª
+  /// inscrição ativa) — os chips abaixo do salvo mostram cadeado, igual à UI
+  /// de sempre. `false` = pré-lock: nenhum chip fica bloqueado e o aviso da
+  /// janela aparece abaixo dos chips. Default `true` preserva o comportamento
+  /// atual para quem ainda não passa este parâmetro.
+  final bool levelLocked;
 
   @override
   Widget build(BuildContext context) {
@@ -146,44 +155,55 @@ class AthleteSportLevelCard extends StatelessWidget {
               ],
             ),
             SizedBox(height: 10),
-            Row(
+            // Wrap em vez de Row+Expanded: com 7 degraus, dividir a largura em
+            // partes iguais deixava pouco espaço pro rótulo (e menos ainda com
+            // o ícone de cadeado) — o texto sumia em reticências. Os chips
+            // agora ficam do tamanho do próprio conteúdo e quebram linha.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 for (var i = 0; i < levelLabels.length; i++)
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: i == 0 ? 0 : 4,
-                        right: i == levelLabels.length - 1 ? 0 : 4,
-                      ),
-                      child: _LevelChip(
-                        label: AthleteSportsLevelsLabels.abbreviationFor(
-                          levelLabels[i],
-                        ),
-                        // Igualdade por rank: nível legado ainda não migrado
-                        // ("Intermediário") acende o degrau equivalente da
-                        // escada de 5 ("Int. 1").
-                        selected: selectedLevel == levelLabels[i] ||
-                            (AthleteProfileOptions.levelRank(selectedLevel) !=
-                                    null &&
-                                AthleteProfileOptions.levelRank(
-                                        selectedLevel) ==
-                                    AthleteProfileOptions.levelRank(
-                                        levelLabels[i])),
-                        // Abaixo do nível salvo (rank unificado, que tem
-                        // buracos): visual bloqueado, mas o tap segue ativo
-                        // para a página explicar a regra.
-                        locked:
-                            (AthleteProfileOptions.levelRank(levelLabels[i]) ??
-                                    0) <
-                                lockedLevelRank,
-                        onTap: enabled
-                            ? () => onLevelSelected(levelLabels[i])
-                            : null,
-                      ),
+                  _LevelChip(
+                    label: AthleteSportsLevelsLabels.abbreviationFor(
+                      levelLabels[i],
                     ),
+                    // Igualdade por rank: nível legado ainda não migrado
+                    // ("Intermediário") acende o degrau equivalente da
+                    // escada de 7 ("Int. 1").
+                    selected: selectedLevel == levelLabels[i] ||
+                        (AthleteProfileOptions.levelRank(selectedLevel) !=
+                                null &&
+                            AthleteProfileOptions.levelRank(selectedLevel) ==
+                                AthleteProfileOptions.levelRank(
+                                    levelLabels[i])),
+                    // Abaixo do nível salvo (ranks 0–6 contíguos, escada de 7):
+                    // visual bloqueado só depois do lock (janela de
+                    // calibração) — o tap segue ativo para a página explicar
+                    // a regra.
+                    locked: levelLocked &&
+                        (AthleteProfileOptions.levelRank(levelLabels[i]) ??
+                                0) <
+                            lockedLevelRank,
+                    onTap: enabled
+                        ? () => onLevelSelected(levelLabels[i])
+                        : null,
                   ),
               ],
             ),
+            if (!levelLocked) ...[
+              SizedBox(height: 10),
+              Text(
+                'Até a sua primeira inscrição neste esporte você pode '
+                'ajustar o nível livremente — depois ele só sobe.',
+                style: AppTypography.soraRegular(
+                  fontWeight: FontWeight.w500,
+                  color: context.themeColors.onSurfaceMuted,
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -264,25 +284,21 @@ class _LevelChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (locked) ...[
                 Icon(Icons.lock_outline_rounded, size: 12, color: mutedColor),
                 SizedBox(width: 4),
               ],
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.mono(
-                    fontWeight: FontWeight.w700,
-                    color: selected
-                        ? context.themeColors.canvas
-                        : mutedColor,
-                    fontSize: 11,
-                  ),
+              Text(
+                label,
+                style: AppTypography.mono(
+                  fontWeight: FontWeight.w700,
+                  color: selected ? context.themeColors.canvas : mutedColor,
+                  fontSize: 11,
                 ),
               ),
             ],

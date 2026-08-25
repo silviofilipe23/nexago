@@ -3,7 +3,17 @@ import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
 import {assertTournamentAcceptsRegistration, resolveCategoryEntryFee} from "./tournament-registration-guards";
 
-function mockDb(tournament: Record<string, unknown> | null) {
+/** [inscriptions] são os docs que a categoria já ocupa (id + campos). */
+function mockDb(
+  tournament: Record<string, unknown> | null,
+  inscriptions: Array<{id: string; data: Record<string, unknown>}> = [],
+) {
+  const queryStub = {
+    where: () => queryStub,
+    get: async () => ({
+      docs: inscriptions.map((doc) => ({id: doc.id, data: () => doc.data})),
+    }),
+  };
   return {
     doc: (path: string) => ({
       get: async () => ({
@@ -11,6 +21,7 @@ function mockDb(tournament: Record<string, unknown> | null) {
         data: () => tournament,
       }),
     }),
+    collection: () => queryStub,
   };
 }
 
@@ -113,12 +124,101 @@ describe("tournament-registration-guards", () => {
     );
   });
 
-  it("allows category lotada when waitlist is enabled", async () => {
+  // `allowClosedRegistration` é o atalho do organizador (organizerCreateTeamRegistration):
+  // só as travas de calendário/vitrine saem do caminho.
+  it("allowClosedRegistration passa por prazo, vitrine e categoria fechados", async () => {
+    const db = mockDb({
+      listingStatus: "closed",
+      registrationClosesAt: Timestamp.fromMillis(Date.now() - 60_000),
+      registrationOpensAt: Timestamp.fromMillis(Date.now() + 60_000),
+      categories: [{categoryName: "cat-a", registrationClosed: true, spotsLeft: 4}],
+    });
+    const data = await assertTournamentAcceptsRegistration(
+      db as never,
+      "proj",
+      "t1",
+      "cat-a",
+      {allowClosedRegistration: true},
+    );
+    assert.equal(data.listingStatus, "closed");
+  });
+
+  it("allowClosedRegistration NÃO passa por torneio cancelado", async () => {
+    const db = mockDb({listingStatus: "cancelado", categories: [{categoryName: "cat-a"}]});
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+          {allowClosedRegistration: true},
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("allowClosedRegistration NÃO passa por categoria concluída", async () => {
     const db = mockDb({
       listingStatus: "open",
-      waitlistEnabled: true,
-      categories: [{categoryName: "cat-a", spotsLeft: 0}],
+      categories: [{categoryName: "cat-a", isCompleted: true}],
     });
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+          {allowClosedRegistration: true},
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("allowClosedRegistration NÃO passa por categoria lotada sem fila", async () => {
+    const db = mockDb(
+      {
+        listingStatus: "open",
+        waitlistEnabled: false,
+        categories: [{categoryName: "cat-a", maxTeams: 1}],
+      },
+      [{id: "r1", data: {categoryId: "cat-a"}}],
+    );
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+          {allowClosedRegistration: true},
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("allows category lotada when waitlist is enabled", async () => {
+    const db = mockDb(
+      {
+        listingStatus: "open",
+        waitlistEnabled: true,
+        categories: [{categoryName: "cat-a", maxTeams: 2}],
+      },
+      [
+        {id: "r1", data: {categoryId: "cat-a"}},
+        {id: "r2", data: {categoryId: "cat-a"}},
+      ],
+    );
     const data = await assertTournamentAcceptsRegistration(
       db as never,
       "proj",

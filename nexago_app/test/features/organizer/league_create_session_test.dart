@@ -15,7 +15,14 @@ LeagueCreateSession _session() {
       grandFinalSpots: 8,
       wildcardEnabled: true,
       wildcardSpots: 3,
-      categories: [TournamentCategoryDraft(id: 'c1', spots: 16)],
+      categories: [
+        TournamentCategoryDraft(
+          id: 'c1',
+          spots: 16,
+          skillLevel: TournamentSkillLevel.open,
+          minLevel: 'Avançado 1',
+        ),
+      ],
       stages: [
         LeagueStageDraft(
           id: 's1',
@@ -66,6 +73,25 @@ void main() {
 
     test('toJson writes version 1', () {
       expect(_session().toJson()['version'], 1);
+    });
+
+    test('preserves the category minLevel (chosen preset floor)', () {
+      final restored = LeagueCreateSession.fromJson(_session().toJson());
+      expect(restored!.draft.categories.first.minLevel, 'Avançado 1');
+    });
+
+    test('category without minLevel round-trips as empty (legacy)', () {
+      final legacySession = LeagueCreateSession(
+        managerUid: 'mgr-1',
+        currentStep: LeagueCreateStep.ranking,
+        updatedAt: DateTime(2026, 1, 10, 9, 30),
+        draft: const LeagueCreateDraft(
+          name: 'Legado',
+          categories: [TournamentCategoryDraft(id: 'c1')],
+        ),
+      );
+      final restored = LeagueCreateSession.fromJson(legacySession.toJson());
+      expect(restored!.draft.categories.first.minLevel, '');
     });
   });
 

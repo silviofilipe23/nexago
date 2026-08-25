@@ -196,9 +196,11 @@ String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
   TournamentSkillLevel.iniciante2 => 'Iniciante 2',
   TournamentSkillLevel.intermediario1 => 'Intermediário 1',
   TournamentSkillLevel.intermediario2 => 'Intermediário 2',
+  TournamentSkillLevel.avancado1 => 'Avançado 1',
+  TournamentSkillLevel.avancado2 => 'Avançado 2',
 };
 
-/// Escada única de 5 níveis para categorias novas de TODOS os esportes.
+/// Escada única de 7 níveis para categorias novas de TODOS os esportes.
 /// Categorias antigas com `Iniciante`/`Intermediário` continuam válidas
 /// (ranks unificados no backend); o editor apenas deixa de oferecê-las.
 List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
@@ -207,8 +209,77 @@ List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
       TournamentSkillLevel.iniciante2,
       TournamentSkillLevel.intermediario1,
       TournamentSkillLevel.intermediario2,
+      TournamentSkillLevel.avancado1,
+      TournamentSkillLevel.avancado2,
       TournamentSkillLevel.open,
     ];
+
+/// Presets de faixa de nível (paridade com CATEGORY_LEVEL_PRESETS do portal
+/// e CATEGORY_PRESETS das functions — spec emendada 18/08). O teto usa o
+/// enum do draft (`skillLevel`); o piso usa label porque
+/// `categories[].minLevel` guarda o label cru.
+class CategoryLevelPreset {
+  const CategoryLevelPreset({
+    required this.label,
+    required this.minLevel,
+    required this.maxSkillLevel,
+  });
+  final String label;
+  final String minLevel;
+  final TournamentSkillLevel maxSkillLevel;
+}
+
+const categoryLevelPresets = <CategoryLevelPreset>[
+  CategoryLevelPreset(
+    label: 'Iniciante',
+    minLevel: 'Iniciante 1',
+    maxSkillLevel: TournamentSkillLevel.iniciante2,
+  ),
+  CategoryLevelPreset(
+    label: 'Intermediário',
+    minLevel: 'Intermediário 1',
+    maxSkillLevel: TournamentSkillLevel.intermediario2,
+  ),
+  CategoryLevelPreset(
+    label: 'Avançado',
+    minLevel: 'Avançado 1',
+    maxSkillLevel: TournamentSkillLevel.avancado2,
+  ),
+  CategoryLevelPreset(
+    label: 'Open',
+    minLevel: 'Avançado 1',
+    maxSkillLevel: TournamentSkillLevel.open,
+  ),
+  CategoryLevelPreset(
+    label: 'Elite',
+    minLevel: 'Open',
+    maxSkillLevel: TournamentSkillLevel.open,
+  ),
+  CategoryLevelPreset(
+    label: 'Livre',
+    minLevel: 'Iniciante 1',
+    maxSkillLevel: TournamentSkillLevel.open,
+  ),
+];
+
+/// Preset ativo do draft (faixa exata) — null para faixa legada/sem piso.
+/// Elite (Open/Open) e Livre (Iniciante 1/Open) têm pares distintos, então a
+/// busca linear é inequívoca.
+String? activeCategoryLevelPreset(TournamentCategoryDraft draft) {
+  for (final preset in categoryLevelPresets) {
+    if (draft.minLevel == preset.minLevel &&
+        draft.skillLevel == preset.maxSkillLevel) {
+      return preset.label;
+    }
+  }
+  return null;
+}
+
+/// Categoria nova (id novo, nenhum campo preenchido ainda) — nasce SEMPRE no
+/// preset "Livre" (Iniciante 1–Open), nunca em faixa legada (`minLevel: ''`).
+/// Mesmo fix do portal web (commit b230a30d): um chip precisa nascer ativo.
+TournamentCategoryDraft emptyCategoryDraft(String id) =>
+    TournamentCategoryDraft(id: id, minLevel: 'Iniciante 1');
 
 String formatCents(int cents) => formatBRLFromCents(cents);
 
@@ -226,7 +297,26 @@ String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
   return '$spots $unit';
 }
 
+/// Rótulo de nível para nome/tags (paridade com `criar-torneio`/`criar-liga`
+/// no portal web). Quando a faixa bate um preset nomeado
+/// (`activeCategoryLevelPreset`), usa o rótulo do preset — assim Elite
+/// (Open–Open) deixa de ser sinônimo de Livre (Iniciante 1–Open): antes das
+/// duas só sobrava "Masculino". Livre é o preset padrão (piso rank 0) e
+/// fica deliberadamente sem ruído, igual hoje. Faixa legada (sem preset —
+/// `minLevel` vazio ou combinação antiga) preserva o comportamento de
+/// sempre: só o teto, quando não é Open.
+String? _categoryLevelNamePart(TournamentCategoryDraft category) {
+  final preset = activeCategoryLevelPreset(category);
+  if (preset != null) {
+    return preset == 'Livre' ? null : preset;
+  }
+  return category.skillLevel != TournamentSkillLevel.open
+      ? skillLevelLabel(category.skillLevel)
+      : null;
+}
+
 String suggestCategoryName(TournamentCategoryDraft category) {
+  final levelPart = _categoryLevelNamePart(category);
   final parts = <String>[
     // Equipe (trio+): o formato lidera o nome, e "Livre" substitui o gênero
     // (mesma sugestão do portal — "Trio Misto Sub-17").
@@ -237,8 +327,7 @@ String suggestCategoryName(TournamentCategoryDraft category) {
       categoryGenderLabel(category.gender),
     if (category.ageBand != TournamentAgeBand.open)
       ageBandLabel(category.ageBand),
-    if (category.skillLevel != TournamentSkillLevel.open)
-      skillLevelLabel(category.skillLevel),
+    if (levelPart != null) levelPart,
   ];
   return parts.join(' ').trim();
 }
@@ -268,13 +357,13 @@ String categoryFormatCardLabel(TournamentCategoryDraft category) {
 }
 
 List<String> categoryTags(TournamentCategoryDraft category) {
+  final levelPart = _categoryLevelNamePart(category);
   return [
     categoryGenderShort(category.gender),
     categoryDisputeShort(category.dispute),
     if (category.ageBand != TournamentAgeBand.open)
       ageBandLabel(category.ageBand),
-    if (category.skillLevel != TournamentSkillLevel.open)
-      skillLevelLabel(category.skillLevel),
+    if (levelPart != null) levelPart,
   ];
 }
 
@@ -423,8 +512,7 @@ TournamentCreateDraft buildExpressTournamentDraft({
     ),
     registrationClosesAt: startAt,
     categories: [
-      TournamentCategoryDraft(
-        id: reference.microsecondsSinceEpoch.toString(),
+      emptyCategoryDraft(reference.microsecondsSinceEpoch.toString()).copyWith(
         gender: gender,
         spots: spots,
         bracketSystem: TournamentBracketSystem.groupsThenKnockout,

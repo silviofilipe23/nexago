@@ -7,12 +7,15 @@ import '../theme/app_theme_colors.dart';
 import 'nexa_bottom_nav_models.dart';
 import 'shell_tab_bar_collapse.dart';
 
-/// Reserva apenas parte do inset da home indicator, para a cápsula flutuante
-/// ficar perto da borda inferior (com folga mínima) em vez de flutuar alta.
+/// No iOS a home indicator é translúcida e por gesto, então a cápsula assenta
+/// na borda inferior ("grounded") em vez de flutuar alta. No Android o inset
+/// pode ser a barra de navegação de 3 botões (opaca, ~48dp) — reservar o
+/// inset inteiro para a cápsula nunca ficar atrás dos botões do sistema.
 double _groundedBottomInset(BuildContext context) {
   final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
   if (safeBottom <= 0) return 6;
-  return (safeBottom * 0);
+  if (Theme.of(context).platform == TargetPlatform.iOS) return 0;
+  return safeBottom;
 }
 
 /// Tab bar flutuante estilo Liquid Glass (blur + cápsula + pill ativo).
@@ -30,6 +33,7 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
     this.horizontalMargin = 16,
     this.bottomMargin = 10,
     this.collapseProgress = 0,
+    this.isScrolling = false,
   });
 
   final List<NexaBottomNavItem> items;
@@ -45,6 +49,11 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
 
   /// 0 = expandida, 1 = compacta (ícones, menor altura).
   final double collapseProgress;
+
+  /// Enquanto o conteúdo por trás está rolando, suspendemos o blur ao vivo
+  /// (custo de raster por frame) e mostramos só o tint translúcido; o blur
+  /// volta assim que o scroll assenta.
+  final bool isScrolling;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +72,42 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
         _lerp(bottomMargin, bottomMargin * 0.6, t) +
         _groundedBottomInset(context);
     final showTabLabels = t < 0.45;
+    final content = DecoratedBox(
+      decoration: BoxDecoration(
+        color: tokens.barFill,
+        borderRadius: BorderRadius.circular(barHeight / 2),
+        border: Border.all(color: tokens.outerStroke, width: 0.8),
+      ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        height: barHeight,
+        child: centerAction == null
+            ? _TabRow(
+                items: items,
+                currentIndex: index,
+                onTap: onTap,
+                tokens: tokens,
+                selectedColor: selectedColor,
+                unselectedColor: muted,
+                uppercaseLabels: uppercaseLabels,
+                showLabels: showTabLabels,
+                collapseProgress: t,
+              )
+            : _TabRowWithCenterAction(
+                items: items,
+                currentIndex: index,
+                onTap: onTap,
+                centerAction: centerAction!,
+                tokens: tokens,
+                selectedColor: selectedColor,
+                unselectedColor: muted,
+                uppercaseLabels: uppercaseLabels,
+                showLabels: showTabLabels,
+                collapseProgress: t,
+              ),
+      ),
+    );
 
     return Padding(
       padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
@@ -76,48 +121,15 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(barHeight / 2),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: _lerp(28, 20, t),
-                sigmaY: _lerp(28, 20, t),
-              ),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: tokens.barFill,
-                  borderRadius: BorderRadius.circular(barHeight / 2),
-                  border: Border.all(color: tokens.outerStroke, width: 0.8),
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  height: barHeight,
-                  child: centerAction == null
-                      ? _TabRow(
-                          items: items,
-                          currentIndex: index,
-                          onTap: onTap,
-                          tokens: tokens,
-                          selectedColor: selectedColor,
-                          unselectedColor: muted,
-                          uppercaseLabels: uppercaseLabels,
-                          showLabels: showTabLabels,
-                          collapseProgress: t,
-                        )
-                      : _TabRowWithCenterAction(
-                          items: items,
-                          currentIndex: index,
-                          onTap: onTap,
-                          centerAction: centerAction!,
-                          tokens: tokens,
-                          selectedColor: selectedColor,
-                          unselectedColor: muted,
-                          uppercaseLabels: uppercaseLabels,
-                          showLabels: showTabLabels,
-                          collapseProgress: t,
-                        ),
-                ),
-              ),
-            ),
+            child: isScrolling
+                ? content
+                : BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: _lerp(28, 20, t),
+                      sigmaY: _lerp(28, 20, t),
+                    ),
+                    child: content,
+                  ),
           ),
         ),
       ),

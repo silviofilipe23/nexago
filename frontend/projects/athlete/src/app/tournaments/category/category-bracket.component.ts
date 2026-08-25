@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   buildBracketColumns,
@@ -90,6 +90,14 @@ function pinchDistanceOf(ev: TouchEvent): number {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 }
 
+/** Prioridade da categoria: `categoryIdInput` (alimentado pelo wrapper do Focus) sobre a
+ *  categoria da rota-pai (rota antiga `/categorias/:categoriaId/chave`). Um input vazio conta
+ *  como ausente — nunca busca a categoria "" quando a rota já traz uma válida. Função pura pra
+ *  ser testável sem `TestBed`. */
+export function categoryIdOf(categoryIdInput: string | null, routeCategoryId: string): string {
+  return categoryIdInput && categoryIdInput.length > 0 ? categoryIdInput : routeCategoryId;
+}
+
 /** Sub-visão "Chave": a eliminatória da categoria da rota.
  *
  *  A árvore usa a MESMA geometria do painel do organizador (`bracket-tree.ts`): canvas único com
@@ -134,7 +142,14 @@ export class CategoryBracketComponent {
   private pendingScroll: { left: number; top: number } | null = null;
   private readonly injector = inject(Injector);
 
-  private readonly categoryId = parentCategoryId();
+  private readonly routeCategoryId = parentCategoryId();
+
+  /** A rota do Focus não tem `:categoriaId` — a categoria vem do store (`FocusBracketComponent`
+   *  alimenta este input com `store.focusCategoryId()`). Quando o input está presente ele manda;
+   *  sem ele, o comportamento é exatamente o de antes: a categoria vem da rota-pai. */
+  readonly categoryIdInput = input<string | null>(null);
+
+  private readonly categoryId = computed(() => categoryIdOf(this.categoryIdInput(), this.routeCategoryId()));
 
   private readonly category = computed<TournamentCategoryOffer | null>(() => this.store.categoryById(this.categoryId()));
 

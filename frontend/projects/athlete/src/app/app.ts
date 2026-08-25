@@ -24,6 +24,7 @@ const SHELL_ROUTE_PREFIXES = [
   '/notificacoes',
   '/historico',
   '/clubinho',
+  '/mesa',
 ];
 const AUTH_ROUTES = [
   '/entrar',

@@ -16,8 +16,10 @@ import { filter, map, startWith } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
-import { fetchMyPendingPartnerInvites } from '../data/tournament-registrations-repository';
+import { PartnerInvitesService } from '../data/partner-invites.service';
+import { StaffTournamentsService } from '../data/staff-tournaments.service';
 import { NxBannerComponent } from '../shared/feedback';
+import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
 /** Rotas que o hub Competir agrupa — mantêm o item "Competir" aceso na bottom-nav mobile. */
 const COMPETIR_PREFIXES = ['/competir', '/torneios', '/ligas', '/ranking', '/equipes', '/atletas'];
@@ -42,7 +44,7 @@ function createFirestore(): Firestore | null {
 @Component({
   selector: 'app-at-panel-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, NxBannerComponent],
+  imports: [RouterLink, RouterLinkActive, NxBannerComponent, AtInviteAnnouncerComponent],
   templateUrl: './at-panel-shell.component.html',
   styleUrl: './at-panel-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,9 +64,15 @@ export class AtPanelShellComponent {
   private readonly profilePhotoUrl = signal<string | null>(null);
   protected readonly avatarUrl = computed(() => this.profilePhotoUrl() ?? this.auth.user()?.photoURL ?? null);
 
-  /** Convites de parceiro pendentes — calculado aqui (não como input) pra aparecer em
-   *  QUALQUER tela, não só quando a Agenda está montada e passa o próprio valor. */
-  protected readonly agendaPendingCount = signal(0);
+  /** Convites de parceiro pendentes — do store (não como input) pra aparecer em QUALQUER
+   *  tela, não só quando a Agenda está montada e passa o próprio valor, e pra acender no
+   *  instante em que o convite chega. */
+  protected readonly agendaPendingCount = inject(PartnerInvitesService).pendingCount;
+
+  /** Torneios em andamento que o atleta opera — acende o item "Mesa". Vem do store pelo mesmo
+   *  motivo dos convites: entrar na equipe é gesto do organizador e o menu tem de acender no
+   *  instante em que isso acontece, em qualquer tela. */
+  protected readonly staffCount = inject(StaffTournamentsService).count;
 
   constructor() {
     const syncOnline = () => this.offline.set(!navigator.onLine);
@@ -79,13 +87,9 @@ export class AtPanelShellComponent {
       const uid = this.auth.user()?.uid;
       const db = this.firestore;
       if (!uid || !db) {
-        this.agendaPendingCount.set(0);
         this.profilePhotoUrl.set(null);
         return;
       }
-      fetchMyPendingPartnerInvites(db, uid)
-        .then((invites) => this.agendaPendingCount.set(invites.length))
-        .catch(() => this.agendaPendingCount.set(0));
       fetchMyAthleteProfile(db, uid)
         .then((profile) => this.profilePhotoUrl.set(profile?.profilePhotoUrl ?? null))
         .catch(() => this.profilePhotoUrl.set(null));

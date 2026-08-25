@@ -189,6 +189,7 @@ Map<String, dynamic> _categoryToJson(LeagueStageCategoryDraft category) => {
   'genderFree': category.genderFree,
   if (category.menCount != null) 'menCount': category.menCount,
   if (category.womenCount != null) 'womenCount': category.womenCount,
+  if (category.minLevel.isNotEmpty) 'minLevel': category.minLevel,
 };
 
 List<LeagueStageCategoryDraft> _categoriesFromJson(dynamic raw) {
@@ -245,6 +246,7 @@ LeagueStageCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
     genderFree: json['genderFree'] as bool? ?? false,
     menCount: json['menCount'] as int?,
     womenCount: json['womenCount'] as int?,
+    minLevel: json['minLevel'] as String? ?? '',
   );
 }
 

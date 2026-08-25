@@ -20,6 +20,7 @@ import {
   stringField,
 } from "./tournament-match-gamification";
 import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
+import {isWinnerInMatch} from "./match-status";
 import {artifactsPublicDataBase} from "./firebase-paths";
 import {loadTeamAthleteIds} from "./league-ranking";
 
@@ -177,6 +178,15 @@ export async function applyMatchRatingUpdate(
   const teamBId = stringField(match["teamBId"]);
   if (!winnerTeamId || !tournamentId || !teamAId || !teamBId) {
     return {processed: false, reason: "missing_fields"};
+  }
+  // Vencedor fora dos dois lados: aplicar o Glicko marcaria DERROTA para os
+  // dois times (`won` falso em ambos). Falha alto e não grava evento.
+  if (!isWinnerInMatch(winnerTeamId, teamAId, teamBId)) {
+    logger.warn(
+      `rating-engine: partida ${matchId} com winnerId fora dos dois lados ` +
+        `(winnerId=${winnerTeamId}, teamAId=${teamAId}, teamBId=${teamBId})`,
+    );
+    return {processed: false, reason: "winner_not_in_match"};
   }
 
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
@@ -381,11 +391,11 @@ export async function applyMatchRatingUpdate(
   // Efeitos externos da escada (nível/auditoria/notificação) fora da transação.
   for (const {evaluation} of outcome.evaluations) {
     if (evaluation.actions.length === 0) continue;
-    const finalState = await applyLadderActions(db, evaluation, config, now);
-    await db
+    const ratingRef = db
       .collection(athleteRatingsPath(projectId))
-      .doc(athleteRatingDocId(finalState.athleteId, sportCode))
-      .set(ratingStateToDoc(finalState), {merge: true});
+      .doc(athleteRatingDocId(evaluation.next.athleteId, sportCode));
+    const finalState = await applyLadderActions(db, evaluation, config, now, ratingRef);
+    await ratingRef.set(ratingStateToDoc(finalState), {merge: true});
   }
   return {processed: true};
 }

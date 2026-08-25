@@ -11,7 +11,7 @@ import '../domain/tournament_listing_status.dart';
 import '../domain/tournament_payment_mode.dart';
 import '../domain/tournament_uniform_selection.dart';
 import 'nexago_artifacts_paths.dart';
-import 'tournament_document_mapper.dart';
+import 'tournament_detail_lookup.dart';
 
 class MyTournamentRegistrationsRepository {
   MyTournamentRegistrationsRepository(this._firestore);
@@ -140,8 +140,8 @@ class MyTournamentRegistrationsRepository {
           teamName: (data['teamName'] as String?)?.trim().isNotEmpty == true
               ? (data['teamName'] as String).trim()
               : null,
-          uniformPlayer1: _uniformFromData(data['uniformPlayer1']),
-          uniformPlayer2: _uniformFromData(data['uniformPlayer2']),
+          uniformPlayer1: uniformSelectionFromRegistrationDoc(data, 1),
+          uniformPlayer2: uniformSelectionFromRegistrationDoc(data, 2),
           uniformByUid: _uniformByUidFromData(data['uniformByUid']),
           category: _resolveCategory(tournament, categoryId),
           paymentMode:
@@ -221,14 +221,8 @@ class MyTournamentRegistrationsRepository {
     return parts.join(' · ');
   }
 
-  Future<TournamentDetail?> _loadTournamentDetail(String id) async {
-    var doc = await _firestore.collection('tournaments').doc(id).get();
-    if (!doc.exists) {
-      doc = await _firestore
-          .doc(NexagoArtifactsPaths.legacyTournamentDoc(id))
-          .get();
-    }
-    return TournamentDocumentMapper.detailFromSnapshot(doc);
+  Future<TournamentDetail?> _loadTournamentDetail(String id) {
+    return loadTournamentDetailById(_firestore, id);
   }
 }
 

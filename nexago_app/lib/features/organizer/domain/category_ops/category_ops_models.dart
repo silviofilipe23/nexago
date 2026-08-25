@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 enum OrganizerTeamRegistrationStatus { confirmed, pending, waitlist }
 
@@ -26,14 +27,7 @@ class OrganizerCategoryPlayerInfo {
   final String phoneNumber;
   final String profilePhotoUrl;
 
-  String get initials {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts.first.substring(0, 1).toUpperCase();
-    }
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
+  String get initials => initialsFromDisplayName(name);
 }
 
 @immutable

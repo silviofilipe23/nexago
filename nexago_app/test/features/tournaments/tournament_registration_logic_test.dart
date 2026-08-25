@@ -7,6 +7,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
+import 'package:nexago_app/features/tournaments/domain/direct_payment_state.dart';
 
 void main() {
   setUpAll(() async {
@@ -493,6 +494,38 @@ void main() {
   });
 
   group('registrationDualPaymentProgressLabel', () {
+    // Pagamento direto: "confirmada" só depois que o ORGANIZADOR bate o
+    // extrato. Entre a declaração e a conferência a vaga vale, mas dizer
+    // "confirmada" adianta uma etapa que ainda não aconteceu.
+    test('direto declarado mas não conferido avisa que falta a conferência', () {
+      final label = registrationDualPaymentProgressLabel(
+        quote: buildRegistrationQuote(entryFee: 200, teamSize: 2),
+        paidAmount: 200,
+        isPaid: true,
+        sharePaidUids: const ['eu', 'parceiro'],
+        currentAthleteUid: 'eu',
+        isDirectOrganizerPayment: true,
+        directPaymentState: DirectPaymentState.waitingOrganizer,
+      );
+
+      expect(label, contains('organizador'));
+      expect(label, isNot(contains('confirmada')));
+    });
+
+    test('direto já conferido pelo organizador fala em confirmada', () {
+      final label = registrationDualPaymentProgressLabel(
+        quote: buildRegistrationQuote(entryFee: 200, teamSize: 2),
+        paidAmount: 200,
+        isPaid: true,
+        sharePaidUids: const ['eu', 'parceiro'],
+        currentAthleteUid: 'eu',
+        isDirectOrganizerPayment: true,
+        directPaymentState: DirectPaymentState.confirmed,
+      );
+
+      expect(label, contains('confirmada'));
+    });
+
     test('shows confirmed when fully paid', () {
       final quote = buildRegistrationQuote(entryFee: 160);
       final label = registrationDualPaymentProgressLabel(

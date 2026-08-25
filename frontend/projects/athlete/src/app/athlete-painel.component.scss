@@ -195,6 +195,9 @@
 .at-card--accent {
   position: relative;
   overflow: hidden;
+  // Filho direto de `.at-body` (flex column): `overflow: hidden` zera o min-height
+  // automático e o card é comprimido até sumir o texto. O scroll fica no body.
+  flex-shrink: 0;
 
   &::before {
     content: '';
@@ -204,6 +207,50 @@
     bottom: 0;
     width: 3px;
     background: linear-gradient(180deg, var(--nx-orange-500), transparent);
+  }
+}
+
+// ── Entrar no Focus (card de acompanhamento) ────────────────
+.at-focus-banner {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-left: 22px;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.at-focus-banner-copy {
+  min-width: 0;
+  flex: 1 1 12rem;
+
+  @media (max-width: 640px) {
+    flex: none;
+  }
+}
+
+.at-focus-banner-text {
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--nx-text);
+  margin: 4px 0 0;
+}
+
+.at-focus-banner .at-card-kicker {
+  color: var(--nx-orange-500);
+}
+
+.at-focus-banner .at-mini-btn {
+  flex-shrink: 0;
+
+  @media (max-width: 640px) {
+    width: 100%;
   }
 }
 
@@ -738,6 +785,53 @@
   margin-top: 2px;
 }
 
+/* Operação do mesário/gestor no topo do painel — mesma anatomia de linha dos torneios, com a
+   borda acesa porque é ação de trabalho, não acompanhamento. */
+.at-staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.at-staff-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-0);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+}
+
+.at-staff-row:hover {
+  border-color: var(--nx-orange-500);
+}
+
+.at-staff-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.at-staff-name {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-staff-meta {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+  margin-top: 2px;
+}
+
 .at-invite-list {
   display: flex;
   flex-direction: column;
@@ -824,4 +918,68 @@
 // Alerta de sincronização no topo do corpo do painel.
 .at-sync-error {
   margin-bottom: 18px;
+}
+
+/* ——— Card de campanha (até 5 dias depois do torneio) ——— */
+.at-campaign-card {
+  /* `flex-direction` é declarado de propósito: `.at-card` é um flex COLUMN, e sem esta linha o
+     card empilhava e centralizava tudo — herdar a direção do bloco base é o erro fácil aqui. */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.at-campaign-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.at-campaign-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  opacity: 0.72;
+
+  span + span::before {
+    content: '·';
+    margin-right: 10px;
+    opacity: 0.6;
+  }
+}
+
+.at-campaign-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  color: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: rgb(255 255 255 / 0.22);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  /* No celular o botão já quebra pra segunda linha; largura total dá um alvo de toque decente
+     em vez de um botão solto no meio do card. O `@media` fica ANINHADO no seletor de propósito:
+     declarado antes da regra base ele seria descartado. */
+  @media (max-width: 560px) {
+    width: 100%;
+    justify-content: center;
+  }
 }

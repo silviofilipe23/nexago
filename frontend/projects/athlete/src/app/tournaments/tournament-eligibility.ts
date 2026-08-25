@@ -1,4 +1,5 @@
 import {
+  athleteSportLabel,
   levelLabelForRank,
   tournamentSportToLevelSportCode as sharedTournamentSportToLevelSportCode,
 } from '@nexago/levels';
@@ -10,7 +11,7 @@ import type { TournamentCategoryOffer } from '../data/tournaments-repository';
  *  `category_{level,gender,age}_eligibility.dart` (Flutter). O backend continua autoritativo;
  *  isto só evita que o atleta tente uma categoria que a function vai recusar. */
 
-const HIGHEST_LEVEL_RANK = 5;
+const HIGHEST_LEVEL_RANK = 6;
 
 /** Esporte do torneio (`tournaments/{id}.sport`) → código de esporte do perfil
  *  (`levelsBySport`). `null` quando não há equivalente → usa nível global. */
@@ -21,6 +22,11 @@ export function tournamentSportToLevelSportCode(sport: string | null): string | 
 /** Rank do nível da categoria; categoria sem nível → Open (aceita todos). */
 export function categoryLevelRank(category: Pick<TournamentCategoryOffer, 'level'>): number {
   return levelRankOf(category.level) ?? HIGHEST_LEVEL_RANK;
+}
+
+/** Rank do piso da categoria; ausente/desconhecido → 0 (sem piso). */
+export function categoryMinLevelRank(category: Pick<TournamentCategoryOffer, 'minLevel'>): number {
+  return levelRankOf(category.minLevel) ?? 0;
 }
 
 /** Rank do atleta pro esporte do torneio: por esporte → global → Iniciante (permissivo). */
@@ -35,12 +41,75 @@ export function athleteLevelRank(profile: MyAthleteProfile | null, tournamentSpo
 }
 
 
+// ── Confirmação de nível na 1ª inscrição (Task 7 — espelha
+// `CategoryLevelEligibility.needsLevelConfirmation`/`resolveLevelConfirmationPrompt` do
+// Flutter, Task 6) ────────────────────────────────────────────────────────────────────
+
+/** `true` só quando o esporte do torneio tem sportCode mapeado E ainda não travou
+ *  (`levelLocked[sportCode] !== true`) pro atleta — a janela de correção some no instante em
+ *  que a 1ª inscrição ativa do esporte é criada (trigger de backend, `tournament-level-lock.ts`),
+ *  nunca reabre. Perfil nulo ou esporte sem equivalente no perfil → `false`: sem dado não dá pra
+ *  confirmar nada, e o backend segue autoritativo. */
+export function needsLevelConfirmation(profile: MyAthleteProfile | null, tournamentSport: string | null): boolean {
+  if (!profile) return false;
+  const sportCode = tournamentSportToLevelSportCode(tournamentSport);
+  if (!sportCode) return false;
+  return profile.levelLocked[sportCode] !== true;
+}
+
+export interface LevelConfirmationPrompt {
+  levelLabel: string;
+  sportLabel: string;
+}
+
+/** Wrapper async que AWAITA o `Promise` do perfil antes de decidir — nunca lê um fetch ainda
+ *  em andamento como "sem perfil". Espelha o fix I1 da Task 6 (Flutter): ler um valor
+ *  ainda não resolvido como `null` deixaria a confirmação de fora, em silêncio, bem na
+ *  primeira inscrição — que é exatamente a janela que precisa dela. Erro no `Promise`
+ *  propaga pro chamador: quem decide bloquear a submissão é quem chama. */
+export async function resolveLevelConfirmationPrompt(
+  profileFuture: Promise<MyAthleteProfile | null>,
+  tournamentSport: string | null,
+): Promise<LevelConfirmationPrompt | null> {
+  const profile = await profileFuture;
+  if (!needsLevelConfirmation(profile, tournamentSport)) return null;
+  const rank = athleteLevelRank(profile, tournamentSport);
+  const sportCode = tournamentSportToLevelSportCode(tournamentSport);
+  return { levelLabel: levelLabelForRank(rank), sportLabel: athleteSportLabel(sportCode) };
+}
+
+/** Como `resolveLevelConfirmationPrompt`, mas também AWAITA o `Promise` do TORNEIO em vez de
+ *  aceitar um `tournamentSport` já resolvido — fix pós-review (I1): 3 dos 6 pontos de entrada
+ *  descobrem o torneio pelo cache de `PartnerInvitesService.pending()`, cujo contrato deixa
+ *  `tournament: null` enquanto o fetch paralelo do torneio ainda não voltou
+ *  (`partner-invites.service.ts:24-27`, `resolveTournaments`). Ler esse cache direto tratava
+ *  "ainda não sei o esporte" como "sem esporte mapeado" e pulava a confirmação em silêncio — a
+ *  MESMA falha que a Task 6 (Flutter) cometeu no aceite de convite, agora na resolução do
+ *  TORNEIO em vez da do PERFIL. Erro em QUALQUER um dos dois `Promise`s propaga pro chamador. */
+export async function resolveLevelConfirmationPromptForTournament(
+  profileFuture: Promise<MyAthleteProfile | null>,
+  tournamentFuture: Promise<{ sport: string | null } | null>,
+): Promise<LevelConfirmationPrompt | null> {
+  const [profile, tournament] = await Promise.all([profileFuture, tournamentFuture]);
+  return resolveLevelConfirmationPrompt(Promise.resolve(profile), tournament?.sport ?? null);
+}
+
 export function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
   const v = raw?.trim().toLowerCase() ?? '';
   if (!v) return null;
   if (v === 'm' || v.startsWith('masc')) return 'M';
   if (v === 'f' || v.startsWith('fem')) return 'F';
   return null; // 'Outro' etc. — não casa com categorias M/F (só Misto).
+}
+
+/** Filtro da busca de parceiro em categoria de gênero fixo. Declarado que não
+ *  casa (inclui "Outro") sai da lista; SEM gênero (vazio) FICA — sumir em
+ *  silêncio deixava o convidante achando que o parceiro não existe. A linha
+ *  avisa a pendência e o aceite valida no servidor. */
+export function partnerMatchesRequiredGender(rawGender: string | null, requiredGender: 'M' | 'F' | null): boolean {
+  if (requiredGender == null) return true;
+  if (!rawGender?.trim()) return true;
+  return normalizeAthleteGender(rawGender) === requiredGender;
 }
 
 function categoryGenderDisplayLabel(genderType: TournamentCategoryOffer['genderType']): string {
@@ -130,7 +199,14 @@ function computeAge(birthDate: Date, reference: AgeReference, tournamentStart: D
 
 // ── Avaliação combinada ──────────────────────────────────────────────────────
 
-export type CategoryEligibilityStatus = 'eligible' | 'belowLevel' | 'genderMismatch' | 'missingGender' | 'missingBirthDate' | 'outOfAgeRange';
+export type CategoryEligibilityStatus =
+  | 'eligible'
+  | 'belowLevel'
+  | 'belowMinLevel'
+  | 'genderMismatch'
+  | 'missingGender'
+  | 'missingBirthDate'
+  | 'outOfAgeRange';
 
 export interface CategoryEligibility {
   status: CategoryEligibilityStatus;
@@ -159,6 +235,16 @@ export function evaluateCategoryEligibility(
       status: 'belowLevel',
       badge: 'ABAIXO DO SEU NÍVEL',
       message: `Seu nível (${levelLabelForRank(athleteRank)}) não permite categorias inferiores. Escolha uma categoria igual ou superior.`,
+    };
+  }
+
+  // Piso da faixa: categoria com nível mínimo barra quem está abaixo dele.
+  const minRank = categoryMinLevelRank(category);
+  if (minRank > 0 && athleteRank < minRank) {
+    return {
+      status: 'belowMinLevel',
+      badge: 'NÍVEL MÍNIMO NÃO ATINGIDO',
+      message: `Esta categoria exige nível mínimo ${levelLabelForRank(minRank)}. Seu nível atual é ${levelLabelForRank(athleteRank)}.`,
     };
   }
 

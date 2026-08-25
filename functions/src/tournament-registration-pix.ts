@@ -48,7 +48,12 @@ import {
   loadTeamMemberUids,
   setTeamGenderWhenRegistrationPaid,
 } from "./tournament-team-roster";
-import {deliverNotificationToUser} from "./notification-delivery";
+import {
+  deliverNotificationToUser,
+  WEB_PUSH_PUBLIC_KEY,
+  WEB_PUSH_PRIVATE_KEY,
+  WEB_PUSH_SUBJECT,
+} from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
@@ -185,6 +190,9 @@ export const createTournamentRegistrationPixPayment = onCall({
     projectId,
     tournamentId,
     categoryId,
+    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+    // justamente quem está confirmando a vaga que já é dele.
+    {occupancyExcludesRegistrationId: registrationId},
   );
 
   if (isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {
@@ -586,6 +594,9 @@ export const confirmFreeTournamentRegistration = onCall({
     projectId,
     tournamentId,
     categoryId,
+    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+    // justamente quem está confirmando a vaga que já é dele.
+    {occupancyExcludesRegistrationId: registrationId},
   );
 
   const shouldWaitlist =
@@ -679,6 +690,7 @@ export const confirmFreeTournamentRegistration = onCall({
 
 /** Reserva vaga em torneio com pagamento direto ao organizador (sem PIX). */
 export const reserveDirectOrganizerRegistration = onCall({
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
   const callerUid = request.auth?.uid;
   if (!callerUid) {
@@ -724,6 +736,9 @@ export const reserveDirectOrganizerRegistration = onCall({
     projectId,
     tournamentId,
     categoryId,
+    // Esta inscrição já ocupa vaga: contá-la contra si mesma jogaria na fila
+    // justamente quem está confirmando a vaga que já é dele.
+    {occupancyExcludesRegistrationId: registrationId},
   );
 
   if (!isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {

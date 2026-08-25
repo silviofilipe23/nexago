@@ -3,6 +3,7 @@
  *  pro mapeamento de campos. */
 
 import type { TournamentPaymentMode, TournamentVisibility } from './tournament-create.model';
+import type { TournamentCollected } from './tournament-collected';
 
 export type OrganizerTournamentStatus = 'inscricoes' | 'andamento' | 'concluido' | 'cancelado';
 
@@ -10,6 +11,8 @@ export interface OrganizerTournamentCategory {
   id: string; // categoryId usado em inscriptions/matches
   name: string;
   maxTeams: number | null;
+  /** Taxa de inscrição em reais; `0` = categoria gratuita. */
+  entryFee: number;
   /** Tamanho do elenco em categoria de equipe (3–5); `null` = dupla clássica. */
   teamSize: number | null;
   /** Formato salvo na categoria (`bracketFormat`: groups_knockout/single_elimination/…) e a
@@ -47,6 +50,8 @@ export interface TelaoConfig {
   showStreak: boolean;
   /** Modo GRANDE FINAL: final/grand final/3º lugar assumem a tela inteira. */
   showFinalMode: boolean;
+  /** QR de acompanhamento no rodapé do telão — leva à página pública `/t/{id}`. */
+  showPublicQr: boolean;
 }
 
 /** Espelha `TournamentMatchOpsConfig` (Flutter): jornada e durações do dia de jogo. */
@@ -75,6 +80,9 @@ export interface OrganizerTournament {
   /** `directWithOrganizer` não tem webhook: o atleta declara que pagou e o dinheiro cai fora do
    *  app. É o que separa "pagou" de "disse que pagou" na tela de Inscrições. */
   paymentMode: TournamentPaymentMode;
+  /** Arrecadação já separada por canal (plataforma / por fora), mantida pela CF
+   *  `tournament-collected-stats.ts`. Ver `tournament-collected.ts`. */
+  collected: TournamentCollected;
   startAt: Date | null;
   endAt: Date | null;
   city: string | null;

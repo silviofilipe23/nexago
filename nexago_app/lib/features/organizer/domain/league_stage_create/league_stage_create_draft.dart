@@ -32,6 +32,7 @@ class LeagueStageCategoryDraft {
     this.genderFree = false,
     this.menCount,
     this.womenCount,
+    this.minLevel = '',
   });
 
   final String categoryId;
@@ -55,6 +56,11 @@ class LeagueStageCategoryDraft {
   final int? menCount;
   final int? womenCount;
 
+  /// Faixa de nível (label, ex.: "Avançado 1") herdada da liga — piso da
+  /// categoria (`''` = sem piso). O app não edita, só preserva o que o
+  /// portal gravou (mesmo contrato de [genderFree]/[menCount]).
+  final String minLevel;
+
   LeagueStageCategoryDraft copyWith({
     String? categoryId,
     String? name,
@@ -73,6 +79,7 @@ class LeagueStageCategoryDraft {
     bool? genderFree,
     int? menCount,
     int? womenCount,
+    String? minLevel,
   }) {
     return LeagueStageCategoryDraft(
       categoryId: categoryId ?? this.categoryId,
@@ -92,6 +99,7 @@ class LeagueStageCategoryDraft {
       genderFree: genderFree ?? this.genderFree,
       menCount: menCount ?? this.menCount,
       womenCount: womenCount ?? this.womenCount,
+      minLevel: minLevel ?? this.minLevel,
     );
   }
 }

@@ -47,6 +47,8 @@ class TournamentMatch {
     this.bestOf = 3,
     this.winnerAdvanceMatchNumber,
     this.winnerAdvanceSlot,
+    this.loserAdvanceMatchNumber,
+    this.loserAdvanceSlot,
     this.liveScore,
   });
 
@@ -97,6 +99,12 @@ class TournamentMatch {
   /// Nulos em partidas geradas antes da fiação explícita ou sem avanço (Final).
   final int? winnerAdvanceMatchNumber;
   final String? winnerAdvanceSlot;
+
+  /// Para onde vai quem PERDE — só existe na dupla eliminação, onde a derrota
+  /// manda o time para a repescagem em vez de eliminá-lo. É o que permite
+  /// dizer "você cai para a repescagem, não está eliminado".
+  final int? loserAdvanceMatchNumber;
+  final String? loserAdvanceSlot;
 
   /// Placar parcial "ao vivo" do set em andamento (games/sets), gravado por
   /// `updateLiveMatchScore`. Só faz sentido exibir quando [isInProgress].

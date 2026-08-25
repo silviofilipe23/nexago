@@ -20,6 +20,9 @@ import { ChaveamentoContextService } from './chaveamento-context.service';
 
 const ROW_H = 100; // px por slot de 30min — cards mais altos pra caber confronto + meta
 const SLOT_MIN = 30;
+/** Mesma largura em que o shell troca a sidebar pela gaveta — abaixo dela o
+ *  layout de duas colunas desta tela também empilha. */
+const COMPACT_QUERY = '(max-width: 1023.98px)';
 
 interface AgendaBloco {
   match: TournamentMatch;
@@ -42,6 +45,7 @@ interface AgendaBloco {
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
+  host: { '(document:keydown.escape)': 'onEscape()' },
   template: `
     <og-page-header title="Agendamento de jogos" [subtitle]="headerSubtitle()">
       <button type="button" class="og-mini-btn" [disabled]="busy() || autoOpen() || !ctx.tournament()" (click)="openAuto()">
@@ -80,7 +84,7 @@ interface AgendaBloco {
       } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chaves ainda não geradas</div>
       } @else {
-        <div class="og-agenda-layout">
+        <div class="og-agenda-layout" [class.with-minibar]="autoMinibar()">
         <og-card style="min-height:0;overflow:hidden">
           <div class="og-agenda">
             <div class="og-agenda-cols">
@@ -164,8 +168,40 @@ interface AgendaBloco {
           </div>
         </og-card>
 
-        @if (autoOpen()) {
-          <og-card kicker="Auto-agendamento" title="Gerar grade do dia" style="min-height:0;overflow:hidden">
+        @if (autoMinibar()) {
+          <div class="og-auto-minibar">
+            <p class="og-auto-summary">{{ autoSummary() }}</p>
+            <div class="og-auto-actions">
+              <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="expandAuto()">Ajustar</button>
+              <button
+                type="button"
+                class="og-mini-btn"
+                [disabled]="busy() || autoLoading() || autoCourtsIgnored() || autoSlots().length === 0"
+                (click)="applyAuto()"
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        } @else if (autoOpen()) {
+          @if (narrow()) {
+            <button type="button" class="og-auto-backdrop" aria-label="Fechar auto-agendamento" (click)="closeAuto()"></button>
+          }
+          <og-card
+            kicker="Auto-agendamento"
+            title="Gerar grade do dia"
+            class="og-auto-panel"
+            [class.sheet]="narrow()"
+            [attr.role]="narrow() ? 'dialog' : null"
+            [attr.aria-modal]="narrow() ? 'true' : null"
+            [attr.aria-label]="narrow() ? 'Gerar grade do dia' : null"
+            style="min-height:0;overflow:hidden"
+          >
+            @if (narrow()) {
+              <button card-action type="button" class="og-auto-close" aria-label="Fechar" (click)="closeAuto()">
+                <og-icon name="close" [size]="16" />
+              </button>
+            }
             <div class="og-auto-fields">
               <div class="og-auto-field">
                 <span class="og-auto-label">Dia</span>
@@ -233,7 +269,11 @@ interface AgendaBloco {
               }
               <p class="og-auto-summary">{{ autoSummary() }}</p>
               <div class="og-auto-actions">
-                <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="closeAuto()">Cancelar</button>
+                @if (narrow()) {
+                  <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="collapseAuto()">Ver na grade</button>
+                } @else {
+                  <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="closeAuto()">Cancelar</button>
+                }
                 <button type="button" class="og-ghost-btn" [disabled]="busy() || autoLoading() || autoCourtIds().length === 0" (click)="recalcAuto()">Recalcular</button>
                 <button type="button" class="og-mini-btn" [disabled]="busy() || autoLoading() || autoCourtsIgnored() || autoSlots().length === 0" (click)="applyAuto()">Aplicar</button>
               </div>
@@ -283,7 +323,9 @@ interface AgendaBloco {
   `,
   styles: `
     :host {
-      display: block;
+      /* O box do host é do shell (regra .og-main > router-outlet + * em styles.scss), que faz
+         dele uma coluna flex de altura limitada — é o que dá altura pro .og-content rolar por
+         dentro. Aqui fica só o que é desta tela: a âncora do overlay de processamento. */
       position: relative;
     }
 
@@ -294,11 +336,34 @@ interface AgendaBloco {
       grid-template-columns: 1fr 300px;
       gap: 16px;
     }
+
     .og-agenda {
       display: flex;
       flex-direction: column;
       height: 100%;
       min-height: 0;
+    }
+
+    /* Tablet: a coluna lateral de 300px comeria metade da grade num iPad em
+       retrato (584px úteis). Empilha, e a grade — que é o trabalho da tela —
+       fica com a largura inteira; a fila de partidas desce e rola com a página.
+       Precisa vir DEPOIS das regras base acima: mesma especificidade, quem estiver por
+       último no arquivo vence. Declarado antes, o bloco era descartado inteiro — o 70dvh
+       saía como 3239px na medição. */
+    @media (max-width: 1023.98px) {
+      .og-agenda-layout {
+        grid-template-columns: 1fr;
+        grid-auto-rows: min-content;
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: none;
+      }
+
+      .og-agenda {
+        /* Sem altura de coluna pra dividir, a grade precisa de altura própria
+           senão colapsa pro conteúdo e perde a rolagem interna das horas. */
+        height: 70dvh;
+      }
     }
     .og-agenda-cols {
       display: flex;
@@ -653,6 +718,78 @@ interface AgendaBloco {
       line-height: 1.6;
       color: var(--nx-text-dim);
     }
+
+    /* ── Auto-agendamento no estreito: sheet em vez de coluna ──────────────────
+       Empilhado, o painel caía DEPOIS da grade de 70dvh: pra chegar nos controles
+       o organizador rolava a tela inteira, e aí perdia de vista a prévia que eles
+       comandam. Vira um sheet sobre a grade, e "Ver na grade" o recolhe pra uma
+       barra fina — a prévia tracejada volta a aparecer inteira sem perder o que
+       já foi configurado. Fica abaixo do overlay de gravação (40) e da gaveta do
+       shell (55/60): os dois têm de cobrir o sheet quando aparecem. */
+    .og-auto-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      border: none;
+      padding: 0;
+      background: rgba(7, 7, 8, 0.6);
+      backdrop-filter: blur(2px);
+      cursor: pointer;
+    }
+    .og-auto-panel.sheet {
+      position: fixed;
+      z-index: 31;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: 85dvh;
+      border-radius: var(--nx-r-4) var(--nx-r-4) 0 0;
+      border-bottom: none;
+      box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+      padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    }
+    .og-auto-close {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      flex: none;
+      border: none;
+      border-radius: var(--nx-r-2);
+      background: transparent;
+      color: var(--nx-text-mute);
+      cursor: pointer;
+    }
+    .og-auto-close:hover {
+      color: var(--nx-text);
+    }
+    .og-auto-minibar {
+      position: fixed;
+      z-index: 31;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      background: var(--nx-surface-0);
+      border-top: 1px solid var(--nx-line-strong);
+      box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.4);
+    }
+    .og-auto-minibar .og-auto-summary {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+    }
+    .og-auto-minibar .og-auto-actions {
+      flex: none;
+      flex-wrap: nowrap;
+    }
+    /* A barra é fixa: sem esta folga ela cobre a última faixa de horário da grade. */
+    .og-agenda-layout.with-minibar {
+      padding-bottom: 88px;
+    }
   `,
 })
 export class AgendamentoComponent {
@@ -671,6 +808,10 @@ export class AgendamentoComponent {
   // ── Painel de auto-agendamento ──────────────────────────────────────────────
   protected readonly autoOpen = signal(false);
   protected readonly autoLoading = signal(false);
+  /** Largura em que o painel deixa de ser coluna lateral e vira sheet sobre a grade. */
+  protected readonly narrow = signal(false);
+  /** Sheet recolhido na barra fina — só existe no estreito. */
+  protected readonly autoCollapsed = signal(false);
   /** Minutos do dia — o "começar a partir das", que vai como `dayStart`. */
   protected readonly autoStartMin = signal(0);
   protected readonly autoCourtIds = signal<readonly string[]>([]);
@@ -715,7 +856,23 @@ export class AgendamentoComponent {
     return keys;
   });
 
+  /** Barra fina no lugar do sheet — o painel segue aberto e configurado. */
+  protected readonly autoMinibar = computed(() => this.autoOpen() && this.narrow() && this.autoCollapsed());
+
   constructor() {
+    const destroyRef = inject(DestroyRef);
+
+    const mq = window.matchMedia(COMPACT_QUERY);
+    this.narrow.set(mq.matches);
+    const onNarrowChange = (e: MediaQueryListEvent) => {
+      this.narrow.set(e.matches);
+      // Girar pra paisagem e voltar traria o painel recolhido de novo — o estado
+      // não sobrevive à largura em que ele nem existe.
+      if (!e.matches) this.autoCollapsed.set(false);
+    };
+    mq.addEventListener('change', onNarrowChange);
+    destroyRef.onDestroy(() => mq.removeEventListener('change', onNarrowChange));
+
     // Ao trocar de torneio, aponta pro dia de hoje se estiver dentro do evento, senão pro 1º dia.
     let lastTournamentId: string | null = null;
     effect(() => {
@@ -729,7 +886,7 @@ export class AgendamentoComponent {
       this.feedback.set(null);
       this.closeAuto();
     });
-    inject(DestroyRef).onDestroy(() => this.cancelAutoDebounce());
+    destroyRef.onDestroy(() => this.cancelAutoDebounce());
   }
 
   protected readonly selectedMatch = computed(() => {
@@ -849,6 +1006,7 @@ export class AgendamentoComponent {
     this.autoAvoidConflict.set(true);
     this.autoRespectDeps.set(true);
     this.autoScopeCategory.set(this.ctx.selectedCategoryId() != null);
+    this.autoCollapsed.set(false);
     this.autoOpen.set(true);
     void this.runAutoPreview();
   }
@@ -857,8 +1015,23 @@ export class AgendamentoComponent {
     this.cancelAutoDebounce();
     this.autoGeneration++;
     this.autoOpen.set(false);
+    this.autoCollapsed.set(false);
     this.autoLoading.set(false);
     this.autoSlotsSignal.set([]);
+  }
+
+  /** "Ver na grade" — sai da frente da prévia sem perder a configuração. */
+  protected collapseAuto(): void {
+    this.autoCollapsed.set(true);
+  }
+
+  protected expandAuto(): void {
+    this.autoCollapsed.set(false);
+  }
+
+  /** Esc fecha só o sheet: no desktop o painel é uma coluna, não um modal. */
+  protected onEscape(): void {
+    if (this.narrow() && this.autoOpen()) this.closeAuto();
   }
 
   protected selectDay(dayKey: string): void {

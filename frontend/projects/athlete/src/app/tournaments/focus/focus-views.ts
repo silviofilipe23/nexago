@@ -1,0 +1,304 @@
+import { matchIsCompleted, matchIsLive, type GroupStanding, type TournamentMatch } from '../../data/matches-repository';
+import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
+import {
+  bestOfLabelOf,
+  closedPartialsLabelOf,
+  countdownLabelOf,
+  courtLabelOf,
+  liveScoreLineOf,
+  matchNumberLabelOf,
+  ordinalOf,
+  setWinsLabelOf,
+  timeLabelOf,
+} from '../tournament-format';
+import {
+  groupLabelOf,
+  knockoutLabelOf,
+  liveMatchesOf,
+  outcomeOf,
+  qualificationOf,
+  roundDisplayNumberOf,
+  roundGroupsOf,
+  sideOf,
+} from '../tournament-live.selectors';
+import type { DuoPlayer, TournamentLiveStore } from '../tournament-live.store';
+import { knockoutRounds } from './focus-journey';
+
+/** Views puras da experiência "acompanhar o dia": próxima partida, linha do tempo, classificação
+ *  do grupo e o que está em quadra agora. Extraídas da aba Hoje pra serem reaproveitadas pelas
+ *  seções Agora e Grupo do Modo Focus sem triplicar a lógica. */
+
+export interface DuoView {
+  teamId: string;
+  name: string;
+  isMe: boolean;
+  players: [DuoPlayer, DuoPlayer];
+  /** "1º do grupo · 2V 0D" — só existe em partida de fase de grupos. */
+  standingLine: string | null;
+}
+
+export interface NextMatchView {
+  matchId: string;
+  kicker: string;
+  /** "Jogo #12" — o nome pelo qual o organizador chama a partida na quadra. `null` sem número. */
+  numberLabel: string | null;
+  timeLabel: string;
+  countdown: string | null;
+  courtLabel: string | null;
+  bestOfLabel: string;
+  checkedIn: boolean;
+  live: boolean;
+  liveScoreLine: string | null;
+  sideA: DuoView;
+  sideB: DuoView;
+}
+
+export type TimelineState = 'done' | 'live' | 'next' | 'upcoming';
+
+export interface TimelineEntry {
+  matchId: string;
+  /** `null` quando a partida ainda não tem horário — o template desenha "—". Um rótulo vazio na
+   *  coluna do relógio lê como bug, e desde que a lista do dia deixou de exigir `scheduleTime`
+   *  (ver `matchBelongsToDay`) essa linha existe de verdade. */
+  time: string | null;
+  title: string;
+  detail: string | null;
+  outcomeLabel: string | null;
+  outcome: 'win' | 'loss' | null;
+  state: TimelineState;
+  note: string | null;
+  clickable: boolean;
+}
+
+export interface LiveRowView {
+  matchId: string;
+  nameA: string;
+  nameB: string;
+  context: string;
+  scoreLine: string | null;
+}
+
+export interface QualificationNote {
+  tone: 'win' | 'neutral';
+  text: string;
+}
+
+export interface StandingRow {
+  rank: number;
+  name: string;
+  isMe: boolean;
+  wins: number;
+  losses: number;
+  sets: string;
+  points: number;
+  qualifies: boolean;
+}
+
+/**
+ * O que uma view do Focus precisa saber. É o store reduzido a valores — os componentes montam
+ * este objeto lendo os signals, e os testes montam um literal. Sem isso as funções voltariam a
+ * depender do `TournamentLiveStore` e deixariam de ser testáveis sem TestBed.
+ *
+ * Só entra aqui o que é ESTÁVEL entre ticks do relógio — tudo que deriva de `now()` fica de fora
+ * e vira parâmetro de quem consome, senão o `ctx` inteiro recomputaria a cada tick (1s com
+ * partida ao vivo — ver `TICK_LIVE_MS` em `tournament-live.store.ts`) e arrastaria
+ * `standingsViewOf`/`qualificationNoteOf`/`liveRowsOf` — que não dependem do relógio — junto:
+ * - `now`: `nextMatchViewOf`, o único consumidor, recebe o valor à parte.
+ * - `dayTimeline`: `store.dayTimeline()` é `computed(() => myDayTimeline(matches, myTeamIds,
+ *   now()))`, que termina em `.filter().sort()` — um array NOVO a cada leitura, mesmo com o
+ *   mesmo conteúdo. Fora do `ctx`, quem lê é só `timelineOf`, que recebe o array à parte.
+ */
+export interface FocusViewContext {
+  /**
+   * Partidas da CATEGORIA em foco, nunca do torneio inteiro. O Focus é sempre sobre uma
+   * categoria só (`focusCategoryId`), e as derivações por grupo daqui — classificação, derrotas,
+   * "decide a classificação", número da rodada — filtram por `poolId`, que só é único DENTRO da
+   * categoria: os grupos são 'A', 'B', 'C'… em todas elas (ver `buildGroupStandings`). Com a
+   * lista do torneio, o Grupo A do atleta vinha fundido com o Grupo A das outras categorias e um
+   * grupo de 4 duplas aparecia com 8. As telas da categoria (`category/*.component.ts`) já
+   * seguiam essa regra via `matchesOfCategory`; o Focus era a exceção.
+   */
+  matches: readonly TournamentMatch[];
+  myTeamIds: ReadonlySet<string>;
+  duoNameOf(teamId: string, fallback?: string | null): string;
+  duoPlayersOf(teamId: string): [DuoPlayer, DuoPlayer];
+  isMyTeam(teamId: string): boolean;
+  standingsOf(poolId: string): readonly GroupStanding[];
+  nextMatch: TournamentMatch | null;
+}
+
+/** Fotografia do store para as funções de view. `import type` de propósito: nada aqui depende
+ *  do store em tempo de execução, então não há ciclo. */
+export function focusViewContextOf(store: TournamentLiveStore): FocusViewContext {
+  const categoryId = store.focusCategoryId() ?? '';
+  return {
+    matches: store.matchesOfCategory(categoryId),
+    myTeamIds: store.myTeamIds(),
+    duoNameOf: (teamId, fallback) => store.duoNameOf(teamId, fallback ?? null),
+    duoPlayersOf: (teamId) => store.duoPlayersOf(teamId),
+    isMyTeam: (teamId) => store.isMyTeam(teamId),
+    standingsOf: (poolId) => store.standingsOf(categoryId, poolId),
+    nextMatch: store.nextMatch(),
+  };
+}
+
+/** Na pílula de meta da próxima partida o número aparece sozinho, então vai por extenso
+ *  ("Jogo #12") — diferente da linha mono dos cards, onde o `#12` já se explica pelo contexto. */
+function numberChipOf(m: TournamentMatch): string | null {
+  const number = matchNumberLabelOf(m);
+  return number ? `Jogo ${number}` : null;
+}
+
+function mySetLine(m: TournamentMatch, side: 'A' | 'B' | null): string {
+  const [a, b] = setWinsLabelOf(m).split(' – ');
+  return side === 'B' ? `${b}–${a}` : `${a}–${b}`;
+}
+
+function phaseLabelOf(ctx: FocusViewContext, m: TournamentMatch): string {
+  if (m.poolId) return `Rodada ${roundDisplayNumberOf(ctx.matches, m.poolId, m.round)}`;
+  return knockoutLabelOf(m, knockoutRounds(ctx.matches, m.categoryId));
+}
+
+function kickerOf(ctx: FocusViewContext, m: TournamentMatch): string {
+  const parts = ['Sua próxima partida'];
+  if (m.poolId) {
+    parts.push(groupLabelOf(m.poolId, ctx.matches), phaseLabelOf(ctx, m));
+  } else {
+    parts.push(phaseLabelOf(ctx, m));
+  }
+  return parts.join(' · ');
+}
+
+/** "decide a classificação do grupo" — verdadeiro sempre que a partida é da última rodada
+ *  ainda em aberto. Não promete posição específica: isso dependeria de simular os critérios
+ *  de desempate. */
+function noteOf(ctx: FocusViewContext, m: TournamentMatch): string | null {
+  if (!m.poolId || matchIsCompleted(m)) return null;
+  const groups = roundGroupsOf(ctx.matches, m.poolId);
+  const last = groups[groups.length - 1];
+  return last && last.round === m.round ? 'decide a classificação do grupo' : null;
+}
+
+/** "1º do grupo · 2V 0D". */
+export function standingLineOf(ctx: FocusViewContext, teamId: string, poolId: string): string | null {
+  if (!teamId || !poolId) return null;
+  const rows = ctx.standingsOf(poolId);
+  const index = rows.findIndex((s) => s.teamId === teamId);
+  if (index < 0) return null;
+  const row = rows[index]!;
+  return `${ordinalOf(index + 1)} do grupo · ${row.wins}V ${lossesOf(ctx, poolId, teamId)}D`;
+}
+
+export function lossesOf(ctx: FocusViewContext, poolId: string, teamId: string): number {
+  return ctx.matches.filter(
+    (m) => m.poolId === poolId && matchIsCompleted(m) && (m.teamAId === teamId || m.teamBId === teamId) && m.winnerId !== teamId,
+  ).length;
+}
+
+function duoViewOf(ctx: FocusViewContext, teamId: string, description: string | null, poolId: string): DuoView {
+  return {
+    teamId,
+    name: ctx.duoNameOf(teamId, description),
+    isMe: ctx.isMyTeam(teamId),
+    players: ctx.duoPlayersOf(teamId),
+    standingLine: standingLineOf(ctx, teamId, poolId),
+  };
+}
+
+export function nextMatchViewOf(ctx: FocusViewContext, now: Date): NextMatchView | null {
+  const m = ctx.nextMatch;
+  if (!m) return null;
+  const live = matchIsLive(m);
+  const side = sideOf(m, ctx.myTeamIds);
+  const checkIn = side === 'A' ? m.checkIn.teamA : m.checkIn.teamB;
+  return {
+    matchId: m.id,
+    kicker: kickerOf(ctx, m),
+    numberLabel: numberChipOf(m),
+    timeLabel: timeLabelOf(m.scheduleTime),
+    countdown: live ? null : countdownLabelOf(m.scheduleTime, now),
+    courtLabel: courtLabelOf(m.courtName),
+    bestOfLabel: bestOfLabelOf(m),
+    checkedIn: checkIn === 'present',
+    live,
+    liveScoreLine: liveScoreLineOf(m),
+    sideA: duoViewOf(ctx, m.teamAId, m.teamADescription, m.poolId),
+    sideB: duoViewOf(ctx, m.teamBId, m.teamBDescription, m.poolId),
+  };
+}
+
+export function timelineOf(ctx: FocusViewContext, dayTimeline: readonly TournamentMatch[]): TimelineEntry[] {
+  const myTeamIds = ctx.myTeamIds;
+  const nextId = ctx.nextMatch?.id;
+  return dayTimeline.map((m) => {
+    const outcome = outcomeOf(m, myTeamIds);
+    const side = sideOf(m, myTeamIds);
+    const opponentId = side === 'A' ? m.teamBId : m.teamAId;
+    const opponentDescription = side === 'A' ? m.teamBDescription : m.teamADescription;
+    const live = matchIsLive(m);
+    const done = matchIsCompleted(m);
+    return {
+      matchId: m.id,
+      time: m.scheduleTime != null ? timeLabelOf(m.scheduleTime) : null,
+      title: [matchNumberLabelOf(m), phaseLabelOf(ctx, m), `vs ${ctx.duoNameOf(opponentId, opponentDescription)}`, courtLabelOf(m.courtName)]
+        .filter((p): p is string => p != null)
+        .join(' · '),
+      detail: done ? closedPartialsLabelOf(m) : live ? liveScoreLineOf(m) : null,
+      outcomeLabel: outcome ? `${outcome === 'win' ? 'V' : 'D'} ${mySetLine(m, side)}` : null,
+      outcome,
+      state: done ? 'done' : live ? 'live' : m.id === nextId ? 'next' : 'upcoming',
+      note: noteOf(ctx, m),
+      clickable: Boolean(m.teamAId && m.teamBId),
+    } satisfies TimelineEntry;
+  });
+}
+
+export function liveRowsOf(ctx: FocusViewContext, categoryId: string | null): LiveRowView[] {
+  return liveMatchesOf(ctx.matches, categoryId ?? undefined).map((m) => ({
+    matchId: m.id,
+    nameA: ctx.duoNameOf(m.teamAId, m.teamADescription),
+    nameB: ctx.duoNameOf(m.teamBId, m.teamBDescription),
+    context: [m.poolId ? groupLabelOf(m.poolId, ctx.matches) : phaseLabelOf(ctx, m), courtLabelOf(m.courtName)]
+      .filter((p): p is string => p != null)
+      .join(' · '),
+    scoreLine: liveScoreLineOf(m),
+  }));
+}
+
+export function standingsViewOf(
+  ctx: FocusViewContext,
+  poolId: string,
+  qualifiersPerGroup: number,
+  myTeamId: string | null,
+): StandingRow[] {
+  if (!poolId) return [];
+  return ctx.standingsOf(poolId).map((s, index) => ({
+    rank: index + 1,
+    name: ctx.duoNameOf(s.teamId),
+    isMe: s.teamId === myTeamId,
+    wins: s.wins,
+    losses: lossesOf(ctx, poolId, s.teamId),
+    sets: `${s.setsWon}–${s.setsLost}`,
+    points: s.points,
+    qualifies: index < qualifiersPerGroup,
+  }));
+}
+
+/** Nunca afirma classificação antes do grupo terminar — ver `qualificationOf`. */
+export function qualificationNoteOf(
+  ctx: FocusViewContext,
+  poolId: string,
+  category: Pick<TournamentCategoryOffer, 'qualifiersPerGroup'> | null,
+  myTeamId: string | null,
+): QualificationNote | null {
+  if (!poolId || !category) return null;
+  const info = qualificationOf(ctx.matches, poolId, myTeamId, ctx.standingsOf(poolId), category.qualifiersPerGroup);
+  if (!info) return null;
+  if (info.decided) {
+    return info.qualifies
+      ? { tone: 'win', text: `Grupo encerrado em ${ordinalOf(info.rank)}. Você avançou para o mata-mata.` }
+      : { tone: 'neutral', text: `Grupo encerrado em ${ordinalOf(info.rank)}. Passavam os ${info.qualifiersPerGroup} primeiros.` };
+  }
+  const remaining = info.remainingMatches === 1 ? 'Falta 1 partida no grupo' : `Faltam ${info.remainingMatches} partidas no grupo`;
+  return { tone: 'neutral', text: `Você está em ${ordinalOf(info.rank)}. ${remaining} — avançam os ${info.qualifiersPerGroup} primeiros.` };
+}

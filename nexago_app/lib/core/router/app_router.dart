@@ -173,16 +173,19 @@ import '../../features/tournaments/presentation/tournament_categories_page.dart'
 import '../../features/tournaments/presentation/tournament_category_view_page.dart';
 import '../../features/tournaments/presentation/tournament_group_view_page.dart';
 import '../../features/tournaments/presentation/tournament_my_registration_page.dart';
-import '../../features/tournaments/presentation/tournament_today_page.dart';
+import '../../features/tournaments/presentation/focus/focus_section.dart';
+import '../../features/tournaments/presentation/focus/focus_shell_page.dart';
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_predictions_page.dart';
+import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
 import '../../features/tournaments/domain/tournament_registration_success_args.dart';
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
+import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
 import '../auth/post_login_destination.dart';
@@ -1150,11 +1153,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
-            path: 'hoje',
-            name: AppRouteNames.tournamentToday,
+            path: 'focus',
+            name: AppRouteNames.tournamentFocus,
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
-              return TournamentTodayPage(tournamentId: id);
+              return FocusShellPage(
+                tournamentId: id,
+                initialSection: focusSectionFromSlug(
+                  state.uri.queryParameters[AppRoutes.focusSectionQuery],
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'hoje',
+            name: AppRouteNames.tournamentToday,
+            // Aposentada em favor do Modo Focus. A rota fica como redirect
+            // porque o app é distribuído por loja: uma versão já instalada
+            // continua resolvendo este caminho, e três linhas custam menos que
+            // um deep link morto num build antigo.
+            redirect: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              if (id.isEmpty) return AppRoutes.discover;
+              return '/torneios/$id/focus'
+                  '?${AppRoutes.focusSectionQuery}=${FocusSection.agora.slug}';
             },
           ),
           GoRoute(
@@ -1236,6 +1258,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             initialRegistrationId: registrationId,
             initialInviteId: inviteId,
             initialStep: initialStep,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationPayment,
+        name: AppRouteNames.tournamentRegistrationPayment,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final registrationId =
+              state.uri.queryParameters['registrationId']?.trim() ?? '';
+          final categoryId = state.uri.queryParameters['categoryId']?.trim();
+          // Sem inscrição não há o que pagar: cai na tela de inscrição, que
+          // deriva o estado da categoria e mostra o passo que falta.
+          if (registrationId.isEmpty) {
+            return TournamentRegistrationPage(
+              tournamentId: tournamentId,
+              initialCategoryId: categoryId,
+            );
+          }
+          return TournamentRegistrationPaymentPage(
+            tournamentId: tournamentId,
+            registrationId: registrationId,
+            categoryId: categoryId,
           );
         },
       ),
@@ -1339,6 +1385,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final inviteId = state.pathParameters['inviteId']?.trim() ?? '';
           return TournamentPartnerInvitePage(inviteId: inviteId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentExternalInvite,
+        name: AppRouteNames.tournamentExternalInvite,
+        builder: (context, state) {
+          final id = state.pathParameters['externalInviteId']?.trim() ?? '';
+          return TournamentExternalInvitePage(externalInviteId: id);
         },
       ),
       GoRoute(

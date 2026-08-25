@@ -7,6 +7,7 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { tournamentListingStatus } from '../data/tournaments-repository';
+import { endOfDay, eventDayOf, startOfDay } from './tournament-days';
 import { type TournamentTabId } from './tournament-live.selectors';
 import { TournamentLiveStore } from './tournament-live.store';
 
@@ -26,15 +27,12 @@ function nameFromEmail(email: string | null | undefined): string {
 
 const TAB_LABELS: Record<TournamentTabId, string> = {
   'visao-geral': 'Visão geral',
-  hoje: 'Hoje',
   categorias: 'Categorias',
   'minha-inscricao': 'Minha inscrição',
   palpites: 'Palpites',
 };
 
 const HEADER_DATE = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Sao_Paulo' });
-
-const DAY_MS = 86_400_000;
 
 /** Casca do torneio: cabeçalho + abas + `<router-outlet>`. Todas as abas leem o mesmo
  *  `TournamentLiveStore`, providenciado na ROTA pai (`app.routes.ts`) e não aqui — assim a tela
@@ -73,14 +71,13 @@ export class TournamentShellComponent {
     return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
   });
 
-  protected readonly tabs = computed(() =>
-    this.store.visibleTabs().map((id) => ({
-      id,
-      label: TAB_LABELS[id],
-      /** O ponto laranja do protótipo: a aba Hoje sinaliza que existe algo acontecendo agora. */
-      dot: id === 'hoje' && this.store.liveInTournament().length > 0,
-    })),
-  );
+  // O ponto laranja "acontecendo agora" era da aba Hoje, aposentada: quem tem jogo ao vivo hoje
+  // entra pelo Modo Focus, não por uma aba desta casca.
+  protected readonly tabs = computed(() => this.store.visibleTabs().map((id) => ({ id, label: TAB_LABELS[id] })));
+
+  /** Porta de entrada para quem saiu do Focus e quer voltar — a entrada automática está
+   *  silenciada até amanhã, então sem este botão o atleta não teria caminho de volta. */
+  protected readonly showFocusEntry = computed(() => this.store.hasMyMatchToday());
 
   protected readonly heroTitle = computed(() => {
     const t = this.store.tournament();
@@ -96,7 +93,7 @@ export class TournamentShellComponent {
     const start = t.startAt;
     if (start) parts.push(capitalize(HEADER_DATE.format(this.isToday() ? this.store.now() : start).replace(/\./g, '')));
     else if (t.dateLabel) parts.push(t.dateLabel);
-    const day = this.dayOfEvent();
+    const day = eventDayOf(t.startAt, t.endAt, this.store.now());
     if (day) parts.push(`dia ${day.current} de ${day.total}`);
     const place = [t.location, t.city].filter((s) => s.length > 0).join(', ');
     if (place) parts.push(place);
@@ -114,8 +111,9 @@ export class TournamentShellComponent {
       if (id) void this.store.load(id);
     });
 
-    // Rota canônica: `/torneios/:id` sem aba resolve para a aba mais relevante assim que os
-    // dados chegam (quem tem jogo hoje cai no "Hoje"). `replaceUrl` mantém o back funcionando.
+    // Rota canônica: `/torneios/:id` sem aba resolve para "Visão geral" assim que os dados
+    // chegam — quem tem jogo hoje é levado ao Modo Focus por outro caminho, não por aqui.
+    // `replaceUrl` mantém o back funcionando.
     effect(() => {
       if (this.store.loading()) return;
       if (this.currentSegment() !== null) return;
@@ -143,20 +141,6 @@ export class TournamentShellComponent {
     return now >= startOfDay(start) && now <= endOfDay(end);
   }
 
-  /** "dia 2 de 3" — só quando o torneio ocupa mais de um dia. */
-  private dayOfEvent(): { current: number; total: number } | null {
-    const t = this.store.tournament();
-    const start = t?.startAt;
-    const end = t?.endAt;
-    if (!start || !end) return null;
-    const total = Math.round((startOfDay(end).getTime() - startOfDay(start).getTime()) / DAY_MS) + 1;
-    if (total <= 1) return null;
-    const now = this.store.now();
-    if (now < startOfDay(start) || now > endOfDay(end)) return null;
-    const current = Math.round((startOfDay(now).getTime() - startOfDay(start).getTime()) / DAY_MS) + 1;
-    return { current, total };
-  }
-
   protected async shareTournament(): Promise<void> {
     const t = this.store.tournament();
     if (!t) return;
@@ -177,16 +161,4 @@ export class TournamentShellComponent {
 
 function capitalize(value: string): string {
   return value.length > 0 ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : value;
-}
-
-function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
 }

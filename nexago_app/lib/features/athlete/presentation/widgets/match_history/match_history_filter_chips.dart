@@ -17,7 +17,6 @@ class MatchHistoryFilterChips extends StatelessWidget {
   static const _labels = {
     MatchHistoryFilter.all: 'Todos',
     MatchHistoryFilter.year2026: '2026',
-    MatchHistoryFilter.year2025: '2025',
     MatchHistoryFilter.winsOnly: 'Vitórias',
   };
 
@@ -39,7 +38,9 @@ class MatchHistoryFilterChips extends StatelessWidget {
               showCheckmark: false,
               labelStyle: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
+                color: selected
+                    ? context.themeColors.onSurface
+                    : context.themeColors.onSurfaceMuted,
               ),
               backgroundColor: context.themeColors.surfaceRaised,
               selectedColor: context.themeColors.surfaceCard,

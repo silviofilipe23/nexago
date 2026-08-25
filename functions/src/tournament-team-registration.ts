@@ -203,8 +203,7 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
   const teamRef = teamsRef.doc();
   const regRef = inscriptionsRef.doc();
 
-  const batch = db.batch();
-  batch.set(teamRef, {
+  const teamData = {
     teamName,
     captainUid: uid,
     memberUids: [uid],
@@ -215,8 +214,8 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
     tournamentId,
     categoryId,
     createdAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(regRef, {
+  };
+  const registrationData = {
     tournamentId,
     categoryId,
     teamId: teamRef.id,
@@ -238,8 +237,31 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
           lgpdTermVersion: LGPD_TERM_VERSION,
         }
       : {}),
+  };
+
+  // Transação (não batch) com releitura ESTREITA das inscrições deste atleta
+  // neste torneio (índice `tournamentId + participantUids`): a varredura acima
+  // lê e escreve fora de transação, então dois toques simultâneos em "Criar
+  // equipe" criavam duas equipes para o mesmo capitão — a segunda ficava
+  // invisível na tela e ocupava vaga da categoria para sempre.
+  await db.runTransaction(async (tx) => {
+    const mine = await tx.get(
+      inscriptionsRef
+        .where("tournamentId", "==", tournamentId)
+        .where("participantUids", "array-contains", uid),
+    );
+    const alreadyInCategory = mine.docs.some((doc) =>
+      categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
+    );
+    if (alreadyInCategory) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Você já possui inscrição nesta categoria.",
+      );
+    }
+    tx.set(teamRef, teamData);
+    tx.set(regRef, registrationData);
   });
-  await batch.commit();
 
   logger.info("Tournament team registration created", {
     registrationId: regRef.id,

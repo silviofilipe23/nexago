@@ -8,16 +8,16 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * Regra: um atleta pode disputar a sua própria categoria ou categorias ACIMA do
  * seu nível, nunca ABAIXO. Para duplas, vale o atleta de MAIOR nível.
  *
- * Ranks unificados (mesma escada de 5 degraus para TODOS os esportes; `open`
- * fica no rank 5 por compatibilidade histórica — o rank 4 não é usado e a
- * numeração não pode mudar, pois está gravada em `athleteRatings.levelRank` e
- * nas rules deployadas):
+ * Ranks unificados (escada de 7 degraus para TODOS os esportes, contígua 0–6):
  *
  *   iniciante_1 (0) < iniciante_2 (1) < intermediario_1 (2)
- *     < intermediario_2 (3) < open (5)
+ *     < intermediario_2 (3) < avancado_1 (4) < avancado_2 (5) < open (6)
+ *
+ * Renumeração única de `open` 5→6 em 15/08/2026 com a base vazia (pré-primeiro-torneio);
+ * a partir daqui a numeração volta a ser fixa.
  *
  * Legados (aliasing — docs não migrados se comportam como o degrau inferior
- * do split): iniciante→0, intermediario→2, open→5.
+ * do split): iniciante→0, intermediario→2, open→6.
  *
  * As chaves incluem código (`intermediario_1`) E label normalizado
  * (`intermediario1`), porque `categories[].level` guarda o LABEL
@@ -25,12 +25,14 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * [normalizeLevelKey] tira acento/espaço mas preserva underscore.
  */
 
-/** Códigos canônicos dos 5 níveis, em ordem crescente de força. */
+/** Códigos canônicos dos 7 níveis, em ordem crescente de força. */
 export const LEVEL_CODES = [
   "iniciante_1",
   "iniciante_2",
   "intermediario_1",
   "intermediario_2",
+  "avancado_1",
+  "avancado_2",
   "open",
 ] as const;
 
@@ -64,13 +66,17 @@ export const LEVEL_RANK: Record<string, number> = {
   intermediario1: 2,
   intermediario_2: 3,
   intermediario2: 3,
-  open: 5,
+  avancado_1: 4,
+  avancado1: 4,
+  avancado_2: 5,
+  avancado2: 5,
+  open: 6,
   // Legados (escada de 3 níveis) — degrau inferior do split.
   iniciante: 0,
   intermediario: 2,
 };
 
-const HIGHEST_RANK = 5;
+const HIGHEST_RANK = 6;
 
 /** Normaliza acentos/caixa para casar códigos e labels do nível. */
 function normalizeLevelKey(raw: unknown): string {
@@ -94,6 +100,8 @@ export function levelRank(raw: unknown): number | null {
   // Legados conhecidos.
   if (key === "basico") return LEVEL_RANK.iniciante;
   if (key === "livre") return LEVEL_RANK.open;
+  // normalizeLevelKey tira espaços mas preserva "/" — "Open / federado" vira "open/federado".
+  if (key === "open/federado") return LEVEL_RANK.open;
   return null;
 }
 
@@ -124,13 +132,19 @@ export function levelDisplayLabel(raw: unknown): string | null {
     case "intermediario_2":
     case "intermediario2":
       return "Intermediário 2";
+    case "avancado_1":
+    case "avancado1":
+      return "Avançado 1";
+    case "avancado_2":
+    case "avancado2":
+      return "Avançado 2";
     default:
       return null;
   }
 }
 
 /**
- * Código canônico para um rank (0..3 → degrau, demais → open). Usado pela
+ * Código canônico para um rank (0..5 → degrau, demais → open). Usado pela
  * migração para normalizar qualquer formato legado (código ou label) via
  * [levelRank] sem perder o degrau.
  */
@@ -144,6 +158,10 @@ export function levelCodeForRank(rank: number): string {
       return "intermediario_1";
     case 3:
       return "intermediario_2";
+    case 4:
+      return "avancado_1";
+    case 5:
+      return "avancado_2";
     default:
       return "open";
   }
@@ -160,6 +178,10 @@ export function levelLabelForRank(rank: number): string {
       return "Intermediário 1";
     case 3:
       return "Intermediário 2";
+    case 4:
+      return "Avançado 1";
+    case 5:
+      return "Avançado 2";
     default:
       return "Open";
   }
@@ -238,14 +260,27 @@ export function categoryLevelRank(
   return rank ?? HIGHEST_RANK;
 }
 
-/** Dupla é elegível sse o nível da categoria comporta o atleta mais forte. */
+/**
+ * Rank do PISO da categoria (`categories[].minLevel`, label ou código).
+ * Ausente/desconhecido → 0 (sem piso — todo doc antigo se comporta como hoje).
+ */
+export function categoryMinLevelRank(
+  category: Record<string, unknown> | null | undefined,
+): number {
+  if (!category) return 0;
+  return levelRank(category.minLevel) ?? 0;
+}
+
+/** Dupla elegível sse TODOS os integrantes cabem na faixa [minRank, categoryRank]. */
 export function isTeamEligible(params: {
   categoryRank: number;
   athleteRanks: number[];
+  categoryMinRank?: number;
 }): boolean {
   const {categoryRank, athleteRanks} = params;
+  const minRank = params.categoryMinRank ?? 0;
   if (athleteRanks.length === 0) return true;
-  return athleteRanks.every((rank) => categoryRank >= rank);
+  return athleteRanks.every((rank) => rank >= minRank && rank <= categoryRank);
 }
 
 function athleteDisplayName(userData: UserAccessData | null): string {
@@ -269,7 +304,8 @@ function categoryDisplayName(
 }
 
 /**
- * Bloqueia a inscrição quando algum atleta da dupla excede o nível da categoria.
+ * Bloqueia a inscrição quando algum atleta da dupla excede o nível da categoria
+ * ou fica abaixo do piso (minLevel) da categoria.
  * Lança `HttpsError("failed-precondition")` nomeando o atleta que causa o bloqueio.
  *
  * Carrega os docs dos usuários informados (reusa [loadUserAccessData]). uids
@@ -293,8 +329,10 @@ export async function assertTeamLevelEligibility(params: {
   if (cleanUids.length === 0) return;
 
   const categoryRank = categoryLevelRank(category);
-  // Categoria Open comporta qualquer nível — evita carregar usuários à toa.
-  if (categoryRank >= HIGHEST_RANK) return;
+  const minRank = categoryMinLevelRank(category);
+  // Categoria totalmente aberta (teto Open, sem piso) comporta qualquer nível —
+  // evita carregar usuários à toa. Com piso, os docs SÃO necessários.
+  if (categoryRank >= HIGHEST_RANK && minRank <= 0) return;
 
   const sportCode = tournamentSportToLevelSportCode(tournament.sport);
 
@@ -302,25 +340,41 @@ export async function assertTeamLevelEligibility(params: {
     cleanUids.map((uid) => loadUserAccessData(db, uid)),
   );
 
-  const offenders = users.filter(
-    (userData) => resolveAthleteLevelRank(userData, sportCode) > categoryRank,
-  );
-
-  if (offenders.length === 0) return;
-
   const categoryName = categoryDisplayName(category);
-  const names = offenders.map((userData) => {
+  const nameWithLevel = (userData: UserAccessData | null): string => {
     const rank = resolveAthleteLevelRank(userData, sportCode);
     return `${athleteDisplayName(userData)} (${levelLabelForRank(rank)})`;
-  });
-
-  const subject =
+  };
+  const joined = (names: string[]): string =>
     names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
-  const verb = names.length === 1 ? "não pode" : "não podem";
 
-  throw new HttpsError(
-    "failed-precondition",
-    `${subject} ${verb} disputar a categoria ${categoryName}, ` +
-      "abaixo do nível do atleta. Escolha uma categoria igual ou superior.",
+  // Teto (anti-sandbagging) tem precedência — mensagem idêntica à de hoje.
+  const tooStrong = users.filter(
+    (userData) => resolveAthleteLevelRank(userData, sportCode) > categoryRank,
   );
+  if (tooStrong.length > 0) {
+    const subject = joined(tooStrong.map(nameWithLevel));
+    const verb = tooStrong.length === 1 ? "não pode" : "não podem";
+    throw new HttpsError(
+      "failed-precondition",
+      `${subject} ${verb} disputar a categoria ${categoryName}, ` +
+        "abaixo do nível do atleta. Escolha uma categoria igual ou superior.",
+    );
+  }
+
+  // Piso: barra o integrante mais fraco — ninguém entra carregado pelo parceiro.
+  if (minRank > 0) {
+    const tooWeak = users.filter(
+      (userData) => resolveAthleteLevelRank(userData, sportCode) < minRank,
+    );
+    if (tooWeak.length > 0) {
+      const subject = joined(tooWeak.map(nameWithLevel));
+      const verb = tooWeak.length === 1 ? "não atinge" : "não atingem";
+      throw new HttpsError(
+        "failed-precondition",
+        `${subject} ${verb} o nível mínimo da categoria ${categoryName} ` +
+          `(${levelLabelForRank(minRank)}).`,
+      );
+    }
+  }
 }

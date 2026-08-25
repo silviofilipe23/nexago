@@ -26,20 +26,33 @@ import {
   type MyBooking,
 } from './data/my-bookings-repository';
 import { fetchMyAthleteProfile } from './data/my-athlete-profile-repository';
+import { staffRoleLabel } from './data/tournament-staff-repository';
+import { StaffTournamentsService } from './data/staff-tournaments.service';
+import { PartnerInvitesService } from './data/partner-invites.service';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
 import {
   acceptPartnerInvite,
   cancelMyRegistration,
   declinePartnerInvite,
-  fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
   TournamentRegistrationError,
   type AthleteTournamentRegistration,
 } from './data/tournament-registrations-repository';
 import { athleteFunctions } from './data/functions';
-import { fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
+import { fetchTournament, fetchTournamentSummariesByIds, type TournamentSummary } from './data/tournaments-repository';
+import { fetchMatchesForTournament } from './data/matches-repository';
+import { fetchTeamsByIds } from './data/teams-repository';
+import { campaignShareDataOf, type CampaignShareData } from './tournaments/campaign/campaign-share';
+import { CampaignShareDialogComponent } from './tournaments/campaign/campaign-share-dialog.component';
+import { recentCampaignsOf, type RecentCampaign } from './tournaments/campaign/recent-campaigns';
+import { duoNameOf, duoPlayersOf } from './tournaments/duo-identity';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
+import { FocusDayService } from './tournaments/focus/focus-day.service';
+import {
+  resolveLevelConfirmationPromptForTournament,
+  type LevelConfirmationPrompt,
+} from './tournaments/tournament-eligibility';
 
 type DashboardTone = 'accent' | 'success' | 'warning' | 'neutral';
 type ChartTab = 'Jogos' | 'Vitórias';
@@ -403,6 +416,7 @@ function communityMessage(item: CommunityFeedItem): string {
     NxBlockingDialogComponent,
     NxInlineMessageComponent,
     LgpdConsentDialogComponent,
+    CampaignShareDialogComponent,
   ],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
@@ -412,25 +426,132 @@ export class AthletePainelComponent {
   protected readonly auth = inject(AuthService);
   private readonly gamification = inject(AthleteGamificationService);
   private readonly router = inject(Router);
+  /** `protected`, não `private`: o template lê `focusDay.target()` direto pra mostrar "Entrar
+   *  no Focus" quando há partida hoje — sem reimplementar a detecção aqui. O signal continua
+   *  valendo depois que a entrada automática do dia já foi consumida: é o caminho manual de volta
+   *  pro Focus depois que o atleta sai. */
+  protected readonly focusDay = inject(FocusDayService);
   private readonly firestore = createFirestore();
 
   private readonly bookingsState = signal<readonly MyBooking[]>([]);
   private readonly rankingState = signal<DashboardRanking | null>(null);
   /** Convites de parceiro pendentes — mostrados aqui pra não depender de o atleta navegar
-   *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. */
-  private readonly pendingInvitesState = signal<PendingInviteItem[]>([]);
+   *  até a Agenda ou a inscrição específica pra descobrir que foi convidado. Vêm do store ao
+   *  vivo: quem convida é o outro atleta, e o card tem de acender sem recarregar a página. */
+  private readonly partnerInvites = inject(PartnerInvitesService);
   /** Foto enviada no onboarding — prioridade sobre o `photoURL` do Firebase Auth. */
   private readonly profilePhotoUrlState = signal<string | null>(null);
   protected readonly respondingInviteId = signal<string | null>(null);
   /** Relógio de 1 min: mantém "Hoje/Amanhã" e o corte de reserva passada corretos
    *  numa aba deixada aberta. */
+  // ——— Card de campanha (até 5 dias depois do torneio) ———
+
+  /**
+   * As campanhas recentes do atleta, derivadas SÓ do que a home já carregou: inscrições, resumos
+   * de torneio e as partidas encerradas das equipes dele. Nenhuma consulta nova no boot.
+   *
+   * Isso só é possível porque a colocação é decidida pelo `matchType` da partida — os campos que
+   * `ArenaMatch` não tem (`round`, `poolId`, `bestOf`) não entram na conta. A imagem em si, que
+   * precisa deles, é montada sob demanda em `openCampaignShare`.
+   */
+  protected readonly recentCampaigns = computed<RecentCampaign[]>(() => {
+    const summaries = this.tournamentSummariesState();
+    return recentCampaignsOf({
+      registrations: this.registrationsState(),
+      tournamentsById: summaries,
+      categoryNameOf: (tournamentId, categoryId) =>
+        summaries.get(tournamentId)?.categories.find((c) => c.id === categoryId)?.categoryName ?? null,
+      matches: this.completedMatchesState(),
+      myTeamIds: this.myTeamIdsState(),
+      now: this.now(),
+    });
+  });
+
+  protected readonly campaignShareData = signal<CampaignShareData | null>(null);
+  protected readonly campaignShareBusy = signal<string | null>(null);
+
+  protected campaignLabelOf(campaign: RecentCampaign): string {
+    switch (campaign.placement) {
+      case 'champion':
+        return 'Campeão';
+      case 'runner-up':
+        return 'Vice-campeão';
+      case 'third':
+        return 'Terceiro lugar';
+      default:
+        return 'Sua campanha';
+    }
+  }
+
+  /**
+   * Monta a imagem sob demanda: partidas completas, equipes e perfis daquele torneio. São três
+   * consultas, pagas só por quem toca no botão — colocá-las no boot faria toda a home esperar por
+   * um card que aparece cinco dias por torneio.
+   */
+  protected async openCampaignShare(campaign: RecentCampaign): Promise<void> {
+    if (this.campaignShareBusy()) return;
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) return;
+
+    this.campaignShareBusy.set(campaign.categoryId);
+    try {
+      const [tournament, matches] = await Promise.all([
+        fetchTournament(db, campaign.tournamentId),
+        fetchMatchesForTournament(db, projectId, campaign.tournamentId),
+      ]);
+      if (!tournament) {
+        this.toasts.error('Não foi possível montar sua campanha agora.');
+        return;
+      }
+
+      const teamIds = [...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id.length > 0))];
+      const teams = await fetchTeamsByIds(db, projectId, teamIds);
+      const profiles = await fetchPublicProfilesByIds(
+        db,
+        [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]).filter((id) => id.length > 0),
+      );
+
+      const category = tournament.categories.find((c) => c.id === campaign.categoryId) ?? null;
+      this.campaignShareData.set(
+        campaignShareDataOf({
+          matches,
+          categoryId: campaign.categoryId,
+          myTeamIds: this.myTeamIdsState(),
+          duoNameOf: (id, fallback) => duoNameOf(teams, profiles, id, fallback),
+          teamName: duoNameOf(teams, profiles, campaign.teamId),
+          players: duoPlayersOf(teams, profiles, campaign.teamId),
+          categoryName: category?.categoryName ?? campaign.categoryName ?? 'Categoria',
+          teamSize: category?.teamSize ?? null,
+          tournamentName: tournament.name,
+          locationName: tournament.location || null,
+          startAt: tournament.startAt,
+          endAt: tournament.endAt,
+        }),
+      );
+    } catch {
+      this.toasts.error('Não foi possível montar sua campanha agora.');
+    } finally {
+      this.campaignShareBusy.set(null);
+    }
+  }
+
   private readonly now = signal(new Date());
   /** Partidas de torneio CONCLUÍDAS dos times do atleta (fonte real de jogos/vitórias). */
   private readonly completedMatchesState = signal<ArenaMatch[]>([]);
+  /** Inscrições e resumos ficam em estado porque o card de campanha da home deriva deles — a
+   *  busca já acontecia em `loadMyTournaments`, só o resultado é que se perdia. */
+  private readonly registrationsState = signal<readonly AthleteTournamentRegistration[]>([]);
+  private readonly tournamentSummariesState = signal<ReadonlyMap<string, TournamentSummary>>(new Map());
   private readonly myTeamIdsState = signal<ReadonlySet<string>>(new Set());
   private readonly communityState = signal<CommunityFeedItem[]>([]);
   private readonly missionsDoneState = signal<ReadonlySet<string>>(new Set());
   private readonly myTournamentsState = signal<MyTournamentItem[]>([]);
+  /** Torneios em que o atleta é EQUIPE (mesário/gestor). Vem do mesmo store que acende a Mesa
+   *  no menu — um listener por sessão, e card e menu nunca discordam.
+   *  O card fica no topo do painel, e não na coluna lateral, porque no celular a lateral cai
+   *  pro fim da página: no dia do evento a mesa não pode depender de rolagem. */
+  private readonly staffTournamentsState = inject(StaffTournamentsService).ongoing;
   /** Inscrições que ainda têm próximo passo (falta dupla/pagamento/uniforme) — o card de
    *  acompanhamento no topo. Sai da lista assim que a inscrição fecha. */
   private readonly inProgressRegistrationsState = signal<readonly RegistrationProgress[]>([]);
@@ -558,8 +679,23 @@ export class AthletePainelComponent {
   protected readonly missionsDone = computed(() => this.missions().filter((mission) => mission.done).length);
 
   protected readonly myTournaments = computed(() => this.myTournamentsState());
+  protected readonly staffTournaments = computed(() =>
+    this.staffTournamentsState().map((entry) => ({
+      id: entry.tournamentId,
+      name: entry.tournamentName || 'Torneio',
+      roleLabel: staffRoleLabel(entry.role),
+    })),
+  );
   protected readonly inProgressRegistrations = computed(() => this.inProgressRegistrationsState());
-  protected readonly pendingInvites = computed(() => this.pendingInvitesState());
+  protected readonly pendingInvites = computed<PendingInviteItem[]>(() =>
+    this.partnerInvites.pending().map(({ invite, tournament }) => ({
+      id: invite.id,
+      inviterName: invite.inviterName,
+      tournamentId: invite.tournamentId,
+      categoryId: invite.categoryId,
+      tournamentName: tournament?.name ?? 'Torneio',
+    })),
+  );
 
   /** Atividade da comunidade — itens reais do `communityFeed` (sem UGC). */
   protected readonly communityActivity = computed<CommunityActivityItem[]>(() =>
@@ -622,6 +758,14 @@ export class AthletePainelComponent {
     const clock = setInterval(() => this.now.set(new Date()), CLOCK_TICK_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(clock));
 
+    // Entrada automática no Modo Focus: sem guard, porque um guard bloquearia a navegação
+    // esperando o Firestore e daria tela branca. O painel renderiza normal e só redireciona
+    // quando a resposta chega. O serviço já devolve `null` para "não dispensar" (sem jogo hoje,
+    // já dispensado, deslogado ou leitura falhou) — o painel não precisa saber qual caso é.
+    void this.focusDay.resolve().then((target) => {
+      if (target) void this.router.navigate(['/torneios', target.tournamentId, 'focus']);
+    });
+
     effect((onCleanup) => {
       const user = this.auth.user();
       this.syncError.set(null);
@@ -631,11 +775,13 @@ export class AthletePainelComponent {
         this.rankingState.set(null);
         this.completedMatchesState.set([]);
         this.myTeamIdsState.set(new Set());
+        this.registrationsState.set([]);
+        this.tournamentSummariesState.set(new Map());
+        this.campaignShareData.set(null);
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
         this.inProgressRegistrationsState.set([]);
-        this.pendingInvitesState.set([]);
         this.profilePhotoUrlState.set(null);
         this.loadingRanking.set(false);
         this.bootLoadingState.set(false);
@@ -682,7 +828,6 @@ export class AthletePainelComponent {
 
       void this.loadMatchHistory(user.uid);
       void this.loadRegistrationsAndTournaments(user.uid);
-      void this.loadPendingInvites(user.uid);
       void this.loadProfilePhoto(user.uid);
 
       onCleanup(() => {
@@ -753,6 +898,8 @@ export class AthletePainelComponent {
       const ids = [...new Set(registrations.map((r) => r.tournamentId).filter(Boolean))];
       const summaries = await fetchTournamentSummariesByIds(db, ids);
       if (this.auth.user()?.uid !== uid) return;
+      this.registrationsState.set(registrations);
+      this.tournamentSummariesState.set(summaries);
 
       await this.setInProgressRegistrations(registrations, summaries, uid);
       if (this.auth.user()?.uid !== uid) return;
@@ -814,35 +961,6 @@ export class AthletePainelComponent {
     );
   }
 
-  private async loadPendingInvites(uid: string): Promise<void> {
-    const db = this.firestore;
-    if (!db) return;
-    try {
-      const invites = await fetchMyPendingPartnerInvites(db, uid);
-      if (this.auth.user()?.uid !== uid) return;
-      const ids = [...new Set(invites.map((i) => i.tournamentId).filter(Boolean))];
-      const summaries = await fetchTournamentSummariesByIds(db, ids);
-      if (this.auth.user()?.uid !== uid) return;
-      this.pendingInvitesState.set(
-        invites
-          // Convite de torneio cancelado é botão que só entrega erro: `acceptTournamentPartnerInvite`
-          // recusa com "Este torneio não aceita novas inscrições". Torneio que não resolveu (fetch
-          // parcial) continua aparecendo com o nome genérico — só o cancelado sai.
-          .filter((i) => summaries.get(i.tournamentId)?.isCancelled !== true)
-          .map((i) => ({
-            id: i.id,
-            inviterName: i.inviterName,
-            tournamentId: i.tournamentId,
-            categoryId: i.categoryId,
-            tournamentName: summaries.get(i.tournamentId)?.name ?? 'Torneio',
-          })),
-      );
-    } catch {
-      // Sem card de convites é estado válido; sem banner por falha pontual (mesmo padrão de "Meus torneios").
-      this.pendingInvitesState.set([]);
-    }
-  }
-
   private async loadProfilePhoto(uid: string): Promise<void> {
     const db = this.firestore;
     if (!db) return;
@@ -870,14 +988,69 @@ export class AthletePainelComponent {
     if (invite) void this.submitAcceptInvite(invite);
   }
 
+  // ── Confirmação de nível na 1ª inscrição do esporte (Task 7) ────────────
+  /** Mesmo gate/copy da tela de inscrição (`tournament-registration-shell.component.ts`) —
+   *  o aceite rápido daqui é OUTRO caminho pra 1ª inscrição ativa do atleta no esporte
+   *  (trigger de backend, `tournament-level-lock.ts`), não só o fluxo de auto-inscrição. */
+  protected readonly levelConfirmationPrompt = signal<LevelConfirmationPrompt | null>(null);
+  private levelConfirmationResolve: ((confirmed: boolean) => void) | null = null;
+
+  /** Ponto de resolução do prompt de nível — campo (não método), pra dar lugar de troca em
+   *  teste sem bater no Firestore real (mesmo padrão do `fetchLevelGateProfile` do shell).
+   *  Busca perfil E torneio FRESCOS: nunca o cache de `PartnerInvitesService.pending()`, que
+   *  documentadamente pode trazer `tournament: null` enquanto o fetch paralelo do torneio
+   *  ainda não voltou (fix pós-review I1 — ler esse cache tratava "ainda não sei o esporte"
+   *  como "sem esporte mapeado" e pulava a confirmação em silêncio). */
+  protected resolveLevelPrompt = (tournamentId: string): Promise<LevelConfirmationPrompt | null> => {
+    const db = this.firestore;
+    const uid = this.auth.user()?.uid;
+    if (!db || !uid) return Promise.reject(new Error('Sem sessão ou conexão com o Firestore.'));
+    return resolveLevelConfirmationPromptForTournament(fetchMyAthleteProfile(db, uid), fetchTournament(db, tournamentId));
+  };
+
+  private async ensureLevelConfirmed(invite: PendingInviteItem): Promise<boolean> {
+    // Uma confirmação já pendente não pode ser sobrescrita — um segundo clique no CTA antes do
+    // dialog renderizar perderia o resolver da primeira chamada, que nunca mais resolveria.
+    if (this.levelConfirmationResolve) return false;
+    let prompt: LevelConfirmationPrompt | null;
+    try {
+      prompt = await this.resolveLevelPrompt(invite.tournamentId);
+    } catch {
+      this.toasts.error(
+        'Não foi possível confirmar seu nível',
+        'Não conseguimos verificar seu nível agora. Tente novamente em instantes.',
+      );
+      return false;
+    }
+    if (!prompt) return true;
+    this.levelConfirmationPrompt.set(prompt);
+    return new Promise<boolean>((resolve) => {
+      this.levelConfirmationResolve = resolve;
+    });
+  }
+
+  protected confirmLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(true);
+    this.levelConfirmationResolve = null;
+  }
+
+  protected adjustLevelPrompt(): void {
+    this.levelConfirmationPrompt.set(null);
+    this.levelConfirmationResolve?.(false);
+    this.levelConfirmationResolve = null;
+    void this.router.navigate(['/perfil/esportes']);
+  }
+
   /** Aceite rápido — sem uniforme aqui (o backend aceita sem, coleta depois na inscrição;
    *  é o mesmo comportamento de "Salvar uniforme" na tela de inscrição). */
   private async submitAcceptInvite(invite: PendingInviteItem): Promise<void> {
     if (this.respondingInviteId()) return;
+    if (!(await this.ensureLevelConfirmed(invite))) return;
     this.respondingInviteId.set(invite.id);
     try {
       await acceptPartnerInvite(athleteFunctions(), invite.id, undefined, { lgpdAccepted: true });
-      this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
+      this.partnerInvites.markAnswered(invite.id);
       // Depois de aceitar, o próximo passo real é completar a inscrição (uniforme/pagamento)
       // — leva direto pra lá em vez de deixar o atleta no painel.
       void this.router.navigate(['/torneios', invite.tournamentId, 'inscricao'], {
@@ -900,7 +1073,7 @@ export class AthletePainelComponent {
     this.respondingInviteId.set(invite.id);
     try {
       await declinePartnerInvite(athleteFunctions(), invite.id);
-      this.pendingInvitesState.update((list) => list.filter((i) => i.id !== invite.id));
+      this.partnerInvites.markAnswered(invite.id);
     } catch (err) {
       this.toasts.error(
         'Não foi possível recusar o convite',

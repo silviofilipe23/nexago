@@ -28,6 +28,25 @@ String? materialIconToSfSymbol(IconData icon) {
       'calendar.badge.clock',
     Icons.settings_outlined || Icons.settings_rounded => 'gearshape',
     Icons.settings => 'gearshape.fill',
+    // Abas do Modo Focus. Um ícone fora deste mapa não degrada para "sem
+    // símbolo" — a barra nativa cai no `iconData` e o desenha FORA DE ESCALA,
+    // então quem adiciona aba nova precisa passar aqui (ou informar o
+    // `sfSymbol` no próprio item).
+    Icons.local_fire_department_outlined => 'flame',
+    Icons.local_fire_department ||
+    Icons.local_fire_department_rounded =>
+      'flame.fill',
+    Icons.emoji_events_rounded => 'trophy.fill',
+    Icons.table_rows_outlined => 'tablecells',
+    Icons.table_rows || Icons.table_rows_rounded => 'tablecells.fill',
+    Icons.account_tree_outlined ||
+    Icons.account_tree ||
+    Icons.account_tree_rounded =>
+      'arrow.triangle.branch',
+    Icons.place_outlined || Icons.place || Icons.place_rounded =>
+      'mappin.and.ellipse',
+    Icons.casino_outlined => 'die.face.5',
+    Icons.casino || Icons.casino_rounded => 'die.face.5.fill',
     _ => null,
   };
 }

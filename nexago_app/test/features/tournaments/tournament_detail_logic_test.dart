@@ -128,6 +128,20 @@ void main() {
     );
   });
 
+  test('tournamentCategoryRowStatus encerra selo com torneio finalizado', () {
+    for (final status in [
+      TournamentListingStatus.completed,
+      TournamentListingStatus.ended,
+    ]) {
+      final rowStatus = tournamentCategoryRowStatus(
+        sample.categoryOffers[0],
+        tournamentStatus: status,
+      );
+      expect(rowStatus.label, 'ENCERRADA');
+      expect(rowStatus.isClosed, isTrue);
+    }
+  });
+
   test('bracketFormatLabel translates pool play', () {
     expect(
       bracketFormatLabel('Pool Play + SE'),

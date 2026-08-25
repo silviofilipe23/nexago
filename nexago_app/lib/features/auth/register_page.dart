@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,15 +44,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _isSuccessPhase(BuildContext context) =>
       _pendingSuccess ||
       GoRouterState.of(context).uri.queryParameters['step'] == 'success';
-
-  void _goToSuccessScreen() {
-    context.go(
-      Uri(
-        path: AppRoutes.register,
-        queryParameters: const {'step': 'success'},
-      ).toString(),
-    );
-  }
 
   String? _emailError;
   String? _passwordError;
@@ -202,31 +194,92 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       _pendingSuccess = false;
     });
 
+    // Capturados antes dos awaits: a criação da conta muda o estado de auth
+    // no meio do fluxo e a árvore acima do router reage (gate biométrico).
+    // A navegação para o sucesso não pode depender deste State continuar vivo.
+    final router = GoRouter.of(context);
+    final auth = ref.read(authServiceProvider);
+    final analytics = ref.read(analyticsServiceProvider);
+
+    Object? createError;
+    StackTrace? createStack;
     try {
-      await ref.read(authServiceProvider).registerWithEmailAndPassword(
-            email: email,
-            password: password,
-          );
-      await ref.read(authServiceProvider).sendEmailVerification();
-      ref.read(analyticsServiceProvider).logSignUp('password');
-      if (!mounted) return;
-      setState(() => _pendingSuccess = true);
-      _goToSuccessScreen();
-    } on FirebaseAuthException catch (e) {
-      if (mounted) setState(() => _pendingSuccess = false);
-      if (!mounted) return;
-      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
-    } catch (_) {
-      if (mounted) setState(() => _pendingSuccess = false);
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        'Erro inesperado. Tente novamente.',
-        isError: true,
+      await auth.registerWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-    } finally {
-      if (mounted) setState(() => _submitting = false);
+    } catch (e, st) {
+      createError = e;
+      createStack = st;
     }
+
+    if (createError != null) {
+      // A chamada falhou, mas a conta pode ter nascido mesmo assim — o SDK
+      // já lançou exceção DEPOIS de criar e logar (bug histórico do
+      // firebase_auth no Android), e "e-mail já em uso" num novo toque cai
+      // aqui também. Se a sessão atual é da conta pedida, o cadastro DE FATO
+      // aconteceu: registra o erro e segue ao sucesso em vez de prender o
+      // atleta num formulário que nunca mais vai passar.
+      final current = ref.read(firebaseAuthProvider).currentUser;
+      final signedInAsRequested =
+          current?.email?.toLowerCase() == email.toLowerCase();
+      if (!signedInAsRequested) {
+        _logRegisterFlowError('createUser', createError, createStack!);
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        showAppSnackBar(
+          context,
+          createError is FirebaseAuthException
+              ? mapFirebaseAuthException(createError)
+              : 'Erro inesperado. Tente novamente.',
+          isError: true,
+        );
+        return;
+      }
+      _logRegisterFlowError('createUserRecovered', createError, createStack!);
+    }
+
+    // A partir daqui a conta EXISTE e o atleta está autenticado: nada abaixo
+    // pode segurá-lo fora da tela de sucesso. E-mail de verificação e
+    // analytics são efeitos colaterais — se falharem, ficam registrados e o
+    // reenvio acontece depois; a tela de sucesso já pede a confirmação.
+    try {
+      await auth.sendEmailVerification();
+    } catch (e, st) {
+      _logRegisterFlowError('sendEmailVerification', e, st);
+    }
+    try {
+      analytics.logSignUp('password');
+    } catch (e, st) {
+      _logRegisterFlowError('logSignUp', e, st);
+    }
+
+    if (mounted) {
+      setState(() {
+        _pendingSuccess = true;
+        _submitting = false;
+      });
+    }
+    router.go(
+      Uri(
+        path: AppRoutes.register,
+        queryParameters: const {'step': 'success'},
+      ).toString(),
+    );
+  }
+
+  /// Erros do fluxo de cadastro nunca somem em silêncio: em produção vão ao
+  /// Crashlytics como não-fatais (o guard cobre testes sem Firebase).
+  void _logRegisterFlowError(String stage, Object e, StackTrace st) {
+    debugPrint('cadastro: falha em $stage: $e');
+    try {
+      FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'register:$stage',
+        fatal: false,
+      );
+    } catch (_) {}
   }
 
   Future<void> _signInWithGoogle() async {
@@ -519,16 +572,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           loading: _googleSubmitting,
           icon: const AuthGoogleGlyph(),
           label: 'Continuar com Google',
-        ),
-        SizedBox(height: 10),
-        AuthSocialButton(
-          onPressed: null,
-          icon: Icon(
-            Icons.apple,
-            size: 22,
-            color: context.themeColors.onSurface,
-          ),
-          label: 'Continuar com Apple',
         ),
         SizedBox(height: 16),
         Row(

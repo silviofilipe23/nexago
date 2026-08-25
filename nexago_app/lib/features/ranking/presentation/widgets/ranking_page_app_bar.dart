@@ -13,6 +13,7 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onSearchToggle,
     required this.onFilterTap,
     required this.onInfoTap,
+    this.filtersActive = false,
   });
 
   final bool searchOpen;
@@ -20,6 +21,13 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onSearchToggle;
   final VoidCallback onFilterTap;
   final VoidCallback onInfoTap;
+
+  /// Com os filtros todos dentro da folha, o ícone é o único aviso de que a
+  /// lista está recortada. Marcador é o próprio ícone (cheio × contorno), não
+  /// um badge sobreposto: `NexaAppBar` só converte ação pro app bar nativo do
+  /// iOS 26 quando ela é um botão de ícone puro — um `Stack` derrubaria o
+  /// Liquid Glass da tela inteira, calado.
+  final bool filtersActive;
 
   @override
   Size get preferredSize =>
@@ -71,7 +79,7 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         SizedBox(width: 10),
         CompeteHubAppBarIconButton(
-          icon: Icons.tune_rounded,
+          icon: filtersActive ? Icons.filter_alt_rounded : Icons.tune_rounded,
           onTap: onFilterTap,
         ),
         SizedBox(width: 8),

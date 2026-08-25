@@ -148,6 +148,8 @@ $rk-bronze: #d98a4b;
 }
 
 .rk-header-avatar {
+  position: relative;
+  overflow: hidden;
   width: 38px;
   height: 38px;
   border-radius: 50%;
@@ -155,12 +157,83 @@ $rk-bronze: #d98a4b;
   border: 1px solid rgba(255, 106, 26, 0.35);
   display: grid;
   place-items: center;
+  text-decoration: none;
+  flex: none;
+}
+
+.rk-header-avatar-fallback {
   font-family: var(--nx-font-display);
   font-weight: 700;
   font-size: 13px;
   color: var(--nx-orange-500);
-  text-decoration: none;
+}
+
+// ── Fotos dos atletas ────────────────────────────────────────
+// Tamanho vem do contexto (`--rk-avatar-size` na linha/pódio/card), não de uma classe por
+// lugar — o mesmo `ng-template` serve os três.
+.rk-avatars {
   flex: none;
+  display: flex;
+  align-items: center;
+}
+
+// Clicável: abre o perfil do atleta (Individual) ou da dupla (Duplas). O realce é halo +
+// leve subida — nada de recolorir a borda, que no pódio é a medalha de ouro/prata/bronze.
+.rk-avatars--link {
+  border-radius: var(--nx-r-pill);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 3px rgba(255, 106, 26, 0.28);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 3px;
+  }
+}
+
+.rk-avatar {
+  position: relative;
+  overflow: hidden;
+  width: var(--rk-avatar-size, 38px);
+  height: var(--rk-avatar-size, 38px);
+  border-radius: 50%;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.35);
+  display: grid;
+  place-items: center;
+}
+
+// Dupla: os dois rostos se sobrepõem, com um anel da cor do card separando um do outro.
+.rk-avatars--pair .rk-avatar {
+  border: 2px solid var(--nx-surface-0);
+  outline: 1px solid rgba(255, 106, 26, 0.35);
+}
+
+.rk-avatars--pair .rk-avatar + .rk-avatar {
+  margin-left: calc(var(--rk-avatar-size, 38px) * -0.32);
+}
+
+.rk-avatar-initials {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: calc(var(--rk-avatar-size, 38px) * 0.32);
+  color: var(--nx-orange-500);
+}
+
+.rk-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 // ── Body ─────────────────────────────────────────────────────
@@ -355,30 +428,77 @@ $rk-bronze: #d98a4b;
   order: 3;
 }
 
+// A medalha virou a moldura da foto: o anel leva a cor do lugar e o número desce pra
+// uma pastilha sobreposta, então o pódio continua legível como 1º/2º/3º.
 .rk-podium-badge {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  --rk-avatar-size: 56px;
+  --rk-medal: #{$rk-silver};
+  --rk-medal-ink: #0a0a0a;
+  position: relative;
+  display: inline-flex;
+  margin-bottom: 14px;
+
+  @media (max-width: 640px) {
+    --rk-avatar-size: 48px;
+  }
+
+  @media (max-width: 420px) {
+    --rk-avatar-size: 38px;
+  }
+}
+
+.rk-podium-badge .rk-avatar {
+  border: 2px solid var(--rk-medal);
+}
+
+.rk-podium-badge .rk-avatars--pair .rk-avatar {
+  border-color: var(--nx-surface-0);
+  outline: 2px solid var(--rk-medal);
+}
+
+.rk-podium-rank {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  // Pastilha decorativa sobre a foto — sem isso ela come a parte de baixo do clique no perfil.
+  pointer-events: none;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--nx-r-pill);
+  border: 2px solid var(--nx-surface-0);
+  background: var(--rk-medal);
+  color: var(--rk-medal-ink);
   display: grid;
   place-items: center;
   font-family: var(--nx-font-display);
   font-weight: 800;
-  font-size: 20px;
-  color: #0a0a0a;
-  background: $rk-silver;
-  margin-bottom: 6px;
+  font-size: 12.5px;
 }
 
 .rk-podium-place[data-place='1'] .rk-podium-badge {
-  width: 72px;
-  height: 72px;
-  font-size: 26px;
-  background: $rk-gold;
+  --rk-avatar-size: 72px;
+  --rk-medal: #{$rk-gold};
+
+  @media (max-width: 640px) {
+    --rk-avatar-size: 60px;
+  }
+
+  @media (max-width: 420px) {
+    --rk-avatar-size: 46px;
+  }
+}
+
+.rk-podium-place[data-place='1'] .rk-podium-rank {
+  min-width: 28px;
+  height: 28px;
+  font-size: 15px;
 }
 
 .rk-podium-place[data-place='3'] .rk-podium-badge {
-  background: $rk-bronze;
-  color: #2a1608;
+  --rk-medal: #{$rk-bronze};
+  --rk-medal-ink: #2a1608;
 }
 
 .rk-podium-name {
@@ -492,6 +612,7 @@ $rk-bronze: #d98a4b;
 }
 
 .rk-row {
+  --rk-avatar-size: 38px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -511,21 +632,6 @@ $rk-bronze: #d98a4b;
   font-size: 13px;
   font-weight: 600;
   color: var(--nx-text-dim);
-}
-
-.rk-row-avatar {
-  flex: none;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--nx-orange-tint);
-  border: 1px solid rgba(255, 106, 26, 0.35);
-  display: grid;
-  place-items: center;
-  font-family: var(--nx-font-display);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--nx-orange-500);
 }
 
 .rk-row-info {
@@ -652,6 +758,7 @@ $rk-bronze: #d98a4b;
 }
 
 .rk-self-row {
+  --rk-avatar-size: 34px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -661,26 +768,16 @@ $rk-bronze: #d98a4b;
   border-radius: var(--nx-r-3);
 }
 
+// Sobre o fundo laranja do card, o disco vazado some — o fundo do avatar aqui é a superfície.
+.rk-self-row .rk-avatar {
+  background: var(--nx-surface-1);
+}
+
 .rk-self-rank {
   flex: none;
   font-family: var(--nx-font-display);
   font-weight: 800;
   font-size: 18px;
-  color: var(--nx-orange-500);
-}
-
-.rk-self-avatar {
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--nx-surface-1);
-  border: 1px solid rgba(255, 106, 26, 0.35);
-  display: grid;
-  place-items: center;
-  font-family: var(--nx-font-display);
-  font-weight: 700;
-  font-size: 11.5px;
   color: var(--nx-orange-500);
 }
 

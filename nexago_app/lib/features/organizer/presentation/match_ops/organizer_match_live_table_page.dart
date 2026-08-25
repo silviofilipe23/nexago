@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../data/match_point_write.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
@@ -42,6 +45,15 @@ class _OrganizerMatchLiveTablePageState
   bool _saving = false;
   Timer? _clockTimer;
 
+  /// Ferramentas extras (Quadra, Tempo, Modo exibição) pro mesário que também
+  /// é o próprio árbitro — desligadas por padrão, sem persistência, igual ao
+  /// modo exibição do web.
+  bool _fullMode = false;
+  bool _sidesSwapped = false;
+  Map<String, int> _timeouts = const {'A': 0, 'B': 0};
+  int? _timeoutsSetIndex;
+  bool _presentMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,7 +65,48 @@ class _OrganizerMatchLiveTablePageState
   @override
   void dispose() {
     _clockTimer?.cancel();
+    if (_presentMode) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      WakelockPlus.disable();
+    }
     super.dispose();
+  }
+
+  void _toggleFullMode() => setState(() => _fullMode = !_fullMode);
+
+  void _swapSides() => setState(() => _sidesSwapped = !_sidesSwapped);
+
+  /// Zera os tempos técnicos ao trocar de set — mesma regra do web
+  /// (`timeouts` é visual, o doc da partida não tem campo pra isso).
+  void _resetTimeoutsIfSetChanged(int currentSetIndex) {
+    if (_timeoutsSetIndex == currentSetIndex) return;
+    _timeoutsSetIndex = currentSetIndex;
+    _timeouts = const {'A': 0, 'B': 0};
+  }
+
+  void _addTimeout(TournamentMatch match) {
+    final servingId = match.servingTeamId.trim();
+    final side = servingId == match.teamAId
+        ? 'A'
+        : servingId == match.teamBId
+            ? 'B'
+            : null;
+    if (side == null) return;
+    final current = _timeouts[side] ?? 0;
+    if (current >= 2) return;
+    setState(() => _timeouts = {..._timeouts, side: current + 1});
+  }
+
+  Future<void> _enterPresentMode() async {
+    setState(() => _presentMode = true);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    await WakelockPlus.enable();
+  }
+
+  Future<void> _exitPresentMode() async {
+    setState(() => _presentMode = false);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await WakelockPlus.disable();
   }
 
   TournamentMatch? _currentMatch() {
@@ -67,54 +120,20 @@ class _OrganizerMatchLiveTablePageState
         .valueOrNull;
   }
 
-  String _servingTeamIdAfterPoint(TournamentMatch match, String side) {
-    return side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
-  }
-
+  /// O placar sai do doc lido DENTRO da transação ([buildPointWrite]), não do snapshot da tela:
+  /// o listener só recebe a versão nova depois da transação resolver, e dois toques dentro dessa
+  /// janela gravavam o mesmo placar duas vezes.
   Future<void> _point(String side) async {
     final match = _currentMatch();
     if (match == null || match.isCompleted) return;
 
-    final result = MatchScoringLogic.applyPoint(
-      sets: match.sets,
-      currentSetIndex: match.currentSetIndex ?? 0,
-      side: side,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
-      bestOf: match.bestOf,
-    );
-
     setState(() => _saving = true);
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
-      final setIdx = match.currentSetIndex ?? 0;
-      final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
-      final servingTeamId = _servingTeamIdAfterPoint(match, side);
 
       await repo.recordPointTransaction(
         matchId: widget.matchId,
-        matchUpdate: {
-          'sets': result.sets.map((s) => s.toMap()).toList(),
-          'currentSetIndex': result.currentSetIndex,
-          'status': result.winnerId != null
-              ? TournamentMatchStatus.completed
-              : TournamentMatchStatus.inProgress,
-          'servingTeamId': servingTeamId,
-          if (result.winnerId != null) 'winnerId': result.winnerId,
-          if (result.winnerId != null)
-            'matchEndedAt': FieldValue.serverTimestamp(),
-          if (match.matchStartedAt == null)
-            'matchStartedAt': FieldValue.serverTimestamp(),
-          'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf).a}',
-          'resultB': '${MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf).b}',
-        },
-        pointEvent: {
-          'type': 'point',
-          'side': side,
-          'setIndex': setIdx,
-          'scoreA': current?.a ?? 0,
-          'scoreB': current?.b ?? 0,
-        },
+        build: (fresh) => buildPointWrite(fresh, side),
       );
       // Avanço de chave + ranking são propagados pelo trigger
       // onTournamentMatchCompletedAdvance ao concluir a partida (atômico +
@@ -272,37 +291,16 @@ class _OrganizerMatchLiveTablePageState
     }
 
     final side = lastPoint.side ?? 'A';
-    final result = MatchScoringLogic.undoPoint(
-      sets: match.sets,
-      currentSetIndex: lastPoint.setIndex,
-      side: side,
-    );
-    final bestOf = match.bestOf;
+    // Locais finais: a promoção de nulidade não atravessa o closure do `build`.
+    final undoneSetIndex = lastPoint.setIndex;
 
     setState(() => _saving = true);
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
-      final setIdx = result.currentSetIndex;
-      final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
 
       await repo.recordPointTransaction(
         matchId: widget.matchId,
-        matchUpdate: {
-          'sets': result.sets.map((s) => s.toMap()).toList(),
-          'currentSetIndex': result.currentSetIndex,
-          'status': TournamentMatchStatus.inProgress,
-          'winnerId': FieldValue.delete(),
-          'matchEndedAt': FieldValue.delete(),
-          'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).a}',
-          'resultB': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).b}',
-        },
-        pointEvent: {
-          'type': 'undo-point',
-          'side': side,
-          'setIndex': setIdx,
-          'scoreA': current?.a ?? 0,
-          'scoreB': current?.b ?? 0,
-        },
+        build: (fresh) => buildUndoWrite(fresh, side, undoneSetIndex),
       );
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,
@@ -418,6 +416,29 @@ class _OrganizerMatchLiveTablePageState
     }
   }
 
+  /// Abre o saque na dupla escolhida. Não inicia a partida nem marca ponto: grava só o campo,
+  /// como o "Trocar saque" — daí em diante o rally resolve sozinho.
+  Future<void> _chooseServe(String side) async {
+    final match = _currentMatch();
+    if (match == null || _saving || match.isCompleted) return;
+    final teamId = side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
+    if (teamId.trim().isEmpty) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
+            matchId: widget.matchId,
+            fields: {'servingTeamId': teamId},
+          );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _swapServe() async {
     final match = _currentMatch();
     if (match == null || match.isCompleted) return;
@@ -522,6 +543,7 @@ class _OrganizerMatchLiveTablePageState
                 }
 
                 final setIdx = match.currentSetIndex ?? 0;
+                _resetTimeoutsIfSetChanged(setIdx);
                 final sets = match.sets;
                 final current = sets.length > setIdx
                     ? sets[setIdx]
@@ -560,6 +582,38 @@ class _OrganizerMatchLiveTablePageState
                     .whereType<TournamentMatchPointEvent>()
                     .toList();
 
+                if (_presentMode) {
+                  final (setsWonA, setsWonB) = liveTableSetsWon(match);
+                  return LiveTablePresentView(
+                    teamA: _sidesSwapped ? teamB : teamA,
+                    teamB: _sidesSwapped ? teamA : teamB,
+                    scoreA: liveTableCurrentSetScore(
+                      match,
+                      sideA: !_sidesSwapped,
+                    ),
+                    scoreB: liveTableCurrentSetScore(
+                      match,
+                      sideA: _sidesSwapped,
+                    ),
+                    isServingA: liveTableIsServing(
+                      match,
+                      sideA: !_sidesSwapped,
+                    ),
+                    isServingB: liveTableIsServing(
+                      match,
+                      sideA: _sidesSwapped,
+                    ),
+                    setsWonA: _sidesSwapped ? setsWonB : setsWonA,
+                    setsWonB: _sidesSwapped ? setsWonA : setsWonB,
+                    enabled: actionsEnabled,
+                    onUndo: _undoLastPoint,
+                    onExit: _exitPresentMode,
+                  );
+                }
+
+                final leftSide = _sidesSwapped ? 'B' : 'A';
+                final rightSide = _sidesSwapped ? 'A' : 'B';
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -568,25 +622,57 @@ class _OrganizerMatchLiveTablePageState
                       titleLabel: title.isNotEmpty ? title : 'Partida',
                       elapsedLabel: _elapsedLabel(match),
                       onBack: () => context.pop(),
+                      fullModeActive: _fullMode,
+                      onToggleFullMode: _toggleFullMode,
                     ),
                     LiveTableSetStrip(
                       sets: sets,
                       currentSetIndex: setIdx,
                     ),
+                    if (MatchScoringLogic.needsStartingServe(
+                      servingTeamId: match.servingTeamId,
+                      status: match.status,
+                      teamAId: match.teamAId,
+                      teamBId: match.teamBId,
+                    ))
+                      LiveTableStartingServe(
+                        teamA: teamA,
+                        teamB: teamB,
+                        enabled: !_saving,
+                        onChoose: _chooseServe,
+                      ),
                     LiveTableTeamScoreBoard(
-                      teamA: teamA,
-                      teamB: teamB,
-                      scoreA: liveTableCurrentSetScore(match, sideA: true),
-                      scoreB: liveTableCurrentSetScore(match, sideA: false),
-                      isServingA: liveTableIsServing(match, sideA: true),
-                      isServingB: liveTableIsServing(match, sideA: false),
-                      seedA: liveTableTeamSeed(match, sideA: true),
-                      seedB: liveTableTeamSeed(match, sideA: false),
+                      teamA: _sidesSwapped ? teamB : teamA,
+                      teamB: _sidesSwapped ? teamA : teamB,
+                      scoreA: liveTableCurrentSetScore(
+                        match,
+                        sideA: !_sidesSwapped,
+                      ),
+                      scoreB: liveTableCurrentSetScore(
+                        match,
+                        sideA: _sidesSwapped,
+                      ),
+                      isServingA: liveTableIsServing(
+                        match,
+                        sideA: !_sidesSwapped,
+                      ),
+                      isServingB: liveTableIsServing(
+                        match,
+                        sideA: _sidesSwapped,
+                      ),
+                      seedA: liveTableTeamSeed(match, sideA: !_sidesSwapped),
+                      seedB: liveTableTeamSeed(match, sideA: _sidesSwapped),
                       enabled: actionsEnabled,
-                      onAddPointA: () => _point('A'),
-                      onAddPointB: () => _point('B'),
-                      onSubtractA: () => _undoIfSide('A'),
-                      onSubtractB: () => _undoIfSide('B'),
+                      onAddPointA: () => _point(leftSide),
+                      onAddPointB: () => _point(rightSide),
+                      onSubtractA: () => _undoIfSide(leftSide),
+                      onSubtractB: () => _undoIfSide(rightSide),
+                      timeoutsA: _fullMode
+                          ? _timeouts[_sidesSwapped ? 'B' : 'A']
+                          : null,
+                      timeoutsB: _fullMode
+                          ? _timeouts[_sidesSwapped ? 'A' : 'B']
+                          : null,
                     ),
                     LiveTableSetRules(
                       rulesLabel: rules,
@@ -622,11 +708,29 @@ class _OrganizerMatchLiveTablePageState
                     ),
                     Expanded(
                       child: SingleChildScrollView(
-                        child: LiveTablePointFeed(
-                          setIndex: setIdx,
-                          events: events,
-                          teamA: teamA,
-                          teamB: teamB,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Dentro da área rolável, não como irmão fixo do
+                            // Column principal: numa tela baixa, a barra
+                            // extra do modo full não pode empurrar o layout
+                            // pra além da altura disponível (RenderFlex
+                            // overflow) — aqui ela só exige um scroll a mais.
+                            if (_fullMode)
+                              LiveTableFullModeBar(
+                                enabled: actionsEnabled,
+                                sidesSwapped: _sidesSwapped,
+                                onSwapSides: _swapSides,
+                                onAddTimeout: () => _addTimeout(match),
+                                onEnterPresent: _enterPresentMode,
+                              ),
+                            LiveTablePointFeed(
+                              setIndex: setIdx,
+                              events: events,
+                              teamA: teamA,
+                              teamB: teamB,
+                            ),
+                          ],
                         ),
                       ),
                     ),

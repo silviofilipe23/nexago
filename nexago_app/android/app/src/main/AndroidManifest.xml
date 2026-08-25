@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Declarada aqui de propósito, e não só nos manifests de debug/profile
+         que o Flutter gera. Em release ela chegava por merge do manifest das
+         dependências (Firebase, Mapbox): funcionava, mas deixava uma permissão
+         central do app dependendo de quem estivesse no pubspec. Remover uma
+         dessas dependências derrubaria a rede do app inteiro sem nenhum sinal.
+         O app fala com Firestore, Storage e mapas — a rede é requisito dele. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -28,24 +35,24 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- App Links: convites voleigo.com.br -->
+            <!-- App Links: atleta.nexago.com.br (host que serve o assetlinks.json).
+                 Substitui nexago.app (nunca registrado) e voleigo.com.br (cert expirado). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data
                     android:scheme="https"
-                    android:host="voleigo.com.br"
+                    android:host="atleta.nexago.com.br"
                     android:pathPrefix="/convite/"/>
             </intent-filter>
-            <!-- App Links: torneios nexago.app -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data
                     android:scheme="https"
-                    android:host="nexago.app"
+                    android:host="atleta.nexago.com.br"
                     android:pathPrefix="/torneios"/>
             </intent-filter>
             <intent-filter android:autoVerify="true">
@@ -54,7 +61,23 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data
                     android:scheme="https"
-                    android:host="nexago.app"
+                    android:host="atleta.nexago.com.br"
+                    android:pathPrefix="/torneios-convite"/>
+            </intent-filter>
+            <!-- App Links: convite de dupla por link (parceiro ainda sem conta).
+                 Só este prefixo é reivindicado no portal do atleta — reivindicar
+                 o host inteiro faria toda a web do portal abrir no app. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="atleta.nexago.com.br"
+                    android:pathPrefix="/convite-dupla"/>
+                <data
+                    android:scheme="https"
+                    android:host="atleta.nexago.com.br"
                     android:pathPrefix="/torneios-convite"/>
             </intent-filter>
             <!-- Deep link custom scheme (dev / fallback) -->

@@ -1,4 +1,5 @@
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/text/safe_display_text.dart';
 import 'athlete_profile.dart';
 
 /// Nome exibido do atleta: apelido → nome completo → fallback.
@@ -21,13 +22,10 @@ String athleteInitials(AthleteProfile profile) {
 /// Nome curto p/ rótulos de dupla (ex.: "Ana C."), pra reduzir colisão
 /// quando dois atletas compartilham o primeiro nome.
 String athleteShortLabel(AthleteProfile profile) {
-  final display = athleteDisplayName(profile, fallback: '');
-  if (display.isEmpty) return '';
-  final parts =
-      display.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.length <= 1) return display;
-  final lastInitial = parts.last[0].toUpperCase();
-  return '${parts.first} $lastInitial.';
+  return shortPersonLabel(
+    athleteDisplayName(profile, fallback: ''),
+    fallback: '',
+  );
 }
 
 /// Rótulo de uma dupla a partir dos dois perfis: tenta nomes curtos e, se

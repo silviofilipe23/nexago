@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/firebase/firebase_providers.dart';
+import '../../../../../core/profiles/app_user_profile.dart';
 import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../../../../arenas/domain/booking_providers.dart';
@@ -185,13 +186,5 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
 });
 
 String _initialsFrom(String name) {
-  final parts =
-      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) {
-    return parts.first.length >= 2
-        ? parts.first.substring(0, 2).toUpperCase()
-        : parts.first[0].toUpperCase();
-  }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  return initialsFromDisplayName(name);
 }

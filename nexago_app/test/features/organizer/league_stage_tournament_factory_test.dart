@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/organizer/data/league_stage_tournament_factory.dart';
 import 'package:nexago_app/features/organizer/domain/league_create/league_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/league_stage_create/league_stage_create_draft.dart';
+import 'package:nexago_app/features/organizer/domain/league_stage_create/league_stage_create_logic.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_draft.dart';
 
 LeagueStageCreateDraft _draft() {
@@ -145,6 +146,36 @@ void main() {
       expect(map['isGrandFinalStage'], isTrue);
       expect(map['leagueStageOrder'], 9);
     });
+
+    test('preserva minLevel da categoria da liga (faixa de nível)', () {
+      final league = LeagueCreateDraft(
+        leagueId: 'league-1',
+        name: 'Circuito',
+        seasonStartAt: DateTime(2026, 5, 1),
+        seasonEndAt: DateTime(2026, 11, 1),
+        categories: const [
+          TournamentCategoryDraft(id: 'c1', spots: 16, minLevel: 'Avançado 1'),
+        ],
+        stages: const [
+          LeagueStageDraft(
+            id: 'stage-1',
+            name: 'Etapa 1',
+            order: 1,
+            status: LeagueStageStatus.defined,
+          ),
+        ],
+      );
+
+      final map = LeagueStageTournamentFactory.build(
+        league: league,
+        stage: league.stages.first,
+        managerId: 'm',
+        tournamentId: 't1',
+      );
+
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['minLevel'], 'Avançado 1');
+    });
   });
 
   group('LeagueStageTournamentFactory.buildFromStageCreate', () {
@@ -219,6 +250,55 @@ void main() {
       expect(categories[0]['bracketFormat'], 'groups_knockout');
       expect(categories[1]['bracketFormat'], 'double_elimination');
       expect(categories[1]['bestOf'], 'bestOf5');
+    });
+
+    test('preserva minLevel herdado da liga (categoria de nova etapa)', () {
+      final draft = LeagueStageCreateDraft(
+        leagueId: 'league-1',
+        leagueName: 'Circuito',
+        stage: const LeagueStageDraft(id: 'stage-1', order: 1),
+        categories: const [
+          LeagueStageCategoryDraft(
+            categoryId: 'c1',
+            name: 'Masc',
+            minLevel: 'Avançado 1',
+          ),
+        ],
+      );
+
+      final map = LeagueStageTournamentFactory.buildFromStageCreate(
+        draft: draft,
+        managerId: 'manager-1',
+        tournamentId: 'tournament-1',
+        publish: true,
+      );
+
+      final category = (map['categories'] as List).single as Map<String, dynamic>;
+      expect(category['minLevel'], 'Avançado 1');
+    });
+  });
+
+  group('categoriesFromLeagueCategories (minLevel)', () {
+    test('categoria de nova etapa herda o minLevel gravado pelo portal web', () {
+      final categories = categoriesFromLeagueCategories([
+        {
+          'id': 'cat-elite',
+          'categoryName': 'Elite',
+          'maxTeams': 16,
+          'level': 'Open',
+          'minLevel': 'Avançado 1',
+        },
+      ], 22000);
+
+      expect(categories.single.minLevel, 'Avançado 1');
+    });
+
+    test('minLevel ausente reidrata como string vazia (categoria sem piso)', () {
+      final categories = categoriesFromLeagueCategories([
+        {'id': 'cat-livre', 'categoryName': 'Livre', 'maxTeams': 16},
+      ], 22000);
+
+      expect(categories.single.minLevel, '');
     });
   });
 

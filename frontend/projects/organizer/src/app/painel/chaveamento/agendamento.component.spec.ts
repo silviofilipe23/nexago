@@ -1,8 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { AgendamentoComponent } from './agendamento.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 import type { TournamentMatch } from '../data/matches-repository';
+import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
 
 const DAY = '2026-10-24';
@@ -18,6 +20,7 @@ function tournamentFixture(): OrganizerTournament {
     status: 'andamento',
     visibility: 'publicListing',
     paymentMode: 'appPixCard',
+    collected: EMPTY_TOURNAMENT_COLLECTED,
     startAt: new Date(`${DAY}T09:00:00-03:00`),
     endAt: new Date(`${DAY}T22:00:00-03:00`),
     city: null,
@@ -27,6 +30,7 @@ function tournamentFixture(): OrganizerTournament {
         id: 'femB',
         name: 'Feminino B',
         maxTeams: null,
+        entryFee: 0,
         teamSize: null,
         bracketFormat: null,
         teamsPerGroup: 3,
@@ -111,13 +115,35 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     return Array.from(host().querySelectorAll(selector)).map((el) => (el.textContent ?? '').trim());
   }
 
+  function clickButton(label: string): void {
+    const btn = Array.from(host().querySelectorAll<HTMLButtonElement>('button')).find((b) => (b.textContent ?? '').trim() === label);
+    if (!btn) throw new Error(`Botão "${label}" não está na tela`);
+    btn.click();
+    fixture.detectChanges();
+  }
+
+  /** Largura que decide entre coluna lateral e sheet. O componente lê do
+   *  `matchMedia`, mas a janela do Karma é estreita: sem fixar isto a suíte
+   *  inteira cairia no modo sheet e mediria outra tela. */
+  function setNarrow(value: boolean): void {
+    (fixture.componentInstance as unknown as { narrow: WritableSignal<boolean> }).narrow.set(value);
+    fixture.detectChanges();
+  }
+
   beforeEach(async () => {
     ctx = new CtxStub();
     await TestBed.configureTestingModule({
       imports: [AgendamentoComponent],
-      providers: [provideZonelessChangeDetection(), { provide: ChaveamentoContextService, useValue: ctx }],
+      // O `og-page-header` da tela carrega o sino, que é um `routerLink` — sem router o
+      // TestBed não consegue nem instanciar a diretiva.
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: ChaveamentoContextService, useValue: ctx },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(AgendamentoComponent);
+    setNarrow(false);
     fixture.detectChanges();
   });
 
@@ -254,6 +280,96 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     expect(apply.disabled).toBeFalse();
   });
 
+  it('no desktop o painel é coluna: sem backdrop, sem fechar, e Esc não desfaz nada', () => {
+    openPanel();
+    expect(host().querySelector('.og-auto-backdrop')).toBeNull();
+    expect(host().querySelector('.og-auto-close')).toBeNull();
+    expect(host().querySelector('.og-auto-panel.sheet')).toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+
+    expect(host().textContent).toContain('Gerar grade do dia');
+  });
+
+  describe('no estreito (celular e tablet retrato)', () => {
+    beforeEach(() => setNarrow(true));
+
+    it('abre como sheet sobre a grade, com backdrop e botão de fechar', () => {
+      openPanel();
+
+      expect(host().querySelector('.og-auto-panel.sheet')).not.toBeNull();
+      expect(host().querySelector('.og-auto-backdrop')).not.toBeNull();
+      expect(host().querySelector('.og-auto-close')).not.toBeNull();
+      // O Cancelar do rodapé dá lugar ao "Ver na grade" — quem cancela é o ×.
+      expect(texts('.og-auto-actions button')).toEqual(['Ver na grade', 'Recalcular', 'Aplicar']);
+    });
+
+    it('"Ver na grade" recolhe pra barra fina sem perder a configuração', () => {
+      openPanel();
+      host().querySelector<HTMLInputElement>('.og-auto-checks input')!.click(); // desmarca Q1
+      fixture.detectChanges();
+
+      clickButton('Ver na grade');
+
+      expect(host().querySelector('.og-auto-minibar')).not.toBeNull();
+      expect(host().querySelector('.og-auto-panel')).toBeNull();
+      expect(host().querySelector('.og-auto-backdrop')).toBeNull();
+      // A grade continua sob o comando do painel: a quadra desmarcada segue apagada
+      // e o agendamento manual, travado.
+      expect(host().querySelectorAll('.og-agenda-column.off').length).toBe(1);
+      expect(Array.from(host().querySelectorAll<HTMLButtonElement>('.og-agenda-slot')).every((s) => s.disabled)).toBeTrue();
+      expect(host().textContent).not.toContain('Fila de partidas');
+    });
+
+    it('Ajustar traz o sheet de volta com a quadra ainda desmarcada', () => {
+      openPanel();
+      host().querySelector<HTMLInputElement>('.og-auto-checks input')!.click();
+      fixture.detectChanges();
+      clickButton('Ver na grade');
+
+      clickButton('Ajustar');
+
+      expect(host().querySelector('.og-auto-panel.sheet')).not.toBeNull();
+      expect(host().querySelector('.og-auto-minibar')).toBeNull();
+      expect(host().querySelector<HTMLInputElement>('.og-auto-checks input')!.checked).toBeFalse();
+    });
+
+    it('reabrir depois de ter recolhido volta expandido', () => {
+      openPanel();
+      clickButton('Ver na grade');
+      (fixture.componentInstance as unknown as { closeAuto(): void }).closeAuto();
+      fixture.detectChanges();
+
+      openPanel();
+
+      expect(host().querySelector('.og-auto-panel.sheet')).not.toBeNull();
+      expect(host().querySelector('.og-auto-minibar')).toBeNull();
+    });
+
+    it('Esc fecha o sheet e devolve a fila', () => {
+      openPanel();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+
+      expect(host().textContent).toContain('Fila de partidas');
+      expect(host().textContent).not.toContain('Gerar grade do dia');
+    });
+
+    it('voltar pro desktop com o sheet recolhido devolve a coluna lateral', () => {
+      openPanel();
+      clickButton('Ver na grade');
+
+      // Girar o tablet pra paisagem no meio da configuração não pode deixar o
+      // painel escondido atrás de uma barra que só existe no estreito.
+      setNarrow(false);
+
+      expect(host().querySelector('.og-auto-minibar')).toBeNull();
+      expect(host().textContent).toContain('Gerar grade do dia');
+    });
+  });
+
   it('mostra na grade o que já está agendado em outra categoria, apagado', () => {
     const foreign = matchFixture({
       id: 'm9',
@@ -272,5 +388,68 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     openPanel();
     const blocks = host().querySelectorAll('.og-agenda-block.foreign');
     expect(blocks.length).toBe(1);
+  });
+});
+
+/** A media query de tablet/celular e a regra base de `.og-agenda` têm a MESMA
+ *  especificidade — quem vier por último no arquivo vence. Com a base depois da
+ *  media query o `height:70dvh` era descartado em toda largura, a grade esticava
+ *  pro conteúdo inteiro e a rolagem interna das horas vazava pro documento. */
+describe('AgendamentoComponent — altura da grade por largura', () => {
+  const WRAPPER_H = 300;
+  let ngContentAttr: string;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AgendamentoComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: ChaveamentoContextService, useValue: new CtxStub() },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AgendamentoComponent);
+    fixture.detectChanges();
+    // O seletor compilado é `.og-agenda[_ngcontent-xxx]`; sem esse atributo o
+    // elemento de teste não casa com nenhuma regra do componente.
+    const agenda = (fixture.nativeElement as HTMLElement).querySelector('.og-agenda')!;
+    ngContentAttr = Array.from(agenda.attributes)
+      .map((a) => a.name)
+      .find((name) => name.startsWith('_ngcontent'))!;
+    expect(ngContentAttr).toBeDefined();
+  });
+
+  /** Mede `.og-agenda` numa viewport de tamanho controlado. O iframe é o único
+   *  jeito de escolher a largura que a media query enxerga — a janela do Karma
+   *  não é ajustável. O wrapper de altura fixa dá base pro `height:100%` da
+   *  regra base, então os dois caminhos rendem números distintos. */
+  function agendaHeightAt(width: number, height: number): number {
+    const frame = document.createElement('iframe');
+    frame.width = String(width);
+    frame.height = String(height);
+    // A borda padrão de 2px do iframe sai da viewport de dentro e desalinharia o dvh.
+    frame.style.border = '0';
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument!;
+    for (const style of Array.from(document.querySelectorAll('style'))) {
+      doc.head.appendChild(doc.importNode(style, true));
+    }
+    doc.body.innerHTML =
+      `<div style="margin:0;height:${WRAPPER_H}px"><div class="og-agenda" ${ngContentAttr}></div></div>`;
+    const measured = doc.querySelector('.og-agenda')!.getBoundingClientRect().height;
+    frame.remove();
+    return Math.round(measured);
+  }
+
+  it('dá altura própria à grade no celular (70dvh)', () => {
+    expect(agendaHeightAt(375, 812)).toBe(Math.round(812 * 0.7));
+  });
+
+  it('dá altura própria à grade no tablet em retrato (70dvh)', () => {
+    expect(agendaHeightAt(768, 1024)).toBe(Math.round(1024 * 0.7));
+  });
+
+  it('no desktop mantém a grade dividindo a altura da coluna (100%)', () => {
+    expect(agendaHeightAt(1280, 800)).toBe(WRAPPER_H);
   });
 });

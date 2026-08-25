@@ -22,16 +22,41 @@ A colocação é atribuída automaticamente quando uma partida é concluída (me
 - Corrigir o vencedor de uma partida já processada refaz a colocação (idempotente por torneio+categoria).
 
 ## Ranking geral nexaGO
-- Tabela de pontos por colocação: **1º = 100, 2º = 80, 3º = 60, 4º = 50, quartas (5º–8º) = 33, grupos = 10**.
-- Cada torneio pode ter um peso (`rankingWeight`, padrão 1.0) que multiplica os pontos — permite dar mais valor a torneios maiores.
+- **Tabela-base por colocação**: 1º = 1000, 2º = 800, 3º = 600, 4º = 500, quartas (5º–8º) = 330, grupos = 100.
+- **Pesos por preset de categoria** (derivados da faixa, nunca gravados):
+  - Elite: 1.2 (campeão 1200)
+  - Open: 1.0 (1000)
+  - Avançado: 0.5 (500)
+  - Intermediário: 0.25 (250)
+  - Iniciante: 0.125 (125)
+  - Livre: 0.125 (125)
+  - Legada/custom: 1.0
+- **Fórmula de cálculo**: base × peso do preset × `rankingWeight` do torneio × modulador de chave, arredondado uma vez. Cada torneio pode ter um `rankingWeight` (padrão 1.0) que multiplica os pontos — permite dar mais valor a torneios maiores.
+- **Pontos por fase alcançada** (19/08/2026): abaixo do pódio o prêmio depende da FASE em que a dupla caiu, não do formato do torneio. Quartas (5º-8º) 330 · oitavas (9º-16º) 200 · 16-avos (17º-32º) 130 · participação 100. Antes disso só havia dois destinos (`quarters` e `groups`), então numa chave de 22 duplas a 5ª e a 22ª colocação recebiam igual.
+  - O degrau sai da ESTRUTURA da chave: conta-se quantas duplas cada rodada elimina e acumulam-se as faixas de cima para baixo a partir da 5ª colocação. Eliminação é a partida cujo perdedor não tem `loserAdvance` — a final da losers, cujo perdedor ainda joga o 3º lugar, não elimina ninguém.
+  - `finalPlace` guarda o topo da faixa (quartas 5, oitavas 9, 16-avos 17) e participação é 0.
+  - Chave materializada sem fiação (`winnerAdvance`/`loserAdvance`) não ganha degrau: fica no balde de quartas, sem adivinhação.
+  - A tabela da liga ganhou os mesmos degraus (80 · 60 · 45 · 40); liga com tabela customizada antiga usa o default dos degraus novos, sem reescrita.
+- **Modulador de chave** (aplicado conforme número de duplas pagas na categoria):
+  - ≥8 duplas pagas: 100%
+  - 4–7 duplas pagas: 60%
+  - <4 duplas pagas: 25%
+- **Restrição para Livre**: ninguém recebe pontos do bucket "grupos" — só pontua quem chega ao mata-mata. Essa regra vale nos dois motores (geral e liga).
+- **Gate de participação**: torneio avulso com <10 duplas pagas não gera pontos. Etapa de liga é isenta do gate, mas fica sujeita ao modulador de chave.
+- **Migração de escala e repesagem do histórico**: em 18/08/2026 o histórico foi reescalado ×10 (`scaleVersion: 2` gravado em todo documento migrado). Em 19/08/2026 a decisão de "escala sem repesagem" foi EMENDADA: o histórico passou a ser recalculado com a fórmula vigente — base × peso do preset × `rankingWeight` × modulador de chave — por `functions/scripts/recompute-ranking-weights.js`, para que resultado antigo e novo pesem igual (antes, o campeão de uma categoria intermediária antiga valia 1000 enquanto o campeão da mesma categoria hoje vale 250).
+  - Categoria LEGADA (sem `minLevel` gravado) tem o preset inferido pelo teto: `Iniciante 1|2` → iniciante, `Intermediário 1|2` → intermediário, `Avançado 1|2` → avançado, `Open` → open. O teto `Open` é ambíguo entre open/elite/livre e resolve em peso 1.0 — o mesmo que a categoria já valia, para ninguém perder nem ganhar por adivinhação.
+  - O recálculo NÃO reavalia elegibilidade: resultado já concedido nunca é removido, mesmo que a categoria hoje não passasse no gate de 10 duplas pagas. O script apenas reporta esses casos.
+  - O recálculo não usa carimbo de versão: por ser função pura de `finalPlace` + contexto do torneio, ele converge — rodar de novo não muda nada, e entrada escrita pelo motor já nasce no valor final.
 - Pontuação vale para o atleta **e** para a dupla; um atleta que joga mais de uma categoria/dupla no ano tem os pontos somados juntos, sem distinção de categoria.
-- Cálculo da pontuação total: dentro de cada ano só contam os **5 melhores resultados** (demais são descartados); a soma "geral" é a soma desses melhores-5-por-ano ao longo de todos os anos — não é literalmente todo resultado já conquistado.
-- No app, o atleta pode ver dois modos: **Geral** (soma total, como acima) e **Por ano** (só os melhores 5 daquele ano). Tem filtro por gênero (masculino/feminino/misto) e por atletas/duplas, além de busca por nome.
+- Cálculo da pontuação total: **todo resultado conta, sem descarte**. `pointsByYear[ano]` soma tudo que foi conquistado naquele ano e a soma "geral" é a soma dos anos — é literalmente todo resultado já conquistado.
+- No app, o atleta pode ver dois modos: **Geral** (todos os anos) e **Por ano** (só os resultados daquele ano). Tem filtro por gênero (masculino/feminino/misto) e por atletas/duplas, além de busca por nome.
+- Não vale para o ranking de liga, que continua com o modo de contagem escolhido pelo organizador (ver abaixo).
 
 ## Ranking de liga
 - Escopo por `liga + categoria`: um atleta/dupla tem uma posição por categoria dentro de cada liga, além da posição no ranking geral.
 - Só pontua se a etapa (torneio) estiver vinculada a uma liga (`tournaments.leagueId`) e a liga existir.
 - Tabela de pontos própria por liga (`leagues.rankingPointsByPlace`), configurável pelo organizador ao criar a liga; padrão quando não customizada: **1º = 450, 2º = 280, 3º = 180, 4º = 120, quartas = 80, grupos = 40** — bem mais alto que o ranking geral, pra valorizar o circuito estruturado.
+- **Restrição para Livre**: como no ranking geral, categoria Livre não recebe pontos do bucket "grupos" — só pontua no mata-mata.
 - Modo de contagem de etapas, escolhido na criação da liga:
   - **4 melhores de 6 etapas** (padrão) — descarta os 2 piores resultados da dupla.
   - **3 melhores de 5 etapas** — descarta os 2 piores.

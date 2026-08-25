@@ -4,6 +4,7 @@ import {
   buildPartnerInviteMessage,
   buildPartnerInviteUrl,
   clearPartnerLinkInviteMarker,
+  formatMissingStepsList,
   isSafeInviteId,
   peekPartnerInviteContext,
   readPartnerLinkInviteMarker,
@@ -71,6 +72,20 @@ describe('buildPartnerInviteMessage', () => {
       url: 'https://x.app/cadastro',
     });
     expect(msg.startsWith('Fala! ')).toBeTrue();
+  });
+});
+
+describe('formatMissingStepsList', () => {
+  it('lista pendências em PT com "e" antes da última', () => {
+    expect(formatMissingStepsList(['WhatsApp'])).toBe('WhatsApp');
+    expect(formatMissingStepsList(['WhatsApp', 'cidade'])).toBe('WhatsApp e cidade');
+    expect(formatMissingStepsList(['cadastro inicial', 'WhatsApp', 'cidade'])).toBe('cadastro inicial, WhatsApp e cidade');
+  });
+
+  it('sem lista (backend antigo) cai no genérico "o cadastro"', () => {
+    expect(formatMissingStepsList(undefined)).toBe('o cadastro');
+    expect(formatMissingStepsList([])).toBe('o cadastro');
+    expect(formatMissingStepsList(['  '])).toBe('o cadastro');
   });
 });
 

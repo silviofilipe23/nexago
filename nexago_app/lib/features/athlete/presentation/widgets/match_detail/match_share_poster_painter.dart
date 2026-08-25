@@ -19,6 +19,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/brand/nexa_hashtag.dart';
+import '../../../../../core/ui/share_poster_primitives.dart';
+
 import '../../../domain/match_history/match_share_poster_data.dart';
 
 const double matchSharePosterWidth = 1080;
@@ -215,62 +218,43 @@ TextStyle _style(
   double size,
   Color? color,
   Paint? foreground,
-) {
-  return TextStyle(
-    fontFamily: family,
-    fontWeight: FontWeight.values[(weight ~/ 100) - 1],
-    fontSize: size,
-    height: 1,
-    color: foreground == null ? (color ?? _ink) : null,
-    foreground: foreground,
-  );
-}
+) =>
+    posterStyle(
+      family,
+      weight,
+      size,
+      color: foreground == null ? (color ?? _ink) : null,
+      foreground: foreground,
+    );
 
 /// Emoji sem família definida: quem desenha é a fonte de emoji do sistema.
 TextStyle _emoji(double size) => TextStyle(fontSize: size, height: 1);
 
-TextPainter _layout(String text, TextStyle style) {
-  return TextPainter(
-    text: TextSpan(text: text, style: style),
-    textDirection: TextDirection.ltr,
-  )..layout();
-}
+typedef _Align = PosterAlign;
 
-double _measure(String text, TextStyle style) => _layout(text, style).width;
+TextPainter _layout(String text, TextStyle style) => posterLayout(text, style);
 
-enum _Align { left, center }
+double _measure(String text, TextStyle style) => posterMeasure(text, style);
 
-/// `fillText` com baseline alfabética, como no canvas.
 void _fillText(
   Canvas canvas,
   String text,
   TextStyle style,
   double x,
   double baselineY, {
-  _Align align = _Align.left,
-}) {
-  final painter = _layout(text, style);
-  final dx = align == _Align.center ? x - painter.width / 2 : x;
-  final baseline = painter.computeDistanceToActualBaseline(
-    TextBaseline.alphabetic,
-  );
-  painter.paint(canvas, Offset(dx, baselineY - baseline));
-}
+  _Align align = PosterAlign.left,
+}) =>
+    posterFillText(canvas, text, style, x, baselineY, align: align);
 
-/// `fillText` com `textBaseline = 'middle'`.
 void _fillTextMiddle(
   Canvas canvas,
   String text,
   TextStyle style,
   double cx,
   double cy,
-) {
-  final painter = _layout(text, style);
-  painter.paint(canvas, Offset(cx - painter.width / 2, cy - painter.height / 2));
-}
+) =>
+    posterFillTextMiddle(canvas, text, style, cx, cy);
 
-/// Texto com espaçamento manual entre letras (o canvas não tem letter-spacing
-/// confiável; aqui o porte mantém a mesma métrica para as duas telas baterem).
 void _tracked(
   Canvas canvas,
   String text,
@@ -278,45 +262,22 @@ void _tracked(
   double x,
   double baselineY,
   double spacing, {
-  _Align align = _Align.center,
-}) {
-  final chars = text.characters.toList();
-  if (chars.isEmpty) return;
-  final widths = [for (final c in chars) _measure(c, style)];
-  final total =
-      widths.fold<double>(0, (a, b) => a + b) + spacing * (chars.length - 1);
-  var cursor = align == _Align.center ? x - total / 2 : x;
-  for (var i = 0; i < chars.length; i++) {
-    _fillText(canvas, chars[i], style, cursor, baselineY);
-    cursor += widths[i] + spacing;
-  }
-}
+  _Align align = PosterAlign.center,
+}) =>
+    posterTracked(canvas, text, style, x, baselineY, spacing, align: align);
 
-/// Reduz a fonte até o texto caber e devolve o estilo ajustado.
 TextStyle _fitFont(
   String text,
   double maxWidth,
   double start,
   double min,
   TextStyle Function(double size) font,
-) {
-  var size = start;
-  var style = font(size);
-  while (size > min && _measure(text, style) > maxWidth) {
-    size -= 4;
-    style = font(size);
-  }
-  return style;
-}
+) =>
+    posterFitFont(text, maxWidth, start, min, font);
 
-String _truncate(String text, TextStyle style, double maxWidth) {
-  if (_measure(text, style) <= maxWidth) return text;
-  var result = text;
-  while (result.length > 1 && _measure('$result…', style) > maxWidth) {
-    result = result.substring(0, result.length - 1);
-  }
-  return '$result…';
-}
+String _truncate(String text, TextStyle style, double maxWidth) =>
+    posterTruncate(text, style, maxWidth);
+
 
 // --- Pintura base -----------------------------------------------------------
 
@@ -636,10 +597,29 @@ void _drawFooter(Canvas canvas, String? dateLine) {
     6,
   );
 
-  // lockup pequeno centrado no pé
+  // lockup pequeno centrado no pé, com a hashtag da campanha ao lado. As duas
+  // peças são medidas antes de desenhar porque o conjunto é que fica centrado —
+  // centrar só o wordmark jogaria a linha toda pra esquerda.
   const size = 40.0;
+  const gap = 24.0;
+  final hashStyle = _mono(700, 24, color: _orange);
+  final hashW = posterTrackedWidth(nexaHashtagStamp, hashStyle, 4);
   final wordW = _measure('nexaGO', _sora(800, size));
-  _drawWordmark(canvas, _cx - wordW / 2, 1848, size);
+  final wordEnd = _drawWordmark(
+    canvas,
+    _cx - (wordW + gap + hashW) / 2,
+    1848,
+    size,
+  );
+  _tracked(
+    canvas,
+    nexaHashtagStamp,
+    hashStyle,
+    wordEnd + gap,
+    1848,
+    4,
+    align: _Align.left,
+  );
 }
 
 // --- Composições ------------------------------------------------------------

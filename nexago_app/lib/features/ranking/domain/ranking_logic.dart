@@ -5,16 +5,15 @@ import 'ranking_constants.dart';
 import 'ranking_list_models.dart';
 import 'ranking_models.dart';
 
-/// Agrupa pontos brutos por atleta e monta linhas da temporada (melhores N).
+/// Agrupa pontos brutos por atleta e monta linhas da temporada (soma do ano).
 List<AthleteRankingRow> buildAthleteRankingRowsFromPointsByAthlete(
   Map<String, List<int>> pointsByAthlete, {
   int year = 0,
-  int n = bestNResults,
 }) {
   final rows = <AthleteRankingRow>[];
   for (final entry in pointsByAthlete.entries) {
     final points = entry.value;
-    final total = sumBestNPoints(points, n: n);
+    final total = sumPoints(points);
     rows.add(
       AthleteRankingRow(
         rank: 0,
@@ -104,16 +103,15 @@ List<AthleteRankingRow> previewRankingRows(
   return [...top, userRow];
 }
 
-/// Agrupa pontos brutos por equipe e monta linhas da temporada (melhores N).
+/// Agrupa pontos brutos por equipe e monta linhas da temporada (soma do ano).
 List<TeamRankingRow> buildTeamRankingRowsFromPointsByTeam(
   Map<String, List<int>> pointsByTeam, {
   int year = 0,
-  int n = bestNResults,
 }) {
   final rows = <TeamRankingRow>[];
   for (final entry in pointsByTeam.entries) {
     final points = entry.value;
-    final total = sumBestNPoints(points, n: n);
+    final total = sumPoints(points);
     rows.add(
       TeamRankingRow(
         rank: 0,
@@ -207,6 +205,34 @@ List<TeamRankingRow> filterTeamRowsByGender(
   return assignTeamRanks(filtered);
 }
 
+/// Formato do time: `teamSize` (3–5, equipes nomeadas) vence; sem ele o
+/// tamanho do elenco (`memberUids`) decide. Dupla legada não grava nenhum
+/// dos dois — cai em dupla. Nunca devolve `all` (é valor de filtro, não de
+/// time). Paridade com `teamFormatOf` do portal web.
+RankingFormatFilter rankingTeamFormat({
+  int? teamSize,
+  required int memberCount,
+}) {
+  final size = teamSize ?? memberCount;
+  if (size >= 5) return RankingFormatFilter.quinteto;
+  if (size == 4) return RankingFormatFilter.quarteto;
+  if (size == 3) return RankingFormatFilter.trio;
+  return RankingFormatFilter.dupla;
+}
+
+/// Mesmo contrato do filtro de gênero: recorte renumera; time sem formato
+/// conhecido (doc ausente) só aparece com o filtro em `all`.
+List<TeamRankingRow> filterTeamRowsByFormat(
+  List<TeamRankingRow> rows,
+  RankingFormatFilter filter,
+  Map<String, RankingFormatFilter?> formatByTeamId,
+) {
+  if (filter == RankingFormatFilter.all) return rows;
+  final filtered =
+      rows.where((row) => formatByTeamId[row.teamId] == filter).toList();
+  return assignTeamRanks(filtered);
+}
+
 List<RankingListEntry> filterRankingEntriesBySearch(
   List<RankingListEntry> entries,
   String query,
@@ -242,30 +268,29 @@ int? teamLevelRank(AppUserProfile? player1, AppUserProfile? player2) {
   return r1 > r2 ? r1 : r2;
 }
 
-/// Filtra o ranking de atletas por nível exato (`null` = todos os níveis).
-/// Atleta sem nível resolvido nunca aparece quando um nível específico é
-/// escolhido.
+/// Filtra o ranking de atletas pela faixa de nível (`all` = todos os níveis).
+/// Atleta sem nível resolvido nunca aparece quando uma faixa é escolhida.
 List<AthleteRankingRow> filterAthleteRowsByLevel(
   List<AthleteRankingRow> rows,
-  int? levelRank,
+  RankingLevelFilter level,
   Map<String, int?> levelRankByAthleteId,
 ) {
-  if (levelRank == null) return rows;
+  if (level == RankingLevelFilter.all) return rows;
   final filtered = rows
-      .where((row) => levelRankByAthleteId[row.athleteId] == levelRank)
+      .where((row) => level.matchesRank(levelRankByAthleteId[row.athleteId]))
       .toList();
   return assignRanks(filtered);
 }
 
-/// Filtra o ranking de duplas por nível exato (`null` = todos os níveis).
+/// Filtra o ranking de duplas pela faixa de nível (`all` = todos os níveis).
 List<TeamRankingRow> filterTeamRowsByLevel(
   List<TeamRankingRow> rows,
-  int? levelRank,
+  RankingLevelFilter level,
   Map<String, int?> levelRankByTeamId,
 ) {
-  if (levelRank == null) return rows;
+  if (level == RankingLevelFilter.all) return rows;
   final filtered = rows
-      .where((row) => levelRankByTeamId[row.teamId] == levelRank)
+      .where((row) => level.matchesRank(levelRankByTeamId[row.teamId]))
       .toList();
   return assignTeamRanks(filtered);
 }

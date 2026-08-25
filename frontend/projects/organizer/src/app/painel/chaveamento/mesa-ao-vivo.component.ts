@@ -4,30 +4,31 @@ import { deleteField, serverTimestamp } from 'firebase/firestore';
 import type { PillTone } from '../data/mock-data';
 import { initialsOf, truncateName } from '../data/mock-data';
 import {
+  applyBestOfChange,
+  buildPointWrite,
+  buildUndoWrite,
+  canReduceBestOf,
+  elapsedSecondsFromStart,
+  formatElapsedMmSs,
   lastUndoablePoint,
+  liveSetToMap,
+  needsStartingServe,
   recordPointTransaction,
+  setPointHint,
+  setRulesLabel,
+  setsWonOf,
   updateMatchFields,
   watchLiveMatch,
   watchPointEvents,
   type LiveMatch,
   type LivePointEvent,
-} from '../data/live-match-repository';
-import {
-  applyBestOfChange,
-  applyPoint,
-  canReduceBestOf,
-  elapsedSecondsFromStart,
-  formatElapsedMmSs,
-  liveSetToMap,
-  setPointHint,
-  setRulesLabel,
-  setsWonOf,
-  undoPoint,
-} from '../data/live-scoring';
-import type { MatchDisplayStatus } from '../data/matches-repository';
-import { updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
+  type MatchDisplayStatus,
+} from '@nexago/live-scoring';
+import { organizerLiveScoringContext } from '../data/live-scoring-context';
+import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
@@ -65,7 +66,7 @@ interface FeedRowView {
 @Component({
   selector: 'og-mesa-ao-vivo',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgAvatarComponent, OgPillComponent, OgConfirmDialogComponent, NxPageLoadingComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Mesa ao vivo" [subtitle]="headerSubtitle()">
       <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'jogos']">Voltar</a>
@@ -103,6 +104,23 @@ interface FeedRowView {
                 </span>
               }
             </div>
+
+            @if (askingServe()) {
+              <div class="og-mesa-ask">
+                <span class="og-mesa-ask-lbl">Quem começa sacando?</span>
+                @for (side of SIDES; track side) {
+                  <button
+                    type="button"
+                    class="og-mesa-askbtn"
+                    [disabled]="saving()"
+                    [attr.aria-label]="'Saque inicial para ' + sideLabel(side)"
+                    (click)="chooseServe(side)"
+                  >
+                    {{ truncate(sideLabel(side), 22) }}
+                  </button>
+                }
+              </div>
+            }
 
             <div class="og-mesa-board">
               <div class="og-mesa-side">
@@ -187,6 +205,7 @@ interface FeedRowView {
                   Desfazer último ponto
                 </button>
                 <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Trocar saque</button>
+                <button type="button" class="og-mini-btn og-mesa-revert" [disabled]="saving()" (click)="askRevert()">Tirar do ao vivo</button>
                 <div class="og-filter-bar og-mesa-format">
                   @for (option of [1, 3]; track option) {
                     <button type="button" class="og-chip" [class.active]="bestOf() === option" [disabled]="saving()" (click)="setFormat(option)">
@@ -218,6 +237,19 @@ interface FeedRowView {
         }
       </div>
     </div>
+
+    @if (confirmingRevert()) {
+      <og-confirm-dialog
+        title="Tirar a partida do ao vivo?"
+        [message]="revertMessage()"
+        confirmLabel="Tirar do ao vivo"
+        [destructive]="true"
+        [busy]="saving()"
+        [error]="revertError()"
+        (confirmed)="revert()"
+        (cancelled)="dismissRevert()"
+      />
+    }
   `,
   styles: `
     .og-mesa-top {
@@ -283,6 +315,46 @@ interface FeedRowView {
     }
     .og-mesa-set[data-state='upcoming'] .val {
       color: var(--nx-text-mute);
+    }
+    .og-mesa-ask {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid color-mix(in srgb, var(--nx-orange-500) 32%, var(--nx-line));
+      background: color-mix(in srgb, var(--nx-orange-500) 7%, transparent);
+    }
+    .og-mesa-ask-lbl {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-orange-500);
+    }
+    /* Alvo de mesário na quadra: 40px de altura mesmo numa faixa temporária. */
+    .og-mesa-askbtn {
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid color-mix(in srgb, var(--nx-orange-500) 42%, var(--nx-line));
+      background: var(--nx-surface-0);
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .og-mesa-askbtn:not(:disabled):hover {
+      border-color: var(--nx-orange-500);
+    }
+    .og-mesa-askbtn:disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
     .og-mesa-board {
       display: flex;
@@ -417,6 +489,10 @@ interface FeedRowView {
       gap: 10px;
       flex-wrap: wrap;
     }
+    .og-mesa-revert {
+      color: var(--nx-live);
+      border-color: color-mix(in srgb, var(--nx-live) 45%, var(--nx-line));
+    }
     .og-mesa-format {
       margin-left: auto;
     }
@@ -478,11 +554,23 @@ interface FeedRowView {
         min-width: 52px;
       }
     }
+
+    /* iPad na quadra: "ponto" é o toque mais repetido do evento inteiro e o mais
+       caro de errar. Cresce por ponteiro grosso, e não por largura, porque o
+       tablet deitado tem 1180px — pela régua da janela seria desktop. */
+    @media (pointer: coarse) {
+      .og-mesa-point {
+        min-height: 132px;
+        justify-content: center;
+        padding: 20px 12px;
+      }
+    }
   `,
 })
 export class MesaAoVivoComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly scoring = organizerLiveScoringContext();
   protected readonly initialsOf = initialsOf;
   protected readonly truncate = truncateName;
 
@@ -498,6 +586,8 @@ export class MesaAoVivoComponent {
   protected readonly saving = signal(false);
   protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  protected readonly confirmingRevert = signal(false);
+  protected readonly revertError = signal<string | null>(null);
 
   constructor() {
     // A mesa é dirigida pelo doc em tempo real: troca de matchId refaz as assinaturas.
@@ -512,6 +602,7 @@ export class MesaAoVivoComponent {
         return;
       }
       const unsubMatch = watchLiveMatch(
+        this.scoring,
         id,
         (m) => {
           this.live.set(m);
@@ -519,7 +610,7 @@ export class MesaAoVivoComponent {
         },
         () => this.liveLoaded.set(true),
       );
-      const unsubEvents = watchPointEvents(id, (events) => this.events.set(events));
+      const unsubEvents = watchPointEvents(this.scoring, id, (events) => this.events.set(events));
       onCleanup(() => {
         unsubMatch();
         unsubEvents();
@@ -601,6 +692,20 @@ export class MesaAoVivoComponent {
     return null;
   });
 
+  protected readonly SIDES = ['A', 'B'] as const;
+
+  protected sideLabel(side: 'A' | 'B'): string {
+    return side === 'A' ? this.teamALabel() : this.teamBLabel();
+  }
+
+  /** A pergunta de abertura do saque — mesma regra (`needsStartingServe`) da mesa do portal do
+   *  atleta e da mesa I1 do app, pra que as três perguntem na mesma janela. */
+  protected readonly askingServe = computed(() => {
+    const m = this.match();
+    if (!m) return false;
+    return needsStartingServe({ servingTeamId: m.servingTeamId, status: m.status, teamAId: m.teamAId, teamBId: m.teamBId });
+  });
+
   protected readonly canScore = computed(() => !this.saving() && this.status() === 'in_progress' && this.teamsReady());
 
   /** Último ponto ainda "vivo" (replay de `pointEvents` casando undo com ponto) — alvo do
@@ -659,36 +764,68 @@ export class MesaAoVivoComponent {
     }
   }
 
+  /** Placar já lançado: define se o diálogo avisa que algo será descartado. */
+  private readonly hasScore = computed(() => this.match()?.sets.some((s) => s.a > 0 || s.b > 0) ?? false);
+
+  protected readonly revertMessage = computed(() => {
+    const base = 'A partida volta para "Agendada" e sai do ao vivo no portal e no app dos atletas. Horário, quadra e check-in continuam como estão.';
+    if (!this.hasScore()) return `${base} Nenhum ponto foi marcado ainda.`;
+    const w = this.wins();
+    const s = this.currentSet();
+    return `${base} O placar já lançado (${w.a}×${w.b} em sets, ${s.a}-${s.b} no set atual) e o histórico ponto a ponto serão descartados — não dá para recuperar.`;
+  });
+
+  protected askRevert(): void {
+    if (this.saving() || this.status() !== 'in_progress') return;
+    this.revertError.set(null);
+    this.confirmingRevert.set(true);
+  }
+
+  protected dismissRevert(): void {
+    if (this.saving()) return;
+    this.confirmingRevert.set(false);
+  }
+
+  /** Inverso do START: o servidor devolve o doc para `Scheduled`, limpa o placar ao vivo e o
+   *  histórico ponto a ponto, e recalcula `liveMatchesNow`. A mesa reage sozinha pelo snapshot —
+   *  o card "Iniciar partida" volta a aparecer, pronto pra recomeçar do zero. */
+  protected async revert(): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || m.status !== 'in_progress') return;
+    this.saving.set(true);
+    this.busyKey.set('revert');
+    this.revertError.set(null);
+    this.feedback.set(null);
+    try {
+      await revertMatchToScheduled(m.id);
+      this.confirmingRevert.set(false);
+      this.feedback.set({ ok: true, message: 'Partida tirada do ao vivo — voltou para agendada, no mesmo horário e quadra.' });
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.revertError.set((e as Error).message || 'Falha ao tirar a partida do ao vivo.');
+    } finally {
+      this.saving.set(false);
+      this.busyKey.set(null);
+    }
+  }
+
   /** Mesma escrita do `_point` do app: transação com sets/currentSetIndex/status/saque +
-   *  evento `point`. O ponto final grava Completed+winnerId (avanço automático no servidor). */
+   *  evento `point`. O ponto final grava Completed+winnerId (avanço automático no servidor).
+   *
+   *  O placar sai do doc lido DENTRO da transação (`buildPointWrite`), não do snapshot da tela:
+   *  o listener só recebe a versão nova depois da transação resolver, e dois toques dentro
+   *  dessa janela gravavam o mesmo placar duas vezes. */
   protected async point(side: 'A' | 'B'): Promise<void> {
     const m = this.match();
     if (!m || !this.canScore()) return;
 
-    const result = applyPoint({ sets: m.sets, currentSetIndex: m.currentSetIndex, side, teamAId: m.teamAId, teamBId: m.teamBId, bestOf: m.bestOf });
-    const setIdx = this.currentSetIdx();
-    const current = result.sets[setIdx] ?? null;
-    const wins = setsWonOf(result.sets, m.bestOf);
-
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      await recordPointTransaction({
-        matchId: m.id,
-        matchUpdate: {
-          sets: result.sets.map(liveSetToMap),
-          currentSetIndex: result.currentSetIndex,
-          status: result.winnerId != null ? 'Completed' : 'In Progress',
-          servingTeamId: side === 'A' ? m.teamAId : m.teamBId,
-          ...(result.winnerId != null ? { winnerId: result.winnerId, matchEndedAt: serverTimestamp() } : {}),
-          ...(m.matchStartedAt == null ? { matchStartedAt: serverTimestamp() } : {}),
-          resultA: `${wins.a}`,
-          resultB: `${wins.b}`,
-        },
-        pointEvent: { type: 'point', side, setIndex: setIdx, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
-      });
-      if (result.winnerId != null) {
-        this.feedback.set({ ok: true, message: `Partida encerrada — vitória de ${result.winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.` });
+      const written = await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildPointWrite(fresh, side) });
+      const winnerId = written?.result.winnerId ?? null;
+      if (winnerId != null) {
+        this.feedback.set({ ok: true, message: `Partida encerrada — vitória de ${winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.` });
         await this.ctx.reloadMatches();
       }
     } catch (e) {
@@ -716,32 +853,34 @@ export class MesaAoVivoComponent {
     if (!m || !last || this.saving() || m.status === 'completed') return;
 
     const side = last.side ?? 'A';
-    const result = undoPoint({ sets: m.sets, currentSetIndex: last.setIndex, side });
-    const wins = setsWonOf(result.sets, m.bestOf);
-    const current = result.sets[result.currentSetIndex] ?? null;
 
     this.saving.set(true);
     this.busyKey.set('undo');
     this.feedback.set(null);
     try {
-      await recordPointTransaction({
-        matchId: m.id,
-        matchUpdate: {
-          sets: result.sets.map(liveSetToMap),
-          currentSetIndex: result.currentSetIndex,
-          status: 'In Progress',
-          winnerId: deleteField(),
-          matchEndedAt: deleteField(),
-          resultA: `${wins.a}`,
-          resultB: `${wins.b}`,
-        },
-        pointEvent: { type: 'undo-point', side, setIndex: result.currentSetIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
-      });
+      await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildUndoWrite(fresh, side, last.setIndex) });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao desfazer o ponto.' });
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);
+    }
+  }
+
+  /** Abre o saque na dupla escolhida. Não inicia a partida nem marca ponto: grava só o campo,
+   *  como o "Trocar saque" — daí em diante o rally resolve sozinho. */
+  protected async chooseServe(side: 'A' | 'B'): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || !this.askingServe()) return;
+    const teamId = side === 'A' ? m.teamAId : m.teamBId;
+    if (!teamId) return;
+    this.saving.set(true);
+    try {
+      await updateMatchFields(this.scoring, m.id, { servingTeamId: teamId });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao definir quem começa sacando.' });
+    } finally {
+      this.saving.set(false);
     }
   }
 
@@ -754,7 +893,7 @@ export class MesaAoVivoComponent {
     if (!next) return;
     this.saving.set(true);
     try {
-      await updateMatchFields(m.id, { servingTeamId: next });
+      await updateMatchFields(this.scoring, m.id, { servingTeamId: next });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o saque.' });
     } finally {
@@ -778,7 +917,7 @@ export class MesaAoVivoComponent {
     this.saving.set(true);
     this.feedback.set(null);
     try {
-      await updateMatchFields(m.id, {
+      await updateMatchFields(this.scoring, m.id, {
         bestOf: newBestOf,
         sets: result.sets.map(liveSetToMap),
         currentSetIndex: result.currentSetIndex,

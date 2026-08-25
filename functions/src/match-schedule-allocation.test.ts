@@ -41,19 +41,7 @@ describe("allocateCourtSlots", () => {
     assert.equal(slots[1].start.getTime(), dayStart.getTime() + 30 * 60 * 1000);
   });
 
-  // NOTA (Task 1 - refatoração pura): este teste documenta o comportamento
-  // ATUAL (herdado do código de produção em organizer-match-ops.ts, movido
-  // aqui sem alteração), não o comportamento desejado. Com uma única quadra
-  // candidata, `chosenStart` é semeado a partir de `courtBusyUntil[courts[0]]`
-  // SEM o ajuste de conflito de dupla; como o ajuste só empurra o horário pra
-  // frente, o valor ajustado da própria quadra semente nunca vence a
-  // comparação `start < chosenStart`. Resultado: quando nenhuma outra quadra
-  // oferece horário estritamente mais cedo, o descanso mínimo da dupla é
-  // IGNORADO — bug pré-existente, fora do escopo desta extração (Task 1 não
-  // muda comportamento). Ver task-1-report.md para detalhes e recomendação
-  // de correção dedicada (afeta também a futura cascata da Task 3-4, que
-  // reusa esta mesma função).
-  it("[bug conhecido, preservado] com 1 quadra só, o descanso mínimo da dupla NÃO empurra o início quando essa é a única candidata", () => {
+  it("com 1 quadra só, o descanso mínimo da dupla EMPURRA o início (bug corrigido)", () => {
     const dayStart = new Date("2026-08-25T10:00:00-03:00");
     const busyUntil = new Date(dayStart.getTime() + 45 * 60 * 1000);
     const docs = [fakeDoc("m1", {matchNumber: 1, teamAId: "t1", teamBId: "t2"})];
@@ -69,8 +57,26 @@ describe("allocateCourtSlots", () => {
       dayStart,
     });
 
-    // Comportamento real (bug): ignora `busyUntil` e agenda em `dayStart`.
-    assert.equal(slots[0].start.getTime(), dayStart.getTime());
+    assert.equal(slots[0].start.getTime(), busyUntil.getTime());
+  });
+
+  it("com 2 quadras, o descanso mínimo da dupla também EMPURRA o início mesmo quando as duas quadras estão livres desde o dayStart", () => {
+    const dayStart = new Date("2026-08-25T10:00:00-03:00");
+    const busyUntil = new Date(dayStart.getTime() + 45 * 60 * 1000);
+    const docs = [fakeDoc("m1", {matchNumber: 1, teamAId: "t1", teamBId: "t2"})];
+
+    const slots = allocateCourtSlots({
+      courts: [{id: "court-1"}, {id: "court-2"}],
+      unscheduled: docs,
+      courtBusyUntil: {"court-1": dayStart, "court-2": dayStart},
+      teamBusyUntil: {t1: busyUntil},
+      durationMin: 30,
+      minRestMin: 30,
+      avoidAthleteConflict: true,
+      dayStart,
+    });
+
+    assert.equal(slots[0].start.getTime(), busyUntil.getTime());
   });
 
   it("escolhe a quadra que fica livre mais cedo entre várias", () => {

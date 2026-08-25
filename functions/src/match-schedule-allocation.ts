@@ -59,11 +59,8 @@ export function allocateCourtSlots(params: {
 
   for (const doc of sorted) {
     const data = doc.data();
-    let chosenCourt = courts[0].id;
-    let chosenStart = courtBusyUntil[chosenCourt] ?? dayStart;
-    if (chosenStart < dayStart) chosenStart = new Date(dayStart);
 
-    for (const court of courts) {
+    const candidates = courts.map((court) => {
       let start = courtBusyUntil[court.id] ?? dayStart;
       if (start < dayStart) start = new Date(dayStart);
 
@@ -75,11 +72,13 @@ export function allocateCourtSlots(params: {
         }
       }
 
-      if (start < chosenStart) {
-        chosenStart = start;
-        chosenCourt = court.id;
-      }
-    }
+      return {courtId: court.id, start};
+    });
+    // `courts` nunca é vazio (ambos os chamadores garantem isso), então
+    // `reduce` sem valor inicial é seguro e tipa como não-opcional.
+    const chosen = candidates.reduce((best, c) => (c.start < best.start ? c : best));
+    const chosenCourt = chosen.courtId;
+    const chosenStart = chosen.start;
 
     const end = new Date(chosenStart.getTime() + durationMin * 60 * 1000);
     slots.push({matchId: doc.id, courtId: chosenCourt, start: chosenStart, end});

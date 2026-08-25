@@ -152,8 +152,23 @@ export async function recalculateCourtSchedule(
     if (doc.id === trigger.triggerMatchId) return false;
     const d = doc.data();
     if (String(d.courtId ?? "").trim() !== trigger.courtId) return false;
-    // Só a fila POSTERIOR ao gatilho: quem já passou por ele não é afetado.
-    if (Number(d.matchNumber ?? 0) <= trigger.matchNumber) return false;
+    // Só pula quem é comprovadamente anterior ao gatilho — anterior na fila E
+    // no relógio. `matchNumber` sozinho não serve: a numeração REINICIA a cada
+    // categoria (como o `poolId`), e o painel agenda por categoria, então uma
+    // quadra com duas categorias na fila é o caso comum. Ali a categoria de
+    // número baixo pode estar marcada bem DEPOIS da âncora: excluí-la faria o
+    // alocador escrever por cima dela sem ninguém ser notificado.
+    // Sem `scheduleEndTime` não dá pra provar que é anterior, então entra na
+    // reatribuição — recalcular à toa é melhor que deixar passar sobreposição.
+    const matchNumber = Number(d.matchNumber ?? 0);
+    const scheduledEnd = d.scheduleEndTime ?
+      (d.scheduleEndTime as Timestamp).toDate() :
+      null;
+    const isDefinitelyBeforeAnchor =
+      matchNumber <= trigger.matchNumber &&
+      scheduledEnd !== null &&
+      scheduledEnd.getTime() <= trigger.anchor.getTime();
+    if (isDefinitelyBeforeAnchor) return false;
     if (isMatchCompleted(d.status) || isMatchCanceled(d.status)) return false;
     if (d.queueStatus === "on_court" || d.queueStatus === "completed") return false;
     return true;

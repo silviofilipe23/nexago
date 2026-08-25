@@ -59,6 +59,47 @@ function seedMatch(
   });
 }
 
+/** Intervalos [start, end) das partidas da quadra, lidos do store. */
+async function courtIntervals(
+  fake: FakeFirestore,
+  ids: string[],
+): Promise<Array<{id: string; start: number; end: number}>> {
+  const out: Array<{id: string; start: number; end: number}> = [];
+  for (const id of ids) {
+    const d = (await fake.doc(`${MATCHES_PATH}/${id}`).get()).data();
+    if (!d?.scheduleTime) continue;
+    const start = (d.scheduleTime as Timestamp).toMillis();
+    const end = d.scheduleEndTime ?
+      (d.scheduleEndTime as Timestamp).toMillis() :
+      start + 30 * 60 * 1000;
+    out.push({id, start, end});
+  }
+  return out;
+}
+
+/**
+ * Varredura par a par: DUAS partidas na mesma quadra nunca podem ter
+ * intervalos sobrepostos. É a invariante que a cascata não pode quebrar —
+ * e a que o recorte por `matchNumber` sozinho quebrava em silêncio.
+ */
+async function assertNoCourtOverlap(
+  fake: FakeFirestore,
+  ids: string[],
+): Promise<void> {
+  const intervals = await courtIntervals(fake, ids);
+  for (const a of intervals) {
+    for (const b of intervals) {
+      if (a.id >= b.id) continue;
+      const overlaps: boolean = a.start < b.end && b.start < a.end;
+      assert.equal(
+        overlaps,
+        false,
+        `${a.id} e ${b.id} ocupam a mesma quadra ao mesmo tempo`,
+      );
+    }
+  }
+}
+
 describe("recalculateCourtSchedule", () => {
   it("empurra as próximas partidas da mesma quadra a partir da âncora", async () => {
     const fake = new FakeFirestore();
@@ -199,24 +240,6 @@ describe("recalculateCourtSchedule", () => {
  * bug de "m1/m2 arrastadas + colisão de quadra" aparece.
  */
 describe("cascata ponta a ponta: reagendamento manual", () => {
-  /** Intervalos [start, end) das partidas da quadra, lidos do store. */
-  async function courtIntervals(
-    fake: FakeFirestore,
-    ids: string[],
-  ): Promise<Array<{id: string; start: number; end: number}>> {
-    const out: Array<{id: string; start: number; end: number}> = [];
-    for (const id of ids) {
-      const d = (await fake.doc(`${MATCHES_PATH}/${id}`).get()).data();
-      if (!d?.scheduleTime) continue;
-      const start = (d.scheduleTime as Timestamp).toMillis();
-      const end = d.scheduleEndTime ?
-        (d.scheduleEndTime as Timestamp).toMillis() :
-        start + 30 * 60 * 1000;
-      out.push({id, start, end});
-    }
-    return out;
-  }
-
   function seedQueue(fake: FakeFirestore): void {
     seedMatch(fake, "m1", {
       matchNumber: 1,
@@ -290,7 +313,7 @@ describe("cascata ponta a ponta: reagendamento manual", () => {
     assert.ok(m3Interval);
     for (const other of intervals) {
       if (other.id === "m3") continue;
-      const overlaps: boolean =other.start < m3Interval.end && m3Interval.start < other.end;
+      const overlaps: boolean = other.start < m3Interval.end && m3Interval.start < other.end;
       assert.equal(overlaps, false, `${other.id} colide com m3 na mesma quadra`);
     }
   });
@@ -325,14 +348,129 @@ describe("cascata ponta a ponta: reagendamento manual", () => {
       "âncora é o FIM de m3 (18:30), não o início (18:00)",
     );
 
-    const intervals = await courtIntervals(fake, ["m1", "m2", "m3", "m4"]);
-    for (const a of intervals) {
-      for (const b of intervals) {
-        if (a.id >= b.id) continue;
-        const overlaps: boolean =a.start < b.end && b.start < a.end;
-        assert.equal(overlaps, false, `${a.id} colide com ${b.id}`);
-      }
+    await assertNoCourtOverlap(fake, ["m1", "m2", "m3", "m4"]);
+  });
+
+  it("mover m3 pra MAIS CEDO não deixa a fila por cima de quem ficou pra trás", async () => {
+    // Espelho do caso anterior: m3 vai pra 13:15–13:45, ANTES de m1/m2. m1 e m2
+    // têm matchNumber MENOR que o gatilho, mas seus horários já agendados caem
+    // DEPOIS da nova âncora — se o recorte olhar só a numeração, elas somem do
+    // alocador e m4 acaba escrita por cima de m1.
+    const fake = new FakeFirestore();
+    seedQueue(fake);
+    seedMatch(fake, "m3", {
+      matchNumber: 3,
+      scheduleTime: ts("2026-08-25T13:15:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T13:45:00-03:00"),
+      teamAId: "team-e",
+      teamBId: "team-f",
+    });
+    seedMatch(fake, "m4", {
+      matchNumber: 4,
+      scheduleTime: ts("2026-08-25T15:30:00-03:00"),
+      scheduleEndTime: ts("2026-08-25T16:00:00-03:00"),
+      teamAId: "team-g",
+      teamBId: "team-h",
+    });
+
+    const trigger = determineRecalcTrigger(
+      "m3",
+      beforeM3,
+      {
+        ...beforeM3,
+        scheduleTime: ts("2026-08-25T13:15:00-03:00"),
+        scheduleEndTime: ts("2026-08-25T13:45:00-03:00"),
+      },
+      30,
+    );
+    assert.ok(trigger);
+    assert.equal(
+      trigger.anchor.toISOString(),
+      new Date("2026-08-25T13:45:00-03:00").toISOString(),
+    );
+
+    await recalculateCourtSchedule(db(fake), PROJECT_ID, trigger, {
+      durationMin: 30,
+      minRestMin: 30,
+    });
+
+    await assertNoCourtOverlap(fake, ["m1", "m2", "m3", "m4"]);
+  });
+});
+
+/**
+ * O recorte da fila por `matchNumber` sozinho assume que a numeração é global
+ * no torneio — mas ela REINICIA a cada categoria (mesma pegadinha já conhecida
+ * do `poolId`). Como o painel agenda POR CATEGORIA, uma quadra com duas
+ * categorias na fila é o caso COMUM, e a categoria de numeração baixa pode
+ * estar agendada bem DEPOIS da partida-gatilho.
+ */
+describe("cascata com fila multi-categoria na mesma quadra", () => {
+  it("reagenda também a categoria de matchNumber baixo agendada mais tarde", async () => {
+    const fake = new FakeFirestore();
+
+    // Categoria A ocupa 14:00–16:30 (matchNumbers 9..13).
+    const catA = [
+      ["a9", 9, "14:00", "14:30"],
+      ["a10", 10, "14:30", "15:00"],
+      ["a11", 11, "15:00", "15:30"],
+      ["a12", 12, "15:30", "16:00"],
+      ["a13", 13, "16:00", "16:30"],
+    ] as const;
+    for (const [id, mn, start, end] of catA) {
+      seedMatch(fake, id, {
+        categoryId: "cat-a",
+        matchNumber: mn,
+        scheduleTime: ts(`2026-08-25T${start}:00-03:00`),
+        scheduleEndTime: ts(`2026-08-25T${end}:00-03:00`),
+        teamAId: `team-${id}-a`,
+        teamBId: `team-${id}-b`,
+        ...(id === "a9" ?
+          // Gatilho: terminou 50min atrasada (15:20 em vez de 14:30).
+          {status: "Completed", matchEndedAt: ts("2026-08-25T15:20:00-03:00")} :
+          {}),
+      });
     }
+
+    // Categoria B foi agendada DEPOIS, na mesma quadra — numeração reinicia.
+    const catB = [
+      ["b1", 1, "16:30", "17:00"],
+      ["b2", 2, "17:00", "17:30"],
+    ] as const;
+    for (const [id, mn, start, end] of catB) {
+      seedMatch(fake, id, {
+        categoryId: "cat-b",
+        matchNumber: mn,
+        scheduleTime: ts(`2026-08-25T${start}:00-03:00`),
+        scheduleEndTime: ts(`2026-08-25T${end}:00-03:00`),
+        teamAId: `team-${id}-a`,
+        teamBId: `team-${id}-b`,
+      });
+    }
+
+    const shifts = await recalculateCourtSchedule(
+      db(fake),
+      PROJECT_ID,
+      {
+        tournamentId: TOURNAMENT_ID,
+        dayKey: DAY_KEY,
+        courtId: COURT_ID,
+        anchor: new Date("2026-08-25T15:20:00-03:00"),
+        triggerMatchId: "a9",
+        matchNumber: 9,
+      },
+      {durationMin: 30, minRestMin: 30},
+    );
+
+    // As partidas de B não podem ficar órfãs: ocupam a quadra depois da âncora,
+    // então precisam entrar no recálculo (e, por tabela, nas notificações).
+    const shiftedIds = shifts.map((s) => s.matchId).sort();
+    assert.ok(shiftedIds.includes("b1"), `b1 ficou fora do recálculo: ${shiftedIds}`);
+    assert.ok(shiftedIds.includes("b2"), `b2 ficou fora do recálculo: ${shiftedIds}`);
+
+    await assertNoCourtOverlap(fake, [
+      "a9", "a10", "a11", "a12", "a13", "b1", "b2",
+    ]);
   });
 });
 

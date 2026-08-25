@@ -1005,6 +1005,37 @@ export const advanceBracketWinner = onCall(async (request) => {
   return {ok: true, ...result};
 });
 
+export async function updateMatchOpsSettingsCore(
+  db: Firestore,
+  uid: string,
+  tournamentId: string,
+  dynamicRescheduleEnabled: boolean,
+): Promise<{ok: true; dynamicRescheduleEnabled: boolean}> {
+  await assertCanManageTournament(db, uid, tournamentId);
+  await db.doc(`tournaments/${tournamentId}`).set(
+    {
+      matchOps: {dynamicRescheduleEnabled},
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+  return {ok: true, dynamicRescheduleEnabled};
+}
+
+export const updateMatchOpsSettings = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const tournamentId = (request.data?.tournamentId as string)?.trim();
+  if (!tournamentId) {
+    throw new HttpsError("invalid-argument", "tournamentId obrigatório");
+  }
+  const dynamicRescheduleEnabled = request.data?.dynamicRescheduleEnabled === true;
+
+  const db = getFirestore();
+  return updateMatchOpsSettingsCore(db, uid, tournamentId, dynamicRescheduleEnabled);
+});
+
 export const autoScheduleTournamentDay = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");

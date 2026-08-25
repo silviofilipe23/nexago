@@ -97,6 +97,15 @@ class _OrganizerMatchLiveTablePageState
     setState(() => _timeouts = {..._timeouts, side: current + 1});
   }
 
+  /// Desconta um tempo técnico lançado por engano — cada painel tem o seu
+  /// próprio botão, não depende de quem está sacando como o "Tempo técnico"
+  /// da barra de baixo.
+  void _removeTimeout(String side) {
+    final current = _timeouts[side] ?? 0;
+    if (current <= 0) return;
+    setState(() => _timeouts = {..._timeouts, side: current - 1});
+  }
+
   Future<void> _enterPresentMode() async {
     setState(() => _presentMode = true);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -107,6 +116,73 @@ class _OrganizerMatchLiveTablePageState
     setState(() => _presentMode = false);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     await WakelockPlus.disable();
+  }
+
+  /// Ações que não couberam nos 2 painéis + barra de baixo da mesa do modo
+  /// full: formato, placar completo, histórico, modo exibição e sair do
+  /// próprio modo full — tudo que a mesa normal já tinha antes.
+  Future<void> _showFullModeMoreMenu({
+    required TournamentMatch match,
+    required LiveTableTeamData teamA,
+    required LiveTableTeamData teamB,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!match.isCompleted)
+              ListTile(
+                leading: const Icon(Icons.tune_rounded),
+                title: const Text('Alterar formato'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showFormatSheet(match);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.edit_note_rounded),
+              title: const Text('Placar completo'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openQuickScoreSheet(match: match, teamA: teamA, teamB: teamB);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.schedule_rounded),
+              title: const Text('Histórico'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                context.push(
+                  organizerMatchSummaryPath(widget.tournamentId, widget.matchId),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.fullscreen_rounded),
+              title: const Text('Modo exibição'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _enterPresentMode();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close_rounded),
+              title: const Text('Sair do modo full'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _toggleFullMode();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   TournamentMatch? _currentMatch() {
@@ -611,8 +687,60 @@ class _OrganizerMatchLiveTablePageState
                   );
                 }
 
-                final leftSide = _sidesSwapped ? 'B' : 'A';
-                final rightSide = _sidesSwapped ? 'A' : 'B';
+                if (_fullMode) {
+                  final needsServe = MatchScoringLogic.needsStartingServe(
+                    servingTeamId: match.servingTeamId,
+                    status: match.status,
+                    teamAId: match.teamAId,
+                    teamBId: match.teamBId,
+                  );
+                  void handleTap(String side) {
+                    if (needsServe) {
+                      _chooseServe(side);
+                    } else {
+                      _point(side);
+                    }
+                  }
+
+                  return LiveTableFullModeMesa(
+                    teamA: _sidesSwapped ? teamB : teamA,
+                    teamB: _sidesSwapped ? teamA : teamB,
+                    scoreA: liveTableCurrentSetScore(
+                      match,
+                      sideA: !_sidesSwapped,
+                    ),
+                    scoreB: liveTableCurrentSetScore(
+                      match,
+                      sideA: _sidesSwapped,
+                    ),
+                    isServingA: liveTableIsServing(
+                      match,
+                      sideA: !_sidesSwapped,
+                    ),
+                    isServingB: liveTableIsServing(
+                      match,
+                      sideA: _sidesSwapped,
+                    ),
+                    timeoutsA: _timeouts[_sidesSwapped ? 'B' : 'A'] ?? 0,
+                    timeoutsB: _timeouts[_sidesSwapped ? 'A' : 'B'] ?? 0,
+                    enabled: actionsEnabled,
+                    onTapA: () => handleTap(_sidesSwapped ? 'B' : 'A'),
+                    onTapB: () => handleTap(_sidesSwapped ? 'A' : 'B'),
+                    onRemoveTimeoutA: () =>
+                        _removeTimeout(_sidesSwapped ? 'B' : 'A'),
+                    onRemoveTimeoutB: () =>
+                        _removeTimeout(_sidesSwapped ? 'A' : 'B'),
+                    onSwapServe: _swapServe,
+                    onSwapSides: _swapSides,
+                    onAddTimeout: () => _addTimeout(match),
+                    onUndo: _undoLastPoint,
+                    onMore: () => _showFullModeMoreMenu(
+                      match: match,
+                      teamA: teamA,
+                      teamB: teamB,
+                    ),
+                  );
+                }
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -642,37 +770,19 @@ class _OrganizerMatchLiveTablePageState
                         onChoose: _chooseServe,
                       ),
                     LiveTableTeamScoreBoard(
-                      teamA: _sidesSwapped ? teamB : teamA,
-                      teamB: _sidesSwapped ? teamA : teamB,
-                      scoreA: liveTableCurrentSetScore(
-                        match,
-                        sideA: !_sidesSwapped,
-                      ),
-                      scoreB: liveTableCurrentSetScore(
-                        match,
-                        sideA: _sidesSwapped,
-                      ),
-                      isServingA: liveTableIsServing(
-                        match,
-                        sideA: !_sidesSwapped,
-                      ),
-                      isServingB: liveTableIsServing(
-                        match,
-                        sideA: _sidesSwapped,
-                      ),
-                      seedA: liveTableTeamSeed(match, sideA: !_sidesSwapped),
-                      seedB: liveTableTeamSeed(match, sideA: _sidesSwapped),
+                      teamA: teamA,
+                      teamB: teamB,
+                      scoreA: liveTableCurrentSetScore(match, sideA: true),
+                      scoreB: liveTableCurrentSetScore(match, sideA: false),
+                      isServingA: liveTableIsServing(match, sideA: true),
+                      isServingB: liveTableIsServing(match, sideA: false),
+                      seedA: liveTableTeamSeed(match, sideA: true),
+                      seedB: liveTableTeamSeed(match, sideA: false),
                       enabled: actionsEnabled,
-                      onAddPointA: () => _point(leftSide),
-                      onAddPointB: () => _point(rightSide),
-                      onSubtractA: () => _undoIfSide(leftSide),
-                      onSubtractB: () => _undoIfSide(rightSide),
-                      timeoutsA: _fullMode
-                          ? _timeouts[_sidesSwapped ? 'B' : 'A']
-                          : null,
-                      timeoutsB: _fullMode
-                          ? _timeouts[_sidesSwapped ? 'A' : 'B']
-                          : null,
+                      onAddPointA: () => _point('A'),
+                      onAddPointB: () => _point('B'),
+                      onSubtractA: () => _undoIfSide('A'),
+                      onSubtractB: () => _undoIfSide('B'),
                     ),
                     LiveTableSetRules(
                       rulesLabel: rules,
@@ -708,29 +818,11 @@ class _OrganizerMatchLiveTablePageState
                     ),
                     Expanded(
                       child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Dentro da área rolável, não como irmão fixo do
-                            // Column principal: numa tela baixa, a barra
-                            // extra do modo full não pode empurrar o layout
-                            // pra além da altura disponível (RenderFlex
-                            // overflow) — aqui ela só exige um scroll a mais.
-                            if (_fullMode)
-                              LiveTableFullModeBar(
-                                enabled: actionsEnabled,
-                                sidesSwapped: _sidesSwapped,
-                                onSwapSides: _swapSides,
-                                onAddTimeout: () => _addTimeout(match),
-                                onEnterPresent: _enterPresentMode,
-                              ),
-                            LiveTablePointFeed(
-                              setIndex: setIdx,
-                              events: events,
-                              teamA: teamA,
-                              teamB: teamB,
-                            ),
-                          ],
+                        child: LiveTablePointFeed(
+                          setIndex: setIdx,
+                          events: events,
+                          teamA: teamA,
+                          teamB: teamB,
                         ),
                       ),
                     ),

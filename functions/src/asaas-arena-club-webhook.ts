@@ -13,6 +13,7 @@ import {
   type Firestore,
   type Transaction,
 } from "firebase-admin/firestore";
+import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {refundAsaasPayment} from "./asaas-booking-payment";
@@ -25,6 +26,11 @@ import {creditArenaWalletFromClubPayment} from "./arena-wallet";
 import {CLUB_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {resolveAthleteCpfCnpj} from "./asaas-customer";
+import {
+  requestInvoiceForPaidClubSpot,
+  shouldAttemptFiscalInvoice,
+} from "./fiscal/payment-hooks";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -51,6 +57,29 @@ const defaultDeps: ClubWebhookDeps = {
     await deliverNotificationToUser({...input, requireInteraction: false});
   },
 };
+
+/**
+ * Nome e CPF do atleta pagador, para a nota fiscal. Mesma resolução usada na
+ * cobrança PIX (getAuth + resolveAthleteCpfCnpj) — o webhook não tem CPF em
+ * escopo, só o uid do participante.
+ */
+async function resolvePayerForInvoice(
+  athleteId: string,
+): Promise<{nome: string; cpfCnpj: string} | null> {
+  let nome = "Atleta NexaGO";
+  try {
+    const user = await getAuth().getUser(athleteId);
+    nome = user.displayName?.trim() || nome;
+  } catch {
+    // segue com fallback
+  }
+  try {
+    const cpfCnpj = await resolveAthleteCpfCnpj(athleteId);
+    return {nome, cpfCnpj};
+  } catch {
+    return null;
+  }
+}
 
 export async function processArenaClubSessionAsaasNotification(
   db: Firestore,
@@ -163,6 +192,26 @@ export async function processArenaClubSessionAsaasNotification(
           });
         } catch (walletErr) {
           logger.error(`Asaas clubinho ${sessionId}: wallet credit failed`, walletErr);
+        }
+
+        try {
+          // Idem reservas: só resolve o pagador se a arena emite nota mesmo.
+          const payer = (await shouldAttemptFiscalInvoice(db, arenaId))
+            ? await resolvePayerForInvoice(athleteUid)
+            : null;
+          if (payer) {
+            await requestInvoiceForPaidClubSpot(db, {
+              arenaId,
+              sessionId,
+              participantId: athleteUid,
+              asaasPaymentId: paymentId,
+              grossReais: paidReais,
+              tomador: {nome: payer.nome, cpfCnpj: payer.cpfCnpj},
+              tomadorUid: athleteUid,
+            });
+          }
+        } catch (fiscalErr) {
+          logger.error(`Asaas clubinho ${sessionId}: fiscal request failed`, fiscalErr);
         }
       }
       await markProcessed("approved");

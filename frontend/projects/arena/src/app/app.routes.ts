@@ -134,6 +134,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/financeiro/notas',
+    title: 'Notas fiscais — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/finance/panel-fiscal-invoices.component').then(
+        (m) => m.PanelFiscalInvoicesComponent,
+      ),
+  },
+  {
     path: 'painel/comandas',
     title: 'Comandas — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('comandas')],
@@ -277,6 +286,13 @@ export const routes: Routes = [
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('quadras')],
     loadComponent: () =>
       import('./painel/courts/panel-court-form.component').then((m) => m.PanelCourtFormComponent),
+  },
+  {
+    path: 'painel/fiscal',
+    title: 'Notas fiscais — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/fiscal/panel-fiscal.component').then((m) => m.PanelFiscalComponent),
   },
   {
     path: 'painel/relatorios/ocupacao',

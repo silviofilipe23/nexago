@@ -412,6 +412,18 @@ export {
   onTournamentMatchCompletedScoreBracketPredictions,
 } from "./tournament-predictions";
 export {publishArenaSite, unpublishArenaSite} from "./arena-sites";
+
+// NFS-e da arena (Fatia A) — emissão via Focus NFe, disparada pelo trigger
+// quando o pedido nasce em `fiscalInvoices`.
+export {
+  saveArenaFiscalConfig,
+  setArenaFiscalMode,
+  getArenaFiscalRequirements,
+} from "./fiscal/arena-fiscal-config";
+export {onFiscalInvoiceRequested} from "./fiscal/invoice-processor";
+export {fiscalIssuerWebhook} from "./fiscal/invoice-webhook";
+export {emitActivationTestInvoice, onActivationTestInvoiceResolved} from "./fiscal/activation";
+export {retryFiscalInvoice} from "./fiscal/invoice-retry";
 export {
   getFinanceOverview,
   upsertPlatformCost,

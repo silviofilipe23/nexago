@@ -1,0 +1,936 @@
+/* Mini-site público da arena — template "premium" (protótipo Meu Site · nexaGO).
+ *
+ * Porta de `arena-site.module.css` (site Next.js) para um `.scss` de componente Angular. A
+ * página é dark-first e NÃO acompanha o `data-theme` do site institucional (`tokens.scss`): o
+ * template foi desenhado sobre o preto #050505 e é a marca da arena, não a do nexaGO — por
+ * isso a paleta é local a `.page`, não os tokens globais que invertem no tema claro.
+ *
+ * A cor de destaque vem do catálogo fechado da arena via `--arena-accent`, ligada inline no
+ * `<main>` pelo componente (`[style.--arena-accent]`).
+ *
+ * Encapsulamento de view: `ArenaNav`, `ArenaMap` e os 3 componentes de `arena-schedule.ts` têm
+ * seus próprios `.scss` — as custom properties abaixo cruzam essa fronteira normalmente (herança
+ * de CSS, não afetada pelo Angular), mas classes utilitárias como `.strip-item`/`.btn` precisam
+ * ser redeclaradas em cada arquivo que as usa (comentado nos pontos relevantes).
+ */
+
+.page {
+  --bg: #050505;
+  --s0: #0b0b0c;
+  --s1: #131316;
+  --s2: #1b1b1f;
+  --line: rgba(255, 255, 255, 0.08);
+  --line2: rgba(255, 255, 255, 0.14);
+  --text: #f4f4f5;
+  --mute: rgba(244, 244, 245, 0.62);
+  --dim: rgba(244, 244, 245, 0.55);
+  --ac: var(--arena-accent);
+  --on-ac: #0a0a0a;
+  --ac-tint: color-mix(in oklab, var(--ac) 12%, transparent);
+  --ac-line: color-mix(in oklab, var(--ac) 32%, transparent);
+  --ac-soft: color-mix(in oklab, var(--ac) 75%, white);
+  --maxw: 1160px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  overflow-x: clip;
+  display: block;
+}
+
+.page a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.page img {
+  display: block;
+  max-width: 100%;
+}
+
+.wrap {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ac);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kicker::before {
+  content: '';
+  width: 22px;
+  height: 2px;
+  background: var(--ac);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.kicker-center {
+  justify-content: center;
+}
+
+.sec-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(30px, 4vw, 42px);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 14px 0 0;
+  /* A nav fixa não pode cobrir o título ao navegar por âncora. */
+  scroll-margin-top: 84px;
+}
+
+.sec-sub {
+  color: var(--mute);
+  font-size: 16.5px;
+  max-width: 560px;
+  margin: 14px 0 0;
+}
+
+.block {
+  padding: 104px 0 0;
+  scroll-margin-top: 68px;
+}
+
+// ── Botões ───────────────────────────────────────────────
+// Também definidos (subconjunto) em arena-nav.scss — encapsulamento de view do Angular impede
+// reaproveitar esta definição lá.
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14.5px;
+  height: 50px;
+  padding: 0 26px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: transform 0.18s var(--ease), box-shadow 0.18s, background 0.18s, border-color 0.18s;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-ac {
+  background: var(--ac);
+  color: var(--on-ac);
+}
+
+.btn-ac:hover {
+  box-shadow: 0 10px 32px -8px color-mix(in oklab, var(--ac) 55%, transparent);
+  color: var(--on-ac);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line2);
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+// ── Hero ─────────────────────────────────────────────────
+
+.hero {
+  position: relative;
+  min-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-fallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(80% 60% at 20% 30%, color-mix(in oklab, var(--ac) 26%, transparent), transparent 70%),
+    radial-gradient(60% 50% at 85% 20%, color-mix(in oklab, var(--ac) 12%, transparent), transparent 70%),
+    var(--s0);
+}
+
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 5, 5, 0.55) 0%,
+    rgba(5, 5, 5, 0.25) 40%,
+    rgba(5, 5, 5, 0.92) 88%,
+    #050505 100%
+  );
+  pointer-events: none;
+}
+
+.hero-glow {
+  position: absolute;
+  left: -10%;
+  bottom: -30%;
+  width: 70%;
+  height: 80%;
+  background: radial-gradient(closest-side, var(--ac-tint), transparent 70%);
+  pointer-events: none;
+}
+
+.hero-in {
+  position: relative;
+  padding-top: 150px;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(44px, 7vw, 84px);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  margin: 20px 0 0;
+  max-width: 14ch;
+}
+
+.hero-sub {
+  font-size: clamp(16px, 1.6vw, 19px);
+  color: var(--mute);
+  max-width: 520px;
+  margin: 22px 0 0;
+}
+
+.hero-cta {
+  display: flex;
+  gap: 14px;
+  margin: 34px 0 0;
+  flex-wrap: wrap;
+}
+
+.hero-strip {
+  position: relative;
+  margin-top: 64px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+}
+
+// Item da faixa do hero para quadras/cidade (sem lógica própria, ficam direto neste template).
+// O item "aberto agora" tem a mesma aparência mas é um componente à parte (ArenaHeroOpenNow) —
+// duplicado em arena-schedule.scss pela mesma razão de encapsulamento.
+.strip-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 22px 34px 26px 0;
+  margin-right: 34px;
+  font-size: 14px;
+  color: var(--mute);
+}
+
+.strip-item svg {
+  color: var(--ac);
+  flex-shrink: 0;
+}
+
+.strip-item b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+// ── Sobre ────────────────────────────────────────────────
+
+.sobre-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.05fr;
+  gap: 64px;
+  align-items: center;
+  margin-top: 26px;
+}
+
+// Sem fotos no "sobre" o texto ocupa a largura toda em vez de deixar metade da seção vazia.
+.sobre-grid-solo {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 64px;
+  align-items: center;
+  margin-top: 26px;
+}
+
+.sobre-copy p {
+  color: var(--mute);
+  font-size: 16.5px;
+  margin: 0 0 18px;
+}
+
+.sobre-body {
+  white-space: pre-line;
+}
+
+.sobre-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-top: 30px;
+}
+
+.sobre-facts > div {
+  background: var(--s0);
+  padding: 18px 20px;
+}
+
+.sobre-facts b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.sobre-facts span {
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+.sobre-media {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 220px;
+  gap: 14px;
+}
+
+.sobre-media .ph:first-child:nth-last-child(3) {
+  grid-column: 1 / -1;
+}
+
+.sobre-media .ph:only-child {
+  grid-column: 1 / -1;
+}
+
+.ph {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--s1);
+}
+
+.ph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+// ── Estrutura ────────────────────────────────────────────
+
+.amen-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 44px;
+}
+
+.amen {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px 22px;
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+
+.amen:hover {
+  border-color: var(--ac-line);
+  transform: translateY(-3px);
+}
+
+.amen-icon {
+  color: var(--ac);
+  background: var(--ac-tint);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+}
+
+.amen b {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 16px;
+}
+
+.amen span:last-child {
+  display: block;
+  font-size: 13px;
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+// ── Horários ─────────────────────────────────────────────
+
+.hours-wrap {
+  display: grid;
+  grid-template-columns: 0.9fr 1.4fr;
+  gap: 64px;
+  margin-top: 44px;
+  align-items: start;
+}
+
+.hours-note {
+  color: var(--mute);
+  font-size: 15.5px;
+  margin-top: 16px;
+}
+
+// ── Galeria ──────────────────────────────────────────────
+
+.gal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 200px;
+  gap: 14px;
+  margin-top: 44px;
+}
+
+.gal-a {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.gal-b {
+  grid-column: span 2;
+}
+
+// Grades pequenas: mantêm a linha cheia em vez de deixar buracos na grade de 4.
+.gal-full {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+
+.gal-half {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+// ── Planos ───────────────────────────────────────────────
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(var(--plan-cols, 3), 1fr);
+  gap: 18px;
+  margin-top: 44px;
+}
+
+.plan {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 32px 30px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.plan-feat {
+  border-color: var(--ac-line);
+  background: linear-gradient(180deg, var(--ac-tint), var(--s0) 55%);
+}
+
+.plan-flag {
+  position: absolute;
+  top: -13px;
+  left: 28px;
+  background: var(--ac);
+  color: var(--on-ac);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  padding: 6px 13px;
+  border-radius: 99px;
+}
+
+.plan-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.plan-price {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+  margin-top: 14px;
+}
+
+.plan-price-unit {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--dim);
+  letter-spacing: 0;
+}
+
+.plan-list {
+  list-style: none;
+  margin: 22px 0 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+}
+
+.plan-item {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--mute);
+}
+
+.plan-item svg {
+  color: var(--ac);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+// ── Torneios ─────────────────────────────────────────────
+
+.copa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.copa {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+
+// Torneio sem pôster: o card vira só o corpo, sem painel vazio ao lado.
+.copa-no-cover {
+  grid-template-columns: 1fr;
+}
+
+a.copa:hover {
+  border-color: var(--ac-line);
+  transform: translateY(-3px);
+}
+
+.copa-ph {
+  border-radius: 0;
+  min-height: 320px;
+  overflow: hidden;
+  background: var(--s1);
+}
+
+.copa-ph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.copa-body {
+  padding: 44px 46px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.copa-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 14px 0 0;
+}
+
+.copa-body p {
+  color: var(--mute);
+  font-size: 15.5px;
+  margin: 14px 0 0;
+  max-width: 44ch;
+}
+
+.copa-meta {
+  display: flex;
+  gap: 26px;
+  margin: 22px 0 28px;
+  flex-wrap: wrap;
+}
+
+.copa-meta div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--mute);
+}
+
+.copa-meta svg {
+  color: var(--ac);
+  flex-shrink: 0;
+}
+
+// ── Avaliações ───────────────────────────────────────────
+
+.reviews-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+
+.reviews-score {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.stars {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--ac);
+}
+
+.reviews-count {
+  font-size: 14px;
+  color: var(--mute);
+}
+
+.review-list {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.review-card {
+  margin: 0;
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-text {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.review-author {
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+// ── FAQ ──────────────────────────────────────────────────
+
+.faq {
+  max-width: 760px;
+  margin: 44px auto 0;
+}
+
+.faq-item {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--s0);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.faq-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15.5px;
+  cursor: pointer;
+}
+
+.faq-summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-summary svg {
+  color: var(--ac);
+  flex-shrink: 0;
+  transition: transform 0.25s var(--ease);
+}
+
+.faq-item[open] .faq-summary svg {
+  transform: rotate(45deg);
+}
+
+.faq-answer {
+  padding: 0 26px 22px;
+  color: var(--mute);
+  font-size: 14.5px;
+  max-width: 60ch;
+  margin: 0;
+  white-space: pre-line;
+}
+
+// ── Contato + mapa ───────────────────────────────────────
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.3fr;
+  gap: 18px;
+  margin-top: 44px;
+}
+
+.c-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.c-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+}
+
+a.c-card:hover {
+  border-color: var(--ac-line);
+  transform: translateY(-2px);
+  color: var(--text);
+}
+
+.c-icon {
+  color: var(--ac);
+  background: var(--ac-tint);
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.c-card b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 14.5px;
+}
+
+.c-card span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+.c-go {
+  margin-left: auto;
+  color: var(--dim);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.map-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 440px;
+}
+
+.map-addr {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 500;
+  background: rgba(10, 10, 11, 0.88);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100% - 32px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.map-addr svg {
+  color: var(--ac);
+  flex-shrink: 0;
+}
+
+.map-addr b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+}
+
+.map-addr span {
+  display: block;
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+// ── Rodapé ───────────────────────────────────────────────
+
+.footer {
+  margin-top: 110px;
+  border-top: 1px solid var(--line);
+}
+
+.foot-in {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 30px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.foot-nx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.foot-nx img {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+
+.foot-in a:hover {
+  color: var(--text);
+}
+
+// ── Responsivo ───────────────────────────────────────────
+
+@media (max-width: 960px) {
+  .sobre-grid,
+  .sobre-grid-solo,
+  .hours-wrap,
+  .contact-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+
+  .amen-grid,
+  .review-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .plans {
+    grid-template-columns: 1fr;
+  }
+
+  .copa {
+    grid-template-columns: 1fr;
+  }
+
+  .gal-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 160px;
+  }
+
+  .gal-a {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
+
+  .block {
+    padding: 72px 0 0;
+  }
+
+  .copa-body {
+    padding: 32px 26px;
+  }
+}
+
+@media (max-width: 620px) {
+  .wrap,
+  .foot-in {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .amen-grid,
+  .review-list {
+    grid-template-columns: 1fr;
+  }
+
+  .sobre-media {
+    grid-auto-rows: 170px;
+  }
+
+  .strip-item {
+    padding-right: 20px;
+    margin-right: 20px;
+  }
+
+  .foot-in {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}

@@ -58,8 +58,36 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/arena/arena-detail.page').then((m) => m.ArenaDetailPage),
   },
   {
-    // Rotas de fase 3+ (mini-sites, link pages, blog, docs) ainda não existem neste app —
-    // cai pro Next.js legado até serem portadas.
+    path: 's/:slug',
+    loadComponent: () => import('./pages/s/arena-site.page').then((m) => m.ArenaSitePage),
+  },
+  {
+    path: 'a/:slug',
+    loadComponent: () => import('./pages/a/athlete-link.page').then((m) => m.AthleteLinkPage),
+  },
+  {
+    path: 'o/:slug',
+    loadComponent: () => import('./pages/o/organizer-link.page').then((m) => m.OrganizerLinkPage),
+  },
+  {
+    path: 'blog',
+    loadComponent: () => import('./pages/blog/blog.page').then((m) => m.BlogPage),
+  },
+  {
+    path: 'blog/:slug',
+    loadComponent: () => import('./pages/blog/blog-post.page').then((m) => m.BlogPostPage),
+  },
+  {
+    path: 'docs',
+    loadComponent: () => import('./pages/docs/docs.page').then((m) => m.DocsPage),
+  },
+  {
+    path: 'docs/:audience',
+    loadComponent: () => import('./pages/docs/docs-audience.page').then((m) => m.DocsAudiencePage),
+  },
+  {
+    // Fase 4 (OG dinâmico + corte de deploy) não muda rotas — este é o fim do catálogo
+    // migrado. Qualquer rota fora daqui cai pro Next.js legado.
     path: '**',
     redirectTo: '',
   },

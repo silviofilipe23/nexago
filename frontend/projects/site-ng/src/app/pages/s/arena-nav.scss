@@ -1,0 +1,143 @@
+// Nav fixa do mini-site. As custom properties (--bg/--text/--mute/--line/--ac/...) são
+// definidas em `.page` (arena-site.page.scss) e herdadas normalmente pela cascata do CSS —
+// encapsulamento de view do Angular só afeta seletores, não a herança de custom properties.
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border-bottom: 1px solid transparent;
+  transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s;
+}
+
+.nav-scrolled {
+  background: rgba(5, 5, 5, 0.82);
+  border-bottom-color: var(--line);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.nav-in {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 32px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15.5px;
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--ac), color-mix(in oklab, var(--ac) 60%, #000));
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--on-ac);
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-links {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.nav-links a {
+  font-size: 13.5px;
+  color: var(--mute);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-links a:hover,
+.nav-links a:focus-visible {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-cta {
+  margin-left: auto;
+}
+
+.nav-links + .nav-cta {
+  margin-left: 0;
+}
+
+// ── Botões — subconjunto local (também definido em arena-site.page.scss). Encapsulamento de
+// view do Angular impede reaproveitar a definição do componente pai aqui.
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  transition: transform 0.18s var(--ease), box-shadow 0.18s, background 0.18s, border-color 0.18s;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-ac {
+  background: var(--ac);
+  color: var(--on-ac);
+}
+
+.btn-ac:hover {
+  box-shadow: 0 10px 32px -8px color-mix(in oklab, var(--ac) 55%, transparent);
+  color: var(--on-ac);
+}
+
+.btn-sm {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+@media (max-width: 960px) {
+  .nav-links {
+    display: none;
+  }
+}

@@ -1,0 +1,105 @@
+<main class="pb-24">
+  @if (current(); as audience) {
+    <div class="mx-auto max-w-6xl px-5 pt-28 sm:px-6 sm:pt-32">
+      <div nxReveal>
+        <nav aria-label="Trilha" class="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-text-dim">
+          <a routerLink="/docs" class="transition-colors hover:text-brand">Documentação</a>
+          <span aria-hidden="true">/</span>
+          <span class="text-text-mute">{{ audience.label }}</span>
+        </nav>
+
+        <div class="mt-6 max-w-3xl">
+          <h1 class="font-display text-[clamp(2rem,5vw,3.2rem)] font-800 leading-tight tracking-tight text-fg">
+            {{ audience.tagline }}
+          </h1>
+          <p class="mt-4 text-base leading-relaxed text-text-mute sm:text-lg">{{ audience.description }}</p>
+          <p class="mt-4 inline-flex items-center rounded-pill border border-line bg-surface-1 px-3.5 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-text-mute">
+            {{ audience.surface }}
+          </p>
+        </div>
+      </div>
+
+      <div nxReveal [nxRevealDelay]="60" class="mt-8 max-w-xl">
+        <app-docs-search [index]="searchIndex" />
+      </div>
+
+      <div class="mt-12 gap-12 lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside class="hidden lg:block">
+          <div class="sticky top-28 max-h-[calc(100dvh-8rem)] overflow-y-auto pb-8 pr-2">
+            <app-docs-sidebar [groups]="sidebarGroups()" />
+          </div>
+        </aside>
+
+        <div class="min-w-0">
+          @for (group of audience.groups; track group.title) {
+            <section [attr.aria-label]="group.title" class="mb-16 last:mb-0">
+              <h2 class="mb-2 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-brand">{{ group.title }}</h2>
+              <div class="space-y-12">
+                @for (feature of group.features; track feature.id) {
+                  <app-feature-section [feature]="feature" />
+                }
+              </div>
+            </section>
+          }
+
+          <nav aria-label="Outras documentações" class="mt-16 grid gap-3 border-t border-line pt-8 sm:grid-cols-2">
+            @if (prev(); as p) {
+              <a
+                [routerLink]="['/docs', p.id]"
+                class="group flex items-center gap-3 rounded-4 border border-line bg-surface-1 px-5 py-4 transition-colors duration-200 hover:border-brand/40"
+              >
+                <svg
+                  class="size-4 shrink-0 text-text-dim transition-colors group-hover:text-brand"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
+                </svg>
+                <span>
+                  <span class="block font-mono text-[10px] uppercase tracking-wider text-text-dim">Anterior</span>
+                  <span class="block text-sm font-bold text-fg">{{ p.label }}</span>
+                </span>
+              </a>
+            } @else {
+              <span aria-hidden="true"></span>
+            }
+            @if (next(); as n) {
+              <a
+                [routerLink]="['/docs', n.id]"
+                class="group flex items-center justify-end gap-3 rounded-4 border border-line bg-surface-1 px-5 py-4 text-right transition-colors duration-200 hover:border-brand/40 sm:col-start-2"
+              >
+                <span>
+                  <span class="block font-mono text-[10px] uppercase tracking-wider text-text-dim">Próxima</span>
+                  <span class="block text-sm font-bold text-fg">{{ n.label }}</span>
+                </span>
+                <svg
+                  class="size-4 shrink-0 text-text-dim transition-colors group-hover:text-brand"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+                </svg>
+              </a>
+            }
+          </nav>
+        </div>
+      </div>
+    </div>
+  } @else {
+    <div class="mx-auto max-w-2xl px-5 pb-24 pt-32 text-center sm:px-6">
+      <p class="font-display text-2xl font-700 text-fg">Documentação não encontrada</p>
+      <p class="mx-auto mt-3 max-w-sm text-sm text-text-mute">Essa audiência não existe. Volte para a documentação completa.</p>
+      <a nxButton="primary" routerLink="/docs" class="mt-7 inline-flex">Ver toda a documentação</a>
+    </div>
+  }
+</main>

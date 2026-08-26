@@ -1,0 +1,31 @@
+.map {
+  position: absolute;
+  inset: 0;
+  background: var(--s1);
+}
+
+// O pino (`.arena-map-pin`) é injetado pelo `divIcon` do Leaflet como string de HTML — fora do
+// template do Angular, então os elementos não recebem o atributo `_ngcontent-*` do
+// encapsulamento de view. Mesma razão para o chrome do próprio Leaflet (`.leaflet-control-*`).
+// `::ng-deep` desliga o encapsulamento só para esses seletores, escopado por `:host` para não
+// vazar para o resto da página — é o mecanismo padrão do Angular para estilizar DOM que uma
+// lib de terceiros insere diretamente.
+:host ::ng-deep .arena-map-pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ac);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px var(--ac-tint), 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+// Atribuição escura do Leaflet, para não estourar sobre o tema dark do mini-site.
+:host ::ng-deep .leaflet-control-attribution {
+  background: rgba(5, 5, 5, 0.7);
+  color: var(--dim);
+  font-size: 10px;
+}
+
+:host ::ng-deep .leaflet-control-attribution a {
+  color: var(--mute);
+}

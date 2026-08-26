@@ -1,0 +1,62 @@
+<div [class]="wrapperClasses()">
+  <svg [class]="searchIconClasses()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+  <input
+    #inputRef
+    type="search"
+    role="combobox"
+    [attr.aria-expanded]="showPanel()"
+    [attr.aria-controls]="listboxId"
+    aria-autocomplete="list"
+    aria-label="Buscar na documentação"
+    placeholder="Busque uma funcionalidade — inscrição, chaves, reservas…"
+    [value]="query()"
+    (input)="onInput($any($event.target).value)"
+    (focus)="onFocus()"
+    (keydown)="onInputKeydown($event)"
+    [class]="inputClasses()"
+  />
+  <kbd
+    class="hidden shrink-0 rounded-1 border border-line px-1.5 py-0.5 font-mono text-[10px] text-text-dim sm:inline-block"
+    aria-hidden="true"
+  >
+    /
+  </kbd>
+</div>
+
+@if (showPanel()) {
+  <div class="absolute inset-x-0 top-full z-30 pt-2">
+    <div class="max-h-[26rem] overflow-y-auto rounded-4 border border-line bg-surface-1 p-2 shadow-elev-3">
+      @if (results().length === 0) {
+        <div class="px-4 py-6 text-center">
+          <p class="text-sm font-semibold text-fg">Nada encontrado para "{{ query().trim() }}"</p>
+          <p class="mt-1 text-xs text-text-mute">Tente outro termo — ou fale com a gente pela página de contato.</p>
+        </div>
+      } @else {
+        <ul [id]="listboxId" role="listbox" aria-label="Resultados da busca">
+          @for (doc of results(); track doc.audience + '-' + doc.id; let i = $index) {
+            <li role="option" [attr.aria-selected]="i === cursor()">
+              <a
+                [routerLink]="['/docs', doc.audience]"
+                [fragment]="doc.id"
+                (click)="onResultClick()"
+                (mouseenter)="setCursor(i)"
+                [class]="resultClasses(i)"
+              >
+                <span class="flex items-center gap-2">
+                  <span class="text-sm font-bold tracking-tight text-fg">{{ doc.title }}</span>
+                  <span [class]="toneClasses(doc.audience)">{{ doc.audienceLabel }}</span>
+                </span>
+                <span class="mt-0.5 block truncate text-xs text-text-mute">{{ doc.summary }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+}
+
+<p class="sr-only" role="status" aria-live="polite">{{ statusText() }}</p>

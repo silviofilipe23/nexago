@@ -385,7 +385,8 @@
               }
             ],
             "styles": [
-              "projects/site-ng/src/styles.scss"
+              "projects/site-ng/src/styles.scss",
+              "node_modules/leaflet/dist/leaflet.css"
             ]
           },
           "configurations": {

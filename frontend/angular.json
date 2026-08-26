@@ -360,32 +360,32 @@
         }
       }
     },
-    "site-ng": {
+    "site": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
           "style": "scss"
         }
       },
-      "root": "projects/site-ng",
-      "sourceRoot": "projects/site-ng/src",
+      "root": "projects/site",
+      "sourceRoot": "projects/site/src",
       "prefix": "app",
       "architect": {
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "../dist/site-ng",
-            "browser": "projects/site-ng/src/main.ts",
-            "tsConfig": "projects/site-ng/tsconfig.app.json",
+            "outputPath": "../dist/site",
+            "browser": "projects/site/src/main.ts",
+            "tsConfig": "projects/site/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
               {
                 "glob": "**/*",
-                "input": "projects/site-ng/public"
+                "input": "projects/site/public"
               }
             ],
             "styles": [
-              "projects/site-ng/src/styles.scss",
+              "projects/site/src/styles.scss",
               "node_modules/leaflet/dist/leaflet.css"
             ]
           },
@@ -417,10 +417,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "site-ng:build:production"
+              "buildTarget": "site:build:production"
             },
             "development": {
-              "buildTarget": "site-ng:build:development"
+              "buildTarget": "site:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -431,16 +431,16 @@
         "test": {
           "builder": "@angular/build:karma",
           "options": {
-            "tsConfig": "projects/site-ng/tsconfig.spec.json",
+            "tsConfig": "projects/site/tsconfig.spec.json",
             "inlineStyleLanguage": "scss",
             "assets": [
               {
                 "glob": "**/*",
-                "input": "projects/site-ng/public"
+                "input": "projects/site/public"
               }
             ],
             "styles": [
-              "projects/site-ng/src/styles.scss"
+              "projects/site/src/styles.scss"
             ]
           }
         }

@@ -22,11 +22,11 @@
       "port": 4213
     },
     {
-      "name": "site",
+      "name": "site-legacy",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "frontend/projects/site",
+        "frontend/projects/site-legacy",
         "run",
         "dev",
         "--",
@@ -62,9 +62,9 @@
       "port": 4399
     },
     {
-      "name": "site-static",
+      "name": "site-legacy-static",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "frontend/projects/site/out", "-l", "3998"],
+      "runtimeArgs": ["--yes", "serve", "frontend/projects/site-legacy/out", "-l", "3998"],
       "port": 3998
     },
     {
@@ -82,13 +82,13 @@
       "port": 4310
     },
     {
-      "name": "site-ng",
+      "name": "site",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
         "frontend",
         "run",
-        "start:site-ng",
+        "start:site",
         "--",
         "--port",
         "4214"

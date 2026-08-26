@@ -6,6 +6,6 @@ export const GOOGLE_PLAY_URL = '#';
 
 export const GOOGLE_PLAY_COMING_SOON = 'Em breve no Google Play';
 
-export function isGooglePlayAvailable(): boolean {
+export function isGooglePlayAvailable() {
   return Boolean(GOOGLE_PLAY_URL && GOOGLE_PLAY_URL !== '#');
 }

@@ -1,3 +1,5 @@
+import type { LucideIcon } from 'lucide-react';
+
 export type DocAudienceId = 'atletas' | 'organizadores' | 'arenas';
 
 export type ChipTone = 'brand' | 'pending' | 'live' | 'win' | 'neutral';
@@ -5,8 +7,8 @@ export type ChipTone = 'brand' | 'pending' | 'live' | 'win' | 'neutral';
 export type MockChip = { label: string; tone?: ChipTone };
 
 /**
- * Blocos declarativos das ilustrações de tela (ScreenFigure). Cada bloco vira um elemento
- * esquemático no mock — a ilustração retrata o produto, não o site.
+ * Blocos declarativos das ilustrações de tela (ScreenFigure). Cada bloco vira
+ * um elemento esquemático no mock — a ilustração retrata o produto, não o site.
  */
 export type MockBlock =
   | { kind: 'banner'; title: string; sub?: string; cta?: string }
@@ -53,14 +55,7 @@ export type DocFeature = {
   /** Slug usado como âncora (#id) e nos links da busca. */
   id: string;
   title: string;
-  /**
-   * Nome do ícone em kebab-case, derivado do componente Lucide original da fonte
-   * (`Trophy` → `'trophy'`, `CalendarCheck` → `'calendar-check'`). Não é mais uma referência
-   * de componente (`LucideIcon`) — este app não tem pacote de ícones, então o nome é resolvido
-   * por `DocIcon` (`pages/docs/doc-icon.ts`), que sabe desenhar os nomes usados na documentação
-   * e cai num ícone genérico para qualquer nome que não reconheça.
-   */
-  icon: string;
+  icon: LucideIcon;
   summary: string;
   body: string[];
   flows?: DocFlow[];

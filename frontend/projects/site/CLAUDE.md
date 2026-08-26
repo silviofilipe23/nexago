@@ -1,162 +1,80 @@
 # nexaGO — Site (Web público)
 
-> **Atenção:** este projeto é **Next.js + React**, NÃO Angular. Estas instruções **sobrepõem** o `frontend/.claude/CLAUDE.md` (que é guia Angular e se aplica aos outros `projects/`). Nada de Angular, signals, `inject()` ou `@Component` aqui.
+> Este projeto é **Angular 20**, mesmo stack dos outros `projects/` do workspace (standalone
+> components, signals, zoneless). Migrado do Next.js/React em 4 fases — o código anterior
+> vive em `frontend/projects/site-legacy` (arquivado, não editar). Nada de JSX, `next/*` ou
+> Server Components aqui.
 
 ## O que é
 Site público do ecossistema nexaGO — plataforma de gestão de torneios e ligas de esportes de areia (beach tennis, vôlei de praia). O site cumpre **dois papéis**:
 
 1. **Landing / marketing** — apresentação do app, features, Liga nexaGO, prova social, CTA de download (App Store / Play Store).
-2. **Hub público dinâmico** — conteúdo aberto vindo do Firestore: rankings, torneios/etapas e perfis públicos de atletas e arenas.
+2. **Hub público dinâmico** — conteúdo aberto vindo do Firestore: rankings, torneios/etapas, arenas, ligas, mini-sites de arena e páginas de link, e perfis públicos.
 
 ## Stack
-- **Framework**: Next.js (App Router) + React + TypeScript (`strict`)
-- **Estilo**: Tailwind CSS v4 (`@theme`/CSS variables, alinhado ao restante do workspace)
-- **Animação**: **GSAP + ScrollTrigger** para cenas cinematográficas de scroll (pin/scrub); **Framer Motion** (`motion/react`) para microinterações e reveals de componente
-- **Compat shadcn**: `cn()` em `src/lib/utils.ts` (clsx + tailwind-merge), componentes reutilizáveis em `src/components/ui/`, e aliases de token `--color-background/foreground/muted-foreground` no `@theme` para componentes shadcn/21st.dev caírem direto
-- **Fontes**: Sora (display/títulos), Inter (UI/texto), JetBrains Mono (dados/código)
-- **Ícones**: Lucide ou Phosphor (`@phosphor-icons/react`) — sempre SVG, nunca emoji como ícone estrutural
-- **Dados**: Firebase JS SDK (Firestore, modular `firebase/firestore`) — somente leitura pública
-- **Deploy**: estático/SSR para conteúdo público (a definir)
+- **Framework**: Angular 20, standalone components, **zoneless** (sem `zone.js`), signals para estado local, `computed()` para estado derivado
+- **CSR puro, sem SSR/SSG** — cada visita busca dados do Firestore direto no navegador (`firebase/firestore/lite`). Decisão deliberada da migração: mesmo padrão dos outros apps do workspace, em troca de perder HTML pré-renderizado por rota (ver seção SEO abaixo pra como isso é compensado)
+- **Estilo**: Tailwind CSS v4 (`@theme` em `src/styles/tokens.scss`, mesmos valores 1:1 do site antigo)
+- **Animação**: **GSAP + ScrollTrigger** para cenas cinematográficas de scroll (hero, heroes de torneio/liga/arena — `afterNextRender` + `gsap.context()` + cleanup via `DestroyRef`); `RevealDirective` (`[nxReveal]`) para reveal-on-scroll simples via `IntersectionObserver` puro — não há Framer Motion aqui (era React-only), tudo virou GSAP ou CSS transitions
+- **Ícones**: sem pacote de ícones — SVGs desenhados à mão no estilo lucide (24×24, stroke), inline nos componentes. Docs tem um lookup central (`DocIcon`, nome kebab-case → SVG)
+- **Roteamento**: `@angular/router` com `withComponentInputBinding()` — parâmetros de rota (`:id`, `:slug`) chegam direto como `input.required<string>()`, sem `ActivatedRoute` manual
+- **Dados**: Firebase JS SDK **lite** (`firebase/firestore/lite`) — só leitura pública, sem listeners em tempo real. `liteDb` em `src/lib/firebase-lite.ts`. Config compartilhada via `@nexago/firebase-config` (mesmo path alias dos outros apps Angular do workspace)
+- **Deploy**: export estático (`ng build site`) pra Hostinger via FTP manual — ver `public/.htaccess` e a seção Deploy abaixo
 
-> O restante de `frontend/` é um monorepo Angular 20. Este site é um projeto **separado**, com seu próprio `package.json` e toolchain. A entrada `"site"` no `angular.json` da raiz é legado e deve ser removida quando o scaffold Next.js entrar.
-
-## Estrutura (App Router)
+## Estrutura
 ```
 src/
-  app/                  # rotas (App Router)
-    (marketing)/        # landing, features, liga, download
-    rankings/           # ranking público
-    torneios/           # torneios e etapas
-    [outras rotas públicas]
-  components/
-    ui/                 # primitivos reutilizáveis (Button, Card, Badge…)
-    sections/           # blocos de landing (Hero, Features, CTA…)
-    motion/             # wrappers de animação (Reveal, Stagger…)
+  app/
+    app.ts/.html          # shell — esconde header/footer em /s, /a, /o (mini-sites e link pages)
+    app.routes.ts          # todas as rotas, lazy-loaded via loadComponent
+    pages/                 # uma pasta por rota — página + seus componentes de apoio
+      home/sections/       # ~20 seções da landing, compostas em home.page.ts
+      torneios/ ligas/ arenas/ arena/  # hub público (listagem + detalhe), dados reais do Firestore
+      s/                    # mini-site de arena (/s/{slug}) — tema dinâmico por arena
+      a/ o/ link-bio/       # link-in-bio de arena/organizador — componente único compartilhado
+      docs/                 # documentação (54 recursos, 3 audiências) — busca + sidebar scrollspy
+      blog/                 # conteúdo estático local, sem CMS
+    shared/
+      hub/                  # StatusBadge, ArenaCard, filter-controls — compartilhados entre páginas do hub
+      ui/                   # ButtonDirective, StoreButtons, ToastService, ThemeToggle
+      layout/               # SiteHeader, SiteFooter
+      reveal.directive.ts
   lib/
-    firebase.ts         # init do Firebase (client)
-    [repositórios de leitura do Firestore]
-  styles/
-    globals.css         # @theme + tokens
+    firestore/              # repositórios de leitura (tournaments, arenas, leagues, arena-sites, link-pages)
+    docs/                   # tipos + conteúdo da documentação (types.ts é o contrato entre shell e conteúdo)
+    slug.ts                 # toSlugId/extractId — URLs "nome-decorativo-id"
+    format.ts               # sportLabel, formatDate, STATUS_META
+  styles/tokens.scss        # fonte da verdade dos design tokens (@theme do Tailwind)
 public/
-  brand/                # logo e assets oficiais da marca
+  brand/                    # logo oficial
+  app/                      # screenshots reais do app (showcase da home + docs)
+  .htaccess                 # SPA rewrite + regra de bot pra prévia de OG (ver Deploy)
 ```
 
 ## Marca & Design Tokens
-**Fonte da verdade:** `brand_assets/NexaGO Design Doc _standalone_.html` (design system completo, renderizável). Apoio: `NexaGO — Mobile Design Documentation.pdf` e `nexaGO_Logo.png`. **Use sempre os assets oficiais** com proporções e clear space corretos.
+**Fonte da verdade:** `src/styles/tokens.scss` (portado 1:1 de `brand_assets/NexaGO Design Doc _standalone_.html`, preservado em `site-legacy/`). Dark-first, laranja `#FF6A1A` como accent. Tema claro existe (`[data-theme='light']`) mas é secundário — a marca é dark-first.
 
-**Direção visual: dark mode com laranja da marca como accent primário.** Energia atlética, areia, movimento. Tokens abaixo transcritos do design doc (prefixo `--nx-*` no doc; aqui mapeados para `@theme` do Tailwind):
-
-```css
-@theme {
-  /* Marca — escala laranja */
-  --color-brand:        #FF6A1A; /* orange-500, accent oficial */
-  --color-brand-light:  #FF8A4A; /* orange-400 */
-  --color-brand-dark:   #E5560E; /* orange-600 */
-  --color-brand-tint:   rgba(255, 106, 26, 0.12);
-  --color-on-brand:     #0A0A0A; /* texto sobre laranja */
-
-  /* Superfícies (dark) */
-  --color-bg:           #050505;
-  --color-surface-0:    #0B0B0C;
-  --color-surface-1:    #131316;
-  --color-surface-2:    #1B1B1F;
-  --color-glass:        rgba(20, 20, 22, 0.62);
-  --color-line:         rgba(255, 255, 255, 0.08);
-  --color-line-strong:  rgba(255, 255, 255, 0.16);
-
-  /* Texto */
-  --color-fg:           #F4F4F5;
-  --color-text-mute:    rgba(244, 244, 245, 0.62);
-  --color-text-dim:     rgba(244, 244, 245, 0.40);
-
-  /* Estados semânticos */
-  --color-live:         #FF3B30;
-  --color-pending:      #F4C543;
-  --color-win:          #2BD17E;
-
-  /* Tipografia */
-  --font-display: 'Sora', system-ui, sans-serif;
-  --font-ui:      'Inter', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
-
-  /* Raios */
-  --radius-1: 6px;  --radius-2: 10px; --radius-3: 14px;
-  --radius-4: 18px; --radius-5: 24px; --radius-pill: 999px;
-
-  /* Spacing (base 4) */
-  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
-  --space-5: 20px; --space-6: 24px; --space-7: 32px; --space-8: 40px; --space-9: 56px;
-
-  /* Elevação */
-  --elev-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 2px rgba(0,0,0,0.40);
-  --elev-2: 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 24px rgba(0,0,0,0.55);
-  --elev-3: 0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 60px rgba(0,0,0,0.65);
-  --glow-orange: 0 0 0 1px rgba(255,106,26,0.30), 0 12px 40px rgba(255,106,26,0.25);
-
-  /* Motion */
-  --motion-fast: 140ms;
-  --motion-base: 240ms;
-  --motion-slow: 420ms;
-  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-```
-
-Regras de cor:
-- Tokens semânticos sempre — **nunca hex cru em componentes**.
-- Laranja é destaque/CTA, não fundo de páginas inteiras. Texto sobre laranja usa `--color-on-brand` (`#0A0A0A`), nunca branco.
-- `live`/`pending`/`win` são funcionais — sempre acompanhe de ícone/label, nunca só cor.
-- Base é **dark** (a marca é dark-first); não introduza light mode sem alinhar com o design doc.
-
-## Animação
-**Duas ferramentas, papéis distintos:**
-- **GSAP + ScrollTrigger** — cenas cinematográficas de scroll (pin + scrub, timelines complexas). Ex.: `components/ui/cinematic-hero.tsx`. Registrar plugin guardado por `typeof window !== 'undefined'`; sempre `gsap.context()` + `ctx.revert()` no cleanup; checar `prefers-reduced-motion` e pular a timeline.
-  - **Esconder-para-animar via `.js`, não CSS-sempre**: o hide inicial usa `html.js .gsap-reveal { visibility:hidden }`. A classe `.js` é adicionada por um script inline pré-paint no `layout.tsx`. Assim, sem JS (ou crawler sem script) o conteúdo do hero fica visível — resiliência + SEO. Reduced-motion mantém visível via `!important`.
-- **Framer Motion** (`motion/react`) — microinterações, hovers e reveals de seção. Wrappers em `components/motion/` (ex.: `Reveal`), não espalhe `motion.div` solto.
-
-Regras comuns:
-- Use os tokens de motion: `--motion-fast/base/slow`, `--ease-out` (entradas/UI) e `--ease-spring` (gestos/destaques físicos).
-- Micro-interações **150–300ms**; transições complexas ≤420ms. Anime **só `transform`/`opacity`** (nunca width/height/top/left).
-- Entrada `ease-out`, saída mais curta (~60–70% da entrada). Use spring para naturalidade onde o doc pedir movimento "atlético".
-- Stagger de listas/grids 30–50ms por item. Máx. 1–2 elementos animados em destaque por viewport.
-- **Sempre respeitar `prefers-reduced-motion`** — use `useReducedMotion()` e desligue/reduza. Conteúdo deve ser legível sem animação.
-- Scroll reveal com `whileInView` + `viewport={{ once: true }}`.
+Regras de cor: tokens semânticos sempre (`bg-brand`, `text-fg`, nunca hex cru); `live`/`pending`/`win` sempre acompanhados de ícone/label, nunca só cor.
 
 ## Dados (Firestore)
-- Config de cliente em `src/lib/firebase.ts` (projeto `volley-track-dev-4596c`). Chaves de cliente não são secretas; a segurança vive nas `firestore.rules`.
-- Apenas **leitura de dados públicos**. Nada de escrita, auth de usuário ou dados sensíveis no site.
-- Repositórios em `src/lib/firestore/` — componentes **não** falam direto com o SDK. Server Components leem via repositório; páginas usam **ISR** (`export const revalidate = 300`). Repositórios fazem `try/catch` retornando vazio (build não quebra) e tratam Timestamp via `.toDate()`.
+- Config em `@nexago/firebase-config` (projeto `volley-track-dev-4596c` — mesmo projeto dev usado pelos outros apps Angular do workspace). Chaves de cliente não são secretas; a segurança vive nas `firestore.rules`.
+- Apenas **leitura pública** (+ escrita pública nos formulários: contato, waitlist/lead, tracking de clique em link page). Repositórios em `src/lib/firestore/*.ts` — componentes não falam direto com o SDK.
+- **Coleções lidas**: `tournaments`, `leagues`, `arenas` (+ subcoleção `courts`), `arenaSitesPublic` (mini-sites), `linkPageSlugs`/`linkPages` (+ subcoleção `links`). Ver cada arquivo em `lib/firestore/` pro mapeamento exato de campos — a lógica de status de torneio (`tournament-status.ts`) é particularmente não-trivial, não reescrever sem entender o porquê de cada decisão (comentado no arquivo).
+- Padrão de fetch: `signal` + `loading` + `.then()` no `constructor()`, ou `effect()` quando o dado depende de um `input()` de rota (o Router reaproveita a mesma instância entre navegações do mesmo padrão de rota — precisa de guarda de obsolescência, ver `liga-detail.page.ts` como referência).
 
-**Coleções públicas verificadas** (`allow read: if true`):
-- `tournaments/{id}` — torneios/etapas. Filtrar por `visibility === 'publicListing'`. Campos: `name`, `description`, `sport` (`beachTennis`|`beachVolleyball`), `city`/`state`/`locationName`, `dateLabel`, `startAt`/`endAt` (Timestamp), `categories[]` (`categoryName`/`genderType`/`level`/`entryFeeCents`/`spotsTotal`), `listingStatus` (`open`|`almost_full`|`live`|`ended`), `liveMatchesNow`, `enrolledCount`, `leagueId`/`leagueStageName`.
-- `leagues/{id}` — `stages[]` com `tournamentIds`, `seasonLabel`.
-- `artifacts/volley-track-dev-4596c/public/data/{teams,athleteRankings,teamRankings,tournamentCategoryResults,leagueAthleteRankings,leagueTeamRankings}` — base = `artifacts/<projectId>/public/data`. `teams` tem `player1DisplayName`/`player2DisplayName` (nomes públicos).
+## SEO — sem SSR, compensado por uma Cloud Function
+CSR puro significa que bots que não executam JS (WhatsApp, Twitter, Facebook, LinkedIn, Slack, Telegram, Discord) nunca veem os `<meta>` que a página gera depois de montar. Solução: `functions/src/site-og-preview.ts` — uma Cloud Function que lê o Firestore direto (Admin SDK) e devolve HTML só com as meta tags certas (título, descrição, `og:image` usando a foto/logo real já salva no doc). O `.htaccess` redireciona **só User-Agents de bot conhecido** pra essa função nas rotas dinâmicas (`/torneios/:id`, `/ligas/:slug`, `/arena/:id`, `/s/:slug`, `/a/:slug`, `/o/:slug`); visitante humano nunca bate nessa regra.
 
-**Restrições conhecidas:**
-- `athlete_profiles` → **permission-denied** (não é público). Nome de atleta no ranking individual precisa de fonte pública (`users/{id}` só lê quando `userDocIsPublicAthlete`).
-- `athleteRankings`/`teamRankings` estavam **vazios no dev** — `/rankings` está em empty-state até serem populados.
-- Reserve espaço para conteúdo assíncrono (skeletons), trate empty states e erros.
+Páginas estáticas (landing, `/torneios`, `/ligas`, `/arenas`, `/rankings`, `/docs`, `/blog`) não precisam disso — o `<title>`/`<meta>` genérico do `index.html` já é suficiente pra elas.
 
-## SEO
-- Metadata por rota (`generateMetadata` nas dinâmicas), `canonical`, OG/Twitter. JSON-LD em `@graph`: `Organization` + `WebSite` (layout), `ItemList` (`/torneios`), `SportsEvent` (`/torneios/[id]`).
-- **OG images dinâmicas** via `next/og`: template em `src/lib/og.tsx`, rotas `opengraph-image.tsx` (home, `/torneios`, `/rankings`, e `/torneios/[id]` com dados do torneio). Next aplica a mesma imagem a OG e Twitter.
-- `app/sitemap.ts` (inclui torneios dinâmicos), `app/robots.ts`, `app/manifest.ts`. Conteúdo público é server-rendered/ISR — sempre indexável.
+## Deploy
+1. `npm run build:site` (a partir de `frontend/`) → gera `dist/site/browser/`.
+2. Sobe o conteúdo de `dist/site/browser/` pro Hostinger via FTP/hPanel (mesmo processo manual do site antigo — mas agora é **muito mais simples**: um `index.html` + assets com hash, sem pastas por rota, porque é SPA pura — o roteamento client-side elimina o problema antigo de "torneio criado depois do build dá 404").
+3. Cloud Function `siteOgPreview` precisa estar deployada (`cd functions && npm run deploy` ou `firebase deploy --only functions:siteOgPreview`) **antes** de publicar um `.htaccess` que referencie sua URL — confirme a URL real impressa pelo Firebase CLI e atualize o placeholder no `.htaccess` se divergir do alias padrão.
+4. `firebase.json` já tem o hosting target `site` preparado (`dist/site/browser` + rewrite-all-to-index.html) caso o Firebase Hosting volte a ser usado no lugar do Hostinger.
 
-## Skills & Plugins (obrigatório)
-- **`frontend-design` plugin**: usar **sempre** ao construir/ajustar UI.
-- **`ui-ux-pro-max`**: rodar o fluxo de design system antes de telas/seções novas. As skills do projeto vivem em `.claude/skills/` (ui-ux-pro-max, design, design-system, ui-styling, brand, banner-design, slides) e seus scripts são Python:
-  ```bash
-  python3 .claude/skills/ui-ux-pro-max/scripts/search.py "sports tournament beach landing dark" --design-system -p "nexaGO Site"
-  ```
-- Para identidade/voz da marca e assets, usar a skill `brand`. Para banners/social, `banner-design`.
-
-## Convenções
-- **Português** nas strings/UI; **inglês** no código (nomes, comentários técnicos).
-- Componentes pequenos e focados; Server Components por padrão, `"use client"` só onde houver interação/Framer Motion.
-- TypeScript estrito: sem `any` (use `unknown`); prefira inferência quando óbvio.
-- Acessibilidade não é opcional — contraste ≥4.5:1, foco visível, alt text, navegação por teclado, headings sequenciais.
-- Mobile-first; breakpoints sistemáticos; sem scroll horizontal; `min-h-dvh` em vez de `100vh`.
-- Imagens otimizadas (`next/image`, WebP/AVIF, dimensões declaradas para evitar CLS).
+## Skills & Plugins
+Os skills de design do site antigo (`ui-ux-pro-max`, `brand`, `banner-design` etc.) ficaram em `site-legacy/.claude/skills/` — eram scoped ao workflow React/Next daquele projeto. Este app segue o mesmo fluxo de UI dos outros apps Angular do workspace, sem skill dedicado.
 
 ## Princípios (do projeto)
-Simplicidade, legibilidade, escalabilidade, baixo acoplamento, alta coesão. Nunca gerar código complexo sem necessidade. Preservar retrocompatibilidade e nunca quebrar regras de negócio.
+Simplicidade, legibilidade, escalabilidade, baixo acoplamento, alta coesão. Preservar retrocompatibilidade e nunca quebrar regras de negócio.

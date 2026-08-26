@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Reveal } from '@/components/motion/Reveal';
 
 export const metadata: Metadata = {
@@ -201,7 +202,11 @@ export default function PrivacidadePage() {
             <li>Solicitar a portabilidade e revogar o consentimento.</li>
             <li>
               <strong className="font-600 text-fg">Excluir sua conta</strong> e os dados associados,
-              diretamente no app ou pelos nossos canais de contato.
+              diretamente no app ou pelos nossos canais de contato. Veja o passo a passo em{' '}
+              <Link href="/excluir-conta" className="text-brand underline-offset-2 hover:underline">
+                Excluir Conta
+              </Link>
+              .
             </li>
           </ul>
           <p>

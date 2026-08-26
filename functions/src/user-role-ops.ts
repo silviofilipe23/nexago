@@ -13,6 +13,27 @@ import {
   isAllowedRole,
 } from "./auth-roles";
 
+/** `auth.getUser(uid)` do próprio chamador: token ainda válido (JWT não
+ *  expirou) mas a conta foi apagada depois que o cliente o obteve vira
+ *  `auth/user-not-found` — sessão órfã, não um erro interno real. */
+async function getCallerUserOrThrowUnauthenticated(
+  auth: ReturnType<typeof getAuth>,
+  callerUid: string,
+) {
+  try {
+    return await auth.getUser(callerUid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
+}
+
 /**
  * Substitui todos os papéis do usuário por um único papel (compatível com clients antigos).
  * Grava claim `roles: [role]` (o legado `role` é purgado).
@@ -35,7 +56,7 @@ export const setUserRole = onCall(async (request) => {
 
   const roleTyped = role as AppRole;
   const auth = getAuth();
-  const callerUser = await auth.getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(auth, callerUid);
   const isCallerAdmin = callerIsOrganizer(callerUser);
   const isCallerSuperAdmin = callerIsSuperAdmin(callerUser);
   const isSelf = callerUid === uid;
@@ -97,7 +118,7 @@ export const addUserRole = onCall(async (request) => {
 
   const roleTyped = role as AppRole;
   const auth = getAuth();
-  const callerUser = await auth.getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(auth, callerUid);
   const isCallerAdmin = callerIsOrganizer(callerUser);
   const isCallerSuperAdmin = callerIsSuperAdmin(callerUser);
   const isSelf = callerUid === uid;
@@ -156,7 +177,7 @@ export const removeUserRole = onCall(async (request) => {
 
   const roleTyped = role as AppRole;
   const auth = getAuth();
-  const callerUser = await auth.getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(auth, callerUid);
   const isCallerAdmin = callerIsOrganizer(callerUser);
   const isCallerSuperAdmin = callerIsSuperAdmin(callerUser);
   const isSelf = callerUid === uid;
@@ -213,7 +234,7 @@ export const setUserRoles = onCall(async (request) => {
   if (!callerUid) {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
   }
-  if (!callerIsSuperAdmin(await getAuth().getUser(callerUid))) {
+  if (!callerIsSuperAdmin(await getCallerUserOrThrowUnauthenticated(getAuth(), callerUid))) {
     throw new HttpsError("permission-denied", "Apenas o super administrador pode definir a lista completa de papéis.");
   }
   if (!uid || typeof uid !== "string") {

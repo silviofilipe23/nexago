@@ -20,7 +20,7 @@ export async function assertCanManageTournament(
   const managerId = data.managerId as string | undefined;
   if (managerId === uid) return data;
 
-  const user = await getAuth().getUser(uid);
+  const user = await getUserOrThrowUnauthenticated(uid);
   const claims = user.customClaims ?? {};
   if (hasRoleInClaims(claims, "admin") || claims["superAdmin"] === true) {
     return data;
@@ -38,6 +38,24 @@ export async function assertCanManageTournament(
   }
 
   throw new HttpsError("permission-denied", "Sem permissão para este torneio");
+}
+
+/** `auth.getUser(uid)` do próprio chamador: token ainda válido (JWT não
+ *  expirou) mas a conta foi apagada depois que o cliente o obteve vira
+ *  `auth/user-not-found` — sessão órfã, não um erro interno real. */
+async function getUserOrThrowUnauthenticated(uid: string) {
+  try {
+    return await getAuth().getUser(uid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -90,7 +108,7 @@ export async function assertCanScoreTournament(
   const managerId = data.managerId as string | undefined;
   if (managerId === uid) return data;
 
-  const user = await getAuth().getUser(uid);
+  const user = await getUserOrThrowUnauthenticated(uid);
   const claims = user.customClaims ?? {};
   if (hasRoleInClaims(claims, "admin") || claims["superAdmin"] === true) {
     return data;

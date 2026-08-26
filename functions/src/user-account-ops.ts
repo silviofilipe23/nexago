@@ -12,6 +12,24 @@ import {
   firestoreRolesPayload,
 } from "./auth-roles";
 
+/** `auth.getUser(uid)` do próprio chamador: token ainda válido (JWT não
+ *  expirou) mas a conta foi apagada depois que o cliente o obteve vira
+ *  `auth/user-not-found` — sessão órfã, não um erro interno real. */
+async function getCallerUserOrThrowUnauthenticated(callerUid: string) {
+  try {
+    return await getAuth().getUser(callerUid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
+}
+
 /**
  * Cria um novo organizador (admin sem superAdmin).
  * Apenas usuários com custom claim superAdmin === true podem chamar.
@@ -22,7 +40,7 @@ export const createOrganizer = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
   }
 
-  const callerUser = await getAuth().getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(callerUid);
   if (callerUser.customClaims?.superAdmin !== true) {
     throw new HttpsError(
       "permission-denied",
@@ -85,7 +103,7 @@ export const createArena = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
   }
 
-  const callerUser = await getAuth().getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(callerUid);
   if (callerUser.customClaims?.superAdmin !== true) {
     throw new HttpsError(
       "permission-denied",
@@ -241,7 +259,7 @@ export const listBackofficeUsers = onCall({timeoutSeconds: 300}, async (request)
     throw new HttpsError("unauthenticated", "Usuário não autenticado");
   }
 
-  const callerUser = await getAuth().getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(callerUid);
   if (!callerCanAccessBackoffice(callerUser)) {
     throw new HttpsError("permission-denied", "Apenas administradores da plataforma podem listar usuários.");
   }
@@ -429,7 +447,7 @@ export const clearMustChangePassword = onCall(async (request) => {
   }
 
   // Verifica se o caller é o próprio usuário ou um admin
-  const callerUser = await getAuth().getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(callerUid);
   const isAdmin = callerIsOrganizer(callerUser);
   const isSelf = callerUid === uid;
 
@@ -463,7 +481,7 @@ export const getUserRole = onCall(async (request) => {
   }
 
   // Usuário pode ver seu próprio role ou deve ser admin ou super admin
-  const callerUser = await getAuth().getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(callerUid);
   const isAdmin = callerIsOrganizer(callerUser);
   const isSuperAdmin = callerIsSuperAdmin(callerUser);
 
@@ -508,7 +526,7 @@ export const setAthletePro = onCall(async (request) => {
 
   // Apenas admin pode alterar status PRO
   const auth = getAuth();
-  const callerUser = await auth.getUser(callerUid);
+  const callerUser = await getCallerUserOrThrowUnauthenticated(callerUid);
   const isAdmin = callerIsOrganizer(callerUser);
 
   if (!isAdmin) {

@@ -155,7 +155,21 @@ export const getMercadoPagoAuthUrl = onCall({
   if (!uid) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
-  const callerUser = await getAuth().getUser(uid);
+  let callerUser;
+  try {
+    callerUser = await getAuth().getUser(uid);
+  } catch (err: unknown) {
+    const code = (err as {code?: string})?.code;
+    if (code === "auth/user-not-found") {
+      // Token ainda válido (JWT não expirou) mas a conta foi apagada depois
+      // que o cliente o obteve — sessão órfã, não um erro interno real.
+      throw new HttpsError(
+        "unauthenticated",
+        "Sua sessão expirou. Entre novamente para continuar."
+      );
+    }
+    throw err;
+  }
   if (!callerCanLinkMercadoPago(callerUser)) {
     throw new HttpsError(
       "permission-denied",

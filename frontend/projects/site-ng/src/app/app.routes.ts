@@ -30,8 +30,36 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/excluir-conta/excluir-conta.page').then((m) => m.ExcluirContaPage),
   },
   {
-    // Rotas de fase 2+ (torneios, rankings, ligas, arenas, mini-sites, link pages, blog,
-    // docs) ainda não existem neste app — cai pro Next.js legado até serem portadas.
+    path: 'rankings',
+    loadComponent: () => import('./pages/rankings/rankings.page').then((m) => m.RankingsPage),
+  },
+  {
+    path: 'torneios',
+    loadComponent: () => import('./pages/torneios/torneios.page').then((m) => m.TorneiosPage),
+  },
+  {
+    path: 'torneios/:id',
+    loadComponent: () => import('./pages/torneios/torneio-detail.page').then((m) => m.TorneioDetailPage),
+  },
+  {
+    path: 'ligas',
+    loadComponent: () => import('./pages/ligas/ligas.page').then((m) => m.LigasPage),
+  },
+  {
+    path: 'ligas/:slug',
+    loadComponent: () => import('./pages/ligas/liga-detail.page').then((m) => m.LigaDetailPage),
+  },
+  {
+    path: 'arenas',
+    loadComponent: () => import('./pages/arenas/arenas.page').then((m) => m.ArenasPage),
+  },
+  {
+    path: 'arena/:id',
+    loadComponent: () => import('./pages/arena/arena-detail.page').then((m) => m.ArenaDetailPage),
+  },
+  {
+    // Rotas de fase 3+ (mini-sites, link pages, blog, docs) ainda não existem neste app —
+    // cai pro Next.js legado até serem portadas.
     path: '**',
     redirectTo: '',
   },

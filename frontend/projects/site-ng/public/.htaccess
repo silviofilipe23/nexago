@@ -1,7 +1,7 @@
 # NexaGO — Site público (SPA Angular) em Apache/LiteSpeed (Hostinger).
 # Mesmo padrão do target "athlete": fallback pra index.html, hashed assets imutáveis,
 # resto sem cache. Usado só a partir do corte de deploy (fase 4 da migração) — ver
-# [[site-deploy]]. Até lá o Next.js legado continua sendo o site publicado.
+# [[site-deploy]].
 
 Options -Indexes
 
@@ -28,6 +28,23 @@ Options -Indexes
   <FilesMatch "\.(html|webmanifest|json|ico|png|jpg|jpeg|webp|svg|mp4)$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
+</IfModule>
+
+# --- Prévia de link (OG/Twitter Card) pra bots de rede social --------------
+# A SPA não tem SSR — bots que não executam JS (unfurl de link no WhatsApp, Twitter,
+# Facebook, LinkedIn, Slack, Telegram, Discord...) nunca veem os <meta> que a página Angular
+# gera depois de montar. Só ESSES bots são redirecionados pra Cloud Function que devolve HTML
+# com as meta tags certas; visitante humano nunca bate nesta regra, sempre recebe a SPA normal
+# logo abaixo. Ver functions/src/site-og-preview.ts.
+#
+# TROCAR a URL abaixo pela URL real da function após o primeiro deploy (`firebase deploy
+# --only functions:siteOgPreview`) — o Firebase confirma a URL no terminal ao terminar; o
+# formato abaixo (região + projectId) é o alias estável do 2nd gen, deve bater sem alteração,
+# mas confirme antes de publicar. Prod: volley-track-2dd3b · Dev: volley-track-dev-4596c.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|Twitterbot|WhatsApp|LinkedInBot|Slackbot|TelegramBot|Discordbot|Pinterest|redditbot|SkypeUriPreview) [NC]
+  RewriteRule ^(torneios|ligas|arena|s|a|o)/([^/]+)/?$ https://us-central1-volley-track-2dd3b.cloudfunctions.net/siteOgPreview?path=/$1/$2 [R=302,L]
 </IfModule>
 
 # --- Roteamento da SPA -----------------------------------------------------

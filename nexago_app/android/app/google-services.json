@@ -14,6 +14,30 @@
       },
       "oauth_client": [
         {
+          "client_id": "735357850346-01in3n3ijqf1rk8kfto5och1n4q7pb3h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "br.com.nexago.nexago_app",
+            "certificate_hash": "c2e6d9e3cc7fc9e3ac0936fdc453113315d59e32"
+          }
+        },
+        {
+          "client_id": "735357850346-911038s9bveuhi6am8fobvcaosv50edj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "br.com.nexago.nexago_app",
+            "certificate_hash": "9bf95202e81741294c7eb7202882c591f3b056b4"
+          }
+        },
+        {
+          "client_id": "735357850346-963ph3olhhrd21sds44av3bd5vd5i7l1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "br.com.nexago.nexago_app",
+            "certificate_hash": "25ba475a1180721a31f218a61039c10bd1e6df26"
+          }
+        },
+        {
           "client_id": "735357850346-qj66e686fe315k1o588gr4c2e0bkleir.apps.googleusercontent.com",
           "client_type": 3
         }

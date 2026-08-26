@@ -82,6 +82,20 @@
       "port": 4310
     },
     {
+      "name": "site-ng",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "start:site-ng",
+        "--",
+        "--port",
+        "4214"
+      ],
+      "port": 4214
+    },
+    {
       "name": "organizer-live",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

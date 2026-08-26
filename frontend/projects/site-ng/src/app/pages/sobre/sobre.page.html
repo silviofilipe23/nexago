@@ -1,0 +1,65 @@
+<main class="mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-6 sm:pt-32">
+  <div nxReveal>
+    <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">
+      Nosso manifesto
+    </p>
+    <h1 class="font-display text-[clamp(2rem,6vw,3.75rem)] font-800 leading-[1.05] tracking-tight text-fg">
+      Movemos a areia do Brasil.
+    </h1>
+    <p class="mt-6 text-balance text-lg leading-relaxed text-text-mute">
+      O nexaGO nasceu na quadra. Cansamos de inscrições em planilhas, chaves em papel e
+      torneios sem organização e desnivelados. Os esportes de areia e o vôlei de praia mereciam uma casa digital à altura
+      da sua energia — e foi isso que construímos.
+    </p>
+    <p class="mt-5 text-balance text-base leading-relaxed text-text-mute">
+      Vôlei de praia movem milhares de pessoas todo fim de semana. Nossa missão
+      é simples: conectar quem joga, quem organiza e quem recebe os jogos, e transformar essa
+      paixão em um circuito vivo, com a Liga nexaGO no centro.
+    </p>
+  </div>
+
+  <div class="mt-16 grid gap-5 sm:grid-cols-3">
+    @for (value of values; track value.title; let i = $index) {
+      <div nxReveal [nxRevealDelay]="i * 80" class="h-full">
+        <article appSpotlightCard class="h-full p-7">
+          <div class="mb-5 inline-flex size-12 items-center justify-center rounded-3 border border-brand/20 bg-brand-tint text-brand transition-transform duration-300 ease-out group-hover/spot:-translate-y-0.5 group-hover/spot:scale-105 motion-reduce:transition-none">
+            @switch (value.icon) {
+              @case ('waves') {
+                <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                  <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                  <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+                </svg>
+              }
+              @case ('users') {
+                <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              }
+              @case ('flag') {
+                <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                  <line x1="4" x2="4" y1="22" y2="15" />
+                </svg>
+              }
+            }
+          </div>
+          <h2 class="font-display text-lg font-700 tracking-tight text-fg">{{ value.title }}</h2>
+          <p class="mt-2.5 text-sm leading-relaxed text-text-mute">{{ value.description }}</p>
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-300 group-hover/spot:opacity-100"
+            style="background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 106, 26, 0.13), transparent 60%)"
+          ></span>
+        </article>
+      </div>
+    }
+  </div>
+
+  <div nxReveal [nxRevealDelay]="100" class="mt-16 text-center">
+    <a nxButton href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer">Baixar o app</a>
+  </div>
+</main>

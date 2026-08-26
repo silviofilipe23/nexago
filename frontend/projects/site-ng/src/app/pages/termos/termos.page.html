@@ -1,0 +1,211 @@
+<main class="mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-6 sm:pt-32">
+  <div nxReveal>
+    <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">Legal</p>
+    <h1 class="font-display text-[clamp(2rem,6vw,3.25rem)] font-800 leading-tight tracking-tight text-fg">
+      Termos de Uso
+    </h1>
+    <p class="mt-4 text-sm text-text-dim">Última atualização: {{ lastUpdate }}</p>
+    <p class="mt-6 text-balance text-base leading-relaxed text-text-mute">
+      Estes Termos de Uso regem o acesso e a utilização do site, do aplicativo e da Liga nexaGO
+      (em conjunto, a "Plataforma"), operados por {{ company }}. Ao criar uma conta ou usar a
+      Plataforma, você declara que leu, entendeu e concorda com estes termos e com a nossa
+      <a routerLink="/privacidade" class="text-brand underline-offset-2 hover:underline">Política de Privacidade</a>.
+    </p>
+  </div>
+
+  <!-- Aviso de rascunho — remover quando o jurídico validar. -->
+  <div class="mt-8 rounded-4 border border-pending/30 bg-surface-1 p-5 text-sm leading-relaxed text-text-mute">
+    <strong class="font-600 text-fg">Documento em revisão.</strong> Este texto é um modelo
+    inicial e deve ser validado pelo jurídico antes da publicação oficial.
+  </div>
+
+  <!-- Índice -->
+  <nav aria-label="Índice" class="mt-10 rounded-4 border border-line bg-surface-1 p-5">
+    <h2 class="mb-3 font-mono text-xs font-600 uppercase tracking-[0.2em] text-text-dim">Nesta página</h2>
+    <ol class="grid gap-2 sm:grid-cols-2">
+      @for (section of sections; track section.id) {
+        <li>
+          <a
+            [href]="'#' + section.id"
+            class="text-sm text-text-mute transition-colors hover:text-brand focus-visible:text-brand focus-visible:outline-none"
+          >
+            {{ section.title }}
+          </a>
+        </li>
+      }
+    </ol>
+  </nav>
+
+  <div class="mt-12 space-y-12">
+    <section id="aceitacao" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">1. Aceitação dos termos</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          A Plataforma é operada por <strong class="font-600 text-fg">{{ company }}</strong>,
+          inscrita no CNPJ sob nº <strong class="font-600 text-fg">{{ cnpj }}</strong>, com sede em
+          <strong class="font-600 text-fg">{{ address }}</strong> ("nexaGO", "nós").
+        </p>
+        <p>
+          Se você não concorda com estes termos, não utilize a Plataforma. Podemos exigir aceite
+          expresso em determinados fluxos (por exemplo, ao se inscrever em um torneio).
+        </p>
+      </div>
+    </section>
+
+    <section id="definicoes" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">2. Definições</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <ul class="ml-5 list-disc space-y-2 marker:text-brand">
+          <li><strong class="font-600 text-fg">Atleta:</strong> usuário que participa de torneios e etapas.</li>
+          <li><strong class="font-600 text-fg">Organizador:</strong> usuário que cria e gerencia torneios e etapas.</li>
+          <li><strong class="font-600 text-fg">Arena:</strong> estabelecimento que disponibiliza quadras e sedia eventos.</li>
+          <li><strong class="font-600 text-fg">Conteúdo do usuário:</strong> dados, textos, imagens e informações enviados por você.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="cadastro" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">3. Elegibilidade e cadastro</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Para usar recursos que exigem conta, você deve fornecer informações verdadeiras, completas
+          e atualizadas. Menores de idade só podem utilizar a Plataforma com consentimento e
+          supervisão de um responsável legal, quando aplicável.
+        </p>
+      </div>
+    </section>
+
+    <section id="conta" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">4. Sua conta e responsabilidades</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Você é responsável por manter a confidencialidade das suas credenciais e por todas as
+          atividades realizadas na sua conta. Notifique-nos imediatamente em caso de uso não
+          autorizado. Você concorda em não:
+        </p>
+        <ul class="ml-5 list-disc space-y-2 marker:text-brand">
+          <li>Fornecer informações falsas ou se passar por outra pessoa.</li>
+          <li>Usar a Plataforma para fins ilícitos, fraudulentos ou que violem direitos de terceiros.</li>
+          <li>Interferir na segurança, integridade ou desempenho da Plataforma.</li>
+          <li>Coletar dados de outros usuários sem autorização.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="uso" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">5. Regras de uso da plataforma</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          A Plataforma conecta atletas, organizadores e arenas. Cada perfil possui funcionalidades
+          específicas (inscrição, gestão de torneios, divulgação de arena). Você se compromete a
+          usar esses recursos de boa-fé e de acordo com as regras de cada evento e com a legislação
+          esportiva aplicável.
+        </p>
+      </div>
+    </section>
+
+    <section id="pagamentos" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">6. Inscrições, pagamentos e reembolsos</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Inscrições em torneios podem ser pagas pela Plataforma por meio de provedores de
+          pagamento. Os valores, prazos e condições de cada etapa são definidos pelo respectivo
+          organizador. Políticas de cancelamento e reembolso seguem as regras divulgadas no evento
+          e a legislação consumerista aplicável.
+        </p>
+      </div>
+    </section>
+
+    <section id="eventos" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">7. Torneios, ligas e resultados</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Os organizadores são os responsáveis pela criação, realização, arbitragem e resultados de
+          seus torneios e etapas. O nexaGO fornece as ferramentas (chaveamento, inscrições, ranking),
+          mas não é responsável pela condução dos eventos nem por disputas entre participantes e
+          organizadores. Resultados e rankings refletem as informações registradas pelos
+          organizadores.
+        </p>
+      </div>
+    </section>
+
+    <section id="conteudo" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">8. Conteúdo do usuário</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Você mantém a titularidade do conteúdo que envia. Ao publicá-lo, concede ao nexaGO uma
+          licença não exclusiva, gratuita e mundial para hospedar, exibir e reproduzir esse conteúdo
+          com a finalidade de operar e divulgar a Plataforma e seus eventos. Você é responsável pelo
+          conteúdo que publica e garante possuir os direitos necessários.
+        </p>
+      </div>
+    </section>
+
+    <section id="propriedade" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">9. Propriedade intelectual</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          A marca nexaGO, o logotipo, o software, o design e os demais elementos da Plataforma são de
+          titularidade do nexaGO ou de seus licenciadores e são protegidos por lei. É vedado copiar,
+          modificar, distribuir ou explorar tais elementos sem autorização prévia e por escrito.
+        </p>
+      </div>
+    </section>
+
+    <section id="encerramento" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">10. Suspensão e encerramento</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Podemos suspender ou encerrar o acesso de usuários que violem estes termos, a legislação
+          ou as regras dos eventos. Você pode encerrar sua conta a qualquer momento pelo aplicativo
+          ou pelos nossos canais de contato; algumas informações podem ser retidas conforme exigido
+          por lei (ver a Política de Privacidade).
+        </p>
+      </div>
+    </section>
+
+    <section id="responsabilidade" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">11. Limitação de responsabilidade</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          A Plataforma é fornecida "no estado em que se encontra". Na máxima extensão permitida pela
+          lei, o nexaGO não se responsabiliza por danos indiretos, lucros cessantes, indisponibilidades
+          temporárias, nem por atos de organizadores, arenas ou outros usuários. Nada nestes termos
+          exclui responsabilidades que não possam ser limitadas pela legislação aplicável.
+        </p>
+      </div>
+    </section>
+
+    <section id="alteracoes" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">12. Alterações dos termos</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Podemos atualizar estes termos periodicamente. Mudanças relevantes serão comunicadas pelos
+          nossos canais, e a data de "última atualização" no topo será revisada. O uso continuado da
+          Plataforma após a vigência das alterações representa concordância com os novos termos.
+        </p>
+      </div>
+    </section>
+
+    <section id="foro" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">13. Lei aplicável e foro</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Estes termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro
+          da Comarca de São Paulo/SP para dirimir quaisquer controvérsias, salvo competência diversa
+          prevista em lei (por exemplo, foro do domicílio do consumidor).
+        </p>
+      </div>
+    </section>
+
+    <section id="contato" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">14. Contato</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Dúvidas sobre estes Termos de Uso podem ser enviadas para
+          <a [href]="'mailto:' + contactEmail" class="text-brand underline-offset-2 hover:underline">{{ contactEmail }}</a>.
+        </p>
+      </div>
+    </section>
+  </div>
+</main>

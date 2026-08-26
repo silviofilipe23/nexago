@@ -1,0 +1,170 @@
+<header [class]="headerClasses()" [attr.aria-hidden]="isHidden()">
+  <div [class]="pillClasses()">
+    <a
+      routerLink="/"
+      class="flex items-center gap-2.5 rounded-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      aria-label="nexaGO — início"
+    >
+      <img src="brand/logo.png" alt="" width="32" height="32" class="size-8" />
+      <span class="font-display text-lg font-bold tracking-tight text-fg">
+        nexa<span class="text-brand">GO</span>
+      </span>
+    </a>
+
+    <nav aria-label="Principal" class="hidden items-center gap-7 md:flex">
+      <div #personaMenu class="relative" (mouseenter)="personaOpen.set(true)" (mouseleave)="personaOpen.set(false)">
+        <button
+          type="button"
+          [attr.aria-expanded]="personaOpen()"
+          aria-haspopup="true"
+          (click)="togglePersona()"
+          class="flex items-center gap-1 text-sm font-500 text-text-mute transition-colors duration-200 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:rounded-2"
+        >
+          Para você
+          <svg
+            class="size-4 transition-transform duration-200 motion-reduce:transition-none"
+            [class.rotate-180]="personaOpen()"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        @if (personaOpen()) {
+          <div class="absolute left-1/2 top-full z-10 w-72 -translate-x-1/2 pt-3">
+            <div role="menu" aria-label="Para você" class="rounded-4 border border-line bg-surface-1 p-2 shadow-elev-2">
+              @for (p of personas; track p.href) {
+                <a
+                  [routerLink]="p.external ? null : p.href"
+                  [href]="p.external ? p.href : null"
+                  [attr.target]="p.external ? '_blank' : null"
+                  [attr.rel]="p.external ? 'noopener noreferrer' : null"
+                  role="menuitem"
+                  (click)="closePersona()"
+                  class="block rounded-3 px-4 py-3 transition-colors duration-150 hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+                >
+                  <span class="block text-sm font-700 tracking-tight text-fg">{{ p.label }}</span>
+                  <span class="mt-0.5 block text-xs text-text-mute">{{ p.description }}</span>
+                </a>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      @for (item of nav; track item.href) {
+        <a [routerLink]="item.href" class="text-sm font-500 text-text-mute transition-colors duration-200 hover:text-fg">
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+
+    <div class="hidden items-center gap-2 md:flex">
+      <app-theme-toggle />
+      <a nxButton="primary" href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer" class="min-h-0 py-2 text-sm">
+        Baixar o app
+      </a>
+    </div>
+
+    <div class="flex items-center gap-2 md:hidden">
+      <a
+        href="https://linktr.ee/nexago"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex h-9 items-center gap-1.5 rounded-pill bg-brand px-3.5 font-display text-[13px] font-bold tracking-tight text-on-brand shadow-glow-orange transition-all duration-200 ease-out hover:bg-brand-light active:scale-[0.98] active:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+      >
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 15V3M6 9l6 6 6-6M5 21h14" />
+        </svg>
+        Baixar
+      </a>
+
+      <button
+        type="button"
+        (click)="openMenu()"
+        aria-label="Abrir menu"
+        [attr.aria-expanded]="menuMounted()"
+        class="inline-flex size-11 items-center justify-center rounded-3 text-fg transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+@if (menuMounted()) {
+  <div
+    role="dialog"
+    aria-modal="true"
+    aria-label="Menu"
+    class="fixed inset-0 z-[70] bg-bg px-6 pt-6 md:hidden transition-[clip-path,opacity] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+    [style.clip-path]="menuClipPath()"
+    [style.opacity]="menuOpacity()"
+  >
+    <div class="flex items-center justify-between">
+      <a routerLink="/" class="flex items-center gap-2.5" aria-label="nexaGO — início" (click)="closeMenu()">
+        <img src="brand/logo.png" alt="" width="32" height="32" class="size-8" />
+        <span class="font-display text-lg font-bold tracking-tight text-fg">
+          nexa<span class="text-brand">GO</span>
+        </span>
+      </a>
+      <div class="flex items-center gap-2">
+        <app-theme-toggle />
+        <button
+          #closeButton
+          type="button"
+          (click)="closeMenu()"
+          aria-label="Fechar menu"
+          class="inline-flex size-11 items-center justify-center rounded-3 text-fg transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <nav aria-label="Menu principal" class="mt-10 flex flex-col">
+      <p class="mb-3 font-mono text-xs font-600 uppercase tracking-[0.2em] text-text-dim">Para você</p>
+      @for (p of personas; track p.href) {
+        <a
+          [routerLink]="p.external ? null : p.href"
+          [href]="p.external ? p.href : null"
+          [attr.target]="p.external ? '_blank' : null"
+          [attr.rel]="p.external ? 'noopener noreferrer' : null"
+          (click)="closeMenu()"
+          class="-mx-3 rounded-3 px-3 py-3 transition-colors hover:bg-surface-1 focus-visible:bg-surface-1 focus-visible:outline-none"
+        >
+          <span class="block font-display text-lg font-700 tracking-tight text-fg">{{ p.label }}</span>
+          <span class="mt-0.5 block text-sm text-text-mute">{{ p.description }}</span>
+        </a>
+      }
+
+      <span class="my-5 h-px bg-line" aria-hidden="true"></span>
+
+      @for (item of nav; track item.href) {
+        <a
+          [routerLink]="item.href"
+          (click)="closeMenu()"
+          class="-mx-3 rounded-3 px-3 py-3 font-display text-lg font-700 tracking-tight text-fg transition-colors hover:bg-surface-1 focus-visible:bg-surface-1 focus-visible:outline-none"
+        >
+          {{ item.label }}
+        </a>
+      }
+
+      <a
+        nxButton="primary"
+        href="https://linktr.ee/nexago"
+        target="_blank"
+        rel="noopener noreferrer"
+        (click)="closeMenu()"
+        class="mt-8 w-full"
+      >
+        Baixar o app
+      </a>
+    </nav>
+  </div>
+}

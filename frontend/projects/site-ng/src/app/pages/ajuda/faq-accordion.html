@@ -1,0 +1,43 @@
+@for (item of items(); track item.q; let i = $index) {
+  <div nxReveal [nxRevealDelay]="i * 40">
+    <div [class]="panelClasses(i)">
+      <h3>
+        <button
+          [id]="'faq-button-' + i"
+          type="button"
+          [attr.aria-expanded]="openIndex() === i"
+          [attr.aria-controls]="'faq-panel-' + i"
+          (click)="toggle(i)"
+          class="flex w-full cursor-pointer items-center justify-between gap-4 py-5 text-left font-display text-base font-700 tracking-tight text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+        >
+          {{ item.q }}
+          <svg
+            class="size-5 shrink-0 text-brand transition-transform duration-300 ease-out motion-reduce:transition-none"
+            [class.rotate-45]="openIndex() === i"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+          </svg>
+        </button>
+      </h3>
+      <div
+        [id]="'faq-panel-' + i"
+        role="region"
+        [attr.aria-labelledby]="'faq-button-' + i"
+        class="grid overflow-hidden transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+        [style.grid-template-rows]="openIndex() === i ? '1fr' : '0fr'"
+      >
+        <div class="overflow-hidden">
+          <p class="pb-5 text-sm leading-relaxed text-text-mute">{{ item.a }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+}

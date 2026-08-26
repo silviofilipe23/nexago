@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>nexaGO — Torneios, ranking e ligas de beach tennis e vôlei de praia</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A plataforma dos esportes de areia: torneios, ranking ao vivo e a Liga nexaGO para beach tennis e vôlei de praia. Conecta atletas, organizadores e arenas.">
+  <meta name="theme-color" content="#050505">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="nexaGO">
+  <meta property="og:title" content="nexaGO — A plataforma dos esportes de areia">
+  <meta property="og:description" content="A plataforma dos esportes de areia: torneios, ranking ao vivo e a Liga nexaGO para beach tennis e vôlei de praia. Conecta atletas, organizadores e arenas.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="nexaGO — A plataforma dos esportes de areia">
+  <meta name="twitter:description" content="A plataforma dos esportes de areia: torneios, ranking ao vivo e a Liga nexaGO para beach tennis e vôlei de praia. Conecta atletas, organizadores e arenas.">
+
+  <!-- Aplica o tema salvo antes do 1º paint, pra evitar flash (default dark — marca dark-first). -->
+  <script>
+    try {
+      var t = localStorage.getItem('theme');
+      document.documentElement.dataset.theme = (t === 'light' || t === 'dark') ? t : 'dark';
+    } catch (e) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://nexago.com.br/#organization",
+          "name": "nexaGO",
+          "url": "https://nexago.com.br",
+          "logo": "https://nexago.com.br/brand/logo.png",
+          "description": "A plataforma dos esportes de areia: torneios, ranking ao vivo e a Liga nexaGO para beach tennis e vôlei de praia.",
+          "sport": ["Beach Tennis", "Beach Volleyball"]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://nexago.com.br/#website",
+          "name": "nexaGO",
+          "url": "https://nexago.com.br",
+          "inLanguage": "pt-BR",
+          "publisher": { "@id": "https://nexago.com.br/#organization" }
+        }
+      ]
+    }
+  </script>
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

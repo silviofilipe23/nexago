@@ -65,6 +65,12 @@
     },
     {
       "path": "./projects/organizer/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/site-ng/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/site-ng/tsconfig.spec.json"
     }
   ]
 }

@@ -197,7 +197,7 @@ class JourneyStepRow {
   final String? opponentTeamId;
 }
 
-// const String _vsLabel = 'vs';
+const String _vsLabel = 'vs';
 
 bool _isFinalPhaseLabel(String label) =>
     label == 'Final' || label == 'Grand final';
@@ -283,7 +283,7 @@ JourneyStepRow _stepOfMatch(
       finalPrizeLabel,
       hasPendingGroupMatches,
     ),
-    scoreLabel: done || live ? '$mySets – $theirSets' : '',
+    scoreLabel: done || live ? '$mySets – $theirSets' : _vsLabel,
     matchId: m.teamAId.isNotEmpty && m.teamBId.isNotEmpty ? m.id : null,
     bracketBadge: focusBracketBadgeOf(m),
     opponentTeamId: opponentId.isEmpty ? null : opponentId,
@@ -389,7 +389,7 @@ List<JourneyStepRow> journeyStepsOf(
               ? ctx.duoNameOf(opponentId, null)
               : 'A definir',
           detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
-          scoreLabel: '',
+          scoreLabel: _vsLabel,
           matchId: null,
           bracketBadge: focusBracketBadgeOf(m),
           opponentTeamId: opponentId.isEmpty ? null : opponentId,
@@ -415,7 +415,7 @@ List<JourneyStepRow> journeyStepsOf(
           metaLabel: m.scheduleTime != null ? matchTimeLabelForCard(m) : null,
           opponentName: 'A definir',
           detailLabel: _isFinalPhaseLabel(phaseLabel) ? finalPrizeLabel : null,
-          scoreLabel: '',
+          scoreLabel: _vsLabel,
           matchId: null,
         ),
       );

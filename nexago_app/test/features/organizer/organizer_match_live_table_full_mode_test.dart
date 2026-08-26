@@ -745,8 +745,7 @@ void main() {
   group('Tempo técnico', () {
     testWidgets(
       'botão da barra abre o seletor; escolher a equipe incrementa o lado '
-      'certo, trava em 2 (cartão fica desabilitado no seletor), e o '
-      '"−" do painel decrementa só aquele lado, com piso 0 — fechando o '
+      'certo, trava em 2 (cartão fica desabilitado no seletor) — fechando o '
       'overlay (via "Encerrar tempo") entre cada chamada',
       (tester) async {
         await pumpLiveTable(
@@ -801,27 +800,6 @@ void main() {
         await tester.pump();
         expect(find.byType(LiveTableTimeoutTeamPicker), findsNothing);
 
-        // "−" no painel de B (nunca usou tempo técnico) fica no piso 0.
-        await tester.tap(
-          find.descendant(
-            of: panelB,
-            matching: find.byIcon(Icons.remove_rounded),
-          ),
-        );
-        await tester.pump();
-        expect(filledTimeoutDots(tester, panelB), 0);
-
-        // "−" no painel de A desconta só o de A.
-        await tester.tap(
-          find.descendant(
-            of: panelA,
-            matching: find.byIcon(Icons.remove_rounded),
-          ),
-        );
-        await tester.pump();
-        expect(filledTimeoutDots(tester, panelA), 1);
-        expect(filledTimeoutDots(tester, panelB), 0);
-
         // Tempo técnico é 100% estado local de tela — nada disso grava no
         // Firestore.
         expect(fakeRepo.pointWrites, isEmpty);
@@ -860,41 +838,9 @@ void main() {
       },
     );
 
-    testWidgets(
-      'tocar no "−" dentro do painel NÃO marca ponto (o gesto aninhado não '
-      'vaza pro toque do painel maior)',
-      (tester) async {
-        await pumpLiveTable(
-          tester,
-          initialMatch: buildMatch(servingTeamId: teamAId),
-        );
-        await toggleFullMode(tester);
-
-        await callTechnicalTimeout(tester, teamALabel);
-
-        // Fecha o overlay antes de tocar no "−" — aberto, ele absorveria o
-        // toque antes dele chegar no painel por trás.
-        await tester.tap(find.text('Encerrar tempo'));
-        await tester.pump();
-
-        final panelA = panelWithLabel(teamALabel);
-        await tester.tap(
-          find.descendant(
-            of: panelA,
-            matching: find.byIcon(Icons.remove_rounded),
-          ),
-        );
-        await tester.pump();
-        await tester.pump();
-
-        expect(
-          fakeRepo.pointWrites,
-          isEmpty,
-          reason: 'o toque no "−" vazou pro onTap do painel e marcou ponto',
-        );
-        expect(fakeRepo.updateFieldsCalls, isEmpty);
-      },
-    );
+    // O botão "−" de tirar tempo técnico está com o gatilho comentado no
+    // painel (ver organizer_match_live_table_widgets.dart) — onRemoveTimeout
+    // continua implementado e ligado, só sem ícone que o acione.
   });
 
   group('Tempo técnico: overlay de contagem regressiva', () {
@@ -1294,7 +1240,12 @@ void main() {
         expect(find.text('Alterar formato'), findsOneWidget);
         expect(find.text('Placar completo'), findsOneWidget);
         expect(find.text('Histórico'), findsOneWidget);
-        expect(find.text('Modo exibição'), findsOneWidget);
+        expect(
+          find.text('Modo exibição'),
+          findsNothing,
+          reason: 'item fica escondido do menu enquanto o modo exibição '
+              'não é reabilitado',
+        );
         expect(find.text('Sair do modo full'), findsOneWidget);
       },
     );
@@ -1393,29 +1344,9 @@ void main() {
       expect(find.text('summary stub'), findsOneWidget);
     });
 
-    testWidgets('"Modo exibição" entra em present mode', (tester) async {
-      await pumpLiveTable(tester, initialMatch: buildMatch());
-      await toggleFullMode(tester);
-
-      await tester.tap(find.byIcon(Icons.more_vert_rounded));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('Modo exibição'));
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.byType(LiveTablePresentView), findsOneWidget);
-      expect(find.byType(LiveTableFullModeMesa), findsNothing);
-      expect(
-        fakeWakelock.toggles.last,
-        isTrue,
-        reason: 'entrar no modo exibição deveria ligar o wakelock',
-      );
-      expect(
-        systemChromeCalls.last.arguments,
-        'SystemUiMode.immersiveSticky',
-      );
-    });
+    // "Modo exibição" está com o gatilho no menu escondido (ver
+    // organizer_match_live_table_page.dart) — a lógica de entrada
+    // (_enterPresentMode) continua implementada, só sem UI que a acione.
 
     testWidgets(
       '"Sair do modo full" volta pra mesa pequena (a mesa dedicada some da '

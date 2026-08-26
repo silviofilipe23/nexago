@@ -131,6 +131,10 @@ void main() {
 
   testWidgets('agendada: a hora ocupa o selo e o centro vira "vs"',
       (tester) async {
+    // O rótulo só sai como "HH:mm" quando o dia bate com HOJE — precisa ser
+    // hoje na parede de São Paulo, não uma data fixa, senão o teste vira uma
+    // bomba-relógio que passa a falhar no dia seguinte ao em que foi escrito.
+    final today = toNexagoEventLocal(nexagoEventNow());
     await tester.pumpWidget(
       _host(
         FocusMatchCard(
@@ -138,11 +142,10 @@ void main() {
             status: TournamentMatchStatus.scheduled,
             sets: const [],
             currentSetIndex: null,
-            // 14:30 na parede de São Paulo (o mapper entrega instante UTC).
             scheduleTime: nexagoEventDateTime(
-              year: 2026,
-              month: 8,
-              day: 21,
+              year: today.year,
+              month: today.month,
+              day: today.day,
               hour: 14,
               minute: 30,
             ),

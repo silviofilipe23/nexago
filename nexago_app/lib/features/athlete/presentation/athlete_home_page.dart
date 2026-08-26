@@ -19,6 +19,7 @@ import '../../tournaments/domain/registration_progress_logic.dart';
 import '../../tournaments/domain/tournament_partner_invite_providers.dart';
 import '../../tournaments/domain/tournament_registration_navigation.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
+import '../../tournaments/presentation/widgets/pending_tournament_invitee_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
@@ -45,8 +46,9 @@ import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
 
 /// Aba Início do atleta — mesmo padrão de layout do painel do portal web no
 /// mobile: meus torneios (quando ativa, em destaque no topo) → Modo Focus
-/// (no dia do evento) → KPIs → acompanhamento de inscrição → convites →
-/// competições → próxima reserva → evolução → comunidade → missões → atalhos.
+/// (no dia do evento) → KPIs → acompanhamento de inscrição → convites de
+/// dupla recebidos → convites enviados por mim → competições → próxima
+/// reserva → evolução → comunidade → missões → atalhos.
 class AthleteHomePage extends ConsumerWidget {
   const AthleteHomePage({super.key});
 
@@ -160,8 +162,36 @@ class AthleteHomePage extends ConsumerWidget {
                         ),
                         child: _HomeRegistrationTrackerSection(),
                       ),
-                      // Convites só ocupam espaço quando existem — sem isso o
-                      // gap deles soma com o das competições e vira buraco.
+                      // Convites recebidos ainda pendentes — o atleta precisa
+                      // responder. Espelha o card "Convites de dupla" da web,
+                      // que fica logo após o tracker de inscrição.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasReceivedInvites = (ref
+                                      .watch(
+                                        pendingTournamentPartnerInvitesProvider,
+                                      )
+                                      .valueOrNull ??
+                                  const [])
+                              .isNotEmpty;
+                          if (!hasReceivedInvites) {
+                            return const SizedBox.shrink();
+                          }
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                              AppSpacing.screenH,
+                              0,
+                            ),
+                            child: PendingTournamentInviteeInvitesSection(),
+                          );
+                        },
+                      ),
+                      // Convites enviados por mim (aguardando parceiro ou
+                      // pagamento pendente) — só ocupam espaço quando
+                      // existem, senão o gap soma com o das competições e
+                      // vira buraco.
                       Consumer(
                         builder: (context, ref, _) {
                           final hasInvites = (ref

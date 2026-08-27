@@ -13,6 +13,8 @@ import { TournamentHero } from './tournament-hero';
 import { RevealDirective } from '../../shared/reveal.directive';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 import { SpotlightCard } from '../../shared/ui/spotlight-card';
+import { FollowButtonComponent } from './follow-button';
+import { liveUrlFor } from '../../../lib/tournament-live-link';
 import { getTournamentById } from '../../../lib/firestore/tournaments';
 import { sportLabel, genderLabel, formatCents } from '../../../lib/format';
 import { extractId, toSlugId } from '../../../lib/slug';
@@ -60,7 +62,14 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
 @Component({
   selector: 'app-torneio-detail-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TournamentHero, RevealDirective, ButtonDirective, SpotlightCard],
+  imports: [
+    RouterLink,
+    TournamentHero,
+    RevealDirective,
+    ButtonDirective,
+    SpotlightCard,
+    FollowButtonComponent,
+  ],
   template: `
     <main class="pb-24">
       @if (loading()) {
@@ -69,9 +78,15 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
         <app-tournament-hero [t]="t" />
 
         <div class="mx-auto max-w-4xl px-5 sm:px-6">
+          <div nxReveal class="flex justify-end pt-8">
+            <app-follow-button [id]="t.id" />
+          </div>
+
           @if (t.description; as description) {
             <div nxReveal>
-              <p class="mt-10 max-w-2xl whitespace-pre-line text-base leading-relaxed text-text-mute">
+              <p
+                class="mt-10 max-w-2xl whitespace-pre-line text-base leading-relaxed text-text-mute"
+              >
                 {{ description }}
               </p>
             </div>
@@ -86,17 +101,24 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
                 @for (c of t.categories; track $index) {
                   <li class="h-full">
                     <div nxReveal [nxRevealDelay]="$index * 50" class="h-full">
-                      <app-spotlight-card [className]="'flex h-full items-center justify-between gap-4 px-5 py-4'">
+                      <app-spotlight-card
+                        [className]="'flex h-full items-center justify-between gap-4 px-5 py-4'"
+                      >
                         <div>
                           <p class="font-600 text-fg">
-                            {{ c.categoryName ?? (c.level ?? 'Categoria') + ' · ' + genderLabel(c.genderType) }}
+                            {{
+                              c.categoryName ??
+                                (c.level ?? 'Categoria') + ' · ' + genderLabel(c.genderType)
+                            }}
                           </p>
                           @if (c.spotsTotal !== undefined) {
                             <p class="mt-0.5 text-sm text-text-dim">{{ c.spotsTotal }} vagas</p>
                           }
                         </div>
                         @if (c.entryFeeCents !== undefined) {
-                          <span class="shrink-0 font-mono font-700 text-brand">{{ formatCents(c.entryFeeCents) }}</span>
+                          <span class="shrink-0 font-mono font-700 text-brand">{{
+                            formatCents(c.entryFeeCents)
+                          }}</span>
                         }
                       </app-spotlight-card>
                     </div>
@@ -115,11 +137,18 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
                 <svg
                   class="size-6"
                   [class]="acceptsRegistration(t.listingStatus) ? 'text-brand' : 'text-text-dim'"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-                  <path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                  <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                  <path d="M4 22h16" />
+                  <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
                   <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
                   <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
                 </svg>
@@ -139,8 +168,20 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
                   >
                     Inscreva-se
                   </a>
+                } @else if (liveUrlFor(t.listingStatus, t.id); as liveUrl) {
+                  <a
+                    nxButton="primary"
+                    [href]="liveUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="w-full sm:w-auto"
+                  >
+                    Acompanhar ao vivo
+                  </a>
                 } @else {
-                  <a nxButton="primary" routerLink="/torneios" class="w-full sm:w-auto">Ver torneios abertos</a>
+                  <a nxButton="primary" routerLink="/torneios" class="w-full sm:w-auto"
+                    >Ver torneios abertos</a
+                  >
                 }
                 <a
                   nxButton="secondary"
@@ -161,7 +202,9 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
           <p class="mx-auto mt-3 max-w-sm text-sm text-text-mute">
             Esse torneio não existe, foi removido ou ainda não está publicado.
           </p>
-          <a nxButton="primary" routerLink="/torneios" class="mt-7 inline-flex">Ver todos os torneios</a>
+          <a nxButton="primary" routerLink="/torneios" class="mt-7 inline-flex"
+            >Ver todos os torneios</a
+          >
         </div>
       }
     </main>
@@ -176,6 +219,7 @@ export class TorneioDetailPage {
   protected readonly sportLabel = sportLabel;
   protected readonly genderLabel = genderLabel;
   protected readonly formatCents = formatCents;
+  protected readonly liveUrlFor = liveUrlFor;
 
   protected acceptsRegistration(status: TournamentListingStatus): boolean {
     return status === 'open' || status === 'almost_full';
@@ -219,7 +263,9 @@ export class TorneioDetailPage {
     const place = [t.locationName, t.city, t.state].filter(Boolean).join(', ');
     // O Google lê isto: torneio cancelado precisa sair como cancelado, não como agendado.
     const eventStatus =
-      t.listingStatus === 'cancelled' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled';
+      t.listingStatus === 'cancelled'
+        ? 'https://schema.org/EventCancelled'
+        : 'https://schema.org/EventScheduled';
 
     const jsonLd = {
       '@context': 'https://schema.org',

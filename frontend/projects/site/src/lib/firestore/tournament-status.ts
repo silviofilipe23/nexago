@@ -71,13 +71,15 @@ export function resolveListingStatus(t: TournamentStatusInput, now: Date = new D
 
   if (t.liveMatchesNow > 0) return 'live';
 
+  // Torneio de hoje fica ativo o dia inteiro: `startAt`/`endAt` gravados no doc costumam ser
+  // aproximados (ou nem existir) e não podem apagar um torneio em andamento antes da meia-noite.
+  if (t.startAt && isSameDayInBrazil(now, t.startAt)) {
+    if (raw === 'open' || raw === 'almostFull' || raw === 'bracketsReady' || raw === 'live') return 'live';
+  }
+
   const end = t.endAt ?? t.startAt;
   if (raw === 'live') return end && now > end ? 'ended' : 'live';
   if (end && now > end) return 'ended';
-
-  if (t.startAt && isSameDayInBrazil(now, t.startAt)) {
-    if (raw === 'open' || raw === 'almostFull' || raw === 'bracketsReady') return 'live';
-  }
 
   if (raw === 'bracketsReady') return 'closed';
   if (raw === 'almostFull') return 'almost_full';

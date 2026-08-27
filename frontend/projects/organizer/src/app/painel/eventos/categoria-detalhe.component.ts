@@ -113,36 +113,52 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 }
                 <og-pill tone="dim" [title]="scoreHint(i)">{{ scoreLabel(i) }}</og-pill>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
+                <button
+                  type="button"
+                  class="og-categoria-toggle"
+                  [attr.aria-expanded]="openTeamId() === i.id"
+                  [attr.aria-controls]="'categoria-drawer-' + i.id"
+                  [attr.aria-label]="(openTeamId() === i.id ? 'Fechar ações de ' : 'Ações de ') + i.teamName"
+                  (click)="toggleTeam(i.id)"
+                >
+                  <og-icon name="chevron" [size]="15" />
+                </button>
               </div>
-              <!-- Ver athlete-level-promotion.ts: aparece pra quem tem degrau pra subir — quem
-                   já está no topo (Open) some da lista, e quem AINDA NÃO tem nível declarado
-                   nesse esporte ganha os 7 degraus inteiros (semear é o mesmo caminho de
-                   promover, pro backend — c034b9e0). O organizador que acabou de ver alguém
-                   jogar é a melhor fonte disponível enquanto o rating não tem volume de
-                   partidas (Task 8 do plano de calibração). O backend (setAthleteLevel) é o
-                   gate real: dono do torneio, mesmo esporte e inscrição ativa — a UI só evita
-                   oferecer o que já sabe que vai falhar (repetir/descer o degrau). -->
-              @if (promotableFor(i); as promotable) {
-                @if (promotable.length) {
-                  <div class="og-categoria-promote">
-                    @for (p of promotable; track p.uid) {
-                      <span class="og-categoria-promote-item">
-                        <span class="og-categoria-promote-name">{{ p.name }}</span>
-                        <select #lvl class="og-categoria-promote-select" [attr.aria-label]="'Nível para promover ' + p.name">
-                          @for (opt of p.options; track opt.code) {
-                            <option [value]="opt.code">{{ opt.label }}</option>
-                          }
-                        </select>
-                        <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="promote(p.uid, p.name, lvl.value)">
-                          @if (busyKey() === 'promote:' + p.uid) {
-                            <app-nx-spinner [size]="12" />
-                          }
-                          {{ busyKey() === 'promote:' + p.uid ? 'Promovendo…' : 'Promover nível' }}
-                        </button>
-                      </span>
+              @if (openTeamId() === i.id) {
+                <div class="og-categoria-drawer" [id]="'categoria-drawer-' + i.id">
+                  <!-- Ver athlete-level-promotion.ts: aparece pra quem tem degrau pra subir — quem
+                       já está no topo (Open) some da lista, e quem AINDA NÃO tem nível declarado
+                       nesse esporte ganha os 7 degraus inteiros (semear é o mesmo caminho de
+                       promover, pro backend — c034b9e0). O organizador que acabou de ver alguém
+                       jogar é a melhor fonte disponível enquanto o rating não tem volume de
+                       partidas (Task 8 do plano de calibração). O backend (setAthleteLevel) é o
+                       gate real: dono do torneio, mesmo esporte e inscrição ativa — a UI só evita
+                       oferecer o que já sabe que vai falhar (repetir/descer o degrau). -->
+                  @if (promotableFor(i); as promotable) {
+                    @if (promotable.length) {
+                      <div class="og-categoria-promote">
+                        @for (p of promotable; track p.uid) {
+                          <span class="og-categoria-promote-item">
+                            <span class="og-categoria-promote-name">{{ p.name }}</span>
+                            <select #lvl class="og-categoria-promote-select" [attr.aria-label]="'Nível para promover ' + p.name">
+                              @for (opt of p.options; track opt.code) {
+                                <option [value]="opt.code">{{ opt.label }}</option>
+                              }
+                            </select>
+                            <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="promote(p.uid, p.name, lvl.value)">
+                              @if (busyKey() === 'promote:' + p.uid) {
+                                <app-nx-spinner [size]="12" />
+                              }
+                              {{ busyKey() === 'promote:' + p.uid ? 'Promovendo…' : 'Promover nível' }}
+                            </button>
+                          </span>
+                        }
+                      </div>
+                    } @else {
+                      <p class="og-categoria-empty-actions">Nenhuma ação disponível</p>
                     }
-                  </div>
-                }
+                  }
+                </div>
               }
             } @empty {
               <p class="og-empty">Nenhuma inscrição ainda</p>
@@ -291,6 +307,50 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       font-size: 11.5px;
       cursor: pointer;
     }
+    .og-categoria-toggle {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--nx-r-2);
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--nx-text-dim);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex: none;
+      transition:
+        background var(--nx-d-fast) var(--nx-ease-out),
+        color var(--nx-d-fast) var(--nx-ease-out),
+        border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .og-categoria-toggle:hover {
+      background: var(--nx-surface-1);
+      border-color: var(--nx-line);
+      color: var(--nx-text);
+    }
+    .og-categoria-toggle og-icon {
+      display: grid;
+      /* O chevron do design system aponta pra direita; 90° = fechado, -90° = aberto. */
+      transform: rotate(90deg);
+      transition: transform var(--nx-d-base) var(--nx-ease-out);
+    }
+    .og-categoria-toggle[aria-expanded='true'] {
+      background: var(--nx-surface-1);
+      border-color: var(--nx-line);
+      color: var(--nx-text);
+    }
+    .og-categoria-toggle[aria-expanded='true'] og-icon {
+      transform: rotate(-90deg);
+    }
+    .og-categoria-drawer {
+      padding: 2px 0 18px 44px;
+    }
+    .og-categoria-empty-actions {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      margin: 0;
+    }
   `,
 })
 export class CategoriaDetalheComponent {
@@ -312,6 +372,10 @@ export class CategoriaDetalheComponent {
   protected readonly busy = signal(false);
   protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+
+  /** Gaveta de ações aberta (id da inscrição) — só uma por vez, mesmo padrão da tela de
+   *  Inscrições (`actionsFor`/`toggleActions`). */
+  protected readonly openTeamId = signal<string | null>(null);
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
     () => this.tournament()?.categories.find((c) => c.id === this.catId()) ?? null,
@@ -389,6 +453,7 @@ export class CategoriaDetalheComponent {
       this.tournament.set(null);
       this.inscriptions.set([]);
       this.matches.set([]);
+      this.openTeamId.set(null);
       if (!tid || !cid) {
         this.loading.set(false);
         return;
@@ -418,6 +483,10 @@ export class CategoriaDetalheComponent {
 
   protected pad(n: number): string {
     return String(n).padStart(2, '0');
+  }
+
+  protected toggleTeam(id: string): void {
+    this.openTeamId.update((cur) => (cur === id ? null : id));
   }
 
   /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */

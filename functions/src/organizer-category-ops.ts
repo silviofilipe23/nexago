@@ -451,6 +451,40 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
         notifyError,
       });
     }
+  } else {
+    // Inscrição com elenco completo: avisa todos os atletas que o organizador
+    // confirmou o pagamento — espelha o aviso que `organizerRevertRegistrationPayment`
+    // já manda pro caminho inverso.
+    try {
+      const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+      const teamSnap = teamId ?
+        await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get() :
+        null;
+      const athleteUids = registrationAthleteUids(
+        data,
+        teamSnap?.exists ? teamSnap.data() : null,
+      );
+      await Promise.all(
+        athleteUids.map((athleteUid) =>
+          deliverNotificationToUser({
+            userId: athleteUid,
+            title: "Pagamento confirmado",
+            body: "O organizador confirmou o pagamento da sua inscrição. Vaga garantida!",
+            type: "tournament_registration_confirmed",
+            data: {
+              tournamentId,
+              registrationId,
+              url: `/torneios/${tournamentId}`,
+            },
+          }).catch(() => undefined),
+        ),
+      );
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar confirmação de pagamento", {
+        registrationId,
+        notifyError,
+      });
+    }
   }
 
   return {ok: true};

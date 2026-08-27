@@ -220,6 +220,19 @@ export function unscheduleMatch(matchId: string): Promise<unknown> {
   return call('unscheduleMatch', { matchId: matchId.trim() });
 }
 
+/** Liga/desliga `matchOps.dynamicRescheduleEnabled` do torneio — mesma callable que o app
+ *  organizador chama (`organizer_match_schedule_service.dart`). Config persistida, não um
+ *  parâmetro de uma execução do auto-agendamento. */
+export function updateMatchOpsSettings(params: {
+  tournamentId: string;
+  dynamicRescheduleEnabled: boolean;
+}): Promise<{ ok?: boolean; dynamicRescheduleEnabled?: boolean }> {
+  return call('updateMatchOpsSettings', {
+    tournamentId: params.tournamentId.trim(),
+    dynamicRescheduleEnabled: params.dynamicRescheduleEnabled,
+  });
+}
+
 export interface AutoScheduleSlot {
   matchId: string;
   courtId: string;

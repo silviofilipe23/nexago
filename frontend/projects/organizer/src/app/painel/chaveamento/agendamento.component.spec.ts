@@ -9,7 +9,7 @@ import type { OrganizerTournament } from '../data/tournament.model';
 
 const DAY = '2026-10-24';
 
-function tournamentFixture(): OrganizerTournament {
+function tournamentFixture(overrides: Partial<OrganizerTournament> = {}): OrganizerTournament {
   return {
     id: 't1',
     name: 'Copa Teste',
@@ -50,11 +50,12 @@ function tournamentFixture(): OrganizerTournament {
       { id: 'Q2', name: 'Quadra 2', order: 2 },
     ],
     courtsCount: 2,
-    matchOps: { dayStart: '08:00', dayEnd: '10:00', defaultMatchDurationMin: 30, minRestBetweenMatchesMin: 30 },
+    matchOps: { dayStart: '08:00', dayEnd: '10:00', defaultMatchDurationMin: 30, minRestBetweenMatchesMin: 30, dynamicRescheduleEnabled: false },
     bigScreen: null,
     uniformRequired: false,
     uniformNumberOnShirt: false,
     uniformNameOnShirt: false,
+    ...overrides,
   };
 }
 
@@ -154,6 +155,14 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     fixture.detectChanges();
   }
 
+  function dynamicRescheduleCheckbox(): HTMLInputElement {
+    const label = Array.from(host().querySelectorAll<HTMLLabelElement>('.og-auto-check')).find((l) =>
+      (l.textContent ?? '').includes('Reagendamento dinâmico'),
+    );
+    if (!label) throw new Error('Checkbox de reagendamento dinâmico não está na tela');
+    return label.querySelector('input')!;
+  }
+
   it('mostra a fila até abrir o painel', () => {
     expect(host().textContent).toContain('Fila de partidas');
     expect(host().textContent).not.toContain('Gerar grade do dia');
@@ -167,6 +176,38 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     expect(text).toContain('Quadras');
     expect(text).toContain('Evitar conflito de atletas');
     expect(text).toContain('Respeitar dependências da chave');
+    expect(text).toContain('Reagendamento dinâmico');
+  });
+
+  it('reagendamento dinâmico começa desligado quando o torneio não tem a flag', () => {
+    openPanel();
+    expect(dynamicRescheduleCheckbox().checked).toBeFalse();
+  });
+
+  it('reflete um torneio que já entra com reagendamento dinâmico ligado', () => {
+    // Id diferente = troca de torneio de verdade pro componente, que é o gatilho
+    // que resemeia a config persistida (ver comentário no `effect` do componente).
+    ctx.tournament.set(
+      tournamentFixture({
+        id: 't2',
+        matchOps: { dayStart: '08:00', dayEnd: '10:00', defaultMatchDurationMin: 30, minRestBetweenMatchesMin: 30, dynamicRescheduleEnabled: true },
+      }),
+    );
+    fixture.detectChanges();
+    openPanel();
+    expect(dynamicRescheduleCheckbox().checked).toBeTrue();
+  });
+
+  it('marca o checkbox na hora e trava enquanto salva', () => {
+    openPanel();
+    const box = dynamicRescheduleCheckbox();
+    expect(box.checked).toBeFalse();
+
+    box.click();
+    fixture.detectChanges();
+
+    expect(box.checked).toBeTrue();
+    expect(box.disabled).toBeTrue();
   });
 
   it('oferece os horários de início de 30 em 30 dentro da jornada', () => {

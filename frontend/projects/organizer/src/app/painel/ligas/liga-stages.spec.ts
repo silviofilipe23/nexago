@@ -26,7 +26,7 @@ describe('liga-stages', () => {
       leagueId: 'liga-1',
       courts: [],
       courtsCount: 4,
-      matchOps: { dayStart: '07:00', dayEnd: '24:00', defaultMatchDurationMin: 40, minRestBetweenMatchesMin: 20 },
+      matchOps: { dayStart: '07:00', dayEnd: '24:00', defaultMatchDurationMin: 40, minRestBetweenMatchesMin: 20, dynamicRescheduleEnabled: false },
       bigScreen: null,
       uniformRequired: false,
       uniformNumberOnShirt: false,

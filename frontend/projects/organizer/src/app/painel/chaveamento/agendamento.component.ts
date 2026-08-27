@@ -10,7 +10,13 @@ import {
   startTimeOptions,
 } from '../data/auto-schedule-preview';
 import type { AutoScheduleSkip, AutoScheduleSlot } from '../data/organizer-ops.service';
-import { autoScheduleTournamentDay, dayKeyFromDate, scheduleMatch, unscheduleMatch } from '../data/organizer-ops.service';
+import {
+  autoScheduleTournamentDay,
+  dayKeyFromDate,
+  scheduleMatch,
+  unscheduleMatch,
+  updateMatchOpsSettings,
+} from '../data/organizer-ops.service';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -258,6 +264,19 @@ interface AgendaBloco {
                 <input type="checkbox" [checked]="autoRespectDeps()" (change)="toggleRespectDeps()" />
                 <span>Respeitar dependências da chave</span>
               </label>
+              <label class="og-auto-check">
+                <input
+                  type="checkbox"
+                  [checked]="autoDynamicReschedule()"
+                  [disabled]="autoDynamicSaving()"
+                  (change)="toggleDynamicReschedule()"
+                />
+                <span>Reagendamento dinâmico</span>
+              </label>
+              <p class="og-auto-hint">
+                Recalcula automaticamente o horário das próximas partidas da quadra quando uma
+                termina antes/depois ou vira W.O.
+              </p>
             </div>
 
             <div class="og-auto-footer">
@@ -685,6 +704,13 @@ interface AgendaBloco {
       height: 15px;
       cursor: pointer;
     }
+    .og-auto-hint {
+      margin: -3px 0 0;
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--nx-text-dim);
+    }
     .og-auto-warn {
       margin: 0 0 8px;
       font-family: var(--nx-font-ui);
@@ -819,6 +845,11 @@ export class AgendamentoComponent {
   protected readonly autoRespectDeps = signal(true);
   /** true = só a categoria selecionada; false = torneio inteiro. */
   protected readonly autoScopeCategory = signal(true);
+  /** `matchOps.dynamicRescheduleEnabled` do torneio — config persistida (não um parâmetro
+   *  desta execução do auto-agendamento), por isso é semeada na troca de torneio abaixo,
+   *  não toda vez que o sheet abre como os dois checkboxes acima. */
+  protected readonly autoDynamicReschedule = signal(false);
+  protected readonly autoDynamicSaving = signal(false);
   private readonly autoSlotsSignal = signal<AutoScheduleSlot[]>([]);
   private readonly autoSkipped = signal<AutoScheduleSkip[]>([]);
   /** Descarta resposta de prévia que chega depois de outra mais nova. */
@@ -884,6 +915,7 @@ export class AgendamentoComponent {
       this.selectedDayKey.set(keys.includes(today) ? today : (keys[0] ?? today));
       this.selectedMatchId.set(null);
       this.feedback.set(null);
+      this.autoDynamicReschedule.set(t.matchOps.dynamicRescheduleEnabled);
       this.closeAuto();
     });
     destroyRef.onDestroy(() => this.cancelAutoDebounce());
@@ -1064,6 +1096,26 @@ export class AgendamentoComponent {
   protected toggleRespectDeps(): void {
     this.autoRespectDeps.update((v) => !v);
     this.queueAutoPreview();
+  }
+
+  /** Ao contrário dos dois acima, não mexe na prévia — é uma config persistida do
+   *  torneio, gravada na hora via `updateMatchOpsSettings`. Otimista: marca já e
+   *  reverte se o servidor recusar (sem stream local pra confirmar). */
+  protected async toggleDynamicReschedule(): Promise<void> {
+    const t = this.ctx.tournament();
+    if (!t || this.autoDynamicSaving()) return;
+    const next = !this.autoDynamicReschedule();
+    this.autoDynamicReschedule.set(next);
+    this.autoDynamicSaving.set(true);
+    this.feedback.set(null);
+    try {
+      await updateMatchOpsSettings({ tournamentId: t.id, dynamicRescheduleEnabled: next });
+    } catch (e) {
+      this.autoDynamicReschedule.set(!next);
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao salvar o reagendamento dinâmico.' });
+    } finally {
+      this.autoDynamicSaving.set(false);
+    }
   }
 
   protected recalcAuto(): void {

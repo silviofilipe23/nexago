@@ -42,7 +42,7 @@ describe('effectiveTelaoConfig · showPublicQr', () => {
       leagueId: null,
       courts: [{ id: 'q1', name: '1', order: 0 }],
       courtsCount: 1,
-      matchOps: { dayStart: '07:00', dayEnd: '24:00', defaultMatchDurationMin: 40, minRestBetweenMatchesMin: 20 },
+      matchOps: { dayStart: '07:00', dayEnd: '24:00', defaultMatchDurationMin: 40, minRestBetweenMatchesMin: 20, dynamicRescheduleEnabled: false },
       bigScreen,
       uniformRequired: false,
       uniformNumberOnShirt: false,

@@ -33,11 +33,12 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
   },
   closed: {
     title: 'Inscrições encerradas',
-    description: 'As chaves já estão fechadas. Acompanhe os jogos ao vivo pelo app.',
+    description:
+      'As chaves já estão fechadas. Acompanhe os jogos ao vivo aqui pelo navegador ou no app.',
   },
   live: {
     title: 'Acontecendo agora',
-    description: 'Acompanhe as chaves e os resultados ao vivo pelo app.',
+    description: 'Acompanhe as chaves e os resultados ao vivo aqui pelo navegador ou no app.',
   },
   ended: {
     title: 'Esse torneio já aconteceu',

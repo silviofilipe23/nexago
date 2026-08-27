@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Dar ao espectador anônimo do site (`nexago.com.br`) um jeito de "seguir" um torneio (bookmark local, sem conta) e de chegar na página ao vivo que já existe em `organizador.nexago.app/t/:id`, hoje sem nenhum link de lá pra cá.
+**Goal:** Dar ao espectador anônimo do site (`nexago.com.br`) um jeito de "seguir" um torneio (bookmark local, sem conta) e de chegar na página ao vivo que já existe em `organizador.nexago.com.br/t/:id`, hoje sem nenhum link de lá pra cá.
 
-**Architecture:** Tudo isolado no projeto `site` (Angular 20, standalone, zoneless, signals). Um `localStorage` wrapper puro (`follow-storage.ts`) guarda os ids seguidos; um botão pequeno e independente (`FollowButtonComponent`) lê/escreve nele e é plugado na página do torneio; uma função pura (`liveUrlFor`) decide quando linkar pra `organizador.nexago.app/t/:id`; uma nova seção da home (`AcompanhandoSection`) hidrata os ids seguidos via `getTournamentById` (já existe) e reaproveita o `TournamentCard` já existente. Nenhuma mudança em `organizer`, `functions` ou `firestore.rules`.
+**Architecture:** Tudo isolado no projeto `site` (Angular 20, standalone, zoneless, signals). Um `localStorage` wrapper puro (`follow-storage.ts`) guarda os ids seguidos; um botão pequeno e independente (`FollowButtonComponent`) lê/escreve nele e é plugado na página do torneio; uma função pura (`liveUrlFor`) decide quando linkar pra `organizador.nexago.com.br/t/:id`; uma nova seção da home (`AcompanhandoSection`) hidrata os ids seguidos via `getTournamentById` (já existe) e reaproveita o `TournamentCard` já existente. Nenhuma mudança em `organizer`, `functions` ou `firestore.rules`.
 
 **Tech Stack:** Angular 20 (standalone components, `input()`/`signal()`/`effect()`, `@if`/`@for`), Jasmine + Karma via `@angular/build:karma`, `localStorage` do navegador (sem lib de mock — Karma roda em Chrome headless real).
 
@@ -285,11 +285,11 @@ import type { TournamentListingStatus } from './firestore/types';
 
 describe('liveUrlFor', () => {
   it('aponta pra página ao vivo quando as inscrições fecharam', () => {
-    expect(liveUrlFor('closed', 'abc123')).toBe('https://organizador.nexago.app/t/abc123');
+    expect(liveUrlFor('closed', 'abc123')).toBe('https://organizador.nexago.com.br/t/abc123');
   });
 
   it('aponta pra página ao vivo quando o torneio está acontecendo', () => {
-    expect(liveUrlFor('live', 'abc123')).toBe('https://organizador.nexago.app/t/abc123');
+    expect(liveUrlFor('live', 'abc123')).toBe('https://organizador.nexago.com.br/t/abc123');
   });
 
   it('não linka nos demais status', () => {
@@ -319,10 +319,10 @@ import type { TournamentListingStatus } from './firestore/types';
 const LIVE_LINK_STATUSES: ReadonlySet<TournamentListingStatus> = new Set(['closed', 'live']);
 
 /** Só nos status em que o CTA hoje promete "acompanhe ao vivo" sem cumprir — os outros
- *  status não ganham link pra `organizador.nexago.app`. */
+ *  status não ganham link pra `organizador.nexago.com.br`. */
 export function liveUrlFor(status: TournamentListingStatus, id: string): string | null {
   if (!LIVE_LINK_STATUSES.has(status)) return null;
-  return `https://organizador.nexago.app/t/${id}`;
+  return `https://organizador.nexago.com.br/t/${id}`;
 }
 ```
 
@@ -875,7 +875,7 @@ Clicar no botão → vira "Seguindo". Recarregar a página (F5) → continua "Se
 
 - [ ] **Step 4: Verificar o link ao vivo num torneio `closed` ou `live`**
 
-Se houver um torneio nesse status no ambiente de dev, abrir sua página e confirmar que o botão primário do rodapé virou "Acompanhar ao vivo" apontando pra `https://organizador.nexago.app/t/{id}` (conferir o `href` no DevTools, não precisa navegar de verdade pra lá). Se não houver torneio `closed`/`live` disponível no ambiente, pular este passo e anotar como pendência de verificação manual pós-deploy.
+Se houver um torneio nesse status no ambiente de dev, abrir sua página e confirmar que o botão primário do rodapé virou "Acompanhar ao vivo" apontando pra `https://organizador.nexago.com.br/t/{id}` (conferir o `href` no DevTools, não precisa navegar de verdade pra lá). Se não houver torneio `closed`/`live` disponível no ambiente, pular este passo e anotar como pendência de verificação manual pós-deploy.
 
 - [ ] **Step 5: Verificar a seção da home**
 

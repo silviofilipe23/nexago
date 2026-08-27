@@ -6,7 +6,7 @@ na home — tudo local ao navegador, sem backend novo.
 
 ## Problema
 
-A página pública de acompanhamento ao vivo já existe — `organizador.nexago.app/t/:id`
+A página pública de acompanhamento ao vivo já existe — `organizador.nexago.com.br/t/:id`
 (design/plano `2026-08-18-telao-no-torneio-e-rota-publica`), com realtime de verdade
 (`onSnapshot`) e hidratação de nome de dupla via `public_profiles`. Mas ninguém acha essa
 página pelo site: a página do torneio em `nexago.com.br/torneios/:id`
@@ -15,20 +15,20 @@ diz "Acompanhe os jogos ao vivo pelo app", mas só oferece baixar o app, nunca a
 resolve isso no navegador. E quem quer acompanhar sem se cadastrar não tem como "guardar"
 um torneio pra achar de novo depois.
 
-Site e página ao vivo são origens diferentes (`nexago.com.br` vs `organizador.nexago.app`)
+Site e página ao vivo são origens diferentes (`nexago.com.br` vs `organizador.nexago.com.br`)
 e o site não tem auth nenhuma (nem Firebase Auth, nem sessão) — qualquer estado de "seguir"
 só pode viver no `localStorage` do navegador do espectador, escopado à origem do site.
 
 ## Decisões
 
-1. **"Seguir" vive só no site**, nunca na página `organizador.nexago.app/t/:id` — decisão
+1. **"Seguir" vive só no site**, nunca na página `organizador.nexago.com.br/t/:id` — decisão
    consciente, mesmo sabendo que quem entra pelo QR do telão (na arena) não vê a opção ali.
    Cobre o caminho principal (descoberta via site/busca/redes) sem duplicar estado entre
    origens que nunca se encontram.
 2. **Sem conta, sem push, sem e-mail.** MVP é um bookmark local: grava o id do torneio,
    mostra numa lista de acesso rápido. Nada de notificação — isso fica pra quando houver
    infra (fase 2, fora de escopo aqui).
-3. **O link pra `organizador.nexago.app/t/:id` substitui "Baixar o app" como ação primária
+3. **O link pra `organizador.nexago.com.br/t/:id` substitui "Baixar o app" como ação primária
    só nos status `closed` e `live`** — os dois únicos onde o CTA atual já promete
    "acompanhe ao vivo" sem cumprir. Nos demais status (`open`, `almost_full`, `ended`,
    `cancelled`) o CTA não muda.
@@ -59,7 +59,7 @@ export function toggleFollow(id: string): boolean // retorna o novo estado
 - `CTA_COPY` ganha um `liveUrl?: (id: string) => string` opcional nas entradas `closed` e
   `live`; o botão primário do rodapé vira `<a [href]="liveUrl(t.id)">Acompanhar ao vivo</a>`
   nesses dois status, e "Baixar o app" desce a ação secundária. Nos demais status, nada
-  muda. URL montada como template string inline (`` `https://organizador.nexago.app/t/${t.id}` ``),
+  muda. URL montada como template string inline (`` `https://organizador.nexago.com.br/t/${t.id}` ``),
   mesmo padrão já usado duas linhas abaixo pro link de inscrição
   (`'https://atleta.nexago.com.br/torneios/' + t.id + '/inscricao'`) — o site não tem (nem
   precisa ganhar aqui) um arquivo central de URLs externas.
@@ -86,7 +86,7 @@ antes da vitrine genérica):
   etapa/torneio, não o atleta.
 - **Notificação (push ou e-mail) de início da etapa** — exige infra que o site não tem
   hoje (zero FCM web, zero auth). Fica pra quando isso existir.
-- **"Seguir" na página `organizador.nexago.app/t/:id`** — decisão 1: quem entra pelo QR do
+- **"Seguir" na página `organizador.nexago.com.br/t/:id`** — decisão 1: quem entra pelo QR do
   telão não vê a opção. Aceito conscientemente.
 - **Sincronizar o seguir entre as duas origens** — não há ponte técnica simples
   (`localStorage` é por origem); resolver isso é reabrir a decisão 1, não um detalhe de
@@ -112,14 +112,14 @@ Alterados:
   retorna vazio/no-op.
 - Specs de `torneio-detail.page.ts`: botão reflete `isFollowing` no load, toggle chama
   `toggleFollow` e atualiza o ícone, link "Acompanhar ao vivo" só aparece em
-  `closed`/`live` e aponta pra `organizador.nexago.app/t/{id}`.
+  `closed`/`live` e aponta pra `organizador.nexago.com.br/t/{id}`.
 - `acompanhando.spec.ts`: some quando não há seguidos, aparece ordenado por relevância
   quando há, filtra id que `getTournamentById` devolve `null` sem quebrar os outros.
 - TestBed zoneless (`provideZonelessChangeDetection()`), mesmo padrão do resto do projeto.
 
 ## Riscos
 
-- **Domínio hard-coded** (`organizador.nexago.app`) no link "Acompanhar ao vivo" — se o
+- **Domínio hard-coded** (`organizador.nexago.com.br`) no link "Acompanhar ao vivo" — se o
   domínio mudar (custom domain futuro), esse link quebra silenciosamente até alguém notar.
   Mesmo risco que já existe hoje pro link de inscrição (`atleta.nexago.com.br`) e pro
   `linktr.ee/nexago` espalhado em 6 arquivos — não é regressão introduzida por esta feature,

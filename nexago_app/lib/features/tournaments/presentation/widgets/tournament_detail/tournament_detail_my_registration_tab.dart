@@ -16,6 +16,7 @@ import '../../../data/tournament_partner_invite_service.dart';
 import '../../../domain/registration_progress_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_navigation.dart';
+import '../../../domain/tournament_registration_success_args.dart';
 
 /// Aba "Minha inscrição" (paridade com o portal): trilha de passos das
 /// inscrições em andamento neste torneio + card das já confirmadas.
@@ -146,6 +147,24 @@ class _ConfirmedRegistrationCard extends StatelessWidget {
 
   final MyTournamentRegistration registration;
 
+  void _openRegistrationSuccess(BuildContext context, String categoryName) {
+    context.pushNamed(
+      AppRouteNames.tournamentRegistrationSuccess,
+      pathParameters: {'tournamentId': registration.tournamentId},
+      extra: TournamentRegistrationSuccessArgs(
+        tournamentId: registration.tournamentId,
+        registrationId: registration.registrationId,
+        tournamentName: registration.tournamentName,
+        categoryName: categoryName,
+      ),
+      queryParameters: {
+        'registrationId': registration.registrationId,
+        'tournamentName': registration.tournamentName,
+        'categoryName': categoryName,
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
@@ -154,6 +173,7 @@ class _ConfirmedRegistrationCard extends StatelessWidget {
         registration.isPaid ? AppColors.win : AppColors.pending;
 
     return NexaCard(
+      onTap: () => _openRegistrationSuccess(context, categoryName),
       child: Row(
         children: [
           Icon(Icons.verified_outlined, size: 22, color: statusColor),

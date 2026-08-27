@@ -249,16 +249,19 @@ class _NativeNexaAppBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       type: MaterialType.transparency,
-      child: SizedBox(
-        height: toolbarHeight,
-        child: LiquidGlassNavigationBar(
-          title: config.title,
-          leadingItems: config.leadingItems,
-          trailingItems: config.trailingItems,
-          tintColor: config.tintColor,
-          titleTextStyle: config.titleTextStyle,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
           height: toolbarHeight,
-          onItemTapped: (id) => actionCallbacks[id]?.call(),
+          child: LiquidGlassNavigationBar(
+            title: config.title,
+            leadingItems: config.leadingItems,
+            trailingItems: config.trailingItems,
+            tintColor: config.tintColor,
+            titleTextStyle: config.titleTextStyle,
+            height: toolbarHeight,
+            onItemTapped: (id) => actionCallbacks[id]?.call(),
+          ),
         ),
       ),
     );

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -68,20 +69,28 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
       t,
     );
     final sideInset = _lerp(horizontalMargin, horizontalMargin + 10, t);
+    final groundedInset = _groundedBottomInset(context);
     final bottomInset =
-        _lerp(bottomMargin, bottomMargin * 0.6, t) +
-        _groundedBottomInset(context);
+        _lerp(bottomMargin, bottomMargin * 0.6, t) + groundedInset;
+    // No Android o inset do sistema já é reservado por inteiro em bottomInset
+    // (ver _groundedBottomInset). Sem compensar, essa altura soma por cima da
+    // cápsula cheia e o conjunto fica visivelmente maior que no iOS. Aqui a
+    // cápsula "empresta" parte dessa altura de volta (até um teto de 40% e um
+    // piso de toque de 48dp) para o espaço total ocupado ficar parecido nas
+    // duas plataformas em vez de simplesmente empilhar.
+    final borrowed = math.min(groundedInset, barHeight * 0.4);
+    final visualBarHeight = math.max(barHeight - borrowed, 48.0);
     final showTabLabels = t < 0.45;
     final content = DecoratedBox(
       decoration: BoxDecoration(
         color: tokens.barFill,
-        borderRadius: BorderRadius.circular(barHeight / 2),
+        borderRadius: BorderRadius.circular(visualBarHeight / 2),
         border: Border.all(color: tokens.outerStroke, width: 0.8),
       ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        height: barHeight,
+        height: visualBarHeight,
         child: centerAction == null
             ? _TabRow(
                 items: items,
@@ -116,11 +125,11 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(barHeight / 2),
+            borderRadius: BorderRadius.circular(visualBarHeight / 2),
             boxShadow: tokens.outerShadow,
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(barHeight / 2),
+            borderRadius: BorderRadius.circular(visualBarHeight / 2),
             child: isScrolling
                 ? content
                 : BackdropFilter(

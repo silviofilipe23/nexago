@@ -32,6 +32,7 @@ function tournament(overrides: Partial<OrganizerTournament> = {}): OrganizerTour
       dayEnd: '24:00',
       defaultMatchDurationMin: 40,
       minRestBetweenMatchesMin: 20,
+      dynamicRescheduleEnabled: false,
     },
     bigScreen: null,
     uniformRequired: false,

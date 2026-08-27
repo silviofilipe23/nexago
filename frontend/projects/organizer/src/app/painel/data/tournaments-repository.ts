@@ -105,6 +105,7 @@ function matchOpsFromRaw(raw: unknown): OrganizerMatchOpsConfig {
     dayEnd: optionalStr(o['dayEnd']) ?? '24:00',
     defaultMatchDurationMin: numberOf(o['defaultMatchDurationMin']) ?? 30,
     minRestBetweenMatchesMin: numberOf(o['minRestBetweenMatchesMin']) ?? 30,
+    dynamicRescheduleEnabled: o['dynamicRescheduleEnabled'] === true,
   };
 }
 

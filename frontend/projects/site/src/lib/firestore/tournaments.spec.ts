@@ -1,7 +1,9 @@
 import { byRelevance } from './tournaments';
 import type { TournamentSummary } from './types';
 
-function fixture(overrides: Partial<TournamentSummary> & Pick<TournamentSummary, 'id' | 'listingStatus'>): TournamentSummary {
+function fixture(
+  overrides: Partial<TournamentSummary> & Pick<TournamentSummary, 'id' | 'listingStatus'>,
+): TournamentSummary {
   return {
     name: 'Torneio',
     sport: 'beachTennis',
@@ -38,12 +40,20 @@ describe('byRelevance', () => {
 
   it('entre encerrados, o mais recente vem primeiro', () => {
     const old = fixture({ id: 'old', listingStatus: 'ended', startAt: new Date('2026-01-01') });
-    const recent = fixture({ id: 'recent', listingStatus: 'ended', startAt: new Date('2026-07-01') });
+    const recent = fixture({
+      id: 'recent',
+      listingStatus: 'ended',
+      startAt: new Date('2026-07-01'),
+    });
     expect([old, recent].sort(byRelevance)).toEqual([recent, old]);
   });
 
   it('sem data vai pro fim do próprio grupo', () => {
-    const withDate = fixture({ id: 'withDate', listingStatus: 'open', startAt: new Date('2026-09-01') });
+    const withDate = fixture({
+      id: 'withDate',
+      listingStatus: 'open',
+      startAt: new Date('2026-09-01'),
+    });
     const noDate = fixture({ id: 'noDate', listingStatus: 'open', startAt: null });
     expect([noDate, withDate].sort(byRelevance)).toEqual([withDate, noDate]);
   });

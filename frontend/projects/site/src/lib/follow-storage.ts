@@ -25,7 +25,9 @@ export function isFollowing(id: string): boolean {
 export function toggleFollow(id: string): boolean {
   const current = getFollowedTournamentIds();
   const wasFollowing = current.includes(id);
-  const next = wasFollowing ? current.filter((existing) => existing !== id) : [id, ...current].slice(0, MAX_FOLLOWED);
+  const next = wasFollowing
+    ? current.filter((existing) => existing !== id)
+    : [id, ...current].slice(0, MAX_FOLLOWED);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     return !wasFollowing;

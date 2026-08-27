@@ -1,0 +1,16 @@
+{
+  "name": "nexaGO",
+  "short_name": "nexaGO",
+  "description": "A plataforma dos esportes de areia: torneios, ranking ao vivo e a Liga nexaGO.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

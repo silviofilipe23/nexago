@@ -1,0 +1,13 @@
+@if (!hideChrome()) {
+  <app-site-header />
+}
+
+<main>
+  <router-outlet />
+</main>
+
+@if (!hideChrome()) {
+  <app-site-footer />
+}
+
+<app-toast-host />

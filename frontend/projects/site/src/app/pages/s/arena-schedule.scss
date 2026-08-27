@@ -1,0 +1,151 @@
+// Estilos dos 3 componentes de `arena-schedule.ts` (ArenaHeroOpenNow, ArenaOpenNowPill,
+// ArenaHoursCard). Custom properties herdadas de `.page` (arena-site.page.scss).
+
+// ── Item da faixa do hero — mesma aparência dos outros itens (quadras/cidade), que ficam
+// direto no template da página por não terem lógica própria. Duplicado ali como `.strip-item`
+// porque o encapsulamento de view do Angular não deixa um componente estilizar elementos
+// renderizados por outro.
+.strip-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 22px 34px 26px 0;
+  margin-right: 34px;
+  font-size: 14px;
+  color: var(--mute);
+}
+
+.strip-item b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.dot.live {
+  background: var(--ac);
+  box-shadow: 0 0 0 0 var(--ac);
+  animation: arena-pulse 2s infinite;
+}
+
+@keyframes arena-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--ac) 50%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot.live {
+    animation: none;
+  }
+}
+
+// ── Pílula "aberto agora" ────────────────────────────────
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line2);
+  color: var(--mute);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  padding: 9px 16px;
+  border-radius: 99px;
+  margin-top: 20px;
+}
+
+.pill.pill-open {
+  background: var(--ac-tint);
+  border-color: var(--ac-line);
+  color: var(--ac-soft);
+}
+
+// ── Quadro de horários ───────────────────────────────────
+
+.hours-card {
+  background: var(--s0);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 0;
+}
+
+.hours-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 26px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14.5px;
+}
+
+.hours-row:last-child {
+  border-bottom: 0;
+}
+
+.hours-row.today {
+  background: var(--ac-tint);
+  position: relative;
+}
+
+.hours-row.today::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--ac);
+}
+
+.hours-day {
+  color: var(--mute);
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.hours-row.today .hours-day {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hours-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+}
+
+.hours-time.closed {
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hours-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ac);
+  border: 1px solid var(--ac-line);
+  padding: 3px 9px;
+  border-radius: 99px;
+  margin-left: 12px;
+}

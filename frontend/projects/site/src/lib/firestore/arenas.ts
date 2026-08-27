@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, limit, query, type DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, limit, query, type DocumentData } from 'firebase/firestore/lite';
+import { liteDb } from '../firebase-lite';
 import type { ArenaCourt, ArenaDetail, ArenaSummary } from './types';
 
 function strArray(value: unknown): string[] {
@@ -17,9 +17,9 @@ function firstString(...values: unknown[]): string | null {
 function mapCourt(id: string, c: DocumentData): ArenaCourt {
   return {
     id,
-    name: firstString(c.name, c.label),
-    sport: firstString(c.sport, c.courtType),
-    surface: firstString(c.surface),
+    name: firstString(c['name'], c['label']),
+    sport: firstString(c['sport'], c['courtType']),
+    surface: firstString(c['surface']),
   };
 }
 
@@ -27,27 +27,24 @@ function mapCourt(id: string, c: DocumentData): ArenaCourt {
 function mapSummary(id: string, d: DocumentData): ArenaSummary {
   return {
     id,
-    name: String(d.name ?? 'Arena'),
-    city: d.city ?? null,
-    state: d.state ?? null,
-    description: d.description ?? d.about ?? null,
-    sports: strArray(d.courtTypes ?? d.sports),
-    surfaces: strArray(d.surfaces),
-    amenities: strArray(d.amenities ?? d.comodidades),
-    photoUrls: strArray(d.photoUrls ?? d.photos ?? d.images),
-    logoUrl: firstString(d.logoUrl, d.logo, d.coverUrl),
+    name: String(d['name'] ?? 'Arena'),
+    city: d['city'] ?? null,
+    state: d['state'] ?? null,
+    description: d['description'] ?? d['about'] ?? null,
+    sports: strArray(d['courtTypes'] ?? d['sports']),
+    surfaces: strArray(d['surfaces']),
+    amenities: strArray(d['amenities'] ?? d['comodidades']),
+    photoUrls: strArray(d['photoUrls'] ?? d['photos'] ?? d['images']),
+    logoUrl: firstString(d['logoUrl'], d['logo'], d['coverUrl']),
   };
 }
 
-/**
- * Lista arenas públicas cadastradas para a vitrine do site. Ignora docs sem
- * nome utilizável e retorna vazio em caso de erro (não quebra o build/ISR).
- */
+/** Lista arenas públicas cadastradas para a vitrine do site. Vazio em caso de erro. */
 export async function getPublicArenas(max = 12): Promise<ArenaSummary[]> {
   try {
-    const snap = await getDocs(query(collection(db, 'arenas'), limit(max * 2)));
+    const snap = await getDocs(query(collection(liteDb, 'arenas'), limit(max * 2)));
     return snap.docs
-      .map((doc) => mapSummary(doc.id, doc.data()))
+      .map((d) => mapSummary(d.id, d.data()))
       .filter((a) => a.name && a.name !== 'Arena')
       .slice(0, max);
   } catch (err) {
@@ -56,33 +53,16 @@ export async function getPublicArenas(max = 12): Promise<ArenaSummary[]> {
   }
 }
 
-/**
- * Só o logo da arena, sem as quadras — usado pela página de links, que precisa
- * apenas do avatar e não justifica a leitura extra da subcoleção `courts`.
- */
-export async function getArenaLogoUrl(id: string): Promise<string | null> {
-  if (!id) return null;
-  try {
-    const snap = await getDoc(doc(db, 'arenas', id));
-    if (!snap.exists()) return null;
-    const d = snap.data();
-    return firstString(d.logoUrl, d.logo, d.coverUrl);
-  } catch (err) {
-    console.error('[arenas] getArenaLogoUrl failed:', err);
-    return null;
-  }
-}
-
 /** Perfil público de uma arena (arenas/{id} + courts). Retorna null se não existir. */
 export async function getArenaById(id: string): Promise<ArenaDetail | null> {
   try {
-    const snap = await getDoc(doc(db, 'arenas', id));
+    const snap = await getDoc(doc(liteDb, 'arenas', id));
     if (!snap.exists()) return null;
     const d = snap.data();
 
     let courts: ArenaCourt[] = [];
     try {
-      const courtsSnap = await getDocs(collection(db, 'arenas', id, 'courts'));
+      const courtsSnap = await getDocs(collection(liteDb, 'arenas', id, 'courts'));
       courts = courtsSnap.docs.map((c) => mapCourt(c.id, c.data()));
     } catch {
       courts = [];

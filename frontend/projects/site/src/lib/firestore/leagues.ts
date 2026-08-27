@@ -1,5 +1,5 @@
-import { collection, doc, getDoc, getDocs, limit, query, type DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, limit, query, type DocumentData } from 'firebase/firestore/lite';
+import { liteDb } from '../firebase-lite';
 import type { LeagueStage, LeagueSummary } from './types';
 
 function toDate(value: unknown): Date | null {
@@ -11,33 +11,33 @@ function toDate(value: unknown): Date | null {
 
 function mapStage(s: DocumentData): LeagueStage {
   return {
-    name: s.name ?? s.stageName ?? null,
-    dateLabel: s.dateLabel ?? null,
-    startAt: toDate(s.startAt),
-    tournamentIds: Array.isArray(s.tournamentIds) ? s.tournamentIds.map(String) : [],
+    name: s['name'] ?? s['stageName'] ?? null,
+    dateLabel: s['dateLabel'] ?? null,
+    startAt: toDate(s['startAt']),
+    tournamentIds: Array.isArray(s['tournamentIds']) ? s['tournamentIds'].map(String) : [],
   };
 }
 
 function mapLeague(id: string, d: DocumentData): LeagueSummary {
-  const stages = Array.isArray(d.stages) ? d.stages.map(mapStage) : [];
+  const stages = Array.isArray(d['stages']) ? d['stages'].map(mapStage) : [];
   return {
     id,
-    name: String(d.name ?? 'Liga nexaGO'),
-    seasonLabel: d.seasonLabel ?? null,
-    description: d.description ?? null,
-    coverUrl: d.coverUrl ?? d.imageUrl ?? null,
+    name: String(d['name'] ?? 'Liga nexaGO'),
+    seasonLabel: d['seasonLabel'] ?? null,
+    description: d['description'] ?? null,
+    coverUrl: d['coverUrl'] ?? d['imageUrl'] ?? null,
     stages,
   };
 }
 
 function isPublic(d: DocumentData): boolean {
-  return d.listingStatus !== 'draft';
+  return d['listingStatus'] !== 'draft';
 }
 
 /** Retorna a liga pública mais relevante (primeira encontrada), ou null. */
 export async function getFeaturedLeague(): Promise<LeagueSummary | null> {
   try {
-    const snap = await getDocs(query(collection(db, 'leagues'), limit(5)));
+    const snap = await getDocs(query(collection(liteDb, 'leagues'), limit(5)));
     const found = snap.docs.find((d) => isPublic(d.data())) ?? snap.docs[0];
     if (!found) return null;
     return mapLeague(found.id, found.data());
@@ -47,10 +47,10 @@ export async function getFeaturedLeague(): Promise<LeagueSummary | null> {
   }
 }
 
-/** Lista as ligas públicas (para sitemap e listagens). Vazio em caso de erro. */
+/** Lista as ligas públicas. Vazio em caso de erro. */
 export async function getPublicLeagues(max = 20): Promise<LeagueSummary[]> {
   try {
-    const snap = await getDocs(query(collection(db, 'leagues'), limit(max)));
+    const snap = await getDocs(query(collection(liteDb, 'leagues'), limit(max)));
     return snap.docs.filter((d) => isPublic(d.data())).map((d) => mapLeague(d.id, d.data()));
   } catch (err) {
     console.error('[leagues] getPublicLeagues failed:', err);
@@ -61,7 +61,7 @@ export async function getPublicLeagues(max = 20): Promise<LeagueSummary[]> {
 /** Perfil público de uma liga (leagues/{id}). Retorna null se não existir/for draft. */
 export async function getLeagueById(id: string): Promise<LeagueSummary | null> {
   try {
-    const snap = await getDoc(doc(db, 'leagues', id));
+    const snap = await getDoc(doc(liteDb, 'leagues', id));
     if (!snap.exists()) return null;
     const d = snap.data();
     if (!isPublic(d)) return null;

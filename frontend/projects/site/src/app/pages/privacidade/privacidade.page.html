@@ -1,0 +1,239 @@
+<main class="mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-6 sm:pt-32">
+  <div nxReveal>
+    <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">Legal</p>
+    <h1 class="font-display text-[clamp(2rem,6vw,3.25rem)] font-800 leading-tight tracking-tight text-fg">
+      Política de Privacidade
+    </h1>
+    <p class="mt-4 text-sm text-text-dim">Última atualização: {{ lastUpdate }}</p>
+    <p class="mt-6 text-balance text-base leading-relaxed text-text-mute">
+      Esta política explica como o nexaGO coleta, usa, compartilha e protege seus dados pessoais
+      no site, no aplicativo e na Liga nexaGO, em conformidade com a Lei Geral de Proteção de
+      Dados (Lei nº 13.709/2018 — LGPD). Ao usar nossos serviços, você concorda com as práticas
+      descritas aqui.
+    </p>
+  </div>
+
+  <!-- Aviso de rascunho — remover quando o jurídico validar. -->
+  <div class="mt-8 rounded-4 border border-pending/30 bg-surface-1 p-5 text-sm leading-relaxed text-text-mute">
+    <strong class="font-600 text-fg">Documento em revisão.</strong> Este texto é um modelo
+    inicial alinhado à LGPD. Os campos entre colchetes ([…]) devem ser preenchidos e o conteúdo
+    validado pelo jurídico antes da publicação oficial.
+  </div>
+
+  <!-- Índice -->
+  <nav aria-label="Índice" class="mt-10 rounded-4 border border-line bg-surface-1 p-5">
+    <h2 class="mb-3 font-mono text-xs font-600 uppercase tracking-[0.2em] text-text-dim">Nesta página</h2>
+    <ol class="grid gap-2 sm:grid-cols-2">
+      @for (section of sections; track section.id) {
+        <li>
+          <a
+            [href]="'#' + section.id"
+            class="text-sm text-text-mute transition-colors hover:text-brand focus-visible:text-brand focus-visible:outline-none"
+          >
+            {{ section.title }}
+          </a>
+        </li>
+      }
+    </ol>
+  </nav>
+
+  <div class="mt-12 space-y-12">
+    <section id="controlador" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">1. Quem é o controlador</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          O tratamento dos seus dados é realizado por
+          <strong class="font-600 text-fg">Nrs Desenvolvimento De Programas De Computador Sob Encomenda Ltda</strong>,
+          inscrita no CNPJ sob nº <strong class="font-600 text-fg">66.753.240/0001-75</strong>, com sede em
+          <strong class="font-600 text-fg">RUA PAIS LEME, 215, CONJ 1713, PINHEIROS, SÃO PAULO, SP, 05424-150</strong>
+          ("nexaGO", "nós").
+        </p>
+        <p>
+          O nexaGO é uma plataforma de gestão e participação em torneios e ligas de esportes de
+          areia, conectando atletas, organizadores e arenas.
+        </p>
+      </div>
+    </section>
+
+    <section id="dados" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">2. Dados que coletamos</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>Coletamos apenas os dados necessários para operar a plataforma:</p>
+        <ul class="ml-5 list-disc space-y-2 marker:text-brand">
+          <li>
+            <strong class="font-600 text-fg">Cadastro e perfil:</strong> nome, e-mail, telefone,
+            foto, categoria/nível esportivo e gênero (quando informado).
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Participação:</strong> inscrições em torneios e
+            etapas, resultados, histórico de partidas e ranking.
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Contato pelo site:</strong> e-mail enviado em
+            listas de interesse e dados de formulários de organizadores e arenas (nome, e-mail,
+            telefone, organização e mensagem).
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Pagamentos:</strong> dados necessários para
+            processar inscrições, tratados por provedores de pagamento (não armazenamos dados
+            completos de cartão).
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Dados técnicos:</strong> informações de
+            dispositivo, navegador, endereço IP e dados de uso, coletados de forma automática.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="uso" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">3. Como usamos seus dados</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <ul class="ml-5 list-disc space-y-2 marker:text-brand">
+          <li>Criar e manter sua conta e seu perfil público de atleta, arena ou organizador.</li>
+          <li>Operar inscrições, chaveamento, resultados e rankings de torneios e da Liga nexaGO.</li>
+          <li>Processar pagamentos e enviar comunicações sobre suas partidas e etapas.</li>
+          <li>Responder a contatos comerciais de organizadores e arenas.</li>
+          <li>Melhorar a plataforma, prevenir fraudes e garantir a segurança.</li>
+          <li>Cumprir obrigações legais e regulatórias.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="bases" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">4. Bases legais</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Tratamos seus dados com base nas hipóteses da LGPD (art. 7º), conforme o caso: execução
+          de contrato e procedimentos preliminares, cumprimento de obrigação legal, legítimo
+          interesse, e consentimento — que pode ser revogado a qualquer momento.
+        </p>
+      </div>
+    </section>
+
+    <section id="compartilhamento" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">5. Compartilhamento</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>Não vendemos seus dados. Podemos compartilhá-los com:</p>
+        <ul class="ml-5 list-disc space-y-2 marker:text-brand">
+          <li>
+            <strong class="font-600 text-fg">Provedores de infraestrutura</strong> (ex.: Google
+            Firebase) que hospedam e processam dados em nosso nome.
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Processadores de pagamento</strong>, para concluir
+            transações de inscrição.
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Organizadores e arenas</strong>, quando você se
+            inscreve em seus torneios, na medida necessária para a operação do evento.
+          </li>
+          <li>
+            <strong class="font-600 text-fg">Autoridades</strong>, quando exigido por lei ou
+            ordem judicial.
+          </li>
+        </ul>
+        <p>
+          Informações públicas (como nome de exibição e ranking) podem aparecer em páginas abertas
+          de torneios e classificações.
+        </p>
+      </div>
+    </section>
+
+    <section id="cookies" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">6. Cookies e tecnologias</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Usamos cookies e tecnologias semelhantes para manter sua sessão, lembrar preferências e
+          medir o uso do site. Você pode gerenciar cookies nas configurações do seu navegador;
+          alguns recursos podem não funcionar corretamente se desativados.
+        </p>
+      </div>
+    </section>
+
+    <section id="seguranca" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">7. Armazenamento e segurança</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Adotamos medidas técnicas e organizacionais para proteger seus dados contra acesso não
+          autorizado, perda ou alteração. O acesso público a dados na plataforma é controlado por
+          regras de segurança; ainda assim, nenhum sistema é 100% imune a incidentes.
+        </p>
+      </div>
+    </section>
+
+    <section id="retencao" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">8. Retenção dos dados</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Mantemos seus dados pelo tempo necessário para as finalidades descritas e para cumprir
+          obrigações legais. Encerrada a finalidade, os dados são eliminados ou anonimizados,
+          ressalvadas as hipóteses de guarda previstas em lei.
+        </p>
+      </div>
+    </section>
+
+    <section id="direitos" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">9. Seus direitos</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>Nos termos da LGPD (art. 18), você pode, a qualquer momento:</p>
+        <ul class="ml-5 list-disc space-y-2 marker:text-brand">
+          <li>Confirmar a existência de tratamento e acessar seus dados.</li>
+          <li>Corrigir dados incompletos, inexatos ou desatualizados.</li>
+          <li>Solicitar anonimização, bloqueio ou eliminação de dados desnecessários.</li>
+          <li>Solicitar a portabilidade e revogar o consentimento.</li>
+          <li>
+            <strong class="font-600 text-fg">Excluir sua conta</strong> e os dados associados,
+            diretamente no app ou pelos nossos canais de contato. Veja o passo a passo em
+            <a routerLink="/excluir-conta" class="text-brand underline-offset-2 hover:underline">Excluir Conta</a>.
+          </li>
+        </ul>
+        <p>
+          Para exercer seus direitos, fale com nosso Encarregado pelo e-mail
+          <a [href]="'mailto:' + contactEmail" class="text-brand underline-offset-2 hover:underline">{{ contactEmail }}</a>.
+        </p>
+      </div>
+    </section>
+
+    <section id="internacional" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">10. Transferência internacional</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Alguns provedores podem processar dados em servidores fora do Brasil. Nesses casos,
+          adotamos salvaguardas adequadas para garantir um nível de proteção compatível com a LGPD.
+        </p>
+      </div>
+    </section>
+
+    <section id="menores" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">11. Crianças e adolescentes</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          O tratamento de dados de crianças e adolescentes observa o seu melhor interesse e, quando
+          aplicável, o consentimento de pelo menos um dos pais ou responsável legal.
+        </p>
+      </div>
+    </section>
+
+    <section id="alteracoes" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">12. Alterações desta política</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Podemos atualizar esta política periodicamente. Mudanças relevantes serão comunicadas
+          pelos nossos canais, e a data de "última atualização" no topo será revisada.
+        </p>
+      </div>
+    </section>
+
+    <section id="contato" class="scroll-mt-28">
+      <h2 class="font-display text-xl font-700 tracking-tight text-fg sm:text-2xl">13. Contato e Encarregado (DPO)</h2>
+      <div class="mt-4 space-y-4 text-[15px] leading-relaxed text-text-mute sm:text-base">
+        <p>
+          Dúvidas ou solicitações sobre privacidade e proteção de dados podem ser enviadas ao nosso
+          Encarregado (DPO), pelo e-mail
+          <a [href]="'mailto:' + contactEmail" class="text-brand underline-offset-2 hover:underline">{{ contactEmail }}</a>.
+        </p>
+      </div>
+    </section>
+  </div>
+</main>

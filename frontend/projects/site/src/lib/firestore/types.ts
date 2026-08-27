@@ -10,9 +10,9 @@ export type TournamentListingStatus = 'open' | 'almost_full' | 'closed' | 'live'
 export type Sport = 'beachTennis' | 'beachVolleyball' | string;
 
 export interface TournamentCategory {
-  categoryName?: string; // ex.: 'Categoria A', 'Iniciante Misto'
-  genderType?: string; // 'male' | 'female' | 'mixed'
-  level?: string; // 'Open' | 'Iniciante' | ...
+  categoryName?: string;
+  genderType?: string;
+  level?: string;
   entryFeeCents?: number;
   spotsTotal?: number;
   bracketFormat?: string;
@@ -72,7 +72,7 @@ export interface ArenaSummary {
   city: string | null;
   state: string | null;
   description: string | null;
-  sports: string[]; // courtTypes
+  sports: string[];
   surfaces: string[];
   amenities: string[];
   photoUrls: string[];

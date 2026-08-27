@@ -2,10 +2,9 @@ import { getFirestore } from 'firebase/firestore/lite';
 import { app } from './firebase-app';
 
 /**
- * SDK **lite** do Firestore — a variante feita sobre HTTP, sem a máquina de listeners em tempo
- * real, que o site não usa. É o que roda no navegador do visitante (ver `firestore/public-writes.ts`).
- *
- * Não importe `firebase/firestore` (completo) em código de cliente: ele arrasta o transporte
- * WebChannel inteiro para o bundle e pesa várias vezes mais.
+ * SDK **lite** do Firestore — variante sobre HTTP, sem a máquina de listeners em tempo real
+ * (o site público não precisa). Mantém o bundle do navegador pequeno: não importe
+ * `firebase/firestore` (completo) em código deste app — ele arrasta o transporte WebChannel
+ * inteiro (~114 KB gzip a mais). Ver [[site-client-bundle-firestore-lite]].
  */
 export const liteDb = getFirestore(app);

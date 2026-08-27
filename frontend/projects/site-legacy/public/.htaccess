@@ -1,0 +1,7 @@
+# Site nexaGO — export estático (Hostinger, hospedagem compartilhada).
+# Redirects que antes viviam em next.config.ts (redirects() não existe em
+# output:'export'). /liga (singular) virou /ligas (listagem).
+RedirectMatch 301 ^/liga/(.*)$ /ligas/$1
+Redirect 301 /liga /ligas
+
+ErrorDocument 404 /404.html

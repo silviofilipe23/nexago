@@ -1,4 +1,4 @@
-import type { Sport, TournamentListingStatus } from '@/lib/firestore/types';
+import type { Sport, TournamentListingStatus } from './firestore/types';
 
 export function sportLabel(sport: Sport): string {
   switch (sport) {
@@ -31,8 +31,8 @@ export const STATUS_META: Record<
   live: { label: 'Ao vivo', tone: 'live' },
   open: { label: 'Inscrições abertas', tone: 'open' },
   almost_full: { label: 'Últimas vagas', tone: 'pending' },
-  // Inscrição fechada mas o torneio ainda vai acontecer — não é "Últimas vagas" (convidaria a
-  // se inscrever) nem "Encerrado" (o evento não passou).
+  // Inscrição fechada mas o torneio ainda vai acontecer — não é "Últimas vagas" (convidaria a se
+  // inscrever) nem "Encerrado" (o evento não passou).
   closed: { label: 'Inscrições encerradas', tone: 'pending' },
   ended: { label: 'Encerrado', tone: 'muted' },
   cancelled: { label: 'Cancelado', tone: 'muted' },

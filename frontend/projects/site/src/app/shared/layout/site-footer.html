@@ -1,0 +1,56 @@
+<footer class="border-t border-line bg-surface-0">
+  <div class="mx-auto max-w-6xl px-5 py-16 sm:px-6">
+    <div class="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
+      <div>
+        <a routerLink="/" class="flex items-center gap-2.5" aria-label="nexaGO — início">
+          <img src="brand/logo.png" alt="" width="32" height="32" class="size-8" />
+          <span class="font-display text-lg font-bold tracking-tight text-fg">
+            nexa<span class="text-brand">GO</span>
+          </span>
+        </a>
+        <p class="mt-4 max-w-xs text-sm leading-relaxed text-text-mute">
+          A plataforma dos esportes de areia. Vôlei de praia, do amador ao profissional.
+        </p>
+        <a
+          href="https://www.instagram.com/nexagobr"
+          target="_blank"
+          rel="me noopener noreferrer"
+          aria-label="Instagram do nexaGO (@nexagobr)"
+          class="mt-6 inline-flex size-10 items-center justify-center rounded-3 border border-line text-text-mute transition-colors hover:border-brand hover:text-brand"
+        >
+          <svg class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="5" />
+            <circle cx="12" cy="12" r="4" />
+            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+          </svg>
+        </a>
+      </div>
+
+      @for (col of columns; track col.title) {
+        <nav [attr.aria-label]="col.title">
+          <h3 class="font-mono text-xs font-600 uppercase tracking-wider text-text-dim">{{ col.title }}</h3>
+          <ul class="mt-4 space-y-3">
+            @for (link of col.links; track link.label) {
+              <li>
+                <a
+                  [routerLink]="link.external ? null : link.href"
+                  [href]="link.external ? link.href : null"
+                  [attr.target]="link.external ? '_blank' : null"
+                  [attr.rel]="link.external ? 'noopener noreferrer' : null"
+                  class="text-sm text-text-mute transition-colors hover:text-fg"
+                >
+                  {{ link.label }}
+                </a>
+              </li>
+            }
+          </ul>
+        </nav>
+      }
+    </div>
+
+    <div class="mt-14 flex flex-col items-start justify-between gap-3 border-t border-line pt-8 sm:flex-row sm:items-center">
+      <p class="text-sm text-text-dim">© {{ year }} nexaGO. Todos os direitos reservados.</p>
+      <p class="text-sm text-text-dim">nexaGO · Ecossistema esportivo</p>
+    </div>
+  </div>
+</footer>

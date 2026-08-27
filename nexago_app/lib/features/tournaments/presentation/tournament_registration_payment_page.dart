@@ -147,9 +147,9 @@ class _TournamentRegistrationPaymentPageState
   ) async {
     final payFull = _canPayFull && _paymentType == 'full';
     final amount = payFull ? quote.displayTotal : quote.shareAmount;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AlertDialog.adaptive(
         title: const Text('Confirmar pagamento?'),
         content: Text(
           'Você está informando que já pagou '

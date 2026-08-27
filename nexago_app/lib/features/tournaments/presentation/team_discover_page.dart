@@ -380,7 +380,6 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
   if (state.isLoading && state.displayEntries.isEmpty) {
     return const [
       SliverFillRemaining(
-        hasScrollBody: false,
         child: TeamDiscoverListSkeleton(),
       ),
     ];

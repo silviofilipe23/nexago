@@ -52,35 +52,40 @@ class NexaBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No Android a barra fica sempre minimizada (ícones, sem rótulos), em vez
+    // de expandir/recolher com o scroll como no iOS — reduz o peso visual
+    // permanente da barra flutuante.
+    final effectiveCollapseProgress =
+        Theme.of(context).platform == TargetPlatform.android
+            ? 1.0
+            : collapseProgress;
     return ValueListenableBuilder<bool>(
       valueListenable: nexaNativeLiquidGlassEnabled,
       builder: (context, nativeEnabled, _) {
         if (nativeEnabled &&
             NativeLiquidGlassUtils.supportsLiquidGlass &&
             items.length >= 2) {
-          return _buildNativeBar(context);
+          return _buildNativeBar(context, effectiveCollapseProgress);
         }
-        return _buildGlassBar(context);
+        return _buildGlassBar(context, effectiveCollapseProgress);
       },
     );
   }
 
-  Widget _buildNativeBar(BuildContext context) {
+  Widget _buildNativeBar(BuildContext context, double collapseProgress) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final barWidth = screenWidth - (horizontalMargin * 2);
     final glassItems = items
         .map((item) => item.toLiquidGlassItem(selectedColor: selectedItemColor))
         .toList();
     final t = collapseProgress.clamp(0.0, 1.0);
-    final rawHeight =
-        ShellTabBarCollapseController.collapsedHeight +
+    final rawHeight = ShellTabBarCollapseController.collapsedHeight +
         (height + 0 - ShellTabBarCollapseController.collapsedHeight) * (1 - t);
     // O LiquidGlassTabBar nativo exige height >= 56 (alvo de toque). O estado
     // colapsado (50) fica abaixo disso, então aplicamos um piso de 56.
     const minNativeHeight = 64.0;
-    final nativeHeight = rawHeight < minNativeHeight
-        ? minNativeHeight
-        : rawHeight;
+    final nativeHeight =
+        rawHeight < minNativeHeight ? minNativeHeight : rawHeight;
     final labelsVisible = showLabels && t < 0.45;
 
     return NexaLiquidGlassNativeTabShell(
@@ -96,8 +101,7 @@ class NexaBottomNavBar extends StatelessWidget {
         height: nativeHeight,
         showLabels: labelsVisible,
         selectedItemColor: selectedItemColor,
-        labelTextStyle:
-            labelTextStyle ??
+        labelTextStyle: labelTextStyle ??
             TextStyle(
               fontSize: uppercaseLabels ? 8 : 9,
               fontWeight: FontWeight.w500,
@@ -109,7 +113,7 @@ class NexaBottomNavBar extends StatelessWidget {
     );
   }
 
-  Widget _buildGlassBar(BuildContext context) {
+  Widget _buildGlassBar(BuildContext context, double collapseProgress) {
     final muted = unselectedItemColor ?? context.themeColors.onSurfaceMuted;
 
     return NexaLiquidGlassTabBar(
@@ -133,4 +137,5 @@ class NexaBottomNavBar extends StatelessWidget {
 double nexaBottomNavBarHeight({
   double barHeight = 75,
   double bottomMargin = 10,
-}) => barHeight + bottomMargin + NexaBottomNavBar._glassOverflow;
+}) =>
+    barHeight + bottomMargin + NexaBottomNavBar._glassOverflow;

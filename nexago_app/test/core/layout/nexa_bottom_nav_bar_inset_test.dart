@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/layout/nexa_bottom_nav_bar.dart';
 import 'package:nexago_app/core/layout/nexa_liquid_glass_tab_bar.dart';
+import 'package:nexago_app/core/layout/shell_tab_bar_collapse.dart';
 
 const _items = <NexaBottomNavItem>[
   NexaBottomNavItem(label: 'Início', icon: Icons.home_outlined),
@@ -12,6 +13,7 @@ const _items = <NexaBottomNavItem>[
 Widget _buildShell({
   required TargetPlatform platform,
   required double bottomInset,
+  double collapseProgress = 0,
 }) {
   return MaterialApp(
     theme: ThemeData(platform: platform),
@@ -24,6 +26,7 @@ Widget _buildShell({
           items: _items,
           currentIndex: 0,
           onTap: (_) {},
+          collapseProgress: collapseProgress,
         ),
       ),
     ),
@@ -77,22 +80,42 @@ void main() {
     );
   });
 
-  group('altura da cápsula no Android (compensação do inset reservado)', () {
+  group('cápsula sempre minimizada no Android', () {
     testWidgets(
-      'navegação por gestos: espaço total ocupado fica igual ao do iOS',
+      'Android: renderiza minimizada mesmo com collapseProgress=0 (topo do scroll)',
       (tester) async {
-        // Inset típico de navegação por gestos (~24dp): a cápsula deve
-        // encolher o suficiente pra o espaço total (cápsula + inset) ficar
-        // igual ao da versão iOS (altura cheia de 100, sem inset extra), em
-        // vez de simplesmente empilhar o inset por cima de uma cápsula de
-        // altura cheia.
+        // No Android a barra não expande/recolhe com o scroll como no iOS —
+        // fica sempre no estado compacto (ícones, sem rótulos), mesmo recém
+        // aberta ou logo após trocar de aba.
         await tester.pumpWidget(
-          _buildShell(platform: TargetPlatform.android, bottomInset: 24),
+          _buildShell(
+            platform: TargetPlatform.android,
+            bottomInset: 24,
+            collapseProgress: 0,
+          ),
         );
-        final screen = tester.getRect(find.byType(Scaffold));
-        final androidFootprint = screen.bottom - _capsuleRect(tester).top;
 
-        expect(androidFootprint, closeTo(100, 1));
+        expect(find.text('Início'), findsNothing);
+        expect(
+          _capsuleRect(tester).height,
+          lessThan(ShellTabBarCollapseController.expandedHeight),
+        );
+      },
+    );
+
+    testWidgets(
+      'iOS: continua expandindo/recolhendo conforme collapseProgress',
+      (tester) async {
+        // Guarda de regressão: só o Android deve ser forçado a minimizar.
+        await tester.pumpWidget(
+          _buildShell(
+            platform: TargetPlatform.iOS,
+            bottomInset: 34,
+            collapseProgress: 0,
+          ),
+        );
+
+        expect(find.text('Início'), findsOneWidget);
       },
     );
 
@@ -103,23 +126,11 @@ void main() {
           _buildShell(platform: TargetPlatform.android, bottomInset: 48),
         );
 
-        expect(_capsuleRect(tester).height, greaterThanOrEqualTo(48));
-      },
-    );
-
-    testWidgets(
-      'navegação de 3 botões: espaço total ocupado fica bem abaixo da soma ingênua',
-      (tester) async {
-        // Antes da compensação, o espaço total era altura-cheia (100) + inset
-        // (48) = 148. Com a cápsula emprestando altura do inset, deve sobrar
-        // bem menos que isso, mesmo reservando o inset inteiro pro gap.
-        await tester.pumpWidget(
-          _buildShell(platform: TargetPlatform.android, bottomInset: 48),
-        );
-        final screen = tester.getRect(find.byType(Scaffold));
-        final footprint = screen.bottom - _capsuleRect(tester).top;
-
-        expect(footprint, lessThan(120));
+        // 48dp é o piso de layout (ver visualBarHeight em
+        // NexaLiquidGlassTabBar); o encolhimento cosmético de 0.94 do estado
+        // "compacto" reduz um pouco o retângulo renderizado, então checamos
+        // contra 44 (mínimo de alvo de toque também aceito pela HIG da Apple).
+        expect(_capsuleRect(tester).height, greaterThanOrEqualTo(44));
       },
     );
   });

@@ -30,16 +30,14 @@
 
 **Interfaces:**
 - Consumes: nada (só `localStorage` do navegador).
-- Produces: `getFollowedTournamentIds(): string[]`; `isFollowing(id: string): boolean`; `toggleFollow(id: string): boolean` (retorna o novo estado — `true` = passou a seguir, `false` = deixou de seguir).
+- Produces: `getFollowedTournamentIds(): string[]`; `isFollowing(id: string): boolean`; `toggleFollow(id: string): boolean` (retorna o novo estado — `true` = passou a seguir, `false` = deixou de seguir); `export const STORAGE_KEY = 'nx:torneios-seguidos'` (exportada só pra specs inspecionarem/limparem o `localStorage` real, ver Task 4).
 
 - [ ] **Step 1: Escrever o teste que falha**
 
 Criar `frontend/projects/site/src/lib/follow-storage.spec.ts`:
 
 ```ts
-import { getFollowedTournamentIds, isFollowing, toggleFollow } from './follow-storage';
-
-const STORAGE_KEY = 'nx:torneios-seguidos';
+import { STORAGE_KEY, getFollowedTournamentIds, isFollowing, toggleFollow } from './follow-storage';
 
 describe('follow-storage', () => {
   afterEach(() => localStorage.removeItem(STORAGE_KEY));
@@ -105,11 +103,13 @@ Esperado: FAIL — `Cannot find module './follow-storage'` (o arquivo ainda não
 Criar `frontend/projects/site/src/lib/follow-storage.ts`:
 
 ```ts
-const STORAGE_KEY = 'nx:torneios-seguidos';
+export const STORAGE_KEY = 'nx:torneios-seguidos';
 const MAX_FOLLOWED = 20;
 
 /** Bookmark local de torneios seguidos, sem conta — grava só no navegador do espectador.
- *  Nunca lança: `localStorage` bloqueado (modo privado, cota) vira no-op silencioso. */
+ *  Nunca lança: `localStorage` bloqueado (modo privado, cota) vira no-op silencioso.
+ *  `STORAGE_KEY` é exportada só pra specs inspecionarem/limparem o `localStorage` real —
+ *  nenhum código de produção fora deste arquivo deve ler a chave direto. */
 export function getFollowedTournamentIds(): string[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -350,7 +350,7 @@ git commit -m "feat(site): decide quando linkar pra pagina ao vivo do organizado
 - Test: `frontend/projects/site/src/app/pages/torneios/follow-button.spec.ts`
 
 **Interfaces:**
-- Consumes: `isFollowing`, `toggleFollow` de `../../../lib/follow-storage` (Task 1); `ButtonDirective` de `../../shared/ui/button.directive` (já existe).
+- Consumes: `isFollowing`, `toggleFollow` (componente) e `STORAGE_KEY` (spec, só pra inspecionar/limpar o `localStorage` real) de `../../../lib/follow-storage` (Task 1); `ButtonDirective` de `../../shared/ui/button.directive` (já existe).
 - Produces: componente standalone `FollowButtonComponent`, seletor `app-follow-button`, `input.required<string>() id`.
 
 - [ ] **Step 1: Escrever o teste que falha**
@@ -360,9 +360,8 @@ Criar `frontend/projects/site/src/app/pages/torneios/follow-button.spec.ts`:
 ```ts
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { STORAGE_KEY } from '../../../lib/follow-storage';
 import { FollowButtonComponent } from './follow-button';
-
-const STORAGE_KEY = 'nx:torneios-seguidos';
 
 describe('FollowButtonComponent', () => {
   afterEach(() => localStorage.removeItem(STORAGE_KEY));

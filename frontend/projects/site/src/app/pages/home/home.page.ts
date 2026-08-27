@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { CinematicHero } from './sections/cinematic-hero';
+import { AcompanhandoSection } from './sections/acompanhando';
 import { FeaturesSection } from './sections/features';
 import { ComoFunciona } from './sections/como-funciona';
 import { StatsSection } from './sections/stats';
@@ -24,6 +25,7 @@ import { DownloadSection } from './sections/download';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CinematicHero,
+    AcompanhandoSection,
     FeaturesSection,
     ComoFunciona,
     StatsSection,
@@ -37,6 +39,7 @@ import { DownloadSection } from './sections/download';
   host: { class: 'block overflow-x-hidden' },
   template: `
     <app-cinematic-hero />
+    <app-acompanhando-section />
     <app-features />
     <app-como-funciona />
     <app-stats />

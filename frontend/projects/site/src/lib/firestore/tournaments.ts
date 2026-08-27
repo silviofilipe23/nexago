@@ -51,7 +51,7 @@ function mapSummary(id: string, d: DocumentData, now: Date): TournamentSummary {
 }
 
 /** Ativos primeiro (o próximo antes), encerrados depois (o mais recente antes). Sem data vai pro fim. */
-function byRelevance(a: TournamentSummary, b: TournamentSummary): number {
+export function byRelevance(a: TournamentSummary, b: TournamentSummary): number {
   const aActive = isActiveStatus(a.listingStatus);
   const bActive = isActiveStatus(b.listingStatus);
   if (aActive !== bActive) return aActive ? -1 : 1;

@@ -44,11 +44,12 @@ import 'widgets/athlete_home/athlete_home_next_reservation_card.dart';
 import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
 
-/// Aba Início do atleta — mesmo padrão de layout do painel do portal web no
-/// mobile: meus torneios (quando ativa, em destaque no topo) → Modo Focus
-/// (no dia do evento) → KPIs → acompanhamento de inscrição → convites de
-/// dupla recebidos → convites enviados por mim → competições → próxima
-/// reserva → evolução → comunidade → missões → atalhos.
+/// Aba Início do atleta — convites de dupla recebidos aparecem primeiro,
+/// logo após o header (pedido do dono, 27/08), seguidos do mesmo padrão de
+/// layout do painel do portal web no mobile: meus torneios (quando ativa,
+/// em destaque no topo) → Modo Focus (no dia do evento) → KPIs →
+/// acompanhamento de inscrição → convites enviados por mim → competições →
+/// próxima reserva → evolução → comunidade → missões → atalhos.
 class AthleteHomePage extends ConsumerWidget {
   const AthleteHomePage({super.key});
 
@@ -123,6 +124,32 @@ class AthleteHomePage extends ConsumerWidget {
                   sliver: SliverList.list(
                     children: [
                       const SizedBox(height: AppSpacing.lg),
+                      // Convites recebidos ainda pendentes — o atleta precisa
+                      // responder. Aparecem primeiro na home, logo após o
+                      // header, à frente até de "meus torneios".
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasReceivedInvites = (ref
+                                      .watch(
+                                        pendingTournamentPartnerInvitesProvider,
+                                      )
+                                      .valueOrNull ??
+                                  const [])
+                              .isNotEmpty;
+                          if (!hasReceivedInvites) {
+                            return const SizedBox.shrink();
+                          }
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              0,
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                            ),
+                            child: PendingTournamentInviteeInvitesSection(),
+                          );
+                        },
+                      ),
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,
@@ -161,32 +188,6 @@ class AthleteHomePage extends ConsumerWidget {
                           horizontal: AppSpacing.screenH,
                         ),
                         child: _HomeRegistrationTrackerSection(),
-                      ),
-                      // Convites recebidos ainda pendentes — o atleta precisa
-                      // responder. Espelha o card "Convites de dupla" da web,
-                      // que fica logo após o tracker de inscrição.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasReceivedInvites = (ref
-                                      .watch(
-                                        pendingTournamentPartnerInvitesProvider,
-                                      )
-                                      .valueOrNull ??
-                                  const [])
-                              .isNotEmpty;
-                          if (!hasReceivedInvites) {
-                            return const SizedBox.shrink();
-                          }
-                          return const Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                              AppSpacing.screenH,
-                              0,
-                            ),
-                            child: PendingTournamentInviteeInvitesSection(),
-                          );
-                        },
                       ),
                       // Convites enviados por mim (aguardando parceiro ou
                       // pagamento pendente) — só ocupam espaço quando

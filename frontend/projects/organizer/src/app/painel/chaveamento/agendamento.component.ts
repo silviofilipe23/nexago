@@ -18,6 +18,7 @@ import {
   updateMatchOpsSettings,
 } from '../data/organizer-ops.service';
 import { OgCardComponent } from '../ui/card.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
@@ -50,11 +51,15 @@ interface AgendaBloco {
 @Component({
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgConfirmDialogComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
   host: { '(document:keydown.escape)': 'onEscape()' },
   template: `
     <og-page-header title="Agendamento de jogos" [subtitle]="headerSubtitle()">
-      <button type="button" class="og-mini-btn" [disabled]="busy() || autoOpen() || !ctx.tournament()" (click)="openAuto()">
+      <button type="button" class="og-mini-btn" [disabled]="busy() || autoOpen() || !ctx.tournament()" (click)="toggleBulkMode()">
+        <og-icon [name]="bulkMode() ? 'close' : 'check'" [size]="14" />
+        {{ bulkMode() ? 'Cancelar seleção' : 'Selecionar partidas' }}
+      </button>
+      <button type="button" class="og-mini-btn" [disabled]="busy() || autoOpen() || bulkMode() || !ctx.tournament()" (click)="openAuto()">
         @if (autoApplying()) {
           <app-nx-spinner [size]="14" />
         } @else {
@@ -115,10 +120,10 @@ interface AgendaBloco {
                         <button
                           type="button"
                           class="og-agenda-slot"
-                          [class.targetable]="!autoOpen() && selectedMatchId() != null"
+                          [class.targetable]="!autoOpen() && !bulkMode() && selectedMatchId() != null"
                           [style.top.px]="i * rowH"
                           [style.height.px]="rowH"
-                          [disabled]="busy() || autoOpen() || selectedMatchId() == null"
+                          [disabled]="busy() || autoOpen() || bulkMode() || selectedMatchId() == null"
                           (click)="scheduleAt(c.id, startMin() + i * slotMin)"
                           [attr.aria-label]="'Agendar às ' + fmt(startMin() + i * slotMin) + ' na ' + c.name"
                         ></button>
@@ -130,10 +135,11 @@ interface AgendaBloco {
                           [class.pendente]="!isFinished(b.match)"
                           [class.locked]="isFinished(b.match) || autoOpen()"
                           [class.foreign]="b.foreign"
-                          [class.selected]="!isFinished(b.match) && selectedMatchId() === b.match.id"
+                          [class.selected]="!isFinished(b.match) && !bulkMode() && selectedMatchId() === b.match.id"
+                          [class.bulk-selected]="bulkMode() && bulkSelectedIds().has(b.match.id)"
                           [style.top.px]="minToY(b.startMin) + 1"
                           [style.height.px]="(b.durMin / slotMin) * rowH - 3"
-                          (click)="toggleSelectBlock(b.match)"
+                          (click)="onBlockClick(b.match)"
                         >
                           <div class="partida" [title]="b.match.team1Label + ' vs ' + b.match.team2Label">{{ truncate(b.match.team1Label, 14) }} vs {{ truncate(b.match.team2Label, 14) }}</div>
                           <div class="meta">
@@ -298,6 +304,36 @@ interface AgendaBloco {
               </div>
             </div>
           </og-card>
+        } @else if (bulkMode()) {
+        <og-card kicker="Seleção em massa" title="Remover agendamento" style="min-height:0;overflow:hidden">
+          <p class="og-bulk-hint">Clique nas partidas já agendadas na grade pra selecionar. Elas voltam pra fila sem quadra nem horário.</p>
+          <div class="og-agenda-fila">
+            @for (m of bulkSelectedMatches(); track m.id) {
+              <div class="og-agenda-fila-item bulk-item">
+                <div class="bulk-item-info">
+                  <div class="partida" [title]="m.team1Label + ' vs ' + m.team2Label">{{ truncate(m.team1Label, 16) }} vs {{ truncate(m.team2Label, 16) }}</div>
+                  <div class="meta">
+                    #{{ m.matchNumber || '—' }}
+                    @if (m.scheduledAt) {
+                      · {{ timeLabel(m.scheduledAt) }} ({{ dayLabel(dayKeyOf(m.scheduledAt)) }})
+                    }
+                  </div>
+                </div>
+                <button type="button" class="og-bulk-remove-chip" aria-label="Remover da seleção" (click)="toggleBulkSelect(m)">
+                  <og-icon name="close" [size]="12" />
+                </button>
+              </div>
+            } @empty {
+              <p class="og-empty">Nenhuma partida selecionada</p>
+            }
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex:none">
+            <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="exitBulkMode()">Cancelar</button>
+            <button type="button" class="og-mini-btn" [disabled]="busy() || bulkSelectedIds().size === 0" (click)="openBulkConfirm()">
+              Remover horários ({{ bulkSelectedIds().size }})
+            </button>
+          </div>
+        </og-card>
         } @else {
         <og-card kicker="Aguardando horário" title="Fila de partidas" style="min-height:0;overflow:hidden">
           @if (selectedMatch(); as sel) {
@@ -336,6 +372,17 @@ interface AgendaBloco {
         </div>
       }
     </div>
+    @if (confirmingBulkRemove()) {
+      <og-confirm-dialog
+        title="Remover horário de {{ bulkSelectedIds().size }} partida(s)?"
+        message="Elas voltam pra fila sem quadra nem horário. Partida em andamento ou já finalizada é ignorada automaticamente."
+        confirmLabel="Remover horários"
+        [destructive]="true"
+        [busy]="busy()"
+        (confirmed)="confirmBulkRemove()"
+        (cancelled)="dismissBulkConfirm()"
+      />
+    }
     @if (autoApplying()) {
       <app-nx-processing-overlay title="Auto-agendando o dia…" description="Distribuindo as partidas elegíveis nos horários livres das quadras." />
     }
@@ -516,6 +563,21 @@ interface AgendaBloco {
     .og-agenda-block.foreign {
       opacity: 0.4;
     }
+    .og-agenda-block.bulk-selected {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 0;
+      background: var(--nx-orange-tint);
+    }
+    .og-agenda-block.bulk-selected::after {
+      content: '✓';
+      position: absolute;
+      top: 4px;
+      right: 7px;
+      font-family: var(--nx-font-ui);
+      font-weight: 800;
+      font-size: 11px;
+      color: var(--nx-orange-500);
+    }
     .og-agenda-block.preview {
       background: var(--nx-orange-tint);
       border: 1px dashed var(--nx-orange-500);
@@ -633,6 +695,39 @@ interface AgendaBloco {
       font-size: 11px;
       color: var(--nx-text-dim);
       margin-top: 4px;
+    }
+    .og-agenda-fila-item.bulk-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: default;
+    }
+    .bulk-item-info {
+      min-width: 0;
+    }
+    .og-bulk-remove-chip {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--nx-text-mute);
+      cursor: pointer;
+    }
+    .og-bulk-remove-chip:hover {
+      color: var(--nx-text);
+      background: var(--nx-line);
+    }
+    .og-bulk-hint {
+      margin: 0 0 10px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--nx-text-dim);
     }
     .og-agenda-fila-hint {
       margin-top: 12px;
@@ -831,6 +926,11 @@ export class AgendamentoComponent {
   protected readonly selectedMatchId = signal<string | null>(null);
   protected readonly selectedDayKey = signal<string>(dayKeyFromDate(new Date()));
 
+  // ── Seleção em massa (remover agendamento de várias partidas de uma vez) ────
+  protected readonly bulkMode = signal(false);
+  protected readonly bulkSelectedIds = signal<ReadonlySet<string>>(new Set<string>());
+  protected readonly confirmingBulkRemove = signal(false);
+
   // ── Painel de auto-agendamento ──────────────────────────────────────────────
   protected readonly autoOpen = signal(false);
   protected readonly autoLoading = signal(false);
@@ -917,6 +1017,7 @@ export class AgendamentoComponent {
       this.feedback.set(null);
       this.autoDynamicReschedule.set(t.matchOps.dynamicRescheduleEnabled);
       this.closeAuto();
+      this.exitBulkMode();
     });
     destroyRef.onDestroy(() => this.cancelAutoDebounce());
   }
@@ -1028,7 +1129,7 @@ export class AgendamentoComponent {
 
   protected openAuto(): void {
     const t = this.ctx.tournament();
-    if (!t || this.busy()) return;
+    if (!t || this.busy() || this.bulkMode()) return;
     this.selectedMatchId.set(null);
     this.feedback.set(null);
     this.autoSkipped.set([]);
@@ -1219,6 +1320,16 @@ export class AgendamentoComponent {
       .sort((a, b) => a.matchNumber - b.matchNumber);
   });
 
+  /** Partidas marcadas no modo de seleção em massa — sobrevive à troca de dia
+   *  de propósito, pra dar pra juntar seleção de dias diferentes numa só remoção. */
+  protected readonly bulkSelectedMatches = computed<TournamentMatch[]>(() => {
+    const ids = this.bulkSelectedIds();
+    return this.ctx
+      .matches()
+      .filter((m) => ids.has(m.id))
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+  });
+
   /** Partida encerrada (placar ou status) — sem reagendar/remover horário. */
   protected isFinished(match: TournamentMatch): boolean {
     return match.status === 'completed' || match.score != null;
@@ -1275,6 +1386,79 @@ export class AgendamentoComponent {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  protected toggleBulkMode(): void {
+    if (this.busy() || this.autoOpen() || !this.ctx.tournament()) return;
+    if (this.bulkMode()) {
+      this.exitBulkMode();
+      return;
+    }
+    this.selectedMatchId.set(null);
+    this.feedback.set(null);
+    this.bulkSelectedIds.set(new Set());
+    this.bulkMode.set(true);
+  }
+
+  protected exitBulkMode(): void {
+    this.bulkMode.set(false);
+    this.bulkSelectedIds.set(new Set());
+    this.confirmingBulkRemove.set(false);
+  }
+
+  /** Roteia o clique no bloco pro fluxo certo: seleção em massa ou o
+   *  select-pra-reagendar/remover de sempre. */
+  protected onBlockClick(match: TournamentMatch): void {
+    if (this.bulkMode()) {
+      this.toggleBulkSelect(match);
+      return;
+    }
+    this.toggleSelectBlock(match);
+  }
+
+  protected toggleBulkSelect(match: TournamentMatch): void {
+    if (!this.bulkMode() || this.isFinished(match) || this.busy() || this.autoOpen()) return;
+    this.bulkSelectedIds.update((ids) => {
+      const next = new Set(ids);
+      if (next.has(match.id)) next.delete(match.id);
+      else next.add(match.id);
+      return next;
+    });
+  }
+
+  protected openBulkConfirm(): void {
+    if (this.bulkSelectedIds().size === 0 || this.busy()) return;
+    this.confirmingBulkRemove.set(true);
+  }
+
+  protected dismissBulkConfirm(): void {
+    this.confirmingBulkRemove.set(false);
+  }
+
+  protected async confirmBulkRemove(): Promise<void> {
+    const ids = Array.from(this.bulkSelectedIds());
+    if (ids.length === 0 || this.busy()) return;
+    this.confirmingBulkRemove.set(false);
+    this.busy.set(true);
+    this.feedback.set(null);
+    const results = await Promise.allSettled(ids.map((id) => unscheduleMatch(id)));
+    this.feedback.set(this.bulkResultFeedback(results));
+    this.exitBulkMode();
+    await this.ctx.reloadMatches();
+    this.busy.set(false);
+  }
+
+  /** Pura — separa a contagem/mensagem da chamada de rede pra dar pra testar sem
+   *  depender da callable de verdade (mesmo pulo dos testes do auto-agendamento). */
+  protected bulkResultFeedback(results: readonly PromiseSettledResult<unknown>[]): { ok: boolean; message: string } {
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const ok = results.length - failed;
+    if (failed === 0) return { ok: true, message: `${ok} partida(s) voltaram pra fila.` };
+    const failPart = failed === 1 ? '1 falhou' : `${failed} falharam`;
+    if (ok === 0) {
+      return { ok: false, message: `Nenhuma partida foi removida — ${failPart} (verifique se está em andamento ou já finalizada).` };
+    }
+    return { ok: true, message: `${ok} removida(s), ${failPart} (verifique se está em andamento ou já finalizada).` };
   }
 
   protected minToY(min: number): number {

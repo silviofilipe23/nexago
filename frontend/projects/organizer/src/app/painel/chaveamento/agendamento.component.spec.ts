@@ -430,6 +430,164 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     const blocks = host().querySelectorAll('.og-agenda-block.foreign');
     expect(blocks.length).toBe(1);
   });
+
+  describe('seleção em massa para remover horário', () => {
+    function scheduledMatch(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
+      return matchFixture({
+        id: 'm1',
+        courtId: 'Q1',
+        scheduledAt: new Date(`${DAY}T08:00:00-03:00`),
+        scheduleEndAt: new Date(`${DAY}T08:30:00-03:00`),
+        ...overrides,
+      });
+    }
+
+    beforeEach(() => {
+      const m1 = scheduledMatch();
+      const m2 = scheduledMatch({ id: 'm2', matchNumber: 2, courtId: 'Q2' });
+      ctx.matches.set([m1, m2]);
+      ctx.matchesFiltered.set([m1, m2]);
+      fixture.detectChanges();
+    });
+
+    it('liga o modo e troca a fila pelo card de seleção', () => {
+      expect(host().textContent).toContain('Fila de partidas');
+
+      clickButton('Selecionar partidas');
+
+      expect(host().textContent).toContain('Seleção em massa');
+      expect(host().textContent).not.toContain('Fila de partidas');
+    });
+
+    it('clicar num bloco agendado marca a partida selecionada', () => {
+      clickButton('Selecionar partidas');
+      const block = host().querySelector<HTMLElement>('.og-agenda-block')!;
+
+      block.click();
+      fixture.detectChanges();
+
+      expect(block.classList.contains('bulk-selected')).toBeTrue();
+      expect(host().textContent).toContain('Remover horários (1)');
+    });
+
+    it('clicar de novo desmarca a partida', () => {
+      clickButton('Selecionar partidas');
+      const block = host().querySelector<HTMLElement>('.og-agenda-block')!;
+      block.click();
+      fixture.detectChanges();
+
+      block.click();
+      fixture.detectChanges();
+
+      expect(block.classList.contains('bulk-selected')).toBeFalse();
+      expect(host().textContent).toContain('Nenhuma partida selecionada');
+    });
+
+    it('Cancelar sai do modo sem remover nada', () => {
+      clickButton('Selecionar partidas');
+      host().querySelector<HTMLElement>('.og-agenda-block')!.click();
+      fixture.detectChanges();
+
+      clickButton('Cancelar');
+
+      expect(host().textContent).toContain('Fila de partidas');
+      expect(host().textContent).not.toContain('Seleção em massa');
+    });
+
+    it('Remover horários abre o diálogo de confirmação com a contagem certa', () => {
+      clickButton('Selecionar partidas');
+      for (const b of Array.from(host().querySelectorAll<HTMLElement>('.og-agenda-block'))) b.click();
+      fixture.detectChanges();
+
+      clickButton('Remover horários (2)');
+
+      expect(host().querySelector('og-confirm-dialog')).not.toBeNull();
+      expect(host().textContent).toContain('Remover horário de 2 partida(s)?');
+    });
+
+    it('cancelar no diálogo mantém a seleção', () => {
+      clickButton('Selecionar partidas');
+      host().querySelector<HTMLElement>('.og-agenda-block')!.click();
+      fixture.detectChanges();
+      clickButton('Remover horários (1)');
+
+      const cancelBtn = Array.from(host().querySelectorAll<HTMLButtonElement>('.og-dialog-actions button')).find(
+        (b) => (b.textContent ?? '').trim() === 'Voltar',
+      )!;
+      cancelBtn.click();
+      fixture.detectChanges();
+
+      expect(host().querySelector('og-confirm-dialog')).toBeNull();
+      expect(host().textContent).toContain('Remover horários (1)');
+    });
+
+    it('Auto-agendar dia fica desabilitado durante a seleção', () => {
+      clickButton('Selecionar partidas');
+
+      const auto = Array.from(host().querySelectorAll<HTMLButtonElement>('button')).find((b) => (b.textContent ?? '').includes('Auto-agendar dia'))!;
+      expect(auto.disabled).toBeTrue();
+    });
+
+    it('Selecionar partidas fica desabilitado com o painel de auto-agendamento aberto', () => {
+      openPanel();
+
+      const bulkToggle = Array.from(host().querySelectorAll<HTMLButtonElement>('button')).find((b) => (b.textContent ?? '').includes('Selecionar partidas'))!;
+      expect(bulkToggle.disabled).toBeTrue();
+    });
+
+    it('partida finalizada não pode ser selecionada', () => {
+      const done = scheduledMatch({ id: 'm3', matchNumber: 3, courtId: 'Q1', status: 'completed', score: '2x0' });
+      ctx.matches.set([done]);
+      ctx.matchesFiltered.set([done]);
+      fixture.detectChanges();
+
+      clickButton('Selecionar partidas');
+      const block = host().querySelector<HTMLElement>('.og-agenda-block')!;
+      block.click();
+      fixture.detectChanges();
+
+      expect(block.classList.contains('bulk-selected')).toBeFalse();
+      expect(host().textContent).toContain('Nenhuma partida selecionada');
+    });
+  });
+
+  describe('bulkResultFeedback — mensagem de resultado da remoção em massa', () => {
+    function feedback(results: Array<PromiseSettledResult<unknown>>): { ok: boolean; message: string } {
+      return (
+        fixture.componentInstance as unknown as {
+          bulkResultFeedback(r: readonly PromiseSettledResult<unknown>[]): { ok: boolean; message: string };
+        }
+      ).bulkResultFeedback(results);
+    }
+
+    it('todas removidas', () => {
+      const r = feedback([
+        { status: 'fulfilled', value: {} },
+        { status: 'fulfilled', value: {} },
+      ]);
+      expect(r.ok).toBeTrue();
+      expect(r.message).toBe('2 partida(s) voltaram pra fila.');
+    });
+
+    it('sucesso parcial', () => {
+      const r = feedback([
+        { status: 'fulfilled', value: {} },
+        { status: 'rejected', reason: new Error('x') },
+      ]);
+      expect(r.ok).toBeTrue();
+      expect(r.message).toContain('1 removida(s)');
+      expect(r.message).toContain('1 falhou');
+    });
+
+    it('todas falharam', () => {
+      const r = feedback([
+        { status: 'rejected', reason: new Error('x') },
+        { status: 'rejected', reason: new Error('y') },
+      ]);
+      expect(r.ok).toBeFalse();
+      expect(r.message).toContain('2 falharam');
+    });
+  });
 });
 
 /** A media query de tablet/celular e a regra base de `.og-agenda` têm a MESMA

@@ -250,7 +250,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         if (_routeIsRegister(state)) {
           return null;
         }
-        final token = await _safeGetIdTokenResult(user);
+        final token = await _safeGetIdTokenResult(ref, user);
         if (token == null) {
           return AppRoutes.login;
         }
@@ -264,7 +264,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (user != null) {
-        final token = await _safeGetIdTokenResult(user);
+        final token = await _safeGetIdTokenResult(ref, user);
         if (token == null) {
           return isAuthRoute ? null : AppRoutes.login;
         }
@@ -2010,17 +2010,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-Future<IdTokenResult?> _safeGetIdTokenResult(User user) async {
+Future<IdTokenResult?> _safeGetIdTokenResult(Ref ref, User user) async {
   try {
     // Token EM CACHE (sem rede). O `redirect` roda em toda navegação e só usa
     // os claims (papéis), que mudam raramente — forçar refresh aqui custava uma
     // ida ao servidor por troca de tela. O refresh forçado acontece uma vez no
     // pós-login (resolvePostLoginDestination) e na troca/concessão de papel.
     return await user.getIdTokenResult(false);
-  } on FirebaseAuthException catch (e) {
-    if (e.code == 'no-current-user' || e.code == 'user-token-expired') {
-      return null;
+  } on FirebaseAuthException {
+    // Qualquer FirebaseAuthException aqui significa sessão inutilizável — inclusive
+    // conta apagada no backend, que no Android às vezes chega como código genérico
+    // 'unknown' em vez de 'user-not-found'. Deslogar de verdade (não só devolver
+    // null) evita o app ficar preso repetindo leituras/escritas no Firestore com um
+    // uid morto.
+    try {
+      await ref.read(appSignOutProvider)();
+    } catch (_) {
+      // Best-effort: mesmo se o signOut falhar, seguimos tratando como deslogado.
     }
-    rethrow;
+    return null;
   }
 }

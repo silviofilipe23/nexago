@@ -212,13 +212,15 @@ class _TournamentDetailContentState
   Widget build(BuildContext context) {
     final canRegister = canRegisterForTournament(widget.tournament.status);
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
-    // A barra continua aparecendo COM inscrição: ela é a porta de entrada da
-    // tela de inscrição, e lá o atleta acha o convite pendente, o uniforme e o
-    // pagamento — além de poder se inscrever numa segunda categoria, que várias
-    // categorias permitem (`maxRegistrationsPerAthlete`). Escondê-la com
-    // qualquer inscrição fechava todos esses caminhos de uma vez. O portal
-    // nunca escondeu.
-    final showBottomBar = canRegister && widget.registrationResolved;
+    // Inscrição incompleta (sem parceiro ou sem pagamento) mantém a barra: ela
+    // é a porta de entrada pra continuar o convite pendente, o uniforme e o
+    // pagamento. Com uma inscrição já confirmada e paga, a barra some — o
+    // acesso passa a ser pela tela "Minha inscrição".
+    final hasConfirmedPaidRegistration = widget.registrationsByCategoryId.values
+        .any((registration) => registration.isPaid && !registration.partnerPending);
+    final showBottomBar = canRegister &&
+        widget.registrationResolved &&
+        !hasConfirmedPaidRegistration;
     final topInset = MediaQuery.paddingOf(context).top;
     final spotsSubtitle =
         '${tournamentSpotsRemainingLabel(widget.stats)} · garante já';

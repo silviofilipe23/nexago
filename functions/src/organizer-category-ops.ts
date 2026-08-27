@@ -29,6 +29,7 @@ import {
   shouldCapturePaymentSnapshot,
 } from "./organizer-payment-revert";
 import {
+  findCategory,
   loadTournamentData,
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
@@ -464,6 +465,17 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
         data,
         teamSnap?.exists ? teamSnap.data() : null,
       );
+      // Mesma tela de compartilhamento pra onde o webhook do gateway já leva
+      // quando o pagamento cai sozinho — a rota só monta essa tela se
+      // tournamentName/categoryName vierem preenchidos, senão cai no wizard.
+      const tournamentName = String(tournament.name || "Torneio");
+      const categoryName = String(
+        findCategory(tournament, categoryId)?.categoryName || categoryId || "Categoria",
+      );
+      const url =
+        `/torneios/${tournamentId}/inscricao/sucesso?registrationId=${registrationId}` +
+        `&tournamentName=${encodeURIComponent(tournamentName)}` +
+        `&categoryName=${encodeURIComponent(categoryName)}`;
       await Promise.all(
         athleteUids.map((athleteUid) =>
           deliverNotificationToUser({
@@ -474,7 +486,7 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
             data: {
               tournamentId,
               registrationId,
-              url: `/torneios/${tournamentId}`,
+              url,
             },
           }).catch(() => undefined),
         ),

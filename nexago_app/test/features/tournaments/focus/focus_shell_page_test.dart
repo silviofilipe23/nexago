@@ -38,6 +38,10 @@ TournamentDetail _tournament() {
   );
 }
 
+// iOS explícito: estes testes exercitam a troca de seção via o rótulo da nav
+// (find.text), que no Android fica sempre minimizado (só ícone) — ver
+// NexaBottomNavBar.build. O comportamento de navegação em si não é
+// platform-specific, então fixamos a plataforma onde o rótulo é visível.
 Widget _app() {
   return ProviderScope(
     overrides: [
@@ -48,10 +52,12 @@ Widget _app() {
       tournamentUserTeamIdsByCategoryProvider('t1')
           .overrideWith((ref) => Stream.value(const {})),
       // Sem isto o provider iria ao Firestore real, que o teste não tem.
-      myTournamentPredictionEntryProvider('t1').overrideWith((ref) async => null),
+      myTournamentPredictionEntryProvider('t1')
+          .overrideWith((ref) async => null),
     ],
-    child: const MaterialApp(
-      home: FocusShellPage(tournamentId: 't1'),
+    child: MaterialApp(
+      theme: ThemeData(platform: TargetPlatform.iOS),
+      home: const FocusShellPage(tournamentId: 't1'),
     ),
   );
 }
@@ -186,7 +192,9 @@ void main() {
 
     expect(
       (list.padding as EdgeInsets).bottom,
-      greaterThanOrEqualTo(nexaBottomNavBarHeight()),
+      greaterThanOrEqualTo(
+        nexaBottomNavBarHeight(tester.element(find.byType(FocusShellPage))),
+      ),
     );
   });
 
@@ -221,7 +229,10 @@ void main() {
           myTournamentPredictionEntryProvider('t1')
               .overrideWith((ref) async => null),
         ],
-        child: const MaterialApp(home: FocusShellPage(tournamentId: 't1')),
+        child: MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.iOS),
+          home: const FocusShellPage(tournamentId: 't1'),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -280,6 +291,11 @@ void main() {
       find.byType(TournamentPredictionsPage),
     );
 
-    expect(page.bottomPadding, greaterThanOrEqualTo(nexaBottomNavBarHeight()));
+    expect(
+      page.bottomPadding,
+      greaterThanOrEqualTo(
+        nexaBottomNavBarHeight(tester.element(find.byType(FocusShellPage))),
+      ),
+    );
   });
 }

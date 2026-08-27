@@ -134,8 +134,21 @@ class NexaBottomNavBar extends StatelessWidget {
 }
 
 /// Altura útil da barra (cápsula flutuante + safe area aproximada).
-double nexaBottomNavBarHeight({
+///
+/// No Android a barra fica sempre minimizada (ver [NexaBottomNavBar.build]),
+/// então quem reserva folga pra ela embaixo do conteúdo precisa da altura
+/// compacta — do contrário sobra um vão vazio entre o conteúdo (ou um botão
+/// flutuante, como "Salvar palpites") e a cápsula, que agora é bem menor.
+double nexaBottomNavBarHeight(
+  BuildContext context, {
   double barHeight = 75,
   double bottomMargin = 10,
-}) =>
-    barHeight + bottomMargin + NexaBottomNavBar._glassOverflow;
+}) {
+  final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+  final effectiveBarHeight =
+      isAndroid ? ShellTabBarCollapseController.collapsedHeight : barHeight;
+  final effectiveBottomMargin = isAndroid ? 0.0 : bottomMargin;
+  return effectiveBarHeight +
+      effectiveBottomMargin +
+      NexaBottomNavBar._glassOverflow;
+}

@@ -31,7 +31,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
       data: (allowed) => allowed && activeRole == AppMobileRole.arena,
       orElse: () => false,
     );
-    final bottomClearance = nexaBottomNavBarHeight() +
+    final bottomClearance = nexaBottomNavBarHeight(context) +
         MediaQuery.viewPaddingOf(context).bottom +
         16;
 

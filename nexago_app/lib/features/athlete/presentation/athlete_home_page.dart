@@ -73,7 +73,7 @@ class AthleteHomePage extends ConsumerWidget {
           skeleton: const _AthleteHomeSkeleton(),
           data: (summary) {
             final bottomClearance =
-                nexaBottomNavBarHeight() +
+                nexaBottomNavBarHeight(context) +
                 MediaQuery.viewPaddingOf(context).bottom +
                 16;
 

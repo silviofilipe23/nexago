@@ -272,8 +272,9 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
     // Folga inferior da lista = barra flutuante + inset da home indicator, para
     // o último card não ficar cortado atrás da bottom nav (que sobrepõe o
     // conteúdo via extendBody).
-    final bottomNavClearance =
-        nexaBottomNavBarHeight() + MediaQuery.viewPaddingOf(context).bottom + 8;
+    final bottomNavClearance = nexaBottomNavBarHeight(context) +
+        MediaQuery.viewPaddingOf(context).bottom +
+        8;
     final canSwitch = ref.watch(hasMultipleMobileRolesProvider);
     final tournamentsAsync = ref.watch(managedOrganizerTournamentsProvider);
     final leaguesAsync = ref.watch(managedOrganizerLeaguesProvider);

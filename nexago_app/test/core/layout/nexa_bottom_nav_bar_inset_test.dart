@@ -134,4 +134,49 @@ void main() {
       },
     );
   });
+
+  group('nexaBottomNavBarHeight acompanha a barra minimizada no Android', () {
+    // Regressão: telas que reservam `nexaBottomNavBarHeight() + inset` pra
+    // não ficarem atrás da nav (Focus, início do atleta, etc.) usavam um
+    // valor fixo pensado pra barra expandida — no Android, agora sempre
+    // minimizada, isso deixava um vão vazio entre o conteúdo (ex.: o botão
+    // "Salvar palpites") e a cápsula real, bem menor.
+    testWidgets('Android: usa a altura compacta da nav', (tester) async {
+      late double height;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.android),
+          home: Builder(
+            builder: (context) {
+              height = nexaBottomNavBarHeight(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(
+        height,
+        ShellTabBarCollapseController.collapsedHeight + 20,
+      );
+    });
+
+    testWidgets('iOS: mantém a altura pensada pra barra expandida',
+        (tester) async {
+      late double height;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.iOS),
+          home: Builder(
+            builder: (context) {
+              height = nexaBottomNavBarHeight(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(height, 105);
+    });
+  });
 }

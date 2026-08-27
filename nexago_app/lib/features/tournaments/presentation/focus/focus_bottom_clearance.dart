@@ -9,4 +9,6 @@ import '../../../../core/layout/nexa_bottom_nav_bar.dart';
 /// é a mesma das outras telas com nav (início do atleta, competir, comunidade,
 /// painel do organizador) — barra + inset da home indicator + respiro.
 double focusBottomClearance(BuildContext context) =>
-    nexaBottomNavBarHeight() + MediaQuery.viewPaddingOf(context).bottom + 16;
+    nexaBottomNavBarHeight(context) +
+    MediaQuery.viewPaddingOf(context).bottom +
+    16;

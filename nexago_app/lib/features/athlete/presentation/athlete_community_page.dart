@@ -26,7 +26,7 @@ class AthleteCommunityPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bottomClearance =
-        nexaBottomNavBarHeight() +
+        nexaBottomNavBarHeight(context) +
         MediaQuery.viewPaddingOf(context).bottom +
         16;
 

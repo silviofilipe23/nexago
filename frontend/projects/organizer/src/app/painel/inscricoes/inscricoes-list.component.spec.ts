@@ -9,7 +9,16 @@ import {
 } from './inscricoes.model';
 
 function athlete(over: Partial<InscricaoAthlete> = {}): InscricaoAthlete {
-  return { name: 'Ana Paula', photoUrl: null, lgpdAccepted: true, phone: '', ...over };
+  return {
+    uid: 'u1',
+    name: 'Ana Paula',
+    photoUrl: null,
+    lgpdAccepted: true,
+    phone: '',
+    sharePaid: false,
+    organizerConfirmedShare: false,
+    ...over,
+  };
 }
 
 function row(over: Partial<InscricaoRow> = {}): InscricaoRow {
@@ -245,6 +254,94 @@ describe('OgInscricoesListComponent', () => {
 
       expect(emitted.map((a) => a.kind)).toEqual(['revert-payment']);
       expect(emitted[0].row.id).toBe('i1');
+    });
+  });
+
+  /** Confirmar/desfazer por atleta é a correção do bug real: o organizador confirmava a dupla
+   *  inteira mesmo quando só um atleta tinha pago. Só existe enquanto a dupla/equipe não fechou
+   *  — "pago"/"conferir" já resolveram todo mundo, então a ação por atleta some. */
+  describe('pagamento por atleta', () => {
+    async function openWith(over: Partial<InscricaoRow>): Promise<HTMLElement> {
+      fixture.componentRef.setInput('rows', [row({ pay: 'pendente', ...over })]);
+      fixture.componentRef.setInput('openId', 'i1');
+      await fixture.whenStable();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('oferece confirmar o atleta que ainda não pagou', async () => {
+      const el = await openWith({
+        athletes: [athlete({ uid: 'ana', name: 'Ana Paula' }), athlete({ uid: 'bia', name: 'Beatriz Costa' })],
+      });
+      const items = [...el.querySelectorAll('.og-insc-athletes li')];
+
+      expect(items[0].querySelector('.pay-status')?.textContent).toContain('Pagamento pendente');
+      expect(items[0].querySelector('.pay-row button')?.textContent?.trim()).toBe('Confirmar pagamento');
+    });
+
+    it('atleta declarado por si só mostra o selo, sem botão de desfazer', async () => {
+      const el = await openWith({
+        athletes: [
+          athlete({ uid: 'ana', sharePaid: true, organizerConfirmedShare: false }),
+          athlete({ uid: 'bia', name: 'Beatriz Costa' }),
+        ],
+      });
+      const item = el.querySelectorAll('.og-insc-athletes li')[0];
+
+      expect(item.querySelector('.pay-status')?.textContent).toContain('Declarado pelo atleta');
+      expect(item.querySelector('.pay-row button')).toBeNull();
+    });
+
+    it('atleta confirmado pelo organizador ganha botão de desfazer', async () => {
+      const el = await openWith({
+        athletes: [
+          athlete({ uid: 'ana', sharePaid: true, organizerConfirmedShare: true }),
+          athlete({ uid: 'bia', name: 'Beatriz Costa' }),
+        ],
+      });
+      const item = el.querySelectorAll('.og-insc-athletes li')[0];
+
+      expect(item.querySelector('.pay-status')?.textContent).toContain('Confirmado por você');
+      expect(item.querySelector('.pay-row button')?.textContent?.trim()).toBe('Desfazer');
+    });
+
+    it('some em dupla que já fechou (paga ou a conferir) e em inscrição solo', async () => {
+      const paga = await openWith({ pay: 'pago' });
+      expect(paga.querySelector('.pay-row')).toBeNull();
+
+      const conferir = await openWith({ pay: 'conferir' });
+      expect(conferir.querySelector('.pay-row')).toBeNull();
+
+      const solo = await openWith({ athletes: [athlete({ uid: 'ana' })] });
+      expect(solo.querySelector('.pay-row')).toBeNull();
+    });
+
+    it('confirmar emite a ação com o uid do atleta clicado, não a inscrição inteira', async () => {
+      const emitted: InscricaoAction[] = [];
+      fixture.componentInstance.action.subscribe((a) => emitted.push(a));
+      const el = await openWith({
+        athletes: [athlete({ uid: 'ana' }), athlete({ uid: 'bia', name: 'Beatriz Costa' })],
+      });
+      const button = el.querySelectorAll('.og-insc-athletes li')[0].querySelector('.pay-row button') as HTMLButtonElement;
+
+      button.click();
+
+      expect(emitted).toEqual([{ kind: 'confirm', row: jasmine.objectContaining({ id: 'i1' }), athleteUid: 'ana' }]);
+    });
+
+    it('desfazer emite a ação com o uid do atleta, não a inscrição inteira', async () => {
+      const emitted: InscricaoAction[] = [];
+      fixture.componentInstance.action.subscribe((a) => emitted.push(a));
+      const el = await openWith({
+        athletes: [
+          athlete({ uid: 'ana', sharePaid: true, organizerConfirmedShare: true }),
+          athlete({ uid: 'bia', name: 'Beatriz Costa' }),
+        ],
+      });
+      const button = el.querySelectorAll('.og-insc-athletes li')[0].querySelector('.pay-row button') as HTMLButtonElement;
+
+      button.click();
+
+      expect(emitted).toEqual([{ kind: 'revert-payment', row: jasmine.objectContaining({ id: 'i1' }), athleteUid: 'ana' }]);
     });
   });
 

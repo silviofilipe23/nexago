@@ -42,6 +42,12 @@ import {
   registrationAthleteUids,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
+import {registrationTeamSize} from "./tournament-team-category";
+import {
+  SHARE_REVERT_BLOCK_MESSAGE,
+  planOrganizerShareConfirmation,
+  shareRevertBlock,
+} from "./organizer-payment-share";
 import {
   buildRemovalNotificationBody,
   parseRemovalDescription,
@@ -367,6 +373,10 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
   if (!registrationId) {
     throw new HttpsError("invalid-argument", "registrationId obrigatório");
   }
+  // Opcional: confirma o pagamento de UM atleta da dupla/equipe em vez da
+  // inscrição inteira. Sem isso, a confirmação sempre marcou todo mundo como
+  // pago mesmo quando só um atleta tinha pago.
+  const athleteUid = (request.data?.athleteUid as string | undefined)?.trim() || null;
 
   const db = getFirestore();
   const projectId = getFirebaseProjectId();
@@ -383,12 +393,64 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
   if (!tournament) {
     throw new HttpsError("not-found", "Torneio não encontrado");
   }
+
+  await assertCanManageTournament(db, uid, tournamentId);
+
+  if (athleteUid) {
+    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+    const teamSnap = teamId ?
+      await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get() :
+      null;
+    const team = teamSnap?.exists ? teamSnap.data() ?? null : null;
+    const athleteUids = registrationAthleteUids(data, team);
+    if (!athleteUids.includes(athleteUid)) {
+      throw new HttpsError("invalid-argument", "Atleta não faz parte desta inscrição");
+    }
+    if (athleteUids.length > 1) {
+      const category = findCategory(tournament, categoryId);
+      const teamSize = registrationTeamSize(data, category);
+      const plan = planOrganizerShareConfirmation({
+        athleteUids,
+        data,
+        athleteUid,
+        teamSize,
+      });
+      if (!plan.fullyConfirmed) {
+        // Só este atleta confirmado — o resto da dupla/equipe segue pendente,
+        // sem tocar em `isPaid`.
+        await ref.update({
+          sharePaidUids: FieldValue.arrayUnion(athleteUid),
+          organizerConfirmedShareUids: FieldValue.arrayUnion(athleteUid),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        try {
+          await deliverNotificationToUser({
+            userId: athleteUid,
+            title: "Pagamento confirmado",
+            body: "O organizador confirmou o seu pagamento. Aguardando o " +
+              "restante da dupla/equipe.",
+            type: "tournament_registration_share_confirmed",
+            data: {tournamentId, registrationId, url: `/torneios/${tournamentId}`},
+          });
+        } catch (notifyError) {
+          logger.warn("Falha ao notificar confirmação parcial de pagamento", {
+            registrationId,
+            athleteUid,
+            notifyError,
+          });
+        }
+        return {ok: true, outcome: "partial"};
+      }
+      // Este era o último atleta faltando: cai no bloco de confirmação total
+      // abaixo, que grava `isPaid` e avisa todo mundo.
+    }
+  }
+
   const entryFee = categoryId
     ? resolveCategoryEntryFee(tournament, categoryId)
     : 0;
   const paidAmount = organizerDirectConfirmPaidAmount(entryFee);
 
-  await assertCanManageTournament(db, uid, tournamentId);
   await ref.update({
     isPaid: true,
     // Ao confirmar o pagamento, o time deixa de ser "fila".
@@ -401,6 +463,10 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
     paymentVerifiedByOrganizer: true,
     paymentVerifiedAt: FieldValue.serverTimestamp(),
     paymentVerifiedByUid: uid,
+    ...(athleteUid ? {
+      sharePaidUids: FieldValue.arrayUnion(athleteUid),
+      organizerConfirmedShareUids: FieldValue.arrayUnion(athleteUid),
+    } : {}),
     // Retrato do estado ANTES da baixa: é o que
     // `organizerRevertRegistrationPayment` usa para desfazer exatamente esta
     // escrita (parcela já paga pelo app, fila de espera, declaração do atleta)
@@ -520,6 +586,9 @@ export const organizerRevertRegistrationPayment = onCall(async (request) => {
   if (!registrationId) {
     throw new HttpsError("invalid-argument", "registrationId obrigatório");
   }
+  // Opcional: desfaz a confirmação de UM atleta (estado parcial), em vez de
+  // reverter a inscrição inteira.
+  const athleteUid = (request.data?.athleteUid as string | undefined)?.trim() || null;
 
   const db = getFirestore();
   const projectId = getFirebaseProjectId();
@@ -532,6 +601,50 @@ export const organizerRevertRegistrationPayment = onCall(async (request) => {
   if (!tournamentId) throw new HttpsError("failed-precondition", "Torneio inválido");
 
   await assertCanManageTournament(db, uid, tournamentId);
+
+  if (athleteUid) {
+    const shareBlock = shareRevertBlock(data, athleteUid);
+    if (shareBlock) {
+      throw new HttpsError(
+        "failed-precondition",
+        SHARE_REVERT_BLOCK_MESSAGE[shareBlock],
+      );
+    }
+    await ref.update({
+      sharePaidUids: FieldValue.arrayRemove(athleteUid),
+      organizerConfirmedShareUids: FieldValue.arrayRemove(athleteUid),
+      paymentRevertedAt: FieldValue.serverTimestamp(),
+      paymentRevertedByUid: uid,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    try {
+      const tournament = await loadTournamentData(db, projectId, tournamentId);
+      const body = buildPaymentRevertNotificationBody({
+        tournamentName: String(tournament?.name ?? ""),
+        outcome: "pending",
+      });
+      await deliverNotificationToUser({
+        userId: athleteUid,
+        title: "Pagamento revertido",
+        body,
+        type: "tournament_payment_reverted",
+        data: {tournamentId, registrationId, url: `/torneios/${tournamentId}`},
+      });
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar reversão parcial de pagamento", {
+        registrationId,
+        athleteUid,
+        notifyError,
+      });
+    }
+    logger.info("Organizer reverted registration athlete share payment", {
+      registrationId,
+      tournamentId,
+      uid,
+      athleteUid,
+    });
+    return {ok: true, outcome: "pending"};
+  }
 
   const block = paymentRevertBlock(data);
   if (block) {

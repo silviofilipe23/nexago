@@ -37,17 +37,32 @@ export function generateCategoryBracket(params: GenerateBracketParams): Promise<
   });
 }
 
-export function confirmRegistrationPayment(registrationId: string): Promise<unknown> {
-  return call('organizerConfirmRegistrationPayment', { registrationId: registrationId.trim() });
+/** `athleteUid` confirma só a parte deste atleta da dupla/equipe — `outcome: 'partial'` quando
+ *  o restante ainda falta; sem `outcome`, o time fechou e a inscrição inteira ficou paga. Sem
+ *  `athleteUid`, comportamento de sempre: confirma a inscrição inteira de uma vez. */
+export function confirmRegistrationPayment(
+  registrationId: string,
+  athleteUid?: string,
+): Promise<{ ok?: boolean; outcome?: 'partial' }> {
+  return call('organizerConfirmRegistrationPayment', {
+    registrationId: registrationId.trim(),
+    ...(athleteUid ? { athleteUid: athleteUid.trim() } : {}),
+  });
 }
 
-/** Desfaz a baixa manual de pagamento (o organizador confirmou na dupla errada). O servidor
- *  recusa pagamento recebido pela plataforma e devolve a inscrição ao estado anterior à
- *  confirmação — `outcome` diz qual: pendente, a conferir, fila ou o pagamento que já constava. */
+/** Desfaz a baixa manual de pagamento (o organizador confirmou na dupla errada, ou o atleta
+ *  errado). O servidor recusa pagamento recebido pela plataforma e devolve ao estado anterior
+ *  — `outcome` diz qual: pendente, a conferir, fila ou o pagamento que já constava. Com
+ *  `athleteUid`, desfaz só a confirmação manual daquele atleta (estado parcial, sem afetar o
+ *  resto da dupla/equipe); sem ele, reverte a inscrição inteira como sempre. */
 export function revertRegistrationPayment(
   registrationId: string,
+  athleteUid?: string,
 ): Promise<{ ok?: boolean; outcome?: 'pending' | 'toVerify' | 'waitlist' | 'paid' }> {
-  return call('organizerRevertRegistrationPayment', { registrationId: registrationId.trim() });
+  return call('organizerRevertRegistrationPayment', {
+    registrationId: registrationId.trim(),
+    ...(athleteUid ? { athleteUid: athleteUid.trim() } : {}),
+  });
 }
 
 export function moveToWaitlist(registrationId: string): Promise<unknown> {

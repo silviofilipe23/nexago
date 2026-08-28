@@ -24,21 +24,34 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
         : (draft.registrationClosesAt ??
               draft.registrationOpensAt ??
               DateTime.now());
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 730)),
     );
-    if (picked == null) return;
+    if (pickedDate == null) return;
+    if (!context.mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (pickedTime == null) return;
+    final combined = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
     if (opens) {
       ref
           .read(tournamentCreateWizardProvider.notifier)
-          .setRegistrationOpensAt(picked);
+          .setRegistrationOpensAt(combined);
     } else {
       ref
           .read(tournamentCreateWizardProvider.notifier)
-          .setRegistrationClosesAt(picked);
+          .setRegistrationClosesAt(combined);
     }
   }
 
@@ -69,7 +82,7 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
               Expanded(
                 child: OrganizerDateField(
                   label: 'ABREM EM',
-                  value: formatShortDate(draft.registrationOpensAt),
+                  value: formatShortDateTime(draft.registrationOpensAt),
                   onTap: () => _pickDate(context, ref, opens: true),
                 ),
               ),
@@ -77,7 +90,7 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
               Expanded(
                 child: OrganizerDateField(
                   label: 'FECHAM EM',
-                  value: formatShortDate(draft.registrationClosesAt),
+                  value: formatShortDateTime(draft.registrationClosesAt),
                   onTap: () => _pickDate(context, ref, opens: false),
                 ),
               ),

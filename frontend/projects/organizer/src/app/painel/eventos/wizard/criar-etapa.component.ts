@@ -43,6 +43,17 @@ function inputToDate(v: string): Date | null {
   return new Date(y, m - 1, d);
 }
 
+export function datetimeToInput(d: Date | null): string {
+  if (!d) return '';
+  return `${dateToInput(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+export function inputToDatetime(v: string): Date | null {
+  if (!v) return null;
+  const date = new Date(v);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Wizard REAL de nova etapa — espelha `league_stage_create` (Flutter)/`saveStage`: escolhe
  *  uma liga PUBLICADA do organizador, define local/datas/inscrições, e publica o torneio da
  *  etapa (batch: torneio + merge no `stages[]` da liga, herdando categorias/preço/ranking). */
@@ -156,10 +167,10 @@ function inputToDate(v: string): Date | null {
             <og-card kicker="Período" title="Janela de inscrição (opcional)">
               <div class="og-field-grid">
                 <og-form-field label="Abrem em">
-                  <input class="og-input-el" type="date" [value]="dateVal(registrationOpensAt())" (input)="registrationOpensAt.set(toDateVal($any($event.target).value))" />
+                  <input class="og-input-el" type="datetime-local" [value]="datetimeVal(registrationOpensAt())" (input)="registrationOpensAt.set(toDatetimeVal($any($event.target).value))" />
                 </og-form-field>
                 <og-form-field label="Fecham em">
-                  <input class="og-input-el" type="date" [value]="dateVal(registrationClosesAt())" (input)="registrationClosesAt.set(toDateVal($any($event.target).value))" />
+                  <input class="og-input-el" type="datetime-local" [value]="datetimeVal(registrationClosesAt())" (input)="registrationClosesAt.set(toDatetimeVal($any($event.target).value))" />
                 </og-form-field>
               </div>
             </og-card>
@@ -257,6 +268,8 @@ export class CriarEtapaComponent {
 
   protected dateVal = dateToInput;
   protected toDateVal = inputToDate;
+  protected datetimeVal = datetimeToInput;
+  protected toDatetimeVal = inputToDatetime;
 
   protected onLeague(event: Event): void {
     const id = (event.target as HTMLSelectElement).value;

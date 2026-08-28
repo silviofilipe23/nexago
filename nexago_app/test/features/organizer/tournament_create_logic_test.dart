@@ -1,8 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_logic.dart';
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR');
+  });
+
   group('suggestCategoryName', () {
     test('combines gender age and level', () {
       const category = TournamentCategoryDraft(
@@ -370,6 +375,39 @@ void main() {
         registrationClosesAt: DateTime(2026, 5, 1),
       );
       expect(registrationWindowError(d), contains('antes da abertura'));
+    });
+  });
+
+  group('formatShortDateTime', () {
+    test('formats date and time together', () {
+      expect(
+        formatShortDateTime(DateTime(2026, 5, 10, 14, 30)),
+        '10 mai. · 14:30',
+      );
+    });
+
+    test('pads single-digit hour and minute', () {
+      expect(
+        formatShortDateTime(DateTime(2026, 5, 10, 9, 5)),
+        '10 mai. · 09:05',
+      );
+    });
+
+    test('returns placeholder when null', () {
+      expect(formatShortDateTime(null), '—');
+    });
+  });
+
+  group('reviewRegistrationSummary', () {
+    test('includes time alongside the date in the registration period', () {
+      final draft = TournamentCreateDraft(
+        registrationOpensAt: DateTime(2026, 5, 1, 8, 0),
+        registrationClosesAt: DateTime(2026, 5, 10, 22, 30),
+      );
+      expect(
+        reviewRegistrationSummary(draft),
+        '01 mai. · 08:00–10 mai. · 22:30 · Pix e cartão pelo app · lista de espera ativa',
+      );
     });
   });
 

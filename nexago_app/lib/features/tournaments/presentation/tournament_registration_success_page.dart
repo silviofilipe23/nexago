@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/brand/nexa_hashtag.dart';
 import '../../../core/layout/nexa_app_bar.dart';
+import '../../../core/review/app_review_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
@@ -161,6 +162,14 @@ class _TournamentRegistrationSuccessViewState
     _sharePhrase = pickTournamentRegistrationSharePhrase(
       widget.args.registrationId.hashCode,
     );
+
+    // Pico positivo do app — vaga garantida — é a hora de pedir a avaliação
+    // na loja. O delay deixa o atleta ver a conquista antes do diálogo; o
+    // cooldown do serviço evita repetir o pedido a cada inscrição.
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      ref.read(appReviewServiceProvider).maybeRequestReview();
+    });
   }
 
   @override

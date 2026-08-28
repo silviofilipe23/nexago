@@ -260,12 +260,22 @@ interface PhoneLinks {
 
                   <div class="og-insc-actions">
                     @if (r.pay !== 'pago') {
-                      <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="busy()" (click)="emitAction('confirm', r)">
-                        @if (busyKey() === 'confirm:' + r.id) {
-                          <app-nx-spinner [size]="12" tone="dark" />
-                        }
-                        {{ busyKey() === 'confirm:' + r.id ? 'Confirmando…' : confirmLabel(r) }}
-                      </button>
+                      <!-- Pagamento parcial: confirmar "a inscrição inteira" marcaria como pago
+                           quem ainda não pagou. Só a confirmação por atleta, na lista acima,
+                           fecha o que falta. -->
+                      @if (r.partialPayment) {
+                        <span class="og-insc-partial-hint">
+                          <og-icon name="alert" [size]="12" />
+                          Pagamento parcial — confirme cada atleta individualmente acima.
+                        </span>
+                      } @else {
+                        <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="busy()" (click)="emitAction('confirm', r)">
+                          @if (busyKey() === 'confirm:' + r.id) {
+                            <app-nx-spinner [size]="12" tone="dark" />
+                          }
+                          {{ busyKey() === 'confirm:' + r.id ? 'Confirmando…' : confirmLabel(r) }}
+                        </button>
+                      }
                       <!-- Em "conferir" os dois já declararam: resendRegistrationPayment só
                            cobra quem falta em sharePaidUids, ou seja, não avisaria ninguém. -->
                       @if (r.pay !== 'conferir') {
@@ -696,6 +706,15 @@ interface PhoneLinks {
       padding-top: 4px;
       border-top: 1px solid var(--nx-line);
       margin-top: 2px;
+    }
+
+    .og-insc-partial-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-pending);
     }
 
     /* Empurra "Remover" pro fim da barra: ação destrutiva não fica encostada nas outras. */

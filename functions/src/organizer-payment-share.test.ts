@@ -1,6 +1,7 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
+  bulkConfirmBlockedByPartialShare,
   organizerConfirmedShareUidsFromRegistration,
   planOrganizerShareConfirmation,
   shareRevertBlock,
@@ -72,6 +73,66 @@ describe("planOrganizerShareConfirmation", () => {
     });
     assert.deepEqual(plan.updatedSharePaidUids, ["a"]);
     assert.equal(plan.fullyConfirmed, false);
+  });
+});
+
+describe("bulkConfirmBlockedByPartialShare", () => {
+  /** O caso que motivou a trava: um atleta já foi confirmado individualmente — clicar no
+   *  botão "confirmar a dupla inteira" por cima não pode fingir que o outro também pagou. */
+  it("bloqueia quando um dos dois já foi confirmado e o outro não", () => {
+    assert.equal(
+      bulkConfirmBlockedByPartialShare({
+        athleteUids: ["a", "b"],
+        data: {sharePaidUids: ["a"]},
+        teamSize: 2,
+      }),
+      true,
+    );
+  });
+
+  it("libera quando ninguém confirmou nada ainda (baixa em bloco, ex.: dinheiro dos dois)", () => {
+    assert.equal(
+      bulkConfirmBlockedByPartialShare({
+        athleteUids: ["a", "b"],
+        data: {},
+        teamSize: 2,
+      }),
+      false,
+    );
+  });
+
+  it("libera quando todo mundo já está confirmado (nada parcial pra proteger)", () => {
+    assert.equal(
+      bulkConfirmBlockedByPartialShare({
+        athleteUids: ["a", "b"],
+        data: {sharePaidUids: ["a", "b"]},
+        teamSize: 2,
+      }),
+      false,
+    );
+  });
+
+  it("equipe de 3: bloqueia com 2 de 3 confirmados", () => {
+    assert.equal(
+      bulkConfirmBlockedByPartialShare({
+        athleteUids: ["a", "b", "c"],
+        data: {sharePaidUids: ["a", "b"]},
+        teamSize: 3,
+      }),
+      true,
+    );
+  });
+
+  /** Inscrição individual nunca é "parcial" — só tem um atleta pra confirmar. */
+  it("nunca bloqueia inscrição solo", () => {
+    assert.equal(
+      bulkConfirmBlockedByPartialShare({
+        athleteUids: ["a"],
+        data: {sharePaidUids: ["a"]},
+        teamSize: 2,
+      }),
+      false,
+    );
   });
 });
 

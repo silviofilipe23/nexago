@@ -361,15 +361,30 @@ export class InscricoesComponent {
       const direct = tournament?.paymentMode === 'directWithOrganizer';
       const rows: InscricaoRow[] = inscriptions.map((insc) => {
         const accepted = new Set(insc.lgpdAcceptedUids);
+        const sharePaid = new Set(insc.sharePaidUids);
+        const organizerConfirmedShare = new Set(insc.organizerConfirmedShareUids);
         const athletes =
           insc.participants.length > 0
             ? insc.participants.map((p) => ({
+                uid: p.uid,
                 name: p.name,
                 photoUrl: p.photoUrl,
                 lgpdAccepted: accepted.has(p.uid),
                 phone: phones.get(p.uid) ?? '',
+                sharePaid: sharePaid.has(p.uid),
+                organizerConfirmedShare: organizerConfirmedShare.has(p.uid),
               }))
-            : [{ name: insc.teamName, photoUrl: null, lgpdAccepted: false, phone: '' }];
+            : [
+                {
+                  uid: '',
+                  name: insc.teamName,
+                  photoUrl: null,
+                  lgpdAccepted: false,
+                  phone: '',
+                  sharePaid: false,
+                  organizerConfirmedShare: false,
+                },
+              ];
         const missing = insc.participants.filter((p) => !accepted.has(p.uid));
         const lgpd: LgpdStatus =
           insc.participants.length > 0 && missing.length === 0
@@ -518,9 +533,21 @@ export class InscricoesComponent {
   }
 
   protected onAction(a: InscricaoAction): void {
-    const { kind, row, note } = a;
+    const { kind, row, note, athleteUid } = a;
     switch (kind) {
       case 'confirm':
+        if (athleteUid) {
+          const athleteName = row.athletes.find((ath) => ath.uid === athleteUid)?.name ?? row.name;
+          void this.run(
+            `confirm:${row.id}:${athleteUid}`,
+            () => confirmRegistrationPayment(row.id, athleteUid),
+            (result) =>
+              result.outcome === 'partial'
+                ? `Pagamento de ${athleteName} confirmado. Aguardando o restante da dupla/equipe.`
+                : `Pagamento de ${athleteName} confirmado. Inscrição de ${row.name} paga.`,
+          );
+          return;
+        }
         void this.run(`confirm:${row.id}`, () => confirmRegistrationPayment(row.id), `Pagamento de ${row.name} confirmado.`);
         return;
       case 'resend':
@@ -528,7 +555,25 @@ export class InscricoesComponent {
         return;
       // Desfazer a baixa não apaga a inscrição nem libera a vaga, mas mexe em dinheiro
       // (sai da arrecadação) e o atleta é avisado — vale a confirmação.
-      case 'revert-payment':
+      case 'revert-payment': {
+        if (athleteUid) {
+          const athleteName = row.athletes.find((ath) => ath.uid === athleteUid)?.name ?? row.name;
+          this.pendingConfirm.set({
+            title: 'Desfazer confirmação',
+            message:
+              `A confirmação de pagamento de ${athleteName} é desfeita; o resto da dupla/equipe ` +
+              'não é afetado. O atleta é avisado.',
+            confirmLabel: 'Desfazer confirmação',
+            destructive: false,
+            run: () =>
+              void this.run(
+                `revert-payment:${row.id}:${athleteUid}`,
+                () => revertRegistrationPayment(row.id, athleteUid),
+                `Confirmação de ${athleteName} desfeita.`,
+              ),
+          });
+          return;
+        }
         this.pendingConfirm.set({
           title: 'Reverter pagamento',
           message:
@@ -545,6 +590,7 @@ export class InscricoesComponent {
             ),
         });
         return;
+      }
       case 'waitlist':
         void this.run(`waitlist:${row.id}`, () => moveToWaitlist(row.id), `${row.name} movido pra lista de espera.`);
         return;

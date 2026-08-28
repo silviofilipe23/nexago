@@ -66,6 +66,11 @@ export interface TournamentInscription {
    *  pelo app é dinheiro recebido; no modo direto é declaração do atleta. Serve pra explicar
    *  por que a inscrição está parada em "Pendente". */
   sharePaidCount: number;
+  /** Uids da inscrição que já quitaram a própria parte, restrito a quem está em `participants`. */
+  sharePaidUids: string[];
+  /** Uids cuja parte foi confirmada MANUALMENTE pelo organizador (em vez de declarada pelo
+   *  próprio atleta) — só essa confirmação pode ser desfeita por atleta. */
+  organizerConfirmedShareUids: string[];
   partnerPending: boolean; // inscrição solo aguardando parceiro — não entra na chave
   /** Uids que aceitaram o termo de uso de imagem/LGPD na inscrição (docs antigos: vazio). */
   lgpdAcceptedUids: string[];
@@ -114,6 +119,8 @@ interface RawInscription {
   waitlist: boolean;
   partnerPending: boolean;
   sharePaidUids: string[];
+  /** Uids cuja parte foi confirmada manualmente pelo organizador — subconjunto de `sharePaidUids`. */
+  organizerConfirmedShareUids: string[];
   /** Gravado por `reserveDirectOrganizerRegistration` quando a dupla fecha a declaração. */
   declaredPaidAt: Date | null;
   /** Gravado por `organizerConfirmRegistrationPayment` — a baixa manual do organizador. */
@@ -218,6 +225,9 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
     partnerPending: data['partnerPending'] === true,
     sharePaidUids: Array.isArray(data['sharePaidUids'])
       ? data['sharePaidUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+      : [],
+    organizerConfirmedShareUids: Array.isArray(data['organizerConfirmedShareUids'])
+      ? data['organizerConfirmedShareUids'].filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
       : [],
     declaredPaidAt: toDate(data['declaredPaidAt']),
     paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] === true,
@@ -364,6 +374,8 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       paidByOrganizer: r.paymentMethod === ORGANIZER_DIRECT_PAYMENT_METHOD,
       needsVerification,
       sharePaidCount: r.sharePaidUids.filter((uid) => uids.includes(uid)).length,
+      sharePaidUids: r.sharePaidUids.filter((uid) => uids.includes(uid)),
+      organizerConfirmedShareUids: r.organizerConfirmedShareUids.filter((uid) => uids.includes(uid)),
       partnerPending: r.partnerPending,
       lgpdAcceptedUids: r.lgpdAcceptedUids,
       uniformPlayer1: r.uniformPlayer1,

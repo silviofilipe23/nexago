@@ -141,6 +141,48 @@ interface PhoneLinks {
                             </span>
                           </span>
 
+                          <!-- Pagamento por atleta: só faz sentido oferecer enquanto a dupla/equipe
+                               não fechou — confirmação da inscrição inteira já cobre o resto. -->
+                          @if (showAthletePayment(r)) {
+                            <span class="pay-row">
+                              <span class="pay-status" [class.ok]="a.sharePaid">
+                                <og-icon [name]="a.sharePaid ? 'check' : 'alert'" [size]="12" />
+                                {{
+                                  a.sharePaid
+                                    ? a.organizerConfirmedShare
+                                      ? 'Confirmado por você'
+                                      : 'Declarado pelo atleta'
+                                    : 'Pagamento pendente'
+                                }}
+                              </span>
+                              @if (!a.sharePaid) {
+                                <button
+                                  type="button"
+                                  class="og-mini-btn og-mini-btn-primary"
+                                  [disabled]="busy()"
+                                  (click)="emitAthleteAction('confirm', r, a)"
+                                >
+                                  @if (busyKey() === athleteBusyKey('confirm', r, a)) {
+                                    <app-nx-spinner [size]="11" tone="dark" />
+                                  }
+                                  {{ busyKey() === athleteBusyKey('confirm', r, a) ? 'Confirmando…' : 'Confirmar pagamento' }}
+                                </button>
+                              } @else if (a.organizerConfirmedShare) {
+                                <button
+                                  type="button"
+                                  class="og-mini-btn"
+                                  [disabled]="busy()"
+                                  (click)="emitAthleteAction('revert-payment', r, a)"
+                                >
+                                  @if (busyKey() === athleteBusyKey('revert-payment', r, a)) {
+                                    <app-nx-spinner [size]="11" />
+                                  }
+                                  {{ busyKey() === athleteBusyKey('revert-payment', r, a) ? 'Desfazendo…' : 'Desfazer' }}
+                                </button>
+                              }
+                            </span>
+                          }
+
                           <!-- Contato direto: o telefone só existe aqui, dentro da gaveta. Na
                                linha da lista seria PII exposta em toda varredura da tela. -->
                           @if (phoneOf(a); as phone) {
@@ -617,6 +659,26 @@ interface PhoneLinks {
       color: var(--nx-text-dim);
     }
 
+    .og-insc-athletes .pay-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .og-insc-athletes .pay-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-pending);
+    }
+
+    .og-insc-athletes .pay-status.ok {
+      color: var(--nx-text-dim);
+    }
+
     .og-insc-actions {
       display: flex;
       align-items: center;
@@ -885,5 +947,20 @@ export class OgInscricoesListComponent {
 
   protected emitAction(kind: InscricaoAction['kind'], row: InscricaoRow): void {
     this.action.emit({ kind, row, note: this.note() });
+  }
+
+  /** Confirmar/desfazer por atleta só faz sentido em dupla/equipe (>1 atleta) que ainda não
+   *  fechou — "conferir" já é elenco completo declarado, e "pago" não tem mais o que dividir. */
+  protected showAthletePayment(r: InscricaoRow): boolean {
+    return r.athletes.length > 1 && (r.pay === 'pendente' || r.pay === 'espera');
+  }
+
+  protected athleteBusyKey(kind: 'confirm' | 'revert-payment', row: InscricaoRow, athlete: InscricaoAthlete): string {
+    return `${kind}:${row.id}:${athlete.uid}`;
+  }
+
+  protected emitAthleteAction(kind: 'confirm' | 'revert-payment', row: InscricaoRow, athlete: InscricaoAthlete): void {
+    if (!athlete.uid) return;
+    this.action.emit({ kind, row, athleteUid: athlete.uid });
   }
 }

@@ -18,6 +18,8 @@ function inscription(overrides: Partial<TournamentInscription> = {}): Tournament
     paidByOrganizer: false,
     needsVerification: false,
     sharePaidCount: 0,
+    sharePaidUids: [],
+    organizerConfirmedShareUids: [],
     partnerPending: false,
     lgpdAcceptedUids: [],
     uniformPlayer1: EMPTY_INSCRIPTION_UNIFORM,

@@ -50,6 +50,9 @@ export const LGPD_LABEL: Record<LgpdStatus, string> = {
 };
 
 export interface InscricaoAthlete {
+  /** `''` em inscrição sem elenco resolvido (fallback do nome da dupla) — nesse caso não dá
+   *  pra mirar ação de pagamento neste atleta. */
+  uid: string;
   name: string;
   photoUrl: string | null;
   /** Aceitou o termo de uso de imagem/LGPD nesta inscrição. */
@@ -57,6 +60,12 @@ export interface InscricaoAthlete {
   /** Telefone cadastrado, cru (`getTournamentAthleteContacts`); `''` = sem telefone no perfil,
    *  ou contato indisponível. Só a gaveta mostra — é PII, não vai pra varredura da lista. */
   phone: string;
+  /** Já quitou a própria parte (`sharePaidUids`) — em pagamento pelo app é dinheiro recebido;
+   *  no modo direto é declaração do atleta OU baixa manual deste atleta pelo organizador. */
+  sharePaid: boolean;
+  /** O organizador confirmou a parte deste atleta manualmente (`organizerConfirmedShareUids`) —
+   *  só essa confirmação pode ser desfeita por atleta; a declaração do próprio atleta, não. */
+  organizerConfirmedShare: boolean;
 }
 
 export interface InscricaoRow {
@@ -103,6 +112,9 @@ export interface InscricaoAction {
   row: InscricaoRow;
   /** Resposta opcional ao atleta, só nas ações de cancelamento. */
   note?: string;
+  /** Presente em `confirm`/`revert-payment` disparados de UM atleta da dupla/equipe (gaveta de
+   *  detalhes); ausente = ação na inscrição inteira, como sempre foi. */
+  athleteUid?: string;
 }
 
 /** Nome de atleta brasileiro é cheio de acento; buscar "goncalves" tem que achar "Gonçalves". */

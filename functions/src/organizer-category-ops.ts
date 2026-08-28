@@ -45,6 +45,7 @@ import {
 import {registrationTeamSize} from "./tournament-team-category";
 import {
   SHARE_REVERT_BLOCK_MESSAGE,
+  bulkConfirmBlockedByPartialShare,
   planOrganizerShareConfirmation,
   shareRevertBlock,
 } from "./organizer-payment-share";
@@ -396,19 +397,23 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
 
   await assertCanManageTournament(db, uid, tournamentId);
 
+  // Time/atletas: os dois caminhos (por atleta e em bloco) precisam saber quem
+  // é o elenco e o que já está confirmado, então isso não fica só dentro do
+  // `if (athleteUid)`.
+  const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+  const teamSnap = teamId ?
+    await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get() :
+    null;
+  const team = teamSnap?.exists ? teamSnap.data() ?? null : null;
+  const athleteUids = registrationAthleteUids(data, team);
+  const category = findCategory(tournament, categoryId);
+  const teamSize = registrationTeamSize(data, category);
+
   if (athleteUid) {
-    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
-    const teamSnap = teamId ?
-      await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get() :
-      null;
-    const team = teamSnap?.exists ? teamSnap.data() ?? null : null;
-    const athleteUids = registrationAthleteUids(data, team);
     if (!athleteUids.includes(athleteUid)) {
       throw new HttpsError("invalid-argument", "Atleta não faz parte desta inscrição");
     }
     if (athleteUids.length > 1) {
-      const category = findCategory(tournament, categoryId);
-      const teamSize = registrationTeamSize(data, category);
       const plan = planOrganizerShareConfirmation({
         athleteUids,
         data,
@@ -444,6 +449,15 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
       // Este era o último atleta faltando: cai no bloco de confirmação total
       // abaixo, que grava `isPaid` e avisa todo mundo.
     }
+  } else if (bulkConfirmBlockedByPartialShare({athleteUids, data, teamSize})) {
+    // Confirmar "a inscrição inteira" por cima de um pagamento parcial
+    // reabriria o mesmo bug que a confirmação por atleta corrigiu — só que
+    // pelo botão em bloco em vez do individual.
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta inscrição já tem pagamento parcial — confirme cada atleta " +
+        "individualmente.",
+    );
   }
 
   const entryFee = categoryId

@@ -32,6 +32,7 @@ function row(over: Partial<InscricaoRow> = {}): InscricaoRow {
     payNote: null,
     payTitle: '',
     canRevertPayment: false,
+    partialPayment: false,
     roster: null,
     cancelPending: false,
     cancelReason: '',
@@ -362,6 +363,29 @@ describe('OgInscricoesListComponent', () => {
       button.click();
 
       expect(emitted).toEqual([{ kind: 'revert-payment', row: jasmine.objectContaining({ id: 'i1' }), athleteUid: 'ana' }]);
+    });
+
+    /** O botão "confirmar a inscrição inteira" some quando já tem pagamento parcial — clicar
+     *  nele marcaria como pago quem ainda não pagou, reabrindo o mesmo bug corrigido pela
+     *  confirmação por atleta. Só a lista acima, atleta a atleta, fecha o que falta. */
+    it('some o botão de confirmar a inscrição inteira quando o pagamento é parcial', async () => {
+      const el = await openWith({ partialPayment: true });
+      const actions = el.querySelector('.og-insc-actions')!;
+
+      expect([...actions.querySelectorAll('button')].map((b) => b.textContent?.trim())).not.toContain(
+        'Confirmar pagamento',
+      );
+      expect(actions.querySelector('.og-insc-partial-hint')?.textContent).toContain('Pagamento parcial');
+    });
+
+    it('confirmar a inscrição inteira continua disponível sem pagamento parcial', async () => {
+      const el = await openWith({ partialPayment: false });
+      const actions = el.querySelector('.og-insc-actions')!;
+
+      expect([...actions.querySelectorAll('button')].map((b) => b.textContent?.trim())).toContain(
+        'Confirmar pagamento',
+      );
+      expect(actions.querySelector('.og-insc-partial-hint')).toBeNull();
     });
   });
 

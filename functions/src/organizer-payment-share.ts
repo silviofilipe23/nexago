@@ -55,6 +55,27 @@ export function planOrganizerShareConfirmation(params: {
   };
 }
 
+/**
+ * Trava a confirmação em bloco (sem `athleteUid`, "confirmar a inscrição inteira") quando já
+ * existe pagamento parcial — algum atleta confirmado e outro não. Sem isso, o botão da
+ * inscrição inteira reabriria o mesmo bug que a confirmação por atleta corrigiu: marcaria
+ * como pago quem não pagou, só que pelo caminho em bloco em vez do individual.
+ */
+export function bulkConfirmBlockedByPartialShare(params: {
+  athleteUids: string[];
+  data: Record<string, unknown>;
+  teamSize: number;
+}): boolean {
+  if (params.athleteUids.length <= 1) return false;
+  const shares = sharePaidUidsFromRegistration(params.data);
+  if (shares.length === 0) return false;
+  return !isFreeRegistrationFullyConfirmed(
+    params.athleteUids,
+    shares,
+    params.teamSize,
+  );
+}
+
 export type ShareRevertBlock = "notConfirmedByOrganizer" | "alreadyFullyPaid";
 
 export const SHARE_REVERT_BLOCK_MESSAGE: Record<ShareRevertBlock, string> = {

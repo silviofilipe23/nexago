@@ -82,6 +82,10 @@ export interface InscricaoRow {
   /** A baixa foi lançada pelo organizador, então ele pode desfazê-la. Pagamento recebido
    *  pela plataforma não tem botão: o dinheiro está numa conta e sai por estorno. */
   canRevertPayment: boolean;
+  /** Só parte do elenco confirmou (>0 e <total) — o botão "confirmar a inscrição inteira"
+   *  some nesse estado, porque confirmar em bloco marcaria como pago quem não pagou. Só a
+   *  confirmação por atleta, na gaveta, fecha o que falta. */
+  partialPayment: boolean;
   /** Categoria de equipe (trio+) com elenco incompleto: "Elenco 2/4". `null` fora disso. */
   roster: string | null;
   /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */

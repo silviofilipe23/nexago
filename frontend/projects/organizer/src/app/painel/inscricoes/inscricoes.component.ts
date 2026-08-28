@@ -414,6 +414,7 @@ export class InscricoesComponent {
           // Só a baixa que o organizador lançou é reversível — e só faz sentido oferecer
           // desfazer o que está valendo como "Pago" agora.
           canRevertPayment: pay === 'pago' && insc.paidByOrganizer,
+          partialPayment: partial,
           payTitle:
             pay === 'conferir'
               ? 'Os atletas declararam ter pago o Pix do organizador. Confira o recebimento e confirme.'

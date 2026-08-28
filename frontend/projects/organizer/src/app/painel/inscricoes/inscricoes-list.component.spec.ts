@@ -278,7 +278,10 @@ describe('OgInscricoesListComponent', () => {
       expect(items[0].querySelector('.pay-row button')?.textContent?.trim()).toBe('Confirmar pagamento');
     });
 
-    it('atleta declarado por si só mostra o selo, sem botão de desfazer', async () => {
+    /** O caso real que motivou a funcionalidade: o atleta já declarou "Já paguei" (Pix direto
+     *  pro organizador), mas ninguém confirmou que o dinheiro realmente caiu. O organizador
+     *  precisa de um botão pra isso — um selo estático deixava a conferência sem ação nenhuma. */
+    it('atleta declarado por si só pede conferência do organizador', async () => {
       const el = await openWith({
         athletes: [
           athlete({ uid: 'ana', sharePaid: true, organizerConfirmedShare: false }),
@@ -288,7 +291,24 @@ describe('OgInscricoesListComponent', () => {
       const item = el.querySelectorAll('.og-insc-athletes li')[0];
 
       expect(item.querySelector('.pay-status')?.textContent).toContain('Declarado pelo atleta');
-      expect(item.querySelector('.pay-row button')).toBeNull();
+      expect(item.querySelector('.pay-status')?.textContent).toContain('aguardando conferência');
+      expect(item.querySelector('.pay-row button')?.textContent?.trim()).toBe('Confirmar recebimento');
+    });
+
+    it('confirmar recebimento de quem já declarou emite a mesma ação de confirmar', async () => {
+      const emitted: InscricaoAction[] = [];
+      fixture.componentInstance.action.subscribe((a) => emitted.push(a));
+      const el = await openWith({
+        athletes: [
+          athlete({ uid: 'ana', sharePaid: true, organizerConfirmedShare: false }),
+          athlete({ uid: 'bia', name: 'Beatriz Costa' }),
+        ],
+      });
+      const button = el.querySelectorAll('.og-insc-athletes li')[0].querySelector('.pay-row button') as HTMLButtonElement;
+
+      button.click();
+
+      expect(emitted).toEqual([{ kind: 'confirm', row: jasmine.objectContaining({ id: 'i1' }), athleteUid: 'ana' }]);
     });
 
     it('atleta confirmado pelo organizador ganha botão de desfazer', async () => {

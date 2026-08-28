@@ -142,20 +142,23 @@ interface PhoneLinks {
                           </span>
 
                           <!-- Pagamento por atleta: só faz sentido oferecer enquanto a dupla/equipe
-                               não fechou — confirmação da inscrição inteira já cobre o resto. -->
+                               não fechou — confirmação da inscrição inteira já cobre o resto.
+                               O atleta DECLARAR que pagou (Já paguei) não é o mesmo que o
+                               organizador ter conferido o recebimento — os dois passos são
+                               independentes, e é o organizador quem fecha o segundo. -->
                           @if (showAthletePayment(r)) {
                             <span class="pay-row">
-                              <span class="pay-status" [class.ok]="a.sharePaid">
-                                <og-icon [name]="a.sharePaid ? 'check' : 'alert'" [size]="12" />
+                              <span class="pay-status" [class.ok]="a.organizerConfirmedShare">
+                                <og-icon [name]="a.organizerConfirmedShare ? 'check' : 'alert'" [size]="12" />
                                 {{
-                                  a.sharePaid
-                                    ? a.organizerConfirmedShare
-                                      ? 'Confirmado por você'
-                                      : 'Declarado pelo atleta'
-                                    : 'Pagamento pendente'
+                                  a.organizerConfirmedShare
+                                    ? 'Confirmado por você'
+                                    : a.sharePaid
+                                      ? 'Declarado pelo atleta — aguardando conferência'
+                                      : 'Pagamento pendente'
                                 }}
                               </span>
-                              @if (!a.sharePaid) {
+                              @if (!a.organizerConfirmedShare) {
                                 <button
                                   type="button"
                                   class="og-mini-btn og-mini-btn-primary"
@@ -165,9 +168,15 @@ interface PhoneLinks {
                                   @if (busyKey() === athleteBusyKey('confirm', r, a)) {
                                     <app-nx-spinner [size]="11" tone="dark" />
                                   }
-                                  {{ busyKey() === athleteBusyKey('confirm', r, a) ? 'Confirmando…' : 'Confirmar pagamento' }}
+                                  {{
+                                    busyKey() === athleteBusyKey('confirm', r, a)
+                                      ? 'Confirmando…'
+                                      : a.sharePaid
+                                        ? 'Confirmar recebimento'
+                                        : 'Confirmar pagamento'
+                                  }}
                                 </button>
-                              } @else if (a.organizerConfirmedShare) {
+                              } @else {
                                 <button
                                   type="button"
                                   class="og-mini-btn"

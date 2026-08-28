@@ -39,18 +39,31 @@ class _LeagueStageCreateCategoriesPageState
         : (draft.registrationClosesAt ??
             draft.registrationOpensAt ??
             DateTime.now());
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 730)),
     );
-    if (picked == null) return;
+    if (pickedDate == null) return;
+    if (!context.mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (pickedTime == null) return;
+    final combined = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
     final notifier = ref.read(leagueStageCreateWizardProvider.notifier);
     if (opens) {
-      notifier.setRegistrationOpensAt(picked);
+      notifier.setRegistrationOpensAt(combined);
     } else {
-      notifier.setRegistrationClosesAt(picked);
+      notifier.setRegistrationClosesAt(combined);
     }
   }
 
@@ -120,7 +133,7 @@ class _LeagueStageCreateCategoriesPageState
               Expanded(
                 child: OrganizerDateField(
                   label: 'ABREM EM',
-                  value: formatShortDate(draft.registrationOpensAt),
+                  value: formatShortDateTime(draft.registrationOpensAt),
                   onTap: () => _pickDate(opens: true),
                 ),
               ),
@@ -128,7 +141,7 @@ class _LeagueStageCreateCategoriesPageState
               Expanded(
                 child: OrganizerDateField(
                   label: 'FECHAM EM',
-                  value: formatShortDate(draft.registrationClosesAt),
+                  value: formatShortDateTime(draft.registrationClosesAt),
                   onTap: () => _pickDate(opens: false),
                 ),
               ),

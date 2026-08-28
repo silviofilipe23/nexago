@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/organizer/domain/league_create/league_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/league_stage_create/league_stage_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/league_stage_create/league_stage_create_logic.dart';
@@ -33,6 +34,10 @@ LeagueStageCreateDraft _validDraft() {
 }
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR');
+  });
+
   group('resolveTargetStage', () {
     test('reuses first pending slot without tournaments', () {
       const stages = [
@@ -349,6 +354,42 @@ void main() {
 
       expect(reviewStageLeagueSummary(draft), 'Circuito Verão · Etapa 2 de 6');
       expect(reviewStageCategoriesSummary(draft), 'Masc Open · 16 vagas');
+    });
+  });
+
+  group('formatRegistrationRange', () {
+    test('includes the time alongside each date', () {
+      expect(
+        formatRegistrationRange(
+          DateTime(2026, 3, 1, 9, 0),
+          DateTime(2026, 4, 1, 23, 59),
+        ),
+        '01 mar. · 09:00–01 abr. · 23:59',
+      );
+    });
+
+    test('period a definir when opens is missing', () {
+      expect(formatRegistrationRange(null, null), 'Período a definir');
+    });
+
+    test('shows only the opening date+time when closes is missing', () {
+      expect(
+        formatRegistrationRange(DateTime(2026, 3, 1, 9, 0), null),
+        '01 mar. · 09:00',
+      );
+    });
+  });
+
+  group('reviewStageRegistrationSummary', () {
+    test('registration period includes time', () {
+      final draft = _validDraft().copyWith(
+        registrationOpensAt: DateTime(2026, 3, 1, 9, 0),
+        registrationClosesAt: DateTime(2026, 4, 1, 23, 59),
+      );
+      expect(
+        reviewStageRegistrationSummary(draft),
+        startsWith('01 mar. · 09:00–01 abr. · 23:59'),
+      );
     });
   });
 }

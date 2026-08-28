@@ -418,10 +418,10 @@ function inputToDatetime(v: string): Date | null {
                 <og-card kicker="Período" title="Janela de inscrição">
                   <div class="og-field-grid">
                     <og-form-field label="Abrem em">
-                      <input class="og-input-el" type="date" [value]="dateVal(draft().registrationOpensAt)" (input)="patch({ registrationOpensAt: toDateVal($any($event.target).value) })" />
+                      <input class="og-input-el" type="datetime-local" [value]="datetimeVal(draft().registrationOpensAt)" (input)="patch({ registrationOpensAt: toDatetimeVal($any($event.target).value) })" />
                     </og-form-field>
                     <og-form-field label="Fecham em">
-                      <input class="og-input-el" type="date" [value]="dateVal(draft().registrationClosesAt)" (input)="patch({ registrationClosesAt: toDateVal($any($event.target).value) })" />
+                      <input class="og-input-el" type="datetime-local" [value]="datetimeVal(draft().registrationClosesAt)" (input)="patch({ registrationClosesAt: toDatetimeVal($any($event.target).value) })" />
                     </og-form-field>
                   </div>
                   @if (windowError(); as msg) {
@@ -1225,7 +1225,7 @@ export class CriarTorneioComponent {
 
   protected reviewRegistration(): string {
     const d = this.draft();
-    const period = `${dateToInput(d.registrationOpensAt)}–${dateToInput(d.registrationClosesAt)}`;
+    const period = `${datetimeToInput(d.registrationOpensAt)}–${datetimeToInput(d.registrationClosesAt)}`;
     const payment = d.paymentMode === 'appPixCard' ? 'Pix e cartão pelo app' : 'pagamento direto';
     const waitlist = d.waitlistEnabled ? 'lista de espera ativa' : 'sem lista de espera';
     return `${period} · ${payment} · ${waitlist}`;

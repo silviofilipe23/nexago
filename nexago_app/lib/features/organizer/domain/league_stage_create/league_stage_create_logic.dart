@@ -123,9 +123,9 @@ String formatStageDateRange(DateTime? start, DateTime? end) {
 
 String formatRegistrationRange(DateTime? opens, DateTime? closes) {
   if (opens == null) return 'Período a definir';
-  final openFmt = DateFormat('dd MMM', 'pt_BR').format(opens);
+  final openFmt = formatShortDateTime(opens);
   if (closes == null) return openFmt;
-  final closeFmt = DateFormat('dd MMM', 'pt_BR').format(closes);
+  final closeFmt = formatShortDateTime(closes);
   return '$openFmt–$closeFmt';
 }
 

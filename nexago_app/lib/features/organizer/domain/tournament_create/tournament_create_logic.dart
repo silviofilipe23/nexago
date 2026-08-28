@@ -417,6 +417,15 @@ String formatShortDate(DateTime? date) {
   return DateFormat('dd MMM', 'pt_BR').format(date);
 }
 
+/// Data curta + hora (usado na janela de inscrição, que precisa do horário
+/// exato de abertura/fechamento, não só do dia).
+String formatShortDateTime(DateTime? date) {
+  if (date == null) return '—';
+  final datePart = formatShortDate(date);
+  final timePart = DateFormat('HH:mm').format(date);
+  return '$datePart · $timePart';
+}
+
 String formatDateRange(DateTime? start, DateTime? end) {
   if (start == null) return 'Data a confirmar';
   if (end == null) return formatShortDate(start);
@@ -733,7 +742,7 @@ String reviewCategoriesSummary(TournamentCreateDraft draft) {
 
 String reviewRegistrationSummary(TournamentCreateDraft draft) {
   final period =
-      '${formatShortDate(draft.registrationOpensAt)}–${formatShortDate(draft.registrationClosesAt)}';
+      '${formatShortDateTime(draft.registrationOpensAt)}–${formatShortDateTime(draft.registrationClosesAt)}';
   final payment = draft.paymentMode == TournamentPaymentMode.appPixCard
       ? 'Pix e cartão pelo app'
       : 'pagamento direto';

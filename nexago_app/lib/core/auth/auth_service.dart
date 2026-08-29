@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kIsWeb, TargetPlatform, visibleForTesting;
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../firebase_options.dart';
@@ -13,14 +13,21 @@ class AuthService {
   AuthService(this._auth);
 
   final FirebaseAuth _auth;
+
   /// Web client ID do Firebase (necessário para [idToken] no login com Google).
-  static const String _firebaseWebClientId =
-      '735357850346-bqbopppe97eqhjs9n1sfph1dgpuag70v.apps.googleusercontent.com';
+  ///
+  /// Precisa ser o OAuth client de tipo **Web** do projeto (o mesmo
+  /// `client_type: 3` do `android/app/google-services.json`); no Android o
+  /// Google Sign-In rejeita ids de outros tipos com `ApiException: 10` logo
+  /// após a seleção da conta.
+  @visibleForTesting
+  static const String firebaseWebClientId =
+      '735357850346-qj66e686fe315k1o588gr4c2e0bkleir.apps.googleusercontent.com';
 
   late final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: const <String>['email'],
     clientId: _appleGoogleClientId,
-    serverClientId: _firebaseWebClientId,
+    serverClientId: firebaseWebClientId,
   );
 
   static String? get _appleGoogleClientId {

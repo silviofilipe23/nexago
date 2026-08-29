@@ -22,6 +22,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
     this.inscriptionCount,
     this.registration,
     this.isOnWaitlist = false,
+    this.registrationNotYetOpen = false,
   });
 
   final TournamentCategoryOffer offer;
@@ -32,6 +33,9 @@ class TournamentDetailCategoryCard extends StatelessWidget {
   final int? inscriptionCount;
   final UserCategoryRegistration? registration;
   final bool isOnWaitlist;
+
+  /// `registrationOpensAt` do torneio ainda no futuro — CTA de inscrição some.
+  final bool registrationNotYetOpen;
 
   void _openRegistrationSuccess(BuildContext context) {
     final regId = registration?.registrationId.trim() ?? '';
@@ -71,6 +75,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
       tournamentStatus: tournamentStatus,
       isRegistrationPaid: isRegistrationPaid,
       inscriptionCount: inscriptionCount,
+      registrationNotYetOpen: registrationNotYetOpen,
     );
     final prizes = categoryPrizeRows(offer);
     final formatTag = tournamentCategoryFormatTag(offer);

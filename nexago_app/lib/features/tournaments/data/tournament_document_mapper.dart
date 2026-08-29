@@ -133,6 +133,7 @@ abstract final class TournamentDocumentMapper {
       leagueStageName: _str(data['leagueStageName']),
       tournamentPrizes: _parsePrizes(data['prizes']),
       createdAt: _timestamp(data['createdAt'] ?? data['created_at']),
+      registrationOpensAt: _timestamp(data['registrationOpensAt']),
       listingStatusRaw: listingStatusRaw,
       sport: _str(data['sport']) ?? '',
       paymentMode: parseTournamentPaymentMode(data['paymentMode'] as String?),

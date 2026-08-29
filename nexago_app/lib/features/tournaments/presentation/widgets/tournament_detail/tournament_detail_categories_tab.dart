@@ -5,6 +5,7 @@ import '../../../../../core/router/routes.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_model.dart';
+import '../../../domain/tournament_listing_status.dart';
 import 'tournament_detail_category_card.dart';
 import 'tournament_detail_tab_slivers.dart';
 
@@ -58,6 +59,9 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
           tournamentId: tournament.id,
           tournamentName: tournament.name,
           tournamentStatus: tournament.status,
+          registrationNotYetOpen: tournamentRegistrationNotYetOpen(
+            tournament.registrationOpensAt,
+          ),
           inscriptionCount: resolveInscriptionCountForOffer(
             enrollmentByCategoryId,
             offer,

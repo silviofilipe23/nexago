@@ -482,4 +482,37 @@ void main() {
     expect(rows.first.highlight, isTrue);
     expect(rows.first.amountLabel, contains('2.000'));
   });
+
+  group('inscrições agendadas (registrationOpensAt futuro)', () {
+    final opensAt = DateTime(2026, 9, 5, 10, 0);
+
+    test('CTA da categoria desabilita enquanto as inscrições não abrem', () {
+      final offer = sample.categoryOffers.first;
+
+      expect(
+        tournamentCategoryCtaKind(
+          offer,
+          TournamentListingStatus.open,
+          registrationNotYetOpen: true,
+        ),
+        TournamentCategoryCtaKind.disabled,
+      );
+      expect(
+        tournamentCategoryCtaKind(offer, TournamentListingStatus.open),
+        TournamentCategoryCtaKind.register,
+      );
+    });
+
+    test('banner anuncia a data e a hora da abertura enquanto não abre', () {
+      expect(
+        tournamentRegistrationOpensBanner(
+          opensAt,
+          now: DateTime(2026, 9, 5, 8, 0),
+        ),
+        'Inscrições abrem em 05/09 às 10:00',
+      );
+      expect(tournamentRegistrationOpensBanner(opensAt, now: opensAt), isNull);
+      expect(tournamentRegistrationOpensBanner(null), isNull);
+    });
+  });
 }

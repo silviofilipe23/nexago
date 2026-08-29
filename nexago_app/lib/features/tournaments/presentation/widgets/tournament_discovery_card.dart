@@ -41,12 +41,19 @@ class TournamentDiscoveryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEnrolled = registration != null;
+    final registrationNotYetOpen = tournamentRegistrationNotYetOpen(
+      tournament.registrationOpensAt,
+    );
     final statusColor = isEnrolled
         ? AppColors.brand
         : tournamentStatusColor(tournament.status);
-    final statusLabel =
-        (isEnrolled ? 'Inscrito' : tournamentStatusLabel(tournament.status))
-            .toUpperCase();
+    final statusLabel = (isEnrolled
+            ? 'Inscrito'
+            : tournamentStatusLabelFromRaw(
+                status: tournament.status,
+                registrationNotYetOpen: registrationNotYetOpen,
+              ))
+        .toUpperCase();
     final fillRatio = tournament.spotsTotal > 0
         ? 1 - (tournament.spotsLeft / tournament.spotsTotal)
         : 0.0;
@@ -245,10 +252,12 @@ class TournamentDiscoveryCard extends StatelessWidget {
                         ctaLabel: tournamentDiscoveryCardCtaLabel(
                           isEnrolled: isEnrolled,
                           status: tournament.status,
+                          registrationNotYetOpen: registrationNotYetOpen,
                         ),
                         emphasizeCta:
                             isEnrolled ||
-                            canRegisterForTournament(tournament.status),
+                            (canRegisterForTournament(tournament.status) &&
+                                !registrationNotYetOpen),
                       ),
                     ],
                     if (tournament.liveMatchesNow > 0) ...[

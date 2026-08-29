@@ -99,6 +99,7 @@ class DiscoveryTournament {
     this.imageUrl,
     this.categoryOffers = const [],
     this.createdAt,
+    this.registrationOpensAt,
   });
 
   final String id;
@@ -129,6 +130,10 @@ class DiscoveryTournament {
 
   /// Data de criação do documento (`createdAt` no Firestore).
   final DateTime? createdAt;
+
+  /// Instante em que as inscrições abrem (`registrationOpensAt` no Firestore).
+  /// Antes dele o servidor recusa inscrição mesmo com o torneio `open`.
+  final DateTime? registrationOpensAt;
 }
 
 class TournamentCategoryOffer {

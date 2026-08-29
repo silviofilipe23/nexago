@@ -31,16 +31,22 @@ class TournamentDetailHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final registrationNotYetOpen = tournamentRegistrationNotYetOpen(
+      tournament.registrationOpensAt,
+    );
     final statusLabel = tournamentStatusLabelFromRaw(
       status: tournament.status,
       listingStatusRaw: tournament.listingStatusRaw,
+      registrationNotYetOpen: registrationNotYetOpen,
     );
     final stageLabel = tournamentStageEyebrow(tournament);
     final dateLabel = tournamentDetailCompactDate(tournament);
     final city = tournament.city.trim();
     final locationText =
         city.isEmpty ? tournament.location : '${tournament.location} · $city';
-    final urgencyBanner = tournamentRecentlyOpenedBanner(tournament, stats);
+    final urgencyBanner =
+        tournamentRegistrationOpensBanner(tournament.registrationOpensAt) ??
+        tournamentRecentlyOpenedBanner(tournament, stats);
     final coverUrl = tournament.imageUrl?.trim();
     final hasCover = coverUrl != null && coverUrl.isNotEmpty;
     final onCover = Colors.white;

@@ -397,4 +397,65 @@ void main() {
       expect(registrationCardStepNumber(uniformRequired: false), 2);
     });
   });
+
+  group('registrationCategoryStatus — inscrições ainda não abertas', () {
+    final opensAt = DateTime(2026, 9, 5, 10, 0);
+
+    test('registrationOpensAt futuro bloqueia com EM BREVE e informa '
+        'data e hora', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 5,
+        registrationOpensAt: opensAt,
+        now: DateTime(2026, 9, 5, 9, 59),
+      );
+
+      expect(status.badge, 'EM BREVE');
+      expect(status.blocked, isTrue);
+      expect(status.message, contains('05/09'));
+      expect(status.message, contains('10:00'));
+    });
+
+    test('no instante configurado a inscrição abre', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 5,
+        registrationOpensAt: opensAt,
+        now: opensAt,
+      );
+
+      expect(status.blocked, isFalse);
+      expect(status.badge, isNull);
+    });
+
+    test('já inscrito ganha de EM BREVE', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: true,
+        spotsLeft: 5,
+        registrationOpensAt: opensAt,
+        now: DateTime(2026, 9, 5, 9, 0),
+      );
+
+      expect(status.badge, 'JÁ INSCRITO');
+      expect(status.blocked, isFalse);
+    });
+
+    // Espelha o guard do servidor (`assertTournamentAcceptsRegistration`):
+    // o calendário do torneio é checado antes das travas de categoria.
+    test('EM BREVE ganha de encerrada e de lotada', () {
+      final status = registrationCategoryStatus(
+        offer: offer(registrationClosed: true),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        registrationOpensAt: opensAt,
+        now: DateTime(2026, 9, 5, 9, 0),
+      );
+
+      expect(status.badge, 'EM BREVE');
+      expect(status.blocked, isTrue);
+    });
+  });
 }

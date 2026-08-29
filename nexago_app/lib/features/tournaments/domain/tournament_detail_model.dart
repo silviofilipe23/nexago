@@ -46,6 +46,7 @@ class TournamentDetail {
     this.leagueStageName,
     this.tournamentPrizes = const [],
     this.createdAt,
+    this.registrationOpensAt,
     this.listingStatusRaw,
     this.sport = '',
     this.paymentMode = TournamentPaymentMode.appPixCard,
@@ -84,6 +85,11 @@ class TournamentDetail {
   final String? leagueStageName;
   final List<TournamentPrize> tournamentPrizes;
   final DateTime? createdAt;
+
+  /// Instante em que as inscrições abrem (`registrationOpensAt` no Firestore).
+  /// Antes dele o servidor recusa inscrição mesmo com o torneio `open`.
+  final DateTime? registrationOpensAt;
+
   final String? listingStatusRaw;
 
   /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum:
@@ -124,6 +130,7 @@ class TournamentDetail {
       imageUrl: imageUrl,
       categoryOffers: categoryOffers,
       createdAt: createdAt,
+      registrationOpensAt: registrationOpensAt,
     );
   }
 }

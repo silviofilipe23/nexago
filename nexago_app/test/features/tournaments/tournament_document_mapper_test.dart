@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
@@ -327,5 +328,26 @@ void main() {
     expect(category.uniformNumberOnShirt, isTrue);
     expect(category.uniformNameOnShirt, isFalse);
     expect(categoryRequiresUniform(category), isTrue);
+  });
+
+  test('detailFromMap lê registrationOpensAt e o leva para a vitrine', () {
+    final opensAt = DateTime(2026, 9, 5, 10, 0);
+    final d = TournamentDocumentMapper.detailFromMap('t-agendado', {
+      'name': 'Etapa Futuro',
+      'listingStatus': 'open',
+      'registrationOpensAt': Timestamp.fromDate(opensAt),
+    });
+
+    expect(d.registrationOpensAt, opensAt);
+    expect(d.toDiscovery().registrationOpensAt, opensAt);
+  });
+
+  test('detailFromMap sem registrationOpensAt fica nulo', () {
+    final d = TournamentDocumentMapper.detailFromMap('t-sem-agenda', {
+      'name': 'Etapa Livre',
+      'listingStatus': 'open',
+    });
+
+    expect(d.registrationOpensAt, isNull);
   });
 }

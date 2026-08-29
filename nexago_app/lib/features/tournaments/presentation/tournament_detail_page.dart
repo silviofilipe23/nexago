@@ -210,7 +210,11 @@ class _TournamentDetailContentState
 
   @override
   Widget build(BuildContext context) {
-    final canRegister = canRegisterForTournament(widget.tournament.status);
+    // `registrationOpensAt` futuro: o servidor recusa inscrição mesmo com o
+    // torneio `open`, então a barra de inscrição também espera a abertura.
+    final canRegister =
+        canRegisterForTournament(widget.tournament.status) &&
+        !tournamentRegistrationNotYetOpen(widget.tournament.registrationOpensAt);
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
     // Inscrição incompleta (sem parceiro ou sem pagamento) mantém a barra: ela
     // é a porta de entrada pra continuar o convite pendente, o uniforme e o

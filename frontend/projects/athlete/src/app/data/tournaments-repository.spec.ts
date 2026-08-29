@@ -1,4 +1,12 @@
-import { categoryAcceptsRegistration, organizerPixOf, tournamentIsFinishedOrCancelled, type RegistrationTournamentFields, type TournamentCategoryOffer } from './tournaments-repository';
+import {
+  categoryAcceptsRegistration,
+  organizerPixOf,
+  registrationOpensAt,
+  registrationOpensLabel,
+  tournamentIsFinishedOrCancelled,
+  type RegistrationTournamentFields,
+  type TournamentCategoryOffer,
+} from './tournaments-repository';
 import { normalizePixKeyForBrCode } from './pix-brcode';
 
 describe('organizerPixOf', () => {
@@ -33,6 +41,7 @@ describe('categoryAcceptsRegistration', () => {
       enrolledCount: 4,
       capacity: 32,
       waitlistEnabled: true,
+      registrationOpensAt: null,
       ...over,
     };
   }
@@ -67,6 +76,39 @@ describe('categoryAcceptsRegistration', () => {
 
   it('mantém a inscrição aberta em torneio já em quadra — quem decide o fechamento é a categoria', () => {
     expect(categoryAcceptsRegistration(tournament({ rawStatus: 'live', liveMatchesNow: 2 }), category(), 6, NOW)).toBe(true);
+  });
+
+  it('recusa enquanto registrationOpensAt está no futuro — espelha o guard da CF', () => {
+    const opensAt = new Date('2026-08-03T18:00:00-03:00');
+    expect(categoryAcceptsRegistration(tournament({ registrationOpensAt: opensAt }), category(), 6, NOW)).toBe(false);
+  });
+
+  it('aceita a partir do instante exato de registrationOpensAt', () => {
+    expect(categoryAcceptsRegistration(tournament({ registrationOpensAt: NOW }), category(), 6, NOW)).toBe(true);
+    const past = new Date('2026-08-01T10:00:00-03:00');
+    expect(categoryAcceptsRegistration(tournament({ registrationOpensAt: past }), category(), 6, NOW)).toBe(true);
+  });
+});
+
+describe('registrationOpensAt', () => {
+  it('prefere o campo real do torneio ao derivado do status', () => {
+    const opens = new Date('2026-09-05T10:00:00-03:00');
+    expect(
+      registrationOpensAt({ rawStatus: 'open', startAt: new Date('2026-09-20T09:00:00-03:00'), registrationOpensAt: opens }),
+    ).toEqual(opens);
+  });
+
+  it('sem campo real, torneio programado ainda cai no início do evento', () => {
+    const start = new Date('2026-09-20T09:00:00-03:00');
+    expect(registrationOpensAt({ rawStatus: 'scheduled', startAt: start, registrationOpensAt: null })).toEqual(start);
+    expect(registrationOpensAt({ rawStatus: 'open', startAt: start, registrationOpensAt: null })).toBeNull();
+  });
+});
+
+describe('registrationOpensLabel', () => {
+  it('formata data e hora locais da abertura', () => {
+    expect(registrationOpensLabel(new Date(2026, 8, 5, 10, 0))).toBe('05/09 às 10:00');
+    expect(registrationOpensLabel(new Date(2026, 11, 1, 7, 5))).toBe('01/12 às 07:05');
   });
 });
 

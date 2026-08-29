@@ -256,6 +256,9 @@ export interface TournamentSummary {
   paymentMode: 'appPixCard' | 'directWithOrganizer';
   organizerPix: { key: string; keyType: string; recipientName: string; city: string } | null;
   waitlistEnabled: boolean;
+  /** Instante em que as inscrições abrem (`registrationOpensAt` no doc). Antes dele a CF
+   *  recusa inscrição mesmo com o torneio publicado como `open`. */
+  registrationOpensAt: Date | null;
   tournamentPrizes: TournamentPrize[];
   categories: TournamentCategoryOffer[];
 }
@@ -318,6 +321,7 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     paymentMode: optionalStr(data['paymentMode']) === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
     organizerPix: organizerPixOf(data['organizerPix']),
     waitlistEnabled: data['waitlistEnabled'] !== false,
+    registrationOpensAt: toDate(data['registrationOpensAt']),
     tournamentPrizes: prizesOf(data['prizes']),
     categories,
   };
@@ -367,7 +371,7 @@ function resolveTournamentRawStatus(
 /** Campos do torneio que decidem se uma categoria ainda aceita dupla. */
 export type RegistrationTournamentFields = Pick<
   TournamentSummary,
-  'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity' | 'waitlistEnabled'
+  'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity' | 'waitlistEnabled' | 'registrationOpensAt'
 >;
 
 /**
@@ -386,14 +390,26 @@ export function categoryAcceptsRegistration(
   now = new Date(),
 ): boolean {
   if (cat.isCompleted || cat.registrationClosed) return false;
+  // Espelha o guard da CF (`assertTournamentAcceptsRegistration`): antes de
+  // `registrationOpensAt` o servidor recusa, mesmo com o torneio `open`.
+  if (t.registrationOpensAt && t.registrationOpensAt.getTime() > now.getTime()) return false;
   if (tournamentListingStatus(t, now) === 'ended') return false;
   return spotsLeft > 0 || t.waitlistEnabled;
 }
 
-/** `registrationOpensAt`: quando o torneio ainda está `scheduled`, a UI mostra "Em breve" até
- *  a data de início (não existe um campo dedicado de abertura de inscrição no schema). */
-export function registrationOpensAt(t: Pick<TournamentSummary, 'rawStatus' | 'startAt'>): Date | null {
+/** Instante em que as inscrições abrem: o campo real do doc quando o organizador o gravou;
+ *  sem ele, torneio `scheduled` continua caindo na data de início como antes. */
+export function registrationOpensAt(
+  t: Pick<TournamentSummary, 'rawStatus' | 'startAt' | 'registrationOpensAt'>,
+): Date | null {
+  if (t.registrationOpensAt) return t.registrationOpensAt;
   return t.rawStatus === 'scheduled' ? t.startAt : null;
+}
+
+/** "05/09 às 10:00" — parede local do instante de abertura, para CTAs e avisos. */
+export function registrationOpensLabel(d: Date): string {
+  const two = (v: number) => String(v).padStart(2, '0');
+  return `${two(d.getDate())}/${two(d.getMonth() + 1)} às ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
 /** O torneio já acabou pra quem opera: finalizado/concluído pelo organizador ou cancelado.

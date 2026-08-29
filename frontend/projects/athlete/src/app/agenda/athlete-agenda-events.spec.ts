@@ -77,6 +77,7 @@ function makeTournament(overrides: Partial<TournamentSummary> = {}): TournamentS
     paymentMode: 'appPixCard',
     organizerPix: null,
     waitlistEnabled: false,
+    registrationOpensAt: null,
     tournamentPrizes: [],
     categories: [],
     ...overrides,

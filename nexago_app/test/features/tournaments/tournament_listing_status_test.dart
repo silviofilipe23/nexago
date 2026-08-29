@@ -318,4 +318,33 @@ void main() {
       );
     });
   });
+
+  group('tournamentRegistrationNotYetOpen', () {
+    final opensAt = DateTime(2026, 9, 5, 10, 0);
+
+    test('sem registrationOpensAt nunca bloqueia', () {
+      expect(tournamentRegistrationNotYetOpen(null), isFalse);
+    });
+
+    test('antes da data e hora configuradas, inscrições ainda não abriram', () {
+      expect(
+        tournamentRegistrationNotYetOpen(
+          opensAt,
+          now: DateTime(2026, 9, 5, 9, 59),
+        ),
+        isTrue,
+      );
+    });
+
+    test('abre exatamente no instante configurado', () {
+      expect(tournamentRegistrationNotYetOpen(opensAt, now: opensAt), isFalse);
+      expect(
+        tournamentRegistrationNotYetOpen(
+          opensAt,
+          now: DateTime(2026, 9, 5, 10, 1),
+        ),
+        isFalse,
+      );
+    });
+  });
 }

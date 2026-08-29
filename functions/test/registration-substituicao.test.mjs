@@ -204,8 +204,12 @@ describe('substituição — aceite', () => {
     const {a, b, c, registrationId, tournamentId} = await duplaFormada();
     const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
     await publishBracket(tournamentId, 'masc');
+    // PIX aberto de quem sairia: o gate tem que travar ANTES de tocar nele.
+    const pixRef = db.doc(`${INSCRIPTIONS}/${registrationId}/pixPending/${b}`);
+    await pixRef.set({status: 'pending', payerUid: b});
     const msg = await callExpectingError(callables.acceptInvite, c, {inviteId});
     assert.match(msg, /chaves.*publicadas/i);
+    assert.equal((await pixRef.get()).exists, true, 'PIX de quem sairia não foi tocado');
   });
 
   test('quem sairia já saiu: aceite falha e convite vira stale', async () => {

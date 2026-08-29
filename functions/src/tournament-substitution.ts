@@ -336,6 +336,14 @@ export async function acceptSubstitutionInviteFor(
     inviteeUniform != null && categoryRequiresUniform(category),
   );
 
+  // Gate avaliado ANTES de qualquer efeito externo (o cancelamento no Asaas é
+  // irreversível): o caso mais comum de recusa não pode matar o PIX de quem
+  // sairia. A transação re-checa para serializar a corrida publicar × aceitar.
+  const previewBlock = substitutionBlockReason(tournament, category, categoryKeys);
+  if (previewBlock) {
+    throw new HttpsError("failed-precondition", SUBSTITUTION_BLOCK_MESSAGES[previewBlock], {reason: previewBlock});
+  }
+
   // Cobrança PIX aberta de quem sai morre ANTES de qualquer escrita (padrão do
   // cancelamento). O doc `pixPending/{uid}` tem o pagador como id.
   const outPixRef = regRef.collection("pixPending").doc(outUid);

@@ -162,6 +162,7 @@ class TournamentCategoryOffer {
     this.genderFree = false,
     this.genderCompositionMen,
     this.genderCompositionWomen,
+    this.bracketPublished = false,
   });
 
   /// Id da categoria no Firestore (`categories[].id`); legado usa `categoryName`.
@@ -215,6 +216,10 @@ class TournamentCategoryOffer {
   /// Composição exata da equipe mista (homens + mulheres = [teamSize]).
   final int? genderCompositionMen;
   final int? genderCompositionWomen;
+
+  /// Chave da categoria publicada (`categoryOps[id].bracketStatus`): esconde a
+  /// ação de substituição no cliente — o servidor é a autoridade do gate.
+  final bool bracketPublished;
 
   /// Categoria de equipe nomeada (trio+) — dupla segue o fluxo clássico.
   bool get isTeamCategory => teamSize != null;
@@ -300,6 +305,8 @@ class MyTournamentRegistration {
     this.category,
     this.paymentMode = TournamentPaymentMode.appPixCard,
     this.tournamentIsCancelled = false,
+    this.captainUid,
+    this.substitutionHistory = const [],
   });
 
   final String registrationId;
@@ -347,4 +354,24 @@ class MyTournamentRegistration {
 
   /// Torneio cancelado pelo organizador (`listingStatus` bruto).
   final bool tournamentIsCancelled;
+
+  /// Capitão da equipe (trio+); `null` em dupla.
+  final String? captainUid;
+
+  /// Trocas de atleta já feitas nesta inscrição (`substitutionHistory`).
+  final List<RegistrationSubstitutionEntry> substitutionHistory;
+}
+
+/// Registro de uma troca de atleta na inscrição, gravado pelo backend no
+/// aceite do convite de substituição.
+class RegistrationSubstitutionEntry {
+  const RegistrationSubstitutionEntry({
+    required this.outName,
+    required this.inName,
+    this.at,
+  });
+
+  final String outName;
+  final String inName;
+  final DateTime? at;
 }

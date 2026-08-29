@@ -168,6 +168,19 @@ abstract final class TournamentDocumentMapper {
     return _str(entry['bracketFormatOverride'])?.trim() ?? '';
   }
 
+  /// `bracketStatus` publicado/concluído de `categoryOps[categoryId]` — gate
+  /// client-side da substituição de atleta.
+  static bool _categoryOpsBracketPublished(
+    dynamic categoryOpsRaw,
+    String categoryId,
+  ) {
+    if (categoryOpsRaw is! Map) return false;
+    final entry = categoryOpsRaw[categoryId];
+    if (entry is! Map) return false;
+    final status = _str(entry['bracketStatus'])?.trim() ?? '';
+    return status == 'published' || status == 'completed';
+  }
+
   static List<TournamentCategoryOffer> _parseCategoryOffers(
     dynamic raw, {
     dynamic categoryOpsRaw,
@@ -300,6 +313,7 @@ abstract final class TournamentDocumentMapper {
           genderFree: genderFree,
           genderCompositionMen: compositionValid ? compositionMen : null,
           genderCompositionWomen: compositionValid ? compositionWomen : null,
+          bracketPublished: _categoryOpsBracketPublished(categoryOpsRaw, offerId),
         ),
       );
     }

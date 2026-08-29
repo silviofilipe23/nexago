@@ -47,6 +47,9 @@ class TournamentPartnerInvite {
     this.hasCreatedAt = true,
     this.isTeamInvite = false,
     this.teamName,
+    this.isSubstitutionInvite = false,
+    this.replacedUid,
+    this.replacedName,
   });
 
   final String id;
@@ -75,6 +78,12 @@ class TournamentPartnerInvite {
 
   /// Nome da equipe nomeada pelo capitão; `null` em dupla.
   final String? teamName;
+
+  /// Convite de SUBSTITUIÇÃO: o convidado entraria no LUGAR de [replacedName]
+  /// numa inscrição existente — não é vaga nova.
+  final bool isSubstitutionInvite;
+  final String? replacedUid;
+  final String? replacedName;
 
   bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted';
@@ -105,6 +114,9 @@ class TournamentPartnerInvite {
           DateTime.now().add(const Duration(hours: 48)),
       isTeamInvite: d['isTeamInvite'] == true,
       teamName: _trimmedOrNull(d['teamName']),
+      isSubstitutionInvite: d['isSubstitutionInvite'] == true,
+      replacedUid: _trimmedOrNull(d['replacedUid']),
+      replacedName: _trimmedOrNull(d['replacedName']),
     );
   }
 

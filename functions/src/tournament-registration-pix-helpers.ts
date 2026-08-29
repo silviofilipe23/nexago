@@ -153,6 +153,38 @@ export function isFreeRegistrationFullyConfirmed(
   return uniqueTeamUids.every((uid) => sharePaidUids.includes(uid));
 }
 
+/**
+ * Declaração direta ("já paguei ao organizador"): o que marcar conforme o
+ * tipo. 'share' marca só o declarante e a inscrição fecha quando o elenco
+ * inteiro declarar; 'full' fecha a inscrição na hora — é o caminho do solo
+ * garantir a vaga pagando o valor integral (o parceiro que aceitar o convite
+ * depois entra sem taxa, herdando `sharePaidUids` no aceite).
+ */
+export function resolveDirectReservationMarks(params: {
+  amountType: TournamentChargeAmountType;
+  callerUid: string;
+  teamUids: string[];
+  sharePaidUids: string[];
+  expectedSize: number;
+}): {uidsToMark: string[]; registrationClosed: boolean} {
+  if (params.amountType === "full") {
+    const uids = new Set(
+      [...params.teamUids, params.callerUid]
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    );
+    return {uidsToMark: [...uids], registrationClosed: true};
+  }
+  return {
+    uidsToMark: [params.callerUid],
+    registrationClosed: isFreeRegistrationFullyConfirmed(
+      params.teamUids,
+      [...params.sharePaidUids, params.callerUid],
+      params.expectedSize,
+    ),
+  };
+}
+
 export const TOURNAMENT_PAYMENT_MODE_DIRECT_ORGANIZER = "directWithOrganizer";
 
 export function isDirectWithOrganizerPaymentMode(paymentMode: unknown): boolean {

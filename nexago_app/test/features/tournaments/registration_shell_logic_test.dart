@@ -267,6 +267,41 @@ void main() {
       expect(label(3), 'Convites enviados');
     });
 
+    // Solo pagou o valor integral: a vaga já é dele, e o rótulo diz isso ANTES
+    // de contar convites — "Convite enviado" esconderia que a vaga está paga.
+    test('solo pago sem parceiro: vaga garantida, com ou sem convites', () {
+      String label(int sent) => registrationSummaryStatusLabel(
+        hasRegistration: true,
+        partnerPending: true,
+        isPaid: true,
+        isTeamCategory: false,
+        rosterCount: 1,
+        teamSize: 2,
+        sentInviteCount: sent,
+      );
+
+      expect(label(0), 'Vaga garantida — falta parceiro');
+      expect(label(1), 'Vaga garantida — falta parceiro');
+      expect(label(3), 'Vaga garantida — falta parceiro');
+    });
+
+    // Em EQUIPE o "pago sem elenco fechado" não existe como estado especial:
+    // o rótulo continua sendo o progresso do elenco.
+    test('equipe paga com elenco aberto continua mostrando o elenco', () {
+      expect(
+        registrationSummaryStatusLabel(
+          hasRegistration: true,
+          partnerPending: true,
+          isPaid: true,
+          isTeamCategory: true,
+          rosterCount: 2,
+          teamSize: 4,
+          sentInviteCount: 0,
+        ),
+        'Elenco 2/4',
+      );
+    });
+
     test('equipe mostra o elenco', () {
       expect(
         registrationSummaryStatusLabel(

@@ -10,6 +10,7 @@ import {
   normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
   registrationAthleteUids,
+  resolveDirectReservationMarks,
   resolveTournamentChargeReais,
   resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
@@ -128,6 +129,54 @@ describe("tournament-registration-pix-helpers", () => {
     });
     assert.equal(second.newPaidAmount, 100);
     assert.equal(second.isPaid, true);
+  });
+
+  it("direct share reservation marks only the caller and stays open while roster is incomplete", () => {
+    const marks = resolveDirectReservationMarks({
+      amountType: "share",
+      callerUid: "solo",
+      teamUids: ["solo"],
+      sharePaidUids: [],
+      expectedSize: 2,
+    });
+    assert.deepEqual(marks.uidsToMark, ["solo"]);
+    assert.equal(marks.registrationClosed, false);
+  });
+
+  it("direct share reservation closes when the second athlete of the pair declares", () => {
+    const marks = resolveDirectReservationMarks({
+      amountType: "share",
+      callerUid: "b",
+      teamUids: ["a", "b"],
+      sharePaidUids: ["a"],
+      expectedSize: 2,
+    });
+    assert.deepEqual(marks.uidsToMark, ["b"]);
+    assert.equal(marks.registrationClosed, true);
+  });
+
+  it("direct full reservation closes a solo registration (spot guaranteed, partner joins free)", () => {
+    const marks = resolveDirectReservationMarks({
+      amountType: "full",
+      callerUid: "solo",
+      teamUids: ["solo"],
+      sharePaidUids: [],
+      expectedSize: 2,
+    });
+    assert.deepEqual(marks.uidsToMark, ["solo"]);
+    assert.equal(marks.registrationClosed, true);
+  });
+
+  it("direct full reservation marks the whole roster of a closed pair", () => {
+    const marks = resolveDirectReservationMarks({
+      amountType: "full",
+      callerUid: "a",
+      teamUids: ["a", "b"],
+      sharePaidUids: [],
+      expectedSize: 2,
+    });
+    assert.deepEqual([...marks.uidsToMark].sort(), ["a", "b"]);
+    assert.equal(marks.registrationClosed, true);
   });
 
   it("resolves athlete uids from the registration when there is no team yet", () => {

@@ -171,6 +171,49 @@ void main() {
     });
   });
 
+  group('initialRegistrationPaymentType', () {
+    // Solo de DUPLA garantindo a vaga: a parcela sozinha não garante nada,
+    // então o pagamento abre pré-selecionado no valor integral.
+    test('solo de dupla aguardando parceiro abre em full', () {
+      expect(
+        initialRegistrationPaymentType(
+          awaitingSoloPartner: true,
+          isTeamCategory: false,
+        ),
+        'full',
+      );
+    });
+
+    test('dupla completa abre em share', () {
+      expect(
+        initialRegistrationPaymentType(
+          awaitingSoloPartner: false,
+          isTeamCategory: false,
+        ),
+        'share',
+      );
+    });
+
+    // Em EQUIPE o integral é o valor da equipe inteira — pré-selecionar seria
+    // armar um pagamento grande por engano, mesmo com o elenco em aberto.
+    test('equipe nunca abre em full, mesmo aguardando elenco', () {
+      expect(
+        initialRegistrationPaymentType(
+          awaitingSoloPartner: true,
+          isTeamCategory: true,
+        ),
+        'share',
+      );
+      expect(
+        initialRegistrationPaymentType(
+          awaitingSoloPartner: false,
+          isTeamCategory: true,
+        ),
+        'share',
+      );
+    });
+  });
+
   group('registrationSuccessNavigationAction — gate por partnerPending', () {
     test('não navega para sucesso enquanto aguarda parceiro grátis', () {
       expect(

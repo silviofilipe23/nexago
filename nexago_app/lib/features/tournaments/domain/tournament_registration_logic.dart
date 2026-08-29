@@ -44,6 +44,17 @@ bool registrationPaidAwaitingPartner({
   required TournamentRegistrationSnapshot? snap,
 }) => snap?.isPaid == true && snap?.partnerPending == true;
 
+/// Tipo de valor pré-selecionado ao abrir o pagamento.
+///
+/// Solo de DUPLA entra em 'full': quem chega aqui sem parceiro veio garantir a
+/// vaga, e a parcela sozinha não garante nada. Em categoria de equipe o
+/// integral é o valor da equipe inteira — pré-selecionar seria armar um
+/// pagamento grande por engano, então fica em 'share'.
+String initialRegistrationPaymentType({
+  required bool awaitingSoloPartner,
+  required bool isTeamCategory,
+}) => awaitingSoloPartner && !isTeamCategory ? 'full' : 'share';
+
 /// Inscrição cancelável pelo atleta: nenhum pagamento registrado — nem a dupla
 /// confirmada, nem parcela de um dos dois. Espelha o guard da callable
 /// `cancelTournamentRegistration`; com pagamento, o caminho é o organizador.

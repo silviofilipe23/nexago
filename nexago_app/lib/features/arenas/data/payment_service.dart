@@ -218,6 +218,10 @@ class PaymentService {
   }
 
   /// Reserva vaga em torneio com pagamento direto ao organizador (sem PIX).
+  ///
+  /// `amountType: 'full'` declara a inscrição inteira de uma vez — é o caminho
+  /// do solo garantir a vaga pagando o valor integral (o parceiro entra sem
+  /// taxa depois).
   Future<
     ({
       String registrationId,
@@ -227,6 +231,7 @@ class PaymentService {
   >
   reserveDirectOrganizerRegistration({
     required String registrationId,
+    String amountType = 'share',
   }) async {
     if (registrationId.isEmpty) {
       throw PaymentException('Inscrição inválida.');
@@ -237,7 +242,10 @@ class PaymentService {
         _callableReserveDirectOrganizerRegistration,
       );
       final raw = await callable.call(
-        <String, dynamic>{'registrationId': registrationId},
+        <String, dynamic>{
+          'registrationId': registrationId,
+          if (amountType == 'full') 'amountType': 'full',
+        },
       );
       final data = raw.data;
       if (data is! Map) {

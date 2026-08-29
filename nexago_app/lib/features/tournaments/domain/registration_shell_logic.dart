@@ -159,6 +159,8 @@ String registrationSummaryStatusLabel({
   if (!hasRegistration) return 'Não inscrito';
   if (partnerPending) {
     if (isTeamCategory) return 'Elenco $rosterCount/$teamSize';
+    // Solo pagou o valor integral: a vaga já é dele, só falta o parceiro.
+    if (isPaid) return 'Vaga garantida — falta parceiro';
     if (sentInviteCount > 1) return 'Convites enviados';
     if (sentInviteCount == 1) return 'Convite enviado';
     return 'Falta parceiro';

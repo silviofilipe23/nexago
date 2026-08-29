@@ -115,6 +115,8 @@ export class TournamentPaymentComponent {
   });
 
   protected readonly amountType = signal<PaymentAmountType>('share');
+  /** Depois que o atleta mexe no toggle, a pré-seleção automática não fala mais. */
+  private amountTypeTouched = false;
   protected readonly cpfCnpj = signal('');
 
   /** CPF/CNPJ é exigência do emissor do Pix — erro de campo, então a mensagem
@@ -149,9 +151,10 @@ export class TournamentPaymentComponent {
   protected readonly shareHint = computed(() =>
     this.isTeamRegistration() ? `Sua cota (1/${this.teamSize()} da equipe)` : 'Metade da inscrição da dupla',
   );
-  protected readonly fullHint = computed(() =>
-    this.isTeamRegistration() ? 'Valor total da equipe' : 'Valor total da dupla',
-  );
+  protected readonly fullHint = computed(() => {
+    if (this.isTeamRegistration()) return 'Valor total da equipe';
+    return this.partnerPending() ? 'Garante sua vaga — o parceiro entra sem taxa' : 'Valor total da dupla';
+  });
   protected readonly fullLabel = computed(() => (this.isTeamRegistration() ? 'Total da equipe' : 'Total da dupla'));
   protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
 
@@ -174,6 +177,14 @@ export class TournamentPaymentComponent {
       txid: `INSC${this.tournamentId()}`,
     });
   });
+
+  /** Inscrição solo (dupla sem parceiro ainda). */
+  protected readonly partnerPending = computed(() => this.registration()?.partnerPending === true);
+
+  /** Solo pagou o valor integral: vaga garantida, falta convidar o parceiro (entra sem taxa). */
+  protected readonly paidAwaitingPartner = computed(
+    () => this.registration()?.isPaid === true && this.partnerPending(),
+  );
 
   /** Parcela do atleta já paga (pagamento dividido) — falta só a do parceiro. */
   protected readonly mySharePaid = computed(() => {
@@ -255,6 +266,17 @@ export class TournamentPaymentComponent {
       if (uid && categoryId) {
         const reg = await fetchMyRegistrationForCategory(db, projectId, uid, id, categoryId);
         this.registration.set(reg);
+        // Solo de dupla abre em "Integral": quem chega aqui sem parceiro veio garantir a vaga,
+        // e a parcela sozinha não garante nada. Em equipe (trio+) fica em 'share' — o integral
+        // é o valor da equipe inteira, grande demais para pré-selecionar.
+        if (
+          !this.amountTypeTouched &&
+          reg?.partnerPending === true &&
+          !reg.isPaid &&
+          reg.teamSize == null
+        ) {
+          this.amountType.set('full');
+        }
         this.startRegistrationWatch(reg?.id ?? null);
       }
     } finally {
@@ -282,10 +304,17 @@ export class TournamentPaymentComponent {
     if (snap.isPaid) {
       this.clearPixState();
       if (!wasPaid) {
-        // No modo direto ninguém viu o dinheiro ainda — a vaga vale, mas quem confirma o
-        // recebimento é o organizador. Anunciar "pagamento confirmado" aqui seria adiantar
-        // uma etapa que a tela logo abaixo diz que está pendente.
-        if (this.directState() === 'waitingOrganizer') {
+        // Solo pagou o valor integral: a vaga é dele, mas ainda falta o parceiro — o convite
+        // (sem taxa) é o próximo passo, não a confirmação da dupla.
+        if (snap.partnerPending) {
+          this.toasts.success(
+            'Vaga garantida!',
+            'Você pagou o valor integral — convide seu parceiro, ele entra sem taxa.',
+          );
+        } else if (this.directState() === 'waitingOrganizer') {
+          // No modo direto ninguém viu o dinheiro ainda — a vaga vale, mas quem confirma o
+          // recebimento é o organizador. Anunciar "pagamento confirmado" aqui seria adiantar
+          // uma etapa que a tela logo abaixo diz que está pendente.
           this.toasts.success(
             'Pagamento informado',
             'A vaga da dupla está garantida. O organizador vai conferir o recebimento e confirmar.',
@@ -312,6 +341,7 @@ export class TournamentPaymentComponent {
   }
 
   protected setAmountType(type: PaymentAmountType): void {
+    this.amountTypeTouched = true;
     this.amountType.set(type);
     this.clearPixState();
   }
@@ -460,13 +490,21 @@ export class TournamentPaymentComponent {
     if (!reg || this.processing()) return;
     this.processing.set(true);
     try {
-      const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id);
+      const wasPartnerPending = reg.partnerPending;
+      const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id, this.amountType());
       this.showDeclaredPix.set(false);
       if (result.bothAthletesReserved) {
-        this.toasts.success(
-          'Pagamento informado',
-          'A vaga da dupla está garantida. O organizador foi avisado e vai confirmar o recebimento.',
-        );
+        if (wasPartnerPending) {
+          this.toasts.success(
+            'Vaga garantida!',
+            'Você informou o pagamento integral — convide seu parceiro, ele entra sem taxa. O organizador vai conferir o recebimento.',
+          );
+        } else {
+          this.toasts.success(
+            'Pagamento informado',
+            'A vaga da dupla está garantida. O organizador foi avisado e vai confirmar o recebimento.',
+          );
+        }
       } else {
         this.toasts.success(
           'Sua parte foi informada',

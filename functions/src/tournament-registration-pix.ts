@@ -36,6 +36,7 @@ import {
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
   isDirectWithOrganizerPaymentMode,
+  resolveDirectReservationMarks,
   resolveTournamentChargeReais,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
@@ -688,7 +689,12 @@ export const confirmFreeTournamentRegistration = onCall({
   return {registrationId, isPaid, alreadyConfirmed: false};
 });
 
-/** Reserva vaga em torneio com pagamento direto ao organizador (sem PIX). */
+/** Reserva vaga em torneio com pagamento direto ao organizador (sem PIX).
+ *
+ *  `amountType: "full"` declara a inscrição INTEIRA de uma vez — é como o
+ *  atleta sem dupla garante a vaga pagando o valor integral (o parceiro que
+ *  aceitar o convite depois entra sem taxa). Só é aceito quando ainda não há
+ *  pagamento parcial, espelhando o guard do PIX in-app. */
 export const reserveDirectOrganizerRegistration = onCall({
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (request) => {
@@ -697,7 +703,12 @@ export const reserveDirectOrganizerRegistration = onCall({
     throw new HttpsError("unauthenticated", "Faça login para reservar sua vaga.");
   }
 
-  const data = (request.data ?? {}) as {registrationId?: string};
+  const data = (request.data ?? {}) as {
+    registrationId?: string;
+    amountType?: string;
+  };
+  const amountType: "share" | "full" =
+    data.amountType === "full" ? "full" : "share";
   const registrationId =
     typeof data.registrationId === "string" ? data.registrationId.trim() : "";
   if (!registrationId) {
@@ -725,6 +736,20 @@ export const reserveDirectOrganizerRegistration = onCall({
   const sharePaidUids = sharePaidUidsFromRegistration(registration);
   if (sharePaidUids.includes(callerUid)) {
     throw new HttpsError("failed-precondition", "Você já reservou sua vaga.");
+  }
+
+  // Mesmo guard do PIX in-app: 'full' com parcela já declarada cobraria a mais.
+  if (
+    amountType === "full" &&
+    !canChargeTournamentFull({
+      paidAmount: Number(registration.paidAmount) || 0,
+      sharePaidUids,
+    })
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Já há pagamento parcial nesta inscrição; informe apenas a parcela restante.",
+    );
   }
 
   const teamId = registration.teamId as string;
@@ -791,21 +816,27 @@ export const reserveDirectOrganizerRegistration = onCall({
     );
   }
 
-  const updatedSharePaidUids = [...sharePaidUids, callerUid];
-  const bothAthletesReserved = isFreeRegistrationFullyConfirmed(
-    teamUids,
-    updatedSharePaidUids,
-    registrationTeamSize(registration, findCategory(tournamentData, categoryId)),
-  );
+  const {uidsToMark, registrationClosed: bothAthletesReserved} =
+    resolveDirectReservationMarks({
+      amountType,
+      callerUid,
+      teamUids,
+      sharePaidUids,
+      expectedSize: registrationTeamSize(
+        registration,
+        findCategory(tournamentData, categoryId),
+      ),
+    });
 
   await registrationRef.update({
-    sharePaidUids: FieldValue.arrayUnion(callerUid),
+    sharePaidUids: FieldValue.arrayUnion(...uidsToMark),
     isPaid: bothAthletesReserved,
     paymentChannel: "directOrganizer",
-    // Entra na fila de conferência do organizador só quando a dupla fecha — é quando existe o
-    // valor cheio para bater no extrato. O portal deriva o selo "A conferir" deste campo (e não
-    // de `paymentChannel`) para que inscrições diretas ANTERIORES a este fluxo não apareçam
-    // retroativamente como pendentes de uma conferência que ninguém vai fazer.
+    // Entra na fila de conferência do organizador só quando a inscrição fecha — é quando existe
+    // o valor cheio para bater no extrato (a dupla declarou, ou um atleta declarou o integral).
+    // O portal deriva o selo "A conferir" deste campo (e não de `paymentChannel`) para que
+    // inscrições diretas ANTERIORES a este fluxo não apareçam retroativamente como pendentes de
+    // uma conferência que ninguém vai fazer.
     ...(bothAthletesReserved ? {declaredPaidAt: FieldValue.serverTimestamp()} : {}),
     ...(shouldWaitlist ? {waitlist: true} : {}),
     updatedAt: FieldValue.serverTimestamp(),

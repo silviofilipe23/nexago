@@ -2177,6 +2177,26 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Apenas o convidado pode recusar.");
     }
     await inviteRef.update({status: "declined"});
+    // Substituição: quem iniciou está esperando resolver um problema da equipe
+    // — a recusa precisa chegar ativamente, não só sumir da lista.
+    if (invite.isSubstitutionInvite === true) {
+      const inviterUid = (invite.inviterUid as string | undefined)?.trim() ?? "";
+      if (inviterUid) {
+        try {
+          await deliverNotificationToUser({
+            userId: inviterUid,
+            title: "Convite de substituição recusado",
+            body:
+              `${String(invite.inviteeName ?? "O atleta").trim() || "O atleta"} recusou entrar ` +
+              `no lugar de ${String(invite.replacedName ?? "seu atleta").trim() || "seu atleta"}.`,
+            type: "tournament_substitution_declined",
+            data: {inviteId, tournamentId: String(invite.tournamentId ?? "").trim()},
+          });
+        } catch (notifyError) {
+          logger.warn("Falha ao notificar recusa de substituição", {inviteId, notifyError});
+        }
+      }
+    }
     try {
       await markTournamentPartnerInviteInboxResponse(uid, inviteId, "declined");
     } catch (inboxError) {

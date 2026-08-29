@@ -54,6 +54,8 @@ export const callables = {
   sendSubstitution: substitution.sendTournamentSubstitutionInvite,
 };
 
+export const markStaleSubstitutionInvitesForCategory = substitution.markStaleSubstitutionInvitesForCategory;
+
 /** Executa a callable como o atleta [uid]. */
 export function call(fn, uid, data = {}) {
   return fn.run({

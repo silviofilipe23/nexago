@@ -654,3 +654,35 @@ async function notifySubstitutionCompleted(
     logger.warn("Falha ao notificar organizador da substituição", {notifyError});
   }
 }
+
+/**
+ * Marca `stale` (bracket_published) os convites de substituição pendentes da
+ * categoria. Chamado por `generateCategoryBracket` após publicar — o aceite
+ * re-checa o gate de qualquer forma; isto só mantém o inbox limpo.
+ */
+export async function markStaleSubstitutionInvitesForCategory(
+  db: Firestore,
+  tournamentId: string,
+  categoryId: string,
+): Promise<number> {
+  const snap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("status", "==", "pending")
+    .get();
+  const batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (data.isSubstitutionInvite !== true) continue;
+    if (str(data.categoryId) !== categoryId) continue;
+    batch.update(doc.ref, {
+      status: "stale",
+      staleReason: "bracket_published",
+      staleAt: FieldValue.serverTimestamp(),
+    });
+    count++;
+  }
+  if (count > 0) await batch.commit();
+  return count;
+}

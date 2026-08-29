@@ -19,6 +19,7 @@ import {
   getRegistration,
   getTeam,
   markSharePaid,
+  markStaleSubstitutionInvitesForCategory,
   publishBracket,
   seedMan,
   seedTournament,
@@ -269,5 +270,31 @@ describe('substituição — aceite', () => {
 
     await call(callables.acceptInvite, c, {inviteId});
     assert.equal((await getInvite(conviteDeD)).status, 'stale');
+  });
+});
+
+describe('substituição — recusa e publicação da chave', () => {
+  test('recusa notifica quem iniciou', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    await call(callables.cancelInvite, c, {inviteId, asDecline: true});
+
+    assert.equal((await getInvite(inviteId)).status, 'declined');
+    const notifications = await db.collection(`users/${a}/notifications`).get();
+    const types = notifications.docs.map((d) => d.data().type);
+    assert.ok(types.includes('tournament_substitution_declined'));
+  });
+
+  test('publicar a chave marca stale os convites de substituição pendentes da categoria', async () => {
+    const {a, b, c, registrationId, tournamentId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    const count = await markStaleSubstitutionInvitesForCategory(db, tournamentId, 'masc');
+
+    assert.equal(count, 1);
+    const invite = await getInvite(inviteId);
+    assert.equal(invite.status, 'stale');
+    assert.equal(invite.staleReason, 'bracket_published');
   });
 });

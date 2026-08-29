@@ -95,6 +95,13 @@ class _TournamentSubstitutionSheetState
             .where((p) => !widget.registration.participantUids.contains(p.uid))
             .toList();
       });
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível buscar atletas. Tente novamente.',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _searching = false);
     }

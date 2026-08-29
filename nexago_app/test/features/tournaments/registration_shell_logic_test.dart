@@ -345,11 +345,90 @@ void main() {
     });
   });
 
+  group('registrationRosterNote', () {
+    test('dupla sem convite pede busca; com convite pendente vira espera', () {
+      expect(
+        registrationRosterNote(
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          isCaptain: true,
+          isPaid: false,
+          hasPendingInvite: false,
+        ),
+        'Vaga reservada! Agora busque e convide seu parceiro de dupla.',
+      );
+      expect(
+        registrationRosterNote(
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          isCaptain: true,
+          isPaid: false,
+          hasPendingInvite: true,
+        ),
+        'Convite enviado! Agora é só aguardar a resposta do seu parceiro.',
+      );
+    });
+
+    test('dupla paga mantém a vaga garantida nos dois estados', () {
+      expect(
+        registrationRosterNote(
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          isCaptain: true,
+          isPaid: true,
+          hasPendingInvite: false,
+        ),
+        'Vaga garantida! Você pagou o valor integral — convide seu parceiro, '
+        'ele entra sem taxa.',
+      );
+      expect(
+        registrationRosterNote(
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          isCaptain: true,
+          isPaid: true,
+          hasPendingInvite: true,
+        ),
+        'Vaga garantida! Convite enviado — seu parceiro entra sem taxa assim '
+        'que aceitar.',
+      );
+    });
+
+    test('equipe mostra o elenco e o papel de quem olha', () {
+      expect(
+        registrationRosterNote(
+          isTeamCategory: true,
+          rosterCount: 2,
+          teamSize: 4,
+          isCaptain: true,
+          isPaid: false,
+          hasPendingInvite: true,
+        ),
+        'Elenco 2/4. Convide os atletas que faltam.',
+      );
+      expect(
+        registrationRosterNote(
+          isTeamCategory: true,
+          rosterCount: 2,
+          teamSize: 4,
+          isCaptain: false,
+          isPaid: false,
+          hasPendingInvite: false,
+        ),
+        'Elenco 2/4. O capitão está montando o elenco.',
+      );
+    });
+  });
+
   group('registrationRemainingInviteSlots', () {
-    // Convidar várias pessoas para a mesma vaga de dupla é caminho legítimo: o
-    // primeiro aceite fecha e o backend derruba os demais. Descontar o convite
-    // pendente escondia a busca e prendia o atleta a quem não respondia.
-    test('dupla mantém a vaga aberta mesmo com convites pendentes', () {
+    // Depois de convidar, a lista de atletas some: para chamar outra pessoa o
+    // atleta cancela o convite pendente. Convites antigos em paralelo seguem
+    // valendo — o primeiro aceite fecha e o backend derruba os demais.
+    test('dupla fecha a busca enquanto houver convite pendente', () {
       expect(
         registrationRemainingInviteSlots(
           teamSize: null,
@@ -362,9 +441,17 @@ void main() {
         registrationRemainingInviteSlots(
           teamSize: null,
           rosterCount: 1,
+          pendingInviteCount: 1,
+        ),
+        0,
+      );
+      expect(
+        registrationRemainingInviteSlots(
+          teamSize: null,
+          rosterCount: 1,
           pendingInviteCount: 3,
         ),
-        1,
+        0,
       );
     });
 

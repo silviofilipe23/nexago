@@ -5,21 +5,27 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_partner_invite.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
-/// Outros convites que o atleta enviou nesta categoria e seguem pendentes.
+/// Convites que o atleta enviou nesta categoria e seguem pendentes.
 ///
-/// Convidar mais de uma pessoa é um caminho legítimo — o primeiro aceite
-/// derruba os demais no backend. Antes o app guardava um convite só, então os
-/// outros ficavam invisíveis: não dava para saber quem já tinha sido chamado
-/// nem para cancelar.
+/// Na dupla o convite pendente esconde a busca de atletas, então esta lista é
+/// o que resta na tela — e o "Cancelar" é o caminho para chamar outra pessoa.
+/// Convites antigos em paralelo seguem aparecendo: o primeiro aceite derruba
+/// os demais no backend.
 class TournamentRegistrationSentInvitesList extends StatelessWidget {
   const TournamentRegistrationSentInvitesList({
     super.key,
     required this.invites,
+    required this.isTeamCategory,
     required this.onCancel,
     this.cancelingInviteId,
   });
 
   final List<TournamentPartnerInvite> invites;
+
+  /// Em equipe a busca continua na tela enquanto houver vaga, então os
+  /// convites seguem como "outros"; na dupla eles são o elemento principal.
+  final bool isTeamCategory;
+
   final ValueChanged<TournamentPartnerInvite> onCancel;
 
   /// Convite com cancelamento em voo — só ele trava.
@@ -35,9 +41,12 @@ class TournamentRegistrationSentInvitesList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          invites.length == 1
-              ? 'Outro convite enviado'
-              : 'Outros ${invites.length} convites enviados',
+          switch ((isTeamCategory, invites.length)) {
+            (true, 1) => 'Outro convite enviado',
+            (true, final n) => 'Outros $n convites enviados',
+            (false, 1) => 'Convite enviado',
+            (false, final n) => '$n convites enviados',
+          },
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
             color: colors.onSurface,
@@ -45,7 +54,9 @@ class TournamentRegistrationSentInvitesList extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'O primeiro que aceitar fecha a vaga; os outros caem sozinhos.',
+          !isTeamCategory && invites.length == 1
+              ? 'Cancele o convite se quiser chamar outro atleta.'
+              : 'O primeiro que aceitar fecha a vaga; os outros caem sozinhos.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceMuted,
             height: 1.3,

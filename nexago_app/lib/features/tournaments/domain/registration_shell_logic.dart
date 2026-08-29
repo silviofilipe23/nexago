@@ -174,13 +174,39 @@ String registrationSummaryStatusLabel({
 int registrationCardStepNumber({required bool uniformRequired}) =>
     uniformRequired ? 3 : 2;
 
+/// Nota no topo do elenco incompleto. Com convite pendente na dupla a busca
+/// some da tela, então a nota troca o "busque e convide" pelo estado real:
+/// aguardando a resposta do convidado.
+String registrationRosterNote({
+  required bool isTeamCategory,
+  required int rosterCount,
+  required int teamSize,
+  required bool isCaptain,
+  required bool isPaid,
+  required bool hasPendingInvite,
+}) {
+  if (isTeamCategory) {
+    return 'Elenco $rosterCount/$teamSize. '
+        '${isCaptain ? 'Convide os atletas que faltam.' : 'O capitão está montando o elenco.'}';
+  }
+  if (isPaid) {
+    return hasPendingInvite
+        ? 'Vaga garantida! Convite enviado — seu parceiro entra sem taxa '
+              'assim que aceitar.'
+        : 'Vaga garantida! Você pagou o valor integral — convide seu '
+              'parceiro, ele entra sem taxa.';
+  }
+  return hasPendingInvite
+      ? 'Convite enviado! Agora é só aguardar a resposta do seu parceiro.'
+      : 'Vaga reservada! Agora busque e convide seu parceiro de dupla.';
+}
+
 /// Vagas de convite ainda abertas.
 ///
-/// **Dupla sempre tem uma vaga aberta**, mesmo com convite pendente: convidar
-/// várias pessoas é caminho legítimo — o primeiro aceite fecha a vaga e o
-/// backend derruba os demais (`markStaleInvitesAfterAccept`). Descontar o
-/// convite pendente escondia a busca e deixava o atleta refém de quem não
-/// respondia. Mesma conta do `remainingInviteSlots` no portal.
+/// Na DUPLA o convite pendente fecha a busca: depois de convidar, a lista de
+/// atletas some e o caminho para chamar outra pessoa é cancelar o convite.
+/// Convites antigos em paralelo continuam válidos — o primeiro aceite fecha a
+/// vaga e o backend derruba os demais (`markStaleInvitesAfterAccept`).
 ///
 /// Em EQUIPE a vaga é finita de verdade: elenco + convites pendentes ocupam,
 /// senão o capitão convida gente demais para um elenco que não cabe.
@@ -189,7 +215,7 @@ int registrationRemainingInviteSlots({
   required int rosterCount,
   required int pendingInviteCount,
 }) {
-  if (teamSize == null) return 1;
+  if (teamSize == null) return pendingInviteCount > 0 ? 0 : 1;
   final left = teamSize - rosterCount - pendingInviteCount;
   return left < 0 ? 0 : left;
 }

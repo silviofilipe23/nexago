@@ -76,6 +76,57 @@ void main() {
       expect(regs.single.athleteHasReserved, isFalse);
     });
 
+    test(
+      'captainUid vem trimado e substitutionHistory converte Timestamp/'
+      'faz fallback de nome',
+      () async {
+        const uid = 'athlete-1';
+        final firestore = _FakeFirestore();
+
+        firestore.seedDoc(
+          NexagoArtifactsPaths.inscriptionsCollection(),
+          'reg-equipe',
+          {
+            'tournamentId': 't1',
+            'categoryId': 'cat1',
+            'participantUids': [uid, 'cap-1'],
+            'isPaid': false,
+            'captainUid': '  cap-1  ',
+            'substitutionHistory': [
+              {
+                'outName': 'Beto',
+                'inName': 'Caio',
+                'at': Timestamp.fromDate(DateTime(2026, 8, 29)),
+              },
+              // Sem outName/inName no doc: exercita o fallback para 'Atleta'
+              // — `_substitutionHistoryFromData` só cai no fallback quando o
+              // campo está AUSENTE (cast para null); presente-mas-em-branco
+              // vira string vazia e não aciona o `??`.
+              <String, dynamic>{},
+            ],
+          },
+        );
+        firestore.seedDoc('tournaments', 't1', {
+          'name': 'Copa Teste',
+          'listingStatus': 'open',
+        });
+
+        final repo = MyTournamentRegistrationsRepository(firestore);
+        final regs = await repo.watchForUser(uid).first;
+
+        expect(regs, hasLength(1));
+        final reg = regs.single;
+        expect(reg.captainUid, 'cap-1');
+        expect(reg.substitutionHistory, hasLength(2));
+        expect(reg.substitutionHistory[0].outName, 'Beto');
+        expect(reg.substitutionHistory[0].inName, 'Caio');
+        expect(reg.substitutionHistory[0].at, DateTime(2026, 8, 29));
+        expect(reg.substitutionHistory[1].outName, 'Atleta');
+        expect(reg.substitutionHistory[1].inName, 'Atleta');
+        expect(reg.substitutionHistory[1].at, isNull);
+      },
+    );
+
     test('inscrição sem tournamentId é descartada (doc malformado)', () async {
       const uid = 'athlete-1';
       final firestore = _FakeFirestore();

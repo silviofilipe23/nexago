@@ -42,6 +42,20 @@ void main() {
       );
     });
 
+    test('quem não é da inscrição não troca ninguém', () {
+      expect(
+        substitutionReplaceableUids(
+          participantUids: ['a', 'b'],
+          uid: 'x',
+          teamSize: null,
+          captainUid: null,
+          partnerPending: false,
+          bracketPublished: false,
+        ),
+        isEmpty,
+      );
+    });
+
     test('equipe: só o capitão, e nunca a própria vaga', () {
       expect(
         substitutionReplaceableUids(

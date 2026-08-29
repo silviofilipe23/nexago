@@ -342,9 +342,13 @@ export class TournamentRegistrationShellComponent {
   /** Elenco com nome/foto — resolvido de `public_profiles` pelos `participantUids`. */
   protected readonly rosterMembers = signal<{ uid: string; name: string; photoUrl: string | null; isCaptain: boolean; isMe: boolean }[]>([]);
   protected readonly rosterCount = computed(() => this.registration()?.participantUids.length ?? 0);
-  /** Vagas ainda convidáveis: elenco + convites pendentes contam como ocupadas. */
+  /** Vagas ainda convidáveis. Na DUPLA o convite pendente fecha a busca: depois de
+   *  convidar, a lista de atletas some e o caminho pra chamar outra pessoa é cancelar
+   *  o convite (mesma conta de `registrationRemainingInviteSlots` no app). Convites
+   *  antigos em paralelo seguem válidos — o primeiro aceite fecha a vaga e o backend
+   *  derruba os demais. Em EQUIPE elenco + convites pendentes contam como ocupadas. */
   protected readonly remainingInviteSlots = computed(() => {
-    if (!this.isTeamCategory()) return 1;
+    if (!this.isTeamCategory()) return this.sentPendingInvites().length > 0 ? 0 : 1;
     return Math.max(0, this.teamSize() - this.rosterCount() - this.sentPendingInvites().length);
   });
   /** Integrante (não capitão) pode sair enquanto a própria cota não foi paga. */

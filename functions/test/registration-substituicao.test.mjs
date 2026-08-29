@@ -165,3 +165,105 @@ describe('substituição — envio do convite', () => {
     assert.ok(inviteId);
   });
 });
+
+async function enviarConvite({registrationId, replacedUid, inviteeUid, inviterUid}) {
+  const {inviteId} = await call(callables.sendSubstitution, inviterUid, sendPayload({
+    registrationId, replacedUid, inviteeUid,
+  }));
+  return inviteId;
+}
+
+describe('substituição — aceite', () => {
+  test('dupla: substituto entra preservando o índice e o pagamento da vaga', async () => {
+    const {a, b, c, registrationId, teamId} = await duplaFormada();
+    await markSharePaid(registrationId, [b]);
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    const result = await call(callables.acceptInvite, c, {inviteId, lgpdAccepted: true});
+    assert.equal(result.registrationId, registrationId);
+    assert.equal(result.teamId, teamId, 'teamId nunca muda na troca');
+
+    const reg = await getRegistration(registrationId);
+    assert.deepEqual(reg.participantUids, [a, c], 'B era índice 1; C herda a posição');
+    assert.deepEqual(reg.sharePaidUids, [c], 'a vaga paga segue paga, agora no nome do substituto');
+    assert.ok(reg.lgpdAcceptedUids.includes(c));
+    assert.equal(reg.substitutionHistory.length, 1);
+    assert.equal(reg.substitutionHistory[0].outUid, b);
+    assert.equal(reg.substitutionHistory[0].inUid, c);
+    assert.equal(reg.substitutionHistory[0].outHadPaid, true);
+
+    const team = await getTeam(teamId);
+    assert.equal(team.player2Id, c, 'espelho legado acompanha');
+    assert.equal(team.player1Id, a);
+
+    const invite = await getInvite(inviteId);
+    assert.equal(invite.status, 'accepted');
+  });
+
+  test('chave publicada entre o envio e o aceite bloqueia', async () => {
+    const {a, b, c, registrationId, tournamentId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    await publishBracket(tournamentId, 'masc');
+    const msg = await callExpectingError(callables.acceptInvite, c, {inviteId});
+    assert.match(msg, /chaves.*publicadas/i);
+  });
+
+  test('quem sairia já saiu: aceite falha e convite vira stale', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    const d = await seedMan({uid: 'davi-d'});
+    await db.doc(`${INSCRIPTIONS}/${registrationId}`).set(
+      {participantUids: [a, d]}, {merge: true},
+    );
+    const msg = await callExpectingError(callables.acceptInvite, c, {inviteId});
+    assert.match(msg, /já saiu da equipe/i);
+    assert.equal((await getInvite(inviteId)).status, 'stale');
+  });
+
+  test('substituto que se inscreveu na categoria depois do convite é barrado', async () => {
+    const {a, b, c, registrationId, tournamentId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    await call(callables.registerSolo, c, {tournamentId, categoryId: 'masc'});
+    const msg = await callExpectingError(callables.acceptInvite, c, {inviteId});
+    assert.match(msg, /já possui inscrição/i);
+  });
+
+  test('equipe: capitão troca membro; uniformByUid e memberUids acompanham', async () => {
+    const cap = await seedMan({uid: 'cap'});
+    const m1 = await seedMan({uid: 'm1'});
+    const m2 = await seedMan({uid: 'm2'});
+    const sub = await seedMan({uid: 'sub'});
+    const tournamentId = await seedTournament({
+      categories: [teamCategory({id: 'trio', categoryName: 'Trio Livre', teamSize: 3, genderMode: 'free', uniformType: 'top_only'})],
+    });
+    const {registrationId, teamId} = await formTeam({
+      tournamentId, categoryId: 'trio', captainUid: cap, memberUids: [m1, m2],
+    });
+    await call(callables.setUniform, m1, {registrationId, uniform: {sizeTop: 'M'}});
+
+    const inviteId = await enviarConvite({registrationId, replacedUid: m1, inviteeUid: sub, inviterUid: cap});
+    await call(callables.acceptInvite, sub, {inviteId, inviteeUniform: {sizeTop: 'G'}});
+
+    const reg = await getRegistration(registrationId);
+    assert.deepEqual(reg.participantUids, [cap, sub, m2], 'posição preservada');
+    assert.equal(reg.uniformByUid?.[m1], undefined, 'uniforme de quem saiu é removido');
+    assert.equal(reg.uniformByUid?.[sub]?.sizeTop, 'G');
+    assert.equal(reg.partnerPending, false, 'troca não reabre o elenco');
+
+    const team = await getTeam(teamId);
+    assert.deepEqual(team.memberUids, [cap, sub, m2]);
+  });
+
+  test('aceite mata o convite concorrente da mesma vaga e os convites do substituto na categoria', async () => {
+    const {a, b, c, registrationId, tournamentId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    // Convite de dupla pendente PARA o substituto na mesma categoria.
+    const d = await seedMan({uid: 'davi-d'});
+    const {inviteId: conviteDeD} = await call(callables.sendInvite, d, {
+      tournamentId, categoryId: 'masc', inviteeUid: c, inviteeName: 'Atleta C', inviterName: 'Davi',
+    });
+
+    await call(callables.acceptInvite, c, {inviteId});
+    assert.equal((await getInvite(conviteDeD)).status, 'stale');
+  });
+});

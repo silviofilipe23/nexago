@@ -39,30 +39,54 @@
               @case ('confirmed') {
                 <section class="tp-card">
                   <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
-                  <p class="tp-defer-note">
-                    O organizador confirmou o recebimento — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!
-                  </p>
-                  <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                  @if (partnerPending()) {
+                    <p class="tp-defer-note">
+                      O organizador confirmou o recebimento — sua vaga está garantida. Agora convide seu parceiro na tela de inscrição: ele entra sem taxa.
+                    </p>
+                    <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Convidar parceiro</a>
+                  } @else {
+                    <p class="tp-defer-note">
+                      O organizador confirmou o recebimento — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!
+                    </p>
+                    <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                  }
                 </section>
               }
               @case ('waitingOrganizer') {
                 <section class="tp-card">
-                  <h2 class="tp-card-title">Pagamento informado ⏳</h2>
-                  <p class="tp-defer-note">
-                    {{ isTeamRegistration() ? 'Todos os atletas informaram o pagamento e a vaga da equipe está garantida.' : 'Vocês dois informaram o pagamento e a vaga da dupla está garantida.' }} O organizador foi avisado e vai
-                    conferir o recebimento para confirmar a inscrição.
-                  </p>
+                  <h2 class="tp-card-title">{{ partnerPending() ? 'Vaga garantida ⏳' : 'Pagamento informado ⏳' }}</h2>
+                  @if (partnerPending()) {
+                    <p class="tp-defer-note">
+                      Você informou o pagamento integral e sua vaga está garantida — o organizador vai conferir o recebimento. Enquanto isso, convide seu parceiro: ele entra sem taxa.
+                    </p>
+                  } @else {
+                    <p class="tp-defer-note">
+                      {{ isTeamRegistration() ? 'Todos os atletas informaram o pagamento e a vaga da equipe está garantida.' : 'Vocês dois informaram o pagamento e a vaga da dupla está garantida.' }} O organizador foi avisado e vai
+                      conferir o recebimento para confirmar a inscrição.
+                    </p>
+                  }
                   <p class="tp-defer-note">Guarde o comprovante do Pix até a confirmação sair.</p>
-                  <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                  @if (partnerPending()) {
+                    <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Convidar parceiro</a>
+                  } @else {
+                    <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                  }
                 </section>
               }
               @case ('waitingPartner') {
                 <section class="tp-card">
                   <h2 class="tp-card-title">Sua parte foi informada ✔</h2>
-                  <p class="tp-defer-note">
-                    {{ isTeamRegistration() ? 'Agora é com os demais atletas — a inscrição fecha quando todos informarem o pagamento, e aí o organizador confere o recebimento.' : 'Agora é com seu parceiro — a inscrição fecha quando ele informar o pagamento dele, e aí o organizador confere o recebimento dos dois.' }}
-                  </p>
-                  <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                  @if (partnerPending()) {
+                    <p class="tp-defer-note">
+                      Agora convide seu parceiro — a inscrição fecha quando ele informar a parte dele, e aí o organizador confere o recebimento.
+                    </p>
+                    <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Convidar parceiro</a>
+                  } @else {
+                    <p class="tp-defer-note">
+                      {{ isTeamRegistration() ? 'Agora é com os demais atletas — a inscrição fecha quando todos informarem o pagamento, e aí o organizador confere o recebimento.' : 'Agora é com seu parceiro — a inscrição fecha quando ele informar o pagamento dele, e aí o organizador confere o recebimento dos dois.' }}
+                    </p>
+                    <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+                  }
                 </section>
               }
               @default {
@@ -166,9 +190,15 @@
             }
           } @else if (registration()!.isPaid) {
             <section class="tp-card">
-              <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
-              <p class="tp-defer-note">Pagamento confirmado — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!</p>
-              <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+              @if (paidAwaitingPartner()) {
+                <h2 class="tp-card-title">Vaga garantida 🎾</h2>
+                <p class="tp-defer-note">Você pagou o valor integral — sua vaga está garantida. Agora convide seu parceiro na tela de inscrição: ele entra sem taxa.</p>
+                <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Convidar parceiro</a>
+              } @else {
+                <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
+                <p class="tp-defer-note">Pagamento confirmado — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!</p>
+                <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+              }
             </section>
           } @else if (totalPriceReais() === 0) {
             <section class="tp-card">

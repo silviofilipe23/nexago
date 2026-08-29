@@ -250,7 +250,16 @@
                   </button>
                 }
               } @else {
-                <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+                @if (registration()!.isPaid) {
+                  <p class="rg-empty-inline">Vaga garantida! Você pagou o valor integral — convide seu parceiro, ele entra sem taxa.</p>
+                } @else {
+                  <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+                  @if ((selectedCategory()?.entryFee ?? 0) > 0) {
+                    <!-- Sem parceiro ainda? Pagar o integral garante a vaga desde já; o parceiro
+                         que aceitar o convite depois entra sem taxa. -->
+                    <button type="button" class="rg-btn-ghost" (click)="goToPayment()">Garantir vaga pagando o valor integral</button>
+                  }
+                }
               }
 
               @if (myLgpdConsentMissing()) {
@@ -410,6 +419,8 @@
                 } @else if (registration()!.partnerPending) {
                   @if (isTeamCategory()) {
                     Elenco {{ rosterCount() }}/{{ teamSize() }}
+                  } @else if (registration()!.isPaid) {
+                    Vaga garantida — falta parceiro
                   } @else {
                     {{ sentPendingInvites().length > 1 ? 'Convites enviados' : sentPendingInvites().length === 1 ? 'Convite enviado' : 'Falta parceiro' }}
                   }

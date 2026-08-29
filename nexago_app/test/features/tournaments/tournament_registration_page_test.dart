@@ -782,6 +782,126 @@ void main() {
     });
   });
 
+  group('garantir vaga — solo paga o valor integral', () {
+    const registroSoloPendente = {
+      'masc': UserCategoryRegistration(
+        registrationId: 'reg-1',
+        isPaid: false,
+        partnerPending: true,
+      ),
+    };
+
+    testWidgets('reserva solo não paga oferece garantir a vaga pelo integral', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        registrations: registroSoloPendente,
+        snap: snapshot(),
+      );
+
+      expect(
+        find.widgetWithText(
+          OutlinedButton,
+          'Garantir vaga pagando o valor integral',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Vaga reservada!'), findsOneWidget);
+    });
+
+    testWidgets('o botão de garantir leva à tela de pagamento', (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        registrations: registroSoloPendente,
+        snap: snapshot(),
+      );
+
+      await tester.tap(find.text('Garantir vaga pagando o valor integral'));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('pagamento'));
+    });
+
+    testWidgets('categoria gratuita não oferece pagar o integral', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla(entryFee: 0)]),
+        registrations: registroSoloPendente,
+        snap: snapshot(),
+      );
+
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('solo já pago troca a nota e esconde o botão', (tester) async {
+      // Tela alta o bastante para o resumo (último cartão) montar também.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        registrations: const {
+          'masc': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: true,
+            partnerPending: true,
+          ),
+        },
+        snap: snapshot(isPaid: true),
+      );
+
+      expect(
+        find.textContaining('Vaga garantida! Você pagou o valor integral'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsNothing,
+      );
+      // O resumo acompanha com o rótulo próprio da vaga paga sem parceiro.
+      expect(find.text('Vaga garantida — falta parceiro'), findsOneWidget);
+      // E a busca de parceiro continua de pé: pagar não fecha o convite.
+      expect(find.textContaining('Vaga reservada!'), findsNothing);
+    });
+
+    testWidgets('equipe aguardando elenco não oferece o integral', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([equipe()]),
+        registrations: const {
+          'quarteto': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+            partnerPending: true,
+          ),
+        },
+        snap: snapshot(
+          participantUids: const [meuUid, 'outro'],
+          teamSize: 4,
+          teamName: 'Leões da Praia',
+          captainUid: meuUid,
+        ),
+      );
+
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsNothing,
+      );
+    });
+  });
+
   group('uniforme', () {
     testWidgets('categoria sem uniforme não mostra o cartão', (tester) async {
       await abrirTela(tester, tournament: torneio([dupla()]));

@@ -518,10 +518,17 @@ export async function confirmFreeRegistration(functions: Functions, registration
   }
 }
 
-export async function reserveDirectOrganizerRegistration(functions: Functions, registrationId: string): Promise<{ bothAthletesReserved: boolean }> {
+/** `amountType: 'full'` declara a inscrição inteira de uma vez — é o caminho do solo garantir a
+ *  vaga pagando o valor integral (o parceiro que aceitar o convite depois entra sem taxa). */
+export async function reserveDirectOrganizerRegistration(
+  functions: Functions,
+  registrationId: string,
+  amountType: 'share' | 'full' = 'share',
+): Promise<{ bothAthletesReserved: boolean }> {
   try {
     const result = await httpsCallable<Record<string, unknown>, { reserved: boolean; bothAthletesReserved: boolean }>(functions, 'reserveDirectOrganizerRegistration')({
       registrationId,
+      ...(amountType === 'full' ? { amountType } : {}),
     });
     return { bothAthletesReserved: result.data.bothAthletesReserved };
   } catch (err) {

@@ -222,6 +222,18 @@ class _TournamentRegistrationPixPageState
       _navigatedBack = true;
       _expiryTimer?.cancel();
       if (!mounted) return;
+      // Solo pagou o total: a vaga está garantida, mas ainda falta o parceiro
+      // — volta pra tela anterior (que mostra o convite; ele entra sem taxa)
+      // em vez da confirmação genérica.
+      if (snap.partnerPending) {
+        showAppSnackBar(
+          context,
+          'Vaga garantida! Você pagou o total — convide seu parceiro, ele '
+          'entra sem taxa.',
+        );
+        context.pop();
+        return;
+      }
       showAppSnackBar(context, 'Inscrição confirmada!');
       navigateToTournamentRegistrationSuccess(
         context,

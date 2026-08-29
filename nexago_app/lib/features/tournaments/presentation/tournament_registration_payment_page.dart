@@ -63,6 +63,7 @@ class TournamentRegistrationPaymentPage extends ConsumerStatefulWidget {
 class _TournamentRegistrationPaymentPageState
     extends ConsumerState<TournamentRegistrationPaymentPage> {
   String _paymentType = 'share';
+  bool _paymentTypeInitialized = false;
   bool _submitting = false;
   bool _contactingOrganizer = false;
   bool _leavingTeam = false;
@@ -176,6 +177,7 @@ class _TournamentRegistrationPaymentPageState
     required TournamentDetail tournament,
     required TournamentCategoryOffer category,
     required TournamentRegistrationQuote quote,
+    bool partnerPending = false,
   }) async {
     if (_submitting) return;
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
@@ -210,10 +212,14 @@ class _TournamentRegistrationPaymentPageState
         // Declarar não tem desfazer no app e aciona o organizador: o clique
         // acidental é caro, então vale perguntar antes.
         if (!await _confirmDirectPaymentDeclaration(quote)) return;
+        final amountType = (_canPayFull && _paymentType == 'full')
+            ? 'full'
+            : 'share';
         final result = await ref
             .read(paymentServiceProvider)
             .reserveDirectOrganizerRegistration(
               registrationId: widget.registrationId,
+              amountType: amountType,
             );
         if (!mounted) return;
         // Fica na tela: o estado pós-declaração (aguardando parceiro /
@@ -221,8 +227,11 @@ class _TournamentRegistrationPaymentPageState
         showAppSnackBar(
           context,
           result.bothAthletesReserved
-              ? 'Pagamento informado! A vaga está garantida — o organizador vai '
-                    'conferir o recebimento.'
+              ? (partnerPending
+                    ? 'Pagamento informado! Sua vaga está garantida — convide '
+                          'seu parceiro, ele entra sem taxa.'
+                    : 'Pagamento informado! A vaga está garantida — o '
+                          'organizador vai conferir o recebimento.')
               : 'Sua parte foi informada. A inscrição fecha quando seu parceiro '
                     'informar a dele.',
         );
@@ -520,8 +529,28 @@ class _TournamentRegistrationPaymentPageState
                 currentUid != null &&
                 (snap?.athleteSharePaid(currentUid) ?? false);
 
+            final awaitingSoloPartner = registrationAwaitingSoloPartner(
+              snap: snap,
+              isFullyPaid: isFullyPaid,
+            );
+            final paidAwaitingPartner = registrationPaidAwaitingPartner(
+              snap: snap,
+            );
+
+            // Pré-seleção one-shot quando o snapshot chega: solo de dupla
+            // entra em 'full' — quem veio sem parceiro veio garantir a vaga.
+            if (!_paymentTypeInitialized && snap != null) {
+              _paymentTypeInitialized = true;
+              _paymentType = initialRegistrationPaymentType(
+                awaitingSoloPartner: awaitingSoloPartner,
+                isTeamCategory: quote.isTeamCategory,
+              );
+            }
+
             // Confirmada e paga: a tela de sucesso é o destino, e só uma vez.
-            if (isFullyPaid && !_paidPopHandled) {
+            // Exceto o solo que pagou o total: a tela fica, mostrando o
+            // convite ao parceiro (que entra sem taxa).
+            if (isFullyPaid && !paidAwaitingPartner && !_paidPopHandled) {
               _paidPopHandled = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
@@ -554,13 +583,6 @@ class _TournamentRegistrationPaymentPageState
               directPaymentState: isDirectOrganizer ? directState : null,
             );
 
-            final awaitingSoloPartner = registrationAwaitingSoloPartner(
-              snap: snap,
-              isFullyPaid: isFullyPaid,
-            );
-            final paidAwaitingPartner = registrationPaidAwaitingPartner(
-              snap: snap,
-            );
             final awaitingPartner = awaitingSoloPartner || paidAwaitingPartner;
             final effectiveProgressLabel = paidAwaitingPartner
                 ? 'Vaga garantida! Você pagou o total — convide seu parceiro, '
@@ -687,8 +709,11 @@ class _TournamentRegistrationPaymentPageState
                     tournament: tournament,
                     category: category,
                     quote: quote,
+                    partnerPending: snap?.partnerPending == true,
                   ),
-                  ctaLabel: athleteSharePaid
+                  ctaLabel: isFullyPaid
+                      ? 'Vaga garantida'
+                      : athleteSharePaid
                       ? 'Aguardando parceiro'
                       : isFree
                       ? 'Confirmar inscrição'

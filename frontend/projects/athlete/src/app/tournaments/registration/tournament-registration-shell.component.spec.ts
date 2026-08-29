@@ -3,6 +3,8 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import type { MyAthleteProfile } from '../../data/my-athlete-profile-repository';
+import type { AthleteTournamentRegistration } from '../../data/tournament-registrations-repository';
+import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import type { LevelConfirmationPrompt } from '../tournament-eligibility';
 import { TournamentRegistrationShellComponent } from './tournament-registration-shell.component';
 
@@ -137,5 +139,136 @@ describe('TournamentRegistrationShellComponent — confirmação de nível na 1�
 
     expect(confirmed).toBeFalse();
     expect(cmp.levelConfirmationPrompt()).toBeNull();
+  });
+});
+
+/** Estado solo (dupla com `partnerPending`): o atleta pode garantir a vaga pagando o integral. */
+describe('TournamentRegistrationShellComponent — pagamento integral na vaga solo', () => {
+  let fixture: ComponentFixture<TournamentRegistrationShellComponent>;
+
+  interface SoloInternals {
+    loading: WritableSignal<boolean>;
+    listing: WritableSignal<unknown>;
+    selectedCategoryId: WritableSignal<string | null>;
+    myRegistrations: WritableSignal<AthleteTournamentRegistration[]>;
+  }
+  let cmp: SoloInternals;
+
+  function category(overrides: Partial<TournamentCategoryOffer> = {}): TournamentCategoryOffer {
+    return {
+      id: 'cat1',
+      categoryName: 'Masculino B',
+      entryFee: 160,
+      maxTeams: 16,
+      spotsLeft: 10,
+      level: null,
+      minLevel: null,
+      genderType: 'Masculino',
+      teamSize: null,
+      genderFree: false,
+      genderComposition: null,
+      bracketFormat: 'grupos',
+      registrationClosed: false,
+      isCompleted: false,
+      prizes: [],
+      qualifiersPerGroup: 2,
+      uniformType: null,
+      uniformNumberOnShirt: false,
+      uniformNameOnShirt: false,
+      uniformSizeOptionsTop: [],
+      uniformSizeOptionsShorts: [],
+      ageBand: null,
+      ageRestrictionMode: null,
+      ageMinYears: null,
+      ageMaxYears: null,
+      ...overrides,
+    } as TournamentCategoryOffer;
+  }
+
+  function listing(cat: TournamentCategoryOffer): unknown {
+    return {
+      id: 't1',
+      name: 'Etapa Teste',
+      city: 'Natal',
+      location: 'Arena Teste',
+      dateLabel: null,
+      sport: 'beachVolleyball',
+      paymentMode: 'directWithOrganizer',
+      categories: [cat],
+    };
+  }
+
+  function soloRegistration(overrides: Partial<AthleteTournamentRegistration> = {}): AthleteTournamentRegistration {
+    return {
+      id: 'reg1',
+      tournamentId: 't1',
+      categoryId: 'cat1',
+      teamId: null,
+      partnerPending: true,
+      isPaid: false,
+      waitlist: false,
+      cancellationRequest: null,
+      sharePaidUids: [],
+      declaredPaidAt: null,
+      paymentVerifiedByOrganizer: false,
+      player1Id: 'me',
+      participantUids: ['me'],
+      lgpdAcceptedUids: [],
+      uniformPlayer1: null,
+      uniformPlayer2: null,
+      teamName: null,
+      teamSize: null,
+      captainUid: null,
+      uniformByUid: {},
+      ...overrides,
+    } as AthleteTournamentRegistration;
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [TournamentRegistrationShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { user: signal(null), devEmail: signal(null) } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(TournamentRegistrationShellComponent);
+    await fixture.whenStable();
+    cmp = fixture.componentInstance as unknown as SoloInternals;
+  });
+
+  afterEach(() => fixture?.destroy());
+
+  async function renderSolo(cat: TournamentCategoryOffer, reg: AthleteTournamentRegistration): Promise<string> {
+    cmp.listing.set(listing(cat));
+    cmp.selectedCategoryId.set(cat.id);
+    cmp.myRegistrations.set([reg]);
+    cmp.loading.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  it('solo sem pagar em categoria paga: oferece "Garantir vaga pagando o valor integral"', async () => {
+    const text = await renderSolo(category(), soloRegistration());
+
+    expect(text).toContain('Garantir vaga pagando o valor integral');
+    expect(text).toContain('Vaga reservada!');
+  });
+
+  it('solo em categoria gratuita: sem CTA de pagamento integral', async () => {
+    const text = await renderSolo(category({ entryFee: 0 }), soloRegistration());
+
+    expect(text).not.toContain('Garantir vaga pagando o valor integral');
+  });
+
+  it('solo que já pagou o total: nota de vaga garantida no lugar do CTA e status próprio', async () => {
+    const text = await renderSolo(category(), soloRegistration({ isPaid: true }));
+
+    expect(text).not.toContain('Garantir vaga pagando o valor integral');
+    expect(text).toContain('Vaga garantida! Você pagou o valor integral');
+    expect(text).toContain('Vaga garantida — falta parceiro');
   });
 });

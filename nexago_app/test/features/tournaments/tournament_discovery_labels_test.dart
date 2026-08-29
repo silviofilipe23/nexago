@@ -71,5 +71,42 @@ void main() {
         'Inscrições abertas',
       );
     });
+
+    // Mesma ordem do guard do servidor: inscrições encerradas pelo organizador
+    // vêm antes do calendário — "em breve" mentiria que ainda vão abrir.
+    test('"Inscrições encerradas" ganha de "em breve"', () {
+      expect(
+        tournamentStatusLabelFromRaw(
+          status: TournamentListingStatus.bracketsReady,
+          listingStatusRaw: 'closed',
+          registrationNotYetOpen: true,
+        ),
+        'Inscrições encerradas',
+      );
+    });
+
+    // `registrationOpensAt` vencido/errado num torneio que já não aceita
+    // inscrição não pode anunciar abertura futura.
+    test('torneio que não aceita inscrição não vira "em breve"', () {
+      expect(
+        tournamentStatusLabelFromRaw(
+          status: TournamentListingStatus.live,
+          listingStatusRaw: 'in_progress',
+          registrationNotYetOpen: true,
+        ),
+        'Em andamento',
+      );
+    });
+
+    test('quase lotado também segura a largada com "em breve"', () {
+      expect(
+        tournamentStatusLabelFromRaw(
+          status: TournamentListingStatus.almostFull,
+          listingStatusRaw: 'almost_full',
+          registrationNotYetOpen: true,
+        ),
+        'Inscrições em breve',
+      );
+    });
   });
 }

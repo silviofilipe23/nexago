@@ -457,5 +457,39 @@ void main() {
       expect(status.badge, 'EM BREVE');
       expect(status.blocked, isTrue);
     });
+
+    // Fim da cadeia: antes de abrir, a resposta certa é "quando abre", não
+    // "seu gênero/idade/nível não serve" — o atleta nem pode tentar ainda.
+    test('EM BREVE ganha da elegibilidade (gênero, idade e nível)', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 5,
+        eligibility: const RegistrationEligibilityInput(
+          genderBlocked: true,
+          levelBlocked: true,
+          belowMinLevel: true,
+          ageEligibility: AgeEligibility.outOfRange,
+        ),
+        registrationOpensAt: opensAt,
+        now: DateTime(2026, 9, 5, 9, 0),
+      );
+
+      expect(status.badge, 'EM BREVE');
+      expect(status.blocked, isTrue);
+    });
+
+    test('depois de aberto, as travas de categoria voltam a valer', () {
+      final status = registrationCategoryStatus(
+        offer: offer(registrationClosed: true),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        registrationOpensAt: opensAt,
+        now: DateTime(2026, 9, 5, 10, 1),
+      );
+
+      expect(status.badge, 'ENCERRADA');
+      expect(status.blocked, isTrue);
+    });
   });
 }

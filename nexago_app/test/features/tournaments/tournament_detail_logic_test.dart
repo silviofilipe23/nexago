@@ -503,6 +503,32 @@ void main() {
       );
     });
 
+    // O organizador pode inscrever uma dupla antes da abertura (o guard do
+    // servidor tem bypass para ele). Uma inscrição paga já é do atleta: o CTA
+    // precisa continuar levando à inscrição, não sumir atrás do EM BREVE.
+    test('inscrição paga ganha do EM BREVE; sem inscrição, desabilita', () {
+      final offer = sample.categoryOffers.first;
+
+      expect(
+        tournamentCategoryCtaKindForAthlete(
+          offer: offer,
+          tournamentStatus: TournamentListingStatus.open,
+          isRegistrationPaid: true,
+          registrationNotYetOpen: true,
+        ),
+        TournamentCategoryCtaKind.viewRegistration,
+      );
+      expect(
+        tournamentCategoryCtaKindForAthlete(
+          offer: offer,
+          tournamentStatus: TournamentListingStatus.open,
+          isRegistrationPaid: false,
+          registrationNotYetOpen: true,
+        ),
+        TournamentCategoryCtaKind.disabled,
+      );
+    });
+
     test('banner anuncia a data e a hora da abertura enquanto não abre', () {
       expect(
         tournamentRegistrationOpensBanner(

@@ -72,7 +72,7 @@ import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helper
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 
 export const INVITES_COLLECTION = "tournamentRegistrationInvites";
-const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
+export const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 
 // Versão do termo LGPD/uso de imagem exibido nas UIs de inscrição. O aceite é
 // opcional no payload (apps antigos não enviam); quando presente, fica

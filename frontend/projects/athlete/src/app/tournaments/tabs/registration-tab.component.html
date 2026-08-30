@@ -73,6 +73,19 @@
         </button>
       }
 
+      @if (card.substitutionHistory.length > 0) {
+        <ul class="reg-sub-history">
+          @for (entry of card.substitutionHistory; track $index) {
+            <li>{{ entry.inName }} entrou no lugar de {{ entry.outName }}.</li>
+          }
+        </ul>
+      }
+
+      @if (card.substitutionSlots.length > 0) {
+        <button type="button" class="reg-cta" (click)="openSubstitution(card)">
+          Substituir atleta
+        </button>
+      }
 
       @if (card.canCancel) {
         <button type="button" class="reg-cancel" (click)="askCancel(card)">Cancelar inscrição</button>
@@ -143,6 +156,16 @@
       secondaryLabel="Voltar"
       (primary)="confirmCancel()"
       (secondary)="closeCancel()"
+    />
+  }
+
+  @if (substitutionTarget(); as target) {
+    <app-substitution-dialog
+      [slots]="target.substitutionSlots"
+      [busy]="substitutionSending()"
+      [searchFn]="substitutionSearchFn"
+      (closed)="closeSubstitution()"
+      (send)="sendSubstitution($event)"
     />
   }
 </div>

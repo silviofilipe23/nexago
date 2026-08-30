@@ -71,8 +71,11 @@ export function nextInviteToAnnounce(
   );
 }
 
-/** Título do modal: "Bia te chamou pra dupla" / "…pra equipe Areia Quente". */
+/** Título do modal: "Bia te chamou pra dupla" / "…pra equipe Areia Quente" / "…como substituto". */
 export function inviteAnnouncementTitle(item: PendingPartnerInvite): string {
+  if (item.invite.isSubstitutionInvite) {
+    return `${item.invite.inviterName} te chamou como substituto`;
+  }
   const teamName = item.invite.isTeamInvite ? item.invite.teamName?.trim() : null;
   if (teamName) return `${item.invite.inviterName} te chamou pra equipe ${teamName}`;
   return `${item.invite.inviterName} te chamou pra ${item.invite.isTeamInvite ? 'equipe' : 'dupla'}`;
@@ -89,6 +92,10 @@ export function inviteAnnouncementTitle(item: PendingPartnerInvite): string {
  */
 export function inviteAnnouncementSubtitle(item: PendingPartnerInvite): string {
   const tournamentName = item.tournament?.name ?? 'Torneio';
+  if (item.invite.isSubstitutionInvite) {
+    const alvo = item.invite.replacedName ?? 'um atleta';
+    return `Ele te chamou pra entrar no lugar de ${alvo} no ${tournamentName}. A vaga passa a ser sua ao aceitar.`;
+  }
   const closes = item.invite.isTeamInvite ? 'equipe estar completa' : 'dupla estar fechada';
   return `Ele te chamou pro ${tournamentName}. Falta só você aceitar pra ${closes}.`;
 }

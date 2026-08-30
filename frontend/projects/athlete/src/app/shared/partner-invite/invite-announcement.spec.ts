@@ -178,6 +178,30 @@ describe('título e apoio', () => {
   it('usa nome genérico quando o torneio não carregou — sumir seria pior', () => {
     expect(inviteAnnouncementSubtitle(item('i1', {}, null))).toContain('pro Torneio.');
   });
+
+  it('convite de substituição anuncia a vaga, não uma dupla nova', () => {
+    const sub = item('i9');
+    sub.invite.isSubstitutionInvite = true;
+    sub.invite.replacedName = 'Beto';
+    expect(inviteAnnouncementTitle(sub)).toBe('Bia te chamou como substituto');
+  });
+
+  it('a linha de apoio da substituição nomeia quem está saindo, não fala de dupla', () => {
+    const sub = item('i9');
+    sub.invite.isSubstitutionInvite = true;
+    sub.invite.replacedName = 'Beto';
+    expect(inviteAnnouncementSubtitle(sub)).toBe(
+      'Ele te chamou pra entrar no lugar de Beto no Copa VH. A vaga passa a ser sua ao aceitar.',
+    );
+  });
+
+  it('substituição sem nome de quem sai cai pro genérico', () => {
+    const sub = item('i9');
+    sub.invite.isSubstitutionInvite = true;
+    expect(inviteAnnouncementSubtitle(sub)).toBe(
+      'Ele te chamou pra entrar no lugar de um atleta no Copa VH. A vaga passa a ser sua ao aceitar.',
+    );
+  });
 });
 
 describe('inviteInitials', () => {

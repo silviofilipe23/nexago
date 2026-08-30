@@ -75,6 +75,8 @@ function item(
     isTeamInvite: false,
     teamName: null,
     teamSize: null,
+    isSubstitutionInvite: false,
+    replacedName: null,
     ...overrides,
   };
   return { invite, tournament: summary };

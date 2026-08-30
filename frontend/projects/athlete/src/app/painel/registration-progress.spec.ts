@@ -30,6 +30,7 @@ function makeRegistration(overrides: Partial<AthleteTournamentRegistration> = {}
     teamSize: null,
     captainUid: null,
     uniformByUid: {},
+    substitutionHistory: [],
     cancellationRequest: null,
     ...overrides,
   };

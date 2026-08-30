@@ -766,6 +766,7 @@ export class TournamentRegistrationShellComponent {
           teamSize: null,
           captainUid: null,
           uniformByUid: {},
+          substitutionHistory: [],
         },
       ]);
       this.toasts.success('Inscrição criada', 'Falta só formar a dupla — convide seu parceiro para garantir a vaga.');
@@ -840,6 +841,7 @@ export class TournamentRegistrationShellComponent {
           teamSize: category.teamSize,
           captainUid: uid || null,
           uniformByUid: {},
+          substitutionHistory: [],
         },
       ]);
       this.toasts.success(

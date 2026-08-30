@@ -201,6 +201,71 @@ describe('substituição — aceite', () => {
     assert.equal(invite.status, 'accepted');
   });
 
+  test('dupla: troca no índice 0 reescreve player1Id e o slot Player1 do uniforme', async () => {
+    const a = await seedMan({uid: 'ana-a', name: 'Atleta A'});
+    const b = await seedMan({uid: 'beto-b', name: 'Atleta B'});
+    const c = await seedMan({uid: 'caio-c', name: 'Atleta C'});
+    const tournamentId = await seedTournament({
+      categories: [duplaCategory({id: 'masc-idx0', categoryName: 'Dupla Masculina Índice 0', uniformType: 'top_only'})],
+    });
+    // Reserva solo do convidante: única forma de a inscrição nascer com
+    // player1Id gravado no PRÓPRIO doc (dupla via convite direto não tem).
+    const {registrationId} = await call(callables.registerSolo, a, {
+      tournamentId, categoryId: 'masc-idx0',
+    });
+    const {inviteId: partnerInviteId} = await call(callables.sendInvite, a, {
+      tournamentId, categoryId: 'masc-idx0', inviteeUid: b, inviteeName: 'Atleta B', inviterName: 'Atleta A',
+    });
+    const {teamId} = await call(callables.acceptInvite, b, {inviteId: partnerInviteId});
+    await call(callables.setUniform, a, {registrationId, uniform: {sizeTop: 'M'}});
+
+    const inviteId = await enviarConvite({registrationId, replacedUid: a, inviteeUid: c, inviterUid: b});
+    await call(callables.acceptInvite, c, {inviteId, inviteeUniform: {sizeTop: 'G'}});
+
+    const reg = await getRegistration(registrationId);
+    assert.deepEqual(reg.participantUids, [c, b], 'A era índice 0; C herda a posição');
+    assert.equal(reg.player1Id, c);
+    assert.equal(reg.sizeTopPlayer1, 'G');
+
+    const team = await getTeam(teamId);
+    assert.equal(team.player1Id, c);
+    assert.equal(team.player2Id, b);
+  });
+
+  test('dupla: troca herda organizerConfirmedShareUids junto com sharePaidUids', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    await db.doc(`${INSCRIPTIONS}/${registrationId}`).set(
+      {sharePaidUids: [b], organizerConfirmedShareUids: [b]}, {merge: true},
+    );
+
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    await call(callables.acceptInvite, c, {inviteId});
+
+    const reg = await getRegistration(registrationId);
+    assert.deepEqual(reg.sharePaidUids, [c]);
+    assert.deepEqual(reg.organizerConfirmedShareUids, [c], 'confirmação do organizador também migra pro substituto');
+  });
+
+  test('dupla: aceite sem uniforme limpa o slot de quem saiu sem tocar no outro', async () => {
+    const a = await seedMan({uid: 'ana-a', name: 'Atleta A'});
+    const b = await seedMan({uid: 'beto-b', name: 'Atleta B'});
+    const c = await seedMan({uid: 'caio-c', name: 'Atleta C'});
+    const tournamentId = await seedTournament({
+      categories: [duplaCategory({id: 'masc-idx1', categoryName: 'Dupla Masculina Índice 1', uniformType: 'top_only'})],
+    });
+    const {registrationId} = await formDupla({
+      tournamentId, categoryId: 'masc-idx1', inviterUid: a, inviteeUid: b,
+    });
+    await call(callables.setUniform, b, {registrationId, uniform: {sizeTop: 'M'}});
+
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    await call(callables.acceptInvite, c, {inviteId});
+
+    const reg = await getRegistration(registrationId);
+    assert.equal(reg.sizeTopPlayer2, undefined, 'uniforme de quem saiu é removido, substituto não mandou o dele');
+    assert.equal(reg.sizeTopPlayer1, undefined, 'sem efeito colateral no slot do outro parceiro');
+  });
+
   test('chave publicada entre o envio e o aceite bloqueia', async () => {
     const {a, b, c, registrationId, tournamentId} = await duplaFormada();
     const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});

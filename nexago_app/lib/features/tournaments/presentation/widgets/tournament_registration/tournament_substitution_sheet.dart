@@ -151,78 +151,80 @@ class _TournamentSubstitutionSheetState
         top: 16,
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Substituir atleta',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'A vaga (e o pagamento dela) passa para o substituto quando ele '
-            'aceitar o convite. Válido até a publicação das chaves.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: colors.onSurfaceMuted),
-          ),
-          const SizedBox(height: 16),
-          Text('Quem sai?', style: theme.textTheme.titleSmall),
-          RadioGroup<String>(
-            groupValue: _replacedUid,
-            onChanged: (v) => setState(() => _replacedUid = v),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final uid in widget.replaceableUids)
-                  RadioListTile<String>(
-                    value: uid,
-                    title: Text(_nameOf(uid)),
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: AppColors.brand,
-                  ),
-              ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Substituir atleta',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
-          ),
-          if (_replacedUid != null) ...[
-            const SizedBox(height: 8),
-            TextField(
-              controller: _searchController,
-              onSubmitted: _search,
-              textInputAction: TextInputAction.search,
-              decoration: const InputDecoration(
-                hintText: 'Buscar substituto por nome',
-                prefixIcon: Icon(Icons.search),
+            const SizedBox(height: 4),
+            Text(
+              'A vaga (e o pagamento dela) passa para o substituto quando ele '
+              'aceitar o convite. Válido até a publicação das chaves.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: colors.onSurfaceMuted),
+            ),
+            const SizedBox(height: 16),
+            Text('Quem sai?', style: theme.textTheme.titleSmall),
+            RadioGroup<String>(
+              groupValue: _replacedUid,
+              onChanged: (v) => setState(() => _replacedUid = v),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final uid in widget.replaceableUids)
+                    RadioListTile<String>(
+                      value: uid,
+                      title: Text(_nameOf(uid)),
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: AppColors.brand,
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            if (_searching)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 280),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _results.length,
-                  itemBuilder: (context, index) {
-                    final profile = _results[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(appUserDisplayName(profile)),
-                      trailing: TextButton(
-                        onPressed: _sending ? null : () => _send(profile),
-                        child: const Text('Convidar'),
-                      ),
-                    );
-                  },
+            if (_replacedUid != null) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _searchController,
+                onSubmitted: _search,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Buscar substituto por nome',
+                  prefixIcon: Icon(Icons.search),
                 ),
               ),
+              const SizedBox(height: 8),
+              if (_searching)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _results.length,
+                    itemBuilder: (context, index) {
+                      final profile = _results[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(appUserDisplayName(profile)),
+                        trailing: TextButton(
+                          onPressed: _sending ? null : () => _send(profile),
+                          child: const Text('Convidar'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -200,8 +200,8 @@ service cloud.firestore {
     }
     function inscriptionSubstitutionFieldsUnchanged() {
       // Histórico de substituição é escrito apenas pelas Cloud Functions
-      // (aceite do convite de substituição): sem isto o atleta forjaria ou
-      // apagaria a trilha da troca.
+      // (aceite do convite de substituição): sem isto o atleta alteraria a
+      // trilha da troca.
       return (!('substitutionHistory' in request.resource.data) ||
               request.resource.data.substitutionHistory == resource.data.substitutionHistory);
     }

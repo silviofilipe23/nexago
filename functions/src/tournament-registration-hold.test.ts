@@ -6,6 +6,7 @@ import {
   PIX_HOLD_MARGIN_MS,
   computeRegistrationHoldExpiryMs,
   extendHoldForPixMs,
+  registrationHoldImmunityReason,
   resolveRegistrationHoldMinutes,
   shouldTrackRegistrationHold,
 } from "./tournament-registration-hold";
@@ -112,6 +113,74 @@ describe("extendHoldForPixMs", () => {
   });
 });
 
+describe("registrationHoldImmunityReason", () => {
+  it("inscrição fechada comprou a vaga", () => {
+    assert.equal(registrationHoldImmunityReason({isPaid: true}), "paid");
+  });
+
+  it("dinheiro registrado na plataforma compra a vaga", () => {
+    assert.equal(
+      registrationHoldImmunityReason({isPaid: false, paidAmount: 5000}),
+      "settledAmount",
+    );
+  });
+
+  it("baixa do organizador vale sem valor gravado", () => {
+    // `organizerConfirmRegistrationPayment` por atleta não grava `paidAmount`:
+    // quem recebeu o dinheiro é que está dando a baixa.
+    assert.equal(
+      registrationHoldImmunityReason({
+        isPaid: false,
+        paidAmount: 0,
+        sharePaidUids: ["uid-1"],
+        organizerConfirmedShareUids: ["uid-1"],
+      }),
+      "organizerConfirmed",
+    );
+  });
+
+  it("confirmação em categoria gratuita não compra vaga nenhuma", () => {
+    // Um clique, zero dinheiro: enquanto a dupla não fecha, o relógio corre.
+    assert.equal(
+      registrationHoldImmunityReason({
+        isPaid: false,
+        paidAmount: 0,
+        sharePaidUids: ["uid-1"],
+      }),
+      null,
+    );
+  });
+
+  it("declaração de PARCELA do pagamento direto não compra a vaga", () => {
+    assert.equal(
+      registrationHoldImmunityReason({
+        isPaid: false,
+        paidAmount: 0,
+        paymentChannel: "directOrganizer",
+        sharePaidUids: ["uid-1"],
+      }),
+      null,
+    );
+  });
+
+  it("lista de confirmados do organizador vazia ou suja não dá imunidade", () => {
+    assert.equal(
+      registrationHoldImmunityReason({
+        sharePaidUids: ["uid-1"],
+        organizerConfirmedShareUids: [],
+      }),
+      null,
+    );
+    assert.equal(
+      registrationHoldImmunityReason({
+        sharePaidUids: ["uid-1"],
+        organizerConfirmedShareUids: ["", "  "],
+      }),
+      null,
+    );
+  });
+});
+
 describe("shouldTrackRegistrationHold", () => {
   it("inscrição pendente sem pagamento entra na regra", () => {
     assert.equal(
@@ -127,14 +196,43 @@ describe("shouldTrackRegistrationHold", () => {
     );
   });
 
-  it("qualquer pagamento tira a inscrição da regra", () => {
+  it("inscrição fechada e dinheiro de verdade saem da regra", () => {
     assert.equal(shouldTrackRegistrationHold({isPaid: true}), false);
     assert.equal(
-      shouldTrackRegistrationHold({isPaid: false, sharePaidUids: ["uid-1"]}),
+      shouldTrackRegistrationHold({isPaid: false, paidAmount: 5000}),
       false,
     );
     assert.equal(
-      shouldTrackRegistrationHold({isPaid: false, paidAmount: 5000}),
+      shouldTrackRegistrationHold({
+        isPaid: false,
+        organizerConfirmedShareUids: ["uid-1"],
+      }),
+      false,
+    );
+  });
+
+  it("um atleta marcado sem dinheiro CONTINUA na regra", () => {
+    // O buraco que este critério fecha: em categoria gratuita e na declaração
+    // de parcela do pagamento direto, um atleta sozinho preenchia
+    // `sharePaidUids` e a inscrição saía da varredura para sempre — com a
+    // dupla incompleta e a vaga presa.
+    assert.equal(
+      shouldTrackRegistrationHold({isPaid: false, sharePaidUids: ["uid-1"]}),
+      true,
+    );
+  });
+
+  it("fila de espera vence até o pagamento", () => {
+    assert.equal(
+      shouldTrackRegistrationHold({isPaid: true, waitlist: true}),
+      false,
+    );
+    assert.equal(
+      shouldTrackRegistrationHold({
+        isPaid: false,
+        waitlist: true,
+        sharePaidUids: ["uid-1"],
+      }),
       false,
     );
   });

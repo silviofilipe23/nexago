@@ -438,6 +438,10 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
         await ref.update({
           sharePaidUids: FieldValue.arrayUnion(athleteUid),
           organizerConfirmedShareUids: FieldValue.arrayUnion(athleteUid),
+          // O organizador deu baixa neste atleta: dinheiro real, ainda que sem
+          // valor gravado. A vaga é dele e deixa de ter prazo — senão o atleta
+          // seguiria vendo uma contagem que nunca vai disparar.
+          ...registrationHoldClearedFields(),
           updatedAt: FieldValue.serverTimestamp(),
         });
         try {

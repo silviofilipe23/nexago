@@ -153,6 +153,7 @@ export async function seedTournament({
   registrationClosesAt,
   registrationOpensAt,
   waitlistEnabled,
+  requireFormedPair,
   organizerId = 'organizador-1',
 } = {}) {
   const tournamentId = id ?? `torneio-${++tournamentCounter}`;
@@ -167,6 +168,7 @@ export async function seedTournament({
   if (registrationClosesAt) data.registrationClosesAt = registrationClosesAt;
   if (registrationOpensAt) data.registrationOpensAt = registrationOpensAt;
   if (waitlistEnabled !== undefined) data.waitlistEnabled = waitlistEnabled;
+  if (requireFormedPair !== undefined) data.requireFormedPair = requireFormedPair;
   await db.doc(`tournaments/${tournamentId}`).set(data);
   return tournamentId;
 }

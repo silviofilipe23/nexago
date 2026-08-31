@@ -256,6 +256,10 @@ export interface TournamentSummary {
   paymentMode: 'appPixCard' | 'directWithOrganizer';
   organizerPix: { key: string; keyType: string; recipientName: string; city: string } | null;
   waitlistEnabled: boolean;
+  /** Torneio sem inscrição individual: em categoria de DUPLA a vaga só nasce quando o parceiro
+   *  aceita o convite. A trava real é da CF `registerSoloTournament`; aqui o portal só deixa de
+   *  oferecer o caminho da reserva solo. */
+  requireFormedPair: boolean;
   /** Instante em que as inscrições abrem (`registrationOpensAt` no doc). Antes dele a CF
    *  recusa inscrição mesmo com o torneio publicado como `open`. */
   registrationOpensAt: Date | null;
@@ -321,6 +325,7 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     paymentMode: optionalStr(data['paymentMode']) === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
     organizerPix: organizerPixOf(data['organizerPix']),
     waitlistEnabled: data['waitlistEnabled'] !== false,
+    requireFormedPair: data['requireFormedPair'] === true,
     registrationOpensAt: toDate(data['registrationOpensAt']),
     tournamentPrizes: prizesOf(data['prizes']),
     categories,

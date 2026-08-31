@@ -50,6 +50,24 @@ export function findCategory(
   );
 }
 
+/** Copy única do bloqueio da reserva solo em torneio de dupla já formada. */
+export const FORMED_PAIR_REQUIRED_MESSAGE =
+  "Este torneio exige dupla já formada. Convide seu parceiro: a vaga é " +
+  "criada quando ele aceitar o convite.";
+
+/**
+ * Torneio exige DUPLA JÁ FORMADA: não há reserva solo, a inscrição nasce
+ * quando o parceiro aceita o convite (`tournaments/{id}.requireFormedPair`).
+ *
+ * Ausente = `false` = comportamento histórico (o atleta reserva a vaga sozinho
+ * e chama o parceiro depois), então torneio antigo não muda de regra.
+ */
+export function requiresFormedPair(
+  tournament: TournamentData | null | undefined,
+): boolean {
+  return tournament?.requireFormedPair === true;
+}
+
 /** Taxa de inscrição da categoria (por `id`, `categoryId` ou `categoryName`). */
 export function resolveCategoryEntryFee(
   tournament: TournamentData,

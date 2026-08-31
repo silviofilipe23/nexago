@@ -531,6 +531,7 @@ class _TournamentRegistrationPageState
     required TournamentDetail tournament,
     required TournamentCategoryOffer category,
     required TournamentRegistrationPartnerCandidate candidate,
+    bool isEntryInvite = false,
   }) async {
     if (_invitingUserId != null) return;
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
@@ -549,6 +550,14 @@ class _TournamentRegistrationPageState
         setState(() => _uniformError = error);
         return;
       }
+    }
+
+    // Torneio de dupla já formada: o convite É a entrada do atleta (não houve
+    // reserva solo antes dele), então o aceite LGPD e o gate de nível — que no
+    // fluxo normal moram em `_registerSolo` — acontecem aqui.
+    if (isEntryInvite) {
+      if (!_requireLgpd('convidar seu parceiro')) return;
+      if (!await _ensureLevelConfirmed(tournament.sport)) return;
     }
 
     // Inscrição legada sem o meu aceite: o checkbox reaparece no cartão e o
@@ -1135,6 +1144,8 @@ class _TournamentRegistrationPageState
               RegistrationShellNote(
                 hasRegistration
                     ? 'Sua escolha é salva sozinha — não precisa confirmar.'
+                    : tournament.requireFormedPair && !category.isTeamCategory
+                    ? 'Seu uniforme é enviado junto com o convite ao parceiro.'
                     : 'Seu uniforme é enviado junto com a reserva da vaga.',
               ),
             ],
@@ -1322,6 +1333,27 @@ class _TournamentRegistrationPageState
             ],
           );
         }
+        // Torneio de dupla já formada: não existe reserva solo. O atleta
+        // convida o parceiro aqui mesmo e a vaga nasce no aceite — o servidor
+        // recusa `registerSoloTournament` neste torneio.
+        if (registrationRequiresFormedPairEntry(
+          tournamentRequiresFormedPair: tournament.requireFormedPair,
+          isTeamCategory: category.isTeamCategory,
+        )) {
+          if (blocked) {
+            return RegistrationShellNote(
+              status?.message ??
+                  'Esta categoria não está aceitando inscrições agora.',
+            );
+          }
+          return _buildRosterBody(
+            tournament: tournament,
+            category: category,
+            snap: null,
+            canAccess: canAccess,
+            formedPairEntry: true,
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1431,6 +1463,9 @@ class _TournamentRegistrationPageState
     required TournamentCategoryOffer category,
     required TournamentRegistrationSnapshot? snap,
     required bool canAccess,
+    /// Entrada em torneio de dupla já formada: ainda NÃO há inscrição — o
+    /// convite é que a cria. Muda a nota e traz o aceite LGPD para cá.
+    bool formedPairEntry = false,
   }) {
     final myUid = ref.watch(authServiceProvider).currentUser?.uid;
     final sentInvites = _sentInvitesFor(category);
@@ -1466,6 +1501,7 @@ class _TournamentRegistrationPageState
             isCaptain: isCaptain,
             isPaid: snap?.isPaid == true,
             hasPendingInvite: sentInvites.isNotEmpty,
+            requiresFormedPair: formedPairEntry,
           ),
         ),
         // Sem parceiro ainda? Pagar o valor integral garante a vaga desde já —
@@ -1515,7 +1551,8 @@ class _TournamentRegistrationPageState
                 : null,
           ),
         ],
-        if (snap != null && snap.lgpdConsentMissingFor(myUid)) ...[
+        if (formedPairEntry ||
+            (snap != null && snap.lgpdConsentMissingFor(myUid))) ...[
           const SizedBox(height: AppSpacing.lg),
           RegistrationLgpdConsentBox(
             accepted: _lgpdAccepted,
@@ -1573,6 +1610,7 @@ class _TournamentRegistrationPageState
                   tournament: tournament,
                   category: category,
                   candidate: candidate,
+                  isEntryInvite: formedPairEntry,
                 );
               },
               onInviteByLink: _sharingExternalInvite

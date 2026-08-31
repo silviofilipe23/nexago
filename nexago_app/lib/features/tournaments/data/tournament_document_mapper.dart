@@ -141,6 +141,7 @@ abstract final class TournamentDocumentMapper {
       organizerPixKeyType: _pixField(data['organizerPix'], 'keyType'),
       organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),
       organizerPixCity: _pixField(data['organizerPix'], 'city'),
+      requireFormedPair: data['requireFormedPair'] == true,
     );
   }
 

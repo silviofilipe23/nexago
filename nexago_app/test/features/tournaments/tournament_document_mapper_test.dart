@@ -350,4 +350,25 @@ void main() {
 
     expect(d.registrationOpensAt, isNull);
   });
+
+  group('requireFormedPair (exigir dupla já formada)', () {
+    test('lê o campo do doc do torneio', () {
+      final t = TournamentDocumentMapper.detailFromMap('t1', {
+        'name': 'Copa',
+        'dateLabel': '1 mai',
+        'startAt': DateTime(2026, 5, 1),
+        'requireFormedPair': true,
+      });
+      expect(t.requireFormedPair, isTrue);
+    });
+
+    test('torneio antigo (campo ausente) aceita inscrição individual', () {
+      final t = TournamentDocumentMapper.detailFromMap('t1', {
+        'name': 'Copa',
+        'dateLabel': '1 mai',
+        'startAt': DateTime(2026, 5, 1),
+      });
+      expect(t.requireFormedPair, isFalse);
+    });
+  });
 }

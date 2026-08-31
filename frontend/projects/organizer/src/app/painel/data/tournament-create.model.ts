@@ -100,6 +100,9 @@ export interface TournamentCreateDraft {
   organizerPixCity: string;
   waitlistEnabled: boolean;
   inviteConfirmEnabled: boolean;
+  /** Sem inscrição individual: em categoria de dupla a vaga só nasce quando o parceiro aceita o
+   *  convite. Lido pela Cloud Function `registerSoloTournament`, que recusa a reserva solo. */
+  requireFormedPair: boolean;
   cashPrizesEnabled: boolean;
   regulationNotes: string;
   uniformRequired: boolean;
@@ -168,6 +171,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
     organizerPixCity: '',
     waitlistEnabled: true,
     inviteConfirmEnabled: false,
+    requireFormedPair: false,
     cashPrizesEnabled: true,
     regulationNotes: '',
     uniformRequired: true,

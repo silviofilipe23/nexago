@@ -173,7 +173,7 @@ function category(overrides: Partial<TournamentCategoryOffer> = {}): TournamentC
   } as TournamentCategoryOffer;
 }
 
-function listing(cat: TournamentCategoryOffer): unknown {
+function listing(cat: TournamentCategoryOffer, overrides: Record<string, unknown> = {}): unknown {
   return {
     id: 't1',
     name: 'Etapa Teste',
@@ -182,7 +182,9 @@ function listing(cat: TournamentCategoryOffer): unknown {
     dateLabel: null,
     sport: 'beachVolleyball',
     paymentMode: 'directWithOrganizer',
+    requireFormedPair: false,
     categories: [cat],
+    ...overrides,
   };
 }
 
@@ -381,5 +383,70 @@ describe('TournamentRegistrationShellComponent — convite de dupla pendente esc
 
     expect(searchInput()).toBeNull();
     expect(text).toContain('Vaga garantida! Convite enviado — seu parceiro entra sem taxa assim que aceitar.');
+  });
+});
+
+
+/** Torneio que exige dupla já formada: não existe reserva solo — o convite é a entrada, e a
+ *  vaga só nasce quando o parceiro aceita (`registerSoloTournament` recusa no servidor). */
+describe('TournamentRegistrationShellComponent — torneio de dupla já formada', () => {
+  let fixture: ComponentFixture<TournamentRegistrationShellComponent>;
+
+  interface FormedPairInternals {
+    loading: WritableSignal<boolean>;
+    listing: WritableSignal<unknown>;
+    selectedCategoryId: WritableSignal<string | null>;
+    myRegistrations: WritableSignal<AthleteTournamentRegistration[]>;
+  }
+  let cmp: FormedPairInternals;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [TournamentRegistrationShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { user: signal(null), devEmail: signal(null) } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(TournamentRegistrationShellComponent);
+    await fixture.whenStable();
+    cmp = fixture.componentInstance as unknown as FormedPairInternals;
+  });
+
+  afterEach(() => fixture?.destroy());
+
+  async function render(cat: TournamentCategoryOffer): Promise<string> {
+    cmp.listing.set(listing(cat, { requireFormedPair: true }));
+    cmp.selectedCategoryId.set(cat.id);
+    cmp.myRegistrations.set([]);
+    cmp.loading.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  const searchInput = () => (fixture.nativeElement as HTMLElement).querySelector('input[type="search"]');
+
+  it('dupla sem inscrição: troca o CTA de reserva solo pela busca de parceiro', async () => {
+    const text = await render(category());
+
+    expect(text).not.toContain('Reservar minha vaga');
+    expect(text).toContain('Este torneio exige dupla já formada.');
+    expect(searchInput()).not.toBeNull();
+  });
+
+  it('dupla sem inscrição: o aceite do termo aparece antes do convite', async () => {
+    await render(category());
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-lgpd-consent-box')).not.toBeNull();
+  });
+
+  it('equipe (trio+) continua criando a equipe pelo nome', async () => {
+    const text = await render(category({ teamSize: 4 }));
+
+    expect(text).toContain('Criar equipe e reservar vaga');
+    expect(searchInput()).toBeNull();
   });
 });

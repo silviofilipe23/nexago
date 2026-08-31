@@ -1,10 +1,49 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+/// Erro de callable já traduzido para o organizador ler. As recusas de
+/// pagamento vêm do servidor em português ("Esta inscrição já tem pagamento
+/// parcial…"), então a mensagem útil é a do próprio erro — sem isso a tela
+/// mostrava `[firebase_functions/failed-precondition] …` cru.
+class OrganizerCategoryOpsException implements Exception {
+  OrganizerCategoryOpsException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Mensagem do erro da callable, ou [fallback] quando o servidor não mandou
+/// nenhuma. `e.message ?? fallback` não basta: em falha de transporte a
+/// plataforma entrega `message` VAZIA (não nula), e o organizador via um
+/// snackbar em branco logo depois de mexer em dinheiro — parecia que o toque
+/// não fez nada.
+String _callableMessage(FirebaseFunctionsException e, String fallback) {
+  final message = e.message?.trim() ?? '';
+  return message.isEmpty ? fallback : message;
+}
+
 class OrganizerCategoryOpsService {
   OrganizerCategoryOpsService({FirebaseFunctions? functions})
       : _functions = functions ?? FirebaseFunctions.instance;
 
   final FirebaseFunctions _functions;
+
+  /// Callable da folha de ações da dupla, com o erro já traduzido. NÃO use em
+  /// `generateCategoryBracket`: a tela de chave inspeciona o
+  /// `FirebaseFunctionsException` cru (`details['reason']`, `code`) para abrir
+  /// o diálogo de regeração — embrulhar mataria essa confirmação em silêncio.
+  Future<void> _callRegistrationOp(
+    String name,
+    Map<String, dynamic> payload,
+    String fallback,
+  ) async {
+    try {
+      await _functions.httpsCallable(name).call(payload);
+    } on FirebaseFunctionsException catch (e) {
+      throw OrganizerCategoryOpsException(_callableMessage(e, fallback));
+    }
+  }
 
   Future<void> generateCategoryBracket({
     required String tournamentId,
@@ -27,17 +66,50 @@ class OrganizerCategoryOpsService {
     });
   }
 
+  /// [athleteUid] confirma a parte de UM atleta da dupla/equipe: a inscrição só
+  /// fecha (`isPaid`) quando todos estiverem confirmados. Sem ele, confirma a
+  /// inscrição inteira — e a callable RECUSA esse caminho quando já existe
+  /// pagamento parcial, para não marcar como pago quem não pagou.
   Future<void> confirmRegistrationPayment({
     required String registrationId,
+    String? athleteUid,
   }) async {
-    final callable =
-        _functions.httpsCallable('organizerConfirmRegistrationPayment');
-    await callable.call({'registrationId': registrationId.trim()});
+    final uid = athleteUid?.trim() ?? '';
+    await _callRegistrationOp(
+      'organizerConfirmRegistrationPayment',
+      {
+        'registrationId': registrationId.trim(),
+        if (uid.isNotEmpty) 'athleteUid': uid,
+      },
+      'Não foi possível confirmar o pagamento.',
+    );
+  }
+
+  /// Desfaz a baixa manual do organizador. Com [athleteUid], desfaz só a parte
+  /// daquele atleta (o resto da dupla não é afetado); a callable recusa quando
+  /// a confirmação não foi manual ou quando a inscrição já está paga por
+  /// inteiro — nesse caso a reversão é da inscrição toda.
+  Future<void> revertRegistrationPayment({
+    required String registrationId,
+    String? athleteUid,
+  }) async {
+    final uid = athleteUid?.trim() ?? '';
+    await _callRegistrationOp(
+      'organizerRevertRegistrationPayment',
+      {
+        'registrationId': registrationId.trim(),
+        if (uid.isNotEmpty) 'athleteUid': uid,
+      },
+      'Não foi possível desfazer a confirmação.',
+    );
   }
 
   Future<void> moveToWaitlist({required String registrationId}) async {
-    final callable = _functions.httpsCallable('organizerMoveToWaitlist');
-    await callable.call({'registrationId': registrationId.trim()});
+    await _callRegistrationOp(
+      'organizerMoveToWaitlist',
+      {'registrationId': registrationId.trim()},
+      'Não foi possível mover para a fila.',
+    );
   }
 
   /// [description] é obrigatória: a inscrição é deletada, então esse texto é a
@@ -46,11 +118,14 @@ class OrganizerCategoryOpsService {
     required String registrationId,
     required String description,
   }) async {
-    final callable = _functions.httpsCallable('organizerRemoveFromCategory');
-    await callable.call({
-      'registrationId': registrationId.trim(),
-      'description': description.trim(),
-    });
+    await _callRegistrationOp(
+      'organizerRemoveFromCategory',
+      {
+        'registrationId': registrationId.trim(),
+        'description': description.trim(),
+      },
+      'Não foi possível remover a inscrição.',
+    );
   }
 
   /// Responde ao pedido de cancelamento do atleta. Aprovar remove a inscrição e
@@ -61,13 +136,15 @@ class OrganizerCategoryOpsService {
     required bool approve,
     String note = '',
   }) async {
-    final callable =
-        _functions.httpsCallable('respondRegistrationCancellationRequest');
-    await callable.call({
-      'registrationId': registrationId.trim(),
-      'approve': approve,
-      'note': note.trim(),
-    });
+    await _callRegistrationOp(
+      'respondRegistrationCancellationRequest',
+      {
+        'registrationId': registrationId.trim(),
+        'approve': approve,
+        'note': note.trim(),
+      },
+      'Não foi possível responder ao pedido de cancelamento.',
+    );
   }
 
   Future<Map<String, dynamic>> sendCategoryCommunication({

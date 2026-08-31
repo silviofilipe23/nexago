@@ -582,6 +582,87 @@ String teamPaymentActionSubtitle(OrganizerCategoryTeamRow team) {
   return '$paymentLabel · $amount · ${formatTeamRegistrationDate(registered)}';
 }
 
+/// A inscrição declarou o pagamento direto e o organizador ainda não deu baixa
+/// ("A conferir" do portal web). `declaredPaidAt` — e não o método de pagamento
+/// — é a âncora: inscrição direta anterior a este fluxo não entra
+/// retroativamente numa fila de conferência que ninguém vai fazer.
+bool teamAwaitsPaymentVerification(OrganizerCategoryTeamRow team) =>
+    team.declaredPaidAt != null && !team.paymentVerifiedByOrganizer;
+
+/// Pagamento resolvido: a vaga está garantida (`isPaid`) E não sobrou
+/// conferência pendente. É o estado em que não há mais nada a confirmar.
+bool isTeamPaymentSettled(OrganizerCategoryTeamRow team) =>
+    team.status == OrganizerTeamRegistrationStatus.confirmed &&
+    !teamAwaitsPaymentVerification(team);
+
+OrganizerAthletePaymentState athletePaymentState(
+  OrganizerCategoryTeamRow team,
+  String athleteUid,
+) {
+  final uid = athleteUid.trim();
+  if (uid.isEmpty) return OrganizerAthletePaymentState.pending;
+  if (team.organizerConfirmedShareUids.contains(uid)) {
+    return OrganizerAthletePaymentState.organizerConfirmed;
+  }
+  if (team.sharePaidUids.contains(uid)) {
+    return OrganizerAthletePaymentState.declared;
+  }
+  return OrganizerAthletePaymentState.pending;
+}
+
+/// Espelha `bulkConfirmBlockedByPartialShare` (CF): parte do elenco já quitou a
+/// própria parte e parte não. Confirmar "a inscrição inteira" nesse estado
+/// marcaria como pago quem não pagou — a callable RECUSA
+/// (`failed-precondition`), então a ação em bloco some da tela.
+bool teamHasPartialPayment(OrganizerCategoryTeamRow team) {
+  final uids = team.participantUids;
+  if (uids.length <= 1) return false;
+  if (team.sharePaidUids.isEmpty) return false;
+  return !uids.every(team.sharePaidUids.contains);
+}
+
+/// Confirmar/desfazer por atleta só faz sentido em dupla que ainda não fechou:
+/// "a conferir" já é elenco completo declarado e "pago" não tem mais o que
+/// dividir.
+bool showsAthletePaymentBreakdown(OrganizerCategoryTeamRow team) {
+  if (team.participantUids.length <= 1) return false;
+  if (teamAwaitsPaymentVerification(team)) return false;
+  return team.status != OrganizerTeamRegistrationStatus.confirmed;
+}
+
+/// Quantos atletas da inscrição já quitaram a própria parte.
+int teamSharePaidCount(OrganizerCategoryTeamRow team) =>
+    team.participantUids.where(team.sharePaidUids.contains).length;
+
+/// Selo do pagamento parcial na lista ("1/2 PAGO") — sem ele o organizador só
+/// descobre quem pagou pela metade abrindo dupla por dupla.
+String teamPartialPaymentLabel(OrganizerCategoryTeamRow team) =>
+    '${teamSharePaidCount(team)}/${team.participantUids.length} PAGO';
+
+String athletePaymentStateLabel(OrganizerAthletePaymentState state) =>
+    switch (state) {
+      OrganizerAthletePaymentState.organizerConfirmed => 'Confirmado por você',
+      OrganizerAthletePaymentState.declared =>
+        'Declarado pelo atleta · aguardando conferência',
+      OrganizerAthletePaymentState.pending => 'Pagamento pendente',
+    };
+
+/// Rótulo do botão do atleta. Em quem já declarou, o organizador não está
+/// lançando um pagamento novo: está dando baixa numa declaração.
+String athletePaymentActionLabel(OrganizerAthletePaymentState state) =>
+    switch (state) {
+      OrganizerAthletePaymentState.organizerConfirmed => 'Desfazer',
+      OrganizerAthletePaymentState.declared => 'Confirmar recebimento',
+      OrganizerAthletePaymentState.pending => 'Confirmar pagamento',
+    };
+
+/// Rótulo da ação em bloco — mesma distinção do rótulo por atleta, agora no
+/// nível da inscrição (todo mundo declarou, falta a baixa).
+String teamConfirmPaymentActionLabel(OrganizerCategoryTeamRow team) =>
+    teamAwaitsPaymentVerification(team)
+        ? 'Confirmar recebimento'
+        : 'Confirmar pagamento';
+
 int teamCombinedRankingPoints(OrganizerCategoryTeamRow team) =>
     team.player1.rankingPoints + team.player2.rankingPoints;
 

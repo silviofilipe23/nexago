@@ -705,3 +705,10 @@ abstract final class AppRouteNames {
   static const String teamProfile = 'teamProfile';
   static const String myTournaments = 'myTournaments';
 }
+
+/// Tela de acompanhamento da substituição (`AppRoutes.tournamentSubstitutionStatus`)
+/// só é registrada no GoRouter na Task 6. Até lá, o passo 2 do wizard
+/// (`tournament_substitution_pick_page.dart`) não navega pra ela — envia o
+/// convite e volta pro detalhe da inscrição com um snackbar de sucesso.
+/// TODO(Task 6): virar `true` quando a rota for registrada.
+const bool kSubstitutionStatusRouteReady = false;

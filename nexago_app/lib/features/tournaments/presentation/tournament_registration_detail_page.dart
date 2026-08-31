@@ -22,7 +22,6 @@ import '../domain/tournament_partner_invite_providers.dart';
 import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_substitution_logic.dart';
 import 'widgets/tournament_registration/registration_cancellation_flow.dart';
-import 'widgets/tournament_registration/tournament_substitution_sheet.dart';
 
 /// Detalhe da inscrição confirmada — aberto pelo card correspondente da aba
 /// "Minha inscrição". Reúne o que antes vivia espalhado no card (status,
@@ -177,12 +176,12 @@ class _TournamentRegistrationDetailPageState
               title: 'Substituir um atleta da ${_unitWord(reg)}',
               subtitle: 'Alguém não vai poder jogar — mantenha a vaga '
                   'trocando o ${_isTeam(reg) ? 'atleta' : 'parceiro'}',
-              // O wizard dedicado nasce na Task 5 — até lá reusa o sheet
-              // existente (ver nota no relatório da Task 4).
-              onTap: () => showTournamentSubstitutionSheet(
-                context,
-                registration: reg,
-                replaceableUids: replaceableUids,
+              onTap: () => context.pushNamed(
+                AppRouteNames.tournamentSubstitutionWizard,
+                pathParameters: {
+                  'tournamentId': widget.tournamentId,
+                  'registrationId': widget.registrationId,
+                },
               ),
             ),
           if (pendingInvite != null || replaceableUids.isNotEmpty)

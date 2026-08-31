@@ -13,6 +13,7 @@ import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/tournaments/data/my_tournament_registrations_repository.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_partner_invite_service.dart';
@@ -20,6 +21,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_registration_detail_page.dart';
+import 'package:nexago_app/features/tournaments/presentation/tournament_substitution_wizard_page.dart';
 
 void main() {
   const meuUid = 'me';
@@ -105,6 +107,14 @@ void main() {
           builder: (_, __) => TournamentRegistrationDetailPage(
             tournamentId: registration.tournamentId,
             registrationId: registration.registrationId,
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.tournamentSubstitutionWizard,
+          name: AppRouteNames.tournamentSubstitutionWizard,
+          builder: (context, state) => TournamentSubstitutionWizardPage(
+            tournamentId: state.pathParameters['tournamentId'] ?? '',
+            registrationId: state.pathParameters['registrationId'] ?? '',
           ),
         ),
       ],
@@ -226,8 +236,8 @@ void main() {
       await tester.tap(find.text('Substituir um atleta da dupla'));
       await tester.pumpAndSettle();
 
-      // O sheet existente (Task 5 troca por rota própria) abriu por cima.
-      expect(find.text('Quem sai?'), findsOneWidget);
+      // Task 5: o sheet foi aposentado — o toque navega pro wizard dedicado.
+      expect(find.text('Quem não vai poder jogar?'), findsOneWidget);
     });
 
     testWidgets(

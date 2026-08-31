@@ -189,6 +189,7 @@ import '../../features/tournaments/presentation/tournament_registration_payment_
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_detail_page.dart';
+import '../../features/tournaments/presentation/tournament_substitution_wizard_page.dart';
 import '../auth/post_login_destination.dart';
 import '../auth/auth_providers.dart';
 import 'go_router_refresh.dart';
@@ -1389,6 +1390,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final registrationId =
               state.pathParameters['registrationId']?.trim() ?? '';
           return TournamentRegistrationDetailPage(
+            tournamentId: tournamentId,
+            registrationId: registrationId,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentSubstitutionWizard,
+        name: AppRouteNames.tournamentSubstitutionWizard,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final registrationId =
+              state.pathParameters['registrationId']?.trim() ?? '';
+          return TournamentSubstitutionWizardPage(
             tournamentId: tournamentId,
             registrationId: registrationId,
           );

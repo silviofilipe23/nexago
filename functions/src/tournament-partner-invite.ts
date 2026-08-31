@@ -72,7 +72,7 @@ import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helper
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 
 export const INVITES_COLLECTION = "tournamentRegistrationInvites";
-const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
+export const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 
 // Versão do termo LGPD/uso de imagem exibido nas UIs de inscrição. O aceite é
 // opcional no payload (apps antigos não enviam); quando presente, fica
@@ -523,6 +523,8 @@ async function markStaleTeamInvitesAfterRosterFull(
   for (const doc of snap.docs) {
     if (doc.id === acceptedInviteId) continue;
     const data = doc.data();
+    // Convite de substituição não é vaga prometida: elenco completo não o invalida.
+    if (data.isSubstitutionInvite === true) continue;
     if (String(data.attachRegistrationId ?? "").trim() !== registrationId) {
       continue;
     }
@@ -707,6 +709,7 @@ async function sendTeamCategoryInvite(params: {
     .filter(
       (d) =>
         String(d.attachRegistrationId ?? "").trim() === captainRegId &&
+        d.isSubstitutionInvite !== true &&
         !inviteExpired(d, nowMs),
     );
 
@@ -1466,7 +1469,7 @@ async function notifyOrganizersRegistrationCompleted({
 }
 
 export const acceptTournamentPartnerInvite = onCall({
-  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT, ...asaasArenaSecrets],
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
@@ -1508,6 +1511,23 @@ export const acceptTournamentPartnerInvite = onCall({
       throw new HttpsError("failed-precondition", "Este convite expirou.");
     }
   }
+
+  // Convite de SUBSTITUIÇÃO: fluxo próprio (gate de chaves, elegibilidade
+  // pós-troca, herança de pagamento) — e sem `assertTournamentAcceptsRegistration`,
+  // porque a troca vale com as inscrições encerradas. Import dinâmico para não
+  // fechar ciclo de módulos (tournament-substitution importa helpers daqui).
+  if (invitePreviewData.isSubstitutionInvite === true) {
+    const {acceptSubstitutionInviteFor} = await import("./tournament-substitution.js");
+    return await acceptSubstitutionInviteFor({
+      db,
+      projectId,
+      uid,
+      inviteId,
+      inviteeLgpdAccepted,
+      inviteeUniformRaw: request.data?.inviteeUniform,
+    });
+  }
+
   const previewTournamentId = invitePreviewData.tournamentId as string;
   const previewCategoryId = invitePreviewData.categoryId as string;
   const previewTournament = await loadTournamentDataForInvite(
@@ -2157,6 +2177,26 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Apenas o convidado pode recusar.");
     }
     await inviteRef.update({status: "declined"});
+    // Substituição: quem iniciou está esperando resolver um problema da equipe
+    // — a recusa precisa chegar ativamente, não só sumir da lista.
+    if (invite.isSubstitutionInvite === true) {
+      const inviterUid = (invite.inviterUid as string | undefined)?.trim() ?? "";
+      if (inviterUid) {
+        try {
+          await deliverNotificationToUser({
+            userId: inviterUid,
+            title: "Convite de substituição recusado",
+            body:
+              `${String(invite.inviteeName ?? "O atleta").trim() || "O atleta"} recusou entrar ` +
+              `no lugar de ${String(invite.replacedName ?? "seu atleta").trim() || "seu atleta"}.`,
+            type: "tournament_substitution_declined",
+            data: {inviteId, tournamentId: String(invite.tournamentId ?? "").trim()},
+          });
+        } catch (notifyError) {
+          logger.warn("Falha ao notificar recusa de substituição", {inviteId, notifyError});
+        }
+      }
+    }
     try {
       await markTournamentPartnerInviteInboxResponse(uid, inviteId, "declined");
     } catch (inboxError) {

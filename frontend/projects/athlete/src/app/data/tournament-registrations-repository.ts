@@ -46,6 +46,25 @@ export interface RegistrationCancellationRequest {
   responseNote: string;
 }
 
+/** Uma troca de atleta já feita na inscrição (`substitutionHistory`), gravada
+ *  pelo backend no aceite do convite de substituição. */
+export interface RegistrationSubstitutionEntry {
+  outName: string;
+  inName: string;
+  at: Date | null;
+}
+
+function substitutionHistoryFromDoc(v: unknown): RegistrationSubstitutionEntry[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      outName: optionalStr(item['outName']) ?? 'Atleta',
+      inName: optionalStr(item['inName']) ?? 'Atleta',
+      at: toDate(item['at']),
+    }));
+}
+
 export interface AthleteTournamentRegistration {
   id: string;
   tournamentId: string;
@@ -80,6 +99,8 @@ export interface AthleteTournamentRegistration {
   captainUid: string | null;
   /** Uniforme por atleta nas categorias de equipe (`uniformByUid.{uid}`). */
   uniformByUid: Record<string, RegistrationUniformSlot>;
+  /** Trocas de atleta já concluídas nesta inscrição, mais antiga primeiro. */
+  substitutionHistory: RegistrationSubstitutionEntry[];
 }
 
 export const EMPTY_UNIFORM_SLOT: RegistrationUniformSlot = {
@@ -160,6 +181,7 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     teamSize: teamSizeRaw != null && teamSizeRaw >= 3 && teamSizeRaw <= 5 ? teamSizeRaw : null,
     captainUid: optionalStr(data['captainUid']),
     uniformByUid: uniformByUidFromDoc(data),
+    substitutionHistory: substitutionHistoryFromDoc(data['substitutionHistory']),
   };
 }
 
@@ -216,6 +238,9 @@ export interface TournamentPartnerInvite {
   isTeamInvite: boolean;
   teamName: string | null;
   teamSize: number | null;
+  /** Convite de SUBSTITUIÇÃO: o convidado entraria no lugar de `replacedName`. */
+  isSubstitutionInvite: boolean;
+  replacedName: string | null;
 }
 
 /** Par `(id, data)` que `getDocs` e `onSnapshot` entregam igual — o mapeamento e o corte de
@@ -246,6 +271,8 @@ export function partnerInvitesFromDocs(docs: readonly RawInviteDoc[], now = Date
         isTeamInvite: data['isTeamInvite'] === true,
         teamName: optionalStr(data['teamName']),
         teamSize: teamSize != null && teamSize >= 3 && teamSize <= 5 ? teamSize : null,
+        isSubstitutionInvite: data['isSubstitutionInvite'] === true,
+        replacedName: optionalStr(data['replacedName']),
       };
     })
     .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
@@ -464,6 +491,30 @@ export async function sendPartnerInvite(
 ): Promise<PartnerInviteSendResult> {
   try {
     const result = await httpsCallable<typeof params, PartnerInviteSendResult>(functions, 'sendTournamentPartnerInvite')(params);
+    return result.data;
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** Convite de substituição: `inviteeUid` entraria no lugar de `replacedUid` na
+ *  inscrição. Permitido até a publicação das chaves da categoria. */
+export async function sendSubstitutionInvite(
+  functions: Functions,
+  params: {
+    registrationId: string;
+    replacedUid: string;
+    replacedName: string;
+    inviteeUid: string;
+    inviteeName: string;
+    inviterName: string;
+  },
+): Promise<{ inviteId: string }> {
+  try {
+    const result = await httpsCallable<typeof params, { inviteId: string }>(
+      functions,
+      'sendTournamentSubstitutionInvite',
+    )(params);
     return result.data;
   } catch (err) {
     throw mapCallableError(err);

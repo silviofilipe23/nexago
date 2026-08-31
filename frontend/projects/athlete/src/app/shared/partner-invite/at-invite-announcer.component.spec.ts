@@ -27,6 +27,8 @@ function item(id: string, overrides: Partial<TournamentPartnerInvite> = {}): Pen
     isTeamInvite: false,
     teamName: null,
     teamSize: null,
+    isSubstitutionInvite: false,
+    replacedName: null,
     ...overrides,
   };
   return {

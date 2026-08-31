@@ -14,6 +14,8 @@ function invite(id: string, tournamentId: string): TournamentPartnerInvite {
     isTeamInvite: false,
     teamName: null,
     teamSize: null,
+    isSubstitutionInvite: false,
+    replacedName: null,
   };
 }
 

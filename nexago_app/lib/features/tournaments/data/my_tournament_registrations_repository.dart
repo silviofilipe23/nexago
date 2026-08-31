@@ -147,6 +147,10 @@ class MyTournamentRegistrationsRepository {
           paymentMode:
               tournament?.paymentMode ?? TournamentPaymentMode.appPixCard,
           tournamentIsCancelled: isCancelledListing(listingRaw),
+          captainUid: (data['captainUid'] as String?)?.trim().isNotEmpty == true
+              ? (data['captainUid'] as String).trim()
+              : null,
+          substitutionHistory: _substitutionHistoryFromData(data['substitutionHistory']),
         ),
       );
     }
@@ -156,6 +160,23 @@ class MyTournamentRegistrationsRepository {
 
   static List<String> _sharePaidUidsFromData(Map<String, dynamic> data) {
     return _stringListFromData(data['sharePaidUids']);
+  }
+
+  static List<RegistrationSubstitutionEntry> _substitutionHistoryFromData(
+    dynamic raw,
+  ) {
+    if (raw is! List) return const [];
+    final out = <RegistrationSubstitutionEntry>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final at = item['at'];
+      out.add(RegistrationSubstitutionEntry(
+        outName: (item['outName'] as String?)?.trim() ?? 'Atleta',
+        inName: (item['inName'] as String?)?.trim() ?? 'Atleta',
+        at: at is Timestamp ? at.toDate() : null,
+      ));
+    }
+    return out;
   }
 
   static List<String> _stringListFromData(dynamic raw) {

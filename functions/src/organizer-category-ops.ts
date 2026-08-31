@@ -341,6 +341,16 @@ export const generateCategoryBracket = onCall(async (request) => {
 
   await batch.commit();
 
+  // Convites de substituição pendentes morrem com a publicação da chave.
+  try {
+    const {markStaleSubstitutionInvitesForCategory} = await import("./tournament-substitution.js");
+    await markStaleSubstitutionInvitesForCategory(db, tournamentId, categoryId);
+  } catch (e) {
+    logger.warn("generateCategoryBracket: falha ao expirar convites de substituição", {
+      tournamentId, categoryId, e,
+    });
+  }
+
   try {
     const categoryLabel = String(
       categoryMeta?.label ?? categoryMeta?.categoryName ?? categoryId,

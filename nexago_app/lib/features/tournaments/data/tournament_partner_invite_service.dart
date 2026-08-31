@@ -124,6 +124,40 @@ class TournamentPartnerInviteService {
     }
   }
 
+  /// Convite de substituição: [inviteeUid] entraria no lugar de [replacedUid]
+  /// na inscrição [registrationId]. Permitido até a publicação das chaves.
+  Future<String> sendSubstitutionInvite({
+    required String registrationId,
+    required String replacedUid,
+    required String replacedName,
+    required String inviteeUid,
+    required String inviteeName,
+    required String inviterName,
+  }) async {
+    try {
+      final callable =
+          _functions.httpsCallable('sendTournamentSubstitutionInvite');
+      final raw = await callable.call(<String, dynamic>{
+        'registrationId': registrationId,
+        'replacedUid': replacedUid,
+        'replacedName': replacedName,
+        'inviteeUid': inviteeUid,
+        'inviteeName': inviteeName,
+        'inviterName': inviterName,
+      });
+      final data = raw.data;
+      final inviteId = data is Map ? data['inviteId'] as String? : null;
+      if (inviteId == null || inviteId.isEmpty) {
+        throw TournamentPartnerInviteException('Convite não foi criado.');
+      }
+      return inviteId;
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível enviar o convite de substituição.',
+      );
+    }
+  }
+
   /// Inscrição solo: garante a vaga sem parceiro confirmado.
   /// Retorna o `registrationId` criado.
   Future<String> registerSolo({

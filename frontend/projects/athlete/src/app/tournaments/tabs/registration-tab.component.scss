@@ -147,6 +147,13 @@
   color: var(--nx-text-mute);
 }
 
+.reg-sub-history {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
 .reg-cancel {
   display: inline-flex;
   align-items: center;

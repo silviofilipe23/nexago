@@ -502,7 +502,9 @@ class _TournamentPartnerInvitePageState
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        'Confirmar e formar dupla',
+                        invite.isSubstitutionInvite
+                            ? 'Confirmar e entrar na vaga'
+                            : 'Confirmar e formar dupla',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
               ),
@@ -514,7 +516,9 @@ class _TournamentPartnerInvitePageState
 
     final continueLabel = category != null && categoryRequiresUniform(category)
         ? 'Continuar'
-        : 'Aceitar e formar dupla';
+        : invite.isSubstitutionInvite
+            ? 'Aceitar e entrar na vaga'
+            : 'Aceitar e formar dupla';
 
     final inviterProfile = ref
         .watch(athleteProfileByIdProvider(invite.inviterUid))
@@ -538,6 +542,29 @@ class _TournamentPartnerInvitePageState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (invite.isSubstitutionInvite) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.brand.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      'Convite de substituição — você entraria no lugar de '
+                      '${invite.replacedName ?? 'um atleta'}'
+                      '${invite.teamName != null ? ' na equipe ${invite.teamName}' : ''}. '
+                      'A vaga (e o pagamento dela) passa a ser sua ao aceitar.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurface,
+                            height: 1.4,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 PartnerInviteHeroCard(
                   inviterName: invite.inviterName,
                   inviterInitials: inviterInitials,

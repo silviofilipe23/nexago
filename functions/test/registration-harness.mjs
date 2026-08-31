@@ -36,6 +36,7 @@ const partnerInvite = await import('../lib/tournament-partner-invite.js');
 const teamRegistration = await import('../lib/tournament-team-registration.js');
 const externalInvite = await import('../lib/tournament-external-invite.js');
 const registrationPix = await import('../lib/tournament-registration-pix.js');
+const substitution = await import('../lib/tournament-substitution.js');
 
 export const callables = {
   registerSolo: partnerInvite.registerSoloTournament,
@@ -50,7 +51,10 @@ export const callables = {
   claimExternalInvite: externalInvite.claimExternalPartnerInvite,
   confirmFree: registrationPix.confirmFreeTournamentRegistration,
   reserveDirect: registrationPix.reserveDirectOrganizerRegistration,
+  sendSubstitution: substitution.sendTournamentSubstitutionInvite,
 };
+
+export const markStaleSubstitutionInvitesForCategory = substitution.markStaleSubstitutionInvitesForCategory;
 
 /** Executa a callable como o atleta [uid]. */
 export function call(fn, uid, data = {}) {
@@ -297,4 +301,20 @@ export async function formTeam({tournamentId, categoryId, captainUid, memberUids
     await call(callables.acceptInvite, memberUid, {inviteId});
   }
   return {...created, inviteIds};
+}
+
+/** Publica a chave da categoria direto no doc (o gate lê categoryOps). */
+export async function publishBracket(tournamentId, categoryId) {
+  await db.doc(`tournaments/${tournamentId}`).set(
+    {categoryOps: {[categoryId]: {bracketStatus: 'published'}}},
+    {merge: true},
+  );
+}
+
+/** Marca cotas pagas direto no doc — o que interessa é o ESTADO, não o caminho. */
+export async function markSharePaid(registrationId, uids, {isPaid = false} = {}) {
+  await db.doc(`${INSCRIPTIONS}/${registrationId}`).set(
+    {sharePaidUids: uids, ...(isPaid ? {isPaid: true, paidAmount: 100} : {})},
+    {merge: true},
+  );
 }

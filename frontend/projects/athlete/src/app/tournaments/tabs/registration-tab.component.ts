@@ -5,12 +5,13 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { athleteFunctions } from '../../data/functions';
-import { fetchPublicProfilesByIds } from '../../data/public-profiles-repository';
+import { fetchPublicProfilesByIds, searchAthleteDirectory } from '../../data/public-profiles-repository';
 import {
   cancelMyRegistration,
   fetchTournamentOrganizerContact,
   registrationCancellable,
   requestRegistrationCancellation,
+  sendSubstitutionInvite,
   TournamentRegistrationError,
   type AthleteTournamentRegistration,
   type RegistrationUniformSlot,
@@ -31,6 +32,8 @@ import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.
 import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
 import { TournamentLiveStore } from '../tournament-live.store';
 import { registrationRosterView } from './registration-roster-cta';
+import { substitutionSlots } from './substitution-view';
+import { SubstitutionDialogComponent, type SubstitutionSendRequest } from './substitution-dialog.component';
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -79,6 +82,9 @@ export interface RegistrationCard {
   /** Com pagamento o caminho é pedir ao organizador — estes três estados. */
   cancellationState: 'none' | 'pending' | 'declined';
   cancellationResponseNote: string;
+  /** Vagas que o atleta logado pode substituir; vazio = ação oculta. */
+  substitutionSlots: { uid: string; name: string }[];
+  substitutionHistory: { outName: string; inName: string }[];
 }
 
 /** Texto que aparece em TODO ponto do fluxo: a plataforma não devolve dinheiro. */
@@ -93,7 +99,13 @@ export const REFUND_PENDING_NOTICE =
  *  inscrição, então não precisa de estado vazio de "você não está inscrito". */
 @Component({
   selector: 'app-registration-tab',
-  imports: [RouterLink, NxBlockingDialogComponent, RegistrationShareDialogComponent, CampaignShareDialogComponent],
+  imports: [
+    RouterLink,
+    NxBlockingDialogComponent,
+    RegistrationShareDialogComponent,
+    CampaignShareDialogComponent,
+    SubstitutionDialogComponent,
+  ],
   templateUrl: './registration-tab.component.html',
   styleUrl: './registration-tab.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -131,6 +143,14 @@ export class RegistrationTabComponent {
         ? 'Faltam os demais atletas quitarem as cotas deles para a vaga ser confirmada.'
         : PAYMENT_HINT[paymentState];
     const roster = registrationRosterView(r, uid);
+    const bracketPublished = this.store.matches().some((m) => m.categoryId === r.categoryId);
+    const profiles = this.athleteProfiles();
+    const slots = bracketPublished
+      ? []
+      : substitutionSlots(r, uid).map((slotUid) => ({
+          uid: slotUid,
+          name: profiles.get(slotUid)?.name ?? this.fallbackNameOf(slotUid),
+        }));
     return {
       id: r.id,
       categoryId: r.categoryId,
@@ -151,6 +171,8 @@ export class RegistrationTabComponent {
       canShareCampaign: !isTeam && this.campaignDataOf(r.categoryId, r.teamId) != null,
       cancellationState: r.cancellationRequest?.status ?? 'none',
       cancellationResponseNote: r.cancellationRequest?.responseNote ?? '',
+      substitutionSlots: slots,
+      substitutionHistory: r.substitutionHistory.map((h) => ({ outName: h.outName, inName: h.inName })),
     };
   }
 
@@ -387,6 +409,60 @@ export class RegistrationTabComponent {
       );
     } finally {
       this.cancelling.set(false);
+    }
+  }
+
+  // ——— Substituir atleta (dupla: qualquer membro; equipe: só o capitão) ———
+
+  protected readonly substitutionTarget = signal<RegistrationCard | null>(null);
+  protected readonly substitutionSending = signal(false);
+
+  /** Busca do dialog: diretório público menos quem já está na inscrição. */
+  protected readonly substitutionSearchFn = async (term: string) => {
+    const db = this.db;
+    const target = this.substitutionTarget();
+    if (!db || !target) return [];
+    const registration = this.store.myRegistrations().find((r) => r.id === target.id);
+    const memberUids = new Set(registration?.participantUids ?? []);
+    const results = await searchAthleteDirectory(db, term);
+    return results
+      .filter((p) => !memberUids.has(p.id))
+      .map((p) => ({ uid: p.id, name: p.displayName }));
+  };
+
+  protected openSubstitution(card: RegistrationCard): void {
+    this.substitutionTarget.set(card);
+  }
+
+  protected closeSubstitution(): void {
+    if (!this.substitutionSending()) this.substitutionTarget.set(null);
+  }
+
+  protected async sendSubstitution(request: SubstitutionSendRequest): Promise<void> {
+    const target = this.substitutionTarget();
+    if (!target || this.substitutionSending()) return;
+    this.substitutionSending.set(true);
+    try {
+      await sendSubstitutionInvite(athleteFunctions(), {
+        registrationId: target.id,
+        replacedUid: request.replacedUid,
+        replacedName: request.replacedName,
+        inviteeUid: request.inviteeUid,
+        inviteeName: request.inviteeName,
+        inviterName: this.auth.user()?.displayName?.trim() || 'Atleta',
+      });
+      this.substitutionTarget.set(null);
+      this.toasts.success(
+        'Convite enviado',
+        `A troca acontece quando ${request.inviteeName} aceitar.`,
+      );
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível enviar o convite',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+      );
+    } finally {
+      this.substitutionSending.set(false);
     }
   }
 

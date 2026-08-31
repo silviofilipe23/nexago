@@ -233,13 +233,7 @@ class ProfileCompletionState {
 abstract final class ProfileCompletionValidators {
   ProfileCompletionValidators._();
 
-  static bool isValidWhatsApp(String? raw) {
-    final digits = (raw ?? '').replaceAll(RegExp(r'\D'), '');
-    if (digits.length >= 10 && digits.length <= 11) return true;
-    // +55 + DDD + número (9 dígitos)
-    if (digits.length >= 12 && digits.length <= 13 && digits.startsWith('55')) {
-      return true;
-    }
-    return false;
-  }
+  /// Delega para o espelho do gate do servidor (`profile_access.dart`) —
+  /// uma regra só de formato de WhatsApp no app inteiro.
+  static bool isValidWhatsApp(String? raw) => isValidWhatsAppNumber(raw);
 }

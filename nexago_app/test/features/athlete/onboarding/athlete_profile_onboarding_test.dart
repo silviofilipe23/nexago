@@ -69,12 +69,48 @@ void main() {
       expect(onboarding.containsKey('completedAt'), isTrue);
     });
 
-    test('never writes phoneNumber, even when the profile has one', () {
-      // As rules do Firestore recusam qualquer `phoneNumber` vindo do client
-      // (`create` proíbe, `update` só aceita valor idêntico ao salvo). Se este
-      // campo voltar ao payload, TODO save de perfil quebra com
-      // `permission-denied` — não só a parte do telefone. Quem grava é a
-      // Cloud Function `confirmPhoneVerification`.
+    test('writes the declared phoneNumber while it is not verified', () {
+      // O WhatsApp de contato é digitado pelo atleta desde que o SMS deixou de
+      // ser obrigatório pra inscrição — as rules aceitam o número do client
+      // ENQUANTO não há selo.
+      const profile = AthleteProfile(
+        id: 'u1',
+        name: 'Ana',
+        sport: 'Vôlei de praia',
+        level: 'Intermediário',
+        city: 'Goiânia',
+        phoneNumber: '(62) 99999-9999',
+      );
+
+      final data = profile.toFirestore();
+      expect(data['phoneNumber'], '(62) 99999-9999');
+      // O SELO continua sendo só da Cloud Function `confirmPhoneVerification`:
+      // se estes campos entrarem no payload, TODO save de perfil quebra com
+      // `permission-denied` — não só a parte do telefone.
+      expect(data.containsKey('phoneVerified'), isFalse);
+      expect(data.containsKey('phoneVerifiedAt'), isFalse);
+    });
+
+    test('campo vazio não apaga o telefone já salvo', () {
+      // `saveProfile` carimba `isProfileComplete: true` quando o perfil passa
+      // no gate, e esse campo é curto-circuito do gate NO SERVIDOR: deixar o
+      // atleta esvaziar o WhatsApp deixaria a inscrição liberada com contato
+      // vazio. O WhatsApp é obrigatório — apagar não é uma operação suportada.
+      const profile = AthleteProfile(
+        id: 'u1',
+        name: 'Ana',
+        sport: 'Vôlei de praia',
+        level: 'Intermediário',
+        city: 'Goiânia',
+        phoneNumber: '',
+      );
+
+      expect(profile.toFirestore().containsKey('phoneNumber'), isFalse);
+    });
+
+    test('never rewrites a phoneNumber that is already verified', () {
+      // Depois do selo o número é imutável pelo client (rules) — reenviar uma
+      // variante formatada diferente derrubaria o save inteiro.
       const profile = AthleteProfile(
         id: 'u1',
         name: 'Ana',
@@ -198,7 +234,7 @@ void main() {
         level: 'Intermediário',
         goalIds: {'book_arena', 'compete'},
         name: 'Marcelo',
-        verifiedPhoneNumber: '+5511987654321',
+        phoneNumber: '+5511987654321',
         birthDate: '15/03/1990',
         gender: 'Feminino',
       );
@@ -218,7 +254,7 @@ void main() {
 
 class _FakeDoc implements DocumentSnapshot<Map<String, dynamic>> {
   _FakeDoc({required this.id, required Map<String, dynamic> fields})
-    : _fields = fields;
+      : _fields = fields;
 
   @override
   final String id;

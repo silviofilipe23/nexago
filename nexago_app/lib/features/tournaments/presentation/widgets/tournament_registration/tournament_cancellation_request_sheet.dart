@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
+import '../../../../../core/theme/app_spacing.dart';
+import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'tournament_registration_cancellation_section.dart';
 
@@ -44,6 +47,7 @@ class _TournamentCancellationRequestSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = context.themeColors;
     final canSend = _controller.text.trim().isNotEmpty;
 
     return Padding(
@@ -83,17 +87,53 @@ class _TournamentCancellationRequestSheetState
             ),
           ),
           const SizedBox(height: 16),
+          Text(
+            'Por que você precisa cancelar?',
+            style: AppTypography.bodyM.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _controller,
-            maxLines: 3,
+            minLines: 3,
+            maxLines: 5,
             maxLength: 500,
             autofocus: true,
+            cursorColor: AppColors.brand,
             textCapitalization: TextCapitalization.sentences,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Por que você precisa cancelar?',
+            style: AppTypography.bodyM.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
               hintText: 'Escreva um motivo para o organizador',
-              border: OutlineInputBorder(),
+              hintStyle: AppTypography.bodyM.copyWith(
+                color: colors.onSurfaceMuted.withValues(alpha: 0.6),
+              ),
+              alignLabelWithHint: true,
+              filled: true,
+              fillColor: colors.surfaceRaised,
+              contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.25),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.25),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide:
+                    const BorderSide(color: AppColors.brand, width: 1.5),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -103,6 +143,7 @@ class _TournamentCancellationRequestSheetState
                 : null,
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(borderRadius: AppRadii.lgAll),
             ),
             child: const Text('Enviar pedido'),
           ),

@@ -270,6 +270,7 @@ class TournamentCreateDraft {
     this.organizerPixCity = '',
     this.waitlistEnabled = true,
     this.inviteConfirmEnabled = false,
+    this.requireFormedPair = false,
     this.cashPrizesEnabled = true,
     this.regulationPdfPath,
     this.regulationNotes = '',
@@ -310,6 +311,11 @@ class TournamentCreateDraft {
 
   final bool waitlistEnabled;
   final bool inviteConfirmEnabled;
+
+  /// Sem inscrição individual: em categoria de dupla a vaga só nasce quando o
+  /// parceiro aceita o convite. Lido pela Cloud Function
+  /// `registerSoloTournament`, que recusa a reserva solo.
+  final bool requireFormedPair;
   final bool cashPrizesEnabled;
   final String? regulationPdfPath;
   final String regulationNotes;
@@ -358,6 +364,7 @@ class TournamentCreateDraft {
     String? organizerPixCity,
     bool? waitlistEnabled,
     bool? inviteConfirmEnabled,
+    bool? requireFormedPair,
     bool? cashPrizesEnabled,
     String? regulationPdfPath,
     bool clearRegulationPdfPath = false,
@@ -403,6 +410,7 @@ class TournamentCreateDraft {
       organizerPixCity: organizerPixCity ?? this.organizerPixCity,
       waitlistEnabled: waitlistEnabled ?? this.waitlistEnabled,
       inviteConfirmEnabled: inviteConfirmEnabled ?? this.inviteConfirmEnabled,
+      requireFormedPair: requireFormedPair ?? this.requireFormedPair,
       cashPrizesEnabled: cashPrizesEnabled ?? this.cashPrizesEnabled,
       regulationPdfPath: clearRegulationPdfPath
           ? null

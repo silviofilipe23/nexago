@@ -189,6 +189,9 @@ abstract final class LeagueStageTournamentFactory {
       'paymentMode': paymentMode.name,
       'waitlistEnabled': true,
       'inviteConfirmEnabled': false,
+      // Etapa de liga não passa pelo wizard de torneio: nasce aceitando
+      // inscrição individual (o padrão histórico).
+      'requireFormedPair': false,
       'cashPrizesEnabled': false,
       'rankingEnabled': true,
       'rankingTableId': rankingTableId,

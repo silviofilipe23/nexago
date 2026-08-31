@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/deep_link/deep_link_providers.dart';
+import '../../../../../core/formatting/br_phone_format.dart';
 import '../../../../../core/media/profile_image_crop_config.dart';
 import '../../../../../core/media/profile_image_picker.dart';
 import '../../../../../core/router/app_router.dart';
@@ -39,6 +40,7 @@ class _AthleteOnboardingProfileStepState
     extends ConsumerState<AthleteOnboardingProfileStep> {
   final _nameCtrl = TextEditingController();
   final _nicknameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _birthCtrl = TextEditingController();
   final _referralCodeCtrl = TextEditingController();
   /// Só o par UF/cidade vive num Form: `BrStateCityFields` traz os próprios
@@ -47,6 +49,7 @@ class _AthleteOnboardingProfileStepState
   final _locationFormKey = GlobalKey<FormState>();
   bool _submitting = false;
   String? _nameError;
+  String? _phoneError;
   String? _birthError;
   bool _genderMissing = false;
   bool _photoMissing = false;
@@ -57,6 +60,8 @@ class _AthleteOnboardingProfileStepState
     final draft = ref.read(athleteOnboardingDraftProvider);
     _nameCtrl.text = draft.name;
     _nicknameCtrl.text = draft.nickname;
+    _phoneCtrl.text =
+        formatPhoneBrDisplay(draft.phoneNumber) ?? draft.phoneNumber;
     _birthCtrl.text = draft.birthDate;
     // Quem chegou por um convite de dupla já trouxe o código de indicação no
     // link; digitar de novo seria pedir algo que o app já sabe. O que o atleta
@@ -71,6 +76,7 @@ class _AthleteOnboardingProfileStepState
   void dispose() {
     _nameCtrl.dispose();
     _nicknameCtrl.dispose();
+    _phoneCtrl.dispose();
     _birthCtrl.dispose();
     _referralCodeCtrl.dispose();
     super.dispose();
@@ -105,6 +111,9 @@ class _AthleteOnboardingProfileStepState
       // um botão desabilitado mudo ou um aviso genérico.
       setState(() {
         _nameError = draft.isNameValid ? null : 'Informe seu nome';
+        _phoneError = draft.isPhoneValid
+            ? null
+            : 'Informe um WhatsApp válido com DDD';
         _birthError = draft.isBirthDateValid
             ? null
             : 'Data inválida (dd/mm/aaaa)';
@@ -227,25 +236,28 @@ class _AthleteOnboardingProfileStepState
             onChanged: notifier.setNickname,
           ),
           SizedBox(height: 16),
-          const AuthFieldLabel(label: 'NÚMERO DE TELEFONE (OPCIONAL)'),
+          const AuthFieldLabel(label: 'WHATSAPP *'),
           PhoneVerificationField(
-            phoneNumber: draft.verifiedPhoneNumber.isEmpty
-                ? null
-                : draft.verifiedPhoneNumber,
-            verified: draft.verifiedPhoneNumber.isNotEmpty,
-            onVerified: notifier.setVerifiedPhoneNumber,
+            controller: _phoneCtrl,
+            verified: draft.phoneVerified,
+            errorText: _phoneError,
+            onChanged: (v) {
+              notifier.setPhoneNumber(v);
+              if (_phoneError != null) setState(() => _phoneError = null);
+            },
+            onVerified: (phone) {
+              notifier.setVerifiedPhoneNumber(phone);
+              _phoneCtrl.text = formatPhoneBrDisplay(phone) ?? phone;
+              if (_phoneError != null) setState(() => _phoneError = null);
+            },
           ),
-          if (draft.verifiedPhoneNumber.isEmpty) ...[
-            SizedBox(height: 6),
-            Text(
-              'SMS não chegou? Conclua o cadastro e verifique depois em '
-              'Editar perfil — inscrições em torneios exigem WhatsApp '
-              'verificado.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-              ),
+          SizedBox(height: 6),
+          Text(
+            'É por aqui que o organizador fala com você sobre a inscrição.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
             ),
-          ],
+          ),
           SizedBox(height: 16),
           const AuthFieldLabel(label: 'DATA DE NASCIMENTO *'),
           AuthTextField(

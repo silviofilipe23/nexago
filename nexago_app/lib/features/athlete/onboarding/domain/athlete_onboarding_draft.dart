@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../../domain/athlete_firestore_codes.dart';
 import '../../domain/athlete_profile.dart';
+import '../../domain/profile_access.dart';
 import 'athlete_onboarding_options.dart';
 
 /// Passos obrigatórios do onboarding (1–3; welcome é rota separada).
@@ -25,7 +26,8 @@ class AthleteOnboardingDraft {
     this.goalIds = const {},
     this.name = '',
     this.nickname = '',
-    this.verifiedPhoneNumber = '',
+    this.phoneNumber = '',
+    this.phoneVerified = false,
     this.birthDate = '',
     this.gender,
     this.city = '',
@@ -41,11 +43,14 @@ class AthleteOnboardingDraft {
   final Set<String> goalIds;
   final String name;
   final String nickname;
-  /// Telefone confirmado por SMS (E.164), devolvido pela Cloud Function
-  /// `confirmPhoneVerification`. Vazio enquanto o atleta não verificar — não é
-  /// um campo digitável, o client não pode gravar telefone (ver
-  /// `firestore.rules`).
-  final String verifiedPhoneNumber;
+  /// WhatsApp de contato, digitado pelo atleta. Obrigatório para concluir o
+  /// cadastro — é por ele que o organizador fala com o atleta inscrito.
+  final String phoneNumber;
+
+  /// Posse do número confirmada por SMS (Firebase Phone Auth). Opcional: vira
+  /// `true` só quando o atleta escolhe verificar, e o número passa a vir da
+  /// Cloud Function `confirmPhoneVerification` em E.164.
+  final bool phoneVerified;
   final String birthDate;
   final String? gender;
 
@@ -85,11 +90,11 @@ class AthleteOnboardingDraft {
 
   bool get isNameValid => name.trim().isNotEmpty;
 
-  /// Telefone verificado por SMS. Opcional no cadastro: o SMS não chega para
-  /// parte dos atletas e travava o funil inteiro. Quem pula conclui sem
-  /// `phoneVerified` e verifica depois no perfil — o gate de torneios do
-  /// servidor (`athlete-tournament-access.ts`) continua exigindo na inscrição.
-  bool get isPhoneValid => verifiedPhoneNumber.isNotEmpty;
+  /// WhatsApp em formato válido. A verificação por SMS NÃO é exigida: o SMS
+  /// não chega para parte dos atletas e travava o funil inteiro. O gate de
+  /// torneios do servidor (`athlete-tournament-access.ts`) aceita o número
+  /// declarado — mas exige o formato, senão o organizador fica sem contato.
+  bool get isPhoneValid => isValidWhatsAppNumber(phoneNumber);
 
   bool get isBirthDateValid => _isBirthDateValid(birthDate);
 
@@ -105,6 +110,7 @@ class AthleteOnboardingDraft {
 
   bool get isProfileValid =>
       isNameValid &&
+      isPhoneValid &&
       isBirthDateValid &&
       isGenderValid &&
       isCityValid &&
@@ -130,7 +136,8 @@ class AthleteOnboardingDraft {
     Set<String>? goalIds,
     String? name,
     String? nickname,
-    String? verifiedPhoneNumber,
+    String? phoneNumber,
+    bool? phoneVerified,
     String? birthDate,
     String? gender,
     String? city,
@@ -147,7 +154,8 @@ class AthleteOnboardingDraft {
       goalIds: goalIds ?? this.goalIds,
       name: name ?? this.name,
       nickname: nickname ?? this.nickname,
-      verifiedPhoneNumber: verifiedPhoneNumber ?? this.verifiedPhoneNumber,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      phoneVerified: phoneVerified ?? this.phoneVerified,
       birthDate: birthDate ?? this.birthDate,
       gender: gender ?? this.gender,
       city: city ?? this.city,
@@ -185,11 +193,10 @@ class AthleteOnboardingDraft {
       level: level ?? '',
       city: city.trim(),
       state: state.trim().isEmpty ? null : state.trim().toUpperCase(),
-      // Só em memória: `toFirestore` não grava telefone (é a Cloud Function
-      // que grava). Vai no perfil porque `saveProfile` deriva
-      // `isProfileComplete`/`onboardingCompleted` a partir destes campos.
-      phoneNumber: verifiedPhoneNumber.isEmpty ? null : verifiedPhoneNumber,
-      phoneVerified: verifiedPhoneNumber.isNotEmpty,
+      // `phoneNumber` é gravado pelo próprio client (rules liberam enquanto
+      // não há selo); `phoneVerified` continua sendo só da Cloud Function.
+      phoneNumber: phoneNumber.trim().isEmpty ? null : phoneNumber.trim(),
+      phoneVerified: phoneVerified,
       sports: otherSportLabels,
       goals: goalsFs,
       nickname: nickname.trim().isEmpty ? null : nickname.trim(),

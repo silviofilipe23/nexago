@@ -191,6 +191,15 @@
                   }
                   {{ registering() ? 'Criando equipe…' : 'Criar equipe e reservar vaga' }}
                 </button>
+              } @else if (formedPairEntry()) {
+                <!-- Dupla já formada: não existe reserva solo. A busca de parceiro é a entrada e
+                     a vaga só nasce quando o convidado aceita. -->
+                <p class="rg-empty-inline">
+                  {{ sentPendingInvites().length > 0
+                    ? 'Convite enviado! A vaga é criada quando seu parceiro aceitar — até lá ela não fica reservada.'
+                    : 'Este torneio exige dupla já formada. Convide seu parceiro: a vaga é criada quando ele aceitar.' }}
+                </p>
+                <ng-container [ngTemplateOutlet]="partnerInviteBlock" />
               } @else {
                 <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
                 <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="registering()" />
@@ -270,121 +279,7 @@
                 }
               }
 
-              @if (myLgpdConsentMissing()) {
-                <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="invitingId() !== null" />
-              }
-
-              @if (isTeamCategory() && isCaptain() && remainingInviteSlots() === 0 && sentPendingInvites().length > 0) {
-                <p class="rg-empty-inline">Todas as vagas do elenco estão reservadas por convites pendentes. Cancele um convite para chamar outro atleta.</p>
-              }
-
-              @if (!isTeamCategory() || isCaptain()) {
-
-              @if (linkInviteMarker(); as marker) {
-                <div class="rg-option-row rg-option-row--link-invite">
-                  <span class="rg-invite-icon" aria-hidden="true">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                    </svg>
-                  </span>
-                  <span class="rg-option-copy">
-                    <span class="rg-option-title">
-                      @if (marker.partnerName; as name) {
-                        Link de convite enviado para {{ name }}
-                      } @else {
-                        Link de convite enviado
-                      }
-                    </span>
-                    <span class="rg-option-desc">Quando a conta for criada, busque o nome abaixo e envie o convite da dupla.</span>
-                  </span>
-                  <button type="button" class="rg-btn-ghost" (click)="openInviteDialog()">Reenviar</button>
-                </div>
-              }
-
-              @if (sentPendingInvites().length > 0) {
-                <div class="rg-option-list">
-                  @for (invite of sentPendingInvites(); track invite.id) {
-                    <div class="rg-option-row">
-                      <span class="rg-option-copy">
-                        <span class="rg-option-title">{{ invite.inviteeName }}</span>
-                        <!-- Na dupla esta lista é o que resta na tela (a busca some) — o Cancelar
-                             é o caminho pra chamar outra pessoa. -->
-                        <span class="rg-option-desc">
-                          {{ !isTeamCategory() && sentPendingInvites().length === 1
-                            ? 'Cancele o convite se quiser chamar outro atleta.'
-                            : 'Convite enviado — aguardando resposta.' }}
-                        </span>
-                      </span>
-                      <button type="button" class="rg-btn-ghost" [disabled]="cancelingInviteId() === invite.id" (click)="cancelInvite(invite)">
-                        @if (cancelingInviteId() === invite.id) {
-                          <app-nx-spinner [size]="14" />
-                        }
-                        {{ cancelingInviteId() === invite.id ? 'Cancelando…' : 'Cancelar' }}
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-
-              <!-- Sem vaga de convite, a busca inteira some — na dupla isso acontece já com o
-                   1º convite pendente (o Cancelar acima é o caminho pra chamar outra pessoa). -->
-              @if (remainingInviteSlots() > 0) {
-                <input
-                  type="search"
-                  class="rg-search-input"
-                  placeholder="Buscar atleta por nome…"
-                  [value]="partnerQuery()"
-                  (input)="onPartnerQueryInput($any($event.target).value)"
-                />
-                @if (searchingPartner()) {
-                  <p class="rg-empty-inline">Buscando…</p>
-                } @else if (partnerSearchCameUpEmpty()) {
-                  <div class="rg-search-empty">
-                    <p class="rg-search-empty-title">Nenhum atleta encontrado com esse nome.</p>
-                    <p class="rg-search-empty-desc">Seu parceiro ainda não tem conta no nexaGO? Convide pelo WhatsApp — quando ele se cadastrar, é só buscar de novo e fechar a dupla.</p>
-                    <button type="button" class="rg-btn-primary rg-btn-invite-external" (click)="openInviteDialog()">
-                      Convidar pro nexaGO
-                    </button>
-                  </div>
-                } @else if (partnerResults().length > 0) {
-                  <div class="rg-option-list">
-                    @for (p of partnerResults(); track p.id) {
-                      <div class="rg-option-row">
-                        <span class="rg-duo-avatars" aria-hidden="true">
-                          <span class="rg-duo-avatar">
-                            <span class="rg-duo-avatar-fallback">{{ initialsOf(p.displayName) }}</span>
-                            @if (p.avatarUrl; as photo) {
-                              <img class="rg-duo-avatar-img" [src]="photo" alt="" loading="lazy" />
-                            }
-                          </span>
-                        </span>
-                        <span class="rg-option-copy">
-                          <span class="rg-option-title">{{ p.displayName }}</span>
-                          <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
-                          @if (partnerMissingGender(p)) {
-                            <span class="rg-option-warn">Sem gênero no perfil — precisa completar para aceitar o convite</span>
-                          }
-                        </span>
-                        <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
-                          @if (invitingId() === p.id) {
-                            <app-nx-spinner [size]="14" />
-                          }
-                          {{ invitingId() === p.id ? 'Enviando…' : 'Convidar' }}
-                        </button>
-                      </div>
-                    }
-                  </div>
-                }
-
-                @if (!partnerSearchCameUpEmpty() && !linkInviteMarker()) {
-                  <p class="rg-external-invite-hint">
-                    {{ isTeamCategory() ? 'Atleta ainda sem conta no nexaGO?' : 'Parceiro ainda sem conta no nexaGO?' }}
-                    <button type="button" class="rg-link-btn" (click)="openInviteDialog()">Convidar por link</button>
-                  </p>
-                }
-              }
-              }
+              <ng-container [ngTemplateOutlet]="partnerInviteBlock" />
             } @else if (!registration()!.isPaid) {
               <p class="rg-empty-inline">
                 {{ isTeamCategory() ? 'Equipe completa! Falta só o pagamento pra confirmar a vaga.' : 'Dupla completa! Falta só o pagamento pra confirmar a vaga.' }}
@@ -517,3 +412,124 @@
     </div>
   }
 </app-at-panel-shell>
+
+
+<!-- Convites + busca de parceiro: o mesmo bloco serve o elenco incompleto (inscrição já
+     existe) e a ENTRADA em torneio de dupla já formada (a inscrição nasce no aceite). -->
+<ng-template #partnerInviteBlock>
+              @if (myLgpdConsentMissing() || formedPairEntry()) {
+                <app-lgpd-consent-box [(accepted)]="lgpdAccepted" [disabled]="invitingId() !== null" />
+              }
+
+              @if (isTeamCategory() && isCaptain() && remainingInviteSlots() === 0 && sentPendingInvites().length > 0) {
+                <p class="rg-empty-inline">Todas as vagas do elenco estão reservadas por convites pendentes. Cancele um convite para chamar outro atleta.</p>
+              }
+
+              @if (!isTeamCategory() || isCaptain()) {
+
+              @if (linkInviteMarker(); as marker) {
+                <div class="rg-option-row rg-option-row--link-invite">
+                  <span class="rg-invite-icon" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                  </span>
+                  <span class="rg-option-copy">
+                    <span class="rg-option-title">
+                      @if (marker.partnerName; as name) {
+                        Link de convite enviado para {{ name }}
+                      } @else {
+                        Link de convite enviado
+                      }
+                    </span>
+                    <span class="rg-option-desc">Quando a conta for criada, busque o nome abaixo e envie o convite da dupla.</span>
+                  </span>
+                  <button type="button" class="rg-btn-ghost" (click)="openInviteDialog()">Reenviar</button>
+                </div>
+              }
+
+              @if (sentPendingInvites().length > 0) {
+                <div class="rg-option-list">
+                  @for (invite of sentPendingInvites(); track invite.id) {
+                    <div class="rg-option-row">
+                      <span class="rg-option-copy">
+                        <span class="rg-option-title">{{ invite.inviteeName }}</span>
+                        <!-- Na dupla esta lista é o que resta na tela (a busca some) — o Cancelar
+                             é o caminho pra chamar outra pessoa. -->
+                        <span class="rg-option-desc">
+                          {{ !isTeamCategory() && sentPendingInvites().length === 1
+                            ? 'Cancele o convite se quiser chamar outro atleta.'
+                            : 'Convite enviado — aguardando resposta.' }}
+                        </span>
+                      </span>
+                      <button type="button" class="rg-btn-ghost" [disabled]="cancelingInviteId() === invite.id" (click)="cancelInvite(invite)">
+                        @if (cancelingInviteId() === invite.id) {
+                          <app-nx-spinner [size]="14" />
+                        }
+                        {{ cancelingInviteId() === invite.id ? 'Cancelando…' : 'Cancelar' }}
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Sem vaga de convite, a busca inteira some — na dupla isso acontece já com o
+                   1º convite pendente (o Cancelar acima é o caminho pra chamar outra pessoa). -->
+              @if (remainingInviteSlots() > 0) {
+                <input
+                  type="search"
+                  class="rg-search-input"
+                  placeholder="Buscar atleta por nome…"
+                  [value]="partnerQuery()"
+                  (input)="onPartnerQueryInput($any($event.target).value)"
+                />
+                @if (searchingPartner()) {
+                  <p class="rg-empty-inline">Buscando…</p>
+                } @else if (partnerSearchCameUpEmpty()) {
+                  <div class="rg-search-empty">
+                    <p class="rg-search-empty-title">Nenhum atleta encontrado com esse nome.</p>
+                    <p class="rg-search-empty-desc">Seu parceiro ainda não tem conta no nexaGO? Convide pelo WhatsApp — quando ele se cadastrar, é só buscar de novo e fechar a dupla.</p>
+                    <button type="button" class="rg-btn-primary rg-btn-invite-external" (click)="openInviteDialog()">
+                      Convidar pro nexaGO
+                    </button>
+                  </div>
+                } @else if (partnerResults().length > 0) {
+                  <div class="rg-option-list">
+                    @for (p of partnerResults(); track p.id) {
+                      <div class="rg-option-row">
+                        <span class="rg-duo-avatars" aria-hidden="true">
+                          <span class="rg-duo-avatar">
+                            <span class="rg-duo-avatar-fallback">{{ initialsOf(p.displayName) }}</span>
+                            @if (p.avatarUrl; as photo) {
+                              <img class="rg-duo-avatar-img" [src]="photo" alt="" loading="lazy" />
+                            }
+                          </span>
+                        </span>
+                        <span class="rg-option-copy">
+                          <span class="rg-option-title">{{ p.displayName }}</span>
+                          <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
+                          @if (partnerMissingGender(p)) {
+                            <span class="rg-option-warn">Sem gênero no perfil — precisa completar para aceitar o convite</span>
+                          }
+                        </span>
+                        <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
+                          @if (invitingId() === p.id) {
+                            <app-nx-spinner [size]="14" />
+                          }
+                          {{ invitingId() === p.id ? 'Enviando…' : 'Convidar' }}
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+
+                @if (!partnerSearchCameUpEmpty() && !linkInviteMarker()) {
+                  <p class="rg-external-invite-hint">
+                    {{ isTeamCategory() ? 'Atleta ainda sem conta no nexaGO?' : 'Parceiro ainda sem conta no nexaGO?' }}
+                    <button type="button" class="rg-link-btn" (click)="openInviteDialog()">Convidar por link</button>
+                  </p>
+                }
+              }
+              }
+</ng-template>

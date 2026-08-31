@@ -1537,10 +1537,19 @@ service cloud.firestore {
           // Cloud Function `registerReferral` (idempotente, valida
           // auto-indicação) — o client não pode se auto-declarar indicado.
           !('referredBy' in request.resource.data) &&
-          // Telefone verificado (SMS via Firebase Phone Auth) só é gravado
-          // pela Cloud Function `confirmPhoneVerification` — usuário novo
-          // não pode nascer já com telefone verificado.
-          !('phoneNumber' in request.resource.data) &&
+          // O SELO de telefone verificado (SMS via Firebase Phone Auth) só é
+          // gravado pela Cloud Function `confirmPhoneVerification` — usuário
+          // novo não pode nascer já com telefone verificado. O NÚMERO em si
+          // pode nascer declarado: desde que o SMS deixou de ser obrigatório
+          // para inscrição, `phoneNumber` é o WhatsApp de contato que o
+          // próprio atleta informa no cadastro.
+          (
+            !('phoneNumber' in request.resource.data) ||
+            (
+              request.resource.data.phoneNumber is string &&
+              request.resource.data.phoneNumber.size() <= 20
+            )
+          ) &&
           !('phoneVerified' in request.resource.data) &&
           !('phoneVerifiedAt' in request.resource.data)
         ) ||
@@ -1608,15 +1617,26 @@ service cloud.firestore {
               request.resource.data.referredBy == resource.data.referredBy
             )
           ) &&
-          // Telefone verificado é derivado por Cloud Function
+          // O SELO de telefone verificado é derivado por Cloud Function
           // (`confirmPhoneVerification`, a partir do UserRecord do Firebase
           // Auth) — o dono não pode criá-lo nem alterá-lo diretamente
           // (anti-fraude: impede auto-declarar telefone verificado sem SMS).
+          //
+          // O NÚMERO é livre ENQUANTO não há selo: o SMS deixou de ser
+          // obrigatório para inscrição e `phoneNumber` passou a ser o WhatsApp
+          // de contato declarado pelo atleta. Depois do selo ele volta a ser
+          // imutável pelo client — senão dava para verificar um número e
+          // trocar por outro mantendo `phoneVerified: true`.
           (
             !('phoneNumber' in request.resource.data) ||
             (
               'phoneNumber' in resource.data &&
               request.resource.data.phoneNumber == resource.data.phoneNumber
+            ) ||
+            (
+              !('phoneVerified' in resource.data && resource.data.phoneVerified == true) &&
+              request.resource.data.phoneNumber is string &&
+              request.resource.data.phoneNumber.size() <= 20
             )
           ) &&
           (

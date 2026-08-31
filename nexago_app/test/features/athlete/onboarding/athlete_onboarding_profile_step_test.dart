@@ -23,22 +23,23 @@ Future<void> _pumpProfileStep(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('telefone é opcional: label e texto auxiliar sem verificação',
+  testWidgets('WhatsApp é obrigatório e digitável, sem exigir SMS',
       (tester) async {
     await _pumpProfileStep(tester);
 
-    // O campo declara que é opcional — antes o passo travava aqui.
-    expect(find.text('NÚMERO DE TELEFONE (OPCIONAL)'), findsOneWidget);
-    // Texto auxiliar orienta quem não recebeu o SMS a concluir e verificar
-    // depois, avisando que torneios continuam exigindo a verificação.
-    expect(find.textContaining('SMS não chegou?'), findsOneWidget);
-    expect(find.text('Nenhum número verificado'), findsOneWidget);
+    expect(find.text('WHATSAPP *'), findsOneWidget);
+    // O número é digitado direto — o SMS virou opcional.
+    final phoneField = tester.widget<PhoneVerificationField>(
+      find.byType(PhoneVerificationField),
+    );
+    expect(phoneField.verified, isFalse);
+    expect(find.text('Verificar por SMS é opcional'), findsOneWidget);
+    expect(find.textContaining('organizador fala com você'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets(
-      'concluir sem telefone não gera erro de telefone — só dos obrigatórios',
+  testWidgets('concluir sem telefone acusa erro inline no WhatsApp',
       (tester) async {
     await _pumpProfileStep(tester);
 
@@ -47,24 +48,46 @@ void main() {
     await tester.tap(find.text('Concluir cadastro'));
     await tester.pump();
 
-    // Os campos realmente obrigatórios acusam erro inline...
+    // Cada obrigatório acusa erro inline, o WhatsApp junto com os outros.
     expect(find.text('Informe seu nome'), findsOneWidget);
     expect(find.text('Data inválida (dd/mm/aaaa)'), findsOneWidget);
     expect(find.text('Selecione o gênero'), findsOneWidget);
     expect(find.text('Escolha uma foto pra concluir'), findsOneWidget);
 
-    // ...mas o telefone não: nenhum errorText no campo (era o erro bloqueante
-    // removido) e o texto auxiliar continua orientando, não bloqueando.
     final phoneField = tester.widget<PhoneVerificationField>(
       find.byType(PhoneVerificationField),
     );
-    expect(phoneField.errorText, isNull);
-    expect(find.textContaining('SMS não chegou?'), findsOneWidget);
+    expect(phoneField.errorText, 'Informe um WhatsApp válido com DDD');
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('com telefone verificado o texto auxiliar some', (tester) async {
+  testWidgets('digitar o WhatsApp limpa o erro e alimenta o rascunho',
+      (tester) async {
+    await _pumpProfileStep(tester);
+
+    await tester.tap(find.text('Concluir cadastro'));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).at(2), '62999998888');
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AthleteOnboardingProfileStep)),
+    );
+    final draft = container.read(athleteOnboardingDraftProvider);
+    expect(draft.phoneNumber, '(62) 99999-8888');
+    expect(draft.isPhoneValid, isTrue);
+
+    final phoneField = tester.widget<PhoneVerificationField>(
+      find.byType(PhoneVerificationField),
+    );
+    expect(phoneField.errorText, isNull);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('telefone verificado vira selo e trava a edição', (tester) async {
     await _pumpProfileStep(tester);
 
     final container = ProviderScope.containerOf(
@@ -75,10 +98,13 @@ void main() {
         .setVerifiedPhoneNumber('+5562999998888');
     await tester.pump();
 
-    expect(find.textContaining('SMS não chegou?'), findsNothing);
     expect(find.text('Verificado por SMS'), findsOneWidget);
-    // E.164 gravado pela CF sai mascarado pra exibição.
-    expect(find.text('(62) 99999-8888'), findsOneWidget);
+    expect(find.text('Verificar por SMS é opcional'), findsNothing);
+    // Depois do selo as rules recusam troca pelo client — o campo acompanha.
+    final phoneField = tester.widget<PhoneVerificationField>(
+      find.byType(PhoneVerificationField),
+    );
+    expect(phoneField.verified, isTrue);
 
     await tester.pumpWidget(const SizedBox());
   });

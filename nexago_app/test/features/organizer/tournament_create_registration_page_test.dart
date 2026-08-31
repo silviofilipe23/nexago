@@ -182,4 +182,35 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets(
+    'toggle "Exigir dupla já formada" liga requireFormedPair no draft',
+    (tester) async {
+      await pumpPage(tester);
+
+      expect(
+        container.read(tournamentCreateDraftProvider).requireFormedPair,
+        isFalse,
+      );
+
+      final row = find.byWidgetPredicate(
+        (widget) =>
+            widget is OrganizerToggleSettingRow &&
+            widget.title == 'Exigir dupla já formada',
+      );
+      expect(row, findsOneWidget);
+
+      await tester.ensureVisible(row);
+      await tester.pump();
+      await tester.tap(find.descendant(of: row, matching: find.byType(Switch)));
+      await tester.pump();
+
+      expect(
+        container.read(tournamentCreateDraftProvider).requireFormedPair,
+        isTrue,
+      );
+
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

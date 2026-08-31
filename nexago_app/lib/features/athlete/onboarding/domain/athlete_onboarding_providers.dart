@@ -63,8 +63,14 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
 
   void setName(String v) => state = state.copyWith(name: v);
   void setNickname(String v) => state = state.copyWith(nickname: v);
+  /// WhatsApp digitado pelo atleta. Digitar um número novo derruba o selo:
+  /// o SMS confirmou o número anterior, não este.
+  void setPhoneNumber(String v) =>
+      state = state.copyWith(phoneNumber: v, phoneVerified: false);
+
+  /// Número confirmado pelo fluxo de SMS (E.164, vindo da Cloud Function).
   void setVerifiedPhoneNumber(String v) =>
-      state = state.copyWith(verifiedPhoneNumber: v);
+      state = state.copyWith(phoneNumber: v, phoneVerified: true);
   void setBirthDate(String v) => state = state.copyWith(birthDate: v);
   void setGender(String? v) => state = state.copyWith(gender: v);
 

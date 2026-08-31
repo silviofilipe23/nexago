@@ -18,6 +18,7 @@ import {
   clearFirestore,
   db,
   duplaCategory,
+  formDupla,
   getRegistration,
   listRegistrations,
   seedAthlete,
@@ -579,5 +580,52 @@ describe('gates — idade', () => {
       }),
       /até 18 anos|não pode/i,
     );
+  });
+});
+
+
+describe('gates — dupla já formada (requireFormedPair)', () => {
+  test('torneio que exige dupla formada recusa a reserva solo', async () => {
+    const joao = await seedMan({uid: 'joao'});
+    const tournamentId = await seedTournament({
+      requireFormedPair: true,
+      categories: [CAT()],
+    });
+
+    const message = await callExpectingError(callables.registerSolo, joao, {
+      tournamentId, categoryId: 'masc',
+    });
+    assert.match(message, /dupla já formada/i);
+    assert.deepEqual(await listRegistrations(tournamentId), []);
+  });
+
+  test('o convite aceito continua criando a inscrição da dupla', async () => {
+    const joao = await seedMan({uid: 'joao'});
+    const pedro = await seedMan({uid: 'pedro'});
+    const tournamentId = await seedTournament({
+      requireFormedPair: true,
+      categories: [CAT()],
+    });
+
+    await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: joao, inviteeUid: pedro,
+    });
+
+    const regs = await listRegistrations(tournamentId);
+    assert.equal(regs.length, 1);
+    // Inscrição nasce fechada: o par vem do aceite, sem passar por reserva solo.
+    assert.notEqual(regs[0].partnerPending, true);
+    assert.ok(regs[0].teamId);
+    assert.deepEqual([...regs[0].participantUids].sort(), [joao, pedro].sort());
+  });
+
+  test('sem o flag, a reserva solo segue permitida', async () => {
+    const joao = await seedMan({uid: 'joao'});
+    const tournamentId = await seedTournament({categories: [CAT()]});
+
+    const {registrationId} = await call(callables.registerSolo, joao, {
+      tournamentId, categoryId: 'masc',
+    });
+    assert.ok(registrationId);
   });
 });

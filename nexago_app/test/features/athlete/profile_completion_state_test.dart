@@ -79,10 +79,10 @@ void main() {
     expect(gamificationIncomplete.canUnlockTournaments, isTrue);
   });
 
-  test('phone with valid format but unverified does not unlock tournaments', () {
-    // Regressão do gate: o servidor exige `phoneVerified` em
-    // `athlete-tournament-access.ts`. Se o client aceitar só o formato, o
-    // atleta passa no banner e leva `failed-precondition` na inscrição.
+  test('phone with valid format unlocks tournaments without SMS', () {
+    // Espelho do gate: o servidor aceita o número declarado em
+    // `athlete-tournament-access.ts`. Se o client exigir mais que o servidor,
+    // o atleta fica barrado no banner por uma regra que não existe.
     final typedOnly = baseProfile(
       onboarding: true,
       goals: [],
@@ -90,9 +90,12 @@ void main() {
       phoneVerified: false,
     );
 
-    expect(isTournamentProfileReady(typedOnly), isFalse);
-    expect(canAccessOfficialTournaments(profile: typedOnly), isFalse);
-    expect(tournamentProfileMissingTitles(typedOnly), contains('WhatsApp'));
+    expect(isTournamentProfileReady(typedOnly), isTrue);
+    expect(canAccessOfficialTournaments(profile: typedOnly), isTrue);
+    expect(
+        tournamentProfileMissingTitles(typedOnly), isNot(contains('WhatsApp')));
+    // Mas o passo da gamificação continua exigindo o SMS: "perfil 100%" é a
+    // recompensa que sobrou pra verificação.
     expect(
       ProfileCompletionState.fromProfile(typedOnly)
           .steps
@@ -102,8 +105,21 @@ void main() {
     );
   });
 
+  test('malformed phone still does not unlock tournaments', () {
+    final broken = baseProfile(
+      onboarding: true,
+      goals: [],
+      phone: '123',
+      phoneVerified: false,
+    );
+
+    expect(isTournamentProfileReady(broken), isFalse);
+    expect(tournamentProfileMissingTitles(broken), contains('WhatsApp'));
+  });
+
   test('whatsapp validation accepts 10-11 digits', () {
-    expect(ProfileCompletionValidators.isValidWhatsApp('(62) 99999-9999'), isTrue);
+    expect(
+        ProfileCompletionValidators.isValidWhatsApp('(62) 99999-9999'), isTrue);
     expect(ProfileCompletionValidators.isValidWhatsApp('123'), isFalse);
   });
 
@@ -114,7 +130,8 @@ void main() {
     );
   });
 
-  test('isProfileComplete flag unlocks tournaments without gamification steps', () {
+  test('isProfileComplete flag unlocks tournaments without gamification steps',
+      () {
     final profile = baseProfile(
       onboarding: false,
       goals: [],

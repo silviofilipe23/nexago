@@ -186,18 +186,27 @@
             </span>
           </label>
 
-          <div class="nx-field">
-            <span class="nx-field-label">Número de telefone (opcional)</span>
-            @if (phoneVerified()) {
-              <div class="nx-alert nx-alert--success" role="status">✓ Telefone verificado</div>
+          <label class="nx-field">
+            <span class="nx-field-label">WhatsApp *</span>
+            <span class="nx-field-box" [class.nx-field-box--error]="phoneError()">
+              <input
+                type="tel"
+                inputmode="numeric"
+                autocomplete="tel"
+                [value]="phoneInput()"
+                (input)="onPhoneInput($any($event.target).value)"
+                placeholder="(00) 00000-0000"
+              />
+            </span>
+            @if (phoneError()) {
+              <span class="nx-field-msg nx-field-msg--error">{{ phoneError() }}</span>
             } @else {
-              <app-phone-verification (verified)="onPhoneVerified($event)" />
               <span class="nx-field-msg nx-field-msg--hint">
-                SMS não chegou? Conclua o cadastro e verifique depois no seu perfil —
-                inscrições em torneios exigem WhatsApp verificado.
+                É por aqui que o organizador fala com você sobre a inscrição. Verificar por
+                SMS é opcional e pode ser feito depois, no seu perfil.
               </span>
             }
-          </div>
+          </label>
 
           <label class="nx-field">
             <span class="nx-field-label">Data de nascimento *</span>

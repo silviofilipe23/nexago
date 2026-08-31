@@ -18,8 +18,9 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_prov
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_registration_page.dart';
+import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_registration/tournament_registration_partner_step.dart';
 
 /// Testes da TELA de inscrição: o que o atleta vê em cada estado e QUAL
 /// callable o app dispara com quais argumentos.
@@ -71,8 +72,10 @@ void main() {
     genderCompositionWomen: women,
   );
 
-  TournamentDetail torneio(List<TournamentCategoryOffer> categorias) =>
-      TournamentDetail(
+  TournamentDetail torneio(
+    List<TournamentCategoryOffer> categorias, {
+    bool requireFormedPair = false,
+  }) => TournamentDetail(
         id: 't1',
         name: 'Copa de Teste',
         location: 'Arena Teste',
@@ -92,6 +95,7 @@ void main() {
         liveMatchesNow: 0,
         categoryOffers: categorias,
         sport: 'beachTennis',
+        requireFormedPair: requireFormedPair,
       );
 
   AthleteProfile perfil({
@@ -275,7 +279,7 @@ void main() {
     testWidgets('mostra o CTA de reservar a vaga', (tester) async {
       await abrirTela(tester, tournament: torneio([dupla()]));
 
-      expect(find.text('Reservar minha vaga'), findsOneWidget);
+      expect(find.text('Convidar parceiro'), findsOneWidget);
       expect(find.text('Criar equipe'), findsNothing);
       expect(find.text('Nome da equipe'), findsNothing);
     });
@@ -285,7 +289,7 @@ void main() {
     ) async {
       await abrirTela(tester, tournament: torneio([dupla()]));
 
-      await tester.tap(find.text('Reservar minha vaga'));
+      await tester.tap(find.text('Convidar parceiro'));
       await tester.pumpAndSettle();
 
       expect(servico.soloCalls, isEmpty);
@@ -298,7 +302,7 @@ void main() {
       await abrirTela(tester, tournament: torneio([dupla()]));
 
       await marcarLgpd(tester);
-      await tester.tap(find.text('Reservar minha vaga'));
+      await tester.tap(find.text('Convidar parceiro'));
       await tester.pumpAndSettle();
 
       expect(servico.soloCalls, hasLength(1));
@@ -321,7 +325,7 @@ void main() {
       );
 
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -336,7 +340,7 @@ void main() {
 
       expect(find.text('ENCERRADA'), findsWidgets);
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -352,7 +356,7 @@ void main() {
 
       expect(find.text('LOTADO'), findsWidgets);
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -366,7 +370,7 @@ void main() {
 
       expect(find.text('GÊNERO'), findsWidgets);
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -381,7 +385,7 @@ void main() {
       );
 
       await marcarLgpd(tester);
-      await tester.tap(find.text('Reservar minha vaga'));
+      await tester.tap(find.text('Convidar parceiro'));
       await tester.pumpAndSettle();
 
       expect(
@@ -401,7 +405,7 @@ void main() {
 
       expect(find.text('Criar equipe'), findsOneWidget);
       expect(find.text('Nome da equipe'), findsOneWidget);
-      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.text('Convidar parceiro'), findsNothing);
       expect(find.textContaining('Categoria de quarteto'), findsOneWidget);
     });
 
@@ -463,7 +467,7 @@ void main() {
 
       expect(find.text('Aceitar convite'), findsOneWidget);
       expect(find.text('Recusar'), findsOneWidget);
-      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.text('Convidar parceiro'), findsNothing);
       expect(find.textContaining('Bia Souza'), findsWidgets);
     });
 
@@ -535,7 +539,85 @@ void main() {
       );
 
       expect(find.text('Aceitar convite'), findsNothing);
-      expect(find.text('Reservar minha vaga'), findsOneWidget);
+      expect(find.text('Convidar parceiro'), findsOneWidget);
+    });
+  });
+
+  group('dupla já formada — sem inscrição', () {
+    const candidato = TournamentRegistrationPartnerCandidate(
+      userId: 'pedro',
+      initials: 'PS',
+      name: 'Pedro Silva',
+      rankLabel: 'Open',
+    );
+
+    Future<void> escolherParceiro(WidgetTester tester) async {
+      final step = tester.widget<TournamentRegistrationPartnerStep>(
+        find.byType(TournamentRegistrationPartnerStep),
+      );
+      step.onSelected(candidato);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('troca o CTA de reserva solo pela busca de parceiro', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+      );
+
+      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.textContaining('exige dupla já formada'), findsOneWidget);
+      expect(find.byType(TournamentRegistrationPartnerStep), findsOneWidget);
+    });
+
+    testWidgets('sem aceitar o termo, o convite não chega ao servidor', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+      );
+
+      await escolherParceiro(tester);
+
+      expect(servico.inviteCalls, isEmpty);
+      expect(find.textContaining('Marque o aceite do termo'), findsOneWidget);
+    });
+
+    testWidgets('com o termo aceito, o convite sai com o aceite junto', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+      );
+
+      await marcarLgpd(tester);
+      await escolherParceiro(tester);
+
+      expect(servico.inviteCalls, hasLength(1));
+      expect(servico.inviteCalls.single.categoryId, 'masc');
+      expect(servico.inviteCalls.single.inviteeUid, 'pedro');
+      expect(servico.inviteCalls.single.lgpdAccepted, isTrue);
+      expect(
+        servico.soloCalls,
+        isEmpty,
+        reason: 'não existe reserva solo neste torneio',
+      );
+    });
+
+    testWidgets('equipe (trio+) segue criando a equipe pelo nome', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([equipe()], requireFormedPair: true),
+      );
+
+      expect(find.text('Criar equipe'), findsOneWidget);
+      expect(find.byType(TournamentRegistrationPartnerStep), findsNothing);
     });
   });
 
@@ -555,7 +637,7 @@ void main() {
       );
 
       expect(find.textContaining('Vaga reservada!'), findsOneWidget);
-      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.text('Convidar parceiro'), findsNothing);
     });
 
     testWidgets('equipe incompleta mostra o elenco e o que falta', (
@@ -949,6 +1031,13 @@ class _FakeInviteService implements TournamentPartnerInviteService {
   final declineCalls = <String>[];
   final cancelInviteCalls = <String>[];
   final leaveTeamCalls = <String>[];
+  final inviteCalls =
+      <({
+        String tournamentId,
+        String categoryId,
+        String inviteeUid,
+        bool lgpdAccepted,
+      })>[];
 
   @override
   Future<String> registerSolo({
@@ -999,6 +1088,29 @@ class _FakeInviteService implements TournamentPartnerInviteService {
   @override
   Future<void> cancelInvite(String inviteId, {bool asDecline = false}) async {
     (asDecline ? declineCalls : cancelInviteCalls).add(inviteId);
+  }
+
+  @override
+  Future<TournamentPartnerInviteSendResult> sendInvite({
+    required String tournamentId,
+    required String categoryId,
+    required String inviteeUid,
+    required String inviteeName,
+    required String inviterName,
+    TournamentUniformSelection? inviterUniform,
+    bool lgpdAccepted = false,
+  }) async {
+    inviteCalls.add((
+      tournamentId: tournamentId,
+      categoryId: categoryId,
+      inviteeUid: inviteeUid,
+      lgpdAccepted: lgpdAccepted,
+    ));
+    return const TournamentPartnerInviteSendResult(
+      inviteId: 'convite-novo',
+      inviteeProfileReady: true,
+      inviteeMissingSteps: <String>[],
+    );
   }
 
   @override

@@ -153,14 +153,15 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           OrganizerToggleSettingRow(
-            icon: Icons.mail_outline_rounded,
-            title: 'Confirmar dupla por convite',
+            icon: Icons.people_alt_outlined,
+            title: 'Exigir dupla já formada',
             subtitle:
-                'Parceiro precisa aceitar antes de confirmar a inscrição.',
-            value: draft.inviteConfirmEnabled,
+                'Sem inscrição individual: a vaga só é criada quando o '
+                'parceiro aceita o convite.',
+            value: draft.requireFormedPair,
             onChanged: (value) => ref
                 .read(tournamentCreateWizardProvider.notifier)
-                .setInviteConfirmEnabled(value),
+                .setRequireFormedPair(value),
           ),
         ],
       ),

@@ -460,7 +460,7 @@ function inputToDatetime(v: string): Date | null {
                 </og-card>
                 <og-card kicker="Vagas" title="Regras de vagas">
                   <og-toggle-row title="Lista de espera" desc="Quando lotar, novas duplas entram na fila automaticamente." [on]="draft().waitlistEnabled" (toggled)="patch({ waitlistEnabled: $event })" />
-                  <og-toggle-row title="Confirmar dupla por convite" desc="A inscrição só conta quando o parceiro aceita." [on]="draft().inviteConfirmEnabled" (toggled)="patch({ inviteConfirmEnabled: $event })" />
+                  <og-toggle-row title="Exigir dupla já formada" desc="Sem inscrição individual: a vaga só é criada quando o parceiro aceita o convite." [on]="draft().requireFormedPair" (toggled)="patch({ requireFormedPair: $event })" />
                   <og-toggle-row
                     title="Prazo para pagar"
                     desc="Sem pagamento no prazo, a vaga volta pro público. O relógio começa quando a dupla fecha — convite pendente não conta."

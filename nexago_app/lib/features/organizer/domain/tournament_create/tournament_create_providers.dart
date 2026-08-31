@@ -413,6 +413,9 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
   void setInviteConfirmEnabled(bool value) =>
       _updateDraft(state.draft.copyWith(inviteConfirmEnabled: value));
 
+  void setRequireFormedPair(bool value) =>
+      _updateDraft(state.draft.copyWith(requireFormedPair: value));
+
   void setCashPrizesEnabled(bool value) {
     _updateDraft(state.draft.copyWith(cashPrizesEnabled: value));
   }

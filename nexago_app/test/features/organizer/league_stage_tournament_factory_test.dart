@@ -205,6 +205,17 @@ void main() {
       expect(disabled['registrationClosed'], isTrue);
     });
 
+    test('etapa de liga nasce aceitando inscrição individual', () {
+      final map = LeagueStageTournamentFactory.buildFromStageCreate(
+        draft: _draft(),
+        managerId: 'manager-1',
+        tournamentId: 'tournament-1',
+        publish: true,
+      );
+
+      expect(map['requireFormedPair'], isFalse);
+    });
+
     test('draft sets listingStatus draft', () {
       final map = LeagueStageTournamentFactory.buildFromStageCreate(
         draft: _draft(),

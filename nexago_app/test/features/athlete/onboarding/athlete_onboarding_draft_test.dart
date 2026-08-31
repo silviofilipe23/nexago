@@ -10,7 +10,7 @@ import 'package:nexago_app/features/athlete/onboarding/domain/athlete_onboarding
 AthleteOnboardingDraft _completeProfileDraft() {
   return AthleteOnboardingDraft(
     name: 'Marcelo Antunes',
-    verifiedPhoneNumber: '+5511987654321',
+    phoneNumber: '(11) 98765-4321',
     birthDate: '15/03/1990',
     gender: 'Masculino',
     city: 'Goiânia',
@@ -85,30 +85,45 @@ void main() {
       expect(_completeProfileDraft().isProfileValid, isTrue);
     });
 
-    test('telefone verificado NÃO é mais obrigatório pra concluir o cadastro', () {
-      // SMS não chega pra parte dos atletas e travava o cadastro inteiro.
-      // Sem verificar, o atleta conclui com onboardingCompleted e SEM
-      // phoneVerified — o gate de torneios do servidor continua exigindo a
-      // verificação na hora da inscrição (athlete-tournament-access.ts).
-      final semTelefone =
-          _completeProfileDraft().copyWith(verifiedPhoneNumber: '');
-      expect(semTelefone.isProfileValid, isTrue);
+    test('telefone é obrigatório pra concluir o cadastro', () {
+      // O contato é o que o organizador usa pra falar com o atleta — sem ele
+      // a inscrição fica sem canal. O SMS é que deixou de ser exigido.
+      final semTelefone = _completeProfileDraft().copyWith(phoneNumber: '');
+      expect(semTelefone.isProfileValid, isFalse);
       expect(
         semTelefone.canContinueFrom(AthleteOnboardingStep.profile),
-        isTrue,
+        isFalse,
       );
+    });
 
-      final profile = semTelefone.toAthleteProfile(uid: 'uid-1');
+    test('telefone digitado conclui o cadastro sem passar pelo SMS', () {
+      // SMS não chega pra parte dos atletas e travava o cadastro inteiro.
+      // O número declarado basta: sai com phoneNumber e SEM phoneVerified.
+      final draft = _completeProfileDraft();
+      expect(draft.isProfileValid, isTrue);
+      expect(draft.canContinueFrom(AthleteOnboardingStep.profile), isTrue);
+
+      final profile = draft.toAthleteProfile(uid: 'uid-1');
+      expect(profile.phoneNumber, '(11) 98765-4321');
       expect(profile.phoneVerified, isFalse);
-      expect(profile.phoneNumber, isNull);
       expect(profile.onboardingCompleted, isTrue);
+    });
+
+    test('verificar por SMS marca phoneVerified no perfil', () {
+      final draft = _completeProfileDraft()
+          .copyWith(phoneNumber: '+5511987654321', phoneVerified: true);
+
+      final profile = draft.toAthleteProfile(uid: 'uid-1');
+      expect(profile.phoneNumber, '+5511987654321');
+      expect(profile.phoneVerified, isTrue);
     });
 
     test('cidade, UF e foto são obrigatórias pra concluir o cadastro', () {
       // Cada um sozinho derruba o passo: o atleta precisa ser identificável
       // (foto) e localizável (cidade/UF) — o gate de torneios do servidor
       // (athlete-tournament-access.ts) já exigia os dois depois do cadastro.
-      expect(_completeProfileDraft().copyWith(city: '').isProfileValid, isFalse);
+      expect(
+          _completeProfileDraft().copyWith(city: '').isProfileValid, isFalse);
       expect(
         _completeProfileDraft().copyWith(state: '').isProfileValid,
         isFalse,
@@ -133,9 +148,14 @@ void main() {
       expect(onlyName.isNameValid, isTrue);
       expect(onlyName.isPhoneValid, isFalse);
 
-      // Telefone não verificado e data fora do formato continuam inválidos.
-      // Digitar o número não basta mais: sem passar pelo SMS o gate de
-      // torneios do servidor recusaria a inscrição depois.
+      // Número digitado vale sem SMS, mas o formato ainda é conferido —
+      // telefone quebrado não serve de contato pro organizador.
+      const celular = AthleteOnboardingDraft(phoneNumber: '(62) 99999-9999');
+      expect(celular.isPhoneValid, isTrue);
+      const quebrado = AthleteOnboardingDraft(phoneNumber: '123');
+      expect(quebrado.isPhoneValid, isFalse);
+
+      // Data fora do formato continua inválida.
       const partial = AthleteOnboardingDraft(
         name: 'Ana',
         birthDate: '31/13/2050',
@@ -155,7 +175,8 @@ void main() {
         goalIds: {'compete', 'play_fun'},
         name: 'Marcelo',
         nickname: 'Marcelão',
-        verifiedPhoneNumber: '+5511987654321',
+        phoneNumber: '+5511987654321',
+        phoneVerified: true,
         birthDate: '15/03/1990',
         gender: 'Feminino',
         city: '  Aparecida de Goiânia  ',
@@ -182,14 +203,22 @@ void main() {
       expect(profile.state, 'GO');
     });
 
-    test('concluir sem telefone NÃO destrava o gate de torneios', () {
-      // A regra que não pode quebrar: destravar o funil de cadastro não pode
-      // destravar torneios. O perfil que sai do onboarding sem SMS precisa
-      // continuar barrado no client (profile_access.dart), espelho do servidor
-      // (athlete-tournament-access.ts) — senão o atleta passa no banner e leva
-      // failed-precondition no meio da inscrição.
+    test('telefone digitado destrava o gate de torneios, sem SMS', () {
+      // Espelho de `athlete-tournament-access.ts`: o número declarado basta.
+      // Se o client divergir do servidor, o atleta passa no banner e leva
+      // failed-precondition no meio da inscrição (ou o contrário).
+      final semSms = _completeProfileDraft()
+          .toAthleteProfile(uid: 'uid-1', avatarUrl: 'https://cdn/a.jpg');
+
+      expect(semSms.phoneVerified, isFalse);
+      expect(isTournamentProfileReady(semSms), isTrue);
+      expect(canAccessOfficialTournaments(profile: semSms), isTrue);
+      expect(tournamentProfileMissingTitles(semSms), isEmpty);
+    });
+
+    test('concluir sem telefone nenhum NÃO destrava o gate de torneios', () {
       final semTelefone = _completeProfileDraft()
-          .copyWith(verifiedPhoneNumber: '')
+          .copyWith(phoneNumber: '')
           .toAthleteProfile(uid: 'uid-1', avatarUrl: 'https://cdn/a.jpg');
 
       expect(semTelefone.onboardingCompleted, isTrue);
@@ -197,22 +226,23 @@ void main() {
       expect(canAccessOfficialTournaments(profile: semTelefone), isFalse);
       // WhatsApp é a ÚNICA pendência: cidade/UF/foto já saíram do onboarding.
       expect(tournamentProfileMissingTitles(semTelefone), ['WhatsApp']);
+    });
 
-      final completion = ProfileCompletionState.fromProfile(semTelefone);
+    test('o passo WhatsApp da gamificação continua exigindo o SMS', () {
+      // "Perfil 100%" (gamificação, profile-completion-shared.ts) segue
+      // premiando a verificação — é a recompensa que sobrou pro SMS. Só o
+      // gate de torneios afrouxou.
+      final semSms = _completeProfileDraft()
+          .toAthleteProfile(uid: 'uid-1', avatarUrl: 'https://cdn/a.jpg');
+
+      final completion = ProfileCompletionState.fromProfile(semSms);
       expect(
         completion.steps
             .firstWhere((s) => s.step == ProfileCompletionStep.whatsapp)
             .isDone,
         isFalse,
       );
-      expect(completion.canUnlockTournaments, isFalse);
-
-      // Mesmo perfil COM o SMS verificado destrava — prova que o bloqueio
-      // acima é só o telefone, não outro campo esquecido.
-      final comTelefone = _completeProfileDraft()
-          .toAthleteProfile(uid: 'uid-1', avatarUrl: 'https://cdn/a.jpg');
-      expect(isTournamentProfileReady(comTelefone), isTrue);
-      expect(canAccessOfficialTournaments(profile: comTelefone), isTrue);
+      expect(completion.canUnlockTournaments, isTrue);
     });
 
     test('referralCode defaults to empty and is preserved by copyWith', () {

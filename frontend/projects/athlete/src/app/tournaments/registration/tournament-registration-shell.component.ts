@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
@@ -135,6 +136,7 @@ interface CategoryStatus {
 @Component({
   selector: 'app-tournament-registration-shell',
   imports: [
+    NgTemplateOutlet,
     RouterLink,
     AtPanelShellComponent,
     UniformFormComponent,
@@ -329,6 +331,12 @@ export class TournamentRegistrationShellComponent {
 
   // ── Categoria de EQUIPE (trio/quarteto/quinteto) ────────────────────────
   protected readonly isTeamCategory = computed(() => this.selectedCategory()?.teamSize != null);
+  /** Entrada SEM reserva solo: o torneio exige dupla já formada e a categoria é de dupla, e o
+   *  atleta ainda não tem inscrição — o convite é que a cria (o servidor recusa
+   *  `registerSoloTournament` aqui). Equipe (trio+) nunca teve reserva solo, então segue igual. */
+  protected readonly formedPairEntry = computed(
+    () => (this.listing()?.requireFormedPair ?? false) && !this.isTeamCategory() && !this.registration(),
+  );
   protected readonly teamSize = computed(() => this.selectedCategory()?.teamSize ?? 2);
   /** Nome digitado pelo capitão antes de criar a equipe. */
   protected readonly teamName = signal('');
@@ -473,7 +481,14 @@ export class TournamentRegistrationShellComponent {
       const uid = this.auth.user()?.uid;
       const tournamentId = this.tournamentId();
       const db = this.firestore;
-      if (!reg?.partnerPending || !uid || !tournamentId || !db) {
+      // Em torneio de dupla já formada o convite existe ANTES da inscrição — sem este ramo a
+      // lista de convites enviados (e o Cancelar) nunca apareceria nesse estado.
+      const categoryId = reg?.partnerPending
+        ? reg.categoryId
+        : this.formedPairEntry()
+          ? (this.selectedCategory()?.id ?? '')
+          : '';
+      if (!categoryId || !uid || !tournamentId || !db) {
         this.sentPendingInvites.set([]);
         return;
       }
@@ -482,7 +497,7 @@ export class TournamentRegistrationShellComponent {
           db,
           uid,
           tournamentId,
-          reg.categoryId,
+          categoryId,
           (invites) => this.sentPendingInvites.set(invites),
           () => this.sentPendingInvites.set([]),
         ),
@@ -1000,6 +1015,29 @@ export class TournamentRegistrationShellComponent {
     const tournamentId = this.tournamentId();
     if (!category || !tournamentId || this.invitingId()) return;
 
+    // Torneio de dupla já formada: o convite É a entrada do atleta (não houve reserva solo
+    // antes dele), então as travas que no fluxo normal moram em `registerSoloForCategory` —
+    // categoria indisponível, aceite LGPD e confirmação de nível — acontecem aqui.
+    const entryInvite = this.formedPairEntry();
+    if (entryInvite) {
+      const status = this.categoryStatusOf(category);
+      if (status.blocked) {
+        this.toasts.warning(
+          'Categoria indisponível',
+          status.message ?? 'Você não pode se inscrever nesta categoria. Escolha outra na lista.',
+        );
+        return;
+      }
+      if (!this.lgpdAccepted()) {
+        this.toasts.warning(
+          'Falta aceitar o termo',
+          'Marque o aceite do termo de uso de imagem e LGPD para convidar seu parceiro.',
+        );
+        return;
+      }
+      if (!(await this.ensureLevelConfirmed())) return;
+    }
+
     // Inscrição legada sem o meu aceite LGPD: o checkbox reaparece e o aceite
     // sai junto com o convite (o backend copia pra inscrição no aceite do parceiro).
     if (this.myLgpdConsentMissing() && !this.lgpdAccepted()) {
@@ -1034,7 +1072,7 @@ export class TournamentRegistrationShellComponent {
         inviteeName: candidate.displayName,
         inviterName: this.accountLabel(),
         ...(inviterUniform ? { inviterUniform } : {}),
-        ...(this.myLgpdConsentMissing() && this.lgpdAccepted() ? { lgpdAccepted: true } : {}),
+        ...(entryInvite || (this.myLgpdConsentMissing() && this.lgpdAccepted()) ? { lgpdAccepted: true } : {}),
       });
       // Parceiro com cadastro incompleto não consegue aceitar: sem o aviso o
       // convite ficava "aguardando resposta" até expirar sem ninguém saber.

@@ -104,6 +104,9 @@ export interface TournamentCreateDraft {
   /** Minutos de garantia da vaga depois que o elenco fecha. */
   registrationHoldMinutes: number;
   inviteConfirmEnabled: boolean;
+  /** Sem inscrição individual: em categoria de dupla a vaga só nasce quando o parceiro aceita o
+   *  convite. Lido pela Cloud Function `registerSoloTournament`, que recusa a reserva solo. */
+  requireFormedPair: boolean;
   cashPrizesEnabled: boolean;
   regulationNotes: string;
   uniformRequired: boolean;
@@ -174,6 +177,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
     registrationHoldEnabled: true,
     registrationHoldMinutes: 30,
     inviteConfirmEnabled: false,
+    requireFormedPair: false,
     cashPrizesEnabled: true,
     regulationNotes: '',
     uniformRequired: true,

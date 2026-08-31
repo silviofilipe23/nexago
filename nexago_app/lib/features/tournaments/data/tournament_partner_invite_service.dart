@@ -25,6 +25,24 @@ class TournamentPartnerInviteException implements Exception {
   String toString() => message;
 }
 
+/// Traduz o erro de uma callable para a copy que o atleta vê.
+///
+/// Quando a falha nasce no TRANSPORTE (callable ausente no projeto → 404,
+/// backend fora do ar, timeout), o SDK nativo do Functions preenche `message`
+/// com a descrição genérica do próprio código — "NOT FOUND" no iOS,
+/// "NOT_FOUND" no Android. Repassar isso é vazar infraestrutura na tela, e o
+/// `message ?? fallback` do chamador nunca dispara porque a mensagem VEM
+/// preenchida. Aqui a comparação é com o próprio `code` normalizado: mensagem
+/// de regra de negócio (sempre em português) jamais colide com ele.
+String callableErrorMessage(String code, String? message, String fallback) {
+  final text = message?.trim() ?? '';
+  if (text.isEmpty) return fallback;
+  final separators = RegExp(r'[ _-]');
+  final normalizedText = text.toUpperCase().replaceAll(separators, '');
+  final normalizedCode = code.toUpperCase().replaceAll(separators, '');
+  return normalizedText == normalizedCode ? fallback : text;
+}
+
 /// Resultado do envio do convite. Além do id, o backend informa se o CONVIDADO
 /// já passa no gate de perfil de torneio — pendência não bloqueia o envio, mas
 /// o convidante precisa saber que o parceiro ainda não consegue aceitar.
@@ -162,7 +180,11 @@ class TournamentPartnerInviteService {
       return inviteId;
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
-        e.message ?? 'Não foi possível enviar o convite de substituição.',
+        callableErrorMessage(
+          e.code,
+          e.message,
+          'Não foi possível enviar o convite de substituição.',
+        ),
       );
     }
   }
@@ -179,7 +201,11 @@ class TournamentPartnerInviteService {
       await callable.call({'inviteId': inviteId});
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
-        e.message ?? 'Não foi possível registrar a visualização.',
+        callableErrorMessage(
+          e.code,
+          e.message,
+          'Não foi possível registrar a visualização.',
+        ),
       );
     }
   }
@@ -196,7 +222,11 @@ class TournamentPartnerInviteService {
       await callable.call({'inviteId': inviteId});
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
-        e.message ?? 'Não foi possível reenviar o lembrete.',
+        callableErrorMessage(
+          e.code,
+          e.message,
+          'Não foi possível reenviar o lembrete.',
+        ),
       );
     }
   }

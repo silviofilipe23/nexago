@@ -21,6 +21,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_registration_detail_page.dart';
+import 'package:nexago_app/features/tournaments/presentation/tournament_substitution_status_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_substitution_wizard_page.dart';
 
 void main() {
@@ -117,6 +118,14 @@ void main() {
             registrationId: state.pathParameters['registrationId'] ?? '',
           ),
         ),
+        GoRoute(
+          path: AppRoutes.tournamentSubstitutionStatus,
+          name: AppRouteNames.tournamentSubstitutionStatus,
+          builder: (context, state) => TournamentSubstitutionStatusPage(
+            tournamentId: state.pathParameters['tournamentId'] ?? '',
+            inviteId: state.pathParameters['inviteId'] ?? '',
+          ),
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -135,6 +144,13 @@ void main() {
           ),
           usersRepositoryProvider.overrideWithValue(users),
           tournamentPartnerInviteServiceProvider.overrideWithValue(convites),
+          // A tela de acompanhamento (destino do card "Substituição em
+          // curso") lê o convite por `tournamentPartnerInviteProvider`
+          // (family por id) — resolve cada convite enviado pro seu próprio
+          // stream, do jeito que a rota real faria via Firestore.
+          for (final invite in convitesEnviados)
+            tournamentPartnerInviteProvider(invite.id)
+                .overrideWith((ref) => Stream.value(invite)),
         ],
         child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
       ),
@@ -255,6 +271,28 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Substituir um atleta da dupla'), findsNothing);
+    });
+
+    testWidgets(
+        'convite de substituição pendente: o toque no card navega para a '
+        'tela de acompanhamento (tournamentSubstitutionStatus)',
+        (tester) async {
+      final convite = convitePendente(inviteeName: 'Carla Nunes');
+      await abrirDetalhe(
+        tester,
+        registration: inscricao(bracketPublished: false),
+        convitesEnviados: [convite],
+      );
+
+      await tester.tap(find.text('Substituição em curso'));
+      await tester.pumpAndSettle();
+
+      // Conteúdo exclusivo da tela de acompanhamento (Task 6) — não existe
+      // no card do detalhe, então não há ambiguidade com a rota anterior
+      // ainda montada por baixo.
+      expect(find.text('O QUE FALTA'), findsOneWidget);
+      expect(find.text('Pedido de substituição enviado'), findsOneWidget);
+      expect(find.text('VAGA RESERVADA'), findsOneWidget);
     });
 
     testWidgets('equipe (trio+): copy usa "equipe"/"atleta"', (tester) async {

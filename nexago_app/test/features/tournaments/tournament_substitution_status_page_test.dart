@@ -10,7 +10,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/tournaments/data/my_tournament_registrations_repository.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_partner_invite_service.dart';
@@ -83,10 +85,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
+  /// A `ListView` do corpo pendente é mais alta que a viewport padrão do
+  /// teste (800×600) — os botões "Lembrar"/"Cancelar troca" ficam fora da
+  /// área carregada pela lista. Alarga a viewport em vez de rolar, só nos
+  /// testes que precisam tocar esses botões.
+  void ampliarTela(WidgetTester tester) {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
+
   Future<void> abrirStatus(
     WidgetTester tester, {
     required TournamentPartnerInvite? invite,
     List<MyTournamentRegistration> registrations = const [],
+    TournamentPartnerInviteService? service,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -98,7 +111,7 @@ void main() {
             (ref) => Stream.value(registrations),
           ),
           tournamentPartnerInviteServiceProvider.overrideWithValue(
-            _FakeInviteService(),
+            service ?? _FakeInviteService(),
           ),
         ],
         child: MaterialApp(
@@ -108,6 +121,62 @@ void main() {
             inviteId: inviteId,
           ),
         ),
+      ),
+    );
+    await assentar(tester);
+  }
+
+  /// Variante com `GoRouter` de verdade: só é preciso pra cobrir a navegação
+  /// do corpo terminal ("Tentar com outro atleta"), que usa
+  /// `context.pushReplacementNamed` — método de extensão do go_router que
+  /// precisa de um `GoRouter` ancestral pra resolver (`MaterialApp.home`
+  /// simples, como em `abrirStatus`, não tem um).
+  Future<void> abrirStatusComRouter(
+    WidgetTester tester, {
+    required TournamentPartnerInvite? invite,
+    List<MyTournamentRegistration> registrations = const [],
+    TournamentPartnerInviteService? service,
+  }) async {
+    final router = GoRouter(
+      initialLocation: AppRoutes.tournamentSubstitutionStatus
+          .replaceFirst(':tournamentId', tournamentId)
+          .replaceFirst(':inviteId', inviteId),
+      routes: [
+        GoRoute(
+          path: AppRoutes.tournamentSubstitutionStatus,
+          name: AppRouteNames.tournamentSubstitutionStatus,
+          builder: (context, state) => TournamentSubstitutionStatusPage(
+            tournamentId: state.pathParameters['tournamentId'] ?? '',
+            inviteId: state.pathParameters['inviteId'] ?? '',
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.tournamentSubstitutionWizard,
+          name: AppRouteNames.tournamentSubstitutionWizard,
+          builder: (context, state) {
+            final tId = state.pathParameters['tournamentId'] ?? '';
+            final regId = state.pathParameters['registrationId'] ?? '';
+            return Scaffold(body: Center(child: Text('WIZARD $tId/$regId')));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tournamentPartnerInviteProvider(
+            inviteId,
+          ).overrideWith((ref) => Stream.value(invite)),
+          myTournamentRegistrationsProvider.overrideWith(
+            (ref) => Stream.value(registrations),
+          ),
+          tournamentPartnerInviteServiceProvider.overrideWithValue(
+            service ?? _FakeInviteService(),
+          ),
+        ],
+        child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
       ),
     );
     await assentar(tester);
@@ -236,6 +305,164 @@ void main() {
 
       expect(find.text('A troca foi cancelada.'), findsOneWidget);
     });
+
+    testWidgets(
+        'recusado: "Tentar com outro atleta" navega pro wizard com o '
+        'registrationId do convite', (tester) async {
+      await abrirStatusComRouter(
+        tester,
+        invite: convite(status: 'declined'),
+        registrations: [inscricao()],
+      );
+
+      await tester.tap(find.text('Tentar com outro atleta'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('WIZARD $tournamentId/$registrationId'), findsOneWidget);
+      expect(find.text('O convite foi recusado.'), findsNothing);
+    });
+  });
+
+  group('lembrar — sheet "Enviar lembrete por notificação"', () {
+    testWidgets('sucesso: chama resendSubstitutionInvite e mostra '
+        '"Lembrete enviado."', (tester) async {
+      ampliarTela(tester);
+      final service = _FakeInviteService();
+      await abrirStatus(
+        tester,
+        invite: convite(),
+        registrations: [inscricao()],
+        service: service,
+      );
+
+      // O rótulo do botão usa o primeiro nome do convidado.
+      await tester.tap(find.text('Lembrar Carla'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enviar lembrete por notificação'), findsOneWidget);
+      await tester.tap(find.text('Enviar lembrete por notificação'));
+      await tester.pumpAndSettle();
+
+      expect(service.resendCalls, [inviteId]);
+      expect(find.text('Lembrete enviado.'), findsOneWidget);
+    });
+
+    testWidgets('erro do backend (ex.: "aguarde") mostra a mensagem no '
+        'lugar do sucesso', (tester) async {
+      ampliarTela(tester);
+      final service = _FakeInviteService(
+        resendError: TournamentPartnerInviteException(
+          'Aguarde para lembrar novamente.',
+        ),
+      );
+      await abrirStatus(
+        tester,
+        invite: convite(),
+        registrations: [inscricao()],
+        service: service,
+      );
+
+      await tester.tap(find.text('Lembrar Carla'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enviar lembrete por notificação'));
+      await tester.pumpAndSettle();
+
+      expect(service.resendCalls, [inviteId]);
+      expect(find.text('Aguarde para lembrar novamente.'), findsOneWidget);
+      expect(find.text('Lembrete enviado.'), findsNothing);
+    });
+  });
+
+  group('cancelar troca', () {
+    testWidgets('confirmar chama cancelInvite e fecha a tela (pop)',
+        (tester) async {
+      ampliarTela(tester);
+      final service = _FakeInviteService();
+      final navigatorKey = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            tournamentPartnerInviteProvider(
+              inviteId,
+            ).overrideWith((ref) => Stream.value(convite())),
+            myTournamentRegistrationsProvider.overrideWith(
+              (ref) => Stream.value([inscricao()]),
+            ),
+            tournamentPartnerInviteServiceProvider.overrideWithValue(service),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            navigatorKey: navigatorKey,
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TournamentSubstitutionStatusPage(
+                          tournamentId: tournamentId,
+                          inviteId: inviteId,
+                        ),
+                      ),
+                    ),
+                    child: const Text('abrir'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await assentar(tester);
+      await tester.tap(find.text('abrir'));
+      await assentar(tester);
+
+      expect(find.text('Substituição em curso'), findsOneWidget);
+
+      // O botão "Cancelar troca" e a ação de confirmação do dialog têm o
+      // MESMO rótulo — mira só o `FilledButton` (o do dialog) pra não pegar
+      // os dois.
+      await tester.tap(find.text('Cancelar troca'));
+      await assentar(tester);
+
+      expect(find.text('Cancelar a troca?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Cancelar troca'));
+      await tester.pumpAndSettle();
+
+      expect(service.cancelCalls, [inviteId]);
+      expect(find.text('Substituição em curso'), findsNothing);
+      expect(find.text('abrir'), findsOneWidget);
+    });
+
+    testWidgets('erro do backend mostra a mensagem e mantém a tela aberta',
+        (tester) async {
+      ampliarTela(tester);
+      final service = _FakeInviteService(
+        cancelError: TournamentPartnerInviteException(
+          'Não foi possível cancelar. Tente novamente.',
+        ),
+      );
+      await abrirStatus(
+        tester,
+        invite: convite(),
+        registrations: [inscricao()],
+        service: service,
+      );
+
+      await tester.tap(find.text('Cancelar troca'));
+      await assentar(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Cancelar troca'));
+      await tester.pumpAndSettle();
+
+      expect(service.cancelCalls, [inviteId]);
+      expect(
+        find.text('Não foi possível cancelar. Tente novamente.'),
+        findsOneWidget,
+      );
+      // Sem pop no caminho de erro — a tela continua.
+      expect(find.text('Substituição em curso'), findsOneWidget);
+    });
   });
 
   group('convite não encontrado', () {
@@ -250,8 +477,31 @@ void main() {
 
 /// Dublê de `TournamentPartnerInviteService`: nesta bateria de testes nenhum
 /// botão que chama a rede é acionado — só precisa existir pra satisfazer o
-/// provider. `noSuchMethod` denuncia qualquer chamada não coberta.
+/// provider. Também captura as chamadas de lembrete (`resendSubstitutionInvite`)
+/// e cancelamento (`cancelInvite`), reproduzindo o erro do backend quando
+/// configurado. `noSuchMethod` denuncia qualquer chamada não coberta.
 class _FakeInviteService implements TournamentPartnerInviteService {
+  _FakeInviteService({this.resendError, this.cancelError});
+
+  final TournamentPartnerInviteException? resendError;
+  final TournamentPartnerInviteException? cancelError;
+  final resendCalls = <String>[];
+  final cancelCalls = <String>[];
+
+  @override
+  Future<void> resendSubstitutionInvite(String inviteId) async {
+    resendCalls.add(inviteId);
+    final erro = resendError;
+    if (erro != null) throw erro;
+  }
+
+  @override
+  Future<void> cancelInvite(String inviteId, {bool asDecline = false}) async {
+    cancelCalls.add(inviteId);
+    final erro = cancelError;
+    if (erro != null) throw erro;
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) {
     throw UnimplementedError(

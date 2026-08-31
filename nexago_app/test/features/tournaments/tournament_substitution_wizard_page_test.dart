@@ -12,12 +12,16 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/tournaments/data/my_tournament_registrations_repository.dart';
+import 'package:nexago_app/features/tournaments/data/partner_search_service.dart';
 import 'package:nexago_app/features/tournaments/data/recent_partners_repository.dart';
+import 'package:nexago_app/features/tournaments/data/tournament_partner_invite_service.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_substitution_wizard_page.dart';
 
@@ -314,6 +318,128 @@ void main() {
       expect(find.text('abrir'), findsOneWidget);
     });
   });
+
+  group('fluxo completo — passo 1 até o envio do convite', () {
+    testWidgets(
+        'vaga + chip de motivo + nota livre do passo 1 chegam no payload do '
+        'convite enviado no passo 2', (tester) async {
+      users = _FakeUsersRepository({
+        meuUid: perfil(meuUid, 'Eu Mesmo'),
+        'ana': perfil('ana', 'Ana Souza'),
+      });
+      recentes = _FakeRecentPartnersRepository(const []);
+      final busca = _FakePartnerSearchServiceFluxo([
+        perfil('carla', 'Carla Nunes'),
+      ]);
+      final convites = _FakeSubstitutionInviteServiceFluxo();
+
+      // `GoRouter` real: o envio bem-sucedido no passo 2 chama
+      // `context.pushReplacementNamed(tournamentSubstitutionStatus)`
+      // (Task 6) — precisa de um `GoRouter` ancestral pra resolver. O
+      // destino é um placeholder: a tela de acompanhamento tem cobertura
+      // própria em `tournament_substitution_status_page_test.dart`.
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const TournamentSubstitutionWizardPage(
+              tournamentId: tournamentId,
+              registrationId: registrationId,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.tournamentSubstitutionStatus,
+            name: AppRouteNames.tournamentSubstitutionStatus,
+            builder: (context, state) {
+              final tId = state.pathParameters['tournamentId'] ?? '';
+              final invId = state.pathParameters['inviteId'] ?? '';
+              return Scaffold(
+                body: Center(child: Text('STATUS $tId/$invId')),
+              );
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authProvider.overrideWith(
+              (ref) => Stream.value(
+                MockUser(uid: meuUid, displayName: 'Eu Mesmo'),
+              ),
+            ),
+            myTournamentRegistrationsProvider.overrideWith(
+              (ref) => Stream.value([
+                inscricao(participantUids: const [meuUid, 'ana']),
+              ]),
+            ),
+            usersRepositoryProvider.overrideWithValue(users),
+            recentPartnersRepositoryProvider.overrideWithValue(recentes),
+            partnerSearchServiceProvider.overrideWithValue(busca),
+            tournamentPartnerInviteServiceProvider.overrideWithValue(
+              convites,
+            ),
+          ],
+          child:
+              MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+        ),
+      );
+      await assentar(tester);
+
+      // Passo 1: escolhe a vaga, o motivo (chip) e escreve a nota livre.
+      await tester.tap(find.text('Ana Souza'));
+      await assentar(tester);
+
+      await tester.tap(find.text('Lesão'));
+      await assentar(tester);
+
+      await tester.enterText(
+        find.byType(TextField),
+        'Torceu o tornozelo no treino.',
+      );
+      await assentar(tester);
+
+      await tester.tap(find.text('Escolher o substituto →'));
+      await assentar(tester);
+
+      expect(find.text('Saindo: Ana Souza · Lesão'), findsOneWidget);
+
+      // Passo 2: busca e convida — o campo de busca precisa de um finder
+      // específico porque o `TextField` da nota do passo 1 continua montado
+      // por baixo (o `Navigator.push` não desmonta a rota anterior).
+      final campoBusca = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.hintText == 'Buscar atleta por nome',
+      );
+      await tester.enterText(campoBusca, 'car');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await assentar(tester);
+
+      await tester.tap(find.text('Convidar'));
+      // Sem animação contínua na tela anterior — seguro pra transição do
+      // `pushReplacementNamed`.
+      await tester.pumpAndSettle();
+
+      expect(convites.chamadas, hasLength(1));
+      final chamada = convites.chamadas.single;
+      expect(chamada.registrationId, registrationId);
+      expect(chamada.replacedUid, 'ana');
+      expect(chamada.replacedName, 'Ana Souza');
+      expect(chamada.inviteeUid, 'carla');
+      expect(chamada.inviteeName, 'Carla Nunes');
+      // O motivo escolhido no chip do passo 1...
+      expect(chamada.reason, 'lesao');
+      // ...e a nota livre digitada no mesmo passo — o alvo desta cobertura:
+      // o texto sobrevive à travessia passo 1 → passo 2 → envio.
+      expect(chamada.reasonNote, 'Torceu o tornozelo no treino.');
+
+      expect(find.text('STATUS $tournamentId/invite-1'), findsOneWidget);
+    });
+  });
 }
 
 /// Dublê de `UsersRepository`: só resolve os perfis passados em memória.
@@ -365,6 +491,81 @@ class _FakeRecentPartnersRepository implements RecentPartnersRepository {
     throw UnimplementedError(
       'O dublê não implementa ${invocation.memberName}. '
       'Se a tela passou a usar este método, cubra-o aqui.',
+    );
+  }
+}
+
+/// Dublê de `PartnerSearchService`: só devolve a lista fixa passada no teste
+/// (usado no fluxo completo passo 1 → passo 2 → convidar; a lógica de busca
+/// em si já é coberta em `tournament_substitution_pick_page_test.dart`).
+class _FakePartnerSearchServiceFluxo implements PartnerSearchService {
+  _FakePartnerSearchServiceFluxo(this._results);
+  final List<AppUserProfile> _results;
+
+  @override
+  Future<List<AppUserProfile>> searchPartners({
+    required String currentUserId,
+    required String? categoryGenderType,
+    required String query,
+    int max = PartnerSearchService.searchResultLimit,
+  }) async =>
+      _results;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    throw UnimplementedError(
+      'O dublê não implementa ${invocation.memberName}. '
+      'Se o teste passou a exercitar este método, cubra-o aqui.',
+    );
+  }
+}
+
+/// Dublê de `TournamentPartnerInviteService`: captura o payload do envio no
+/// fluxo completo passo 1 → passo 2 → convidar — o alvo é confirmar que
+/// `reason`/`reasonNote` escolhidos na UI do passo 1 sobrevivem até aqui.
+class _FakeSubstitutionInviteServiceFluxo
+    implements TournamentPartnerInviteService {
+  final chamadas = <
+      ({
+        String registrationId,
+        String replacedUid,
+        String replacedName,
+        String inviteeUid,
+        String inviteeName,
+        String inviterName,
+        String? reason,
+        String? reasonNote,
+      })>[];
+
+  @override
+  Future<String> sendSubstitutionInvite({
+    required String registrationId,
+    required String replacedUid,
+    required String replacedName,
+    required String inviteeUid,
+    required String inviteeName,
+    required String inviterName,
+    String? reason,
+    String? reasonNote,
+  }) async {
+    chamadas.add((
+      registrationId: registrationId,
+      replacedUid: replacedUid,
+      replacedName: replacedName,
+      inviteeUid: inviteeUid,
+      inviteeName: inviteeName,
+      inviterName: inviterName,
+      reason: reason,
+      reasonNote: reasonNote,
+    ));
+    return 'invite-1';
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    throw UnimplementedError(
+      'O dublê não implementa ${invocation.memberName}. '
+      'Se o teste passou a exercitar este método, cubra-o aqui.',
     );
   }
 }

@@ -56,8 +56,6 @@ export const expirePendingTournamentRegistrations = onSchedule({
     .limit(SWEEP_BATCH_SIZE)
     .get();
 
-  if (snap.empty) return;
-
   let released = 0;
   for (const doc of snap.docs) {
     try {
@@ -130,6 +128,8 @@ export const expirePendingTournamentRegistrations = onSchedule({
     }
   }
 
+  // Loga toda volta, inclusive vazia: job agendado que só fala quando age é
+  // indistinguível de job que parou de rodar.
   logger.info("Varredura de prazo de inscrição concluída", {
     candidates: snap.size,
     released,

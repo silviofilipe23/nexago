@@ -50,6 +50,8 @@ import {
   suggestCategoryName,
   totalPrizeCents,
   totalSpots,
+  REGISTRATION_HOLD_OPTIONS,
+  registrationHoldLabel,
 } from '../../data/tournament-create.model';
 import { OgCardComponent } from '../../ui/card.component';
 import { OgCategoryCardComponent } from '../../ui/category-card.component';
@@ -459,6 +461,23 @@ function inputToDatetime(v: string): Date | null {
                 <og-card kicker="Vagas" title="Regras de vagas">
                   <og-toggle-row title="Lista de espera" desc="Quando lotar, novas duplas entram na fila automaticamente." [on]="draft().waitlistEnabled" (toggled)="patch({ waitlistEnabled: $event })" />
                   <og-toggle-row title="Exigir dupla já formada" desc="Sem inscrição individual: a vaga só é criada quando o parceiro aceita o convite." [on]="draft().requireFormedPair" (toggled)="patch({ requireFormedPair: $event })" />
+                  <og-toggle-row
+                    title="Prazo para pagar"
+                    desc="Sem pagamento no prazo, a vaga volta pro público. O relógio começa quando a dupla fecha — convite pendente não conta."
+                    [on]="draft().registrationHoldEnabled"
+                    (toggled)="patch({ registrationHoldEnabled: $event })"
+                  />
+                  @if (draft().registrationHoldEnabled) {
+                    <div class="og-field-grid" style="margin-top:12px">
+                      <og-form-field label="Tempo de garantia da vaga">
+                        <select class="og-select-el" (change)="patch({ registrationHoldMinutes: +$any($event.target).value })">
+                          @for (o of holdOptions; track o.minutes) {
+                            <option [value]="o.minutes" [selected]="o.minutes === draft().registrationHoldMinutes">{{ o.label }}</option>
+                          }
+                        </select>
+                      </og-form-field>
+                    </div>
+                  }
                 </og-card>
               }
               @case ('rules') {
@@ -652,6 +671,7 @@ export class CriarTorneioComponent {
 
   /** Capa escolhida localmente (ainda não enviada) + URL de preview (object URL do arquivo,
    *  ou a `coverImageUrl` já salva no doc em modo edição). */
+  protected readonly holdOptions = REGISTRATION_HOLD_OPTIONS;
   protected readonly maxCoverMb = 5;
   protected readonly coverFile = signal<File | null>(null);
   private coverObjectUrl: string | null = null;
@@ -1228,7 +1248,10 @@ export class CriarTorneioComponent {
     const period = `${datetimeToInput(d.registrationOpensAt)}–${datetimeToInput(d.registrationClosesAt)}`;
     const payment = d.paymentMode === 'appPixCard' ? 'Pix e cartão pelo app' : 'pagamento direto';
     const waitlist = d.waitlistEnabled ? 'lista de espera ativa' : 'sem lista de espera';
-    return `${period} · ${payment} · ${waitlist}`;
+    const hold = d.registrationHoldEnabled
+      ? `garantia de ${registrationHoldLabel(d.registrationHoldMinutes)}`
+      : 'sem prazo para pagar';
+    return `${period} · ${payment} · ${waitlist} · ${hold}`;
   }
 
   protected reviewPrizes(): string {

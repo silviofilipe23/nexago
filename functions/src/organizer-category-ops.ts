@@ -63,6 +63,8 @@ import {buildRegistrationCancellationAudit} from "./tournament-registration-canc
 import {organizerContactFromUser} from "./tournament-contacts";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {registrationHoldClearedFields} from
+  "./tournament-registration-hold-ops";
 
 
 
@@ -498,6 +500,8 @@ export const organizerConfirmRegistrationPayment = onCall({
     isPaid: true,
     // Ao confirmar o pagamento, o time deixa de ser "fila".
     waitlist: false,
+    // Confirmada pelo organizador: a vaga deixa de ter prazo de garantia.
+    ...registrationHoldClearedFields(),
     paidAmount: paidAmount ?? FieldValue.delete(),
     paymentMethod: ORGANIZER_DIRECT_PAYMENT_METHOD,
     paidAt: FieldValue.serverTimestamp(),
@@ -786,6 +790,8 @@ export const organizerMoveToWaitlist = onCall(async (request) => {
   await assertCanManageTournament(db, uid, tournamentId);
   await ref.update({
     waitlist: true,
+    // Fila de espera não ocupa vaga: sai da varredura de prazo.
+    ...registrationHoldClearedFields(),
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true};

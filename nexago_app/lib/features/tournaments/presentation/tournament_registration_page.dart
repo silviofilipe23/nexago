@@ -1191,6 +1191,12 @@ class _TournamentRegistrationPageState
             teamSize: category.rosterSize,
             sentInviteCount: _sentInvitesFor(category).length,
           ),
+          // Convite vivo manda na vaga; sem ele, o relógio do pagamento é real.
+          holdLabel: registrationHoldNotice(
+            holdExpiresAt: snap?.holdExpiresAt,
+            isPaid: registration?.isPaid ?? false,
+            hasLivePartnerInvite: _sentInvitesFor(category).isNotEmpty,
+          ),
           uniformLabel: uniformRequired
               ? (_uniformSaveState == UniformSaveState.saved
                     ? 'Salvo'

@@ -101,6 +101,9 @@ export interface AthleteTournamentRegistration {
   uniformByUid: Record<string, RegistrationUniformSlot>;
   /** Trocas de atleta já concluídas nesta inscrição, mais antiga primeiro. */
   substitutionHistory: RegistrationSubstitutionEntry[];
+  /** Quando a vaga é liberada se ninguém pagar (prazo de garantia). `null` em inscrição sem
+   *  prazo: anterior à regra, criada pelo organizador, em fila ou torneio com o prazo desligado. */
+  holdExpiresAt: Date | null;
 }
 
 export const EMPTY_UNIFORM_SLOT: RegistrationUniformSlot = {
@@ -182,6 +185,7 @@ function registrationFromDoc(id: string, data: Record<string, unknown>): Athlete
     captainUid: optionalStr(data['captainUid']),
     uniformByUid: uniformByUidFromDoc(data),
     substitutionHistory: substitutionHistoryFromDoc(data['substitutionHistory']),
+    holdExpiresAt: toDate(data['holdExpiresAt']),
   };
 }
 

@@ -108,6 +108,14 @@
   margin: 0 0 12px;
 }
 
+.rg-hold-notice {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nx-pending);
+  margin: 0 0 12px;
+}
+
 .rg-btn-row {
   display: flex;
   gap: 12px;

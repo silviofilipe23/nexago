@@ -49,13 +49,9 @@ import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {asaasArenaSecrets} from "./asaas-client";
-import {cancelOpenPixChargesOrThrow} from "./tournament-registration-pix-cancel";
 import {
   REGISTRATION_CANCELLATION_BLOCK_MESSAGES,
-  buildRegistrationCancellationAudit,
-  inviteMatchesCancelledRegistration,
   registrationCancellationBlockReason,
-  shouldDeleteTeamOnCancellation,
 } from "./tournament-registration-cancellation";
 import {
   MIN_TEAM_CATEGORY_SIZE,
@@ -69,12 +65,17 @@ import {
   teamJoinDenialMessage,
 } from "./tournament-team-category";
 import {resolveUniformSlot} from "./tournament-registration-uniform";
+import {INVITES_COLLECTION, INVITE_TTL_MS} from "./tournament-invite-constants";
+import {
+  refreshRegistrationHold,
+  registrationHoldFieldsOnCreate,
+} from "./tournament-registration-hold-ops";
+import {releaseRegistration} from "./tournament-registration-release";
 import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster";
 import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 
-export const INVITES_COLLECTION = "tournamentRegistrationInvites";
-export const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
+export {INVITES_COLLECTION, INVITE_TTL_MS};
 
 // Versão do termo LGPD/uso de imagem exibido nas UIs de inscrição. O aceite é
 // opcional no payload (apps antigos não enviam); quando presente, fica
@@ -780,6 +781,10 @@ async function sendTeamCategoryInvite(params: {
     ...(inviteeBucket ? {inviteeGenderBucket: inviteeBucket} : {}),
   });
 
+  // A vaga da equipe passa a esperar o convite: o prazo de pagamento só começa
+  // quando ele morrer ou o elenco fechar.
+  await refreshRegistrationHold(db, projectId, captainRegId);
+
   try {
     const tournamentName = String(tournament.name ?? "").trim();
     const categoryLabel = formatCategoryInviteNotificationLabel(category);
@@ -1013,6 +1018,12 @@ export async function sendPartnerInviteFor(
   }
   await ref.set(inviteData);
 
+  // Modo anexar: a reserva solo que vai receber a dupla passa a esperar este
+  // convite. No modo criar não há inscrição ainda — não há vaga presa.
+  if (plan.kind === "attach") {
+    await refreshRegistrationHold(db, projectId, plan.registrationId);
+  }
+
   try {
     const tournamentName = String(tournament.name ?? "").trim();
     const categoryLabel = formatCategoryInviteNotificationLabel(category);
@@ -1190,6 +1201,13 @@ export const registerSoloTournament = onCall(async (request) => {
     paidAmount: 0,
     createdAt: FieldValue.serverTimestamp(),
     ...(shouldWaitlist ? {waitlist: true} : {}),
+    // Reserva recém-criada não tem convite ligado — os avulsos do atleta
+    // morrem logo abaixo em markStaleCreateInvitesAfterSolo —, então o prazo
+    // de pagamento já conta de agora.
+    ...registrationHoldFieldsOnCreate({
+      tournament,
+      waitlist: shouldWaitlist,
+    }),
     ...(uniform ? registrationUniformPlayer1(uniform) : {}),
     ...(lgpdAccepted
       ? {
@@ -1315,74 +1333,20 @@ export const cancelTournamentRegistration = onCall({
 
   const tournamentId =
     (registration.tournamentId as string | undefined)?.trim() ?? "";
-  const categoryId = (registration.categoryId as string | undefined)?.trim() ?? "";
 
-  // Cobranças PIX abertas morrem ANTES de qualquer escrita: se o Asaas falhar,
-  // a inscrição continua intacta. Sem isso, a cobrança sobreviveria ao doc e um
-  // pagamento tardio cairia como órfão no webhook.
-  const pixPendingSnap = await regRef.collection("pixPending").get();
-  await cancelOpenPixChargesOrThrow({
+  // Mesmo efeito do sweeper de prazo: mata as cobranças PIX abertas (via
+  // cancelOpenPixChargesOrThrow, que propaga a falha do gateway), cancela os
+  // convites, apaga a equipe órfã, grava auditoria e apaga a inscrição.
+  await releaseRegistration({
+    db,
+    projectId,
     registrationId,
-    pendingDocs: pixPendingSnap.docs,
+    registration,
+    athleteUids,
+    ownerUid: uid,
+    cancelledBy: uid,
+    reason: "athlete_cancelled",
   });
-
-  // Convites pendentes ligados a esta inscrição (solo aguardando parceiro)
-  // não devem sobreviver à reserva cancelada.
-  const invitesSnap = await db
-    .collection(INVITES_COLLECTION)
-    .where("tournamentId", "==", tournamentId)
-    .where("status", "==", "pending")
-    .get();
-
-  // A equipe só morre junto se nenhuma OUTRA inscrição a referencia
-  // (ex.: solo legado reaproveitado).
-  let deleteTeam = false;
-  if (teamId) {
-    const teamRegsSnap = await db
-      .collection(artifactsInscriptionsPath(projectId))
-      .where("teamId", "==", teamId)
-      .get();
-    deleteTeam = shouldDeleteTeamOnCancellation(
-      teamId,
-      teamRegsSnap.docs.map((d) => d.id),
-      registrationId,
-    );
-  }
-
-  const batch = db.batch();
-  const auditRef = db.collection("tournamentRegistrationCancellations").doc();
-  batch.set(auditRef, {
-    ...buildRegistrationCancellationAudit({
-      registrationId,
-      cancelledBy: uid,
-      athleteUids,
-      registration,
-    }),
-    cancelledAt: FieldValue.serverTimestamp(),
-  });
-  for (const doc of pixPendingSnap.docs) {
-    batch.delete(doc.ref);
-  }
-  let cancelledInvites = 0;
-  for (const doc of invitesSnap.docs) {
-    const matches = inviteMatchesCancelledRegistration(doc.data(), {
-      registrationId,
-      cancellerUid: uid,
-      categoryId,
-    });
-    if (!matches) continue;
-    batch.update(doc.ref, {
-      status: "cancelled",
-      cancelReason: "registration_cancelled",
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    cancelledInvites++;
-  }
-  if (deleteTeam) {
-    batch.delete(db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`));
-  }
-  batch.delete(regRef);
-  await batch.commit();
 
   // Avisa os demais atletas depois que o cancelamento é fato.
   const otherUids = athleteUids.filter((id) => id !== uid);
@@ -1404,16 +1368,6 @@ export const cancelTournamentRegistration = onCall({
       ),
     );
   }
-
-  logger.info("Tournament registration cancelled by athlete", {
-    registrationId,
-    tournamentId,
-    categoryId,
-    uid,
-    cancelledInvites,
-    deletedTeam: deleteTeam,
-    cancelledPixCharges: pixPendingSnap.size,
-  });
 
   return {ok: true, registrationId};
 });
@@ -2017,6 +1971,10 @@ export const acceptTournamentPartnerInvite = onCall({
     );
   }
 
+  // Elenco fechado: o prazo de pagamento começa agora. Elenco ainda aberto
+  // (trio+ com outro convite vivo): o prazo segue esse convite.
+  await refreshRegistrationHold(db, projectId, result.registrationId);
+
   logger.info("Tournament partner invite accepted", {inviteId, ...result});
 
   const inviteAfter = (await inviteRef.get()).data();
@@ -2138,6 +2096,20 @@ export const acceptTournamentPartnerInvite = onCall({
   return result;
 });
 
+/**
+ * Convite morto devolve a vaga ao relógio: sem outro convite vivo, os minutos
+ * de garantia passam a contar de agora.
+ */
+async function refreshRegistrationHoldForInvite(
+  db: Firestore,
+  invite: Record<string, unknown>,
+): Promise<void> {
+  const attachId =
+    (invite.attachRegistrationId as string | undefined)?.trim() ?? "";
+  if (!attachId) return;
+  await refreshRegistrationHold(db, getFirebaseProjectId(), attachId);
+}
+
 export const cancelTournamentPartnerInvite = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
@@ -2172,6 +2144,7 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Apenas o convidado pode recusar.");
     }
     await inviteRef.update({status: "declined"});
+    await refreshRegistrationHoldForInvite(db, invite);
     // Substituição: quem iniciou está esperando resolver um problema da equipe
     // — a recusa precisa chegar ativamente, não só sumir da lista.
     if (invite.isSubstitutionInvite === true) {
@@ -2209,6 +2182,7 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
   }
 
   await inviteRef.update({status: "cancelled"});
+  await refreshRegistrationHoldForInvite(db, invite);
   return {success: true, status: "cancelled"};
 });
 

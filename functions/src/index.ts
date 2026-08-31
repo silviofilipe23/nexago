@@ -127,6 +127,9 @@ export {
 
 export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
 
+export {expirePendingTournamentRegistrations} from
+  "./tournament-registration-hold-sweeper";
+
 export {
   onTournamentStaffWrittenSyncMirror,
   onTournamentDeletedCleanupStaff,

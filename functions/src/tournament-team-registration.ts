@@ -51,6 +51,10 @@ import {
   teamNameKey,
   teamNameValidationError,
 } from "./tournament-team-category";
+import {
+  refreshRegistrationHold,
+  registrationHoldFieldsOnCreate,
+} from "./tournament-registration-hold-ops";
 import {loadUserGenderBucket} from "./tournament-team-roster";
 import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
 
@@ -229,6 +233,12 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
     paidAmount: 0,
     createdAt: FieldValue.serverTimestamp(),
     ...(shouldWaitlist ? {waitlist: true} : {}),
+    // Elenco recém-criado não tem convite ligado: o prazo conta de agora e será
+    // recalculado a cada convite enviado.
+    ...registrationHoldFieldsOnCreate({
+      tournament,
+      waitlist: shouldWaitlist,
+    }),
     ...(uniform ? {uniformByUid: {[uid]: uniformByUidEntry(uniform)}} : {}),
     ...(lgpdAccepted
       ? {
@@ -402,6 +412,9 @@ export const leaveTournamentTeamRegistration = onCall(async (request) => {
       },
     }).catch(() => undefined);
   }
+
+  // O elenco reabriu: sem convite vivo, o prazo de garantia recomeça.
+  await refreshRegistrationHold(db, projectId, registrationId);
 
   logger.info("Tournament team member left", {
     registrationId,

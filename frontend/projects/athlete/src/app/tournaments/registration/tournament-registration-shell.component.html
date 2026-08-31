@@ -284,6 +284,9 @@
               <p class="rg-empty-inline">
                 {{ isTeamCategory() ? 'Equipe completa! Falta só o pagamento pra confirmar a vaga.' : 'Dupla completa! Falta só o pagamento pra confirmar a vaga.' }}
               </p>
+              @if (holdNotice(); as notice) {
+                <p class="rg-hold-notice">⏱ {{ notice }}</p>
+              }
               <button type="button" class="rg-btn-primary" (click)="goToPayment()">Ir para pagamento</button>
             } @else {
               <p class="rg-empty-inline">Inscrição confirmada e paga — nos vemos na quadra! 🎾</p>
@@ -342,6 +345,12 @@
                 }
               </span>
             </div>
+            @if (holdNotice(); as notice) {
+              <div class="rg-summary-row">
+                <span class="rg-summary-label">Prazo da vaga</span>
+                <span class="rg-summary-value">{{ notice }}</span>
+              </div>
+            }
             @if (uniformRequired()) {
               <div class="rg-summary-row">
                 <span class="rg-summary-label">Uniforme</span>

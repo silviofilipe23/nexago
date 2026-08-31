@@ -80,6 +80,7 @@ class TournamentRegistrationSnapshot {
     this.uniformByUid = const {},
     this.declaredPaidAt,
     this.paymentVerifiedByOrganizer = false,
+    this.holdExpiresAt,
   });
 
   final String registrationId;
@@ -122,6 +123,11 @@ class TournamentRegistrationSnapshot {
 
   /// O organizador bateu o extrato e confirmou o recebimento.
   final bool paymentVerifiedByOrganizer;
+
+  /// Quando a vaga é liberada se ninguém pagar. Ausente = inscrição sem prazo
+  /// (anterior à regra, criada pelo organizador, em fila ou torneio com o
+  /// prazo desligado).
+  final DateTime? holdExpiresAt;
 
   /// Uniforme JÁ gravado para este atleta. A tela de inscrição abre a partir
   /// dele — sem isso o cartão mostrava os padrões mesmo para quem tinha
@@ -188,6 +194,7 @@ class TournamentRegistrationSnapshot {
       uniformByUid: uniformByUidFromDoc(data['uniformByUid']),
       declaredPaidAt: (data['declaredPaidAt'] as Timestamp?)?.toDate(),
       paymentVerifiedByOrganizer: data['paymentVerifiedByOrganizer'] == true,
+      holdExpiresAt: (data['holdExpiresAt'] as Timestamp?)?.toDate(),
     );
   }
 

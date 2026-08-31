@@ -17,6 +17,11 @@ import {
   deleteAsaasPaymentIfOpen,
 } from "./asaas-booking-payment";
 import {
+  extendRegistrationHoldForPix,
+  refreshRegistrationHold,
+  registrationHoldClearedFields,
+} from "./tournament-registration-hold-ops";
+import {
   TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES,
 } from "./arena-booking-payment-constants";
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
@@ -210,6 +215,7 @@ export const createTournamentRegistrationPixPayment = onCall({
   if (shouldWaitlist) {
     await registrationRef.update({
       waitlist: true,
+      ...registrationHoldClearedFields(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   }
@@ -394,6 +400,14 @@ export const createTournamentRegistrationPixPayment = onCall({
     updatedAt: FieldValue.serverTimestamp(),
   });
 
+  // A vaga não pode cair com uma cobrança viva na mão do atleta.
+  await extendRegistrationHoldForPix(
+    db,
+    projectId,
+    registrationId,
+    expiresAtDate,
+  );
+
   return {
     paymentId: charge.paymentId,
     qrCode: charge.qrCode,
@@ -449,6 +463,8 @@ export const cancelPendingTournamentRegistrationPix = onCall({
   }
 
   await cancelExistingPixPending(db, projectId, registrationId, callerUid);
+  // Sem cobrança viva, o prazo volta ao que o estado do elenco manda.
+  await refreshRegistrationHold(db, projectId, registrationId);
   return {registrationId, status: "cancelled"};
 });
 
@@ -656,6 +672,8 @@ export const confirmFreeTournamentRegistration = onCall({
     sharePaidUids: FieldValue.arrayUnion(callerUid),
     isPaid,
     ...(shouldWaitlist ? {waitlist: true} : {}),
+    // Confirmada: a vaga deixa de ter prazo.
+    ...registrationHoldClearedFields(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -839,6 +857,8 @@ export const reserveDirectOrganizerRegistration = onCall({
     // uma conferência que ninguém vai fazer.
     ...(bothAthletesReserved ? {declaredPaidAt: FieldValue.serverTimestamp()} : {}),
     ...(shouldWaitlist ? {waitlist: true} : {}),
+    // Declarou pagamento: a vaga deixa de ter prazo.
+    ...registrationHoldClearedFields(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 

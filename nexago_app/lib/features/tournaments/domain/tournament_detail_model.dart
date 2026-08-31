@@ -54,6 +54,7 @@ class TournamentDetail {
     this.organizerPixKeyType = '',
     this.organizerPixRecipientName = '',
     this.organizerPixCity = '',
+    this.requireFormedPair = false,
   });
 
   final String id;
@@ -105,6 +106,12 @@ class TournamentDetail {
   final String organizerPixKeyType;
   final String organizerPixRecipientName;
   final String organizerPixCity;
+
+  /// Torneio sem inscrição individual (`tournaments/{id}.requireFormedPair`):
+  /// em categoria de DUPLA a vaga só nasce quando o parceiro aceita o convite.
+  /// A trava real é da Cloud Function `registerSoloTournament`; aqui o app só
+  /// deixa de oferecer o caminho da reserva solo.
+  final bool requireFormedPair;
 
   DiscoveryTournament toDiscovery() {
     return DiscoveryTournament(

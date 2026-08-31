@@ -1,7 +1,11 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
-import {assertTournamentAcceptsRegistration, resolveCategoryEntryFee} from "./tournament-registration-guards";
+import {
+  assertTournamentAcceptsRegistration,
+  requiresFormedPair,
+  resolveCategoryEntryFee,
+} from "./tournament-registration-guards";
 
 /** [inscriptions] são os docs que a categoria já ocupa (id + campos). */
 function mockDb(
@@ -278,5 +282,19 @@ describe("tournament-registration-guards", () => {
     assert.equal(resolveCategoryEntryFee(tournament, "uuid-cat-1"), 120);
     assert.equal(resolveCategoryEntryFee(tournament, "Sub 19 Masculino"), 120);
     assert.equal(resolveCategoryEntryFee(tournament, "inexistente"), 0);
+  });
+});
+
+describe("requiresFormedPair", () => {
+  it("is off when the tournament omits the flag", () => {
+    assert.equal(requiresFormedPair({categories: []}), false);
+  });
+
+  it("is on when the tournament requires a formed pair", () => {
+    assert.equal(requiresFormedPair({requireFormedPair: true}), true);
+  });
+
+  it("is off for a legacy truthy value that is not a boolean", () => {
+    assert.equal(requiresFormedPair({requireFormedPair: "true"}), false);
   });
 });

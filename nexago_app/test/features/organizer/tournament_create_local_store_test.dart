@@ -22,6 +22,25 @@ void main() {
       }
     });
 
+    test('roundtrips requireFormedPair (rascunho retomado mantém a regra)', () async {
+      final store = await TournamentCreateLocalStore.create();
+      final session = TournamentCreateSession(
+        draft: const TournamentCreateDraft(
+          name: 'Open Goiânia',
+          city: 'Goiânia',
+          requireFormedPair: true,
+        ),
+        currentStep: TournamentCreateStep.registration,
+        updatedAt: DateTime(2026, 3, 1, 12),
+        managerUid: 'manager-1',
+      );
+
+      await store.save(session);
+      final loaded = await store.load('manager-1');
+
+      expect(loaded?.draft.requireFormedPair, isTrue);
+    });
+
     test('roundtrips session json', () async {
       final store = await TournamentCreateLocalStore.create();
       final session = TournamentCreateSession(

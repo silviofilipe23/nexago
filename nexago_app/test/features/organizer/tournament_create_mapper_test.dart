@@ -680,4 +680,49 @@ void main() {
       expect(category['minLevel'], isNull);
     });
   });
+
+  group('requireFormedPair (exigir dupla já formada)', () {
+    TournamentCreateDraft draftWith({required bool requireFormedPair}) {
+      return TournamentCreateDraft(
+        name: 'Copa Teste',
+        city: 'Goiânia',
+        locationName: 'Arena',
+        startAt: DateTime(2026, 9, 10),
+        endAt: DateTime(2026, 9, 11),
+        requireFormedPair: requireFormedPair,
+      );
+    }
+
+    test('grava o campo no doc do torneio', () {
+      final ligado = TournamentCreateMapper.toFirestore(
+        draft: draftWith(requireFormedPair: true),
+        managerId: 'manager-1',
+        publish: true,
+      );
+      final desligado = TournamentCreateMapper.toFirestore(
+        draft: draftWith(requireFormedPair: false),
+        managerId: 'manager-1',
+        publish: true,
+      );
+
+      expect(ligado['requireFormedPair'], isTrue);
+      expect(desligado['requireFormedPair'], isFalse);
+    });
+
+    test('reidrata o campo ao abrir o torneio para edição', () {
+      final (:draft, wizardStep: _) = TournamentCreateMapper.fromFirestore(
+        {'requireFormedPair': true},
+        't1',
+      );
+      expect(draft.requireFormedPair, isTrue);
+    });
+
+    test('torneio antigo (campo ausente) segue aceitando inscrição individual', () {
+      final (:draft, wizardStep: _) = TournamentCreateMapper.fromFirestore(
+        <String, dynamic>{},
+        't1',
+      );
+      expect(draft.requireFormedPair, isFalse);
+    });
+  });
 }

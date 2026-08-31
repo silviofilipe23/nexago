@@ -29,8 +29,10 @@ import {
 import {tournamentManagerUids} from "./tournament-acl";
 import {
   assertTournamentAcceptsRegistration,
+  FORMED_PAIR_REQUIRED_MESSAGE,
   findCategory,
   loadTournamentData,
+  requiresFormedPair,
   resolveCategoryMatchKeys,
 } from "./tournament-registration-guards";
 import {
@@ -1122,6 +1124,13 @@ export const registerSoloTournament = onCall(async (request) => {
       "failed-precondition",
       TEAM_CATEGORY_REQUIRES_TEAM_FLOW_MESSAGE,
     );
+  }
+
+  // Torneio de dupla já formada não tem reserva solo: a inscrição nasce no
+  // aceite do convite (`acceptTournamentPartnerInvite`, plano `create`), que já
+  // é um caminho completo do backend. Aqui só fechamos a porta da vaga sozinha.
+  if (requiresFormedPair(tournament)) {
+    throw new HttpsError("failed-precondition", FORMED_PAIR_REQUIRED_MESSAGE);
   }
 
   await assertTeamLevelEligibility({

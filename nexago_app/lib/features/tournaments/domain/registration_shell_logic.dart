@@ -201,10 +201,20 @@ String registrationRosterNote({
   required bool isCaptain,
   required bool isPaid,
   required bool hasPendingInvite,
+  bool requiresFormedPair = false,
 }) {
   if (isTeamCategory) {
     return 'Elenco $rosterCount/$teamSize. '
         '${isCaptain ? 'Convide os atletas que faltam.' : 'O capitão está montando o elenco.'}';
+  }
+  // Dupla já formada: ainda NÃO existe inscrição, então a nota não pode
+  // prometer vaga reservada — ela nasce no aceite do convite.
+  if (requiresFormedPair) {
+    return hasPendingInvite
+        ? 'Convite enviado! A vaga é criada quando seu parceiro aceitar — até '
+              'lá ela não fica reservada.'
+        : 'Este torneio exige dupla já formada. Convide seu parceiro: a vaga '
+              'é criada quando ele aceitar.';
   }
   if (isPaid) {
     return hasPendingInvite
@@ -216,6 +226,16 @@ String registrationRosterNote({
   return hasPendingInvite
       ? 'Convite enviado! Agora é só aguardar a resposta do seu parceiro.'
       : 'Vaga reservada! Agora busque e convide seu parceiro de dupla.';
+}
+
+/// Entrada da inscrição SEM reserva solo: o torneio exige dupla já formada e a
+/// categoria é de dupla. Equipe (trio+) não entra aqui — ela já nasce nomeada
+/// pelo fluxo de equipe, que nunca teve reserva solo.
+bool registrationRequiresFormedPairEntry({
+  required bool tournamentRequiresFormedPair,
+  required bool isTeamCategory,
+}) {
+  return tournamentRequiresFormedPair && !isTeamCategory;
 }
 
 /// Vagas de convite ainda abertas.

@@ -579,4 +579,70 @@ void main() {
       expect(status.blocked, isTrue);
     });
   });
+
+  group('registrationRequiresFormedPairEntry', () {
+    test('dupla em torneio que exige dupla formada entra pelo convite', () {
+      expect(
+        registrationRequiresFormedPairEntry(
+          tournamentRequiresFormedPair: true,
+          isTeamCategory: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('equipe (trio+) segue pelo fluxo de equipe, não pelo convite', () {
+      expect(
+        registrationRequiresFormedPairEntry(
+          tournamentRequiresFormedPair: true,
+          isTeamCategory: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('torneio sem a regra mantém a reserva solo', () {
+      expect(
+        registrationRequiresFormedPairEntry(
+          tournamentRequiresFormedPair: false,
+          isTeamCategory: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('registrationRosterNote — dupla já formada', () {
+    test('sem convite, explica que a vaga nasce no aceite', () {
+      expect(
+        registrationRosterNote(
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          isCaptain: true,
+          isPaid: false,
+          hasPendingInvite: false,
+          requiresFormedPair: true,
+        ),
+        'Este torneio exige dupla já formada. Convide seu parceiro: a vaga é '
+        'criada quando ele aceitar.',
+      );
+    });
+
+    test('com convite pendente, avisa que a vaga ainda não está reservada', () {
+      expect(
+        registrationRosterNote(
+          isTeamCategory: false,
+          rosterCount: 1,
+          teamSize: 2,
+          isCaptain: true,
+          isPaid: false,
+          hasPendingInvite: true,
+          requiresFormedPair: true,
+        ),
+        'Convite enviado! A vaga é criada quando seu parceiro aceitar — até '
+        'lá ela não fica reservada.',
+      );
+    });
+  });
 }

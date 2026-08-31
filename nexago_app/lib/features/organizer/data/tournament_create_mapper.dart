@@ -86,6 +86,7 @@ abstract final class TournamentCreateMapper {
           : null,
       'waitlistEnabled': draft.waitlistEnabled,
       'inviteConfirmEnabled': draft.inviteConfirmEnabled,
+      'requireFormedPair': draft.requireFormedPair,
       'cashPrizesEnabled': draft.cashPrizesEnabled,
       'regulationsText': draft.regulationNotes.trim().isEmpty
           ? null
@@ -169,6 +170,7 @@ abstract final class TournamentCreateMapper {
       organizerPixCity: _pixField(data['organizerPix'], 'city'),
       waitlistEnabled: data['waitlistEnabled'] as bool? ?? true,
       inviteConfirmEnabled: data['inviteConfirmEnabled'] as bool? ?? false,
+      requireFormedPair: data['requireFormedPair'] as bool? ?? false,
       cashPrizesEnabled: data['cashPrizesEnabled'] as bool? ?? true,
       regulationNotes: (data['regulationsText'] as String?) ?? '',
       uniformRequired: data['uniformRequired'] as bool? ?? true,

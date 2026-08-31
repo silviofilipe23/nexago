@@ -3,7 +3,7 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import type { MyAthleteProfile } from '../../data/my-athlete-profile-repository';
-import type { AthleteTournamentRegistration } from '../../data/tournament-registrations-repository';
+import type { AthleteTournamentRegistration, SentPartnerInvite } from '../../data/tournament-registrations-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import type { LevelConfirmationPrompt } from '../tournament-eligibility';
 import { TournamentRegistrationShellComponent } from './tournament-registration-shell.component';
@@ -142,6 +142,76 @@ describe('TournamentRegistrationShellComponent — confirmação de nível na 1�
   });
 });
 
+function category(overrides: Partial<TournamentCategoryOffer> = {}): TournamentCategoryOffer {
+  return {
+    id: 'cat1',
+    categoryName: 'Masculino B',
+    entryFee: 160,
+    maxTeams: 16,
+    spotsLeft: 10,
+    level: null,
+    minLevel: null,
+    genderType: 'Masculino',
+    teamSize: null,
+    genderFree: false,
+    genderComposition: null,
+    bracketFormat: 'grupos',
+    registrationClosed: false,
+    isCompleted: false,
+    prizes: [],
+    qualifiersPerGroup: 2,
+    uniformType: null,
+    uniformNumberOnShirt: false,
+    uniformNameOnShirt: false,
+    uniformSizeOptionsTop: [],
+    uniformSizeOptionsShorts: [],
+    ageBand: null,
+    ageRestrictionMode: null,
+    ageMinYears: null,
+    ageMaxYears: null,
+    ...overrides,
+  } as TournamentCategoryOffer;
+}
+
+function listing(cat: TournamentCategoryOffer): unknown {
+  return {
+    id: 't1',
+    name: 'Etapa Teste',
+    city: 'Natal',
+    location: 'Arena Teste',
+    dateLabel: null,
+    sport: 'beachVolleyball',
+    paymentMode: 'directWithOrganizer',
+    categories: [cat],
+  };
+}
+
+function soloRegistration(overrides: Partial<AthleteTournamentRegistration> = {}): AthleteTournamentRegistration {
+  return {
+    id: 'reg1',
+    tournamentId: 't1',
+    categoryId: 'cat1',
+    teamId: null,
+    partnerPending: true,
+    isPaid: false,
+    waitlist: false,
+    cancellationRequest: null,
+    sharePaidUids: [],
+    declaredPaidAt: null,
+    paymentVerifiedByOrganizer: false,
+    player1Id: 'me',
+    participantUids: ['me'],
+    lgpdAcceptedUids: [],
+    uniformPlayer1: null,
+    uniformPlayer2: null,
+    teamName: null,
+    teamSize: null,
+    captainUid: null,
+    uniformByUid: {},
+    ...overrides,
+  } as AthleteTournamentRegistration;
+}
+
 /** Estado solo (dupla com `partnerPending`): o atleta pode garantir a vaga pagando o integral. */
 describe('TournamentRegistrationShellComponent — pagamento integral na vaga solo', () => {
   let fixture: ComponentFixture<TournamentRegistrationShellComponent>;
@@ -153,76 +223,6 @@ describe('TournamentRegistrationShellComponent — pagamento integral na vaga so
     myRegistrations: WritableSignal<AthleteTournamentRegistration[]>;
   }
   let cmp: SoloInternals;
-
-  function category(overrides: Partial<TournamentCategoryOffer> = {}): TournamentCategoryOffer {
-    return {
-      id: 'cat1',
-      categoryName: 'Masculino B',
-      entryFee: 160,
-      maxTeams: 16,
-      spotsLeft: 10,
-      level: null,
-      minLevel: null,
-      genderType: 'Masculino',
-      teamSize: null,
-      genderFree: false,
-      genderComposition: null,
-      bracketFormat: 'grupos',
-      registrationClosed: false,
-      isCompleted: false,
-      prizes: [],
-      qualifiersPerGroup: 2,
-      uniformType: null,
-      uniformNumberOnShirt: false,
-      uniformNameOnShirt: false,
-      uniformSizeOptionsTop: [],
-      uniformSizeOptionsShorts: [],
-      ageBand: null,
-      ageRestrictionMode: null,
-      ageMinYears: null,
-      ageMaxYears: null,
-      ...overrides,
-    } as TournamentCategoryOffer;
-  }
-
-  function listing(cat: TournamentCategoryOffer): unknown {
-    return {
-      id: 't1',
-      name: 'Etapa Teste',
-      city: 'Natal',
-      location: 'Arena Teste',
-      dateLabel: null,
-      sport: 'beachVolleyball',
-      paymentMode: 'directWithOrganizer',
-      categories: [cat],
-    };
-  }
-
-  function soloRegistration(overrides: Partial<AthleteTournamentRegistration> = {}): AthleteTournamentRegistration {
-    return {
-      id: 'reg1',
-      tournamentId: 't1',
-      categoryId: 'cat1',
-      teamId: null,
-      partnerPending: true,
-      isPaid: false,
-      waitlist: false,
-      cancellationRequest: null,
-      sharePaidUids: [],
-      declaredPaidAt: null,
-      paymentVerifiedByOrganizer: false,
-      player1Id: 'me',
-      participantUids: ['me'],
-      lgpdAcceptedUids: [],
-      uniformPlayer1: null,
-      uniformPlayer2: null,
-      teamName: null,
-      teamSize: null,
-      captainUid: null,
-      uniformByUid: {},
-      ...overrides,
-    } as AthleteTournamentRegistration;
-  }
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -270,5 +270,116 @@ describe('TournamentRegistrationShellComponent — pagamento integral na vaga so
     expect(text).not.toContain('Garantir vaga pagando o valor integral');
     expect(text).toContain('Vaga garantida! Você pagou o valor integral');
     expect(text).toContain('Vaga garantida — falta parceiro');
+  });
+});
+
+/** Convite de dupla pendente esconde a busca de atletas (paridade com o app Flutter):
+ *  depois de convidar, o caminho pra chamar outra pessoa é cancelar o convite.
+ *  Em EQUIPE nada muda — elenco + convites pendentes já ocupavam as vagas. */
+describe('TournamentRegistrationShellComponent — convite de dupla pendente esconde a busca', () => {
+  let fixture: ComponentFixture<TournamentRegistrationShellComponent>;
+
+  interface InviteInternals {
+    loading: WritableSignal<boolean>;
+    listing: WritableSignal<unknown>;
+    selectedCategoryId: WritableSignal<string | null>;
+    myRegistrations: WritableSignal<AthleteTournamentRegistration[]>;
+    sentPendingInvites: WritableSignal<SentPartnerInvite[]>;
+    remainingInviteSlots: () => number;
+  }
+  let cmp: InviteInternals;
+
+  function sentInvite(id = 'inv1'): SentPartnerInvite {
+    return { id, inviteeUid: `uid-${id}`, inviteeName: 'Parceiro Teste', expiresAt: null };
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [TournamentRegistrationShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { user: signal(null), devEmail: signal(null) } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(TournamentRegistrationShellComponent);
+    await fixture.whenStable();
+    cmp = fixture.componentInstance as unknown as InviteInternals;
+  });
+
+  afterEach(() => fixture?.destroy());
+
+  /** `sentPendingInvites` entra POR ÚLTIMO: o efeito que alimenta esse signal o zera
+   *  sempre que `registration()` muda (sem Firestore nos testes), então o valor fake
+   *  só sobrevive se for gravado depois da estabilização. */
+  async function render(
+    cat: TournamentCategoryOffer,
+    reg: AthleteTournamentRegistration,
+    invites: SentPartnerInvite[],
+  ): Promise<string> {
+    cmp.listing.set(listing(cat));
+    cmp.selectedCategoryId.set(cat.id);
+    cmp.myRegistrations.set([reg]);
+    cmp.loading.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    cmp.sentPendingInvites.set(invites);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  function searchInput(): Element | null {
+    return (fixture.nativeElement as HTMLElement).querySelector('input[type="search"]');
+  }
+
+  it('dupla com convite pendente: nenhuma vaga de convite aberta', async () => {
+    await render(category(), soloRegistration(), [sentInvite()]);
+
+    expect(cmp.remainingInviteSlots()).toBe(0);
+  });
+
+  it('dupla sem convite pendente: uma vaga aberta', async () => {
+    await render(category(), soloRegistration(), []);
+
+    expect(cmp.remainingInviteSlots()).toBe(1);
+  });
+
+  it('equipe: convites pendentes só descontam do elenco, sem zerar no primeiro convite', async () => {
+    const teamCat = category({ teamSize: 3, genderFree: true, genderType: 'Mix' });
+    const teamReg = soloRegistration({ teamSize: 3, teamName: 'Trio Teste', captainUid: 'me' });
+    await render(teamCat, teamReg, [sentInvite('a')]);
+
+    expect(cmp.remainingInviteSlots()).toBe(1);
+
+    cmp.sentPendingInvites.set([sentInvite('a'), sentInvite('b')]);
+    expect(cmp.remainingInviteSlots()).toBe(0);
+  });
+
+  it('dupla com convite pendente: busca some e o Cancelar vira o caminho pra trocar de convidado', async () => {
+    const text = await render(category(), soloRegistration(), [sentInvite()]);
+
+    expect(searchInput()).toBeNull();
+    expect(text).toContain('Convite enviado! Agora é só aguardar a resposta do seu parceiro.');
+    expect(text).toContain('Cancele o convite se quiser chamar outro atleta.');
+    expect(text).not.toContain('Vaga reservada! Agora busque e convide seu parceiro de dupla.');
+    expect(text).not.toContain('Convidar por link');
+    // Pagar o integral segue disponível — garante a vaga enquanto o convidado não responde.
+    expect(text).toContain('Garantir vaga pagando o valor integral');
+  });
+
+  it('dupla sem convite pendente: busca continua na tela com a nota de reserva', async () => {
+    const text = await render(category(), soloRegistration(), []);
+
+    expect(searchInput()).not.toBeNull();
+    expect(text).toContain('Vaga reservada! Agora busque e convide seu parceiro de dupla.');
+  });
+
+  it('dupla paga com convite pendente: nota de vaga garantida aguardando o aceite', async () => {
+    const text = await render(category(), soloRegistration({ isPaid: true }), [sentInvite()]);
+
+    expect(searchInput()).toBeNull();
+    expect(text).toContain('Vaga garantida! Convite enviado — seu parceiro entra sem taxa assim que aceitar.');
   });
 });

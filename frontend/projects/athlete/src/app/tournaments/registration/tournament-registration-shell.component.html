@@ -251,9 +251,17 @@
                 }
               } @else {
                 @if (registration()!.isPaid) {
-                  <p class="rg-empty-inline">Vaga garantida! Você pagou o valor integral — convide seu parceiro, ele entra sem taxa.</p>
+                  <p class="rg-empty-inline">
+                    {{ sentPendingInvites().length > 0
+                      ? 'Vaga garantida! Convite enviado — seu parceiro entra sem taxa assim que aceitar.'
+                      : 'Vaga garantida! Você pagou o valor integral — convide seu parceiro, ele entra sem taxa.' }}
+                  </p>
                 } @else {
-                  <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+                  <p class="rg-empty-inline">
+                    {{ sentPendingInvites().length > 0
+                      ? 'Convite enviado! Agora é só aguardar a resposta do seu parceiro.'
+                      : 'Vaga reservada! Agora busque e convide seu parceiro de dupla.' }}
+                  </p>
                   @if ((selectedCategory()?.entryFee ?? 0) > 0) {
                     <!-- Sem parceiro ainda? Pagar o integral garante a vaga desde já; o parceiro
                          que aceitar o convite depois entra sem taxa. -->
@@ -300,7 +308,13 @@
                     <div class="rg-option-row">
                       <span class="rg-option-copy">
                         <span class="rg-option-title">{{ invite.inviteeName }}</span>
-                        <span class="rg-option-desc">Convite enviado — aguardando resposta.</span>
+                        <!-- Na dupla esta lista é o que resta na tela (a busca some) — o Cancelar
+                             é o caminho pra chamar outra pessoa. -->
+                        <span class="rg-option-desc">
+                          {{ !isTeamCategory() && sentPendingInvites().length === 1
+                            ? 'Cancele o convite se quiser chamar outro atleta.'
+                            : 'Convite enviado — aguardando resposta.' }}
+                        </span>
                       </span>
                       <button type="button" class="rg-btn-ghost" [disabled]="cancelingInviteId() === invite.id" (click)="cancelInvite(invite)">
                         @if (cancelingInviteId() === invite.id) {
@@ -313,6 +327,8 @@
                 </div>
               }
 
+              <!-- Sem vaga de convite, a busca inteira some — na dupla isso acontece já com o
+                   1º convite pendente (o Cancelar acima é o caminho pra chamar outra pessoa). -->
               @if (remainingInviteSlots() > 0) {
                 <input
                   type="search"
@@ -321,52 +337,52 @@
                   [value]="partnerQuery()"
                   (input)="onPartnerQueryInput($any($event.target).value)"
                 />
-              }
-              @if (searchingPartner()) {
-                <p class="rg-empty-inline">Buscando…</p>
-              } @else if (partnerSearchCameUpEmpty()) {
-                <div class="rg-search-empty">
-                  <p class="rg-search-empty-title">Nenhum atleta encontrado com esse nome.</p>
-                  <p class="rg-search-empty-desc">Seu parceiro ainda não tem conta no nexaGO? Convide pelo WhatsApp — quando ele se cadastrar, é só buscar de novo e fechar a dupla.</p>
-                  <button type="button" class="rg-btn-primary rg-btn-invite-external" (click)="openInviteDialog()">
-                    Convidar pro nexaGO
-                  </button>
-                </div>
-              } @else if (partnerResults().length > 0) {
-                <div class="rg-option-list">
-                  @for (p of partnerResults(); track p.id) {
-                    <div class="rg-option-row">
-                      <span class="rg-duo-avatars" aria-hidden="true">
-                        <span class="rg-duo-avatar">
-                          <span class="rg-duo-avatar-fallback">{{ initialsOf(p.displayName) }}</span>
-                          @if (p.avatarUrl; as photo) {
-                            <img class="rg-duo-avatar-img" [src]="photo" alt="" loading="lazy" />
+                @if (searchingPartner()) {
+                  <p class="rg-empty-inline">Buscando…</p>
+                } @else if (partnerSearchCameUpEmpty()) {
+                  <div class="rg-search-empty">
+                    <p class="rg-search-empty-title">Nenhum atleta encontrado com esse nome.</p>
+                    <p class="rg-search-empty-desc">Seu parceiro ainda não tem conta no nexaGO? Convide pelo WhatsApp — quando ele se cadastrar, é só buscar de novo e fechar a dupla.</p>
+                    <button type="button" class="rg-btn-primary rg-btn-invite-external" (click)="openInviteDialog()">
+                      Convidar pro nexaGO
+                    </button>
+                  </div>
+                } @else if (partnerResults().length > 0) {
+                  <div class="rg-option-list">
+                    @for (p of partnerResults(); track p.id) {
+                      <div class="rg-option-row">
+                        <span class="rg-duo-avatars" aria-hidden="true">
+                          <span class="rg-duo-avatar">
+                            <span class="rg-duo-avatar-fallback">{{ initialsOf(p.displayName) }}</span>
+                            @if (p.avatarUrl; as photo) {
+                              <img class="rg-duo-avatar-img" [src]="photo" alt="" loading="lazy" />
+                            }
+                          </span>
+                        </span>
+                        <span class="rg-option-copy">
+                          <span class="rg-option-title">{{ p.displayName }}</span>
+                          <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
+                          @if (partnerMissingGender(p)) {
+                            <span class="rg-option-warn">Sem gênero no perfil — precisa completar para aceitar o convite</span>
                           }
                         </span>
-                      </span>
-                      <span class="rg-option-copy">
-                        <span class="rg-option-title">{{ p.displayName }}</span>
-                        <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
-                        @if (partnerMissingGender(p)) {
-                          <span class="rg-option-warn">Sem gênero no perfil — precisa completar para aceitar o convite</span>
-                        }
-                      </span>
-                      <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
-                        @if (invitingId() === p.id) {
-                          <app-nx-spinner [size]="14" />
-                        }
-                        {{ invitingId() === p.id ? 'Enviando…' : 'Convidar' }}
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
+                        <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
+                          @if (invitingId() === p.id) {
+                            <app-nx-spinner [size]="14" />
+                          }
+                          {{ invitingId() === p.id ? 'Enviando…' : 'Convidar' }}
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
 
-              @if (!partnerSearchCameUpEmpty() && !linkInviteMarker() && remainingInviteSlots() > 0) {
-                <p class="rg-external-invite-hint">
-                  {{ isTeamCategory() ? 'Atleta ainda sem conta no nexaGO?' : 'Parceiro ainda sem conta no nexaGO?' }}
-                  <button type="button" class="rg-link-btn" (click)="openInviteDialog()">Convidar por link</button>
-                </p>
+                @if (!partnerSearchCameUpEmpty() && !linkInviteMarker()) {
+                  <p class="rg-external-invite-hint">
+                    {{ isTeamCategory() ? 'Atleta ainda sem conta no nexaGO?' : 'Parceiro ainda sem conta no nexaGO?' }}
+                    <button type="button" class="rg-link-btn" (click)="openInviteDialog()">Convidar por link</button>
+                  </p>
+                }
               }
               }
             } @else if (!registration()!.isPaid) {

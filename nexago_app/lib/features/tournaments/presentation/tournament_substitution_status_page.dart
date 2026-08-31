@@ -1,9 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/nexa_app_bar.dart';
+import '../../../core/profiles/app_user_profile.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
@@ -15,7 +19,6 @@ import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/nexa_card.dart';
 import '../../../core/ui/nexa_share.dart';
-import '../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../domain/substitution_journey_logic.dart';
@@ -23,6 +26,7 @@ import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_invite_links.dart';
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
+import '../domain/tournament_registration_providers.dart';
 import 'tournament_substitution_success_page.dart';
 
 /// Acompanhamento da substituição (`AppRoutes.tournamentSubstitutionStatus`)
@@ -289,7 +293,7 @@ class _TournamentSubstitutionStatusPageState
   }
 }
 
-class _PendingBody extends StatelessWidget {
+class _PendingBody extends ConsumerWidget {
   const _PendingBody({
     required this.invite,
     required this.registration,
@@ -310,13 +314,36 @@ class _PendingBody extends StatelessWidget {
   String get _unitWord => _isTeam ? 'equipe' : 'dupla';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.themeColors;
     final now = DateTime.now();
     final outName = invite.replacedName ?? 'Atleta';
     final inName = invite.inviteeName;
     final outFirst = _firstName(outName);
     final inFirst = _firstName(inName);
+
+    final profileUids = <String>{
+      ...?registration?.participantUids,
+      if ((invite.replacedUid ?? '').isNotEmpty) invite.replacedUid!,
+      if (invite.inviteeUid.isNotEmpty) invite.inviteeUid,
+    }.toList()
+      ..sort();
+    final profilesAsync =
+        ref.watch(registrationRosterProfilesProvider(profileUids));
+    final profiles = profilesAsync.valueOrNull ?? const <String, AppUserProfile>{};
+    final authUser = ref.watch(authProvider).valueOrNull;
+    final outProfile = _profileForSubstitutionAthlete(
+      profiles: profiles,
+      uid: invite.replacedUid,
+      name: outName,
+    );
+    final inProfile = _profileForSubstitutionAthlete(
+      profiles: profiles,
+      uid: invite.inviteeUid,
+      name: inName,
+    );
+    final outUid = (invite.replacedUid ?? '').trim();
+    final inUid = invite.inviteeUid.trim();
 
     final createdAtLabel = _formatTimelineTimestamp(invite.createdAt, now);
     final viewedLabel = substitutionViewedLabel(invite.viewedAt, now);
@@ -346,6 +373,22 @@ class _PendingBody extends StatelessWidget {
           inName: inName,
           outFirst: outFirst,
           inFirst: inFirst,
+          outInitials: outProfile != null
+              ? appUserInitials(outProfile)
+              : _initialsFor(outName),
+          inInitials: inProfile != null
+              ? appUserInitials(inProfile)
+              : _initialsFor(inName),
+          outImageUrl: _substitutionAthletePhotoUrl(
+            profile: outProfile,
+            uid: outUid,
+            authUser: authUser,
+          ),
+          inImageUrl: _substitutionAthletePhotoUrl(
+            profile: inProfile,
+            uid: inUid,
+            authUser: authUser,
+          ),
         ),
         const SizedBox(height: AppSpacing.xl),
         Text(
@@ -463,12 +506,20 @@ class _SwapHeroCard extends StatelessWidget {
     required this.inName,
     required this.outFirst,
     required this.inFirst,
+    required this.outInitials,
+    required this.inInitials,
+    this.outImageUrl,
+    this.inImageUrl,
   });
 
   final String outName;
   final String inName;
   final String outFirst;
   final String inFirst;
+  final String outInitials;
+  final String inInitials;
+  final String? outImageUrl;
+  final String? inImageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -479,17 +530,26 @@ class _SwapHeroCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AthleteProfileAvatar(size: 48, initials: _initialsFor(outName)),
+              _SwapAthleteAvatar(
+                initials: outInitials,
+                imageUrl: outImageUrl,
+                role: _SwapAvatarRole.outgoing,
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
+                  horizontal: AppSpacing.md,
                 ),
                 child: Icon(
                   Icons.arrow_forward_rounded,
-                  color: colors.onSurfaceMuted,
+                  size: 22,
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.7),
                 ),
               ),
-              AthleteProfileAvatar(size: 48, initials: _initialsFor(inName)),
+              _SwapAthleteAvatar(
+                initials: inInitials,
+                imageUrl: inImageUrl,
+                role: _SwapAvatarRole.incoming,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -506,6 +566,171 @@ class _SwapHeroCard extends StatelessWidget {
             style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
           ),
         ],
+      ),
+    );
+  }
+}
+
+enum _SwapAvatarRole { outgoing, incoming }
+
+class _SwapAthleteAvatar extends StatelessWidget {
+  const _SwapAthleteAvatar({
+    required this.initials,
+    required this.role,
+    this.imageUrl,
+  });
+
+  final String initials;
+  final String? imageUrl;
+  final _SwapAvatarRole role;
+
+  static const _size = 56.0;
+  static const _outFallback = [Color(0xFF2B3A4A), Color(0xFF1A2430)];
+  static const _inFallback = [Color(0xFFB86A2B), Color(0xFF8A4A1E)];
+
+  Color get _borderColor => switch (role) {
+        _SwapAvatarRole.outgoing => AppColors.live.withValues(alpha: 0.85),
+        _SwapAvatarRole.incoming => AppColors.pending,
+      };
+
+  List<Color> get _fallbackColors => switch (role) {
+        _SwapAvatarRole.outgoing => _outFallback,
+        _SwapAvatarRole.incoming => _inFallback,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl?.trim();
+    final badgeSize = _size * 0.34;
+
+    return SizedBox(
+      width: _size + 4,
+      height: _size + 4,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: _size,
+            height: _size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _borderColor, width: 2),
+            ),
+            child: ClipOval(
+              child: SizedBox(
+                width: _size,
+                height: _size,
+                child: url != null && url.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: url,
+                        width: _size,
+                        height: _size,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => _SwapInitialsFallback(
+                          initials: initials,
+                          size: _size,
+                          colors: _fallbackColors,
+                        ),
+                        errorWidget: (context, url, error) =>
+                            _SwapInitialsFallback(
+                          initials: initials,
+                          size: _size,
+                          colors: _fallbackColors,
+                        ),
+                      )
+                    : _SwapInitialsFallback(
+                        initials: initials,
+                        size: _size,
+                        colors: _fallbackColors,
+                      ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: role == _SwapAvatarRole.outgoing
+                ? Container(
+                    width: badgeSize,
+                    height: badgeSize,
+                    decoration: BoxDecoration(
+                      color: AppColors.live,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.black, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: badgeSize * 0.62,
+                      color: AppColors.white,
+                    ),
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.pending,
+                      borderRadius: AppRadii.pillAll,
+                      border: Border.all(color: AppColors.black, width: 2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(
+                        3,
+                        (_) => Container(
+                          width: 3,
+                          height: 3,
+                          margin: const EdgeInsets.symmetric(horizontal: 1),
+                          decoration: const BoxDecoration(
+                            color: AppColors.black,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwapInitialsFallback extends StatelessWidget {
+  const _SwapInitialsFallback({
+    required this.initials,
+    required this.size,
+    required this.colors,
+  });
+
+  final String initials;
+  final double size;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: colors,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            initials,
+            style: AppTypography.soraRegular(
+              fontSize: size * 0.32,
+              fontWeight: FontWeight.w700,
+              color: AppColors.white,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -639,6 +864,46 @@ bool _isTeamFor(
   MyTournamentRegistration? registration,
 ) =>
     (registration?.teamSize ?? (invite.isTeamInvite ? 3 : 2)) >= 3;
+
+AppUserProfile? _profileForSubstitutionAthlete({
+  required Map<String, AppUserProfile> profiles,
+  required String? uid,
+  required String name,
+}) {
+  final trimmedUid = uid?.trim() ?? '';
+  if (trimmedUid.isNotEmpty) {
+    final byUid = profiles[trimmedUid];
+    if (byUid != null) return byUid;
+  }
+
+  final target = name.trim().toLowerCase();
+  if (target.isEmpty) return null;
+  for (final profile in profiles.values) {
+    if (appUserDisplayName(profile).trim().toLowerCase() == target) {
+      return profile;
+    }
+    final nickname = profile.nickname?.trim().toLowerCase();
+    if (nickname != null && nickname.isNotEmpty && nickname == target) {
+      return profile;
+    }
+  }
+  return null;
+}
+
+String? _substitutionAthletePhotoUrl({
+  required AppUserProfile? profile,
+  required String uid,
+  required User? authUser,
+}) {
+  final fromProfile = appUserProfilePhotoUrl(profile);
+  if (fromProfile != null) return fromProfile;
+
+  if (uid.isNotEmpty && authUser?.uid == uid) {
+    final authPhoto = authUser?.photoURL?.trim();
+    if (authPhoto != null && authPhoto.isNotEmpty) return authPhoto;
+  }
+  return null;
+}
 
 /// Primeiro nome não-vazio de [fullName]; "Atleta" se vier em branco.
 String _firstName(String fullName) {

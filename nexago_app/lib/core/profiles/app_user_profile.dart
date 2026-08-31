@@ -82,7 +82,9 @@ class AppUserProfile {
       phoneNumber: _str(data['phoneNumber']),
       gender: _str(data['gender']),
       birthDate: _str(data['birthDate']),
-      profilePhotoUrl: _str(data['profilePhotoUrl']) ?? _str(data['avatarUrl']),
+      profilePhotoUrl: _str(data['profilePhotoUrl']) ??
+          _str(data['avatarUrl']) ??
+          _str(data['photoURL']),
       partnerInviteStatus: _str(data['partnerInviteStatus']),
       invitedByUid: _str(data['invitedByUid']),
       invitedAt: _timestamp(data['invitedAt']),
@@ -206,6 +208,13 @@ String? appUserSecondaryLine(AppUserProfile user) {
 String appUserInitials(AppUserProfile user) {
   final display = appUserDisplayName(user).trim();
   return initialsFromDisplayName(display.isNotEmpty ? display : '?');
+}
+
+/// Foto pública do atleta quando existir (`profilePhotoUrl` / legados).
+String? appUserProfilePhotoUrl(AppUserProfile? user) {
+  final url = user?.profilePhotoUrl?.trim();
+  if (url == null || url.isEmpty) return null;
+  return url;
 }
 
 String initialsFromDisplayName(String name) {

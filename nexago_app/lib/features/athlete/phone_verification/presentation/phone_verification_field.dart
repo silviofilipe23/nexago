@@ -5,25 +5,32 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'phone_verification_sheet.dart';
 
-/// Campo de WhatsApp verificado por SMS.
+/// Campo de WhatsApp do atleta.
 ///
-/// Substitui o `TextField` de telefone no onboarding e na edição de perfil:
-/// o número não é mais digitável direto porque as regras do Firestore
-/// proíbem o client de gravar `phoneNumber` — ele só entra pela Cloud
-/// Function `confirmPhoneVerification`, depois do SMS.
+/// O número é digitado direto: desde que o SMS deixou de ser obrigatório para
+/// inscrição, `phoneNumber` é um contato declarado pelo próprio atleta e as
+/// regras do Firestore aceitam a escrita do client ENQUANTO não há selo.
+///
+/// A verificação por SMS continua disponível como opcional (vira selo na
+/// gamificação). Depois de verificado o número fica somente leitura: as rules
+/// recusam qualquer troca vinda do client, e trocar exige um novo SMS.
 class PhoneVerificationField extends StatelessWidget {
   const PhoneVerificationField({
     super.key,
-    required this.phoneNumber,
+    required this.controller,
     required this.verified,
+    required this.onChanged,
     required this.onVerified,
     this.errorText,
   });
 
-  /// Telefone salvo no perfil (E.164 depois de verificado, ou legado sem
-  /// máscara em contas antigas).
-  final String? phoneNumber;
+  /// Número em edição, já mascarado (`(62) 99999-9999`).
+  final TextEditingController controller;
+
+  /// Posse confirmada por SMS (Firebase Phone Auth).
   final bool verified;
+
+  final ValueChanged<String> onChanged;
 
   /// Chamado com o telefone verificado quando o fluxo de SMS conclui.
   final ValueChanged<String> onVerified;
@@ -32,7 +39,9 @@ class PhoneVerificationField extends StatelessWidget {
   Future<void> _openSheet(BuildContext context) async {
     final result = await showPhoneVerificationSheet(
       context: context,
-      initialPhone: formatPhoneBrDisplay(phoneNumber),
+      initialPhone: controller.text.trim().isEmpty
+          ? null
+          : formatPhoneBrDisplay(controller.text),
     );
     if (result != null) onVerified(result);
   }
@@ -41,7 +50,6 @@ class PhoneVerificationField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasError = errorText != null;
-    final display = formatPhoneBrDisplay(phoneNumber);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -60,7 +68,7 @@ class PhoneVerificationField extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            padding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
             child: Row(
               children: [
                 Icon(
@@ -74,30 +82,34 @@ class PhoneVerificationField extends StatelessWidget {
                 ),
                 SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        display ?? 'Nenhum número verificado',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: display == null
-                              ? context.themeColors.onSurfaceMuted
-                              : context.themeColors.onSurface,
-                        ),
+                  child: TextField(
+                    controller: controller,
+                    // Verificado = imutável pelo client (firestore.rules).
+                    readOnly: verified,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [BrPhoneInputFormatter()],
+                    onChanged: onChanged,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.themeColors.onSurface,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: '(00) 00000-0000',
+                      hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        verified
-                            ? 'Verificado por SMS'
-                            : 'Confirme por SMS pra liberar torneios',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: verified
-                              ? AppColors.win
-                              : context.themeColors.onSurfaceMuted,
-                        ),
+                      helperText: verified
+                          ? 'Verificado por SMS'
+                          : 'Verificar por SMS é opcional',
+                      helperStyle: theme.textTheme.bodySmall?.copyWith(
+                        color: verified
+                            ? AppColors.win
+                            : context.themeColors.onSurfaceMuted,
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 SizedBox(width: 8),

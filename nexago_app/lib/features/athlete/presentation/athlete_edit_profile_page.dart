@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/formatting/br_phone_format.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/media/profile_image_crop_config.dart';
 import '../../../core/media/profile_image_picker.dart';
@@ -53,9 +54,10 @@ class _AthleteEditProfilePageState
   final _nicknameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
 
-  /// Telefone verificado por SMS. Não é editável aqui: só muda pelo fluxo do
-  /// `PhoneVerificationField`, que grava via Cloud Function.
+  /// WhatsApp de contato. Editável enquanto não verificado — depois do selo o
+  /// número só muda por um novo SMS (as rules recusam a troca pelo client).
   String? _phoneNumber;
   bool _phoneVerified = false;
 
@@ -91,6 +93,7 @@ class _AthleteEditProfilePageState
     _nicknameCtrl.dispose();
     _emailCtrl.dispose();
     _bioCtrl.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -99,6 +102,9 @@ class _AthleteEditProfilePageState
     _nicknameCtrl.text = p.nickname ?? '';
     _phoneNumber = p.phoneNumber;
     _phoneVerified = p.phoneVerified;
+    // Número legado que a máscara não entende aparece cru: melhor mostrar o
+    // que está salvo do que um campo vazio que o atleta não pediu.
+    _phoneCtrl.text = formatPhoneBrDisplay(p.phoneNumber) ?? (p.phoneNumber ?? '');
     _selectedState = p.state;
     _selectedCity = p.city.trim().isEmpty ? null : p.city.trim();
     _bioCtrl.text = p.bio ?? '';
@@ -270,8 +276,8 @@ class _AthleteEditProfilePageState
         sport: _sport,
         // level intencionalmente não passa por aqui: "nível só sobe",
         // gerenciado apenas em Esportes e níveis.
-        // Só em memória — `toFirestore` não grava telefone. Vai no perfil
-        // porque `saveProfile` deriva `isProfileComplete` a partir daqui.
+        // Número declarado vai pro Firestore; o selo `phoneVerified` continua
+        // sendo escrito só pela Cloud Function (`toFirestore` filtra).
         phoneNumber: _phoneNumber,
         phoneVerified: _phoneVerified,
         city: city,
@@ -525,11 +531,14 @@ class _AthleteEditProfilePageState
                           ),
                         ),
                         PhoneVerificationField(
-                          phoneNumber: _phoneNumber,
+                          controller: _phoneCtrl,
                           verified: _phoneVerified,
+                          onChanged: (v) => _phoneNumber = v,
                           onVerified: (phoneNumber) => setState(() {
                             _phoneNumber = phoneNumber;
                             _phoneVerified = true;
+                            _phoneCtrl.text =
+                                formatPhoneBrDisplay(phoneNumber) ?? '';
                           }),
                         ),
                       ],

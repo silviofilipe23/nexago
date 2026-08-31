@@ -1,7 +1,12 @@
-// Verificação de telefone (Firebase Phone Auth): `phoneNumber`, `phoneVerified`
-// e `phoneVerifiedAt` em users/{userId} só podem ser gravados pela Cloud
-// Function `confirmPhoneVerification` (Admin SDK, que bypassa rules) — o
-// dono da conta não pode se auto-declarar verificado direto pelo client.
+// Telefone em users/{userId}: `phoneVerified` e `phoneVerifiedAt` só podem ser
+// gravados pela Cloud Function `confirmPhoneVerification` (Admin SDK, que
+// bypassa rules) — o dono da conta não pode se auto-declarar verificado direto
+// pelo client.
+//
+// `phoneNumber` é diferente desde que o SMS deixou de ser obrigatório para
+// inscrição: o dono declara o número livremente ENQUANTO não estiver
+// verificado. Depois do selo, o número volta a ser imutável pelo client — senão
+// dava para verificar um número e trocar por outro mantendo `phoneVerified`.
 // Rodar com o emulador: firebase emulators:exec --only firestore \
 //   "node functions/test/athlete-phone-verification-rules.test.mjs"
 import fs from 'node:fs';
@@ -139,6 +144,54 @@ await expect(
   assertFails(
     updateDoc(doc(ownerDb(), 'users', UID), {
       phoneNumber: '+5562988888888',
+    }),
+  ),
+);
+
+// --- Telefone declarado (sem SMS) ---------------------------------------
+
+// Doc novo pode nascer com o número declarado, desde que sem o selo.
+await testEnv.clearFirestore();
+await expect(
+  'pode criar users/{uid} com phoneNumber declarado (sem selo)',
+  assertSucceeds(
+    setDoc(doc(ownerDb(), 'users', UID), {
+      ...baseDoc,
+      phoneNumber: '(62) 99999-9999',
+    }),
+  ),
+);
+
+// Conta sem verificação: o dono declara o WhatsApp de contato.
+await seed(baseDoc);
+await expect(
+  'dono declara phoneNumber sem verificação por SMS',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      phoneNumber: '(62) 99999-9999',
+    }),
+  ),
+);
+
+// E pode corrigir um número declarado errado, enquanto não verificou.
+await seed({ ...baseDoc, phoneNumber: '(62) 99999-9999', phoneVerified: false });
+await expect(
+  'dono corrige o phoneNumber declarado enquanto não verificou',
+  assertSucceeds(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      phoneNumber: '(62) 98888-8888',
+    }),
+  ),
+);
+
+// Declarar o número não pode vir junto com o selo.
+await seed(baseDoc);
+await expect(
+  'declarar phoneNumber não autoriza phoneVerified junto',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), {
+      phoneNumber: '(62) 99999-9999',
+      phoneVerified: true,
     }),
   ),
 );

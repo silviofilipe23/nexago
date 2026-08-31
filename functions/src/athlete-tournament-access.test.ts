@@ -39,12 +39,12 @@ describe("athlete-tournament-access", () => {
     assert.equal(isOnboardingCompleted({}), false);
   });
 
-  it("requires onboarding, verified phone and city for tournament profile", () => {
+  it("requires onboarding, whatsapp and city for tournament profile", () => {
     assert.equal(isTournamentProfileReady(tournamentReadyProfile), true);
     assert.equal(
       isTournamentProfileReady({
-        ...tournamentReadyProfile,
-        phoneVerified: false,
+        onboardingCompleted: true,
+        city: "Goiânia",
       }),
       false,
     );
@@ -65,14 +65,36 @@ describe("athlete-tournament-access", () => {
     );
   });
 
-  it("valid-format but unverified phone does not satisfy the gate", () => {
+  it("accepts a phone typed without SMS verification", () => {
     assert.equal(
       isTournamentProfileReady({
         onboardingCompleted: true,
         city: "Goiânia",
         phoneNumber: "(62) 99999-9999",
       }),
+      true,
+    );
+  });
+
+  it("rejects a malformed phone typed without SMS verification", () => {
+    assert.equal(
+      isTournamentProfileReady({
+        onboardingCompleted: true,
+        city: "Goiânia",
+        phoneNumber: "123",
+      }),
       false,
+    );
+  });
+
+  it("keeps accepting legacy accounts verified without a stored number", () => {
+    assert.equal(
+      isTournamentProfileReady({
+        onboardingCompleted: true,
+        city: "Goiânia",
+        phoneVerified: true,
+      }),
+      true,
     );
   });
 

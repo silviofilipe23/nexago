@@ -13,6 +13,7 @@ import { AthleteOnboardingComponent } from './athlete-onboarding.component';
  */
 interface OnboardingInternals {
   name: WritableSignal<string>;
+  phoneInput: WritableSignal<string>;
   phoneVerified: WritableSignal<boolean>;
   birthDateInput: WritableSignal<string>;
   gender: WritableSignal<string | null>;
@@ -45,7 +46,8 @@ describe('AthleteOnboardingComponent — obrigatórios do perfil', () => {
   /** Preenche tudo o que o passo 4 exige (+ o nível do passo 2) — cada teste tira UM campo. */
   function fillCompleteProfile(): void {
     onboarding.name.set('Marcelo Antunes');
-    onboarding.phoneVerified.set(true);
+    // Número digitado, SEM SMS: é o que o cadastro passou a exigir.
+    onboarding.phoneInput.set('(62) 99123-4567');
     onboarding.birthDateInput.set('15/03/1990');
     onboarding.gender.set('Masculino');
     onboarding.state.set('GO');
@@ -85,13 +87,24 @@ describe('AthleteOnboardingComponent — obrigatórios do perfil', () => {
     expect(onboarding.profileFormValid()).toBeTrue();
   });
 
-  it('aceita o perfil SEM telefone verificado — SMS que não chega não trava o cadastro', () => {
-    // O gate de torneios do servidor (athlete-tournament-access.ts) continua
-    // exigindo phoneVerified na inscrição; aqui o atleta conclui e verifica
-    // depois no perfil.
+  it('aceita o WhatsApp digitado SEM verificação por SMS — SMS que não chega não trava o cadastro', () => {
+    // O gate de torneios do servidor (athlete-tournament-access.ts) aceita o
+    // número declarado; o SMS virou selo opcional.
     fillCompleteProfile();
     onboarding.phoneVerified.set(false);
     expect(onboarding.profileFormValid()).toBeTrue();
+  });
+
+  it('recusa sem WhatsApp — é o contato do organizador com o atleta', () => {
+    fillCompleteProfile();
+    onboarding.phoneInput.set('');
+    expect(onboarding.profileFormValid()).toBeFalse();
+  });
+
+  it('recusa WhatsApp mal formado (fixo, sem o 9)', () => {
+    fillCompleteProfile();
+    onboarding.phoneInput.set('(62) 3333-4444');
+    expect(onboarding.profileFormValid()).toBeFalse();
   });
 
   it('recusa sem foto', () => {

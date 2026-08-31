@@ -447,14 +447,21 @@ class AthleteProfile {
 
     return <String, dynamic>{
       'fullName': name,
-      // IMPORTANTE: `phoneNumber` NUNCA entra neste payload. As rules do
-      // Firestore só aceitam `update` em `users/{uid}` quando o campo está
-      // ausente ou idêntico ao já salvo, e proíbem qualquer valor no
-      // `create` — quem grava é a Cloud Function `confirmPhoneVerification`,
-      // a partir do telefone que o Firebase Phone Auth verificou por SMS
-      // (anti-fraude: impede auto-declarar telefone sem comprovar posse).
-      // Mesma restrição que já vale para `roles`, ver
-      // `AthleteProfileRepository.saveProfile`.
+      // `phoneNumber` é o WhatsApp de contato declarado pelo atleta: as rules
+      // aceitam a escrita do client ENQUANTO não há selo de verificação.
+      // Depois do SMS o número vira imutável pelo client (só a Cloud Function
+      // `confirmPhoneVerification` grava), então sai do payload — reenviar uma
+      // variante formatada diferente derrubaria o save INTEIRO com
+      // `permission-denied`, não só a parte do telefone.
+      //
+      // `phoneVerified`/`phoneVerifiedAt` NUNCA entram: são o selo anti-fraude
+      // (impede auto-declarar posse sem comprovar por SMS). Mesma restrição
+      // que já vale para `roles`, ver `AthleteProfileRepository.saveProfile`.
+      // Vazio não entra no payload: apagar o WhatsApp não é uma operação
+      // suportada (o gate de torneios fica aberto pelo carimbo
+      // `isProfileComplete` e o organizador ficaria sem contato).
+      if (!phoneVerified && (phoneNumber?.trim().isNotEmpty ?? false))
+        'phoneNumber': phoneNumber!.trim(),
       if (birthIso != null && birthIso.isNotEmpty) 'birthDate': birthIso,
       if (gender != null && gender!.isNotEmpty) 'gender': gender,
       if (nickname != null && nickname!.isNotEmpty) 'nickname': nickname,

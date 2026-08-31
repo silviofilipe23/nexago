@@ -443,6 +443,21 @@ abstract final class AppRoutes {
   static const String tournamentRegistrationSuccess =
       '/torneios/:tournamentId/inscricao/sucesso';
 
+  /// Detalhe da inscrição confirmada (mockup 1 da jornada de substituição):
+  /// `/torneios/:tournamentId/inscricao/:registrationId/detalhe`
+  static const String tournamentRegistrationDetail =
+      '/torneios/:tournamentId/inscricao/:registrationId/detalhe';
+
+  /// Wizard de substituição (Task 5 — ainda não registrada no router):
+  /// `/torneios/:tournamentId/inscricao/:registrationId/substituir`
+  static const String tournamentSubstitutionWizard =
+      '/torneios/:tournamentId/inscricao/:registrationId/substituir';
+
+  /// Acompanhamento da substituição (Task 6 — ainda não registrada no
+  /// router): `/torneios/:tournamentId/substituicao/:inviteId`
+  static const String tournamentSubstitutionStatus =
+      '/torneios/:tournamentId/substituicao/:inviteId';
+
   /// Convite de dupla por LINK (parceiro sem conta): `/convite-dupla/:externalInviteId`
   static const String tournamentExternalInvite =
       '/convite-dupla/:externalInviteId';
@@ -673,6 +688,12 @@ abstract final class AppRouteNames {
   static const String tournamentRegistrationPix = 'tournamentRegistrationPix';
   static const String tournamentRegistrationSuccess =
       'tournamentRegistrationSuccess';
+  static const String tournamentRegistrationDetail =
+      'tournamentRegistrationDetail';
+  static const String tournamentSubstitutionWizard =
+      'tournamentSubstitutionWizard';
+  static const String tournamentSubstitutionStatus =
+      'tournamentSubstitutionStatus';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
   static const String tournamentExternalInvite =
       'tournamentExternalInvite';

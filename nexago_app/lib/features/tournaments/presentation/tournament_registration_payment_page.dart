@@ -361,7 +361,6 @@ class _TournamentRegistrationPaymentPageState
     TournamentDetail tournament,
   ) async {
     if (_submitting) return;
-    final controller = TextEditingController();
     final reason = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -370,11 +369,9 @@ class _TournamentRegistrationPaymentPageState
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) => TournamentCancellationRequestSheet(
-        controller: controller,
         tournamentName: tournament.name,
       ),
     );
-    controller.dispose();
     if (reason == null || reason.trim().isEmpty || !mounted) return;
 
     setState(() => _submitting = true);

@@ -1,14 +1,15 @@
-// Visibilidade da ação "Substituir atleta" e do histórico de trocas no card
-// de inscrição confirmada. `_ConfirmedRegistrationCard` é privado, então o
-// harness monta a aba inteira (`TournamentDetailMyRegistrationTab`) com
-// overrides mínimos dos providers que ela consome — o gate em si
-// (`substitutionReplaceableUids`) já é coberto por
-// `tournament_substitution_logic_test.dart`; aqui o alvo é a fiação: o botão
-// aparece/some conforme `replaceableUids` e o histórico renderiza as linhas.
+// Navegação do card de inscrição confirmada. `_ConfirmedRegistrationCard` é
+// privado, então o harness monta a aba inteira
+// (`TournamentDetailMyRegistrationTab`) com overrides mínimos dos providers
+// que ela consome. Desde a tela de Detalhe (Task 4), o card NÃO decide mais
+// nada sobre substituição/histórico — só navega; a cobertura de
+// visibilidade do gate e do histórico mudou para
+// `tournament_registration_detail_page_test.dart`.
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_home_registration_progress_providers.dart';
@@ -21,11 +22,11 @@ void main() {
   const tournamentId = 't1';
 
   MyTournamentRegistration inscricao({
+    String registrationId = 'reg-1',
     bool bracketPublished = false,
-    List<RegistrationSubstitutionEntry> historico = const [],
   }) =>
       MyTournamentRegistration(
-        registrationId: 'reg-1',
+        registrationId: registrationId,
         tournamentId: tournamentId,
         tournamentName: 'Copa de Teste',
         dateLabel: '20 ago',
@@ -33,7 +34,6 @@ void main() {
         isPaid: true,
         categoryId: 'masc',
         participantUids: const [meuUid, 'parceiro'],
-        substitutionHistory: historico,
         category: TournamentCategoryOffer(
           id: 'masc',
           name: 'Dupla Masculina',
@@ -43,10 +43,35 @@ void main() {
         ),
       );
 
+  late List<Map<String, String>> openedDetailParams;
+
   Future<void> abrirAba(
     WidgetTester tester, {
     required List<MyTournamentRegistration> confirmadas,
   }) async {
+    openedDetailParams = <Map<String, String>>[];
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, __) => Scaffold(
+            body: TournamentDetailMyRegistrationTab(
+              tournamentId: tournamentId,
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/torneios/:tournamentId/inscricao/:registrationId/detalhe',
+          name: 'tournamentRegistrationDetail',
+          builder: (_, state) {
+            openedDetailParams.add(state.pathParameters);
+            return const Scaffold(body: Text('tela de detalhe'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -60,66 +85,75 @@ void main() {
             (ref) async => const [],
           ),
         ],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: AppTheme.dark,
-          home: const Scaffold(
-            body: TournamentDetailMyRegistrationTab(
-              tournamentId: tournamentId,
-            ),
-          ),
+          routerConfig: router,
         ),
       ),
     );
     await tester.pumpAndSettle();
   }
 
-  testWidgets('replaceableUids vazio (chave publicada): botão não aparece',
+  testWidgets(
+      'toque no card confirmado (chave publicada) navega para o detalhe',
       (tester) async {
     await abrirAba(
       tester,
       confirmadas: [inscricao(bracketPublished: true)],
     );
 
-    expect(find.text('Substituir atleta'), findsNothing);
+    await tester.tap(find.text('Dupla Masculina'));
+    await tester.pumpAndSettle();
+
+    expect(openedDetailParams, [
+      {'tournamentId': tournamentId, 'registrationId': 'reg-1'},
+    ]);
   });
 
   testWidgets(
-      'replaceableUids não-vazio (chave ainda não publicada): botão aparece',
+      'toque no card confirmado (chave ainda não publicada) navega para o detalhe',
       (tester) async {
     await abrirAba(
       tester,
       confirmadas: [inscricao(bracketPublished: false)],
     );
 
-    expect(find.text('Substituir atleta'), findsOneWidget);
-    expect(find.byIcon(Icons.swap_horiz_rounded), findsOneWidget);
+    await tester.tap(find.text('Dupla Masculina'));
+    await tester.pumpAndSettle();
+
+    expect(openedDetailParams, [
+      {'tournamentId': tournamentId, 'registrationId': 'reg-1'},
+    ]);
   });
 
-  testWidgets('histórico de trocas renderiza uma linha por substituição',
+  testWidgets(
+      'duas inscrições confirmadas: cada card navega para o próprio registrationId',
       (tester) async {
     await abrirAba(
       tester,
       confirmadas: [
-        inscricao(
-          historico: const [
-            RegistrationSubstitutionEntry(outName: 'Bia', inName: 'Ana'),
-            RegistrationSubstitutionEntry(outName: 'Caio', inName: 'Léo'),
-          ],
-        ),
+        inscricao(registrationId: 'reg-1'),
+        inscricao(registrationId: 'reg-2'),
       ],
     );
 
-    expect(find.text('Ana entrou no lugar de Bia.'), findsOneWidget);
-    expect(find.text('Léo entrou no lugar de Caio.'), findsOneWidget);
+    await tester.tap(find.text('Confirmada e paga').last);
+    await tester.pumpAndSettle();
+
+    expect(openedDetailParams, [
+      {'tournamentId': tournamentId, 'registrationId': 'reg-2'},
+    ]);
   });
 
-  testWidgets('sem histórico não renderiza nenhuma linha de troca',
+  testWidgets(
+      'card não mostra mais o botão de substituir nem o histórico (moveram para o detalhe)',
       (tester) async {
     await abrirAba(
       tester,
-      confirmadas: [inscricao()],
+      confirmadas: [inscricao(bracketPublished: false)],
     );
 
+    expect(find.text('Substituir atleta'), findsNothing);
     expect(find.textContaining('entrou no lugar de'), findsNothing);
   });
 }

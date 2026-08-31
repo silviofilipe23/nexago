@@ -133,18 +133,27 @@ class TournamentPartnerInviteService {
     required String inviteeUid,
     required String inviteeName,
     required String inviterName,
+    String? reason,
+    String? reasonNote,
   }) async {
     try {
       final callable =
           _functions.httpsCallable('sendTournamentSubstitutionInvite');
-      final raw = await callable.call(<String, dynamic>{
+      final payload = <String, dynamic>{
         'registrationId': registrationId,
         'replacedUid': replacedUid,
         'replacedName': replacedName,
         'inviteeUid': inviteeUid,
         'inviteeName': inviteeName,
         'inviterName': inviterName,
-      });
+      };
+      if (reason != null && reason.trim().isNotEmpty) {
+        payload['reason'] = reason.trim();
+      }
+      if (reasonNote != null && reasonNote.trim().isNotEmpty) {
+        payload['reasonNote'] = reasonNote.trim();
+      }
+      final raw = await callable.call(payload);
       final data = raw.data;
       final inviteId = data is Map ? data['inviteId'] as String? : null;
       if (inviteId == null || inviteId.isEmpty) {
@@ -154,6 +163,40 @@ class TournamentPartnerInviteService {
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
         e.message ?? 'Não foi possível enviar o convite de substituição.',
+      );
+    }
+  }
+
+  /// Marca o convite de substituição como visto pelo convidado (idempotente
+  /// do lado do backend — a 2ª chamada não regrava `viewedAt`).
+  Future<void> markSubstitutionInviteViewed(String inviteId) async {
+    if (inviteId.isEmpty) {
+      throw TournamentPartnerInviteException('Convite inválido.');
+    }
+    try {
+      final callable =
+          _functions.httpsCallable('markSubstitutionInviteViewed');
+      await callable.call({'inviteId': inviteId});
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível registrar a visualização.',
+      );
+    }
+  }
+
+  /// Reenvia o lembrete do convite de substituição pendente. O backend
+  /// rate-limita: chamada antes do cooldown lança `TournamentPartnerInviteException`
+  /// com a mensagem "Aguarde para lembrar novamente." (de `resource-exhausted`).
+  Future<void> resendSubstitutionInvite(String inviteId) async {
+    if (inviteId.isEmpty) {
+      throw TournamentPartnerInviteException('Convite inválido.');
+    }
+    try {
+      final callable = _functions.httpsCallable('resendSubstitutionInvite');
+      await callable.call({'inviteId': inviteId});
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível reenviar o lembrete.',
       );
     }
   }

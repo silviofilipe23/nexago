@@ -50,6 +50,10 @@ class TournamentPartnerInvite {
     this.isSubstitutionInvite = false,
     this.replacedUid,
     this.replacedName,
+    this.reason,
+    this.reasonNote,
+    this.viewedAt,
+    this.lastReminderAt,
   });
 
   final String id;
@@ -85,6 +89,19 @@ class TournamentPartnerInvite {
   final String? replacedUid;
   final String? replacedName;
 
+  /// Motivo declarado da substituição (chave de `substitutionReasonLabels`)
+  /// e nota livre opcional — só em convite de substituição.
+  final String? reason;
+  final String? reasonNote;
+
+  /// Quando o convidado abriu o convite pela primeira vez
+  /// (`markSubstitutionInviteViewed`); `null` enquanto não visto.
+  final DateTime? viewedAt;
+
+  /// Quando o convidante pediu o último lembrete (`resendSubstitutionInvite`);
+  /// governa o cooldown de reenvio no cliente.
+  final DateTime? lastReminderAt;
+
   bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted';
   bool get isDeclined => status == 'declined';
@@ -117,6 +134,10 @@ class TournamentPartnerInvite {
       isSubstitutionInvite: d['isSubstitutionInvite'] == true,
       replacedUid: _trimmedOrNull(d['replacedUid']),
       replacedName: _trimmedOrNull(d['replacedName']),
+      reason: _trimmedOrNull(d['reason']),
+      reasonNote: _trimmedOrNull(d['reasonNote']),
+      viewedAt: (d['viewedAt'] as Timestamp?)?.toDate(),
+      lastReminderAt: (d['lastReminderAt'] as Timestamp?)?.toDate(),
     );
   }
 

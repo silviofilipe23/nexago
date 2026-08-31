@@ -369,9 +369,16 @@ class RegistrationSubstitutionEntry {
     required this.outName,
     required this.inName,
     this.at,
+    this.reason,
+    this.reasonNote,
   });
 
   final String outName;
   final String inName;
   final DateTime? at;
+
+  /// Motivo declarado (chave de `substitutionReasonLabels`) e nota livre
+  /// opcional — vazio quando o convite não os informou.
+  final String? reason;
+  final String? reasonNote;
 }

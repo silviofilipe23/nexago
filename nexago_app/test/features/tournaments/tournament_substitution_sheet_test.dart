@@ -371,6 +371,8 @@ class _FakeSubstitutionInviteService implements TournamentPartnerInviteService {
         String inviteeUid,
         String inviteeName,
         String inviterName,
+        String? reason,
+        String? reasonNote,
       })>[];
 
   @override
@@ -381,6 +383,8 @@ class _FakeSubstitutionInviteService implements TournamentPartnerInviteService {
     required String inviteeUid,
     required String inviteeName,
     required String inviterName,
+    String? reason,
+    String? reasonNote,
   }) async {
     chamadas.add((
       registrationId: registrationId,
@@ -389,6 +393,8 @@ class _FakeSubstitutionInviteService implements TournamentPartnerInviteService {
       inviteeUid: inviteeUid,
       inviteeName: inviteeName,
       inviterName: inviterName,
+      reason: reason,
+      reasonNote: reasonNote,
     ));
     if (erroAoEnviar != null) throw erroAoEnviar!;
     return 'invite-1';

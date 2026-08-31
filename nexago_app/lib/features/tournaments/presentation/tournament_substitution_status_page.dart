@@ -391,25 +391,29 @@ class _PendingBody extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xl),
-        Text(
-          'O QUE FALTA',
-          style: AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
-        ),
-        const SizedBox(height: AppSpacing.sm),
         NexaCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TimelineRow(
-                done: true,
-                title: 'Pedido de substituição enviado',
-                subtitle: createdAtLabel,
+              Text(
+                'O QUE FALTA',
+                style: AppTypography.eyebrow
+                    .copyWith(color: colors.onSurfaceMuted),
               ),
               const SizedBox(height: AppSpacing.md),
-              _TimelineRow(
-                done: false,
-                title: '$inName precisa aceitar',
-                subtitle: viewedLabel,
+              _SubstitutionTimeline(
+                steps: [
+                  _SubstitutionTimelineStep(
+                    state: _SubstitutionTimelineStepState.done,
+                    title: 'Pedido de substituição enviado',
+                    subtitle: createdAtLabel,
+                  ),
+                  _SubstitutionTimelineStep(
+                    state: _SubstitutionTimelineStepState.pending,
+                    title: '$inName precisa aceitar',
+                    subtitle: viewedLabel,
+                  ),
+                ],
               ),
             ],
           ),
@@ -443,6 +447,11 @@ class _PendingBody extends ConsumerWidget {
             Expanded(
               child: OutlinedButton(
                 onPressed: resending ? null : onRemind,
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadii.lgAll,
+                  ),
+                ),
                 child: Text('Lembrar $inFirst'),
               ),
             ),
@@ -454,6 +463,9 @@ class _PendingBody extends ConsumerWidget {
                   foregroundColor: AppColors.live,
                   side:
                       BorderSide(color: AppColors.live.withValues(alpha: 0.4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadii.lgAll,
+                  ),
                 ),
                 child: const Text('Cancelar troca'),
               ),
@@ -736,53 +748,159 @@ class _SwapInitialsFallback extends StatelessWidget {
   }
 }
 
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({
-    required this.done,
+enum _SubstitutionTimelineStepState { done, pending }
+
+class _SubstitutionTimelineStep {
+  const _SubstitutionTimelineStep({
+    required this.state,
     required this.title,
     this.subtitle,
   });
 
-  final bool done;
+  final _SubstitutionTimelineStepState state;
   final String title;
   final String? subtitle;
+}
+
+class _SubstitutionTimeline extends StatelessWidget {
+  const _SubstitutionTimeline({required this.steps});
+
+  final List<_SubstitutionTimelineStep> steps;
+
+  static const _nodeSize = 24.0;
+  static const _connectorWidth = 2.0;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          done
-              ? Icons.check_circle_rounded
-              : Icons.radio_button_unchecked_rounded,
-          size: 20,
-          color: done ? AppColors.win : colors.onSurfaceMuted,
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    if (steps.isEmpty) return const SizedBox.shrink();
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
             children: [
-              Text(
-                title,
-                style: AppTypography.bodyM.copyWith(
-                  color: colors.onSurface,
-                  fontWeight: done ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  style: AppTypography.bodyS
-                      .copyWith(color: colors.onSurfaceMuted),
-                ),
+              for (var i = 0; i < steps.length; i++) ...[
+                _TimelineNode(state: steps[i].state),
+                if (i < steps.length - 1)
+                  Expanded(
+                    child: Container(
+                      width: _connectorWidth,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: AppColors.win.withValues(alpha: 0.85),
+                    ),
+                  ),
               ],
             ],
           ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < steps.length; i++) ...[
+                  if (i > 0) const SizedBox(height: AppSpacing.lg),
+                  _TimelineCopy(
+                    title: steps[i].title,
+                    subtitle: steps[i].subtitle,
+                    colors: colors,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineNode extends StatelessWidget {
+  const _TimelineNode({required this.state});
+
+  final _SubstitutionTimelineStepState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone = state == _SubstitutionTimelineStepState.done;
+    final accent = isDone ? AppColors.win : AppColors.brand;
+
+    return Container(
+      width: _SubstitutionTimeline._nodeSize,
+      height: _SubstitutionTimeline._nodeSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: accent.withValues(alpha: 0.14),
+      ),
+      child: Center(
+        child: isDone
+            ? Container(
+                width: 18,
+                height: 18,
+                decoration: const BoxDecoration(
+                  color: AppColors.win,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 12,
+                  color: AppColors.black,
+                ),
+              )
+            : Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.brand, width: 2),
+                ),
+                child: Center(
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brand,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _TimelineCopy extends StatelessWidget {
+  const _TimelineCopy({
+    required this.title,
+    required this.subtitle,
+    required this.colors,
+  });
+
+  final String title;
+  final String? subtitle;
+  final AppThemeColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.bodyM.copyWith(
+            color: colors.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
         ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle!,
+            style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+          ),
+        ],
       ],
     );
   }

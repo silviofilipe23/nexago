@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -1340,8 +1341,11 @@ class _TournamentRegistrationPageState
               onPressed: (_registering || blocked || !canAccess)
                   ? null
                   : () => _registerSolo(tournament, category),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: AppRadii.lgAll),
+              ),
               child: Text(
-                _registering ? 'Inscrevendo…' : 'Reservar minha vaga',
+                _registering ? 'Inscrevendo…' : 'Convidar parceiro',
               ),
             ),
           ],

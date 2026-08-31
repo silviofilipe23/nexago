@@ -5,12 +5,15 @@
 // `tournament_substitution_status_page_test.dart` (grupo "aceito"); aqui o
 // alvo é a navegação exclusiva desta tela — o CTA "Ver inscrição →".
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_substitution_success_page.dart';
 
 void main() {
@@ -84,9 +87,17 @@ void main() {
     addTearDown(router.dispose);
 
     await tester.pumpWidget(
-      MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+      ProviderScope(
+        overrides: [
+          registrationRosterProfilesProvider.overrideWith(
+            (ref, uids) async => const <String, AppUserProfile>{},
+          ),
+        ],
+        child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+      ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
   }
 
   testWidgets(

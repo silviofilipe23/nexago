@@ -275,7 +275,7 @@ void main() {
     testWidgets('mostra o CTA de reservar a vaga', (tester) async {
       await abrirTela(tester, tournament: torneio([dupla()]));
 
-      expect(find.text('Reservar minha vaga'), findsOneWidget);
+      expect(find.text('Convidar parceiro'), findsOneWidget);
       expect(find.text('Criar equipe'), findsNothing);
       expect(find.text('Nome da equipe'), findsNothing);
     });
@@ -285,7 +285,7 @@ void main() {
     ) async {
       await abrirTela(tester, tournament: torneio([dupla()]));
 
-      await tester.tap(find.text('Reservar minha vaga'));
+      await tester.tap(find.text('Convidar parceiro'));
       await tester.pumpAndSettle();
 
       expect(servico.soloCalls, isEmpty);
@@ -298,7 +298,7 @@ void main() {
       await abrirTela(tester, tournament: torneio([dupla()]));
 
       await marcarLgpd(tester);
-      await tester.tap(find.text('Reservar minha vaga'));
+      await tester.tap(find.text('Convidar parceiro'));
       await tester.pumpAndSettle();
 
       expect(servico.soloCalls, hasLength(1));
@@ -321,7 +321,7 @@ void main() {
       );
 
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -336,7 +336,7 @@ void main() {
 
       expect(find.text('ENCERRADA'), findsWidgets);
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -352,7 +352,7 @@ void main() {
 
       expect(find.text('LOTADO'), findsWidgets);
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -366,7 +366,7 @@ void main() {
 
       expect(find.text('GÊNERO'), findsWidgets);
       final botao = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Reservar minha vaga'),
+        find.widgetWithText(FilledButton, 'Convidar parceiro'),
       );
       expect(botao.onPressed, isNull);
     });
@@ -381,7 +381,7 @@ void main() {
       );
 
       await marcarLgpd(tester);
-      await tester.tap(find.text('Reservar minha vaga'));
+      await tester.tap(find.text('Convidar parceiro'));
       await tester.pumpAndSettle();
 
       expect(
@@ -401,7 +401,7 @@ void main() {
 
       expect(find.text('Criar equipe'), findsOneWidget);
       expect(find.text('Nome da equipe'), findsOneWidget);
-      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.text('Convidar parceiro'), findsNothing);
       expect(find.textContaining('Categoria de quarteto'), findsOneWidget);
     });
 
@@ -463,7 +463,7 @@ void main() {
 
       expect(find.text('Aceitar convite'), findsOneWidget);
       expect(find.text('Recusar'), findsOneWidget);
-      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.text('Convidar parceiro'), findsNothing);
       expect(find.textContaining('Bia Souza'), findsWidgets);
     });
 
@@ -535,7 +535,7 @@ void main() {
       );
 
       expect(find.text('Aceitar convite'), findsNothing);
-      expect(find.text('Reservar minha vaga'), findsOneWidget);
+      expect(find.text('Convidar parceiro'), findsOneWidget);
     });
   });
 
@@ -555,7 +555,7 @@ void main() {
       );
 
       expect(find.textContaining('Vaga reservada!'), findsOneWidget);
-      expect(find.text('Reservar minha vaga'), findsNothing);
+      expect(find.text('Convidar parceiro'), findsNothing);
     });
 
     testWidgets('equipe incompleta mostra o elenco e o que falta', (

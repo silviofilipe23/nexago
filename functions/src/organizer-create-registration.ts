@@ -46,6 +46,7 @@ import {
   registrationUniformForSlot,
   validateUniformPayload,
 } from "./tournament-partner-invite";
+import {refreshRegistrationHold} from "./tournament-registration-hold-ops";
 import {resolvePartnerRegistrationPlan} from "./tournament-solo-registration";
 import {isTeamCategory} from "./tournament-team-category";
 import {setTeamGenderWhenRegistrationPaid} from "./tournament-team-roster";
@@ -304,6 +305,24 @@ export const organizerCreateTeamRegistration = onCall({
   });
 
   // Efeitos best-effort: a inscrição já está gravada, nenhum deles pode derrubar a resposta.
+
+  // Fechar a dupla sobre uma reserva que já existia reinicia o prazo da vaga:
+  // o elenco parou de depender de alguém aceitar e passou a depender de alguém
+  // pagar. `onlyIfPresent` porque a reserva-base pode ser de quem é imune
+  // (anterior à regra, fila, criada pelo organizador) e fechar a dupla não pode
+  // inventar um prazo para ela; `rosterClosed` porque esta callable não mexe em
+  // convite nenhum, e o convite que ninguém respondeu — a razão de a tela
+  // existir — continua pendente aqui, sem segurar mais nada.
+  //
+  // A dupla NOVA fica de fora de propósito: nasce sem `holdExpiresAt`, imune,
+  // como toda inscrição criada pelo organizador.
+  if (result.merged) {
+    await refreshRegistrationHold(db, projectId, result.registrationId, {
+      onlyIfPresent: true,
+      rosterClosed: true,
+    });
+  }
+
   if (result.isPaid) {
     try {
       await setTeamGenderWhenRegistrationPaid(db, projectId, result.teamId);

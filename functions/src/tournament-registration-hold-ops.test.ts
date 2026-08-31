@@ -51,7 +51,7 @@ describe("refreshRegistrationHold", () => {
     seedRegistration(fake, {isPaid: false, sharePaidUids: ["uid-1"]});
     assert.equal(holdMsOf(fake), null);
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), NOW + 30 * MIN);
   });
@@ -66,7 +66,7 @@ describe("refreshRegistrationHold", () => {
       sharePaidUids: ["uid-1"],
     });
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), NOW + 30 * MIN);
   });
@@ -76,7 +76,7 @@ describe("refreshRegistrationHold", () => {
     seedTournament(fake);
     seedRegistration(fake, {isPaid: false, paidAmount: 5000});
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), null);
   });
@@ -91,7 +91,7 @@ describe("refreshRegistrationHold", () => {
       organizerConfirmedShareUids: ["uid-1"],
     });
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), null);
   });
@@ -101,7 +101,7 @@ describe("refreshRegistrationHold", () => {
     seedTournament(fake);
     seedRegistration(fake, {isPaid: true, sharePaidUids: ["uid-1", "uid-2"]});
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), null);
   });
@@ -119,7 +119,7 @@ describe("refreshRegistrationHold", () => {
       expiresAt: Timestamp.fromMillis(inviteExpiry),
     });
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), inviteExpiry + 30 * MIN);
   });
@@ -129,9 +129,86 @@ describe("refreshRegistrationHold", () => {
     fake.seedDoc("tournaments/t1", {registrationHoldEnabled: false});
     seedRegistration(fake, {isPaid: false, sharePaidUids: ["uid-1"]});
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), null);
+  });
+
+  it("onlyIfPresent não inventa prazo em quem é imune", async () => {
+    // Reserva anterior à regra / criada pelo organizador / fila: o campo nunca
+    // existiu, e fechar a dupla não pode ressuscitar um prazo.
+    const {fake, db} = makeDb();
+    seedTournament(fake);
+    seedRegistration(fake, {isPaid: false, paidAmount: 0});
+
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {
+      nowMs: NOW,
+      onlyIfPresent: true,
+    });
+
+    assert.equal(holdMsOf(fake), null);
+  });
+
+  it("onlyIfPresent recalcula normalmente quem já tinha prazo", async () => {
+    const {fake, db} = makeDb();
+    seedTournament(fake);
+    seedRegistration(fake, {
+      isPaid: false,
+      paidAmount: 0,
+      holdExpiresAt: Timestamp.fromMillis(NOW + 5 * MIN),
+    });
+
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {
+      nowMs: NOW,
+      onlyIfPresent: true,
+    });
+
+    assert.equal(holdMsOf(fake), NOW + 30 * MIN);
+  });
+
+  it("rosterClosed ignora convite pendente que ninguém respondeu", async () => {
+    // É o caso do organizador fechando a dupla: o convite segue vivo no banco,
+    // mas não segura mais nada — o relógio de pagamento começa agora.
+    const {fake, db} = makeDb();
+    seedTournament(fake);
+    seedRegistration(fake, {
+      isPaid: false,
+      holdExpiresAt: Timestamp.fromMillis(NOW + 5 * MIN),
+    });
+    fake.seedDoc(`${INVITES_COLLECTION}/inv-1`, {
+      tournamentId: "t1",
+      categoryId: "cat-1",
+      inviterUid: "uid-1",
+      status: "pending",
+      expiresAt: Timestamp.fromMillis(NOW + 48 * 60 * MIN),
+    });
+
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {
+      nowMs: NOW,
+      onlyIfPresent: true,
+      rosterClosed: true,
+    });
+
+    assert.equal(holdMsOf(fake), NOW + 30 * MIN);
+  });
+
+  it("dupla fechada que JÁ pagou perde o prazo, não ganha 30min", async () => {
+    const {fake, db} = makeDb();
+    seedTournament(fake);
+    seedRegistration(fake, {
+      isPaid: true,
+      holdExpiresAt: Timestamp.fromMillis(NOW + 5 * MIN),
+    });
+
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {
+      nowMs: NOW,
+      onlyIfPresent: true,
+      rosterClosed: true,
+    });
+
+    // O fake não interpreta o sentinel de delete: basta provar que não virou
+    // um prazo novo de 30 min.
+    assert.notEqual(holdMsOf(fake), NOW + 30 * MIN);
   });
 
   it("fila de espera não ocupa vaga, então não ganha prazo", async () => {
@@ -139,7 +216,7 @@ describe("refreshRegistrationHold", () => {
     seedTournament(fake);
     seedRegistration(fake, {isPaid: false, waitlist: true});
 
-    await refreshRegistrationHold(db, PROJECT, REG_ID, NOW);
+    await refreshRegistrationHold(db, PROJECT, REG_ID, {nowMs: NOW});
 
     assert.equal(holdMsOf(fake), null);
   });

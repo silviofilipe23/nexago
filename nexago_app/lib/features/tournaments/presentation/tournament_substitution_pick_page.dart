@@ -232,9 +232,40 @@ class _TournamentSubstitutionPickPageState
             controller: _searchController,
             onSubmitted: _search,
             textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
+            cursorColor: AppColors.brand,
+            style: AppTypography.bodyM.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
               hintText: 'Buscar atleta por nome',
-              prefixIcon: Icon(Icons.search),
+              hintStyle: AppTypography.bodyM.copyWith(
+                color: colors.onSurfaceMuted.withValues(alpha: 0.6),
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: colors.onSurfaceMuted.withValues(alpha: 0.62),
+              ),
+              filled: true,
+              fillColor: colors.surfaceRaised,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.25),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.25),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide:
+                    const BorderSide(color: AppColors.brand, width: 1.5),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -253,22 +284,12 @@ class _TournamentSubstitutionPickPageState
           ],
           if (!_loadingRecent && _recentPartners.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
-            Text(
-              'Suas últimas duplas',
-              style: AppTypography.titleS.copyWith(color: colors.onSurface),
+            _RecentPartnersSection(
+              categoryName: categoryName,
+              partners: _recentPartners,
+              busy: _sending,
+              onInvite: _send,
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Atletas com quem você já jogou e que cabem em $categoryName.',
-              style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            for (final profile in _recentPartners)
-              _CandidateRow(
-                profile: profile,
-                busy: _sending,
-                onInvite: () => _send(profile),
-              ),
           ],
           if (showPaymentNotice) ...[
             const SizedBox(height: AppSpacing.lg),
@@ -284,34 +305,178 @@ class _TournamentSubstitutionPickPageState
   }
 }
 
+class _RecentPartnersSection extends StatelessWidget {
+  const _RecentPartnersSection({
+    required this.categoryName,
+    required this.partners,
+    required this.busy,
+    required this.onInvite,
+  });
+
+  final String categoryName;
+  final List<AppUserProfile> partners;
+  final bool busy;
+  final ValueChanged<AppUserProfile> onInvite;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.brand.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.history_rounded,
+                size: 18,
+                color: AppColors.brand,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Suas últimas duplas',
+                    style: AppTypography.titleS.copyWith(
+                      color: colors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Atletas com quem você já jogou e que cabem em '
+                    '$categoryName.',
+                    style: AppTypography.bodyS
+                        .copyWith(color: colors.onSurfaceMuted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        for (final profile in partners)
+          _CandidateRow(
+            profile: profile,
+            subtitle: 'Jogou com você',
+            busy: busy,
+            onInvite: () => onInvite(profile),
+          ),
+      ],
+    );
+  }
+}
+
 class _CandidateRow extends StatelessWidget {
   const _CandidateRow({
     required this.profile,
     required this.busy,
     required this.onInvite,
+    this.subtitle,
   });
 
   final AppUserProfile profile;
+  final String? subtitle;
   final bool busy;
   final VoidCallback onInvite;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: AthleteProfileAvatar(
-        size: 40,
-        initials: appUserInitials(profile),
-        imageUrl: profile.profilePhotoUrl,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Material(
+        color: colors.surfaceCard,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.lgAll,
+          side: BorderSide(
+            color: colors.onSurfaceMuted.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              AthleteProfileAvatar(
+                size: 44,
+                initials: appUserInitials(profile),
+                imageUrl: profile.profilePhotoUrl,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appUserDisplayName(profile),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          AppTypography.titleS.copyWith(color: colors.onSurface),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyS
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _InviteButton(busy: busy, onPressed: onInvite),
+            ],
+          ),
+        ),
       ),
-      title: Text(
-        appUserDisplayName(profile),
-        style: AppTypography.titleS.copyWith(color: colors.onSurface),
-      ),
-      trailing: TextButton(
-        onPressed: busy ? null : onInvite,
-        child: const Text('Convidar'),
+    );
+  }
+}
+
+class _InviteButton extends StatelessWidget {
+  const _InviteButton({required this.busy, required this.onPressed});
+
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: OutlinedButton(
+        onPressed: busy ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.brand,
+          side: BorderSide(color: AppColors.brand.withValues(alpha: 0.55)),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          minimumSize: const Size(0, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
+        ),
+        child: Text(
+          'Convidar',
+          style: AppTypography.soraRegular(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }
@@ -328,14 +493,26 @@ class _PaymentNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.pending.withValues(alpha: 0.12),
-        borderRadius: AppRadii.mdAll,
-        border: Border.all(color: AppColors.pending.withValues(alpha: 0.4)),
+        color: AppColors.pending.withValues(alpha: 0.1),
+        borderRadius: AppRadii.lgAll,
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 18, color: AppColors.pending),
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: AppColors.pending.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.help_outline_rounded,
+              size: 14,
+              color: AppColors.pending,
+            ),
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(

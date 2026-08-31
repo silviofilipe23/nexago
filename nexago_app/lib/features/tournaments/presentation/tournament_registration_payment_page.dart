@@ -17,6 +17,7 @@ import '../../athlete/domain/tournament_access_providers.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../data/tournament_registration_service.dart';
+import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -489,6 +490,23 @@ class _TournamentRegistrationPaymentPageState
                 currentUid != null &&
                 (snap?.athleteSharePaid(currentUid) ?? false);
 
+            // Convite vivo enviado nesta categoria: enquanto ele existe, a
+            // vaga espera o parceiro e a contagem do prazo fica escondida.
+            final hasLivePartnerInvite = sentPendingInvitesFor(
+              invites:
+                  ref
+                      .watch(inviterTournamentPartnerInvitesProvider)
+                      .valueOrNull ??
+                  const <TournamentPartnerInvite>[],
+              tournamentId: widget.tournamentId,
+              categoryId: category.id,
+            ).isNotEmpty;
+            final holdNotice = registrationHoldNotice(
+              holdExpiresAt: snap?.holdExpiresAt,
+              isPaid: isFullyPaid,
+              hasLivePartnerInvite: hasLivePartnerInvite,
+            );
+
             final awaitingSoloPartner = registrationAwaitingSoloPartner(
               snap: snap,
               isFullyPaid: isFullyPaid,
@@ -598,6 +616,7 @@ class _TournamentRegistrationPaymentPageState
                         organizerPixCity: tournament.organizerPixCity,
                         partnerJoinsFree: paidAwaitingPartner,
                         showSoloPartnerInvite: awaitingPartner,
+                        holdNotice: holdNotice,
                         onInvitePartner: awaitingPartner
                             ? _openPartnerInvite
                             : null,

@@ -169,6 +169,8 @@ export function tournamentDraftToFirestore(params: {
           }
         : null,
     waitlistEnabled: draft.waitlistEnabled,
+    registrationHoldEnabled: draft.registrationHoldEnabled,
+    registrationHoldMinutes: draft.registrationHoldMinutes,
     inviteConfirmEnabled: draft.inviteConfirmEnabled,
     cashPrizesEnabled: draft.cashPrizesEnabled,
     regulationsText: draft.regulationNotes.trim() || null,
@@ -373,6 +375,10 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
     organizerPixRecipientName: str(pix['recipientName']),
     organizerPixCity: str(pix['city']),
     waitlistEnabled: data['waitlistEnabled'] !== false,
+    // Torneio sem os campos vale o padrão ligado de 30 min — mesma leitura da
+    // Cloud Function, para o wizard não mostrar um prazo que o servidor ignora.
+    registrationHoldEnabled: data['registrationHoldEnabled'] !== false,
+    registrationHoldMinutes: num(data['registrationHoldMinutes']) ?? 30,
     inviteConfirmEnabled: data['inviteConfirmEnabled'] === true,
     cashPrizesEnabled: data['cashPrizesEnabled'] !== false,
     regulationNotes: str(data['regulationsText']),

@@ -30,6 +30,7 @@ import {
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {registrationHoldClearedFields} from "./tournament-registration-hold-ops";
 import {tournamentManagerUids} from "./tournament-acl";
 import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
@@ -189,6 +190,8 @@ export async function processTournamentRegistrationAsaasNotification(
       paidAmount: newPaidAmount,
       isPaid,
       sharePaidUids: FieldValue.arrayUnion(...uidsToConfirm),
+      // Pagamento na conta: a vaga deixa de ter prazo de garantia.
+      ...registrationHoldClearedFields(),
       updatedAt: FieldValue.serverTimestamp(),
     });
     batch.set(pendingRef, {

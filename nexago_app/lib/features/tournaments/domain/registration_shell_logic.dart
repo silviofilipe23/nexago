@@ -236,3 +236,51 @@ int registrationRemainingInviteSlots({
   final left = teamSize - rosterCount - pendingInviteCount;
   return left < 0 ? 0 : left;
 }
+
+/// Aviso do prazo de garantia da vaga na inscrição ainda não paga, ou `null`
+/// quando não há relógio para mostrar.
+///
+/// O relógio só é real quando ninguém está esperando resposta de convite: com
+/// convite pendente vivo a vaga acompanha o convite (48h), e uma contagem ali
+/// mentiria sobre quanto tempo o atleta tem. Inscrição sem `holdExpiresAt` —
+/// anterior à regra, criada pelo organizador, em fila de espera ou de torneio
+/// com o prazo desligado — também não mostra nada.
+String? registrationHoldNotice({
+  required DateTime? holdExpiresAt,
+  required bool isPaid,
+  required bool hasLivePartnerInvite,
+  DateTime? now,
+}) {
+  if (holdExpiresAt == null || isPaid || hasLivePartnerInvite) return null;
+  final clock = now ?? DateTime.now();
+  final remaining = holdExpiresAt.difference(clock);
+  if (remaining.inSeconds <= 0) {
+    return 'Prazo encerrado — sua vaga será liberada.';
+  }
+  return 'Vaga garantida até ${_holdClockLabel(holdExpiresAt, clock)} · '
+      '${_holdRemainingLabel(remaining)}';
+}
+
+/// Hora de parede local do vencimento; ganha a data quando não é hoje.
+String _holdClockLabel(DateTime expiresAt, DateTime now) {
+  final at = expiresAt.toLocal();
+  final hh = at.hour.toString().padLeft(2, '0');
+  final mm = at.minute.toString().padLeft(2, '0');
+  final sameDay =
+      at.year == now.year && at.month == now.month && at.day == now.day;
+  if (sameDay) return '$hh:$mm';
+  final dd = at.day.toString().padLeft(2, '0');
+  final mo = at.month.toString().padLeft(2, '0');
+  return '$dd/$mo $hh:$mm';
+}
+
+String _holdRemainingLabel(Duration remaining) {
+  if (remaining.inMinutes < 1) return 'falta menos de 1 min';
+  if (remaining.inMinutes < 60) return 'faltam ${remaining.inMinutes} min';
+  if (remaining.inHours < 24) {
+    final hours = remaining.inHours;
+    return hours == 1 ? 'falta 1 hora' : 'faltam $hours horas';
+  }
+  final days = remaining.inDays;
+  return days == 1 ? 'falta 1 dia' : 'faltam $days dias';
+}

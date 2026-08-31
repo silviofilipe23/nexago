@@ -21,6 +21,7 @@ class RegistrationShellSummaryCard extends StatelessWidget {
     this.teamName,
     this.uniformLabel,
     this.lgpdLabel,
+    this.holdLabel,
   });
 
   final String tournamentName;
@@ -40,6 +41,9 @@ class RegistrationShellSummaryCard extends StatelessWidget {
 
   /// `null` antes de existir inscrição — não há aceite para relatar.
   final String? lgpdLabel;
+
+  /// Prazo de garantia da vaga; `null` quando não há relógio para mostrar.
+  final String? holdLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +107,8 @@ class RegistrationShellSummaryCard extends StatelessWidget {
           _SummaryRow(label: 'Categoria', value: categoryName),
           if (teamName != null) _SummaryRow(label: 'Equipe', value: teamName!),
           _SummaryRow(label: 'Status', value: statusLabel),
+          if (holdLabel != null)
+            _SummaryRow(label: 'Prazo da vaga', value: holdLabel!),
           if (uniformLabel != null)
             _SummaryRow(label: 'Uniforme', value: uniformLabel!),
           if (lgpdLabel != null)

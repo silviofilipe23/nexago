@@ -63,6 +63,7 @@ import {
 } from '../../shared/partner-invite/partner-invite';
 import { LgpdConsentBoxComponent } from '../../shared/lgpd/lgpd-consent-box.component';
 import { uniformSlotForUid } from '../../painel/registration-progress';
+import { registrationHoldNotice } from './registration-hold';
 import { InvitePartnerDialogComponent } from './invite-partner-dialog.component';
 import {
   pickRegistrationSharePhrase,
@@ -236,6 +237,17 @@ export class TournamentRegistrationShellComponent {
     return category != null && categoryRequiresUniform(category);
   });
   protected readonly registrationStepNum = computed(() => (this.uniformRequired() ? 3 : 2));
+
+  /** Prazo de garantia da vaga; some enquanto há convite vivo (quem manda ali é o convite). */
+  protected readonly holdNotice = computed(() => {
+    const reg = this.registration();
+    if (!reg) return null;
+    return registrationHoldNotice({
+      holdExpiresAt: reg.holdExpiresAt,
+      isPaid: reg.isPaid,
+      hasLivePartnerInvite: this.sentPendingInvites().length > 0,
+    });
+  });
   protected readonly uniformComplete = computed(() => {
     const category = this.selectedCategory();
     const selection = this.uniform();
@@ -783,6 +795,8 @@ export class TournamentRegistrationShellComponent {
           captainUid: null,
           uniformByUid: {},
           substitutionHistory: [],
+          // O prazo é carimbado pelo servidor; o snapshot seguinte traz o valor real.
+          holdExpiresAt: null,
         },
       ]);
       this.toasts.success('Inscrição criada', 'Falta só formar a dupla — convide seu parceiro para garantir a vaga.');
@@ -858,6 +872,8 @@ export class TournamentRegistrationShellComponent {
           captainUid: uid || null,
           uniformByUid: {},
           substitutionHistory: [],
+          // O prazo é carimbado pelo servidor; o snapshot seguinte traz o valor real.
+          holdExpiresAt: null,
         },
       ]);
       this.toasts.success(

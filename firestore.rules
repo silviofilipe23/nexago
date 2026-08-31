@@ -187,6 +187,15 @@ service cloud.firestore {
         (!('paidAt' in request.resource.data) ||
          request.resource.data.paidAt == resource.data.paidAt);
     }
+    function inscriptionHoldFieldsUnchanged() {
+      // Prazo de garantia da vaga: escrito só pelas Cloud Functions. A
+      // comparação de presença é o que importa — sem ela o atleta APAGARIA o
+      // campo e ficaria imune à varredura, que é o mesmo que prazo infinito.
+      return ('holdExpiresAt' in request.resource.data) ==
+             ('holdExpiresAt' in resource.data) &&
+        (!('holdExpiresAt' in request.resource.data) ||
+         request.resource.data.holdExpiresAt == resource.data.holdExpiresAt);
+    }
     function inscriptionEnrollmentFieldsUnchanged() {
       return (!('waitlist' in request.resource.data) ||
               request.resource.data.waitlist == resource.data.waitlist);
@@ -2004,6 +2013,7 @@ service cloud.firestore {
            (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
             get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) &&
           inscriptionPaymentFieldsUnchanged() &&
+          inscriptionHoldFieldsUnchanged() &&
           inscriptionEnrollmentFieldsUnchanged() &&
           inscriptionLgpdFieldsUnchanged() &&
           inscriptionCancellationRequestFieldsUnchanged() &&

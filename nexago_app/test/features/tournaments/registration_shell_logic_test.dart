@@ -579,4 +579,104 @@ void main() {
       expect(status.blocked, isTrue);
     });
   });
+
+  group('registrationHoldNotice — prazo de garantia da vaga', () {
+    final now = DateTime(2026, 9, 1, 14, 13);
+
+    test('inscrição sem prazo (antiga, do organizador ou em fila) não mostra nada', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: null,
+          isPaid: false,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        isNull,
+      );
+    });
+
+    test('com convite vivo o relógio some — quem manda ali é o convite', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: now.add(const Duration(hours: 48, minutes: 30)),
+          isPaid: false,
+          hasLivePartnerInvite: true,
+          now: now,
+        ),
+        isNull,
+      );
+    });
+
+    test('paga não tem prazo nenhum', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: now.add(const Duration(minutes: 20)),
+          isPaid: true,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        isNull,
+      );
+    });
+
+    test('elenco fechado sem pagar mostra hora de parede e o que falta', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: DateTime(2026, 9, 1, 14, 35),
+          isPaid: false,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        'Vaga garantida até 14:35 · faltam 22 min',
+      );
+    });
+
+    test('prazo em outro dia carrega a data, senão 14:35 seria hoje', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: DateTime(2026, 9, 2, 14, 35),
+          isPaid: false,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        'Vaga garantida até 02/09 14:35 · falta 1 dia',
+      );
+    });
+
+    test('menos de um minuto não vira "faltam 0 min"', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: now.add(const Duration(seconds: 30)),
+          isPaid: false,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        'Vaga garantida até 14:13 · falta menos de 1 min',
+      );
+    });
+
+    test('vencido avisa que a vaga cai, em vez de contagem negativa', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: now.subtract(const Duration(minutes: 1)),
+          isPaid: false,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        'Prazo encerrado — sua vaga será liberada.',
+      );
+    });
+
+    test('prazo de horas usa hora, não 90 minutos', () {
+      expect(
+        registrationHoldNotice(
+          holdExpiresAt: now.add(const Duration(hours: 2)),
+          isPaid: false,
+          hasLivePartnerInvite: false,
+          now: now,
+        ),
+        'Vaga garantida até 16:13 · faltam 2 horas',
+      );
+    });
+  });
 }

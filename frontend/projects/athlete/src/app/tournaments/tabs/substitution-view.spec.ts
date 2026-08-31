@@ -10,7 +10,7 @@ function reg(over: Partial<AthleteTournamentRegistration>): AthleteTournamentReg
     uniformPlayer1: { sizeTop: null, sizeShorts: null, jerseyNumber: null, jerseyName: null },
     uniformPlayer2: { sizeTop: null, sizeShorts: null, jerseyNumber: null, jerseyName: null },
     teamName: null, teamSize: null, captainUid: null, uniformByUid: {},
-    substitutionHistory: [],
+    substitutionHistory: [], holdExpiresAt: null,
     ...over,
   };
 }

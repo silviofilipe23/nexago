@@ -99,6 +99,10 @@ export interface TournamentCreateDraft {
   organizerPixRecipientName: string;
   organizerPixCity: string;
   waitlistEnabled: boolean;
+  /** Vaga sem pagamento é liberada depois do prazo de garantia. */
+  registrationHoldEnabled: boolean;
+  /** Minutos de garantia da vaga depois que o elenco fecha. */
+  registrationHoldMinutes: number;
   inviteConfirmEnabled: boolean;
   cashPrizesEnabled: boolean;
   regulationNotes: string;
@@ -167,6 +171,8 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
     organizerPixRecipientName: '',
     organizerPixCity: '',
     waitlistEnabled: true,
+    registrationHoldEnabled: true,
+    registrationHoldMinutes: 30,
     inviteConfirmEnabled: false,
     cashPrizesEnabled: true,
     regulationNotes: '',
@@ -219,6 +225,19 @@ export const BEST_OF_LABEL: Record<TournamentBestOf, string> = {
   bestOf3: 'MD3',
   bestOf5: 'MD5',
 };
+
+/** Prazos oferecidos no wizard. Valor gravado é sempre em MINUTOS. */
+export const REGISTRATION_HOLD_OPTIONS: ReadonlyArray<{ minutes: number; label: string }> = [
+  { minutes: 15, label: '15 minutos' },
+  { minutes: 30, label: '30 minutos' },
+  { minutes: 60, label: '1 hora' },
+  { minutes: 120, label: '2 horas' },
+  { minutes: 1440, label: '24 horas' },
+];
+
+export function registrationHoldLabel(minutes: number): string {
+  return REGISTRATION_HOLD_OPTIONS.find((o) => o.minutes === minutes)?.label ?? `${minutes} minutos`;
+}
 
 export const GENDER_LABEL: Record<CategoryGender, string> = { male: 'Masculino', female: 'Feminino', mixed: 'Misto' };
 export const GENDER_SHORT: Record<CategoryGender, string> = { male: 'Masc', female: 'Fem', mixed: 'Misto' };

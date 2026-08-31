@@ -29,6 +29,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.organizerPixRecipientName = '',
     this.organizerPixCity = '',
     this.showSoloPartnerInvite = false,
+    this.holdNotice,
     this.partnerJoinsFree = false,
     this.onInvitePartner,
     this.pendingPartnerName,
@@ -60,6 +61,11 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final String organizerPixRecipientName;
   final String organizerPixCity;
   final bool showSoloPartnerInvite;
+
+  /// Aviso do prazo de garantia da vaga ("Vaga garantida até 14:35 · faltam
+  /// 22 min"); `null` quando a inscrição não tem prazo ou o relógio ainda não
+  /// é real (convite pendente vivo).
+  final String? holdNotice;
 
   /// Inscrição já paga (total): o parceiro convidado entra sem taxa.
   final bool partnerJoinsFree;
@@ -130,6 +136,29 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             color: context.themeColors.onSurface,
           ),
         ),
+        if (holdNotice != null) ...[
+          SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                size: 16,
+                color: AppColors.pending,
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  holdNotice!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.pending,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         if (isDirectOrganizerPayment) ...[
           SizedBox(height: 16),
           Row(

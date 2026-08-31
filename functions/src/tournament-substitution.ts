@@ -91,6 +91,52 @@ function inviteExpiredAt(raw: unknown, nowMs: number): boolean {
   return Boolean(ts && typeof ts.toMillis === "function" && ts.toMillis() < nowMs);
 }
 
+/** Motivo declarado da substituição — opcional, validado só quando presente. */
+export const SUBSTITUTION_REASONS = [
+  "lesao",
+  "imprevisto",
+  "trabalho",
+  "viagem",
+  "outro",
+] as const;
+export type SubstitutionReason = (typeof SUBSTITUTION_REASONS)[number];
+
+const SUBSTITUTION_REASON_LABELS: Record<SubstitutionReason, string> = {
+  lesao: "Lesão",
+  imprevisto: "Imprevisto pessoal",
+  trabalho: "Trabalho",
+  viagem: "Viagem",
+  outro: "Outro",
+};
+
+const SUBSTITUTION_REASON_NOTE_MAX_LENGTH = 300;
+
+/** Label PT do motivo — usado na notificação ao organizador. */
+export function substitutionReasonLabel(reason: string): string {
+  return SUBSTITUTION_REASON_LABELS[reason as SubstitutionReason] ?? reason;
+}
+
+function parseSubstitutionReason(raw: unknown): SubstitutionReason | undefined {
+  const value = str(raw);
+  if (!value) return undefined;
+  if (!(SUBSTITUTION_REASONS as readonly string[]).includes(value)) {
+    throw new HttpsError("invalid-argument", "Motivo da substituição inválido.");
+  }
+  return value as SubstitutionReason;
+}
+
+function parseSubstitutionReasonNote(raw: unknown): string | undefined {
+  const value = str(raw);
+  if (!value) return undefined;
+  if (value.length > SUBSTITUTION_REASON_NOTE_MAX_LENGTH) {
+    throw new HttpsError(
+      "invalid-argument",
+      `O motivo detalhado deve ter no máximo ${SUBSTITUTION_REASON_NOTE_MAX_LENGTH} caracteres.`,
+    );
+  }
+  return value;
+}
+
 /**
  * Convite de substituição: [inviteeUid] entraria no LUGAR de [replacedUid] na
  * inscrição [registrationId]. Permitido até a publicação das chaves da
@@ -113,6 +159,8 @@ export const sendTournamentSubstitutionInvite = onCall(async (request) => {
       "registrationId, replacedUid e inviteeUid são obrigatórios.",
     );
   }
+  const reason = parseSubstitutionReason(request.data?.reason);
+  const reasonNote = parseSubstitutionReasonNote(request.data?.reasonNote);
 
   const projectId = getFirebaseProjectId();
   const db = getFirestore();
@@ -235,6 +283,8 @@ export const sendTournamentSubstitutionInvite = onCall(async (request) => {
     ...(teamId ? {attachTeamId: teamId} : {}),
     ...(teamName ? {teamName} : {}),
     ...(teamSize >= MIN_TEAM_CATEGORY_SIZE ? {teamSize} : {}),
+    ...(reason ? {reason} : {}),
+    ...(reasonNote ? {reasonNote} : {}),
   });
 
   try {
@@ -503,6 +553,8 @@ export async function acceptSubstitutionInviteFor(
       byUid: str(invite.inviterUid),
       at: Timestamp.now(),
       outHadPaid,
+      ...(str(invite.reason) ? {reason: str(invite.reason)} : {}),
+      ...(str(invite.reasonNote) ? {reasonNote: str(invite.reasonNote)} : {}),
     });
     tx.update(regRef, regUpdate);
 
@@ -609,6 +661,12 @@ async function notifySubstitutionCompleted(
   const outName = str(invite.replacedName) || "o atleta";
   const label = formatCategoryInviteNotificationLabel(category);
   const tournamentName = str(tournament.name);
+  const reason = str(invite.reason);
+  const reasonNote = str(invite.reasonNote);
+  const managerReasonSuffix = reason
+    ? ` Motivo informado: ${substitutionReasonLabel(reason)}.` +
+      (reasonNote ? ` — "${reasonNote}"` : "")
+    : "";
 
   await deliverNotificationToUser({
     userId: outUid,
@@ -640,7 +698,7 @@ async function notifySubstitutionCompleted(
         deliverNotificationToUser({
           userId: managerUid,
           title: "Substituição de atleta",
-          body: `${inName} entrou no lugar de ${outName} na categoria ${label}.`,
+          body: `${inName} entrou no lugar de ${outName} na categoria ${label}.${managerReasonSuffix}`,
           type: "tournament_substitution_completed",
           data: {
             tournamentId: result.tournamentId,

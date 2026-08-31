@@ -338,6 +338,47 @@ describe('substituição — aceite', () => {
   });
 });
 
+describe('substituição — motivo', () => {
+  test('motivo viaja do envio à história e ao organizador', async () => {
+    const {a, b, c, registrationId, tournamentId} = await duplaFormada();
+    await db.doc(`tournaments/${tournamentId}`).set({managerId: 'org-1'}, {merge: true});
+
+    const {inviteId} = await call(callables.sendSubstitution, a, sendPayload({
+      registrationId, replacedUid: b, inviteeUid: c,
+      reason: 'lesao', reasonNote: 'Torceu o tornozelo',
+    }));
+
+    const invite = await getInvite(inviteId);
+    assert.equal(invite.reason, 'lesao');
+    assert.equal(invite.reasonNote, 'Torceu o tornozelo');
+
+    await call(callables.acceptInvite, c, {inviteId});
+
+    const reg = await getRegistration(registrationId);
+    assert.equal(reg.substitutionHistory[0].reason, 'lesao');
+    assert.equal(reg.substitutionHistory[0].reasonNote, 'Torceu o tornozelo');
+
+    const notifications = await db.collection('users/org-1/notifications').get();
+    const completed = notifications.docs.find((d) => d.data().type === 'tournament_substitution_completed');
+    assert.ok(completed, 'organizador foi notificado');
+    assert.match(completed.data().body, /Lesão/);
+  });
+
+  test('motivo inválido e nota longa são recusados', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+
+    const reasonMsg = await callExpectingError(callables.sendSubstitution, a, sendPayload({
+      registrationId, replacedUid: b, inviteeUid: c, reason: 'xpto',
+    }));
+    assert.match(reasonMsg, /motivo/i);
+
+    const noteMsg = await callExpectingError(callables.sendSubstitution, a, sendPayload({
+      registrationId, replacedUid: b, inviteeUid: c, reasonNote: 'x'.repeat(301),
+    }));
+    assert.match(noteMsg, /300|caracteres/i);
+  });
+});
+
 describe('substituição — recusa e publicação da chave', () => {
   test('recusa notifica quem iniciou', async () => {
     const {a, b, c, registrationId} = await duplaFormada();

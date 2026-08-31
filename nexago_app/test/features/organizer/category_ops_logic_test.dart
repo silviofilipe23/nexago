@@ -31,6 +31,36 @@ OrganizerCategoryTeamRow _team({
   );
 }
 
+/// Dupla com os campos de pagamento por atleta. `p1`/`p2` são os uids dos
+/// participantes — passar `p2: ''` produz a inscrição solo (um uid só).
+OrganizerCategoryTeamRow _payTeam({
+  String p1 = 'u1',
+  String p2 = 'u2',
+  OrganizerTeamRegistrationStatus status =
+      OrganizerTeamRegistrationStatus.pending,
+  List<String> sharePaidUids = const [],
+  List<String> organizerConfirmedShareUids = const [],
+  DateTime? declaredPaidAt,
+  bool paymentVerifiedByOrganizer = false,
+  String paymentMethod = '',
+  int? seedRank,
+}) {
+  return OrganizerCategoryTeamRow(
+    registrationId: 'reg-1',
+    teamId: 'team-1',
+    player1: OrganizerCategoryPlayerInfo(uid: p1, name: 'Marcos'),
+    player2: OrganizerCategoryPlayerInfo(uid: p2, name: 'Victor'),
+    status: status,
+    seedRank: seedRank,
+    expectedAmountCents: 10000,
+    paymentMethod: paymentMethod,
+    sharePaidUids: sharePaidUids,
+    organizerConfirmedShareUids: organizerConfirmedShareUids,
+    declaredPaidAt: declaredPaidAt,
+    paymentVerifiedByOrganizer: paymentVerifiedByOrganizer,
+  );
+}
+
 void main() {
   group('filterCategoryTeams', () {
     final teams = [
@@ -533,6 +563,434 @@ void main() {
       );
       expect(team.lgpdAcceptedByAll, isTrue);
       expect(team.lgpdPartiallyAccepted, isFalse);
+    });
+  });
+
+  // Confirmação de pagamento POR ATLETA. Fonte da verdade das regras:
+  // `functions/src/organizer-payment-share.ts` (share/bulk) e
+  // `functions/src/organizer-category-ops.ts` (a callable). O que estiver
+  // errado aqui vira dinheiro marcado como recebido sem ter entrado.
+  group('teamAwaitsPaymentVerification', () {
+    test('declaração do atleta sem baixa do organizador entra na fila', () {
+      expect(
+        teamAwaitsPaymentVerification(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            declaredPaidAt: DateTime(2026, 8, 20),
+            paymentMethod: kOrganizerDirectPaymentMethod,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('declaração já conferida sai da fila', () {
+      expect(
+        teamAwaitsPaymentVerification(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            declaredPaidAt: DateTime(2026, 8, 20),
+            paymentVerifiedByOrganizer: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'inscrição direta ANTERIOR ao fluxo (sem declaredPaidAt) nunca entra '
+      'numa fila de conferência retroativa, mesmo paga direto com o '
+      'organizador',
+      () {
+        expect(
+          teamAwaitsPaymentVerification(
+            _payTeam(
+              status: OrganizerTeamRegistrationStatus.confirmed,
+              paymentMethod: kOrganizerDirectPaymentMethod,
+            ),
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('sem declaração, o flag de verificação sozinho não cria fila', () {
+      expect(
+        teamAwaitsPaymentVerification(
+          _payTeam(paymentVerifiedByOrganizer: true),
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('isTeamPaymentSettled', () {
+    test('paga e sem conferência pendente é pagamento resolvido', () {
+      expect(
+        isTeamPaymentSettled(
+          _payTeam(status: OrganizerTeamRegistrationStatus.confirmed),
+        ),
+        isTrue,
+      );
+    });
+
+    test('paga por declaração ainda a conferir NÃO está resolvida', () {
+      expect(
+        isTeamPaymentSettled(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            declaredPaidAt: DateTime(2026, 8, 20),
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('pendente e fila nunca são resolvidas', () {
+      expect(isTeamPaymentSettled(_payTeam()), isFalse);
+      expect(
+        isTeamPaymentSettled(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.waitlist,
+            paymentVerifiedByOrganizer: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('athletePaymentState', () {
+    test('uid fora das duas listas está pendente', () {
+      expect(
+        athletePaymentState(_payTeam(), 'u1'),
+        OrganizerAthletePaymentState.pending,
+      );
+    });
+
+    test('só em sharePaidUids = declarado pelo atleta', () {
+      expect(
+        athletePaymentState(_payTeam(sharePaidUids: const ['u1']), 'u1'),
+        OrganizerAthletePaymentState.declared,
+      );
+    });
+
+    test(
+      'em organizerConfirmedShareUids = confirmado por você (a callable grava '
+      'nas DUAS listas, e a confirmação manual tem de vencer a declaração — '
+      'é a única que pode ser desfeita)',
+      () {
+        expect(
+          athletePaymentState(
+            _payTeam(
+              sharePaidUids: const ['u1'],
+              organizerConfirmedShareUids: const ['u1'],
+            ),
+            'u1',
+          ),
+          OrganizerAthletePaymentState.organizerConfirmed,
+        );
+      },
+    );
+
+    test('cada atleta tem o próprio estado na mesma inscrição', () {
+      final team = _payTeam(
+        sharePaidUids: const ['u1'],
+        organizerConfirmedShareUids: const ['u1'],
+      );
+      expect(
+        athletePaymentState(team, 'u1'),
+        OrganizerAthletePaymentState.organizerConfirmed,
+      );
+      expect(
+        athletePaymentState(team, 'u2'),
+        OrganizerAthletePaymentState.pending,
+      );
+    });
+
+    test('uid vazio ou desconhecido cai em pendente, sem estourar', () {
+      final team = _payTeam(sharePaidUids: const ['u1']);
+      expect(
+        athletePaymentState(team, ''),
+        OrganizerAthletePaymentState.pending,
+      );
+      expect(
+        athletePaymentState(team, '   '),
+        OrganizerAthletePaymentState.pending,
+      );
+      expect(
+        athletePaymentState(team, 'outro'),
+        OrganizerAthletePaymentState.pending,
+      );
+    });
+  });
+
+  // Espelho de `bulkConfirmBlockedByPartialShare` (CF): quando é true, a
+  // callable em bloco RECUSA (failed-precondition) e a tela precisa esconder
+  // a ação em bloco.
+  group('teamHasPartialPayment', () {
+    test('solo (um uid só) nunca é parcial, nem com a parte paga', () {
+      expect(
+        teamHasPartialPayment(
+          _payTeam(p2: '', sharePaidUids: const ['u1']),
+        ),
+        isFalse,
+      );
+      expect(teamHasPartialPayment(_payTeam(p2: '')), isFalse);
+    });
+
+    test('dupla sem nenhuma parcela paga não é parcial', () {
+      expect(teamHasPartialPayment(_payTeam()), isFalse);
+    });
+
+    test('metade da dupla paga é parcial', () {
+      expect(
+        teamHasPartialPayment(_payTeam(sharePaidUids: const ['u1'])),
+        isTrue,
+      );
+      expect(
+        teamHasPartialPayment(_payTeam(sharePaidUids: const ['u2'])),
+        isTrue,
+      );
+    });
+
+    test('dupla inteira paga não é parcial', () {
+      expect(
+        teamHasPartialPayment(_payTeam(sharePaidUids: const ['u1', 'u2'])),
+        isFalse,
+      );
+    });
+
+    test('uid estranho na lista não conta como parcela dos participantes', () {
+      expect(
+        teamHasPartialPayment(_payTeam(sharePaidUids: const ['fantasma'])),
+        isTrue,
+      );
+    });
+  });
+
+  group('showsAthletePaymentBreakdown', () {
+    test('dupla pendente mostra a divisão por atleta', () {
+      expect(showsAthletePaymentBreakdown(_payTeam()), isTrue);
+    });
+
+    test('dupla na fila de espera também mostra', () {
+      expect(
+        showsAthletePaymentBreakdown(
+          _payTeam(status: OrganizerTeamRegistrationStatus.waitlist),
+        ),
+        isTrue,
+      );
+    });
+
+    test('solo não tem o que dividir', () {
+      expect(showsAthletePaymentBreakdown(_payTeam(p2: '')), isFalse);
+    });
+
+    test('inscrição a conferir já é elenco completo declarado', () {
+      expect(
+        showsAthletePaymentBreakdown(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            sharePaidUids: const ['u1', 'u2'],
+            declaredPaidAt: DateTime(2026, 8, 20),
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('inscrição paga e conferida não mostra divisão', () {
+      expect(
+        showsAthletePaymentBreakdown(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            sharePaidUids: const ['u1', 'u2'],
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  // Selo do parcial na lista da categoria ("1/2 PAGO"): é o que revela, sem
+  // abrir dupla por dupla, quem pagou pela metade.
+  group('teamSharePaidCount e teamPartialPaymentLabel', () {
+    test('conta os participantes que estão em sharePaidUids', () {
+      expect(teamSharePaidCount(_payTeam(sharePaidUids: const ['u1'])), 1);
+      expect(
+        teamPartialPaymentLabel(_payTeam(sharePaidUids: const ['u1'])),
+        '1/2 PAGO',
+      );
+    });
+
+    test('nenhuma parcela paga conta zero', () {
+      expect(teamSharePaidCount(_payTeam()), 0);
+      expect(teamPartialPaymentLabel(_payTeam()), '0/2 PAGO');
+    });
+
+    test('dupla inteira paga fecha o contador', () {
+      final team = _payTeam(sharePaidUids: const ['u1', 'u2']);
+      expect(teamSharePaidCount(team), 2);
+      expect(teamPartialPaymentLabel(team), '2/2 PAGO');
+    });
+
+    test(
+      'uid em sharePaidUids que NÃO é participante não conta (senão a dupla '
+      'apareceria paga por um estranho — ex.: parceiro trocado depois da '
+      'declaração)',
+      () {
+        final team = _payTeam(sharePaidUids: const ['fantasma']);
+        expect(teamSharePaidCount(team), 0);
+        expect(teamPartialPaymentLabel(team), '0/2 PAGO');
+
+        final mixed = _payTeam(sharePaidUids: const ['fantasma', 'u2']);
+        expect(teamSharePaidCount(mixed), 1);
+        expect(teamPartialPaymentLabel(mixed), '1/2 PAGO');
+      },
+    );
+
+    test('uid repetido na lista não infla a contagem', () {
+      final team = _payTeam(sharePaidUids: const ['u1', 'u1']);
+      expect(teamSharePaidCount(team), 1);
+      expect(teamPartialPaymentLabel(team), '1/2 PAGO');
+    });
+
+    test('solo conta sobre o elenco de um (o selo não chega a aparecer)', () {
+      final team = _payTeam(p2: '', sharePaidUids: const ['u1']);
+      expect(teamSharePaidCount(team), 1);
+      expect(teamPartialPaymentLabel(team), '1/1 PAGO');
+      expect(teamHasPartialPayment(team), isFalse);
+    });
+  });
+
+  group('rótulos de pagamento', () {
+    test('estado do atleta', () {
+      expect(
+        athletePaymentStateLabel(
+          OrganizerAthletePaymentState.organizerConfirmed,
+        ),
+        'Confirmado por você',
+      );
+      expect(
+        athletePaymentStateLabel(OrganizerAthletePaymentState.declared),
+        'Declarado pelo atleta · aguardando conferência',
+      );
+      expect(
+        athletePaymentStateLabel(OrganizerAthletePaymentState.pending),
+        'Pagamento pendente',
+      );
+    });
+
+    test('ação por atleta distingue baixa de lançamento novo', () {
+      expect(
+        athletePaymentActionLabel(
+          OrganizerAthletePaymentState.organizerConfirmed,
+        ),
+        'Desfazer',
+      );
+      expect(
+        athletePaymentActionLabel(OrganizerAthletePaymentState.declared),
+        'Confirmar recebimento',
+      );
+      expect(
+        athletePaymentActionLabel(OrganizerAthletePaymentState.pending),
+        'Confirmar pagamento',
+      );
+    });
+
+    test('ação em bloco vira "recebimento" quando aguarda conferência', () {
+      expect(
+        teamConfirmPaymentActionLabel(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            declaredPaidAt: DateTime(2026, 8, 20),
+          ),
+        ),
+        'Confirmar recebimento',
+      );
+      expect(teamConfirmPaymentActionLabel(_payTeam()), 'Confirmar pagamento');
+      expect(
+        teamConfirmPaymentActionLabel(
+          _payTeam(
+            status: OrganizerTeamRegistrationStatus.confirmed,
+            declaredPaidAt: DateTime(2026, 8, 20),
+            paymentVerifiedByOrganizer: true,
+          ),
+        ),
+        'Confirmar pagamento',
+      );
+    });
+  });
+
+  // A reconstrução campo a campo já derrubou `partnerPending` e o pedido de
+  // cancelamento das cabeças de chave; os 4 campos de pagamento por atleta
+  // entram na mesma armadilha se `copyWith` esquecer de propagá-los — a dupla
+  // seed apareceria como "ninguém pagou".
+  group('copyWith preserva o pagamento por atleta', () {
+    final source = _payTeam(
+      status: OrganizerTeamRegistrationStatus.waitlist,
+      sharePaidUids: const ['u1'],
+      organizerConfirmedShareUids: const ['u1'],
+      declaredPaidAt: DateTime(2026, 8, 20, 10, 30),
+      paymentVerifiedByOrganizer: true,
+    );
+
+    test('copyWith(seedRank:) mantém os quatro campos novos', () {
+      final copy = source.copyWith(seedRank: 3);
+
+      expect(copy.seedRank, 3);
+      expect(copy.sharePaidUids, const ['u1']);
+      expect(copy.organizerConfirmedShareUids, const ['u1']);
+      expect(copy.declaredPaidAt, DateTime(2026, 8, 20, 10, 30));
+      expect(copy.paymentVerifiedByOrganizer, isTrue);
+    });
+
+    test('estado derivado do atleta sobrevive à cópia', () {
+      final copy = source.copyWith(seedRank: 1);
+
+      expect(
+        athletePaymentState(copy, 'u1'),
+        OrganizerAthletePaymentState.organizerConfirmed,
+      );
+      expect(
+        athletePaymentState(copy, 'u2'),
+        OrganizerAthletePaymentState.pending,
+      );
+      expect(teamHasPartialPayment(copy), isTrue);
+    });
+
+    test('applySeedOrder (caminho real da cópia) não zera o pagamento', () {
+      final ordered = applySeedOrder([
+        _payTeam(
+          sharePaidUids: const ['u1'],
+          organizerConfirmedShareUids: const ['u1'],
+        ),
+      ], ['team-1']);
+
+      expect(ordered.single.seedRank, 1);
+      expect(ordered.single.sharePaidUids, const ['u1']);
+      expect(ordered.single.organizerConfirmedShareUids, const ['u1']);
+      expect(teamHasPartialPayment(ordered.single), isTrue);
+      expect(showsAthletePaymentBreakdown(ordered.single), isTrue);
+    });
+  });
+
+  group('participantes da inscrição', () {
+    test('dupla completa expõe os dois atletas', () {
+      final team = _payTeam();
+      expect(team.participantUids, const ['u1', 'u2']);
+      expect(team.participants.map((p) => p.name), ['Marcos', 'Victor']);
+    });
+
+    test('solo aguardando parceiro expõe um só', () {
+      final team = _payTeam(p2: '');
+      expect(team.participantUids, const ['u1']);
+    });
+
+    test('uid em branco não vira participante fantasma', () {
+      final team = _payTeam(p1: '   ', p2: 'u2');
+      expect(team.participantUids, const ['u2']);
     });
   });
 }

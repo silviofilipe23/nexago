@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../domain/category_ops/category_ops_logic.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
 import 'organizer_team_dual_avatars.dart';
 
@@ -103,7 +104,14 @@ class OrganizerTeamListTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  _StatusPill(status: team.status),
+                  _StatusPill(
+                    status: team.status,
+                    awaitsVerification: teamAwaitsPaymentVerification(team),
+                  ),
+                  if (teamHasPartialPayment(team)) ...[
+                    const SizedBox(height: 4),
+                    _PartialPaymentPill(team: team),
+                  ],
                   const SizedBox(height: 4),
                   _LgpdPill(team: team),
                   if (team.hasCancellationRequest) ...[
@@ -206,13 +214,59 @@ class _LgpdPill extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status});
+/// Dupla que pagou pela metade: a baixa é atleta a atleta, na folha de ações.
+/// Sem esse selo o organizador só descobre abrindo dupla por dupla.
+class _PartialPaymentPill extends StatelessWidget {
+  const _PartialPaymentPill({required this.team});
 
-  final OrganizerTeamRegistrationStatus status;
+  final OrganizerCategoryTeamRow team;
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.pending.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.pie_chart_outline_rounded, size: 11, color: AppColors.pending),
+          const SizedBox(width: 3),
+          Text(
+            teamPartialPaymentLabel(team),
+            style: AppTypography.mono(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: AppColors.pending,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status, this.awaitsVerification = false});
+
+  final OrganizerTeamRegistrationStatus status;
+
+  /// Vaga garantida pela declaração dos atletas, sem baixa do organizador —
+  /// dizer "Pago" aqui esconderia justamente a linha que precisa de ação.
+  final bool awaitsVerification;
+
+  @override
+  Widget build(BuildContext context) {
+    if (awaitsVerification) {
+      return _pill(
+        label: 'A conferir',
+        bg: AppColors.pending.withValues(alpha: 0.15),
+        fg: AppColors.pending,
+        icon: Icons.fact_check_outlined,
+      );
+    }
     final (label, bg, fg, icon) = switch (status) {
       OrganizerTeamRegistrationStatus.confirmed => (
         'Pago',
@@ -234,6 +288,15 @@ class _StatusPill extends StatelessWidget {
       ),
     };
 
+    return _pill(label: label, bg: bg, fg: fg, icon: icon);
+  }
+
+  Widget _pill({
+    required String label,
+    required Color bg,
+    required Color fg,
+    required IconData icon,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(

@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../data/organizer_category_ops_service.dart';
 import '../../../domain/category_ops/category_ops_logic.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
@@ -64,6 +65,7 @@ class _OrganizerTeamActionsSheetState
     Future<void> Function() action,
     String success, {
     String? key,
+    bool pop = true,
   }) async {
     if (_busy) return;
     setState(() {
@@ -73,7 +75,7 @@ class _OrganizerTeamActionsSheetState
     try {
       await action();
       if (mounted) {
-        Navigator.pop(context);
+        if (pop) Navigator.pop(context);
         showAppSnackBar(context, success);
       }
     } catch (e) {
@@ -86,6 +88,89 @@ class _OrganizerTeamActionsSheetState
         });
       }
     }
+  }
+
+  /// A folha fica aberta na confirmação por atleta: confirmar o segundo atleta
+  /// é o passo seguinte natural do primeiro, e a linha viva do provider já
+  /// mostra o novo estado sem precisar reabrir.
+  Future<void> _confirmAthletePayment(
+    OrganizerCategoryOpsService service,
+    String registrationId,
+    OrganizerCategoryPlayerInfo athlete,
+  ) {
+    return _run(
+      () => service.confirmRegistrationPayment(
+        registrationId: registrationId,
+        athleteUid: athlete.uid,
+      ),
+      'Pagamento de ${_athleteLabel(athlete)} confirmado.',
+      key: 'confirm:${athlete.uid}',
+      pop: false,
+    );
+  }
+
+  /// Desfazer mexe em dinheiro (sai da arrecadação) e o atleta é avisado — vale
+  /// a confirmação, como no portal web.
+  Future<void> _revertAthletePayment(
+    OrganizerCategoryOpsService service,
+    String registrationId,
+    OrganizerCategoryPlayerInfo athlete,
+  ) async {
+    if (_busy) return;
+    final name = _athleteLabel(athlete);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Desfazer confirmação?'),
+        content: Text(
+          'A confirmação de pagamento de $name é desfeita e o atleta é '
+          'avisado. O restante da dupla não é afetado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Desfazer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await _run(
+      () => service.revertRegistrationPayment(
+        registrationId: registrationId,
+        athleteUid: athlete.uid,
+      ),
+      'Confirmação de $name desfeita.',
+      key: 'revert:${athlete.uid}',
+      pop: false,
+    );
+  }
+
+  String _athleteLabel(OrganizerCategoryPlayerInfo athlete) {
+    final name = athlete.name.trim();
+    return name.isEmpty ? 'atleta' : name;
+  }
+
+  /// Linha VIVA da inscrição: o argumento da folha é só o retrato de quando ela
+  /// abriu, e a confirmação por atleta muda o estado com a folha aberta.
+  OrganizerCategoryTeamRow _watchTeam() {
+    final rows = ref.watch(
+      organizerCategoryRegistrationsProvider(
+        OrganizerCategoryKey(
+          tournamentId: widget.tournamentId,
+          categoryId: widget.categoryId,
+        ),
+      ),
+    );
+    for (final row in rows.valueOrNull ?? const <OrganizerCategoryTeamRow>[]) {
+      if (row.registrationId == widget.team.registrationId) return row;
+    }
+    return widget.team;
   }
 
   /// Responde ao pedido de cancelamento. Aprovar remove a inscrição e libera a
@@ -143,14 +228,18 @@ class _OrganizerTeamActionsSheetState
   @override
   Widget build(BuildContext context) {
     final service = ref.read(organizerCategoryOpsServiceProvider);
-    final team = widget.team;
-    final isPaid = team.status == OrganizerTeamRegistrationStatus.confirmed;
+    final team = _watchTeam();
+    // "Pago" aqui é pagamento RESOLVIDO: a inscrição que declarou o pagamento
+    // direto e ainda não teve baixa continua com ação pendente (conferência).
+    final isPaid = isTeamPaymentSettled(team);
     final isWaitlist = team.status == OrganizerTeamRegistrationStatus.waitlist;
     final hasSeed = team.seedRank != null;
     final paymentSubtitle = teamPaymentActionSubtitle(team);
+    final showAthletePayments = showsAthletePaymentBreakdown(team);
+    final partialPayment = teamHasPartialPayment(team);
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
@@ -213,35 +302,65 @@ class _OrganizerTeamActionsSheetState
                   : null,
               onTap: _openSeeding,
             ),
+            if (showAthletePayments) ...[
+              Divider(
+                height: 1,
+                color:
+                    context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+              ),
+              _AthletePaymentSection(
+                team: team,
+                busy: _busy,
+                runningKey: _runningKey,
+                onConfirm: (athlete) => _confirmAthletePayment(
+                  service,
+                  team.registrationId,
+                  athlete,
+                ),
+                onRevert: (athlete) => _revertAthletePayment(
+                  service,
+                  team.registrationId,
+                  athlete,
+                ),
+              ),
+            ],
             Divider(
               height: 1,
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
-            _ActionRow(
-              enabled: !_busy && !isPaid,
-              loading: _runningKey == 'confirm',
-              icon: Icons.account_balance_wallet_outlined,
-              title: isPaid
-                  ? 'Pagamento confirmado'
-                  : _runningKey == 'confirm'
-                  ? 'Confirmando…'
-                  : 'Confirmar pagamento',
-              subtitle: isPaid
-                  ? paymentSubtitle
-                  : 'Marcar como pago · $paymentSubtitle',
-              trailing: isPaid
-                  ? Icon(Icons.check_rounded, color: AppColors.win, size: 20)
-                  : null,
-              onTap: isPaid
-                  ? null
-                  : () => _run(
-                        () => service.confirmRegistrationPayment(
-                          registrationId: team.registrationId,
+            // Pagamento parcial: confirmar "a inscrição inteira" marcaria como
+            // pago quem ainda não pagou — a callable RECUSA. Só a confirmação
+            // por atleta, na lista acima, fecha o que falta.
+            if (!isPaid && partialPayment && showAthletePayments)
+              const _PartialPaymentNotice()
+            else
+              _ActionRow(
+                enabled: !_busy && !isPaid,
+                loading: _runningKey == 'confirm',
+                icon: Icons.account_balance_wallet_outlined,
+                title: isPaid
+                    ? 'Pagamento confirmado'
+                    : _runningKey == 'confirm'
+                    ? 'Confirmando…'
+                    : teamConfirmPaymentActionLabel(team),
+                subtitle: isPaid
+                    ? paymentSubtitle
+                    : teamAwaitsPaymentVerification(team)
+                    ? 'Os atletas declararam ter pago · $paymentSubtitle'
+                    : 'Marcar como pago · $paymentSubtitle',
+                trailing: isPaid
+                    ? Icon(Icons.check_rounded, color: AppColors.win, size: 20)
+                    : null,
+                onTap: isPaid
+                    ? null
+                    : () => _run(
+                          () => service.confirmRegistrationPayment(
+                            registrationId: team.registrationId,
+                          ),
+                          'Pagamento confirmado.',
+                          key: 'confirm',
                         ),
-                        'Pagamento confirmado.',
-                        key: 'confirm',
-                      ),
-            ),
+              ),
             Divider(
               height: 1,
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
@@ -331,6 +450,240 @@ class _OrganizerTeamActionsSheetState
   }
 }
 
+/// Estado de pagamento atleta a atleta, com a baixa individual. Na dupla que
+/// pagou pela metade é a ÚNICA forma de fechar a inscrição: a confirmação em
+/// bloco é recusada pela callable enquanto houver parcela pendente.
+class _AthletePaymentSection extends StatelessWidget {
+  const _AthletePaymentSection({
+    required this.team,
+    required this.busy,
+    required this.runningKey,
+    required this.onConfirm,
+    required this.onRevert,
+  });
+
+  final OrganizerCategoryTeamRow team;
+  final bool busy;
+  final String? runningKey;
+  final void Function(OrganizerCategoryPlayerInfo athlete) onConfirm;
+  final void Function(OrganizerCategoryPlayerInfo athlete) onRevert;
+
+  @override
+  Widget build(BuildContext context) {
+    final athletes = team.participants;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'PAGAMENTO POR ATLETA',
+            style: AppTypography.mono(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'A inscrição só é dada como paga quando todos estiverem confirmados.',
+            style: AppTypography.soraRegular(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: context.themeColors.onSurfaceMuted,
+              height: 1.35,
+            ),
+          ),
+          for (final athlete in athletes) ...[
+            const SizedBox(height: 10),
+            _AthletePaymentTile(
+              athlete: athlete,
+              state: athletePaymentState(team, athlete.uid),
+              busy: busy,
+              runningKey: runningKey,
+              onConfirm: () => onConfirm(athlete),
+              onRevert: () => onRevert(athlete),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AthletePaymentTile extends StatelessWidget {
+  const _AthletePaymentTile({
+    required this.athlete,
+    required this.state,
+    required this.busy,
+    required this.runningKey,
+    required this.onConfirm,
+    required this.onRevert,
+  });
+
+  final OrganizerCategoryPlayerInfo athlete;
+  final OrganizerAthletePaymentState state;
+  final bool busy;
+  final String? runningKey;
+  final VoidCallback onConfirm;
+  final VoidCallback onRevert;
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = state == OrganizerAthletePaymentState.organizerConfirmed;
+    final (icon, tone) = switch (state) {
+      OrganizerAthletePaymentState.organizerConfirmed => (
+          Icons.check_circle_rounded,
+          AppColors.win,
+        ),
+      OrganizerAthletePaymentState.declared => (
+          Icons.hourglass_bottom_rounded,
+          AppColors.pending,
+        ),
+      OrganizerAthletePaymentState.pending => (
+          Icons.schedule_rounded,
+          context.themeColors.onSurfaceMuted,
+        ),
+    };
+    final photoUrl = athlete.profilePhotoUrl.trim();
+    final running =
+        runningKey == '${confirmed ? 'revert' : 'confirm'}:${athlete.uid}';
+    final label = running
+        ? (confirmed ? 'Desfazendo…' : 'Confirmando…')
+        : athletePaymentActionLabel(state);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tone.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              AthleteProfileAvatar(
+                size: 32,
+                initials: athlete.initials,
+                imageUrl: photoUrl.isEmpty ? null : photoUrl,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      athlete.name.trim().isEmpty ? 'Atleta' : athlete.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(icon, size: 12, color: tone),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            athletePaymentStateLabel(state),
+                            style: AppTypography.soraRegular(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: tone,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (confirmed)
+            OutlinedButton(
+              onPressed: busy ? null : onRevert,
+              child: Text(label),
+            )
+          else
+            FilledButton(
+              onPressed: busy ? null : onConfirm,
+              child: Text(label),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Substitui a ação em bloco quando a dupla pagou pela metade: confirmar a
+/// inscrição inteira marcaria como pago quem não pagou — e a callable recusa.
+class _PartialPaymentNotice extends StatelessWidget {
+  const _PartialPaymentNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.pending.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.info_outline_rounded,
+              size: 20,
+              color: AppColors.pending,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pagamento parcial',
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.pending,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Confirme cada atleta acima — confirmar a inscrição inteira '
+                  'marcaria como pago quem ainda não pagou.',
+                  style: AppTypography.soraRegular(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: context.themeColors.onSurfaceMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TeamActionsHeader extends StatelessWidget {
   const _TeamActionsHeader({required this.team, required this.rank});
 
@@ -403,7 +756,10 @@ class _TeamActionsHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _StatusPill(status: team.status),
+        _StatusPill(
+          status: team.status,
+          awaitsVerification: teamAwaitsPaymentVerification(team),
+        ),
       ],
     );
   }
@@ -652,12 +1008,24 @@ class _ActionRow extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status});
+  const _StatusPill({required this.status, this.awaitsVerification = false});
 
   final OrganizerTeamRegistrationStatus status;
 
+  /// Vaga garantida pela declaração dos atletas, sem baixa do organizador: a
+  /// pílula não pode dizer "Pago" enquanto a conferência não aconteceu.
+  final bool awaitsVerification;
+
   @override
   Widget build(BuildContext context) {
+    if (awaitsVerification) {
+      return _pill(
+        label: 'A conferir',
+        bg: AppColors.pending.withValues(alpha: 0.15),
+        fg: AppColors.pending,
+        icon: Icons.fact_check_outlined,
+      );
+    }
     final (label, bg, fg, icon) = switch (status) {
       OrganizerTeamRegistrationStatus.confirmed => (
           'Pago',
@@ -679,6 +1047,15 @@ class _StatusPill extends StatelessWidget {
         ),
     };
 
+    return _pill(label: label, bg: bg, fg: fg, icon: icon);
+  }
+
+  Widget _pill({
+    required String label,
+    required Color bg,
+    required Color fg,
+    required IconData icon,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(

@@ -3,6 +3,22 @@ import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 enum OrganizerTeamRegistrationStatus { confirmed, pending, waitlist }
 
+/// Pagamento de UM atleta da inscrição, na visão do organizador.
+///
+/// A dupla/equipe paga em partes (`sharePaidUids`): o organizador confirma
+/// atleta por atleta e a inscrição só fecha (`isPaid`) quando todos estão lá.
+enum OrganizerAthletePaymentState {
+  /// Ninguém deu baixa na parte deste atleta.
+  pending,
+
+  /// O próprio atleta declarou ter pago ("Já paguei") — falta a conferência.
+  declared,
+
+  /// O organizador confirmou manualmente. Só essa confirmação pode ser
+  /// desfeita por atleta; a declaração do atleta, não.
+  organizerConfirmed,
+}
+
 enum OrganizerCategoryTeamFilter { all, seeds, pending, waitlist }
 
 enum OrganizerTeamSort { registrationOrder, ranking }
@@ -46,6 +62,10 @@ class OrganizerCategoryTeamRow {
     this.partnerPending = false,
     this.lgpdAcceptedUids = const [],
     this.cancellationRequestReason,
+    this.sharePaidUids = const [],
+    this.organizerConfirmedShareUids = const [],
+    this.declaredPaidAt,
+    this.paymentVerifiedByOrganizer = false,
   });
 
   final String registrationId;
@@ -70,6 +90,24 @@ class OrganizerCategoryTeamRow {
   /// a vaga, a devolução é combinada fora dela.
   final String? cancellationRequestReason;
 
+  /// Atletas que já quitaram a própria parte da inscrição. No pagamento pelo
+  /// app é dinheiro recebido; no modo direto é a declaração do atleta OU a
+  /// baixa manual deste atleta pelo organizador.
+  final List<String> sharePaidUids;
+
+  /// Subconjunto de [sharePaidUids] cuja parte o organizador confirmou na mão —
+  /// só ela pode ser desfeita por atleta.
+  final List<String> organizerConfirmedShareUids;
+
+  /// Quando a inscrição inteira declarou o pagamento direto ("Já paguei").
+  /// `null` em inscrição paga pelo app e nas diretas anteriores a este fluxo —
+  /// essas NUNCA entram na fila de conferência (senão o organizador herdaria
+  /// uma conferência retroativa que ninguém vai fazer).
+  final DateTime? declaredPaidAt;
+
+  /// O organizador já deu baixa na declaração (`paymentVerifiedByOrganizer`).
+  final bool paymentVerifiedByOrganizer;
+
   bool get hasCancellationRequest => cancellationRequestReason != null;
 
   /// Copia mudando só o que foi passado. Existe para quem precisa alterar UM
@@ -91,23 +129,31 @@ class OrganizerCategoryTeamRow {
       partnerPending: partnerPending,
       lgpdAcceptedUids: lgpdAcceptedUids,
       cancellationRequestReason: cancellationRequestReason,
+      sharePaidUids: sharePaidUids,
+      organizerConfirmedShareUids: organizerConfirmedShareUids,
+      declaredPaidAt: declaredPaidAt,
+      paymentVerifiedByOrganizer: paymentVerifiedByOrganizer,
     );
   }
 
-  List<String> get _participantUids => [
-        if (player1.uid.trim().isNotEmpty) player1.uid,
-        if (player2.uid.trim().isNotEmpty) player2.uid,
+  /// Atletas da inscrição com uid resolvido — solo aguardando parceiro tem um só.
+  List<OrganizerCategoryPlayerInfo> get participants => [
+        if (player1.uid.trim().isNotEmpty) player1,
+        if (player2.uid.trim().isNotEmpty) player2,
       ];
+
+  List<String> get participantUids =>
+      participants.map((p) => p.uid).toList(growable: false);
 
   /// Todos os atletas da inscrição aceitaram o termo LGPD.
   bool get lgpdAcceptedByAll {
-    final uids = _participantUids;
+    final uids = participantUids;
     return uids.isNotEmpty && uids.every(lgpdAcceptedUids.contains);
   }
 
   /// Só parte da dupla aceitou o termo LGPD.
   bool get lgpdPartiallyAccepted =>
-      !lgpdAcceptedByAll && _participantUids.any(lgpdAcceptedUids.contains);
+      !lgpdAcceptedByAll && participantUids.any(lgpdAcceptedUids.contains);
 
   String get displayName {
     final n1 = player1.name.trim();

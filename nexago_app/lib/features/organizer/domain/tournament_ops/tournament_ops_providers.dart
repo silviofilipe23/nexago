@@ -300,11 +300,31 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
                 .toList() ??
             const [],
         cancellationRequestReason: _pendingCancellationReason(row.inscription),
+        sharePaidUids: _uidList(row.inscription['sharePaidUids']),
+        organizerConfirmedShareUids:
+            _uidList(row.inscription['organizerConfirmedShareUids']),
+        declaredPaidAt: switch (row.inscription['declaredPaidAt']) {
+          final Timestamp ts => ts.toDate(),
+          _ => null,
+        },
+        paymentVerifiedByOrganizer:
+            row.inscription['paymentVerifiedByOrganizer'] == true,
       ),
     );
   }
 
   return applySeedOrder(teams, ops.seeds);
+}
+
+/// Lista de uids do doc, sem lixo (não-string, vazio) — os campos de parcela
+/// (`sharePaidUids`, `organizerConfirmedShareUids`) chegam como `arrayUnion`.
+List<String> _uidList(Object? raw) {
+  if (raw is! List) return const [];
+  return raw
+      .whereType<String>()
+      .map((uid) => uid.trim())
+      .where((uid) => uid.isNotEmpty)
+      .toList(growable: false);
 }
 
 /// Motivo do pedido de cancelamento PENDENTE, ou `null`. Doc antigo (sem o

@@ -165,9 +165,13 @@ class _TournamentRegistrationDetailPageState
               title: 'Substituição em curso',
               subtitle:
                   '${pendingInvite.inviteeName} ainda não respondeu — acompanhe',
-              // A tela de acompanhamento nasce na Task 6 — até lá o card só
-              // informa o estado, sem navegar (ver nota no relatório da Task 4).
-              onTap: null,
+              onTap: () => context.pushNamed(
+                AppRouteNames.tournamentSubstitutionStatus,
+                pathParameters: {
+                  'tournamentId': widget.tournamentId,
+                  'inviteId': pendingInvite.id,
+                },
+              ),
             )
           else if (replaceableUids.isNotEmpty)
             _ActionCard(

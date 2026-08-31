@@ -2,9 +2,9 @@
 // subtítulo "Saindo: ...", busca (mesma regra do sheet antigo: filtra quem
 // já está na inscrição, catch com snackbar padrão), seção "Suas últimas
 // duplas" (novo — `RecentPartnersRepository`), envio (`sendSubstitutionInvite`
-// com reason/reasonNote, volta duas telas até o detalhe e avisa por
-// snackbar), erro do backend mantém a página e o aviso âmbar de pagamento
-// condicional (`isPaid || hasPartialPayment`).
+// com reason/reasonNote, leva pra tela de acompanhamento — Task 6, ver
+// `kSubstitutionStatusRouteReady`), erro do backend mantém a página e o
+// aviso âmbar de pagamento condicional (`isPaid || hasPartialPayment`).
 //
 // Migra a cobertura "busca com filtro", "payload do envio", "erro mantém a
 // página" e "aviso de pagamento condicional" que antes vivia em
@@ -16,9 +16,11 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/tournaments/data/partner_search_service.dart';
 import 'package:nexago_app/features/tournaments/data/recent_partners_repository.dart';
@@ -73,8 +75,15 @@ void main() {
   }
 
   /// Monta uma pilha DETALHE → PASSO 1 → passo 2 (a página sob teste), pra
-  /// que o caminho de sucesso do envio (dois `pop`s) tenha aonde pousar —
-  /// espelha a navegação real (wizard empurrado por cima do detalhe).
+  /// que o caminho de sucesso do envio tenha aonde pousar — espelha a
+  /// navegação real (wizard empurrado por cima do detalhe).
+  ///
+  /// DETALHE vive numa rota de verdade (`GoRouter`), não só num
+  /// `MaterialApp.home`: com `kSubstitutionStatusRouteReady` (Task 6), o
+  /// envio chama `context.pushReplacementNamed` — que precisa de um
+  /// `GoRouter` ancestral pra resolver, mesmo com PASSO 1/passo 2
+  /// empilhados por cima via `Navigator.push` imperativo (mesma mecânica da
+  /// navegação real).
   Future<void> abrirPick(
     WidgetTester tester, {
     required MyTournamentRegistration registration,
@@ -94,6 +103,41 @@ void main() {
     convites = _FakeSubstitutionInviteService(erroAoEnviar: erroAoEnviar);
     final navigatorKey = GlobalKey<NavigatorState>();
 
+    final router = GoRouter(
+      navigatorKey: navigatorKey,
+      initialLocation: '/detalhe',
+      routes: [
+        GoRoute(
+          path: '/detalhe',
+          builder: (context, state) => Consumer(
+            // `Consumer` "esquenta" o `authProvider` (StreamProvider) já no
+            // 1º build: sem isto, o `ref.read(authProvider)` que a página
+            // real dispara no `initState` (`_loadInviterProfile`) bate num
+            // `AsyncLoading` — na navegação de verdade quem esquenta é o
+            // passo 1 (`ref.watch` no `build`), que aqui não existe.
+            builder: (context, ref, child) {
+              ref.watch(authProvider);
+              return child!;
+            },
+            child: const Scaffold(body: Center(child: Text('DETALHE'))),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.tournamentSubstitutionStatus,
+          name: AppRouteNames.tournamentSubstitutionStatus,
+          builder: (context, state) {
+            final tournamentId =
+                state.pathParameters['tournamentId']?.trim() ?? '';
+            final inviteId = state.pathParameters['inviteId']?.trim() ?? '';
+            return Scaffold(
+              body: Center(child: Text('STATUS $tournamentId/$inviteId')),
+            );
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -107,21 +151,9 @@ void main() {
           recentPartnersRepositoryProvider.overrideWithValue(recentes),
           tournamentPartnerInviteServiceProvider.overrideWithValue(convites),
         ],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme: AppTheme.dark,
-          navigatorKey: navigatorKey,
-          // `Consumer` "esquenta" o `authProvider` (StreamProvider) já no 1º
-          // build: sem isto, o `ref.read(authProvider)` que a página real
-          // dispara no `initState` (`_loadInviterProfile`) bate num
-          // `AsyncLoading` — na navegação de verdade quem esquenta é o passo
-          // 1 (`ref.watch` no `build`), que aqui não existe.
-          home: Consumer(
-            builder: (context, ref, child) {
-              ref.watch(authProvider);
-              return child!;
-            },
-            child: const Scaffold(body: Center(child: Text('DETALHE'))),
-          ),
+          routerConfig: router,
         ),
       ),
     );
@@ -262,8 +294,8 @@ void main() {
 
   group('convidar — envio', () {
     testWidgets(
-        'sucesso: chama sendSubstitutionInvite com reason/reasonNote e volta '
-        'duas telas até o detalhe com o snackbar', (tester) async {
+        'sucesso: chama sendSubstitutionInvite com reason/reasonNote e leva '
+        'pra tela de acompanhamento', (tester) async {
       await abrirPick(
         tester,
         registration: inscricao(participantUids: const [meuUid, 'ana', 'bia']),
@@ -280,10 +312,9 @@ void main() {
       await assentar(tester);
 
       await tester.tap(find.text('Convidar'));
-      // Dois `pop()`s em sequência dobram a transição de rota — sem animação
-      // contínua na tela (o spinner da busca já não está ativo aqui),
-      // `pumpAndSettle` é seguro e evita depender do orçamento de tempo do
-      // `assentar` pra DUAS transições.
+      // Sem animação contínua na tela anterior (o spinner da busca já não
+      // está ativo aqui) — `pumpAndSettle` é seguro pra transição do
+      // `pushReplacementNamed`.
       await tester.pumpAndSettle();
 
       expect(convites.chamadas, hasLength(1));
@@ -297,17 +328,14 @@ void main() {
       expect(chamada.reason, 'lesao');
       expect(chamada.reasonNote, 'Torceu o tornozelo.');
 
-      // Voltou passo 2 + passo 1, pousando no detalhe — a rota de
-      // acompanhamento só nasce na Task 6 (`kSubstitutionStatusRouteReady`).
-      expect(find.text('DETALHE'), findsOneWidget);
+      // `kSubstitutionStatusRouteReady` (Task 6, agora `true`): o envio leva
+      // direto pra rota de acompanhamento com o `tournamentId`/`inviteId`
+      // certos — nada de pop duplo nem snackbar (esse era o comportamento
+      // só enquanto a rota não existia, Task 5).
+      expect(find.text('STATUS t1/invite-1'), findsOneWidget);
+      expect(find.text('DETALHE'), findsNothing);
       expect(find.text('PASSO 1'), findsNothing);
       expect(find.text('Quem entra no lugar'), findsNothing);
-      expect(
-        find.text(
-          'Convite enviado. A troca acontece quando Carla Nunes aceitar.',
-        ),
-        findsOneWidget,
-      );
     });
 
     testWidgets('erro do backend mantém a página e mostra a mensagem',

@@ -448,13 +448,13 @@ abstract final class AppRoutes {
   static const String tournamentRegistrationDetail =
       '/torneios/:tournamentId/inscricao/:registrationId/detalhe';
 
-  /// Wizard de substituição (Task 5 — ainda não registrada no router):
+  /// Wizard de substituição (Task 5):
   /// `/torneios/:tournamentId/inscricao/:registrationId/substituir`
   static const String tournamentSubstitutionWizard =
       '/torneios/:tournamentId/inscricao/:registrationId/substituir';
 
-  /// Acompanhamento da substituição (Task 6 — ainda não registrada no
-  /// router): `/torneios/:tournamentId/substituicao/:inviteId`
+  /// Acompanhamento da substituição (Task 6):
+  /// `/torneios/:tournamentId/substituicao/:inviteId`
   static const String tournamentSubstitutionStatus =
       '/torneios/:tournamentId/substituicao/:inviteId';
 
@@ -707,8 +707,6 @@ abstract final class AppRouteNames {
 }
 
 /// Tela de acompanhamento da substituição (`AppRoutes.tournamentSubstitutionStatus`)
-/// só é registrada no GoRouter na Task 6. Até lá, o passo 2 do wizard
-/// (`tournament_substitution_pick_page.dart`) não navega pra ela — envia o
-/// convite e volta pro detalhe da inscrição com um snackbar de sucesso.
-/// TODO(Task 6): virar `true` quando a rota for registrada.
-const bool kSubstitutionStatusRouteReady = false;
+/// já está registrada no GoRouter (Task 6) — o passo 2 do wizard
+/// (`tournament_substitution_pick_page.dart`) navega pra ela depois do envio.
+const bool kSubstitutionStatusRouteReady = true;

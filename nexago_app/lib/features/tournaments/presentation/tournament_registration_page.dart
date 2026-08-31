@@ -1408,6 +1408,9 @@ class _TournamentRegistrationPageState
                 registrationId: registration!.registrationId,
                 categoryId: category.id,
               ),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: AppRadii.lgAll),
+              ),
               child: const Text('Ir para pagamento'),
             ),
           ],

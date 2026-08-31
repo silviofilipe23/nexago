@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +9,6 @@ import '../../../core/layout/nexa_app_bar.dart';
 import '../../../core/profiles/app_user_profile.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -20,6 +20,7 @@ import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
 import '../domain/tournament_registration_providers.dart';
+import '../domain/tournament_registration_success_args.dart';
 import '../domain/tournament_substitution_logic.dart';
 import 'widgets/tournament_registration/registration_cancellation_flow.dart';
 
@@ -65,6 +66,26 @@ class _TournamentRegistrationDetailPageState
       }
     }
     return null;
+  }
+
+  /// Mesmo post da tela pós-confirmação / "ver inscrição" na categoria.
+  void _openRegistrationShare(MyTournamentRegistration registration) {
+    final categoryName = registration.category?.name ?? 'Categoria';
+    context.pushNamed(
+      AppRouteNames.tournamentRegistrationSuccess,
+      pathParameters: {'tournamentId': registration.tournamentId},
+      extra: TournamentRegistrationSuccessArgs(
+        tournamentId: registration.tournamentId,
+        registrationId: registration.registrationId,
+        tournamentName: registration.tournamentName,
+        categoryName: categoryName,
+      ),
+      queryParameters: {
+        'registrationId': registration.registrationId,
+        'tournamentName': registration.tournamentName,
+        'categoryName': categoryName,
+      },
+    );
   }
 
   @override
@@ -138,6 +159,13 @@ class _TournamentRegistrationDetailPageState
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Compartilhar inscrição',
+            icon: const Icon(Icons.share_rounded),
+            onPressed: () => _openRegistrationShare(reg),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -305,109 +333,230 @@ class _StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final accent = _badgeColor;
     return NexaCard(
-      side: BorderSide(color: _badgeColor.withValues(alpha: 0.4)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _badgeColor.withValues(alpha: 0.14),
-              borderRadius: AppRadii.pillAll,
-            ),
-            child: Text(
-              _badgeLabel,
-              style: AppTypography.eyebrow.copyWith(color: _badgeColor),
-            ),
+      padding: EdgeInsets.zero,
+      side: BorderSide(color: accent.withValues(alpha: 0.45)),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(-0.95, -0.95),
+            radius: 1.15,
+            colors: [
+              accent.withValues(alpha: 0.16),
+              Colors.transparent,
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _MemberAvatars(
-                uids: registration.participantUids,
-                profiles: profiles,
+              Text(
+                _badgeLabel,
+                style: AppTypography.eyebrow.copyWith(color: accent),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  _title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.titleS.copyWith(color: colors.onSurface),
-                ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  _MemberAvatars(
+                    uids: registration.participantUids,
+                    profiles: profiles,
+                    accent: accent,
+                    showConfirmed: registration.isPaid,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.titleS
+                              .copyWith(color: colors.onSurface),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _statusLine,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyS
+                              .copyWith(color: colors.onSurfaceMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            _statusLine,
-            style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _MemberAvatars extends StatelessWidget {
-  const _MemberAvatars({required this.uids, required this.profiles});
+  const _MemberAvatars({
+    required this.uids,
+    required this.profiles,
+    required this.accent,
+    required this.showConfirmed,
+  });
 
   final List<String> uids;
   final Map<String, AppUserProfile> profiles;
+  final Color accent;
+  final bool showConfirmed;
 
   static const _gradients = [
-    [Color(0xFFFF6A1A), Color(0xFFC2185B)],
-    [Color(0xFF2BD17E), Color(0xFF1E7A4D)],
+    [Color(0xFF1A1A1A), Color(0xFF0B0B0C)],
     [Color(0xFF2B7CD1), Color(0xFF1E4A7A)],
+    [Color(0xFFFF6A1A), Color(0xFFC2185B)],
     [Color(0xFF8A2BD1), Color(0xFF4A1E7A)],
     [Color(0xFFD1A62B), Color(0xFF7A5E1E)],
   ];
 
   @override
   Widget build(BuildContext context) {
-    const size = 36.0;
-    const overlap = size * 0.35;
+    const size = 44.0;
+    const gap = 8.0;
     final shown = uids.take(5).toList();
     if (shown.isEmpty) return const SizedBox.shrink();
 
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < shown.length; i++) ...[
+          if (i > 0) const SizedBox(width: gap),
+          _StatusMemberAvatar(
+            profile: profiles[shown[i]],
+            size: size,
+            accent: accent,
+            showConfirmed: showConfirmed,
+            fallbackColors: _gradients[i % _gradients.length],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatusMemberAvatar extends StatelessWidget {
+  const _StatusMemberAvatar({
+    required this.profile,
+    required this.size,
+    required this.accent,
+    required this.showConfirmed,
+    required this.fallbackColors,
+  });
+
+  final AppUserProfile? profile;
+  final double size;
+  final Color accent;
+  final bool showConfirmed;
+  final List<Color> fallbackColors;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final initials =
+        profile != null ? appUserInitials(profile!) : '?';
+    final imageUrl = profile?.profilePhotoUrl?.trim();
+    final badgeSize = size * 0.36;
+
     return SizedBox(
-      width: size + (shown.length - 1) * (size - overlap),
+      width: size,
       height: size,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          for (var i = 0; i < shown.length; i++)
-            Positioned(
-              left: i * (size - overlap),
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: _gradients[i % _gradients.length],
-                  ),
-                  shape: BoxShape.circle,
-                  border:
-                      Border.all(color: context.themeColors.canvas, width: 1.5),
-                ),
-                child: Center(
-                  child: Text(
-                    profiles[shown[i]] != null
-                        ? appUserInitials(profiles[shown[i]]!)
-                        : '?',
-                    style: AppTypography.soraRegular(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.white,
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: accent, width: 1.5),
+            ),
+            child: ClipOval(
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) =>
+                          _InitialsFallback(
+                        initials: initials,
+                        size: size,
+                        colors: fallbackColors,
+                      ),
+                    )
+                  : _InitialsFallback(
+                      initials: initials,
+                      size: size,
+                      colors: fallbackColors,
                     ),
-                  ),
+            ),
+          ),
+          if (showConfirmed)
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: Container(
+                width: badgeSize,
+                height: badgeSize,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.surfaceCard, width: 1.5),
+                ),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: badgeSize * 0.7,
+                  color: AppColors.black,
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _InitialsFallback extends StatelessWidget {
+  const _InitialsFallback({
+    required this.initials,
+    required this.size,
+    required this.colors,
+  });
+
+  final String initials;
+  final double size;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: AppTypography.soraRegular(
+            fontSize: size * 0.32,
+            fontWeight: FontWeight.w700,
+            color: AppColors.white,
+          ),
+        ),
       ),
     );
   }

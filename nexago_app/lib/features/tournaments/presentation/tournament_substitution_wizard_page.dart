@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_profile_avatar.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/layout/nexa_app_bar.dart';
 import '../../../core/profiles/app_user_profile.dart';
+import '../../../core/theme/app_borders.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -240,32 +242,80 @@ class _TournamentSubstitutionWizardPageState
             minLines: 2,
             maxLines: 4,
             maxLength: 300,
-            decoration: const InputDecoration(
+            cursorColor: AppColors.brand,
+            textCapitalization: TextCapitalization.sentences,
+            style: AppTypography.bodyM.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
               hintText: 'Conte o que aconteceu (opcional)',
+              hintStyle: AppTypography.bodyM.copyWith(
+                color: colors.onSurfaceMuted.withValues(alpha: 0.6),
+              ),
               alignLabelWithHint: true,
+              filled: true,
+              fillColor: colors.surfaceRaised,
+              contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.25),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.25),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide:
+                    const BorderSide(color: AppColors.brand, width: 1.5),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.sectionGap),
-          Text(
-            'REGRAS DESTE TORNEIO',
-            style: AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
-          ),
-          const SizedBox(height: AppSpacing.sm),
           NexaCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _RuleRow(
-                  icon: Icons.event_busy_outlined,
-                  title: 'Troca permitida até a publicação das chaves',
-                  subtitle: 'Depois de publicadas, não é possível substituir',
+                Text(
+                  'REGRAS DESTE TORNEIO',
+                  style: AppTypography.eyebrow
+                      .copyWith(color: colors.onSurfaceMuted),
                 ),
                 const SizedBox(height: AppSpacing.md),
+                const _RuleRow(
+                  icon: Icons.calendar_today_rounded,
+                  iconColor: AppColors.pending,
+                  title: 'Troca permitida até a publicação das chaves',
+                  subtitle:
+                      'Depois de publicadas, não é possível substituir',
+                ),
+                Divider(
+                  height: AppSpacing.xl,
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+                ),
                 _RuleRow(
-                  icon: Icons.verified_outlined,
+                  icon: Icons.emoji_events_outlined,
+                  iconColor: colors.onSurfaceMuted,
                   title: 'O substituto precisa caber na categoria',
                   subtitle: 'Nível compatível com $categoryName',
                 ),
+                if (reg.isPaid || reg.hasPartialPayment) ...[
+                  Divider(
+                    height: AppSpacing.xl,
+                    color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+                  ),
+                  _RuleRow(
+                    icon: Icons.confirmation_number_outlined,
+                    iconColor: AppColors.win,
+                    title: 'Inscrição já paga é mantida',
+                    subtitle: _paymentRuleSubtitle(reg, isTeam: isTeam),
+                  ),
+                ],
               ],
             ),
           ),
@@ -308,8 +358,9 @@ class _TournamentSubstitutionWizardPageState
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,
                     disabledBackgroundColor: colors.surfaceRaised,
-                    shape:
-                        RoundedRectangleBorder(borderRadius: AppRadii.pillAll),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadii.lgAll,
+                    ),
                   ),
                   child: const Text(
                     'Escolher o substituto →',
@@ -329,6 +380,19 @@ class _TournamentSubstitutionWizardPageState
       ),
     );
   }
+}
+
+String _paymentRuleSubtitle(
+  MyTournamentRegistration registration, {
+  required bool isTeam,
+}) {
+  final fee = registration.category?.entryFee;
+  if (fee != null && fee > 0) {
+    final splitHint =
+        isTeam ? 'o acerto é entre vocês' : 'o acerto da metade é entre vocês';
+    return 'Os ${formatBRL(fee)} seguem valendo — $splitHint';
+  }
+  return 'Nada é cobrado de novo — o acerto é entre vocês';
 }
 
 class _ReplaceableCard extends StatelessWidget {
@@ -391,11 +455,13 @@ class _ReplaceableCard extends StatelessWidget {
 class _RuleRow extends StatelessWidget {
   const _RuleRow({
     required this.icon,
+    required this.iconColor,
     required this.title,
     required this.subtitle,
   });
 
   final IconData icon;
+  final Color iconColor;
   final String title;
   final String subtitle;
 
@@ -403,17 +469,26 @@ class _RuleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 18, color: colors.onSurfaceMuted),
-        const SizedBox(width: AppSpacing.sm),
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: colors.surfaceRaised,
+            borderRadius: AppRadii.mdAll,
+            border: Border.fromBorderSide(AppBorders.subtleSide(colors)),
+          ),
+          child: Icon(icon, size: 18, color: iconColor),
+        ),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+                style: AppTypography.titleS.copyWith(color: colors.onSurface),
               ),
               const SizedBox(height: 2),
               Text(

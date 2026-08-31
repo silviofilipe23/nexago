@@ -126,6 +126,11 @@ void main() {
             inviteId: state.pathParameters['inviteId'] ?? '',
           ),
         ),
+        GoRoute(
+          path: AppRoutes.tournamentRegistrationSuccess,
+          name: AppRouteNames.tournamentRegistrationSuccess,
+          builder: (_, __) => const Scaffold(body: Text('share-post')),
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -165,6 +170,15 @@ void main() {
 
       expect(find.text('Minha inscrição'), findsOneWidget);
       expect(find.text('Copa de Teste · Dupla Masculina'), findsOneWidget);
+    });
+
+    testWidgets('compartilhar abre o post de confirmação', (tester) async {
+      await abrirDetalhe(tester, registration: inscricao());
+
+      await tester.tap(find.byIcon(Icons.share_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('share-post'), findsOneWidget);
     });
   });
 

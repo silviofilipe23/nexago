@@ -11,6 +11,7 @@ function inscription(overrides: Partial<TournamentInscription> = {}): Tournament
     categoryId: 'c1',
     teamId: 'team-1',
     teamName: 'Ana / Bia',
+    customTeamName: null,
     participants: [],
     participantNames: [],
     paymentStatus: 'paid',

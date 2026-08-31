@@ -49,6 +49,10 @@ export interface TournamentInscription {
   categoryId: string | null;
   teamId: string | null; // id da dupla em `teams` — usado nos seeds da geração de chave
   teamName: string; // nome da dupla/equipe ou jogadores
+  /** O nome que a equipe REALMENTE cadastrou (`teamName` do doc em `teams`); `null` quando o
+   *  rótulo acima foi derivado dos nomes dos atletas. Quem precisa distinguir os dois casos
+   *  (a exportação da lista) não consegue fazer isso olhando só para `teamName`. */
+  customTeamName: string | null;
   /** Atletas da inscrição (1 solo / 2 dupla) — para avatares na lista. A ORDEM é o slot de
    *  uniforme: índice 0 = `…Player1`, índice 1 = `…Player2` (ver `resolveParticipantUids`). */
   participants: InscriptionParticipant[];
@@ -367,6 +371,7 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       categoryId: r.categoryId,
       teamId: r.teamId,
       teamName,
+      customTeamName: team?.teamName ?? null,
       participants,
       participantNames,
       paymentStatus,

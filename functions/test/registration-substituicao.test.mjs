@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 
 import {
   INSCRIPTIONS,
+  INVITES,
+  Timestamp,
   call,
   callExpectingError,
   callables,
@@ -402,5 +404,98 @@ describe('substituição — recusa e publicação da chave', () => {
     const invite = await getInvite(inviteId);
     assert.equal(invite.status, 'stale');
     assert.equal(invite.staleReason, 'bracket_published');
+  });
+});
+
+describe('substituição — visualização', () => {
+  test('convidado marca como visto; segunda chamada é no-op', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    const first = await call(callables.markViewed, c, {inviteId});
+    assert.equal(first.ok, true);
+    assert.equal(first.alreadyViewed, false);
+    const viewedAt = (await getInvite(inviteId)).viewedAt;
+    assert.ok(viewedAt, 'viewedAt gravado na primeira chamada');
+
+    const second = await call(callables.markViewed, c, {inviteId});
+    assert.equal(second.ok, true);
+    assert.equal(second.alreadyViewed, true);
+    const viewedAtAfter = (await getInvite(inviteId)).viewedAt;
+    assert.equal(viewedAtAfter.toMillis(), viewedAt.toMillis(), 'segunda chamada não reescreve o timestamp');
+  });
+
+  test('quem convidou não marca como visto', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    const msg = await callExpectingError(callables.markViewed, a, {inviteId});
+    assert.match(msg, /não é para você/i);
+  });
+
+  test('convite já aceito não pode mais ser marcado como visto', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    await call(callables.acceptInvite, c, {inviteId});
+
+    const msg = await callExpectingError(callables.markViewed, c, {inviteId});
+    assert.match(msg, /não está mais pendente/i);
+  });
+});
+
+describe('substituição — lembrete', () => {
+  test('quem convidou reenvia: notificação nova no inbox e lastReminderAt gravado', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    const result = await call(callables.resendSubstitution, a, {inviteId});
+    assert.equal(result.ok, true);
+
+    const invite = await getInvite(inviteId);
+    assert.ok(invite.lastReminderAt, 'lastReminderAt gravado');
+
+    const notifications = await db.collection(`users/${c}/notifications`).get();
+    const reminder = notifications.docs.find((d) => /Lembrete/.test(d.data().title ?? ''));
+    assert.ok(reminder, 'convidado recebeu a notificação de lembrete');
+    assert.equal(reminder.data().type, 'tournament_substitution_invite');
+  });
+
+  test('segunda chamada imediata é bloqueada pelo rate-limit', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    await call(callables.resendSubstitution, a, {inviteId});
+    const msg = await callExpectingError(callables.resendSubstitution, a, {inviteId});
+    assert.match(msg, /aguarde/i);
+  });
+
+  test('cooldown vencido libera novo lembrete', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    await call(callables.resendSubstitution, a, {inviteId});
+    await db.doc(`${INVITES}/${inviteId}`).set(
+      {lastReminderAt: Timestamp.fromMillis(Date.now() - 7 * 3600 * 1000)}, {merge: true},
+    );
+
+    const result = await call(callables.resendSubstitution, a, {inviteId});
+    assert.equal(result.ok, true);
+  });
+
+  test('convidado não pode pedir lembrete', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+
+    const msg = await callExpectingError(callables.resendSubstitution, c, {inviteId});
+    assert.match(msg, /não é seu/i);
+  });
+
+  test('convite já aceito não recebe mais lembrete', async () => {
+    const {a, b, c, registrationId} = await duplaFormada();
+    const inviteId = await enviarConvite({registrationId, replacedUid: b, inviteeUid: c, inviterUid: a});
+    await call(callables.acceptInvite, c, {inviteId});
+
+    const msg = await callExpectingError(callables.resendSubstitution, a, {inviteId});
+    assert.match(msg, /não está mais pendente/i);
   });
 });

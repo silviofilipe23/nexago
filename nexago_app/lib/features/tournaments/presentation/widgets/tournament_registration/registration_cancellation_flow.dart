@@ -24,6 +24,16 @@ import 'tournament_cancellation_request_sheet.dart';
 /// tournamentName do pedido ao organizador variam por tela — por isso são
 /// parâmetros; quando título/conteúdo/botão não são informados, cai no
 /// texto padrão (igual ao que a aba e o detalhe já mostravam).
+///
+/// [onSubmittingChanged] espelha o "ocupado" de cada tela (`_busy`/
+/// `_cancelling`/`_submitting`) — mas SÓ durante a chamada de rede, nunca
+/// enquanto o dialog/sheet está aberto (o atleta ainda pode desistir sem
+/// nada "girando" na tela por trás). Chamado com `true` logo antes do
+/// `cancelRegistration`/`requestRegistrationCancellation` e com `false` num
+/// `finally` — garantido mesmo se estourar algo além de
+/// `TournamentPartnerInviteException` (timeout, `PlatformException`...). O
+/// guard de double-tap (`if (_busy) return;`) continua em cada chamador,
+/// que sabe seu próprio campo de estado.
 Future<bool> runRegistrationCancellationFlow(
   BuildContext context,
   WidgetRef ref, {
@@ -34,6 +44,7 @@ Future<bool> runRegistrationCancellationFlow(
   String? confirmDialogTitle,
   String? confirmDialogContent,
   String? confirmButtonLabel,
+  void Function(bool submitting)? onSubmittingChanged,
 }) async {
   if (canCancelDirectly) {
     final confirmed = await showDialog<bool>(
@@ -59,6 +70,7 @@ Future<bool> runRegistrationCancellationFlow(
     );
     if (confirmed != true || !context.mounted) return false;
 
+    onSubmittingChanged?.call(true);
     try {
       await ref
           .read(tournamentPartnerInviteServiceProvider)
@@ -67,6 +79,8 @@ Future<bool> runRegistrationCancellationFlow(
     } on TournamentPartnerInviteException catch (e) {
       if (context.mounted) showAppSnackBar(context, e.message, isError: true);
       return false;
+    } finally {
+      onSubmittingChanged?.call(false);
     }
   }
 
@@ -85,6 +99,7 @@ Future<bool> runRegistrationCancellationFlow(
     return false;
   }
 
+  onSubmittingChanged?.call(true);
   try {
     await ref
         .read(tournamentPartnerInviteServiceProvider)
@@ -97,6 +112,8 @@ Future<bool> runRegistrationCancellationFlow(
     }
   } on TournamentPartnerInviteException catch (e) {
     if (context.mounted) showAppSnackBar(context, e.message, isError: true);
+  } finally {
+    onSubmittingChanged?.call(false);
   }
   return false;
 }

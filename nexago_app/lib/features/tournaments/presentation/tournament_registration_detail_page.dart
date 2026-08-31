@@ -230,7 +230,6 @@ class _TournamentRegistrationDetailPageState
 
   Future<void> _handleCancel(MyTournamentRegistration registration) async {
     if (_busy) return;
-    setState(() => _busy = true);
     final cancelled = await runRegistrationCancellationFlow(
       context,
       ref,
@@ -239,8 +238,10 @@ class _TournamentRegistrationDetailPageState
       categoryName: registration.category?.name,
       canCancelDirectly:
           !registration.isPaid && !registration.hasPartialPayment,
+      onSubmittingChanged: (v) {
+        if (mounted) setState(() => _busy = v);
+      },
     );
-    if (mounted) setState(() => _busy = false);
     if (!cancelled || !mounted) return;
 
     ref.invalidate(myTournamentRegistrationsProvider);

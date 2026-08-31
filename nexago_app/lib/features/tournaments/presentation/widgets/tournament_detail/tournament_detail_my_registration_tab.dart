@@ -46,7 +46,6 @@ class _TournamentDetailMyRegistrationTabState
 
   Future<void> _cancelRegistration(RegistrationProgress item) async {
     if (_cancelling) return;
-    setState(() => _cancelling = true);
     final cancelled = await runRegistrationCancellationFlow(
       context,
       ref,
@@ -54,8 +53,10 @@ class _TournamentDetailMyRegistrationTabState
       tournamentName: item.tournamentName,
       categoryName: item.categoryName,
       canCancelDirectly: true,
+      onSubmittingChanged: (v) {
+        if (mounted) setState(() => _cancelling = v);
+      },
     );
-    if (mounted) setState(() => _cancelling = false);
     if (!cancelled || !mounted) return;
 
     showAppSnackBar(context, 'Inscrição cancelada.');

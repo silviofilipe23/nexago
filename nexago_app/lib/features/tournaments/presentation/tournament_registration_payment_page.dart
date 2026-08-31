@@ -313,7 +313,6 @@ class _TournamentRegistrationPaymentPageState
 
   Future<void> _confirmCancelRegistration(TournamentDetail tournament) async {
     if (_submitting) return;
-    setState(() => _submitting = true);
     final cancelled = await runRegistrationCancellationFlow(
       context,
       ref,
@@ -324,8 +323,10 @@ class _TournamentRegistrationPaymentPageState
       confirmDialogContent: 'Sua vaga será liberada e outro atleta poderá '
           'se inscrever nesta categoria.',
       confirmButtonLabel: 'Cancelar reserva',
+      onSubmittingChanged: (v) {
+        if (mounted) setState(() => _submitting = v);
+      },
     );
-    if (mounted) setState(() => _submitting = false);
     if (!cancelled || !mounted) return;
 
     if (context.canPop()) {
@@ -342,15 +343,16 @@ class _TournamentRegistrationPaymentPageState
     TournamentDetail tournament,
   ) async {
     if (_submitting) return;
-    setState(() => _submitting = true);
     await runRegistrationCancellationFlow(
       context,
       ref,
       registrationId: widget.registrationId,
       tournamentName: tournament.name,
       canCancelDirectly: false,
+      onSubmittingChanged: (v) {
+        if (mounted) setState(() => _submitting = v);
+      },
     );
-    if (mounted) setState(() => _submitting = false);
   }
 
   Future<void> _openOrganizerWhatsApp(TournamentDetail tournament) async {

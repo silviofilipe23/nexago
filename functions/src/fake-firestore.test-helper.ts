@@ -4,7 +4,7 @@ import {Timestamp} from "firebase-admin/firestore";
  * Firestore fake em memória para testes de unidade — implementa apenas o que
  * os módulos de rating/ranking usam: doc get/set (merge profundo), collection
  * add/doc, queries `where` (igualdade e array-contains) + `orderBy` +
- * `startAfter`/`limit`, e transações sequenciais.
+ * `startAfter`/`limit`, `batch()` (aplicado no commit) e transações sequenciais.
  *
  * O sufixo `.test-helper.ts` fica fora do glob `lib/**​/*.test.js` do harness.
  */
@@ -174,6 +174,25 @@ export class FakeFirestore {
         return self.makeRef(`${path}/${id}`);
       },
       ...makeQuery({filters: []}),
+    };
+  }
+
+  batch() {
+    const self = this;
+    const ops: Array<() => void> = [];
+    return {
+      set: (ref: {path: string}, data: DocData, opts?: {merge?: boolean}) => {
+        ops.push(() => self.write(ref.path, data, opts));
+      },
+      update: (ref: {path: string}, data: DocData) => {
+        ops.push(() => self.write(ref.path, data, {merge: true}));
+      },
+      delete: (ref: {path: string}) => {
+        ops.push(() => self.store.delete(ref.path));
+      },
+      commit: async () => {
+        for (const op of ops) op();
+      },
     };
   }
 

@@ -16,13 +16,12 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/nexa_card.dart';
 import '../data/my_tournament_registrations_repository.dart';
-import '../data/tournament_partner_invite_service.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
 import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_substitution_logic.dart';
-import 'widgets/tournament_registration/tournament_cancellation_request_sheet.dart';
+import 'widgets/tournament_registration/registration_cancellation_flow.dart';
 import 'widgets/tournament_registration/tournament_substitution_sheet.dart';
 
 /// Detalhe da inscrição confirmada — aberto pelo card correspondente da aba
@@ -231,80 +230,22 @@ class _TournamentRegistrationDetailPageState
 
   Future<void> _handleCancel(MyTournamentRegistration registration) async {
     if (_busy) return;
-    final canCancelDirectly =
-        !registration.isPaid && !registration.hasPartialPayment;
-
-    if (canCancelDirectly) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Cancelar inscrição?'),
-          content: Text(
-            'Sua vaga no ${registration.tournamentName} '
-            '(${registration.category?.name ?? 'categoria'}) será liberada e '
-            'outro atleta poderá se inscrever.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Voltar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Cancelar inscrição'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-
-      setState(() => _busy = true);
-      try {
-        await ref
-            .read(tournamentPartnerInviteServiceProvider)
-            .cancelRegistration(registration.registrationId);
-        if (!mounted) return;
-        ref.invalidate(myTournamentRegistrationsProvider);
-        if (context.canPop()) context.pop();
-        showAppSnackBar(context, 'Inscrição cancelada.');
-      } on TournamentPartnerInviteException catch (e) {
-        if (!mounted) return;
-        showAppSnackBar(context, e.message, isError: true);
-      } finally {
-        if (mounted) setState(() => _busy = false);
-      }
-      return;
-    }
-
-    final reason = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.themeColors.surfaceSheet,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => TournamentCancellationRequestSheet(
-        tournamentName: registration.tournamentName,
-      ),
-    );
-    if (reason == null || reason.trim().isEmpty || !mounted) return;
-
     setState(() => _busy = true);
-    try {
-      await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .requestRegistrationCancellation(
-            registrationId: registration.registrationId,
-            reason: reason,
-          );
-      if (!mounted) return;
-      showAppSnackBar(context, 'Pedido enviado. O organizador foi avisado.');
-    } on TournamentPartnerInviteException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    final cancelled = await runRegistrationCancellationFlow(
+      context,
+      ref,
+      registrationId: registration.registrationId,
+      tournamentName: registration.tournamentName,
+      categoryName: registration.category?.name,
+      canCancelDirectly:
+          !registration.isPaid && !registration.hasPartialPayment,
+    );
+    if (mounted) setState(() => _busy = false);
+    if (!cancelled || !mounted) return;
+
+    ref.invalidate(myTournamentRegistrationsProvider);
+    if (context.canPop()) context.pop();
+    showAppSnackBar(context, 'Inscrição cancelada.');
   }
 }
 

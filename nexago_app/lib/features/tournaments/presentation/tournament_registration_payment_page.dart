@@ -28,7 +28,7 @@ import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_registration_success_args.dart';
 import '../domain/tournament_team_roster_logic.dart';
-import 'widgets/tournament_registration/tournament_cancellation_request_sheet.dart';
+import 'widgets/tournament_registration/registration_cancellation_flow.dart';
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
 import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
@@ -311,85 +311,46 @@ class _TournamentRegistrationPaymentPageState
     }
   }
 
-  Future<void> _confirmCancelRegistration() async {
+  Future<void> _confirmCancelRegistration(TournamentDetail tournament) async {
     if (_submitting) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar reserva?'),
-        content: const Text(
-          'Sua vaga será liberada e outro atleta poderá se inscrever nesta '
-          'categoria.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Voltar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cancelar reserva'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
     setState(() => _submitting = true);
-    try {
-      await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .cancelRegistration(widget.registrationId);
-      if (!mounted) return;
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.goNamed(AppRouteNames.myTournaments);
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) showAppSnackBar(context, 'Reserva cancelada.');
-      });
-    } on TournamentPartnerInviteException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
-    } finally {
-      if (mounted) setState(() => _submitting = false);
+    final cancelled = await runRegistrationCancellationFlow(
+      context,
+      ref,
+      registrationId: widget.registrationId,
+      tournamentName: tournament.name,
+      canCancelDirectly: true,
+      confirmDialogTitle: 'Cancelar reserva?',
+      confirmDialogContent: 'Sua vaga será liberada e outro atleta poderá '
+          'se inscrever nesta categoria.',
+      confirmButtonLabel: 'Cancelar reserva',
+    );
+    if (mounted) setState(() => _submitting = false);
+    if (!cancelled || !mounted) return;
+
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.goNamed(AppRouteNames.myTournaments);
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) showAppSnackBar(context, 'Reserva cancelada.');
+    });
   }
 
   Future<void> _openCancellationRequestSheet(
     TournamentDetail tournament,
   ) async {
     if (_submitting) return;
-    final reason = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: context.themeColors.surfaceSheet,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => TournamentCancellationRequestSheet(
-        tournamentName: tournament.name,
-      ),
-    );
-    if (reason == null || reason.trim().isEmpty || !mounted) return;
-
     setState(() => _submitting = true);
-    try {
-      await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .requestRegistrationCancellation(
-            registrationId: widget.registrationId,
-            reason: reason,
-          );
-      if (!mounted) return;
-      showAppSnackBar(context, 'Pedido enviado. O organizador foi avisado.');
-    } on TournamentPartnerInviteException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
+    await runRegistrationCancellationFlow(
+      context,
+      ref,
+      registrationId: widget.registrationId,
+      tournamentName: tournament.name,
+      canCancelDirectly: false,
+    );
+    if (mounted) setState(() => _submitting = false);
   }
 
   Future<void> _openOrganizerWhatsApp(TournamentDetail tournament) async {
@@ -629,7 +590,7 @@ class _TournamentRegistrationPaymentPageState
                                         sharePaidUids: snap.sharePaidUids,
                                         paidAmount: snap.paidAmount,
                                       ))
-                                  ? _confirmCancelRegistration
+                                  ? () => _confirmCancelRegistration(tournament)
                                   : null,
                               onRequestCancellation:
                                   (!_submitting && snap != null)

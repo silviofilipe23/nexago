@@ -12,10 +12,10 @@ import '../../../../../core/ui/nexa_card.dart';
 import '../../../../athlete/domain/athlete_home_registration_progress_providers.dart';
 import '../../../../athlete/presentation/widgets/athlete_home/athlete_home_registration_tracker.dart';
 import '../../../data/my_tournament_registrations_repository.dart';
-import '../../../data/tournament_partner_invite_service.dart';
 import '../../../domain/registration_progress_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_navigation.dart';
+import '../tournament_registration/registration_cancellation_flow.dart';
 
 /// Aba "Minha inscrição" (paridade com o portal): trilha de passos das
 /// inscrições em andamento neste torneio + card das já confirmadas.
@@ -46,43 +46,21 @@ class _TournamentDetailMyRegistrationTabState
 
   Future<void> _cancelRegistration(RegistrationProgress item) async {
     if (_cancelling) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar inscrição?'),
-        content: Text(
-          'Sua vaga no ${item.tournamentName} (${item.categoryName}) será '
-          'liberada e outro atleta poderá se inscrever.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Voltar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cancelar inscrição'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
     setState(() => _cancelling = true);
-    try {
-      await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .cancelRegistration(item.registrationId);
-      if (!mounted) return;
-      showAppSnackBar(context, 'Inscrição cancelada.');
-      ref.invalidate(myTournamentRegistrationsProvider);
-      ref.invalidate(athleteHomeInProgressRegistrationsProvider);
-    } on TournamentPartnerInviteException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
-    } finally {
-      if (mounted) setState(() => _cancelling = false);
-    }
+    final cancelled = await runRegistrationCancellationFlow(
+      context,
+      ref,
+      registrationId: item.registrationId,
+      tournamentName: item.tournamentName,
+      categoryName: item.categoryName,
+      canCancelDirectly: true,
+    );
+    if (mounted) setState(() => _cancelling = false);
+    if (!cancelled || !mounted) return;
+
+    showAppSnackBar(context, 'Inscrição cancelada.');
+    ref.invalidate(myTournamentRegistrationsProvider);
+    ref.invalidate(athleteHomeInProgressRegistrationsProvider);
   }
 
   @override

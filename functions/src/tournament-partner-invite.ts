@@ -70,10 +70,7 @@ import {
   refreshRegistrationHold,
   registrationHoldFieldsOnCreate,
 } from "./tournament-registration-hold-ops";
-import {
-  RegistrationReleasePixError,
-  releaseRegistration,
-} from "./tournament-registration-release";
+import {releaseRegistration} from "./tournament-registration-release";
 import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster";
 import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
@@ -1337,33 +1334,19 @@ export const cancelTournamentRegistration = onCall({
   const tournamentId =
     (registration.tournamentId as string | undefined)?.trim() ?? "";
 
-  // Mesmo efeito do sweeper de prazo: mata a cobrança no Asaas, cancela os
+  // Mesmo efeito do sweeper de prazo: mata as cobranças PIX abertas (via
+  // cancelOpenPixChargesOrThrow, que propaga a falha do gateway), cancela os
   // convites, apaga a equipe órfã, grava auditoria e apaga a inscrição.
-  try {
-    await releaseRegistration({
-      db,
-      projectId,
-      registrationId,
-      registration,
-      athleteUids,
-      ownerUid: uid,
-      cancelledBy: uid,
-      reason: "athlete_cancelled",
-    });
-  } catch (e) {
-    if (e instanceof RegistrationReleasePixError) {
-      logger.error("Falha ao cancelar PIX no Asaas durante cancelamento", {
-        registrationId,
-        asaasId: e.asaasPaymentId,
-        error: e.cause,
-      });
-      throw new HttpsError(
-        "unavailable",
-        "Não foi possível cancelar a cobrança PIX pendente. Tente novamente.",
-      );
-    }
-    throw e;
-  }
+  await releaseRegistration({
+    db,
+    projectId,
+    registrationId,
+    registration,
+    athleteUids,
+    ownerUid: uid,
+    cancelledBy: uid,
+    reason: "athlete_cancelled",
+  });
 
   // Avisa os demais atletas depois que o cancelamento é fato.
   const otherUids = athleteUids.filter((id) => id !== uid);

@@ -43,6 +43,12 @@ import {
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {registrationTeamSize} from "./tournament-team-category";
+import {asaasArenaSecrets} from "./asaas-client";
+import {
+  PIX_CANCELLED_ORGANIZER_CONFIRMED,
+  cancelOpenPixChargesOrThrow,
+  cancelOpenPixPendingCharges,
+} from "./tournament-registration-pix-cancel";
 import {
   SHARE_REVERT_BLOCK_MESSAGE,
   bulkConfirmBlockedByPartialShare,
@@ -378,7 +384,12 @@ export const generateCategoryBracket = onCall(async (request) => {
   return {matchCount: matchDrafts.length, format};
 });
 
-export const organizerConfirmRegistrationPayment = onCall(async (request) => {
+// `secrets`: a confirmação agora mata cobranças PIX abertas no Asaas, e sem o
+// segredo ligado à função `getAsaasApiKey()` lança ASAAS_API_KEY_MISSING —
+// o cancelamento viraria um no-op silencioso.
+export const organizerConfirmRegistrationPayment = onCall({
+  secrets: asaasArenaSecrets,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -439,6 +450,14 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
           sharePaidUids: FieldValue.arrayUnion(athleteUid),
           organizerConfirmedShareUids: FieldValue.arrayUnion(athleteUid),
           updatedAt: FieldValue.serverTimestamp(),
+        });
+        // A parcela dele passou a constar paga fora do gateway: se ele tinha um
+        // PIX aberto, o QR seguiria pagável até expirar e o pagamento cairia
+        // como duplicado — sem crédito e sem estorno automático.
+        await cancelOpenPixPendingCharges({
+          registrationRef: ref,
+          reason: PIX_CANCELLED_ORGANIZER_CONFIRMED,
+          onlyUid: athleteUid,
         });
         try {
           await deliverNotificationToUser({
@@ -503,6 +522,13 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
       {[PAYMENT_SNAPSHOT_FIELD]: paymentSnapshotOf(data)} :
       {}),
     updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // Inscrição confirmada na baixa manual: nenhuma cobrança do gateway deve
+  // sobreviver, senão o atleta ainda paga um QR que não tem mais o que creditar.
+  await cancelOpenPixPendingCharges({
+    registrationRef: ref,
+    reason: PIX_CANCELLED_ORGANIZER_CONFIRMED,
   });
 
   // Solo que pagou o total e ainda não tem parceiro: avisa para convidar
@@ -771,7 +797,11 @@ export const organizerMoveToWaitlist = onCall(async (request) => {
   return {ok: true};
 });
 
-export const organizerRemoveFromCategory = onCall(async (request) => {
+// `secrets`: a remoção cancela cobranças PIX abertas no Asaas antes de apagar
+// a inscrição — sem o segredo, `getAsaasApiKey()` lança e a remoção falha.
+export const organizerRemoveFromCategory = onCall({
+  secrets: asaasArenaSecrets,
+}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
 
@@ -825,6 +855,16 @@ export const organizerRemoveFromCategory = onCall(async (request) => {
     ? organizerContactFromUser((await db.doc(`users/${managerId}`).get()).data() ?? {})
     : null;
 
+  // Cobranças PIX abertas morrem ANTES de qualquer escrita (mesmo padrão do
+  // cancelamento pelo atleta): se o Asaas falhar, a inscrição fica intacta e o
+  // organizador tenta de novo. Sem isso a cobrança sobrevive ao doc e um
+  // pagamento tardio cai como órfão no webhook — dinheiro sem inscrição.
+  const pixPendingSnap = await ref.collection("pixPending").get();
+  await cancelOpenPixChargesOrThrow({
+    registrationId,
+    pendingDocs: pixPendingSnap.docs,
+  });
+
   // Auditoria antes do delete: sem ela a remoção pelo organizador não deixaria
   // rastro nenhum. Mesma coleção do "aprovar pedido de cancelamento".
   const batch = db.batch();
@@ -840,6 +880,10 @@ export const organizerRemoveFromCategory = onCall(async (request) => {
     removedByOrganizer: true,
     removalDescription: description.value,
   });
+  // Subcoleção não morre com o pai: sem isso os `pixPending` ficariam órfãos.
+  for (const doc of pixPendingSnap.docs) {
+    batch.delete(doc.ref);
+  }
   batch.delete(ref);
   await batch.commit();
 

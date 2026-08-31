@@ -3,8 +3,9 @@
  * feito pelo atleta e pelo sweeper de prazo de garantia.
  *
  * A ordem importa: as cobranças PIX abertas morrem no Asaas ANTES de qualquer
- * escrita, para que uma falha lá deixe a inscrição intacta. Sem isso a cobrança
- * sobreviveria ao doc e um pagamento tardio cairia órfão no webhook.
+ * escrita (`cancelOpenPixChargesOrThrow`, que propaga a falha do gateway), para
+ * que um erro lá deixe a inscrição intacta. Sem isso a cobrança sobreviveria ao
+ * doc e um pagamento tardio cairia órfão no webhook.
  *
  * Quem chama decide se pode liberar (permissão, prazo, ausência de pagamento) e
  * quem avisar depois: aqui só acontece o efeito.
@@ -12,9 +13,10 @@
 
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {deleteAsaasPaymentOrThrow} from "./asaas-booking-payment";
 import {artifactsInscriptionsPath, artifactsTeamsPath} from "./firebase-paths";
 import {INVITES_COLLECTION} from "./tournament-invite-constants";
+import {cancelOpenPixChargesOrThrow} from
+  "./tournament-registration-pix-cancel";
 import {
   buildRegistrationCancellationAudit,
   inviteMatchesCancelledRegistration,
@@ -23,20 +25,6 @@ import {
 
 export const REGISTRATION_CANCELLATIONS_COLLECTION =
   "tournamentRegistrationCancellations";
-
-/**
- * Falha ao matar a cobrança no Asaas. Nada foi escrito ainda — a inscrição
- * continua de pé e quem chamou decide entre avisar o atleta e tentar de novo.
- */
-export class RegistrationReleasePixError extends Error {
-  constructor(
-    readonly asaasPaymentId: string,
-    readonly cause: unknown,
-  ) {
-    super("REGISTRATION_RELEASE_PIX_FAILED");
-    this.name = "RegistrationReleasePixError";
-  }
-}
 
 export interface ReleaseRegistrationResult {
   cancelledInvites: number;
@@ -71,16 +59,10 @@ export async function releaseRegistration(params: {
   const teamId = (registration.teamId as string | undefined)?.trim() ?? "";
 
   const pixPendingSnap = await regRef.collection("pixPending").get();
-  for (const doc of pixPendingSnap.docs) {
-    const data = doc.data();
-    const asaasId = (data.asaasPaymentId as string | undefined)?.trim() ?? "";
-    if (!asaasId || data.status === "paid") continue;
-    try {
-      await deleteAsaasPaymentOrThrow(asaasId);
-    } catch (e) {
-      throw new RegistrationReleasePixError(asaasId, e);
-    }
-  }
+  await cancelOpenPixChargesOrThrow({
+    registrationId,
+    pendingDocs: pixPendingSnap.docs,
+  });
 
   const invitesSnap = await db
     .collection(INVITES_COLLECTION)

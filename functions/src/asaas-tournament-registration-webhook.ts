@@ -9,7 +9,11 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
-import type {AsaasPaymentDetails} from "./asaas-booking-payment";
+import {deleteAsaasPaymentOrThrow, type AsaasPaymentDetails} from "./asaas-booking-payment";
+import {
+  PIX_CANCELLED_REGISTRATION_ALREADY_PAID,
+  cancelOpenPixPendingCharges,
+} from "./tournament-registration-pix-cancel";
 import {
   computeTournamentShareAmountReais,
   parseTournamentRegistrationExternalReference,
@@ -59,11 +63,20 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
 
 
 
+export interface TournamentRegistrationWebhookDeps {
+  cancelCharge: (asaasPaymentId: string) => Promise<void>;
+}
+
+const defaultDeps: TournamentRegistrationWebhookDeps = {
+  cancelCharge: (asaasPaymentId) => deleteAsaasPaymentOrThrow(asaasPaymentId),
+};
+
 export async function processTournamentRegistrationAsaasNotification(
   db: Firestore,
   paymentId: string,
   payment: AsaasPaymentDetails,
   processedRef: DocumentReference,
+  deps: TournamentRegistrationWebhookDeps = defaultDeps,
 ): Promise<void> {
   const parsed = parseTournamentRegistrationExternalReference(
     (payment.externalReference || "").trim(),
@@ -150,11 +163,22 @@ export async function processTournamentRegistrationAsaasNotification(
 
     const sharePaidUids = sharePaidUidsFromRegistration(regData);
     if (sharePaidUids.includes(payerUid)) {
+      // Dinheiro entrou sem crédito: a parcela deste atleta já constava paga
+      // (em geral o parceiro pagou o integral antes deste PIX ser quitado).
+      // Creditar de novo cobraria a mais, então sobra estorno manual — e isso
+      // precisa ser barulhento, não um `return` silencioso.
+      logger.error(
+        `Asaas tournament registration ${registrationId}: pagamento duplicado de ` +
+        `${payerUid} (R$ ${paidOnline}) — estorno manual necessário`,
+        {registrationId, payerUid, paymentId, paidValue: paidOnline},
+      );
       await processedRef.set({
         kind: "tournamentRegistration",
         registrationId,
         payerUid,
         outcome: "duplicate_payer",
+        paidValue: paidOnline,
+        refundRequired: true,
         processedAt: FieldValue.serverTimestamp(),
       });
       return;
@@ -209,6 +233,24 @@ export async function processTournamentRegistrationAsaasNotification(
     });
 
     await batch.commit();
+
+    // Inscrição confirmada fecha a janela dos outros atletas: sem isso o QR do
+    // parceiro segue pagável até expirar (15 min) e o pagamento dele cai como
+    // duplicado — sem crédito e sem estorno automático.
+    if (isPaid) {
+      const cancelledUids = await cancelOpenPixPendingCharges({
+        registrationRef,
+        reason: PIX_CANCELLED_REGISTRATION_ALREADY_PAID,
+        skipUid: payerUid,
+        cancelCharge: deps.cancelCharge,
+      });
+      if (cancelledUids.length > 0) {
+        logger.info(
+          `Asaas tournament registration ${registrationId}: cobrança PIX aberta ` +
+          `cancelada de ${cancelledUids.join(", ")}`,
+        );
+      }
+    }
 
     // Credita o organizador com o líquido (bruto − taxa de 8%). A plataforma
     // retém a taxa; o organizador saca depois. Roda uma vez por pagamento

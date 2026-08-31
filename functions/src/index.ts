@@ -31,7 +31,11 @@ import {
   createTournamentTeamRegistration,
   leaveTournamentTeamRegistration,
 } from "./tournament-team-registration";
-import {sendTournamentSubstitutionInvite} from "./tournament-substitution";
+import {
+  sendTournamentSubstitutionInvite,
+  markSubstitutionInviteViewed,
+  resendSubstitutionInvite,
+} from "./tournament-substitution";
 import {
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
@@ -177,6 +181,8 @@ export {
   createTournamentTeamRegistration,
   leaveTournamentTeamRegistration,
   sendTournamentSubstitutionInvite,
+  markSubstitutionInviteViewed,
+  resendSubstitutionInvite,
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
   confirmFreeTournamentRegistration,

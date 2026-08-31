@@ -91,6 +91,52 @@ function inviteExpiredAt(raw: unknown, nowMs: number): boolean {
   return Boolean(ts && typeof ts.toMillis === "function" && ts.toMillis() < nowMs);
 }
 
+/** Motivo declarado da substituição — opcional, validado só quando presente. */
+export const SUBSTITUTION_REASONS = [
+  "lesao",
+  "imprevisto",
+  "trabalho",
+  "viagem",
+  "outro",
+] as const;
+export type SubstitutionReason = (typeof SUBSTITUTION_REASONS)[number];
+
+const SUBSTITUTION_REASON_LABELS: Record<SubstitutionReason, string> = {
+  lesao: "Lesão",
+  imprevisto: "Imprevisto pessoal",
+  trabalho: "Trabalho",
+  viagem: "Viagem",
+  outro: "Outro",
+};
+
+const SUBSTITUTION_REASON_NOTE_MAX_LENGTH = 300;
+
+/** Label PT do motivo — usado na notificação ao organizador. */
+export function substitutionReasonLabel(reason: string): string {
+  return SUBSTITUTION_REASON_LABELS[reason as SubstitutionReason] ?? reason;
+}
+
+function parseSubstitutionReason(raw: unknown): SubstitutionReason | undefined {
+  const value = str(raw);
+  if (!value) return undefined;
+  if (!(SUBSTITUTION_REASONS as readonly string[]).includes(value)) {
+    throw new HttpsError("invalid-argument", "Motivo da substituição inválido.");
+  }
+  return value as SubstitutionReason;
+}
+
+function parseSubstitutionReasonNote(raw: unknown): string | undefined {
+  const value = str(raw);
+  if (!value) return undefined;
+  if (value.length > SUBSTITUTION_REASON_NOTE_MAX_LENGTH) {
+    throw new HttpsError(
+      "invalid-argument",
+      `O motivo detalhado deve ter no máximo ${SUBSTITUTION_REASON_NOTE_MAX_LENGTH} caracteres.`,
+    );
+  }
+  return value;
+}
+
 /**
  * Convite de substituição: [inviteeUid] entraria no LUGAR de [replacedUid] na
  * inscrição [registrationId]. Permitido até a publicação das chaves da
@@ -113,6 +159,8 @@ export const sendTournamentSubstitutionInvite = onCall(async (request) => {
       "registrationId, replacedUid e inviteeUid são obrigatórios.",
     );
   }
+  const reason = parseSubstitutionReason(request.data?.reason);
+  const reasonNote = parseSubstitutionReasonNote(request.data?.reasonNote);
 
   const projectId = getFirebaseProjectId();
   const db = getFirestore();
@@ -235,6 +283,8 @@ export const sendTournamentSubstitutionInvite = onCall(async (request) => {
     ...(teamId ? {attachTeamId: teamId} : {}),
     ...(teamName ? {teamName} : {}),
     ...(teamSize >= MIN_TEAM_CATEGORY_SIZE ? {teamSize} : {}),
+    ...(reason ? {reason} : {}),
+    ...(reasonNote ? {reasonNote} : {}),
   });
 
   try {
@@ -257,6 +307,124 @@ export const sendTournamentSubstitutionInvite = onCall(async (request) => {
     inviteId: ref.id, tournamentId, categoryId, registrationId, inviterUid: uid, replacedUid, inviteeUid,
   });
   return {inviteId: ref.id};
+});
+
+/** Janela de silêncio entre lembretes de um mesmo convite de substituição. */
+export const SUBSTITUTION_REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Marca o convite de substituição como visto pelo convidado. Idempotente: a
+ * segunda chamada (e as seguintes) é no-op — `viewedAt` só é gravado na
+ * primeira vez, nunca sobrescrito.
+ */
+export const markSubstitutionInviteViewed = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+
+  const inviteId = str(request.data?.inviteId);
+  if (!inviteId) throw new HttpsError("invalid-argument", "inviteId é obrigatório.");
+
+  const db = getFirestore();
+  const inviteRef = db.collection(INVITES_COLLECTION).doc(inviteId);
+  const snap = await inviteRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
+  const invite = snap.data()!;
+
+  if (invite.isSubstitutionInvite !== true) {
+    throw new HttpsError("failed-precondition", "Este convite não é de substituição.");
+  }
+  if (invite.inviteeUid !== uid) {
+    throw new HttpsError("permission-denied", "Este convite não é para você.");
+  }
+  if (invite.status !== "pending") {
+    throw new HttpsError("failed-precondition", "Este convite não está mais pendente.");
+  }
+
+  if (invite.viewedAt) {
+    return {ok: true, alreadyViewed: true};
+  }
+
+  await inviteRef.update({viewedAt: FieldValue.serverTimestamp()});
+  logger.info("Substitution invite marked as viewed", {inviteId, inviteeUid: uid});
+  return {ok: true, alreadyViewed: false};
+});
+
+/**
+ * Reenvia a notificação do convite de substituição pendente ao convidado —
+ * um lembrete. Só quem enviou o convite pode pedir; rate-limitado por
+ * `SUBSTITUTION_REMINDER_COOLDOWN_MS` para não virar spam.
+ */
+export const resendSubstitutionInvite = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+
+  const inviteId = str(request.data?.inviteId);
+  if (!inviteId) throw new HttpsError("invalid-argument", "inviteId é obrigatório.");
+
+  const db = getFirestore();
+  const inviteRef = db.collection(INVITES_COLLECTION).doc(inviteId);
+  const snap = await inviteRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
+  const invite = snap.data()!;
+
+  if (invite.isSubstitutionInvite !== true) {
+    throw new HttpsError("failed-precondition", "Este convite não é de substituição.");
+  }
+  if (invite.inviterUid !== uid) {
+    throw new HttpsError("permission-denied", "Este convite não é seu.");
+  }
+  if (invite.status !== "pending") {
+    throw new HttpsError("failed-precondition", "Este convite não está mais pendente.");
+  }
+  const nowMs = Date.now();
+  if (inviteExpiredAt(invite.expiresAt, nowMs)) {
+    throw new HttpsError("failed-precondition", "Este convite expirou.");
+  }
+
+  const lastReminderAt = invite.lastReminderAt as Timestamp | undefined;
+  if (lastReminderAt && typeof lastReminderAt.toMillis === "function") {
+    const elapsedMs = nowMs - lastReminderAt.toMillis();
+    if (elapsedMs < SUBSTITUTION_REMINDER_COOLDOWN_MS) {
+      throw new HttpsError("resource-exhausted", "Aguarde para lembrar novamente.");
+    }
+  }
+
+  await inviteRef.update({lastReminderAt: FieldValue.serverTimestamp()});
+
+  const inviterName = str(invite.inviterName) || "Atleta";
+  const replacedName = str(invite.replacedName) || "Atleta";
+  const inviteeUid = str(invite.inviteeUid);
+  const tournamentId = str(invite.tournamentId);
+  const categoryId = str(invite.categoryId);
+
+  try {
+    // Mesma escolha do envio original: nomes (inviterName/replacedName) vêm
+    // congelados no próprio convite, mas o label da categoria e o nome do
+    // torneio são recarregados aqui — mais barato que espelhar esses dois
+    // campos no convite só para o lembrete, e mantém o texto igual ao do
+    // envio mesmo que o torneio tenha sido renomeado nesse meio-tempo.
+    const projectId = getFirebaseProjectId();
+    const tournament = await loadTournamentData(db, projectId, tournamentId);
+    const category = tournament ? asTournamentCategory(findCategory(tournament, categoryId)) : null;
+    const categoryLabel = category ? formatCategoryInviteNotificationLabel(category) : "";
+    const tournamentName = tournament ? str(tournament.name) : "";
+    await deliverNotificationToUser({
+      userId: inviteeUid,
+      title: `Lembrete: ${inviterName} te chamou como substituto`,
+      body:
+        `Entre no lugar de ${replacedName} na categoria ${categoryLabel} ` +
+        `do ${tournamentName}.`,
+      type: "tournament_substitution_invite",
+      data: {inviteId, tournamentId, categoryId, inviterUid: uid},
+    });
+  } catch (notifyError) {
+    logger.warn("Falha ao reenviar lembrete de substituição", {inviteId, inviteeUid, notifyError});
+  }
+
+  logger.info("Tournament substitution invite reminder sent", {
+    inviteId, tournamentId, categoryId, inviterUid: uid,
+  });
+  return {ok: true};
 });
 
 /** Parâmetros do aceite (chamado por `acceptTournamentPartnerInvite`). */
@@ -503,6 +671,8 @@ export async function acceptSubstitutionInviteFor(
       byUid: str(invite.inviterUid),
       at: Timestamp.now(),
       outHadPaid,
+      ...(str(invite.reason) ? {reason: str(invite.reason)} : {}),
+      ...(str(invite.reasonNote) ? {reasonNote: str(invite.reasonNote)} : {}),
     });
     tx.update(regRef, regUpdate);
 
@@ -609,6 +779,12 @@ async function notifySubstitutionCompleted(
   const outName = str(invite.replacedName) || "o atleta";
   const label = formatCategoryInviteNotificationLabel(category);
   const tournamentName = str(tournament.name);
+  const reason = str(invite.reason);
+  const reasonNote = str(invite.reasonNote);
+  const managerReasonSuffix = reason
+    ? ` Motivo informado: ${substitutionReasonLabel(reason)}.` +
+      (reasonNote ? ` — "${reasonNote}"` : "")
+    : "";
 
   await deliverNotificationToUser({
     userId: outUid,
@@ -640,7 +816,7 @@ async function notifySubstitutionCompleted(
         deliverNotificationToUser({
           userId: managerUid,
           title: "Substituição de atleta",
-          body: `${inName} entrou no lugar de ${outName} na categoria ${label}.`,
+          body: `${inName} entrou no lugar de ${outName} na categoria ${label}.${managerReasonSuffix}`,
           type: "tournament_substitution_completed",
           data: {
             tournamentId: result.tournamentId,

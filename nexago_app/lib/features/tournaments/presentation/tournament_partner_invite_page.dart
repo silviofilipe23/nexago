@@ -62,6 +62,11 @@ class _TournamentPartnerInvitePageState
   );
   bool _inviteRememberedForOnboarding = false;
 
+  /// `markSubstitutionInviteViewed` só pode ser chamado UMA vez por sessão de
+  /// tela — é o read-receipt do "Lembrar" na tela de acompanhamento
+  /// (Task 6), não algo pra regravar a cada rebuild do `watchInvite`.
+  bool _viewedMarked = false;
+
   @override
   void initState() {
     super.initState();
@@ -329,11 +334,36 @@ class _TournamentPartnerInvitePageState
     }
   }
 
+  /// Read-receipt do convite de substituição: dispara `markSubstitutionInviteViewed`
+  /// a 1ª vez que o CONVIDADO abre um convite pendente — a tela de
+  /// acompanhamento (Task 6) usa isso pra mostrar "visualizado há X min" pro
+  /// convidante. Fire-and-forget: nunca pode quebrar a tela do convite, então
+  /// falha (rede, rate limit, o que for) é engolida em silêncio.
+  void _maybeMarkViewed(TournamentPartnerInvite? invite) {
+    if (_viewedMarked || invite == null) return;
+    if (!invite.isSubstitutionInvite || !invite.isPending) return;
+    final uid = ref.read(authProvider).valueOrNull?.uid;
+    if (uid == null || uid != invite.inviteeUid) return;
+    _viewedMarked = true;
+    ref
+        .read(tournamentPartnerInviteServiceProvider)
+        .markSubstitutionInviteViewed(invite.id)
+        .catchError((_) {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final inviteAsync = ref.watch(
       tournamentPartnerInviteProvider(widget.inviteId),
     );
+    // `ref.listen` cobre mudanças depois do 1º frame; a chamada direta
+    // abaixo cobre o caso do 1º valor já chegar pronto (mesma dupla
+    // checagem de `TournamentInviteAnnouncer._maybeAnnounce`).
+    ref.listen<AsyncValue<TournamentPartnerInvite?>>(
+      tournamentPartnerInviteProvider(widget.inviteId),
+      (previous, next) => _maybeMarkViewed(next.valueOrNull),
+    );
+    _maybeMarkViewed(inviteAsync.valueOrNull);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,

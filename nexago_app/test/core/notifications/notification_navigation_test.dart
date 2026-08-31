@@ -41,5 +41,29 @@ void main() {
       });
       expect(route, '/torneios/t1');
     });
+
+    // Achado do review v2: nem o push original nem o lembrete (mesmo tipo,
+    // ver `resendSubstitutionInvite`) tinham mapeamento — o toque não ia a
+    // lugar nenhum. O convite de substituição mora na mesma coleção/tela do
+    // convite de parceiro (`/torneios-convite/:inviteId`).
+    test('tournament_substitution_invite opens the invite page by id', () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_substitution_invite',
+        'inviteId': 'inv-1',
+        'tournamentId': 't1',
+        'categoryId': 'masc',
+        'inviterUid': 'u1',
+      });
+      expect(route, '/torneios-convite/inv-1');
+    });
+
+    test('tournament_substitution_invite without inviteId resolves nothing',
+        () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_substitution_invite',
+        'tournamentId': 't1',
+      });
+      expect(route, isNull);
+    });
   });
 }

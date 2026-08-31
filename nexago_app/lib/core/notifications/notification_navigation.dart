@@ -58,6 +58,17 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return AppRoutes.tournamentPartnerInvite.replaceAll(':inviteId', inviteId);
   }
 
+  // Convite de substituição (jornada v2) mora na MESMA coleção/tela de
+  // convite de parceiro (`attachRegistrationId`, ver
+  // `functions/src/tournament-substitution.ts`) — a tela de convite já
+  // distingue pelo `isSubstitutionInvite`. Cobre tanto o push original
+  // quanto o lembrete (`resendSubstitutionInvite`), que manda o mesmo tipo.
+  if (type == 'tournament_substitution_invite') {
+    final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
+    if (inviteId.isEmpty) return null;
+    return AppRoutes.tournamentPartnerInvite.replaceAll(':inviteId', inviteId);
+  }
+
   if (type == 'tournament_partner_invite_accepted') {
     final url = (data['url'] as String?)?.trim();
     if (url != null && url.startsWith('/')) return url;

@@ -52,6 +52,8 @@ export const callables = {
   confirmFree: registrationPix.confirmFreeTournamentRegistration,
   reserveDirect: registrationPix.reserveDirectOrganizerRegistration,
   sendSubstitution: substitution.sendTournamentSubstitutionInvite,
+  markViewed: substitution.markSubstitutionInviteViewed,
+  resendSubstitution: substitution.resendSubstitutionInvite,
 };
 
 export const markStaleSubstitutionInvitesForCategory = substitution.markStaleSubstitutionInvitesForCategory;

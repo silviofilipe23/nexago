@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
@@ -13,13 +12,10 @@ import '../../../../../core/ui/nexa_card.dart';
 import '../../../../athlete/domain/athlete_home_registration_progress_providers.dart';
 import '../../../../athlete/presentation/widgets/athlete_home/athlete_home_registration_tracker.dart';
 import '../../../data/my_tournament_registrations_repository.dart';
-import '../../../data/tournament_partner_invite_service.dart';
 import '../../../domain/registration_progress_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_navigation.dart';
-import '../../../domain/tournament_registration_success_args.dart';
-import '../../../domain/tournament_substitution_logic.dart';
-import '../tournament_registration/tournament_substitution_sheet.dart';
+import '../tournament_registration/registration_cancellation_flow.dart';
 
 /// Aba "Minha inscrição" (paridade com o portal): trilha de passos das
 /// inscrições em andamento neste torneio + card das já confirmadas.
@@ -50,49 +46,27 @@ class _TournamentDetailMyRegistrationTabState
 
   Future<void> _cancelRegistration(RegistrationProgress item) async {
     if (_cancelling) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancelar inscrição?'),
-        content: Text(
-          'Sua vaga no ${item.tournamentName} (${item.categoryName}) será '
-          'liberada e outro atleta poderá se inscrever.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Voltar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cancelar inscrição'),
-          ),
-        ],
-      ),
+    final cancelled = await runRegistrationCancellationFlow(
+      context,
+      ref,
+      registrationId: item.registrationId,
+      tournamentName: item.tournamentName,
+      categoryName: item.categoryName,
+      canCancelDirectly: true,
+      onSubmittingChanged: (v) {
+        if (mounted) setState(() => _cancelling = v);
+      },
     );
-    if (confirmed != true || !mounted) return;
+    if (!cancelled || !mounted) return;
 
-    setState(() => _cancelling = true);
-    try {
-      await ref
-          .read(tournamentPartnerInviteServiceProvider)
-          .cancelRegistration(item.registrationId);
-      if (!mounted) return;
-      showAppSnackBar(context, 'Inscrição cancelada.');
-      ref.invalidate(myTournamentRegistrationsProvider);
-      ref.invalidate(athleteHomeInProgressRegistrationsProvider);
-    } on TournamentPartnerInviteException catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
-    } finally {
-      if (mounted) setState(() => _cancelling = false);
-    }
+    showAppSnackBar(context, 'Inscrição cancelada.');
+    ref.invalidate(myTournamentRegistrationsProvider);
+    ref.invalidate(athleteHomeInProgressRegistrationsProvider);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';
     final inProgress = (ref
                 .watch(athleteHomeInProgressRegistrationsProvider)
                 .valueOrNull ??
@@ -139,46 +113,27 @@ class _TournamentDetailMyRegistrationTabState
         for (final reg in confirmed) ...[
           if (inProgress.isNotEmpty || reg != confirmed.first)
             const SizedBox(height: AppSpacing.md),
-          _ConfirmedRegistrationCard(
-            registration: reg,
-            replaceableUids: substitutionReplaceableUids(
-              participantUids: reg.participantUids,
-              uid: uid,
-              teamSize: reg.teamSize,
-              captainUid: reg.captainUid,
-              partnerPending: reg.partnerPending,
-              bracketPublished: reg.category?.bracketPublished ?? false,
-            ),
-          ),
+          _ConfirmedRegistrationCard(registration: reg),
         ],
       ],
     );
   }
 }
 
+/// Card de inscrição confirmada — toque abre o detalhe (Task 4), que reúne
+/// status, histórico de trocas e as ações de substituir/cancelar (antes
+/// vivendo espalhadas aqui: TextButton "Substituir atleta" + histórico).
 class _ConfirmedRegistrationCard extends StatelessWidget {
-  const _ConfirmedRegistrationCard({
-    required this.registration,
-    required this.replaceableUids,
-  });
+  const _ConfirmedRegistrationCard({required this.registration});
 
   final MyTournamentRegistration registration;
-  final List<String> replaceableUids;
 
-  void _openRegistrationSuccess(BuildContext context, String categoryName) {
+  void _openRegistrationDetail(BuildContext context) {
     context.pushNamed(
-      AppRouteNames.tournamentRegistrationSuccess,
-      pathParameters: {'tournamentId': registration.tournamentId},
-      extra: TournamentRegistrationSuccessArgs(
-        tournamentId: registration.tournamentId,
-        registrationId: registration.registrationId,
-        tournamentName: registration.tournamentName,
-        categoryName: categoryName,
-      ),
-      queryParameters: {
+      AppRouteNames.tournamentRegistrationDetail,
+      pathParameters: {
+        'tournamentId': registration.tournamentId,
         'registrationId': registration.registrationId,
-        'tournamentName': registration.tournamentName,
-        'categoryName': categoryName,
       },
     );
   }
@@ -191,54 +146,28 @@ class _ConfirmedRegistrationCard extends StatelessWidget {
         registration.isPaid ? AppColors.win : AppColors.pending;
 
     return NexaCard(
-      onTap: () => _openRegistrationSuccess(context, categoryName),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      onTap: () => _openRegistrationDetail(context),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.verified_outlined, size: 22, color: statusColor),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      categoryName,
-                      style: AppTypography.titleS
-                          .copyWith(color: colors.onSurface),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      registration.statusLabel,
-                      style: AppTypography.bodyS.copyWith(color: statusColor),
-                    ),
-                  ],
+          Icon(Icons.verified_outlined, size: 22, color: statusColor),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  categoryName,
+                  style: AppTypography.titleS.copyWith(color: colors.onSurface),
                 ),
-              ),
-            ],
-          ),
-          if (registration.substitutionHistory.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            for (final entry in registration.substitutionHistory)
-              Text(
-                '${entry.inName} entrou no lugar de ${entry.outName}.',
-                style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
-              ),
-          ],
-          if (replaceableUids.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => showTournamentSubstitutionSheet(
-                  context,
-                  registration: registration,
-                  replaceableUids: replaceableUids,
+                const SizedBox(height: 2),
+                Text(
+                  registration.statusLabel,
+                  style: AppTypography.bodyS.copyWith(color: statusColor),
                 ),
-                icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                label: const Text('Substituir atleta'),
-              ),
+              ],
             ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: colors.onSurfaceMuted),
         ],
       ),
     );

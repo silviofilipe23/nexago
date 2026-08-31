@@ -38,3 +38,13 @@ aceite (o convite vive 48h).
 - Organizador não aprova; é notificado (`tournament_substitution_completed`).
 - `generateCategoryBracket` marca `stale` (`bracket_published`) os convites de
   substituição pendentes da categoria.
+- Motivo é opcional: `reason` (`lesao`|`imprevisto`|`trabalho`|`viagem`|`outro`)
+  + `reasonNote` livre (≤300 caracteres). Persistido no convite, copiado para
+  `substitutionHistory` no aceite e anexado à notificação do organizador.
+- Read-receipt: `markSubstitutionInviteViewed` grava `viewedAt` no convite —
+  só o convidado pode chamar, e só na primeira vez (chamadas seguintes são
+  no-op).
+- Lembrete: `resendSubstitutionInvite` — só quem enviou o convite pode chamar,
+  limitado a 1 a cada 6h via `lastReminderAt`.
+- Lembrete por WhatsApp usa o share sheet do sistema, nunca o telefone do
+  banco (atletas não veem telefone uns dos outros).

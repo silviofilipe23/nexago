@@ -188,6 +188,9 @@ import '../../features/tournaments/presentation/tournament_registration_page.dar
 import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
+import '../../features/tournaments/presentation/tournament_registration_detail_page.dart';
+import '../../features/tournaments/presentation/tournament_substitution_status_page.dart';
+import '../../features/tournaments/presentation/tournament_substitution_wizard_page.dart';
 import '../auth/post_login_destination.dart';
 import '../auth/auth_providers.dart';
 import 'go_router_refresh.dart';
@@ -1376,6 +1379,47 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ? registrationId
                 : null,
             initialStep: TournamentRegistrationStep.payment,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationDetail,
+        name: AppRouteNames.tournamentRegistrationDetail,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final registrationId =
+              state.pathParameters['registrationId']?.trim() ?? '';
+          return TournamentRegistrationDetailPage(
+            tournamentId: tournamentId,
+            registrationId: registrationId,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentSubstitutionWizard,
+        name: AppRouteNames.tournamentSubstitutionWizard,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final registrationId =
+              state.pathParameters['registrationId']?.trim() ?? '';
+          return TournamentSubstitutionWizardPage(
+            tournamentId: tournamentId,
+            registrationId: registrationId,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentSubstitutionStatus,
+        name: AppRouteNames.tournamentSubstitutionStatus,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final inviteId = state.pathParameters['inviteId']?.trim() ?? '';
+          return TournamentSubstitutionStatusPage(
+            tournamentId: tournamentId,
+            inviteId: inviteId,
           );
         },
       ),

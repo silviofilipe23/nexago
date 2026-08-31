@@ -174,6 +174,12 @@ class MyTournamentRegistrationsRepository {
         outName: (item['outName'] as String?)?.trim() ?? 'Atleta',
         inName: (item['inName'] as String?)?.trim() ?? 'Atleta',
         at: at is Timestamp ? at.toDate() : null,
+        reason: (item['reason'] as String?)?.trim().isNotEmpty == true
+            ? (item['reason'] as String).trim()
+            : null,
+        reasonNote: (item['reasonNote'] as String?)?.trim().isNotEmpty == true
+            ? (item['reasonNote'] as String).trim()
+            : null,
       ));
     }
     return out;

@@ -9,14 +9,21 @@ import 'tournament_registration_cancellation_section.dart';
 ///
 /// O aviso de que a nexaGO não devolve o dinheiro fica ACIMA do campo, antes de
 /// o atleta escrever: é a informação que muda a decisão dele.
+///
+/// O controller do campo é interno (criado e descartado pelo próprio
+/// `State`) de propósito: um controller passado de fora e descartado pelo
+/// chamador logo após o `Navigator.pop` corre contra a animação de
+/// fechamento do bottom sheet — o `TextField` ainda reconstrói durante a
+/// transição e tenta reescutar um controller já `dispose()`d, derrubando a
+/// árvore com "TextEditingController was used after being disposed".
+/// Deixando o ciclo de vida do controller preso ao do próprio widget, o
+/// framework só o descarta quando o `State` é de fato desmontado.
 class TournamentCancellationRequestSheet extends StatefulWidget {
   const TournamentCancellationRequestSheet({
     super.key,
-    required this.controller,
     required this.tournamentName,
   });
 
-  final TextEditingController controller;
   final String tournamentName;
 
   @override
@@ -26,10 +33,18 @@ class TournamentCancellationRequestSheet extends StatefulWidget {
 
 class _TournamentCancellationRequestSheetState
     extends State<TournamentCancellationRequestSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canSend = widget.controller.text.trim().isNotEmpty;
+    final canSend = _controller.text.trim().isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -69,7 +84,7 @@ class _TournamentCancellationRequestSheetState
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: widget.controller,
+            controller: _controller,
             maxLines: 3,
             maxLength: 500,
             autofocus: true,
@@ -84,7 +99,7 @@ class _TournamentCancellationRequestSheetState
           const SizedBox(height: 8),
           FilledButton(
             onPressed: canSend
-                ? () => Navigator.pop(context, widget.controller.text)
+                ? () => Navigator.pop(context, _controller.text)
                 : null,
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(48),

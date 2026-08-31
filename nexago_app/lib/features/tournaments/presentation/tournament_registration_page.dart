@@ -1458,13 +1458,14 @@ class _TournamentRegistrationPageState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         RegistrationShellNote(
-          category.isTeamCategory
-              ? 'Elenco $rosterCount/${category.rosterSize}. '
-                    '${isCaptain ? 'Convide os atletas que faltam.' : 'O capitão está montando o elenco.'}'
-              : snap?.isPaid == true
-              ? 'Vaga garantida! Você pagou o valor integral — convide seu '
-                    'parceiro, ele entra sem taxa.'
-              : 'Vaga reservada! Agora busque e convide seu parceiro de dupla.',
+          registrationRosterNote(
+            isTeamCategory: category.isTeamCategory,
+            rosterCount: rosterCount,
+            teamSize: category.rosterSize,
+            isCaptain: isCaptain,
+            isPaid: snap?.isPaid == true,
+            hasPendingInvite: sentInvites.isNotEmpty,
+          ),
         ),
         // Sem parceiro ainda? Pagar o valor integral garante a vaga desde já —
         // o parceiro que aceitar o convite depois entra sem taxa.
@@ -1536,6 +1537,7 @@ class _TournamentRegistrationPageState
             const SizedBox(height: AppSpacing.lg),
             TournamentRegistrationSentInvitesList(
               invites: sentInvites,
+              isTeamCategory: category.isTeamCategory,
               cancelingInviteId: _cancelingInviteId,
               onCancel: _cancelSentInvite,
             ),

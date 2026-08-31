@@ -722,7 +722,7 @@ void main() {
       expect(find.textContaining('Leões da Praia'), findsWidgets);
     });
 
-    testWidgets('dupla com convite enviado ainda oferece buscar outro parceiro', (
+    testWidgets('dupla com convite enviado esconde a busca de atletas', (
       tester,
     ) async {
       final enviado = TournamentPartnerInvite(
@@ -752,10 +752,12 @@ void main() {
         convitesEnviados: [enviado],
       );
 
-      // Na dupla sempre cabe outro convite: o primeiro aceite fecha a vaga e o
-      // backend derruba os demais.
+      // Convite pendente fecha a busca: a lista de atletas some e o caminho
+      // para chamar outra pessoa é cancelar o convite.
       expect(find.textContaining('Pedro Alves'), findsWidgets);
-      expect(find.textContaining('Vaga reservada!'), findsOneWidget);
+      expect(find.textContaining('Convite enviado!'), findsOneWidget);
+      expect(find.text('Nome, @, apelido ou e-mail…'), findsNothing);
+      expect(find.text('Cancelar'), findsOneWidget);
     });
 
     testWidgets('a categoria com inscrição abre por padrão, não a primeira', (

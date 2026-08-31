@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radii.dart';
+import '../../../../core/ui/rebuild_at.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../domain/tournament_category_spots.dart';
@@ -39,10 +40,20 @@ class TournamentDiscoveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Abertura agendada: o card se acerta sozinho na hora marcada, sem depender
+    // de um scroll ou de um refresh da vitrine para soltar o CTA.
+    return RebuildAt(
+      instant: tournament.registrationOpensAt,
+      builder: _buildCard,
+    );
+  }
+
+  Widget _buildCard(BuildContext context, DateTime now) {
     final theme = Theme.of(context);
     final isEnrolled = registration != null;
     final registrationNotYetOpen = tournamentRegistrationNotYetOpen(
       tournament.registrationOpensAt,
+      now: now,
     );
     final statusColor = isEnrolled
         ? AppColors.brand

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
+import '../../../../../core/ui/rebuild_at.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -44,43 +45,51 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
       itemCount: offers.length,
       itemBuilder: (context, index) {
         final offer = offers[index];
-        // Card inteiro abre a visão da categoria (Partidas/Grupos/Chave),
-        // como no portal; os botões internos continuam ganhando o toque.
-        return GestureDetector(
-          onTap: () => context.pushNamed(
-            AppRouteNames.tournamentCategoryView,
-            pathParameters: {
-              'tournamentId': tournament.id,
-              'categoryId': offer.id,
-            },
-          ),
-          child: TournamentDetailCategoryCard(
-          offer: offer,
-          tournamentId: tournament.id,
-          tournamentName: tournament.name,
-          tournamentStatus: tournament.status,
-          registrationNotYetOpen: tournamentRegistrationNotYetOpen(
-            tournament.registrationOpensAt,
-          ),
-          inscriptionCount: resolveInscriptionCountForOffer(
-            enrollmentByCategoryId,
-            offer,
-            countsResolved: enrollmentCountsResolved,
-          ),
-          registration: registrationsByCategoryId[offer.id],
-          isOnWaitlist: waitlistByCategoryId[offer.id] == true,
-          onRegister: () {
-            if (!canAccessTournaments) {
-              onRegisterBlocked?.call();
-              return;
-            }
-            context.pushNamed(
-              AppRouteNames.tournamentRegistration,
-              pathParameters: {'tournamentId': tournament.id},
-              queryParameters: {'categoryId': offer.id},
+        // Abertura agendada: cada card se acerta sozinho na hora marcada — só
+        // os visíveis estão montados, e cada um gasta um único timer.
+        return RebuildAt(
+          instant: tournament.registrationOpensAt,
+          builder: (context, now) {
+            // Card inteiro abre a visão da categoria (Partidas/Grupos/Chave),
+            // como no portal; os botões internos continuam ganhando o toque.
+            return GestureDetector(
+              onTap: () => context.pushNamed(
+                AppRouteNames.tournamentCategoryView,
+                pathParameters: {
+                  'tournamentId': tournament.id,
+                  'categoryId': offer.id,
+                },
+              ),
+              child: TournamentDetailCategoryCard(
+                offer: offer,
+                tournamentId: tournament.id,
+                tournamentName: tournament.name,
+                tournamentStatus: tournament.status,
+                registrationNotYetOpen: tournamentRegistrationNotYetOpen(
+                  tournament.registrationOpensAt,
+                  now: now,
+                ),
+                inscriptionCount: resolveInscriptionCountForOffer(
+                  enrollmentByCategoryId,
+                  offer,
+                  countsResolved: enrollmentCountsResolved,
+                ),
+                registration: registrationsByCategoryId[offer.id],
+                isOnWaitlist: waitlistByCategoryId[offer.id] == true,
+                onRegister: () {
+                  if (!canAccessTournaments) {
+                    onRegisterBlocked?.call();
+                    return;
+                  }
+                  context.pushNamed(
+                    AppRouteNames.tournamentRegistration,
+                    pathParameters: {'tournamentId': tournament.id},
+                    queryParameters: {'categoryId': offer.id},
+                  );
+                },
+              ),
             );
           },
-          ),
         );
       },
     );

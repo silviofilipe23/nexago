@@ -5,6 +5,7 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { MIN_TEAMS_FOR_BRACKET, countBracketEligible } from '../data/bracket-eligibility';
 import { promotableLevelOptions } from '../data/athlete-level-promotion';
+import { buildCategoryAthletesExport } from '../data/category-athletes-export';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
@@ -39,6 +40,13 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       <a class="og-ghost-btn" routerLink="/painel/novo-torneio" [queryParams]="{ editar: id(), passo: 'categories', categoria: catId() }">
         <og-icon name="edit" [size]="13" />Editar
       </a>
+      <!-- Texto na área de transferência, e não arquivo: o destino dessa lista é sempre uma
+           conversa (grupo do torneio, mesa da arena), onde .csv não cola. -->
+      @if (!loading() && inscriptions().length > 0) {
+        <button type="button" class="og-ghost-btn og-export-btn" (click)="copyAthletesList()">
+          <og-icon name="copy" [size]="13" />Exportar lista
+        </button>
+      }
       <!-- Some quando a chave já foi gerada (categoria com jogos) — regerar apagaria resultados. -->
       @if (!loading() && matches().length === 0) {
         @if (canDrawBracket()) {
@@ -478,6 +486,32 @@ export class CategoriaDetalheComponent {
       );
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /** Lista de atletas da categoria em texto, pronta pra colar. O rótulo de cada linha é o mesmo
+   *  que a tela mostra (nome cadastrado da equipe, senão os atletas), e a vaga ainda em aberto
+   *  vira "parceiro" — é ela que o organizador precisa enxergar ao mandar a lista pro grupo. */
+  protected async copyAthletesList(): Promise<void> {
+    const tournament = this.tournament();
+    const category = this.category();
+    if (!tournament || !category) return;
+    const inscriptions = this.inscriptions();
+    const text = buildCategoryAthletesExport({
+      tournamentName: tournament.name,
+      categoryName: category.name,
+      inscriptions,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      const unit = this.unitLabel().toLowerCase();
+      const label = inscriptions.length === 1 ? unit.slice(0, -1) : unit;
+      this.feedback.set({ ok: true, message: `Lista de ${inscriptions.length} ${label} copiada.` });
+    } catch {
+      // Mesmo cuidado do dialog de compartilhar: sem permissão de área de transferência (http,
+      // Safari sem gesto) o banner não pode dizer que copiou — o organizador colaria a mensagem
+      // anterior no grupo achando que mandou a lista.
+      this.feedback.set({ ok: false, message: 'Não foi possível copiar a lista — o navegador bloqueou a área de transferência.' });
     }
   }
 

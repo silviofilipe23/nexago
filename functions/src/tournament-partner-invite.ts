@@ -49,7 +49,7 @@ import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {asaasArenaSecrets} from "./asaas-client";
-import {deleteAsaasPaymentOrThrow} from "./asaas-booking-payment";
+import {cancelOpenPixChargesOrThrow} from "./tournament-registration-pix-cancel";
 import {
   REGISTRATION_CANCELLATION_BLOCK_MESSAGES,
   buildRegistrationCancellationAudit,
@@ -1321,24 +1321,10 @@ export const cancelTournamentRegistration = onCall({
   // a inscrição continua intacta. Sem isso, a cobrança sobreviveria ao doc e um
   // pagamento tardio cairia como órfão no webhook.
   const pixPendingSnap = await regRef.collection("pixPending").get();
-  for (const doc of pixPendingSnap.docs) {
-    const data = doc.data();
-    const asaasId = (data.asaasPaymentId as string | undefined)?.trim() ?? "";
-    if (!asaasId || data.status === "paid") continue;
-    try {
-      await deleteAsaasPaymentOrThrow(asaasId);
-    } catch (e) {
-      logger.error("Falha ao cancelar PIX no Asaas durante cancelamento", {
-        registrationId,
-        asaasId,
-        error: e,
-      });
-      throw new HttpsError(
-        "unavailable",
-        "Não foi possível cancelar a cobrança PIX pendente. Tente novamente.",
-      );
-    }
-  }
+  await cancelOpenPixChargesOrThrow({
+    registrationId,
+    pendingDocs: pixPendingSnap.docs,
+  });
 
   // Convites pendentes ligados a esta inscrição (solo aguardando parceiro)
   // não devem sobreviver à reserva cancelada.

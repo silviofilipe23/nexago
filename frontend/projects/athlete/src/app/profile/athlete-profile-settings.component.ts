@@ -1,5 +1,11 @@
 import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormBuilder,
+  ReactiveFormsModule,
+  Validators,
+  type AbstractControl,
+  type ValidationErrors,
+} from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, updateProfile } from 'firebase/auth';
@@ -30,6 +36,8 @@ import {
   type ReferralRegistrationRejection,
 } from '../data/athlete-referral-repository';
 import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
+import { formatBrPhoneMask } from '../shared/phone-verification/phone-verification.util';
+import { validatePhone } from '../onboarding/onboarding-validators';
 import { BrLocationsService } from '@nexago/br-locations';
 import {
   isAllowedAvatarFile,
@@ -214,6 +222,10 @@ export class AthleteProfileSettingsComponent {
   protected readonly form = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
     nickname: [''],
+    // WhatsApp: validado quando preenchido, mas não obrigatório aqui. Contas
+    // criadas antes de o campo entrar no cadastro ficariam presas sem poder
+    // editar nem a bio — o gate de torneios já avisa o que falta na inscrição.
+    phoneNumber: ['', athletePhoneValidator],
     state: ['', Validators.required],
     city: ['', Validators.required],
     bio: [''],
@@ -347,10 +359,12 @@ export class AthleteProfileSettingsComponent {
     this.form.reset({
       fullName: current.fullName,
       nickname: current.nickname,
+      phoneNumber: formatBrPhoneMask(current.phoneNumber),
       state: current.state,
       city: '',
       bio: current.bio,
     });
+    this.syncPhoneControlLock();
     this.cityOptions.set(this.brLocations.citiesFor(current.state));
     this.saveError.set(null);
     this.saveSuccess.set(null);
@@ -597,7 +611,22 @@ export class AthleteProfileSettingsComponent {
       await Promise.all([
         setDoc(
           doc(this.firestore, 'users', uid),
-          { fullName: raw.fullName, nickname, city, state, roles, hasAthleteRole: true, updatedAt: serverTimestamp() },
+          {
+            fullName: raw.fullName,
+            nickname,
+            // Só quando NÃO verificado (depois do selo o número é imutável pelo
+            // client) e só com conteúdo: esvaziar o WhatsApp deixaria a
+            // inscrição liberada pelo carimbo `isProfileComplete` com o
+            // organizador sem contato.
+            ...(this.phoneVerified() || !raw.phoneNumber.trim()
+              ? {}
+              : { phoneNumber: raw.phoneNumber.trim() }),
+            city,
+            state,
+            roles,
+            hasAthleteRole: true,
+            updatedAt: serverTimestamp(),
+          },
           { merge: true },
         ),
         setDoc(
@@ -750,10 +779,24 @@ export class AthleteProfileSettingsComponent {
     this.changingPhone.set(false);
   }
 
+  protected setPhone(value: string): void {
+    this.form.controls.phoneNumber.setValue(formatBrPhoneMask(value));
+  }
+
+  /** Verificado = imutável pelo client (firestore.rules): o campo trava e só
+   *  um novo SMS troca o número. */
+  private syncPhoneControlLock(): void {
+    const control = this.form.controls.phoneNumber;
+    if (this.profileState().phoneVerified) control.disable();
+    else control.enable();
+  }
+
   /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
    *  users/{uid} via Admin SDK — aqui só refletimos o estado na UI. */
   protected onPhoneVerified(event: { phoneNumber: string }): void {
     this.profileState.update((current) => ({ ...current, phoneNumber: event.phoneNumber, phoneVerified: true }));
+    this.form.controls.phoneNumber.setValue(formatBrPhoneMask(event.phoneNumber));
+    this.syncPhoneControlLock();
     this.changingPhone.set(false);
   }
 
@@ -856,4 +899,13 @@ export class AthleteProfileSettingsComponent {
       this.loading.set(false);
     }
   }
+}
+
+/** WhatsApp opcional na edição, mas com o mesmo formato do cadastro
+ *  (`onboarding-validators.ts`): vazio passa, mal formado não. */
+function athletePhoneValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = String(control.value ?? '').trim();
+  if (raw.length === 0) return null;
+  const message = validatePhone(raw);
+  return message == null ? null : { phone: message };
 }

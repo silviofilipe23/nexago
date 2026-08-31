@@ -43,6 +43,13 @@ class AthleteProfileRepository {
       'city': profile.city.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    // Selo de SMS torna `phoneNumber` imutável pelo client (`firestore.rules`).
+    // O rascunho local pode não saber do selo (o atleta verificou e reiniciou o
+    // cadastro): mandar o número junto faria as rules recusarem o save INTEIRO
+    // com `permission-denied`, não só a parte do telefone.
+    if (snap.data()?['phoneVerified'] == true) {
+      data.remove('phoneNumber');
+    }
     data.remove('isProfileComplete');
     if (stepsComplete || profile.isProfileComplete || tournamentReady) {
       data['isProfileComplete'] = true;

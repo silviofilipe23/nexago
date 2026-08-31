@@ -62,9 +62,18 @@ export function isValidWhatsApp(raw: unknown): boolean {
   return false;
 }
 
-/** Telefone com posse confirmada por SMS (Firebase Phone Auth) — nunca gravado pelo client, só pela Cloud Function `confirmPhoneVerification`. */
-function hasVerifiedPhone(data: UserAccessData): boolean {
-  return data.phoneVerified === true;
+/** WhatsApp utilizável para contato: número declarado pelo atleta OU posse
+ *  confirmada por SMS (Firebase Phone Auth, gravada só pela Cloud Function
+ *  `confirmPhoneVerification`).
+ *
+ *  A verificação por SMS deixou de ser obrigatória para inscrição — o SMS não
+ *  chega para parte dos atletas e travava a inscrição inteira. O selo
+ *  `phoneVerified` continua valendo (contas legadas verificadas antes de
+ *  `phoneNumber` existir no doc passam só por ele), mas um número em formato
+ *  válido já basta para o organizador ter contato. */
+function hasWhatsApp(data: UserAccessData): boolean {
+  if (data.phoneVerified === true) return true;
+  return isValidWhatsApp(data.phoneNumber);
 }
 
 /** Cidade preenchida (UF não obrigatória para torneios). */
@@ -90,7 +99,7 @@ export function missingTournamentProfileRequirementIds(
 ): TournamentProfileRequirementId[] {
   const missing: TournamentProfileRequirementId[] = [];
   if (!isOnboardingCompleted(data)) missing.push("onboarding");
-  if (!hasVerifiedPhone(data)) missing.push("whatsapp");
+  if (!hasWhatsApp(data)) missing.push("whatsapp");
   if (!hasCity(data)) missing.push("city");
   return missing;
 }
@@ -120,7 +129,7 @@ function formatMissingStepsList(labels: string[]): string {
 /** Perfil mínimo para inscrição em torneios. */
 export function isTournamentProfileReady(data: UserAccessData): boolean {
   if (data.isProfileComplete === true) return true;
-  return isOnboardingCompleted(data) && hasVerifiedPhone(data) && hasCity(data);
+  return isOnboardingCompleted(data) && hasWhatsApp(data) && hasCity(data);
 }
 
 /** @deprecated Gamificação — não usar para gate de torneios. */

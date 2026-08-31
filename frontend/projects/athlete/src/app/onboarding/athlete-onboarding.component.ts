@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, i
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BrLocationsService } from '@nexago/br-locations';
 import { getApps, initializeApp } from 'firebase/app';
-import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { LEVEL_OPTIONS } from '@nexago/levels';
 import { environment } from '../../environments/environment';
@@ -20,8 +20,9 @@ import {
   formatBirthDateMask,
   maxNativeBirthDateIso,
   validateBirthDate,
+  validatePhone,
 } from './onboarding-validators';
-import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
+import { formatBrPhoneMask } from '../shared/phone-verification/phone-verification.util';
 import { peekPartnerInviteContext, takePartnerInviteContext } from '../shared/partner-invite/partner-invite';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
@@ -55,7 +56,7 @@ function createFirestore(): Firestore | null {
 @Component({
   selector: 'app-athlete-onboarding',
   standalone: true,
-  imports: [RouterLink, AuthShellComponent, PhoneVerificationComponent],
+  imports: [RouterLink, AuthShellComponent],
   templateUrl: './athlete-onboarding.component.html',
   styleUrl: './athlete-onboarding.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,8 +94,14 @@ export class AthleteOnboardingComponent {
 
   protected readonly name = signal(this.initialName());
   protected readonly nickname = signal('');
+  /** WhatsApp digitado pelo atleta (mascarado). Obrigatório — é o contato que
+   *  o organizador usa. A verificação por SMS é um selo opcional, feito na tela
+   *  de perfil: aqui o campo é só o número. */
+  protected readonly phoneInput = signal('');
+  /** Conta que JÁ tem o selo (verificou por SMS no app antes de terminar o
+   *  cadastro aqui). Lido do doc em `submitProfile` — número com selo é
+   *  imutável pelo client e não pode ser sobrescrito. */
   protected readonly phoneVerified = signal(false);
-  protected readonly verifiedPhoneNumber = signal<string | null>(null);
   protected readonly birthDateInput = signal('');
   protected readonly birthDateNativeMin = MIN_NATIVE_BIRTH_DATE_ISO;
   protected readonly birthDateNativeMax = maxNativeBirthDateIso();
@@ -125,6 +132,9 @@ export class AthleteOnboardingComponent {
   protected readonly birthDateError = computed(() =>
     this.touched() ? validateBirthDate(this.birthDateInput()) : null,
   );
+  protected readonly phoneError = computed(() =>
+    this.touched() ? validatePhone(this.phoneInput()) : null,
+  );
   protected readonly genderError = computed(() => (this.touched() && !this.gender() ? 'Obrigatório' : null));
   protected readonly stateError = computed(() => (this.touched() && !this.state() ? 'Obrigatório' : null));
   protected readonly cityError = computed(() => (this.touched() && !this.city() ? 'Obrigatório' : null));
@@ -132,13 +142,14 @@ export class AthleteOnboardingComponent {
     this.touched() && !this.photoFile() ? 'Escolha uma foto pra concluir' : null,
   );
 
-  /** Telefone verificado ficou de fora: o SMS não chega para parte dos
-   *  atletas e travava o cadastro. Quem pula verifica depois no perfil — o
-   *  gate de torneios do servidor (`athlete-tournament-access.ts`) continua
-   *  exigindo `phoneVerified` na inscrição. */
+  /** O WhatsApp entra como obrigatório, a VERIFICAÇÃO por SMS não: o SMS não
+   *  chega para parte dos atletas e travava o cadastro. O gate de torneios do
+   *  servidor (`athlete-tournament-access.ts`) aceita o número declarado —
+   *  quem quiser o selo verifica depois, na tela de perfil. */
   protected readonly profileFormValid = computed(
     () =>
       this.name().trim().length >= 2 &&
+      validatePhone(this.phoneInput()) == null &&
       validateBirthDate(this.birthDateInput()) == null &&
       this.gender() != null &&
       this.state() !== '' &&
@@ -192,11 +203,8 @@ export class AthleteOnboardingComponent {
     this.city.set('');
   }
 
-  /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
-   *  users/{uid} via Admin SDK — aqui só refletimos o estado na UI. */
-  protected onPhoneVerified(event: { phoneNumber: string }): void {
-    this.verifiedPhoneNumber.set(event.phoneNumber);
-    this.phoneVerified.set(true);
+  protected onPhoneInput(value: string): void {
+    this.phoneInput.set(formatBrPhoneMask(value));
   }
 
   protected onBirthDateInputChanged(value: string): void {
@@ -318,12 +326,21 @@ export class AthleteOnboardingComponent {
 
       const userDocRef = doc(this.firestore, 'users', uid);
 
+      // Selo de SMS torna `phoneNumber` imutável pelo client: escrever o número
+      // digitado por cima derrubaria o save INTEIRO com `permission-denied`,
+      // não só a parte do telefone.
+      const existingUser = await getDoc(userDocRef);
+      this.phoneVerified.set(existingUser.data()?.['phoneVerified'] === true);
+
       await Promise.all([
         setDoc(
           userDocRef,
           {
             fullName,
             nickname: this.nickname().trim() || null,
+            // Só quando NÃO verificado: depois do selo o número é imutável
+            // pelo client (firestore.rules) e quem grava é a Cloud Function.
+            ...(this.phoneVerified() ? {} : { phoneNumber: this.phoneInput().trim() }),
             gender: this.gender(),
             birthDate: isoBirthDate,
             city,

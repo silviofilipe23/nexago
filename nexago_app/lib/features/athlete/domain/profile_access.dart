@@ -12,6 +12,31 @@ bool hasTournamentCity(AthleteProfile profile) {
   return profile.city.trim().isNotEmpty;
 }
 
+/// WhatsApp em formato utilizável: 10–11 dígitos (fixo/celular) ou 12–13 com
+/// o +55 na frente.
+///
+/// Espelho exato de `isValidWhatsApp` em
+/// `functions/src/athlete-tournament-access.ts`.
+bool isValidWhatsAppNumber(String? raw) {
+  final digits = (raw ?? '').replaceAll(RegExp(r'\D'), '');
+  if (digits.length >= 10 && digits.length <= 11) return true;
+  if (digits.length >= 12 && digits.length <= 13 && digits.startsWith('55')) {
+    return true;
+  }
+  return false;
+}
+
+/// WhatsApp de contato: número declarado pelo atleta OU posse confirmada por
+/// SMS (contas legadas verificadas antes de `phoneNumber` existir no doc).
+///
+/// A verificação por SMS deixou de ser obrigatória para inscrição — o SMS não
+/// chega para parte dos atletas e travava a inscrição inteira. O selo continua
+/// valendo para a gamificação ("perfil 100%"), não para o gate.
+bool hasTournamentWhatsApp(AthleteProfile profile) {
+  if (profile.phoneVerified) return true;
+  return isValidWhatsAppNumber(profile.phoneNumber);
+}
+
 /// Perfil mínimo para inscrição em torneios: onboarding + WhatsApp + cidade.
 ///
 /// Espelho exato de `isTournamentProfileReady` em
@@ -21,7 +46,7 @@ bool hasTournamentCity(AthleteProfile profile) {
 bool isTournamentProfileReady(AthleteProfile profile) {
   if (profile.isProfileComplete) return true;
   return isTournamentOnboardingDone(profile) &&
-      profile.phoneVerified &&
+      hasTournamentWhatsApp(profile) &&
       hasTournamentCity(profile);
 }
 
@@ -32,7 +57,7 @@ List<String> tournamentProfileMissingTitles(AthleteProfile profile) {
   if (!isTournamentOnboardingDone(profile)) {
     missing.add('Cadastro inicial');
   }
-  if (!profile.phoneVerified) {
+  if (!hasTournamentWhatsApp(profile)) {
     missing.add('WhatsApp');
   }
   if (!hasTournamentCity(profile)) {
@@ -48,7 +73,7 @@ List<String> tournamentProfileMissingLabels(AthleteProfile profile) {
   if (!isTournamentOnboardingDone(profile)) {
     missing.add('cadastro inicial');
   }
-  if (!profile.phoneVerified) {
+  if (!hasTournamentWhatsApp(profile)) {
     missing.add('WhatsApp');
   }
   if (!hasTournamentCity(profile)) {

@@ -162,6 +162,25 @@
                 </label>
 
                 <label class="at-field">
+                  <span>WhatsApp</span>
+                  <input
+                    type="tel"
+                    inputmode="numeric"
+                    autocomplete="tel"
+                    formControlName="phoneNumber"
+                    placeholder="(00) 00000-0000"
+                    (input)="setPhone($any($event.target).value)"
+                  />
+                  @if (form.controls.phoneNumber.invalid && form.controls.phoneNumber.touched) {
+                    <small class="at-field-hint">{{ form.controls.phoneNumber.errors?.['phone'] }}</small>
+                  } @else if (phoneVerified()) {
+                    <small class="at-field-hint">Verificado por SMS — pra trocar, use "Trocar número" em Segurança.</small>
+                  } @else {
+                    <small class="at-field-hint">É por aqui que o organizador fala com você sobre a inscrição.</small>
+                  }
+                </label>
+
+                <label class="at-field">
                   <span>Estado</span>
                   <select formControlName="state" (change)="onStateSelected($any($event.target).value)">
                     <option value="">Selecione</option>
@@ -350,8 +369,10 @@
                 <p>
                   @if (phoneVerified()) {
                     {{ phoneNumber() }} · verificado ✓
+                  } @else if (phoneNumber()) {
+                    {{ phoneNumber() }} · não verificado
                   } @else {
-                    Nenhum telefone verificado ainda.
+                    Nenhum telefone informado.
                   }
                 </p>
               </div>

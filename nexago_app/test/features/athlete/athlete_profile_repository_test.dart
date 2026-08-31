@@ -39,6 +39,69 @@ void main() {
     state: 'GO',
   );
 
+  group('AthleteProfileRepository.saveProfile — WhatsApp', () {
+    const withPhone = AthleteProfile(
+      id: 'u1',
+      name: 'Ana Souza',
+      sport: 'Vôlei de praia',
+      level: 'Intermediário',
+      city: 'Goiânia',
+      state: 'GO',
+      phoneNumber: '(62) 99123-4567',
+    );
+
+    test('grava o número declarado quando a conta não tem selo de SMS', () async {
+      final firestore = _FakeFirestore(
+        existingUsers: {
+          'u1': {'fullName': 'Ana Souza', 'city': 'Goiânia'},
+        },
+      );
+      final repo = AthleteProfileRepository(
+        firestore,
+        functions: _FakeFirebaseFunctions(),
+      );
+
+      await repo.saveProfile(withPhone);
+
+      expect(firestore.lastRawPayload('u1')!['phoneNumber'], '(62) 99123-4567');
+    });
+
+    test(
+      'conta JÁ verificada por SMS: o número não vai no payload',
+      () async {
+        // `confirmPhoneVerification` grava o selo na hora do SMS — um atleta
+        // que verificou e reiniciou o cadastro traria um rascunho sem selo.
+        // Mandar o número junto faria as rules recusarem o save INTEIRO
+        // (`phoneNumber` é imutável pelo client depois do selo), derrubando
+        // nome, cidade e tudo mais com `permission-denied`.
+        final firestore = _FakeFirestore(
+          existingUsers: {
+            'u1': {
+              'fullName': 'Ana Souza',
+              'city': 'Goiânia',
+              'phoneNumber': '+5562991234567',
+              'phoneVerified': true,
+            },
+          },
+        );
+        final repo = AthleteProfileRepository(
+          firestore,
+          functions: _FakeFirebaseFunctions(),
+        );
+
+        await repo.saveProfile(withPhone);
+
+        // Payload BRUTO: o doc mesclado continua tendo o telefone já salvo —
+        // o que não pode acontecer é o client mandar a chave.
+        final payload = firestore.lastRawPayload('u1')!;
+        expect(payload.containsKey('phoneNumber'), isFalse);
+        expect(payload.containsKey('phoneVerified'), isFalse);
+        // O resto do perfil continua indo normalmente.
+        expect(payload['fullName'], 'Ana Souza');
+      },
+    );
+  });
+
   group('AthleteProfileRepository.saveProfile — papel de atleta', () {
     test(
       'doc novo (não existe ainda): não escreve roles direto, chama '

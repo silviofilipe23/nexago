@@ -5,6 +5,7 @@ import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/theme/app_colors.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_category_spots.dart';
+import 'tournament_discovery_labels.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
 import 'tournament_match.dart';
@@ -581,8 +582,14 @@ TournamentCategoryCtaKind tournamentCategoryCtaKind(
   TournamentCategoryOffer offer,
   TournamentListingStatus tournamentStatus, {
   int? inscriptionCount,
+  bool registrationNotYetOpen = false,
 }) {
   if (offer.isCompleted) {
+    return TournamentCategoryCtaKind.disabled;
+  }
+  // Espelha o guard do servidor: `registrationOpensAt` futuro recusa inscrição
+  // mesmo com o torneio publicado como aberto.
+  if (registrationNotYetOpen) {
     return TournamentCategoryCtaKind.disabled;
   }
   if (offer.registrationClosed || !canRegisterForTournament(tournamentStatus)) {
@@ -603,6 +610,7 @@ TournamentCategoryCtaKind tournamentCategoryCtaKindForAthlete({
   required TournamentListingStatus tournamentStatus,
   required bool isRegistrationPaid,
   int? inscriptionCount,
+  bool registrationNotYetOpen = false,
 }) {
   if (isRegistrationPaid && !offer.isCompleted) {
     return TournamentCategoryCtaKind.viewRegistration;
@@ -611,6 +619,7 @@ TournamentCategoryCtaKind tournamentCategoryCtaKindForAthlete({
     offer,
     tournamentStatus,
     inscriptionCount: inscriptionCount,
+    registrationNotYetOpen: registrationNotYetOpen,
   );
 }
 
@@ -696,6 +705,19 @@ double tournamentSpotsProgress(TournamentDetailStats stats) {
 String tournamentSpotsCounterLabel(TournamentDetailStats stats) {
   if (stats.spotsTotal <= 0) return '—';
   return '${stats.spotsEnrolled}/${stats.spotsTotal} DUPLAS';
+}
+
+/// Banner do herói enquanto as inscrições não abrem: anuncia a data e a hora
+/// configuradas em `registrationOpensAt`. `null` quando já abriu (ou sem
+/// agenda) — aí vale o banner de urgência normal.
+String? tournamentRegistrationOpensBanner(
+  DateTime? registrationOpensAt, {
+  DateTime? now,
+}) {
+  if (!tournamentRegistrationNotYetOpen(registrationOpensAt, now: now)) {
+    return null;
+  }
+  return tournamentRegistrationOpensLabel(registrationOpensAt!);
 }
 
 String? tournamentRecentlyOpenedBanner(

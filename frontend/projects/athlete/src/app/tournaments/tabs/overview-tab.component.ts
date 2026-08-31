@@ -7,6 +7,7 @@ import {
   categoryGenderDetail,
   categoryUnitLabel,
   categoryUnitSingular,
+  registrationOpensLabel,
   tournamentListingStatus,
   type TournamentCategoryOffer,
 } from '../../data/tournaments-repository';
@@ -35,7 +36,7 @@ function genderLabelOf(cat: TournamentCategoryOffer['genderType']): string {
   return cat === 'F' ? 'Feminino' : cat === 'Mix' ? 'Misto' : 'Masculino';
 }
 
-export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-registration';
+export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-registration' | 'not-open';
 
 /** Aba "Visão geral": a face de venda do torneio (capa, categorias, prêmio, regulamento). É o
  *  conteúdo que antes era a página `/torneios/:id` inteira. Continua sem feed social, comunicados
@@ -175,6 +176,10 @@ export class OverviewTabComponent {
 
   protected categoryCta(cat: TournamentCategoryOffer): CategoryCtaKind {
     if (this.store.myCategoryIds().has(cat.id)) return 'view-registration';
+    // Antes de `registrationOpensAt` a CF recusa qualquer inscrição — o CTA
+    // diz quando abre em vez do "Encerrado" genérico.
+    const opensAt = this.tournament()?.registrationOpensAt;
+    if (opensAt && opensAt.getTime() > this.store.now().getTime()) return 'not-open';
     if (!this.categoryIsOpen(cat)) return 'disabled';
     // Aberta e sem vaga só acontece com lista de espera ativa — `categoryAcceptsRegistration`
     // já barrou o caso contrário.
@@ -189,6 +194,10 @@ export class OverviewTabComponent {
         return 'Entrar na espera';
       case 'view-registration':
         return 'Ver inscrição';
+      case 'not-open': {
+        const opens = this.tournament()?.registrationOpensAt;
+        return opens ? `Abre em ${registrationOpensLabel(opens)}` : 'Em breve';
+      }
       case 'disabled':
         return 'Encerrado';
     }

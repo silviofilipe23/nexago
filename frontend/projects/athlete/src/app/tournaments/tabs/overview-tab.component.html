@@ -71,8 +71,8 @@
                         [routerLink]="categoryCtaLink(c)"
                         [queryParams]="{ categoria: c.id }"
                         class="tdv-btn-primary"
-                        [class.tdv-btn-primary--disabled]="categoryCta(c) === 'disabled'"
-                        [attr.aria-disabled]="categoryCta(c) === 'disabled'"
+                        [class.tdv-btn-primary--disabled]="categoryCta(c) === 'disabled' || categoryCta(c) === 'not-open'"
+                        [attr.aria-disabled]="categoryCta(c) === 'disabled' || categoryCta(c) === 'not-open'"
                       >
                         {{ categoryCtaLabel(c) }}
                       </a>

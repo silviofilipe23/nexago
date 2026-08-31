@@ -1003,6 +1003,7 @@ class _TournamentRegistrationPageState
       spotsLeft: capacity > 0
           ? categorySpotsLeft(offer, inscriptionCount: inscriptionCount)
           : null,
+      registrationOpensAt: tournament.registrationOpensAt,
       eligibility: RegistrationEligibilityInput(
         levelBlocked: !CategoryLevelEligibility.isCategoryEligibleForLevel(
           offer,

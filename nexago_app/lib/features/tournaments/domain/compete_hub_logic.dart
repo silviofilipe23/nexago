@@ -23,8 +23,15 @@ bool tournamentHasRegisterableCategoryForUser(
   DiscoveryTournament tournament, {
   String? athleteGender,
   Set<String> registeredCategoryIds = const {},
+  DateTime? now,
 }) {
   if (!canRegisterForTournament(tournament.status)) return false;
+  if (tournamentRegistrationNotYetOpen(
+    tournament.registrationOpensAt,
+    now: now,
+  )) {
+    return false;
+  }
   return tournament.categoryOffers.any((offer) {
     if (registeredCategoryIds.contains(offer.id)) return false;
     if (!isCategorySelectable(offer)) return false;

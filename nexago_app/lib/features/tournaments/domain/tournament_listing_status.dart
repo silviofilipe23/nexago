@@ -56,6 +56,20 @@ bool canRegisterForTournament(TournamentListingStatus status) {
       status == TournamentListingStatus.almostFull;
 }
 
+/// Inscrições ainda não abriram: `registrationOpensAt` está no futuro.
+///
+/// Espelha o guard do servidor (`assertTournamentAcceptsRegistration`), que
+/// recusa inscrição antes desse instante mesmo com o torneio publicado como
+/// `open` — o wizard publica direto como aberto e só a data/hora segura a
+/// largada. Sem o campo, nada muda.
+bool tournamentRegistrationNotYetOpen(
+  DateTime? registrationOpensAt, {
+  DateTime? now,
+}) {
+  if (registrationOpensAt == null) return false;
+  return (now ?? DateTime.now()).isBefore(registrationOpensAt);
+}
+
 /// Torneio cancelado pelo organizador (`listingStatus` bruto, EN/PT).
 bool isCancelledListing(String? listingStatusRaw) {
   final n = normalizeListingStatusRaw(listingStatusRaw ?? '');

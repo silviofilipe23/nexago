@@ -1,5 +1,7 @@
 import 'category_age_eligibility.dart';
+import 'tournament_discovery_labels.dart';
 import 'tournament_discovery_models.dart';
+import 'tournament_listing_status.dart';
 
 /// Estado de uma categoria no seletor da tela de inscrição.
 ///
@@ -57,10 +59,25 @@ RegistrationCategoryStatus registrationCategoryStatus({
   required bool alreadyRegistered,
   required int? spotsLeft,
   RegistrationEligibilityInput eligibility = const RegistrationEligibilityInput(),
+  DateTime? registrationOpensAt,
+  DateTime? now,
 }) {
   if (alreadyRegistered) {
     return const RegistrationCategoryStatus(
       badge: RegistrationCategoryStatus.kRegisteredBadge,
+    );
+  }
+  // Espelha o guard do servidor (`assertTournamentAcceptsRegistration`): o
+  // calendário do torneio vem antes das travas de categoria. Antes de
+  // `registrationOpensAt` a CF recusa qualquer inscrição, então a tela precisa
+  // dizer quando abre — não que "encerrou".
+  if (tournamentRegistrationNotYetOpen(registrationOpensAt, now: now)) {
+    return RegistrationCategoryStatus(
+      badge: 'EM BREVE',
+      blocked: true,
+      message:
+          'As inscrições ainda não abriram. '
+          '${tournamentRegistrationOpensLabel(registrationOpensAt!)}.',
     );
   }
   if (offer.registrationClosed || offer.isCompleted) {

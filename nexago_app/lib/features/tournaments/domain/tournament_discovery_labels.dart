@@ -15,10 +15,21 @@ String tournamentDiscoveryCardDateShort(DiscoveryTournament tournament) {
 String tournamentDiscoveryCardCtaLabel({
   required bool isEnrolled,
   required TournamentListingStatus status,
+  bool registrationNotYetOpen = false,
 }) {
   if (isEnrolled) return 'Ver inscrição';
+  if (registrationNotYetOpen) return 'Ver detalhes →';
   if (canRegisterForTournament(status)) return 'Inscrever →';
   return 'Ver detalhes →';
+}
+
+/// "Inscrições abrem em 05/09 às 10:00" — parede local do instante gravado
+/// em `registrationOpensAt`.
+String tournamentRegistrationOpensLabel(DateTime opensAt) {
+  final local = opensAt.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return 'Inscrições abrem em ${two(local.day)}/${two(local.month)} '
+      'às ${two(local.hour)}:${two(local.minute)}';
 }
 
 String tournamentStatusLabel(TournamentListingStatus status) {
@@ -37,9 +48,13 @@ String tournamentStatusLabel(TournamentListingStatus status) {
 String tournamentStatusLabelFromRaw({
   required TournamentListingStatus status,
   String? listingStatusRaw,
+  bool registrationNotYetOpen = false,
 }) {
   if (isRegistrationListingClosed(listingStatusRaw)) {
     return 'Inscrições encerradas';
+  }
+  if (registrationNotYetOpen && canRegisterForTournament(status)) {
+    return 'Inscrições em breve';
   }
   return tournamentStatusLabel(status);
 }

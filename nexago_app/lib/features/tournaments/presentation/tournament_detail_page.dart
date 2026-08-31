@@ -14,6 +14,7 @@ import '../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
+import '../../../core/ui/rebuild_at.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../domain/tournament_detail_logic.dart';
@@ -22,6 +23,7 @@ import '../data/tournament_inscriptions_repository.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
 import '../domain/tournament_detail_tabs_logic.dart';
+import '../domain/tournament_match.dart';
 import '../domain/tournament_matches_logic.dart';
 import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
 import 'widgets/tournament_detail/tournament_detail_explore_section.dart';
@@ -210,7 +212,48 @@ class _TournamentDetailContentState
 
   @override
   Widget build(BuildContext context) {
-    final canRegister = canRegisterForTournament(widget.tournament.status);
+    // Os `watch` ficam aqui, no build do consumer: dentro do builder do
+    // [RebuildAt] eles rodariam no ciclo de outro elemento.
+    final matches = ref
+            .watch(tournamentMatchCardsProvider(widget.tournament.id))
+            .valueOrNull
+            ?.map((c) => c.match)
+            .toList() ??
+        const [];
+    final teamIdsByCategory = ref
+            .watch(
+              tournamentUserTeamIdsByCategoryProvider(widget.tournament.id),
+            )
+            .valueOrNull ??
+        const <String, String>{};
+
+    // Abertura agendada: a tela se acerta sozinha na hora marcada — quem está
+    // parado aqui esperando as 10:00 vê a barra de inscrição aparecer.
+    return RebuildAt(
+      instant: widget.tournament.registrationOpensAt,
+      builder: (context, now) => _buildContent(
+        context,
+        now: now,
+        matches: matches,
+        athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context, {
+    required DateTime now,
+    required List<TournamentMatch> matches,
+    required Set<String> athleteTeamIds,
+  }) {
+    // `registrationOpensAt` futuro: o servidor recusa inscrição mesmo com o
+    // torneio `open`, então a barra de inscrição também espera a abertura.
+    final canRegister =
+        canRegisterForTournament(widget.tournament.status) &&
+        !tournamentRegistrationNotYetOpen(
+          widget.tournament.registrationOpensAt,
+          now: now,
+        );
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
     // Inscrição incompleta (sem parceiro ou sem pagamento) mantém a barra: ela
     // é a porta de entrada pra continuar o convite pendente, o uniforme e o
@@ -224,21 +267,7 @@ class _TournamentDetailContentState
     final topInset = MediaQuery.paddingOf(context).top;
     final spotsSubtitle =
         '${tournamentSpotsRemainingLabel(widget.stats)} · garante já';
-    final now = DateTime.now();
 
-    final matches = ref
-            .watch(tournamentMatchCardsProvider(widget.tournament.id))
-            .valueOrNull
-            ?.map((c) => c.match)
-            .toList() ??
-        const [];
-    final teamIdsByCategory = ref
-            .watch(
-              tournamentUserTeamIdsByCategoryProvider(widget.tournament.id),
-            )
-            .valueOrNull ??
-        const <String, String>{};
-    final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
     final live = liveTournamentMatches(matches);
     final isToday = tournamentIsEventToday(widget.tournament, now);

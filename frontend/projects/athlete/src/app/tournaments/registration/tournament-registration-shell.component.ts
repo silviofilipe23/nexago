@@ -33,6 +33,7 @@ import {
   categoryUnitSingular,
   fetchCategoryEnrolledCounts,
   fetchTournament,
+  registrationOpensLabel,
   type TournamentCategoryOffer,
   type TournamentSummary,
 } from '../../data/tournaments-repository';
@@ -660,10 +661,21 @@ export class TournamentRegistrationShellComponent {
     }
   }
 
-  /** Estado da categoria pro seletor/CTA: já inscrito > encerrada > lotada > elegibilidade. */
+  /** Estado da categoria pro seletor/CTA: já inscrito > em breve > encerrada > lotada > elegibilidade. */
   protected categoryStatusOf(category: TournamentCategoryOffer): CategoryStatus {
     if (this.registeredCategoryIds().has(category.id)) {
       return { badge: 'JÁ INSCRITO', blocked: false, message: null };
+    }
+    // Espelha o guard da CF (`assertTournamentAcceptsRegistration`): o calendário do
+    // torneio vem antes das travas de categoria — antes de `registrationOpensAt` a CF
+    // recusa qualquer inscrição, então a tela diz quando abre em vez de "encerrou".
+    const opensAt = this.listing()?.registrationOpensAt;
+    if (opensAt && opensAt.getTime() > Date.now()) {
+      return {
+        badge: 'EM BREVE',
+        blocked: true,
+        message: `As inscrições ainda não abriram. Abrem em ${registrationOpensLabel(opensAt)}.`,
+      };
     }
     if (category.registrationClosed || category.isCompleted) {
       return { badge: 'ENCERRADA', blocked: true, message: 'As inscrições desta categoria estão encerradas.' };

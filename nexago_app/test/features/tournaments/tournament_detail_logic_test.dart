@@ -482,4 +482,63 @@ void main() {
     expect(rows.first.highlight, isTrue);
     expect(rows.first.amountLabel, contains('2.000'));
   });
+
+  group('inscrições agendadas (registrationOpensAt futuro)', () {
+    final opensAt = DateTime(2026, 9, 5, 10, 0);
+
+    test('CTA da categoria desabilita enquanto as inscrições não abrem', () {
+      final offer = sample.categoryOffers.first;
+
+      expect(
+        tournamentCategoryCtaKind(
+          offer,
+          TournamentListingStatus.open,
+          registrationNotYetOpen: true,
+        ),
+        TournamentCategoryCtaKind.disabled,
+      );
+      expect(
+        tournamentCategoryCtaKind(offer, TournamentListingStatus.open),
+        TournamentCategoryCtaKind.register,
+      );
+    });
+
+    // O organizador pode inscrever uma dupla antes da abertura (o guard do
+    // servidor tem bypass para ele). Uma inscrição paga já é do atleta: o CTA
+    // precisa continuar levando à inscrição, não sumir atrás do EM BREVE.
+    test('inscrição paga ganha do EM BREVE; sem inscrição, desabilita', () {
+      final offer = sample.categoryOffers.first;
+
+      expect(
+        tournamentCategoryCtaKindForAthlete(
+          offer: offer,
+          tournamentStatus: TournamentListingStatus.open,
+          isRegistrationPaid: true,
+          registrationNotYetOpen: true,
+        ),
+        TournamentCategoryCtaKind.viewRegistration,
+      );
+      expect(
+        tournamentCategoryCtaKindForAthlete(
+          offer: offer,
+          tournamentStatus: TournamentListingStatus.open,
+          isRegistrationPaid: false,
+          registrationNotYetOpen: true,
+        ),
+        TournamentCategoryCtaKind.disabled,
+      );
+    });
+
+    test('banner anuncia a data e a hora da abertura enquanto não abre', () {
+      expect(
+        tournamentRegistrationOpensBanner(
+          opensAt,
+          now: DateTime(2026, 9, 5, 8, 0),
+        ),
+        'Inscrições abrem em 05/09 às 10:00',
+      );
+      expect(tournamentRegistrationOpensBanner(opensAt, now: opensAt), isNull);
+      expect(tournamentRegistrationOpensBanner(null), isNull);
+    });
+  });
 }

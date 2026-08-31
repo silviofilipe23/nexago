@@ -33,6 +33,7 @@ DiscoveryTournament _tournament({
   TournamentListingStatus status = TournamentListingStatus.open,
   DateTime? startDate,
   DateTime? createdAt,
+  DateTime? registrationOpensAt,
   List<TournamentCategoryOffer> categoryOffers = const [],
 }) {
   return DiscoveryTournament(
@@ -54,6 +55,7 @@ DiscoveryTournament _tournament({
     liveMatchesNow: 0,
     categoryOffers: categoryOffers,
     createdAt: createdAt,
+    registrationOpensAt: registrationOpensAt,
   );
 }
 
@@ -453,6 +455,34 @@ void main() {
           ),
         ),
         '1 CATEGORIA',
+      );
+    });
+  });
+
+  group('inscrições agendadas (registrationOpensAt futuro)', () {
+    test('torneio some do hub enquanto as inscrições não abrem', () {
+      final t = _tournament(
+        id: 't-agendado',
+        name: 'Etapa Futuro',
+        categoryOffers: [_openCategory(id: 'c1')],
+        registrationOpensAt: DateTime(2026, 9, 5, 10, 0),
+      );
+
+      expect(
+        tournamentHasRegisterableCategoryForUser(
+          t,
+          athleteGender: 'Masculino',
+          now: DateTime(2026, 9, 5, 9, 0),
+        ),
+        isFalse,
+      );
+      expect(
+        tournamentHasRegisterableCategoryForUser(
+          t,
+          athleteGender: 'Masculino',
+          now: DateTime(2026, 9, 5, 10, 0),
+        ),
+        isTrue,
       );
     });
   });

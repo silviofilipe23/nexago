@@ -20,6 +20,7 @@ import '../data/my_tournament_registrations_repository.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../domain/substitution_journey_logic.dart';
 import '../domain/tournament_discovery_models.dart';
+import '../domain/tournament_invite_links.dart';
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
 import 'tournament_substitution_success_page.dart';
@@ -110,11 +111,13 @@ class _TournamentSubstitutionStatusPageState
   }
 
   void _shareWhatsapp(TournamentPartnerInvite invite, String tournamentName) {
-    final inFirst = _firstName(invite.inviteeName);
     nexaShareText(
       context,
-      'Fala, $inFirst! Te chamei como substituto no $tournamentName — '
-      'aceita lá no nexaGO.',
+      substitutionInviteShareMessage(
+        inviteeName: invite.inviteeName,
+        tournamentName: tournamentName,
+        inviteUrl: tournamentPartnerInviteUrl(invite.id),
+      ),
     );
   }
 

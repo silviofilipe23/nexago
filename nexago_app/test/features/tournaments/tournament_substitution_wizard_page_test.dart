@@ -439,6 +439,104 @@ void main() {
 
       expect(find.text('STATUS $tournamentId/invite-1'), findsOneWidget);
     });
+
+    // Achado do review v2: o rótulo do rádio da própria vaga é "Você", mas
+    // isso é só copy de tela — o payload que vira convite/push/notificação
+    // do organizador/`substitutionHistory` precisa do nome de verdade, ou
+    // "Você" aparece literal pra quem recebe (ex.: "Entre no lugar de Você").
+    testWidgets(
+        'autossubstituição: replacedName do payload é o nome real, não '
+        '"Você"', (tester) async {
+      users = _FakeUsersRepository({
+        meuUid: perfil(meuUid, 'Eu Mesmo'),
+        'ana': perfil('ana', 'Ana Souza'),
+      });
+      recentes = _FakeRecentPartnersRepository(const []);
+      final busca = _FakePartnerSearchServiceFluxo([
+        perfil('carla', 'Carla Nunes'),
+      ]);
+      final convites = _FakeSubstitutionInviteServiceFluxo();
+
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const TournamentSubstitutionWizardPage(
+              tournamentId: tournamentId,
+              registrationId: registrationId,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.tournamentSubstitutionStatus,
+            name: AppRouteNames.tournamentSubstitutionStatus,
+            builder: (context, state) {
+              final tId = state.pathParameters['tournamentId'] ?? '';
+              final invId = state.pathParameters['inviteId'] ?? '';
+              return Scaffold(
+                body: Center(child: Text('STATUS $tId/$invId')),
+              );
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authProvider.overrideWith(
+              (ref) => Stream.value(
+                MockUser(uid: meuUid, displayName: 'Eu Mesmo'),
+              ),
+            ),
+            myTournamentRegistrationsProvider.overrideWith(
+              (ref) => Stream.value([
+                inscricao(participantUids: const [meuUid, 'ana']),
+              ]),
+            ),
+            usersRepositoryProvider.overrideWithValue(users),
+            recentPartnersRepositoryProvider.overrideWithValue(recentes),
+            partnerSearchServiceProvider.overrideWithValue(busca),
+            tournamentPartnerInviteServiceProvider.overrideWithValue(
+              convites,
+            ),
+          ],
+          child:
+              MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+        ),
+      );
+      await assentar(tester);
+
+      // Passo 1: escolhe a PRÓPRIA vaga ("Você").
+      await tester.tap(find.text('Você'));
+      await assentar(tester);
+
+      await tester.tap(find.text('Escolher o substituto →'));
+      await assentar(tester);
+
+      // O header do passo 2 também mostra o nome real — mais claro pro
+      // convidante do que "Saindo: Você".
+      expect(find.text('Saindo: Eu Mesmo'), findsOneWidget);
+
+      final campoBusca = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.hintText == 'Buscar atleta por nome',
+      );
+      await tester.enterText(campoBusca, 'car');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await assentar(tester);
+
+      await tester.tap(find.text('Convidar'));
+      await tester.pumpAndSettle();
+
+      expect(convites.chamadas, hasLength(1));
+      final chamada = convites.chamadas.single;
+      expect(chamada.replacedUid, meuUid);
+      expect(chamada.replacedName, 'Eu Mesmo');
+      expect(chamada.replacedName, isNot('Você'));
+    });
   });
 }
 

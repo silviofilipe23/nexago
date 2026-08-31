@@ -117,6 +117,19 @@ class _TournamentSubstitutionWizardPageState
       return name.trim().isNotEmpty ? name : 'Atleta';
     }
 
+    /// Nome REAL do participante — para o PAYLOAD (`replacedName`), nunca
+    /// pro rótulo do rádio. Esse nome vira o convite, o push do convidado, a
+    /// notificação do organizador e o `substitutionHistory` imutável — "Você"
+    /// ali seria sem sentido pra qualquer um que não seja o próprio autor da
+    /// troca, então mesmo na autossubstituição resolve o nome de verdade no
+    /// perfil carregado (`nameFor` continua "Você" só na tela).
+    String realNameFor(String participantUid) {
+      final profile = profiles[participantUid];
+      if (profile == null) return 'Atleta';
+      final name = appUserDisplayName(profile);
+      return name.trim().isNotEmpty ? name : 'Atleta';
+    }
+
     String roleFor(String participantUid) {
       if (participantUid == uid) {
         return participantUid == reg.captainUid
@@ -284,7 +297,7 @@ class _TournamentSubstitutionWizardPageState
                               builder: (_) => TournamentSubstitutionPickPage(
                                 registration: reg,
                                 replacedUid: replacedUid,
-                                replacedName: nameFor(replacedUid),
+                                replacedName: realNameFor(replacedUid),
                                 reason: _reason,
                                 reasonNote: note.isEmpty ? null : note,
                               ),

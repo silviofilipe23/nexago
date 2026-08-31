@@ -66,6 +66,47 @@ void main() {
     });
   });
 
+  group('substitutionInviteShareMessage', () {
+    // Achado do review v2: a mensagem manual (WhatsApp) precisa levar o
+    // link do convite, não só a frase — quem recebe fora do push só tem
+    // esse texto pra achar o convite.
+    test('leva o link do convite junto da mensagem', () {
+      final msg = substitutionInviteShareMessage(
+        inviteeName: 'Carla Nunes',
+        tournamentName: 'Copa VH',
+        inviteUrl: 'https://atleta.nexago.com.br/torneios-convite/inv-1',
+      );
+
+      expect(msg, startsWith('Fala, Carla!'));
+      expect(msg, contains('Copa VH'));
+      expect(
+        msg,
+        contains('https://atleta.nexago.com.br/torneios-convite/inv-1'),
+      );
+    });
+
+    test('sem link seguro, a frase termina em ponto (sem "null")', () {
+      final msg = substitutionInviteShareMessage(
+        inviteeName: 'Carla Nunes',
+        tournamentName: 'Copa VH',
+        inviteUrl: null,
+      );
+
+      expect(msg, isNot(contains('null')));
+      expect(msg, endsWith('aceita lá no nexaGO.'));
+    });
+
+    test('sem nome do convidado, a saudação continua natural', () {
+      final msg = substitutionInviteShareMessage(
+        inviteeName: '',
+        tournamentName: 'Copa VH',
+        inviteUrl: 'https://x/y',
+      );
+
+      expect(msg, startsWith('Fala!'));
+    });
+  });
+
   group('externalPartnerInviteUrl', () {
     test('leva o token, a indicação e quem convidou', () {
       final url = externalPartnerInviteUrl(

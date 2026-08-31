@@ -78,6 +78,23 @@ String externalPartnerInviteMessage({
       'já te espera: $url';
 }
 
+/// Convite de SUBSTITUIÇÃO compartilhado manualmente (WhatsApp etc.) — a
+/// mensagem in-app já avisa o convidado por push, mas o convidante pode
+/// querer mandar o link direto também. Precisa do link (regra da jornada
+/// v2: "mensagem e link do convite"), por isso [inviteUrl] some da frase
+/// só quando o id do convite não rende link seguro (`isSafeInviteId`).
+String substitutionInviteShareMessage({
+  required String? inviteeName,
+  required String tournamentName,
+  required String? inviteUrl,
+}) {
+  final first = inviteeName?.trim().split(RegExp(r'\s+')).first ?? '';
+  final greeting = first.isNotEmpty ? 'Fala, $first!' : 'Fala!';
+  final suffix = inviteUrl != null ? ': $inviteUrl' : '.';
+  return '$greeting Te chamei como substituto no $tournamentName — '
+      'aceita lá no nexaGO$suffix';
+}
+
 /// Cutucada para o parceiro que ainda não respondeu.
 String partnerInviteReminderMessage({
   required String? partnerName,

@@ -111,8 +111,12 @@ Quem fecha o app antes de criar a inscrição vê a tela de novo — correto par
 ainda não foi dado.
 
 O opt-in de **marketing** é outra coisa: é consentimento de plataforma, gravado em
-`users/{uid}`. **Exige mudança no `firestore.rules`** — hoje campo novo escrito pelo cliente
-no perfil é rejeitado (foi o que quebrou o save do telefone antes).
+`users/{uid}.marketingOptIn`. **Não exige mudança no `firestore.rules`**: a regra de update de
+`users` é uma lista de *proibições* (`roles`, `superAdmin`, `reputation`, `sandRank`,
+`referredBy`, `phoneVerified`, níveis), não um allow-list de campos, e não há `affectedKeys`
+limitando o conjunto — campo novo do dono passa. O campo também **não** entra em
+`PUBLIC_PROFILE_FIELDS` (`functions/src/public-profile-sync.ts`), então não vaza para o
+espelho público.
 
 ### Últimas duplas saem **só** da inscrição
 
@@ -188,5 +192,6 @@ duplas" voltar barata, em qualquer tela.
   discordam sobre "qual é o próximo passo".
 - Apagar a tela única antes de as rotas novas existirem deixa o app **sem inscrição** no meio
   do caminho. A ordem de ataque é assunto do plano, mas o risco nasce aqui.
-- A mudança no `firestore.rules` para o opt-in de marketing tem histórico de quebrar saves de
-  perfil silenciosamente.
+- `marketingOptIn` não tem consumidor ainda: nada lê o campo. É consentimento guardado para
+  quando existir envio de comunicação — e até lá é dado morto, que precisa ser respeitado por
+  quem construir o envio.

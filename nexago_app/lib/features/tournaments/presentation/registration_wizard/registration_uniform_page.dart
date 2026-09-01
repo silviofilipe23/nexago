@@ -21,8 +21,8 @@ import '../../domain/tournament_registration_logic.dart';
 import '../../domain/tournament_registration_providers.dart';
 import '../../domain/uniform_auto_saver.dart';
 import '../widgets/registration_wizard/registration_wizard_notice.dart';
+import '../widgets/registration_wizard/registration_wizard_pill.dart';
 import '../widgets/registration_wizard/registration_wizard_scaffold.dart';
-import '../widgets/tournament_registration/registration_shell_card.dart';
 import '../widgets/tournament_registration/tournament_registration_sticky_bar.dart';
 import '../widgets/tournament_registration/tournament_registration_uniform_step.dart';
 
@@ -432,11 +432,11 @@ class _PartnerUniformRow extends StatelessWidget {
               ),
             ),
           ),
-          RegistrationShellPill(
+          RegistrationWizardPill(
             label: complete ? 'COMPLETO' : 'PENDENTE',
             tone: complete
-                ? RegistrationPillTone.brand
-                : RegistrationPillTone.warn,
+                ? RegistrationWizardPillTone.brand
+                : RegistrationWizardPillTone.warn,
           ),
         ],
       ),

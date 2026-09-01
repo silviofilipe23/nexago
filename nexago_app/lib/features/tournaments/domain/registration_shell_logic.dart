@@ -3,11 +3,13 @@ import 'tournament_discovery_labels.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
 
-/// Estado de uma categoria no seletor da tela de inscrição.
+/// Estado de uma categoria no passo 1 do wizard de inscrição.
 ///
-/// Porte fiel de `categoryStatusOf` no shell do portal do atleta
-/// (`tournament-registration-shell.component.ts`). A ordem das checagens é
-/// parte do contrato: **já inscrito > encerrada > lotada > elegibilidade**.
+/// Nasceu como porte fiel de `categoryStatusOf` do shell do portal do atleta.
+/// **A paridade com a web está quebrada de propósito** desde que o app virou
+/// passo a passo (2026-09-01) e o portal seguiu em tela única — não "restaure"
+/// a paridade sem decisão nova. A ordem das checagens continua sendo contrato:
+/// já inscrito > encerrada > lotada > elegibilidade.
 ///
 /// "JÁ INSCRITO" é deliberadamente `blocked: false` — a vaga já é do atleta, e
 /// bloquear o toque foi exatamente o beco sem saída que a inscrição solo

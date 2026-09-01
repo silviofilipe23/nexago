@@ -129,11 +129,12 @@ class _TournamentPartnerInvitePageState
 
   /// Última chance de revisar o nível antes de travar o ratchet "nível só
   /// sobe" (plano de calibração de nível, Task 6) — mesma regra e mesma
-  /// sheet de `TournamentRegistrationPage._ensureLevelConfirmed`, aplicada
-  /// aqui porque aceitar um convite TAMBÉM pode ser a 1ª inscrição ativa do
-  /// atleta naquele esporte. Retorna false se não confirmou (fechou o sheet
-  /// ou pediu para ajustar o nível — nesse caso já navega para "Esportes e
-  /// níveis"); `_acceptInvite` NÃO deve chamar `acceptInvite` nesse caso.
+  /// sheet do passo 1 do wizard (`registration_category_page.dart`, método
+  /// `_advance`), aplicada aqui porque aceitar um convite TAMBÉM pode ser
+  /// a 1ª inscrição ativa do atleta naquele esporte. Retorna false se não
+  /// confirmou (fechou o sheet ou pediu para ajustar o nível — nesse caso já
+  /// navega para "Esportes e níveis"); `_acceptInvite` NÃO deve chamar
+  /// `acceptInvite` nesse caso.
   ///
   /// Usa `resolveLevelConfirmationPromptForTournament` com
   /// `athleteProfileProvider.future` (não `.valueOrNull`) E o torneio buscado

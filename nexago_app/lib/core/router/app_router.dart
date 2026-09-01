@@ -182,10 +182,8 @@ import '../../features/tournaments/presentation/tournament_predictions_page.dart
 import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/registration_wizard_step.dart';
-import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
 import '../../features/tournaments/domain/tournament_registration_success_args.dart';
-import '../../features/tournaments/presentation/tournament_registration_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_category_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_consent_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_gate_page.dart';
@@ -1434,13 +1432,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             );
           }
 
-          return TournamentRegistrationPage(
+          // Dados incompletos para montar o PIX: quem sabe resolver a etapa
+          // certa (inclusive esta) é o porteiro.
+          return RegistrationGatePage(
             tournamentId: tournamentId,
-            initialCategoryId: categoryId,
-            initialRegistrationId: registrationId.isNotEmpty
-                ? registrationId
-                : null,
-            initialStep: TournamentRegistrationStep.payment,
+            categoryId: categoryId,
+            registrationId:
+                registrationId.isNotEmpty ? registrationId : null,
           );
         },
       ),
@@ -1475,12 +1473,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             );
           }
 
-          return TournamentRegistrationPage(
+          // Dados incompletos para montar o sucesso: quem sabe resolver a
+          // etapa certa é o porteiro.
+          return RegistrationGatePage(
             tournamentId: tournamentId,
-            initialRegistrationId: registrationId.isNotEmpty
-                ? registrationId
-                : null,
-            initialStep: TournamentRegistrationStep.payment,
+            registrationId:
+                registrationId.isNotEmpty ? registrationId : null,
           );
         },
       ),

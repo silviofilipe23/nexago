@@ -33,7 +33,9 @@ class RegistrationStepInput {
     required this.uniformComplete,
     required this.isPaid,
     this.hasSentInvitePending = false,
+    this.levelConfirmationPending = false,
     this.requestedStep,
+    this.requestedStepWaitingOnly = false,
   });
 
   /// A categoria da rota existe no torneio.
@@ -61,8 +63,24 @@ class RegistrationStepInput {
   final bool uniformComplete;
   final bool isPaid;
 
+  /// A folha de confirmação de nível (anti-sandbagging) ainda é devida neste
+  /// esporte — o atleta ainda não confirmou que cabe na categoria.
+  ///
+  /// Ela mora na SAÍDA da tela 1, então quem começa uma inscrição sem passar
+  /// por lá a perderia: as entradas que já trazem `categoryId` (cards de
+  /// categoria, torneio de categoria única) iriam direto ao consentimento.
+  final bool levelConfirmationPending;
+
   /// Passo pedido na rota (`?step=`). PREFERÊNCIA, nunca ordem.
   final RegistrationWizardStep? requestedStep;
+
+  /// O pedido veio de `?step=waiting`, que não é o mesmo que `partner`.
+  ///
+  /// `waiting` significa "esperando o parceiro" e só vale enquanto a dupla
+  /// não fechou. Obedecê-lo depois do aceite jogava na busca de parceiro
+  /// justamente quem acabou de fechar a dupla e só devia o pagamento — e
+  /// `parceiro` (índice 3) vence qualquer passo natural posterior.
+  final bool requestedStepWaitingOnly;
 }
 
 /// Etapa em que o atleta deve estar.
@@ -74,7 +92,19 @@ class RegistrationStepInput {
 RegistrationWizardStep resolveRegistrationStep(RegistrationStepInput input) {
   final natural = _naturalStep(input);
   final requested = input.requestedStep;
-  if (requested != null && requested.index <= natural.index) return requested;
+  if (requested == null) return natural;
+
+  // `waiting` caduca quando a dupla fecha. Ele aponta para `parceiro`
+  // (índice 3), que é MENOR que todo passo natural depois da inscrição —
+  // então, sem esta saída, ele venceria sempre e mandaria para a busca de
+  // parceiro quem acabou de aceitar o convite e só devia o pagamento.
+  if (input.requestedStepWaitingOnly &&
+      input.hasRegistration &&
+      !input.partnerPending) {
+    return natural;
+  }
+
+  if (requested.index <= natural.index) return requested;
   return natural;
 }
 
@@ -87,8 +117,12 @@ RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
     // consentimento porque quem já convidou não pode ser mandado de volta ao
     // começo do fluxo só por não trazer `lgpd` na rota.
     if (input.hasSentInvitePending) return RegistrationWizardStep.parceiro;
-    return input.lgpdAccepted
-        ? RegistrationWizardStep.condicoes
+    if (input.lgpdAccepted) return RegistrationWizardStep.condicoes;
+    // A folha de nível abre na SAÍDA da tela 1 — quem começa do zero tem de
+    // passar por lá antes do consentimento, senão o gate anti-sandbagging
+    // some para quem entra por um card de categoria.
+    return input.levelConfirmationPending
+        ? RegistrationWizardStep.categoria
         : RegistrationWizardStep.consentimento;
   }
   if (input.partnerPending) return RegistrationWizardStep.parceiro;
@@ -99,11 +133,22 @@ RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
   return RegistrationWizardStep.sucesso;
 }
 
+/// Pedido de passo lido do `?step=`: a etapa e se ela CADUCA quando a dupla
+/// fecha (só `waiting` caduca).
+typedef RegistrationStepRequest = ({
+  RegistrationWizardStep step,
+  bool waitingOnly,
+});
+
 /// Nome do passo no query param `?step=`, e o caminho inverso.
 ///
 /// `waiting` é aceito na leitura porque rotas antigas ainda o mandam (o app
 /// instalado na loja continua gerando esses links por um tempo): ele significa
 /// "esperando o parceiro", que no wizard é a tela do parceiro.
+///
+/// Ele NÃO é sinônimo de `partner`: `partner` (o elenco, de
+/// `tournamentRegistrationRosterParams`) vale sempre que a etapa já estiver
+/// liberada, enquanto `waiting` caduca no momento em que a dupla fecha.
 const _stepNames = <String, RegistrationWizardStep>{
   'categoria': RegistrationWizardStep.categoria,
   'consentimento': RegistrationWizardStep.consentimento,
@@ -117,8 +162,10 @@ const _stepNames = <String, RegistrationWizardStep>{
   'pagamento': RegistrationWizardStep.pagamento,
 };
 
-RegistrationWizardStep? registrationStepFromParam(String? raw) {
+RegistrationStepRequest? registrationStepFromParam(String? raw) {
   final value = raw?.trim().toLowerCase() ?? '';
   if (value.isEmpty) return null;
-  return _stepNames[value];
+  final step = _stepNames[value];
+  if (step == null) return null;
+  return (step: step, waitingOnly: value == 'waiting');
 }

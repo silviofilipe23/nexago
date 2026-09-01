@@ -1258,17 +1258,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final registrationId =
               state.uri.queryParameters['registrationId']?.trim();
           final inviteId = state.uri.queryParameters['inviteId']?.trim();
+          // `step` é PREFERÊNCIA, não ordem: o porteiro só obedece quando a
+          // etapa pedida já está liberada. `waiting` ainda caduca quando a
+          // dupla fecha — ver `RegistrationStepInput.requestedStepWaitingOnly`.
+          final stepRequest = registrationStepFromParam(
+            state.uri.queryParameters['step'],
+          );
           return RegistrationGatePage(
             tournamentId: id,
             categoryId: categoryId,
             registrationId: registrationId,
             inviteId: inviteId,
             lgpdAccepted: state.uri.queryParameters['lgpd'] == '1',
-            // `step` é PREFERÊNCIA, não ordem: o porteiro só obedece quando a
-            // etapa pedida já está liberada.
-            requestedStep: registrationStepFromParam(
-              state.uri.queryParameters['step'],
-            ),
+            requestedStep: stepRequest?.step,
+            requestedStepWaitingOnly: stepRequest?.waitingOnly ?? false,
           );
         },
       ),

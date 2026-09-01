@@ -29,9 +29,10 @@ import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_registration_success_args.dart';
 import '../domain/tournament_team_roster_logic.dart';
+import 'widgets/registration_wizard/registration_wizard_notice.dart';
+import 'widgets/registration_wizard/registration_wizard_scaffold.dart';
 import 'widgets/tournament_registration/registration_cancellation_flow.dart';
 import 'widgets/tournament_registration/tournament_registration_cancellation_section.dart';
-import 'widgets/tournament_registration/tournament_registration_header.dart';
 import 'widgets/tournament_registration/tournament_registration_payment_step.dart';
 import 'widgets/tournament_registration/tournament_registration_roster_card.dart';
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
@@ -330,7 +331,8 @@ class _TournamentRegistrationPaymentPageState
       tournamentName: tournament.name,
       canCancelDirectly: true,
       confirmDialogTitle: 'Cancelar reserva?',
-      confirmDialogContent: 'Sua vaga será liberada e outro atleta poderá '
+      confirmDialogContent:
+          'Sua vaga será liberada e outro atleta poderá '
           'se inscrever nesta categoria.',
       confirmButtonLabel: 'Cancelar reserva',
       onSubmittingChanged: (v) {
@@ -439,275 +441,288 @@ class _TournamentRegistrationPaymentPageState
       tournamentDetailProvider(widget.tournamentId),
     );
 
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      body: SafeArea(
-        child: NexaAsyncView<TournamentDetail?>(
-          value: tournamentAsync,
+    // Mesma guarda das telas irmãs do wizard (registration_category_page.dart,
+    // registration_uniform_page.dart): SÓ `hasError`, sem `&& !hasValue` — erro
+    // numa assinatura já estabelecida preserva o valor anterior no mesmo
+    // `AsyncValue` (`AsyncError.copyWithPrevious`), e o `.when()` do
+    // `NexaAsyncView` cai no ramo de erro mesmo assim. O ramo `data` já
+    // devolve `RegistrationWizardScaffold` (que É um `Scaffold`), então essa
+    // guarda evita embrulhar tudo num `Scaffold` duplicado.
+    if (tournamentAsync.hasError) {
+      return _wizardChrome(
+        context,
+        AppErrorView(
+          title: 'Não foi possível carregar',
+          message: 'Não foi possível carregar o torneio.',
           onRetry: () =>
               ref.invalidate(tournamentDetailProvider(widget.tournamentId)),
-          errorTitle: 'Não foi possível carregar',
-          errorMessage: 'Não foi possível carregar o torneio.',
-          emptyWhen: (value) => value == null,
-          empty: AppEmptyView(
-            icon: Icons.emoji_events_outlined,
-            title: 'Torneio não encontrado',
-            subtitle:
-                'O torneio pode ter sido removido ou o link está desatualizado.',
-            actionLabel: 'Voltar',
-            onAction: () => context.canPop()
-                ? context.pop()
-                : context.goNamed(AppRouteNames.myTournaments),
-          ),
-          data: (value) {
-            final tournament = value!;
-            final snap = ref
-                .watch(
-                  tournamentRegistrationSnapshotProvider(widget.registrationId),
-                )
-                .valueOrNull;
-            final category = _resolveCategory(tournament, snap);
-            if (category == null) {
-              return AppEmptyView(
-                icon: Icons.category_outlined,
-                title: 'Categoria não encontrada',
-                subtitle: 'Volte e escolha a categoria da sua inscrição.',
-                actionLabel: 'Voltar',
-                onAction: () => context.pop(),
-              );
-            }
+        ),
+      );
+    }
 
-            final quote = buildRegistrationQuote(
-              entryFee: category.entryFee,
-              teamSize: category.rosterSize,
-            );
-            final currentUid = ref
-                .watch(authServiceProvider)
-                .currentUser
-                ?.uid;
-            final isFullyPaid = snap?.isPaid == true;
-            final athleteSharePaid =
-                currentUid != null &&
-                (snap?.athleteSharePaid(currentUid) ?? false);
-
-            // Convite vivo enviado nesta categoria: enquanto ele existe, a
-            // vaga espera o parceiro e a contagem do prazo fica escondida.
-            final hasLivePartnerInvite = sentPendingInvitesFor(
-              invites:
-                  ref
-                      .watch(inviterTournamentPartnerInvitesProvider)
-                      .valueOrNull ??
-                  const <TournamentPartnerInvite>[],
-              tournamentId: widget.tournamentId,
-              categoryId: category.id,
-            ).isNotEmpty;
-            final holdNotice = registrationHoldNotice(
-              holdExpiresAt: snap?.holdExpiresAt,
-              isPaid: isFullyPaid,
-              hasLivePartnerInvite: hasLivePartnerInvite,
-            );
-
-            final awaitingSoloPartner = registrationAwaitingSoloPartner(
-              snap: snap,
-              isFullyPaid: isFullyPaid,
-            );
-            final paidAwaitingPartner = registrationPaidAwaitingPartner(
-              snap: snap,
-            );
-
-            // Pré-seleção one-shot quando o snapshot chega: solo de dupla
-            // entra em 'full' — quem veio sem parceiro veio garantir a vaga.
-            if (!_paymentTypeInitialized && snap != null) {
-              _paymentTypeInitialized = true;
-              _paymentType = initialRegistrationPaymentType(
-                awaitingSoloPartner: awaitingSoloPartner,
-                isTeamCategory: quote.isTeamCategory,
-              );
-            }
-
-            // Confirmada e paga: a tela de sucesso é o destino, e só uma vez.
-            // Exceto o solo que pagou o total: a tela fica, mostrando o
-            // convite ao parceiro (que entra sem taxa).
-            if (isFullyPaid && !paidAwaitingPartner && !_paidPopHandled) {
-              _paidPopHandled = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _navigateToRegistrationSuccess(
-                  tournament: tournament,
-                  category: category,
-                );
-              });
-            }
-
-            final isDirectOrganizer =
-                tournamentUsesDirectOrganizerPayment(tournament) &&
-                registrationRequiresPayment(quote);
-            final directState = snap == null
-                ? DirectPaymentState.idle
-                : resolveDirectPaymentState(
-                    isPaid: snap.isPaid,
-                    sharePaidUids: snap.sharePaidUids,
-                    myUid: currentUid,
-                    declaredPaidAt: snap.declaredPaidAt,
-                    paymentVerifiedByOrganizer: snap.paymentVerifiedByOrganizer,
-                  );
-            final progressLabel = registrationDualPaymentProgressLabel(
-              quote: quote,
-              paidAmount: snap?.paidAmount ?? 0,
-              isPaid: isFullyPaid,
-              sharePaidUids: snap?.sharePaidUids ?? const <String>[],
-              currentAthleteUid: currentUid,
-              isDirectOrganizerPayment: isDirectOrganizer,
-              directPaymentState: isDirectOrganizer ? directState : null,
-            );
-
-            final awaitingPartner = awaitingSoloPartner || paidAwaitingPartner;
-            final effectiveProgressLabel = paidAwaitingPartner
-                ? 'Vaga garantida! Você pagou o total — convide seu parceiro, '
-                      'ele entra sem taxa.'
-                : progressLabel;
-
-            final isFree = !registrationRequiresPayment(quote);
-            final ctaEnabled = !isFullyPaid && !athleteSharePaid;
-
-            return Column(
-              children: [
-                TournamentRegistrationHeader(
-                  onBack: () => context.canPop()
-                      ? context.pop()
-                      : context.goNamed(AppRouteNames.myTournaments),
-                  title: 'Pagamento',
-                  tournamentName: tournament.name,
-                  tournamentDateLabel: tournament.dateLabel,
-                  categoryLabel: category.name,
-                  showTournamentInfo: true,
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenH,
-                      AppSpacing.lg,
-                      AppSpacing.screenH,
-                      AppSpacing.xxl,
-                    ),
-                    children: [
-                      TournamentRegistrationPaymentStep(
-                        category: category,
-                        quote: quote,
-                        paymentType: _canPayFull ? _paymentType : 'share',
-                        onPaymentTypeChanged: (value) =>
-                            setState(() => _paymentType = value),
-                        dualPaymentOnly: !_canPayFull,
-                        progressLabel: effectiveProgressLabel,
-                        isFullyPaid: isFullyPaid,
-                        isFreeRegistration: isFree,
-                        // Já pago e sem parceiro: esconde "pague ao
-                        // organizador" e mostra só o convite (entra sem taxa).
-                        isDirectOrganizerPayment:
-                            isDirectOrganizer && !paidAwaitingPartner,
-                        tournamentId: tournament.id,
-                        tournamentName: tournament.name,
-                        tournamentCity: tournament.city,
-                        organizerManagerId: tournament.managerId,
-                        organizerPixKey: tournament.organizerPixKey,
-                        organizerPixKeyType: tournament.organizerPixKeyType,
-                        organizerPixRecipientName:
-                            tournament.organizerPixRecipientName,
-                        organizerPixCity: tournament.organizerPixCity,
-                        partnerJoinsFree: paidAwaitingPartner,
-                        showSoloPartnerInvite: awaitingPartner,
-                        holdNotice: holdNotice,
-                        onInvitePartner: awaitingPartner
-                            ? _openPartnerInvite
-                            : null,
-                        // Uniforme mora no cartão da tela de inscrição.
-                        showInformUniform: false,
-                        cancellationSection:
-                            TournamentRegistrationCancellationSection(
-                              snapshot: snap,
-                              onCancelDirectly:
-                                  (!_submitting &&
-                                      snap != null &&
-                                      registrationCancellableByAthlete(
-                                        isPaid: snap.isPaid,
-                                        sharePaidUids: snap.sharePaidUids,
-                                        paidAmount: snap.paidAmount,
-                                      ))
-                                  ? () => _confirmCancelRegistration(tournament)
-                                  : null,
-                              onRequestCancellation:
-                                  (!_submitting && snap != null)
-                                  ? () =>
-                                        _openCancellationRequestSheet(tournament)
-                                  : null,
-                              onContactOrganizer: () =>
-                                  _openOrganizerWhatsApp(tournament),
-                              contactBusy: _contactingOrganizer,
-                            ),
-                      ),
-                      if (snap != null && snap.teamSize != null) ...[
-                        const SizedBox(height: AppSpacing.lg),
-                        TournamentRegistrationRosterCard(
-                          teamName: snap.teamName,
-                          members: _teamRoster(snap),
-                          remainingSlots: remainingTeamInviteSlots(
-                            teamSize: snap.teamSize,
-                            rosterCount: snap.participantUids.length,
-                            pendingInviteCount: sentPendingInvitesFor(
-                              invites:
-                                  ref
-                                      .watch(
-                                        inviterTournamentPartnerInvitesProvider,
-                                      )
-                                      .valueOrNull ??
-                                  const <TournamentPartnerInvite>[],
-                              tournamentId: widget.tournamentId,
-                              categoryId: category.id,
-                            ).length,
-                          ),
-                          leaving: _leavingTeam,
-                          onLeaveTeam:
-                              canLeaveTeamRegistration(
-                                teamSize: snap.teamSize,
-                                captainUid: snap.captainUid ?? snap.player1Id,
-                                myUid: currentUid,
-                                isPaid: snap.isPaid,
-                                sharePaidUids: snap.sharePaidUids,
-                              )
-                              ? () => _leaveTeam(snap)
-                              : null,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                TournamentRegistrationStickyBar(
-                  enabled: ctaEnabled,
-                  submitting: _submitting,
-                  onConfirm: () => _submitPayment(
-                    tournament: tournament,
-                    category: category,
-                    quote: quote,
-                    partnerPending: snap?.partnerPending == true,
-                  ),
-                  ctaLabel: isFullyPaid
-                      ? 'Vaga garantida'
-                      : athleteSharePaid
-                      ? 'Aguardando parceiro'
-                      : isFree
-                      ? 'Confirmar inscrição'
-                      : isDirectOrganizer
-                      ? 'Já paguei ao organizador'
-                      : 'Confirmar e pagar',
-                  ctaSubtitle: isDirectOrganizer && !athleteSharePaid
-                      ? 'pagamento direto com o organizador'
-                      : null,
-                ),
-              ],
-            );
-          },
+    return NexaAsyncView<TournamentDetail?>(
+      value: tournamentAsync,
+      onRetry: () =>
+          ref.invalidate(tournamentDetailProvider(widget.tournamentId)),
+      errorTitle: 'Não foi possível carregar',
+      errorMessage: 'Não foi possível carregar o torneio.',
+      skeleton: _wizardChrome(context, const AppLoadingView()),
+      emptyWhen: (value) => value == null,
+      empty: _wizardChrome(
+        context,
+        AppEmptyView(
+          icon: Icons.emoji_events_outlined,
+          title: 'Torneio não encontrado',
+          subtitle:
+              'O torneio pode ter sido removido ou o link está desatualizado.',
+          actionLabel: 'Voltar',
+          onAction: () => context.canPop()
+              ? context.pop()
+              : context.goNamed(AppRouteNames.myTournaments),
         ),
       ),
+      data: (value) {
+        final tournament = value!;
+        final snap = ref
+            .watch(
+              tournamentRegistrationSnapshotProvider(widget.registrationId),
+            )
+            .valueOrNull;
+        final category = _resolveCategory(tournament, snap);
+        if (category == null) {
+          return _wizardChrome(
+            context,
+            AppEmptyView(
+              icon: Icons.category_outlined,
+              title: 'Categoria não encontrada',
+              subtitle: 'Volte e escolha a categoria da sua inscrição.',
+              actionLabel: 'Voltar',
+              onAction: () => context.pop(),
+            ),
+          );
+        }
+
+        final quote = buildRegistrationQuote(
+          entryFee: category.entryFee,
+          teamSize: category.rosterSize,
+        );
+        final currentUid = ref.watch(authServiceProvider).currentUser?.uid;
+        final isFullyPaid = snap?.isPaid == true;
+        final athleteSharePaid =
+            currentUid != null && (snap?.athleteSharePaid(currentUid) ?? false);
+
+        // Convite vivo enviado nesta categoria: enquanto ele existe, a
+        // vaga espera o parceiro e a contagem do prazo fica escondida.
+        final hasLivePartnerInvite = sentPendingInvitesFor(
+          invites:
+              ref.watch(inviterTournamentPartnerInvitesProvider).valueOrNull ??
+              const <TournamentPartnerInvite>[],
+          tournamentId: widget.tournamentId,
+          categoryId: category.id,
+        ).isNotEmpty;
+        final holdNotice = registrationHoldNotice(
+          holdExpiresAt: snap?.holdExpiresAt,
+          isPaid: isFullyPaid,
+          hasLivePartnerInvite: hasLivePartnerInvite,
+        );
+
+        final awaitingSoloPartner = registrationAwaitingSoloPartner(
+          snap: snap,
+          isFullyPaid: isFullyPaid,
+        );
+        final paidAwaitingPartner = registrationPaidAwaitingPartner(snap: snap);
+
+        // Pré-seleção one-shot quando o snapshot chega: solo de dupla
+        // entra em 'full' — quem veio sem parceiro veio garantir a vaga.
+        if (!_paymentTypeInitialized && snap != null) {
+          _paymentTypeInitialized = true;
+          _paymentType = initialRegistrationPaymentType(
+            awaitingSoloPartner: awaitingSoloPartner,
+            isTeamCategory: quote.isTeamCategory,
+          );
+        }
+
+        // Confirmada e paga: a tela de sucesso é o destino, e só uma vez.
+        // Exceto o solo que pagou o total: a tela fica, mostrando o
+        // convite ao parceiro (que entra sem taxa).
+        if (isFullyPaid && !paidAwaitingPartner && !_paidPopHandled) {
+          _paidPopHandled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _navigateToRegistrationSuccess(
+              tournament: tournament,
+              category: category,
+            );
+          });
+        }
+
+        final isDirectOrganizer =
+            tournamentUsesDirectOrganizerPayment(tournament) &&
+            registrationRequiresPayment(quote);
+        final directState = snap == null
+            ? DirectPaymentState.idle
+            : resolveDirectPaymentState(
+                isPaid: snap.isPaid,
+                sharePaidUids: snap.sharePaidUids,
+                myUid: currentUid,
+                declaredPaidAt: snap.declaredPaidAt,
+                paymentVerifiedByOrganizer: snap.paymentVerifiedByOrganizer,
+              );
+        final progressLabel = registrationDualPaymentProgressLabel(
+          quote: quote,
+          paidAmount: snap?.paidAmount ?? 0,
+          isPaid: isFullyPaid,
+          sharePaidUids: snap?.sharePaidUids ?? const <String>[],
+          currentAthleteUid: currentUid,
+          isDirectOrganizerPayment: isDirectOrganizer,
+          directPaymentState: isDirectOrganizer ? directState : null,
+        );
+
+        final awaitingPartner = awaitingSoloPartner || paidAwaitingPartner;
+        final effectiveProgressLabel = paidAwaitingPartner
+            ? 'Vaga garantida! Você pagou o total — convide seu parceiro, '
+                  'ele entra sem taxa.'
+            : progressLabel;
+
+        final isFree = !registrationRequiresPayment(quote);
+        final ctaEnabled = !isFullyPaid && !athleteSharePaid;
+
+        return RegistrationWizardScaffold(
+          title: 'Pagamento',
+          subtitle: tournament.name,
+          onBack: () => context.canPop()
+              ? context.pop()
+              : context.goNamed(AppRouteNames.myTournaments),
+          stickyBar: TournamentRegistrationStickyBar(
+            enabled: ctaEnabled,
+            submitting: _submitting,
+            onConfirm: () => _submitPayment(
+              tournament: tournament,
+              category: category,
+              quote: quote,
+              partnerPending: snap?.partnerPending == true,
+            ),
+            ctaLabel: isFullyPaid
+                ? 'Vaga garantida'
+                : athleteSharePaid
+                ? 'Aguardando parceiro'
+                : isFree
+                ? 'Confirmar inscrição'
+                : isDirectOrganizer
+                ? 'Já paguei ao organizador'
+                : 'Confirmar e pagar',
+            ctaSubtitle: isDirectOrganizer && !athleteSharePaid
+                ? 'pagamento direto com o organizador'
+                : null,
+          ),
+          children: [
+            // Aviso do prazo de garantia da vaga — já existia (calculado
+            // acima com `registrationHoldNotice`); a mudança é só a casca,
+            // que passa a ser a mesma dos demais avisos do wizard.
+            if (holdNotice != null) ...[
+              RegistrationWizardNotice(
+                icon: Icons.timer_outlined,
+                child: Text(holdNotice),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            TournamentRegistrationPaymentStep(
+              category: category,
+              quote: quote,
+              paymentType: _canPayFull ? _paymentType : 'share',
+              onPaymentTypeChanged: (value) =>
+                  setState(() => _paymentType = value),
+              dualPaymentOnly: !_canPayFull,
+              progressLabel: effectiveProgressLabel,
+              isFullyPaid: isFullyPaid,
+              isFreeRegistration: isFree,
+              // Já pago e sem parceiro: esconde "pague ao
+              // organizador" e mostra só o convite (entra sem taxa).
+              isDirectOrganizerPayment:
+                  isDirectOrganizer && !paidAwaitingPartner,
+              tournamentId: tournament.id,
+              tournamentName: tournament.name,
+              tournamentCity: tournament.city,
+              organizerManagerId: tournament.managerId,
+              organizerPixKey: tournament.organizerPixKey,
+              organizerPixKeyType: tournament.organizerPixKeyType,
+              organizerPixRecipientName: tournament.organizerPixRecipientName,
+              organizerPixCity: tournament.organizerPixCity,
+              partnerJoinsFree: paidAwaitingPartner,
+              showSoloPartnerInvite: awaitingPartner,
+              // O aviso do relógio agora é a `RegistrationWizardNotice`
+              // acima — o passo não desenha mais o próprio.
+              onInvitePartner: awaitingPartner ? _openPartnerInvite : null,
+              // Uniforme mora no cartão da tela de inscrição.
+              showInformUniform: false,
+              cancellationSection: TournamentRegistrationCancellationSection(
+                snapshot: snap,
+                onCancelDirectly:
+                    (!_submitting &&
+                        snap != null &&
+                        registrationCancellableByAthlete(
+                          isPaid: snap.isPaid,
+                          sharePaidUids: snap.sharePaidUids,
+                          paidAmount: snap.paidAmount,
+                        ))
+                    ? () => _confirmCancelRegistration(tournament)
+                    : null,
+                onRequestCancellation: (!_submitting && snap != null)
+                    ? () => _openCancellationRequestSheet(tournament)
+                    : null,
+                onContactOrganizer: () => _openOrganizerWhatsApp(tournament),
+                contactBusy: _contactingOrganizer,
+              ),
+            ),
+            if (snap != null && snap.teamSize != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              TournamentRegistrationRosterCard(
+                teamName: snap.teamName,
+                members: _teamRoster(snap),
+                remainingSlots: remainingTeamInviteSlots(
+                  teamSize: snap.teamSize,
+                  rosterCount: snap.participantUids.length,
+                  pendingInviteCount: sentPendingInvitesFor(
+                    invites:
+                        ref
+                            .watch(inviterTournamentPartnerInvitesProvider)
+                            .valueOrNull ??
+                        const <TournamentPartnerInvite>[],
+                    tournamentId: widget.tournamentId,
+                    categoryId: category.id,
+                  ).length,
+                ),
+                leaving: _leavingTeam,
+                onLeaveTeam:
+                    canLeaveTeamRegistration(
+                      teamSize: snap.teamSize,
+                      captainUid: snap.captainUid ?? snap.player1Id,
+                      myUid: currentUid,
+                      isPaid: snap.isPaid,
+                      sharePaidUids: snap.sharePaidUids,
+                    )
+                    ? () => _leaveTeam(snap)
+                    : null,
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
+}
+
+/// Casca mínima para os estados de carregando/erro/vazio: `Scaffold` +
+/// `SafeArea`, igual às telas irmãs do wizard
+/// (`registration_category_page.dart`, `registration_uniform_page.dart`).
+///
+/// Só usada em `skeleton`/`empty`/erro — nunca ao redor do `NexaAsyncView`
+/// inteiro, porque o ramo `data` já devolve `RegistrationWizardScaffold`
+/// (que É um `Scaffold`); embrulhar tudo por fora duplicaria o Scaffold só
+/// no caminho feliz.
+Widget _wizardChrome(BuildContext context, Widget child) {
+  return Scaffold(
+    backgroundColor: context.themeColors.canvas,
+    body: SafeArea(child: child),
+  );
 }

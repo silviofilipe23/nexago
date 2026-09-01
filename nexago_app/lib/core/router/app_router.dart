@@ -189,6 +189,7 @@ import '../../features/tournaments/presentation/registration_wizard/registration
 import '../../features/tournaments/presentation/registration_wizard/registration_consent_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_partner_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_terms_page.dart';
+import '../../features/tournaments/presentation/registration_wizard/registration_uniform_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
@@ -1331,6 +1332,31 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ? registrationId
                 : null,
             lgpdAccepted: lgpdAccepted,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationUniform,
+        name: AppRouteNames.tournamentRegistrationUniform,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId = state.uri.queryParameters['categoryId']?.trim() ?? '';
+          final registrationId =
+              state.uri.queryParameters['registrationId']?.trim() ?? '';
+          // Sem inscrição não há onde gravar o uniforme: cai na tela guarda-
+          // chuva, que deriva o estado da categoria e mostra o passo certo —
+          // mesma saída defensiva da rota de pagamento logo abaixo.
+          if (registrationId.isEmpty) {
+            return TournamentRegistrationPage(
+              tournamentId: tournamentId,
+              initialCategoryId: categoryId,
+            );
+          }
+          return RegistrationUniformPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+            registrationId: registrationId,
           );
         },
       ),

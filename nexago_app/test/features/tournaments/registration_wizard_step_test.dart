@@ -110,6 +110,40 @@ void main() {
         RegistrationWizardStep.sucesso,
       );
     });
+
+    test('parceiro pendente vence uniforme incompleto', () {
+      // Estado real: atleta reservou vaga solo, escolheu o uniforme, mas parceiro
+      // ainda não confirmou. Parceiro deve vencer (estar antes na ordem).
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasRegistration: true,
+            partnerPending: true,
+            uniformRequired: true,
+            uniformComplete: false,
+          ),
+        ),
+        RegistrationWizardStep.parceiro,
+      );
+    });
+
+    test('uniforme incompleto vence sucesso mesmo com pagamento resolvido', () {
+      // Estado alcançável pela declaração de pagamento direto ("Já paguei"):
+      // o atleta declara que já pagou (isPaid: true) mas o uniforme da categoria
+      // ainda não foi preenchido. Uniforme é obrigatório e deve ser resolvido
+      // antes do sucesso.
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasRegistration: true,
+            uniformRequired: true,
+            uniformComplete: false,
+            isPaid: true,
+          ),
+        ),
+        RegistrationWizardStep.uniforme,
+      );
+    });
   });
 
   group('o step pedido é preferência, nunca ordem', () {

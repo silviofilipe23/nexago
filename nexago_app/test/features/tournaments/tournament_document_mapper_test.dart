@@ -351,6 +351,26 @@ void main() {
     expect(d.registrationOpensAt, isNull);
   });
 
+  test('detailFromMap lê registrationClosesAt', () {
+    final t = TournamentDocumentMapper.detailFromMap('t-prazo', {
+      'name': 'Copa Aparecida',
+      'registrationClosesAt': Timestamp.fromDate(
+        DateTime.utc(2026, 7, 8, 23, 59),
+      ),
+    });
+    // `Timestamp.toDate()` devolve DateTime LOCAL, e o `==` do Dart compara
+    // também a flag isUtc — comparar direto contra `DateTime.utc` falha mesmo
+    // com o instante certo.
+    expect(t.registrationClosesAt!.toUtc(), DateTime.utc(2026, 7, 8, 23, 59));
+  });
+
+  test('detailFromMap sem registrationClosesAt devolve null', () {
+    final t = TournamentDocumentMapper.detailFromMap('t-sem-prazo', {
+      'name': 'Copa',
+    });
+    expect(t.registrationClosesAt, isNull);
+  });
+
   group('requireFormedPair (exigir dupla já formada)', () {
     test('lê o campo do doc do torneio', () {
       final t = TournamentDocumentMapper.detailFromMap('t1', {

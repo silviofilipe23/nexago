@@ -88,7 +88,9 @@ painel do organizador. O app nunca leu.
 - Modify: `nexago_app/lib/features/tournaments/data/tournament_document_mapper.dart:136`
 - Modify: `nexago_app/lib/features/tournaments/domain/tournament_discovery_labels.dart`
 - Test: `nexago_app/test/features/tournaments/tournament_document_mapper_test.dart`
-- Test: `nexago_app/test/features/tournaments/tournament_discovery_labels_test.dart` (criar se não existir)
+- Test: `nexago_app/test/features/tournaments/tournament_discovery_labels_test.dart` — **ele já
+  existe e tem 9 testes** (rótulo de abertura, CTA do card, status "em breve"). **ACRESCENTE**
+  os casos novos dentro do `main()` existente. Não recrie o arquivo: sobrescrevê-lo apaga os 9.
 
 **Interfaces:**
 - Produces: `TournamentDetail.registrationClosesAt` (`DateTime?`) e
@@ -117,25 +119,27 @@ Em `tournament_document_mapper_test.dart`, adicione:
   });
 ```
 
-Crie `nexago_app/test/features/tournaments/tournament_discovery_labels_test.dart`:
+Em `nexago_app/test/features/tournaments/tournament_discovery_labels_test.dart`, que **já
+existe com 9 testes**, acrescente um grupo novo DENTRO do `main()` existente, sem tocar no que
+está lá:
 
 ```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_discovery_labels.dart';
-
-void main() {
-  test('rótulo do prazo usa a parede local, dia da semana e mês sem ponto', () {
+  group('tournamentRegistrationClosesLabel', () {
+    test('rótulo do prazo usa a parede local, dia da semana e mês sem ponto', () {
     // Instante escolhido para cair numa quarta-feira na parede local.
     final closesAt = DateTime(2026, 7, 8, 23, 59);
     expect(tournamentRegistrationClosesLabel(closesAt), 'qua, 08 jul · 23h59');
   });
 
-  test('rótulo do prazo zera minutos com dois dígitos', () {
-    final closesAt = DateTime(2026, 7, 12, 8, 5);
-    expect(tournamentRegistrationClosesLabel(closesAt), 'dom, 12 jul · 08h05');
+    test('rótulo do prazo zera minutos com dois dígitos', () {
+      final closesAt = DateTime(2026, 7, 12, 8, 5);
+      expect(tournamentRegistrationClosesLabel(closesAt), 'dom, 12 jul · 08h05');
+    });
   });
-}
 ```
+
+Ajuste a indentação dos dois casos para dentro do `group`, e confirme depois de editar que o
+arquivo ainda tem os 9 testes antigos mais os 2 novos.
 
 - [ ] **Step 2: Rodar para ver falhar**
 

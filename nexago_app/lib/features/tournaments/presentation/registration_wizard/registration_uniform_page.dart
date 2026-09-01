@@ -383,7 +383,10 @@ class _RegistrationUniformPageState
             ),
             if (partnerComplete != null) ...[
               const SizedBox(height: AppSpacing.lg),
-              _PartnerUniformRow(complete: partnerComplete),
+              _PartnerUniformRow(
+                complete: partnerComplete,
+                isTeamCategory: category.isTeamCategory,
+              ),
             ],
           ],
         );
@@ -406,9 +409,16 @@ Widget _wizardChrome(BuildContext context, Widget child) {
 /// elenco), derivado do snapshot — não há edição aqui, só o que falta para
 /// os outros fecharem a escolha deles.
 class _PartnerUniformRow extends StatelessWidget {
-  const _PartnerUniformRow({required this.complete});
+  const _PartnerUniformRow({
+    required this.complete,
+    required this.isTeamCategory,
+  });
 
   final bool complete;
+
+  /// Em elenco trio+ "o parceiro" é impreciso: são vários, e a linha resume o
+  /// estado de TODOS os demais.
+  final bool isTeamCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -425,7 +435,9 @@ class _PartnerUniformRow extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'Uniforme do parceiro',
+              isTeamCategory
+                  ? 'Uniforme do restante do elenco'
+                  : 'Uniforme do parceiro',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,

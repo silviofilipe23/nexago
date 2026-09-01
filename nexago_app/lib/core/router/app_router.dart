@@ -187,6 +187,7 @@ import '../../features/tournaments/domain/tournament_registration_success_args.d
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_category_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_consent_page.dart';
+import '../../features/tournaments/presentation/registration_wizard/registration_terms_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
@@ -1291,6 +1292,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           return RegistrationConsentPage(
             tournamentId: tournamentId,
             categoryId: categoryId,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationTerms,
+        name: AppRouteNames.tournamentRegistrationTerms,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId =
+              state.uri.queryParameters['categoryId']?.trim() ?? '';
+          final lgpdAccepted = state.uri.queryParameters['lgpd'] == '1';
+          return RegistrationTermsPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+            lgpdAccepted: lgpdAccepted,
           );
         },
       ),

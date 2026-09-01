@@ -13,9 +13,13 @@ RegistrationStepInput input({
   bool uniformRequired = false,
   bool uniformComplete = true,
   bool isPaid = false,
+  bool levelConfirmationPending = false,
   RegistrationWizardStep? requestedStep,
+  bool requestedStepWaitingOnly = false,
 }) {
   return RegistrationStepInput(
+    levelConfirmationPending: levelConfirmationPending,
+    requestedStepWaitingOnly: requestedStepWaitingOnly,
     categoryResolved: categoryResolved,
     hasReceivedInvite: hasReceivedInvite,
     hasSentInvitePending: hasSentInvitePending,
@@ -272,6 +276,170 @@ void main() {
         ),
         RegistrationWizardStep.consentimento,
       );
+    });
+  });
+
+  // `?step=waiting` significa "esperando o parceiro". Ele aponta para
+  // `parceiro` (índice 3), MENOR que todo passo natural depois da inscrição —
+  // então, tratado como um pedido comum, venceria sempre. Três entradas reais
+  // mandam `waiting` COM inscrição já criada (o aceite do convite, o "convite
+  // já aceito" e o card de convite enviado que diz "Pagar inscrição").
+  group('`waiting` caduca quando a dupla fecha', () {
+    test('com inscrição e dupla formada, waiting é ignorado', () {
+      final step = resolveRegistrationStep(
+        input(
+          hasRegistration: true,
+          partnerPending: false,
+          requestedStep: RegistrationWizardStep.parceiro,
+          requestedStepWaitingOnly: true,
+        ),
+      );
+
+      expect(step, RegistrationWizardStep.pagamento);
+      expect(step, isNot(RegistrationWizardStep.parceiro));
+    });
+
+    test('com inscrição, dupla formada e uniforme pendente, cai no uniforme', () {
+      final step = resolveRegistrationStep(
+        input(
+          hasRegistration: true,
+          uniformRequired: true,
+          uniformComplete: false,
+          requestedStep: RegistrationWizardStep.parceiro,
+          requestedStepWaitingOnly: true,
+        ),
+      );
+
+      expect(step, RegistrationWizardStep.uniforme);
+      expect(step, isNot(RegistrationWizardStep.parceiro));
+    });
+
+    test('com inscrição e parceiro ainda pendente, waiting vale', () {
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasRegistration: true,
+            partnerPending: true,
+            requestedStep: RegistrationWizardStep.parceiro,
+            requestedStepWaitingOnly: true,
+          ),
+        ),
+        RegistrationWizardStep.parceiro,
+      );
+    });
+
+    test('sem inscrição nenhuma, waiting vale', () {
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasSentInvitePending: true,
+            requestedStep: RegistrationWizardStep.parceiro,
+            requestedStepWaitingOnly: true,
+          ),
+        ),
+        RegistrationWizardStep.parceiro,
+      );
+    });
+
+    test('`partner` (elenco) NÃO caduca: segue obedecido com dupla formada', () {
+      // `tournamentRegistrationRosterParams` manda `step=partner` para abrir o
+      // elenco de uma equipe trio+ que já tem inscrição.
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasRegistration: true,
+            partnerPending: false,
+            requestedStep: RegistrationWizardStep.parceiro,
+          ),
+        ),
+        RegistrationWizardStep.parceiro,
+      );
+    });
+  });
+
+  group('folha de confirmação de nível', () {
+    test('devida, quem começa do zero passa pela tela 1 em vez do consentimento', () {
+      final step = resolveRegistrationStep(input(levelConfirmationPending: true));
+
+      expect(step, RegistrationWizardStep.categoria);
+      expect(step, isNot(RegistrationWizardStep.consentimento));
+    });
+
+    test('não devida, segue direto para o consentimento', () {
+      expect(
+        resolveRegistrationStep(input(levelConfirmationPending: false)),
+        RegistrationWizardStep.consentimento,
+      );
+    });
+
+    test('não segura quem já tem inscrição', () {
+      final step = resolveRegistrationStep(
+        input(hasRegistration: true, levelConfirmationPending: true),
+      );
+
+      expect(step, RegistrationWizardStep.pagamento);
+      expect(step, isNot(RegistrationWizardStep.categoria));
+    });
+
+    test('não segura quem já aceitou o termo no parâmetro', () {
+      // Veio da tela de consentimento, que só é alcançável pela tela 1 — a
+      // folha já rodou lá.
+      final step = resolveRegistrationStep(
+        input(lgpdAccepted: true, levelConfirmationPending: true),
+      );
+
+      expect(step, RegistrationWizardStep.condicoes);
+      expect(step, isNot(RegistrationWizardStep.categoria));
+    });
+
+    test('não segura quem responde a um convite recebido', () {
+      final step = resolveRegistrationStep(
+        input(hasReceivedInvite: true, levelConfirmationPending: true),
+      );
+
+      expect(step, RegistrationWizardStep.condicoes);
+      expect(step, isNot(RegistrationWizardStep.categoria));
+    });
+
+    test('pedido de pagamento não fura a tela 1', () {
+      final step = resolveRegistrationStep(
+        input(
+          levelConfirmationPending: true,
+          requestedStep: RegistrationWizardStep.pagamento,
+        ),
+      );
+
+      expect(step, RegistrationWizardStep.categoria);
+      expect(step, isNot(RegistrationWizardStep.pagamento));
+    });
+  });
+
+  group('registrationStepFromParam', () {
+    test('`waiting` vira parceiro E marca que caduca', () {
+      final request = registrationStepFromParam('waiting');
+
+      expect(request?.step, RegistrationWizardStep.parceiro);
+      expect(request?.waitingOnly, isTrue);
+    });
+
+    test('`partner` vira parceiro SEM caducar', () {
+      final request = registrationStepFromParam('partner');
+
+      expect(request?.step, RegistrationWizardStep.parceiro);
+      expect(request?.waitingOnly, isFalse);
+    });
+
+    test('`payment` vira pagamento sem caducar', () {
+      final request = registrationStepFromParam('payment');
+
+      expect(request?.step, RegistrationWizardStep.pagamento);
+      expect(request?.waitingOnly, isFalse);
+    });
+
+    test('vazio e desconhecido não viram pedido nenhum', () {
+      expect(registrationStepFromParam(null), isNull);
+      expect(registrationStepFromParam('  '), isNull);
+      expect(registrationStepFromParam('sucesso'), isNull);
     });
   });
 }

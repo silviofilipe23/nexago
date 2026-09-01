@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_repository.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
 import 'package:nexago_app/features/tournaments/domain/registration_wizard_step.dart';
@@ -15,7 +17,6 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
 import 'package:nexago_app/features/tournaments/presentation/registration_wizard/registration_gate_page.dart';
 
@@ -105,6 +106,22 @@ void main() {
     inviteeUid: 'atleta-9',
   );
 
+  /// Perfil com o nível JÁ travado neste esporte: a folha de confirmação de
+  /// nível não é devida, que é o caso da maioria dos testes.
+  AthleteProfile perfil({bool nivelTravado = true}) => AthleteProfile(
+    id: meuUid,
+    name: 'Eu Mesmo',
+    sport: 'Beach Tennis',
+    level: 'Open',
+    city: 'Goiânia',
+    gender: 'Masculino',
+    phoneVerified: true,
+    onboardingCompleted: true,
+    isProfileComplete: true,
+    levelsBySportFirestore: const {'BEACH_TENNIS': 'open'},
+    levelLocked: {'BEACH_TENNIS': nivelTravado},
+  );
+
   late List<String> rotasAbertas;
   late Map<String, String>? destinoQueryParams;
   late Map<String, String>? destinoPathParams;
@@ -112,11 +129,15 @@ void main() {
   Future<void> abrirPorteiro(
     WidgetTester tester, {
     required TournamentDetail tournament,
+    Stream<TournamentDetail?>? tournamentStream,
     String? categoryId,
     String? registrationId,
     String? inviteId,
     bool lgpdAccepted = false,
     RegistrationWizardStep? requestedStep,
+    bool requestedStepWaitingOnly = false,
+    AthleteProfile? profile,
+    Stream<AthleteProfile?>? profileStream,
     Map<String, UserCategoryRegistration> registrations = const {},
     Stream<TournamentUserRegistrationsByCategory>? registrationsStream,
     List<TournamentPartnerInvite> convitesRecebidos = const [],
@@ -153,12 +174,23 @@ void main() {
             inviteId: inviteId,
             lgpdAccepted: lgpdAccepted,
             requestedStep: requestedStep,
+            requestedStepWaitingOnly: requestedStepWaitingOnly,
           ),
         ),
         alvo(
           AppRoutes.tournamentRegistrationCategory,
           AppRouteNames.tournamentRegistrationCategory,
           'categoria',
+        ),
+        alvo(
+          AppRoutes.tournamentCategories,
+          AppRouteNames.tournamentCategories,
+          'lista de categorias',
+        ),
+        alvo(
+          AppRoutes.tournamentDetail,
+          AppRouteNames.tournamentDetail,
+          'detalhe do torneio',
         ),
         alvo(
           AppRoutes.tournamentRegistrationConsent,
@@ -203,7 +235,10 @@ void main() {
           ),
           tournamentDetailProvider(
             't1',
-          ).overrideWith((ref) => Stream.value(tournament)),
+          ).overrideWith((ref) => tournamentStream ?? Stream.value(tournament)),
+          athleteProfileProvider.overrideWith(
+            (ref) => profileStream ?? Stream.value(profile ?? perfil()),
+          ),
           tournamentUserRegistrationsByCategoryProvider('t1').overrideWith(
             (ref) => registrationsStream ?? Stream.value(registrations),
           ),
@@ -226,14 +261,19 @@ void main() {
 
   // ── Step 1 do brief ──────────────────────────────────────────────────────
 
-  testWidgets('sem categoria na rota abre a categoria', (tester) async {
+  testWidgets('sem categoria na rota abre a LISTA de categorias', (
+    tester,
+  ) async {
+    // A tela 1 do wizard mostra UMA categoria vinda da rota — não é seletor.
+    // Mandar para ela sem `categoryId` dava "Categoria não encontrada".
     await abrirPorteiro(
       tester,
       tournament: torneio([dupla(), dupla(id: 'fem', genderType: 'female')]),
     );
     await tester.pumpAndSettle();
 
-    expect(rotasAbertas, contains('categoria'));
+    expect(rotasAbertas, contains('lista de categorias'));
+    expect(rotasAbertas, isNot(contains('categoria')));
   });
 
   testWidgets('convite recebido abre as condições', (tester) async {
@@ -448,7 +488,8 @@ void main() {
         tournament: torneio([dupla()]),
         categoryId: 'masc',
         inviteId: 'convite-enviado-1',
-        requestedStep: registrationStepFromParam('waiting'),
+        requestedStep: registrationStepFromParam('waiting')?.step,
+        requestedStepWaitingOnly: true,
         convitesEnviados: [conviteEnviado()],
       );
       await tester.pumpAndSettle();
@@ -482,7 +523,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(rotasAbertas, contains('categoria'));
+      expect(rotasAbertas, contains('lista de categorias'));
       expect(rotasAbertas, isNot(contains('consentimento')));
     });
 
@@ -606,6 +647,314 @@ void main() {
     );
   });
 
+
+  // ── fix 1: `step=waiting` não pode derrubar quem já fechou a dupla ───────
+
+  group('`step=waiting` com inscrição já criada', () {
+    testWidgets(
+      'dupla formada devendo pagamento vai ao PAGAMENTO, não ao parceiro',
+      (tester) async {
+        // As três entradas reais que mandam `waiting` com inscrição: o aceite
+        // do convite, o "convite já aceito" e o card que diz "Pagar inscrição".
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          registrationId: 'reg-1',
+          inviteId: 'convite-1',
+          registrations: const {
+            'masc': UserCategoryRegistration(
+              registrationId: 'reg-1',
+              isPaid: false,
+              partnerPending: false,
+            ),
+          },
+          requestedStep: RegistrationWizardStep.parceiro,
+          requestedStepWaitingOnly: true,
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('pagamento'));
+        expect(rotasAbertas, isNot(contains('parceiro')));
+      },
+    );
+
+    testWidgets('dupla formada com uniforme pendente vai ao UNIFORME', (
+      tester,
+    ) async {
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla(uniformType: 'top')]),
+        categoryId: 'masc',
+        registrations: const {
+          'masc': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+          ),
+        },
+        snapshot: TournamentRegistrationSnapshot(
+          registrationId: 'reg-1',
+          isPaid: false,
+          paidAmount: 0,
+          player1Id: meuUid,
+          participantUids: const [meuUid, 'atleta-2'],
+        ),
+        requestedStep: RegistrationWizardStep.parceiro,
+        requestedStepWaitingOnly: true,
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('uniforme'));
+      expect(rotasAbertas, isNot(contains('parceiro')));
+    });
+
+    testWidgets('reserva solo ainda esperando parceiro continua no parceiro', (
+      tester,
+    ) async {
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        registrations: const {
+          'masc': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+            partnerPending: true,
+          ),
+        },
+        requestedStep: RegistrationWizardStep.parceiro,
+        requestedStepWaitingOnly: true,
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('parceiro'));
+    });
+
+    testWidgets('`step=partner` (elenco) segue abrindo o parceiro', (
+      tester,
+    ) async {
+      // `tournamentRegistrationRosterParams` — não caduca com a dupla formada.
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        registrations: const {
+          'masc': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+          ),
+        },
+        requestedStep: RegistrationWizardStep.parceiro,
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('parceiro'));
+      expect(rotasAbertas, isNot(contains('pagamento')));
+    });
+  });
+
+  // ── fix 2: a folha de confirmação de nível mora na tela 1 ────────────────
+
+  group('folha de confirmação de nível', () {
+    testWidgets(
+      'nível ainda não travado manda para a TELA 1, não para o consentimento',
+      (tester) async {
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          profile: perfil(nivelTravado: false),
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('categoria'));
+        expect(rotasAbertas, isNot(contains('consentimento')));
+        // Com `categoryId`: a tela 1 mostra UMA categoria, vinda da rota.
+        expect(destinoQueryParams?['categoryId'], 'masc');
+      },
+    );
+
+    testWidgets('nível já travado segue direto para o consentimento', (
+      tester,
+    ) async {
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        profile: perfil(nivelTravado: true),
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('consentimento'));
+      expect(rotasAbertas, isNot(contains('categoria')));
+    });
+
+    testWidgets('perfil ainda pendurado segura a decisão', (tester) async {
+      // `needsLevelConfirmation` trata perfil nulo como "não precisa": decidir
+      // antes da 1a emissao pularia o gate em silêncio.
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        profileStream: const Stream<AthleteProfile?>.empty(),
+      );
+      await tester.pump();
+
+      expect(rotasAbertas, isEmpty);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+  });
+
+  // ── fix 3: a rota é autoridade sobre "existe inscrição" ──────────────────
+
+  group('registrationId da rota', () {
+    testWidgets(
+      'inscrição ausente do mapa (cache atrasado) NÃO vira consentimento',
+      (tester) async {
+        // O mapa vem de `snapshots()`, que entrega o cache primeiro: logo
+        // depois do aceite a inscrição nova pode não estar nele.
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          registrationId: 'reg-1',
+          registrations: const {},
+          snapshot: TournamentRegistrationSnapshot(
+            registrationId: 'reg-1',
+            isPaid: false,
+            paidAmount: 0,
+            player1Id: meuUid,
+            participantUids: const [meuUid, 'atleta-2'],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('pagamento'));
+        expect(rotasAbertas, isNot(contains('consentimento')));
+        expect(destinoQueryParams?['registrationId'], 'reg-1');
+      },
+    );
+
+    testWidgets(
+      'sem nem o snapshot no cache, ainda assim não volta ao consentimento',
+      (tester) async {
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          registrationId: 'reg-1',
+          registrations: const {},
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('pagamento'));
+        expect(rotasAbertas, isNot(contains('consentimento')));
+      },
+    );
+
+    testWidgets('o mapa manda quando tem a inscrição da categoria', (
+      tester,
+    ) async {
+      // Rota diz `reg-1`, mapa diz que a inscrição desta categoria é a mesma e
+      // está com parceiro pendente — o dado vivo vence.
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        registrationId: 'reg-1',
+        registrations: const {
+          'masc': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+            partnerPending: true,
+          ),
+        },
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('parceiro'));
+      expect(rotasAbertas, isNot(contains('pagamento')));
+    });
+
+    testWidgets(
+      'registrationId de OUTRA categoria não inventa inscrição nesta',
+      (tester) async {
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla(), dupla(id: 'fem', genderType: 'female')]),
+          categoryId: 'masc',
+          registrationId: 'reg-fem',
+          registrations: const {
+            'fem': UserCategoryRegistration(
+              registrationId: 'reg-fem',
+              isPaid: false,
+            ),
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('consentimento'));
+        expect(rotasAbertas, isNot(contains('pagamento')));
+      },
+    );
+  });
+
+  // ── fix 4: erro é erro, não spinner eterno ──────────────────────────────
+
+  group('erro na porta de entrada', () {
+    testWidgets('torneio com erro mostra a tela de erro, não o loader', (
+      tester,
+    ) async {
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        tournamentStream: Stream<TournamentDetail?>.error(
+          Exception('sem rede'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Não foi possível abrir a inscrição'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(rotasAbertas, isEmpty);
+    });
+
+    testWidgets('inscrições com erro também param o porteiro com saída', (
+      tester,
+    ) async {
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        registrationsStream:
+            Stream<TournamentUserRegistrationsByCategory>.error(
+              Exception('permission-denied'),
+            ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Não foi possível abrir a inscrição'), findsOneWidget);
+      // "com saída": há o botão de tentar de novo E o de voltar.
+      expect(find.text('Tentar novamente'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    });
+
+    testWidgets('o loader também tem saída', (tester) async {
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        registrationsStream:
+            const Stream<TournamentUserRegistrationsByCategory>.empty(),
+      );
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    });
+  });
+
   // ── uma decisão só por entrada ───────────────────────────────────────────
 
   testWidgets('snapshot novo do Firestore NÃO reempurra a rota', (
@@ -637,6 +986,44 @@ void main() {
     expect(rotasAbertas, ['pagamento']);
     expect(rotasAbertas, isNot(contains('sucesso')));
   });
+
+  testWidgets(
+    'desistir de navegar deixa o portão ABERTO para a decisão seguinte',
+    (tester) async {
+      // O ramo de `sucesso` desiste quando não há `registrationId` (o detalhe
+      // leva o id no caminho). Se o portão fechasse antes dessa desistência,
+      // o build seguinte — já com o id — não navegaria e a tela ficaria em
+      // loader para sempre.
+      final controller =
+          StreamController<TournamentUserRegistrationsByCategory>();
+      addTearDown(controller.close);
+
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        registrationsStream: controller.stream,
+      );
+
+      controller.add(const {
+        'masc': UserCategoryRegistration(registrationId: '', isPaid: true),
+      });
+      // `pumpAndSettle` não serve aqui: o porteiro fica no loader, e o
+      // `CircularProgressIndicator` agenda frames para sempre.
+      await tester.pump();
+      await tester.pump();
+      expect(rotasAbertas, isEmpty);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      controller.add(const {
+        'masc': UserCategoryRegistration(registrationId: 'reg-1', isPaid: true),
+      });
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('sucesso'));
+      expect(destinoPathParams?['registrationId'], 'reg-1');
+    },
+  );
 
   testWidgets('o passo pedido JÁ liberado é obedecido', (tester) async {
     await abrirPorteiro(

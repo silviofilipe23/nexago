@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/ui/app_status_views.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../data/tournament_registration_service.dart';
+import '../../domain/category_level_eligibility.dart';
 import '../../domain/registration_wizard_step.dart';
 import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_providers.dart';
@@ -33,6 +36,7 @@ class RegistrationGatePage extends ConsumerStatefulWidget {
     this.inviteId,
     this.lgpdAccepted = false,
     this.requestedStep,
+    this.requestedStepWaitingOnly = false,
   });
 
   final String tournamentId;
@@ -41,6 +45,9 @@ class RegistrationGatePage extends ConsumerStatefulWidget {
   final String? inviteId;
   final bool lgpdAccepted;
   final RegistrationWizardStep? requestedStep;
+
+  /// O pedido veio de `?step=waiting` — ver [RegistrationStepInput].
+  final bool requestedStepWaitingOnly;
 
   @override
   ConsumerState<RegistrationGatePage> createState() =>
@@ -55,7 +62,7 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
   /// Categoria a considerar, em ordem de prioridade: a da rota; a da inscrição
   /// indicada; a de um convite recebido; a de um convite que EU enviei; a
   /// única categoria do torneio.
-  /// `null` = não dá para resolver, e o destino é a tela 1.
+  /// `null` = não dá para resolver, e o destino é a LISTA de categorias.
   String? _resolveCategoryId({
     required TournamentDetail tournament,
     required Map<String, UserCategoryRegistration> registrations,
@@ -86,13 +93,29 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
     return null;
   }
 
+  void _replaceWith(String routeName, {
+    Map<String, String> pathParameters = const {},
+    Map<String, String> queryParameters = const {},
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.pushReplacementNamed(
+        routeName,
+        pathParameters: {
+          'tournamentId': widget.tournamentId,
+          ...pathParameters,
+        },
+        queryParameters: queryParameters,
+      );
+    });
+  }
+
   void _go(
     RegistrationWizardStep step,
     String? categoryId,
     String? registrationId,
   ) {
     if (_navigated) return;
-    _navigated = true;
 
     final params = <String, String>{
       if (categoryId != null && categoryId.isNotEmpty) 'categoryId': categoryId,
@@ -105,17 +128,26 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
     // mandar por queryParameters estoura com "missing path parameter".
     if (step == RegistrationWizardStep.sucesso) {
       final regId = registrationId ?? '';
+      // Sem id não há detalhe a abrir. O portão fica ABERTO de propósito: se
+      // fechasse aqui, o build seguinte (com o id já resolvido) não navegaria
+      // mais e a tela ficaria em loader para sempre.
       if (regId.isEmpty) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        context.pushReplacementNamed(
-          AppRouteNames.tournamentRegistrationDetail,
-          pathParameters: {
-            'tournamentId': widget.tournamentId,
-            'registrationId': regId,
-          },
-        );
-      });
+      _navigated = true;
+      _replaceWith(
+        AppRouteNames.tournamentRegistrationDetail,
+        pathParameters: {'registrationId': regId},
+      );
+      return;
+    }
+
+    // A tela 1 do wizard mostra UMA categoria vinda da rota — ela não é um
+    // seletor. Sem categoria resolvida, o lugar de escolher é a lista do
+    // torneio; mandar para a tela 1 sem `categoryId` dava
+    // "Categoria não encontrada".
+    if (step == RegistrationWizardStep.categoria &&
+        (categoryId == null || categoryId.isEmpty)) {
+      _navigated = true;
+      _replaceWith(AppRouteNames.tournamentCategories);
       return;
     }
 
@@ -137,24 +169,58 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
         AppRouteNames.tournamentRegistrationDetail,
     };
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.pushReplacementNamed(
-        name,
-        pathParameters: {'tournamentId': widget.tournamentId},
-        queryParameters: params,
-      );
-    });
+    _navigated = true;
+    _replaceWith(name, queryParameters: params);
+  }
+
+  void _retry() {
+    ref.invalidate(tournamentDetailProvider(widget.tournamentId));
+    ref.invalidate(
+      tournamentUserRegistrationsByCategoryProvider(widget.tournamentId),
+    );
+    ref.invalidate(pendingTournamentPartnerInvitesProvider);
+    ref.invalidate(inviterTournamentPartnerInvitesProvider);
+    ref.invalidate(athleteProfileProvider);
+    final regId = widget.registrationId?.trim() ?? '';
+    if (regId.isNotEmpty) {
+      ref.invalidate(tournamentRegistrationSnapshotProvider(regId));
+    }
+  }
+
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.goNamed(
+      AppRouteNames.tournamentDetail,
+      pathParameters: {'tournamentId': widget.tournamentId},
+    );
+  }
+
+  /// Casca do porteiro: o loader e o erro precisam de [Scaffold] (solto na
+  /// árvore, qualquer texto cai no estilo de erro do Flutter) e de uma SAÍDA —
+  /// o porteiro é a porta de entrada da inscrição, e ficar preso nele offline
+  /// não deixa nem voltar.
+  Widget _chrome(Widget child) {
+    return Scaffold(
+      backgroundColor: context.themeColors.canvas,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _leave,
+          tooltip: 'Voltar',
+        ),
+      ),
+      body: child,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // O loader precisa de `Scaffold`: solto na árvore, qualquer texto cairia
-    // no estilo de erro do Flutter (sublinhado amarelo).
-    final loader = Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      body: const Center(child: CircularProgressIndicator()),
-    );
+    final loader = _chrome(const Center(child: CircularProgressIndicator()));
 
     final tournamentAsync = ref.watch(
       tournamentDetailProvider(widget.tournamentId),
@@ -164,21 +230,51 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
     );
     final receivedAsync = ref.watch(pendingTournamentPartnerInvitesProvider);
     final sentAsync = ref.watch(inviterTournamentPartnerInvitesProvider);
-    // A sessão entra na espera junto: o uniforme é lido pelo SLOT do atleta, e
-    // com o uid ainda vazio o slot volta em branco — mandaria de volta ao
-    // uniforme quem já tinha escolhido tudo.
+    // A sessão entra na espera junto por dois motivos: o uniforme é lido pelo
+    // SLOT do atleta (uid vazio devolve slot em branco), e os providers de
+    // convite respondem lista VAZIA quando não há uid — um convite recebido de
+    // verdade sumiria.
     final authAsync = ref.watch(authProvider);
+    // O perfil decide a folha de nível. `needsLevelConfirmation` trata perfil
+    // nulo como "não precisa", então ler antes de emitir pularia o gate em
+    // silêncio — o mesmo furo que `resolveLevelConfirmationPrompt` documenta.
+    final profileAsync = ref.watch(athleteProfileProvider);
 
-    // Enquanto QUALQUER uma das cinco leituras não resolveu, o porteiro
-    // espera. Chutar aqui é o bug antigo: sem as inscrições, "retomar" perde
-    // para "começar"; sem os convites enviados, quem já convidou refaz o
+    // Erro é ERRO, não "ainda carregando": `valueOrNull`/`hasValue` engolem
+    // `AsyncError` e o porteiro viraria um spinner permanente na porta de
+    // entrada da inscrição. Só `hasError`, sem `&& !hasValue` — dado antigo e
+    // erro novo coexistem no mesmo `AsyncValue` (mesma guarda das telas
+    // irmãs deste wizard).
+    final failed =
+        tournamentAsync.hasError ||
+        registrationsAsync.hasError ||
+        receivedAsync.hasError ||
+        sentAsync.hasError ||
+        authAsync.hasError ||
+        profileAsync.hasError;
+    if (failed) {
+      return _chrome(
+        AppErrorView(
+          title: 'Não foi possível abrir a inscrição',
+          message:
+              'Verifique sua conexão e tente de novo. Se continuar, volte e '
+              'entre pelo torneio.',
+          onRetry: _retry,
+        ),
+      );
+    }
+
+    // Enquanto QUALQUER uma das leituras não resolveu, o porteiro espera.
+    // Chutar aqui é o bug antigo: sem as inscrições, "retomar" perde para
+    // "começar"; sem os convites enviados, quem já convidou refaz o
     // consentimento.
     final tournament = tournamentAsync.valueOrNull;
     if (tournament == null ||
         !registrationsAsync.hasValue ||
         !receivedAsync.hasValue ||
         !sentAsync.hasValue ||
-        !authAsync.hasValue) {
+        !authAsync.hasValue ||
+        !profileAsync.hasValue) {
       return loader;
     }
 
@@ -200,17 +296,46 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
     final category = tournament.categoryOffers.firstWhere(
       (c) => c.id == categoryId,
     );
-    final registration = registrations[categoryId];
+
+    // A ROTA é autoridade sobre "existe inscrição". O mapa vem de um
+    // `snapshots()` do Firestore, que entrega o CACHE primeiro: logo depois do
+    // aceite, a inscrição recém-criada pode não estar nele, `hasValue` já é
+    // `true` e o atleta cairia no consentimento. A tela única sobrevivia por
+    // ser tela viva e se corrigir no snapshot seguinte; o porteiro decide uma
+    // vez só.
+    final mapped = registrations[categoryId];
+    final routeRegId = widget.registrationId?.trim() ?? '';
+    final routeRegIsFromAnotherCategory =
+        routeRegId.isNotEmpty &&
+        registrations.entries.any(
+          (e) => e.key != categoryId && e.value.registrationId == routeRegId,
+        );
+    final assertedByRoute =
+        routeRegId.isNotEmpty &&
+        mapped == null &&
+        !routeRegIsFromAnotherCategory;
+    final effectiveRegistrationId =
+        mapped?.registrationId ?? (assertedByRoute ? routeRegId : null);
+    final hasRegistration = mapped != null || assertedByRoute;
 
     // O snapshot só existe com inscrição; sem ela não há uniforme a conferir.
     // Com inscrição, ele entra na mesma regra de esperar: tratar "doc ainda
     // não voltou" como "sem uniforme" mandaria para o uniforme quem já
     // escolheu tudo.
     TournamentRegistrationSnapshot? snap;
-    if (registration != null) {
+    if (effectiveRegistrationId != null) {
       final snapAsync = ref.watch(
-        tournamentRegistrationSnapshotProvider(registration.registrationId),
+        tournamentRegistrationSnapshotProvider(effectiveRegistrationId),
       );
+      if (snapAsync.hasError) {
+        return _chrome(
+          AppErrorView(
+            title: 'Não foi possível abrir a inscrição',
+            message: 'Não foi possível carregar sua inscrição.',
+            onRetry: _retry,
+          ),
+        );
+      }
       if (!snapAsync.hasValue) return loader;
       snap = snapAsync.value;
     }
@@ -235,10 +360,10 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
           tournamentId: widget.tournamentId,
           categoryId: categoryId,
         ).isNotEmpty,
-        hasRegistration: registration != null,
+        hasRegistration: hasRegistration,
         // Inscrição existente já teve o aceite carimbado pela callable.
-        lgpdAccepted: widget.lgpdAccepted || registration != null,
-        partnerPending: registration?.partnerPending ?? false,
+        lgpdAccepted: widget.lgpdAccepted || hasRegistration,
+        partnerPending: mapped?.partnerPending ?? snap?.partnerPending ?? false,
         uniformRequired: uniformRequired,
         uniformComplete:
             !uniformRequired ||
@@ -247,12 +372,20 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
                   category: category,
                   selection: snap.uniformFor(myUid),
                 )),
-        isPaid: registration?.isPaid ?? false,
+        isPaid: mapped?.isPaid ?? snap?.isPaid ?? false,
+        // A folha de nível abre na saída da TELA 1, e as entradas que já
+        // trazem `categoryId` nunca passam por lá.
+        levelConfirmationPending:
+            CategoryLevelEligibility.needsLevelConfirmation(
+          profileAsync.value,
+          tournamentSport: tournament.sport,
+        ),
         requestedStep: widget.requestedStep,
+        requestedStepWaitingOnly: widget.requestedStepWaitingOnly,
       ),
     );
 
-    _go(step, categoryId, registration?.registrationId);
+    _go(step, categoryId, effectiveRegistrationId);
     return loader;
   }
 }

@@ -168,6 +168,31 @@ class AthleteProfileRepository {
     );
   }
 
+  /// Opt-in de comunicações de marketing, dado na tela de consentimento da
+  /// inscrição.
+  ///
+  /// É consentimento de PLATAFORMA, não do torneio — por isso mora no perfil e
+  /// não na inscrição (o aceite do termo do evento continua sendo
+  /// `lgpdAccepted`, carimbado pela callable em `lgpdAcceptedUids`).
+  ///
+  /// O campo é gravado pelo próprio dono: a regra de update de `users` é uma
+  /// lista de PROIBIÇÕES (roles, superAdmin, reputation, sandRank, referredBy,
+  /// phoneVerified, níveis), não um allow-list — campo novo do dono passa. Ele
+  /// também não está em `PUBLIC_PROFILE_FIELDS`, então não vai para o espelho
+  /// público.
+  Future<void> saveMarketingOptIn({
+    required String uid,
+    required bool optIn,
+  }) async {
+    await _users.doc(uid).set(
+      <String, dynamic>{
+        'marketingOptIn': optIn,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Stream<List<Map<String, dynamic>>> watchUserTokens(String uid) {
     return _users
         .doc(uid)

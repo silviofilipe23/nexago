@@ -181,12 +181,14 @@ import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_predictions_page.dart';
 import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
+import '../../features/tournaments/domain/registration_wizard_step.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
 import '../../features/tournaments/domain/tournament_registration_success_args.dart';
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_category_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_consent_page.dart';
+import '../../features/tournaments/presentation/registration_wizard/registration_gate_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_partner_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_terms_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_uniform_page.dart';
@@ -1245,27 +1247,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.tournamentRegistration,
         name: AppRouteNames.tournamentRegistration,
+        // A rota não entrega mais tela: ela é o PORTEIRO do wizard. Lê o
+        // estado, chama `resolveRegistrationStep` e se substitui pela etapa
+        // certa. Os query params de sempre continuam valendo — nenhum dos
+        // pontos de entrada existentes (push, convite aceito, Home, detalhe
+        // do torneio, "minha inscrição") precisou mudar.
         builder: (context, state) {
           final id = state.pathParameters['tournamentId']?.trim() ?? '';
           final categoryId = state.uri.queryParameters['categoryId']?.trim();
           final registrationId =
               state.uri.queryParameters['registrationId']?.trim();
           final inviteId = state.uri.queryParameters['inviteId']?.trim();
-          final stepParam = state.uri.queryParameters['step']?.trim();
-          TournamentRegistrationStep? initialStep;
-          if (stepParam == 'payment') {
-            initialStep = TournamentRegistrationStep.payment;
-          } else if (stepParam == 'waiting') {
-            initialStep = TournamentRegistrationStep.waiting;
-          } else if (stepParam == 'partner') {
-            initialStep = TournamentRegistrationStep.partner;
-          }
-          return TournamentRegistrationPage(
+          return RegistrationGatePage(
             tournamentId: id,
-            initialCategoryId: categoryId,
-            initialRegistrationId: registrationId,
-            initialInviteId: inviteId,
-            initialStep: initialStep,
+            categoryId: categoryId,
+            registrationId: registrationId,
+            inviteId: inviteId,
+            lgpdAccepted: state.uri.queryParameters['lgpd'] == '1',
+            // `step` é PREFERÊNCIA, não ordem: o porteiro só obedece quando a
+            // etapa pedida já está liberada.
+            requestedStep: registrationStepFromParam(
+              state.uri.queryParameters['step'],
+            ),
           );
         },
       ),
@@ -1344,13 +1347,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final categoryId = state.uri.queryParameters['categoryId']?.trim() ?? '';
           final registrationId =
               state.uri.queryParameters['registrationId']?.trim() ?? '';
-          // Sem inscrição não há onde gravar o uniforme: cai na tela guarda-
-          // chuva, que deriva o estado da categoria e mostra o passo certo —
-          // mesma saída defensiva da rota de pagamento logo abaixo.
+          // Sem inscrição não há onde gravar o uniforme: cai no porteiro, que
+          // deriva o estado da categoria e abre o passo certo — mesma saída
+          // defensiva da rota de pagamento logo abaixo.
           if (registrationId.isEmpty) {
-            return TournamentRegistrationPage(
+            return RegistrationGatePage(
               tournamentId: tournamentId,
-              initialCategoryId: categoryId,
+              categoryId: categoryId,
             );
           }
           return RegistrationUniformPage(
@@ -1369,12 +1372,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final registrationId =
               state.uri.queryParameters['registrationId']?.trim() ?? '';
           final categoryId = state.uri.queryParameters['categoryId']?.trim();
-          // Sem inscrição não há o que pagar: cai na tela de inscrição, que
-          // deriva o estado da categoria e mostra o passo que falta.
+          // Sem inscrição não há o que pagar: cai no porteiro, que deriva o
+          // estado da categoria e abre o passo que falta.
           if (registrationId.isEmpty) {
-            return TournamentRegistrationPage(
+            return RegistrationGatePage(
               tournamentId: tournamentId,
-              initialCategoryId: categoryId,
+              categoryId: categoryId,
             );
           }
           return TournamentRegistrationPaymentPage(

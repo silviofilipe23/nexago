@@ -32,6 +32,7 @@ class RegistrationStepInput {
     required this.uniformRequired,
     required this.uniformComplete,
     required this.isPaid,
+    this.hasSentInvitePending = false,
     this.requestedStep,
   });
 
@@ -40,6 +41,14 @@ class RegistrationStepInput {
 
   /// Existe convite de parceiro pendente PARA o atleta nesta categoria.
   final bool hasReceivedInvite;
+
+  /// O atleta JÁ convidou alguém nesta categoria e o convite segue pendente.
+  ///
+  /// Convidar não cria inscrição — o backend só cria quando o convidado
+  /// aceita. Sem este sinal, o atleta que voltasse por push ou pela Home
+  /// (sem `lgpd` na rota) cairia no consentimento e refaria o aceite e as
+  /// condições com um convite já em voo.
+  final bool hasSentInvitePending;
 
   final bool hasRegistration;
 
@@ -73,6 +82,11 @@ RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
   if (!input.categoryResolved) return RegistrationWizardStep.categoria;
   if (input.hasReceivedInvite) return RegistrationWizardStep.condicoes;
   if (!input.hasRegistration) {
+    // Convite enviado e ainda sem resposta: a inscrição só nasce no aceite,
+    // então o estado de ESPERA mora na tela do parceiro. Vem antes do
+    // consentimento porque quem já convidou não pode ser mandado de volta ao
+    // começo do fluxo só por não trazer `lgpd` na rota.
+    if (input.hasSentInvitePending) return RegistrationWizardStep.parceiro;
     return input.lgpdAccepted
         ? RegistrationWizardStep.condicoes
         : RegistrationWizardStep.consentimento;

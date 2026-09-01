@@ -11,6 +11,7 @@ import {
   type OrganizerEventDefaults,
 } from '../../data/organizer-settings.model';
 import { loadTournamentDraft, publishTournamentDraft } from '../../data/tournament-create-mapper';
+import { formatCentsInputValue, parseBRLInputToCents } from '../../data/tournament-collected';
 import {
   AGE_BAND_LABEL,
   BEST_OF_LABEL,
@@ -235,16 +236,18 @@ function inputToDatetime(v: string): Date | null {
             <og-card kicker="Vagas & preço" title="Configuração">
               <div class="og-field-grid">
                 <og-stepper-static label="Vagas" [value]="'' + cat().spots" [suffix]="catUnit()" (bump)="bumpCatSpots($event)" />
-                <og-form-field label="Preço desta categoria (R$)">
-                  <input
-                    class="og-input-el"
-                    type="number"
-                    min="0"
-                    step="10"
-                    [disabled]="cat().useDefaultPrice"
-                    [value]="cat().priceCents / 100"
-                    (input)="patchCat({ priceCents: toCents($any($event.target).value) })"
-                  />
+                <og-form-field label="Preço desta categoria">
+                  <div class="og-input og-brl-input">
+                    <span class="og-brl-prefix">R$</span>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      [disabled]="cat().useDefaultPrice"
+                      [value]="catPriceInput()"
+                      (input)="onCatPriceInput($any($event.target).value)"
+                    />
+                  </div>
                 </og-form-field>
               </div>
               <div style="margin-top:14px">
@@ -252,7 +255,7 @@ function inputToDatetime(v: string): Date | null {
                   title="Usar preço padrão do torneio"
                   [desc]="brl(draft().defaultPriceCents) + ' por ' + catUnitSingular()"
                   [on]="cat().useDefaultPrice"
-                  (toggled)="patchCat({ useDefaultPrice: $event, priceCents: $event ? draft().defaultPriceCents : cat().priceCents })"
+                  (toggled)="onCatUseDefaultPrice($event)"
                 />
                 @if (catIsTeam()) {
                   <p class="og-wizard-hint">Preço por equipe — cada atleta paga a própria cota (≈ {{ brl(catPricePerAthlete()) }}) ou um atleta paga o valor cheio.</p>
@@ -360,18 +363,18 @@ function inputToDatetime(v: string): Date | null {
                   </div>
                   <div class="og-field-grid" style="margin-top:16px">
                     <og-form-field label="UF">
-                      <select class="og-select-el" [value]="draft().state" (change)="onStateChange($any($event.target).value)">
+                      <select class="og-select-el" (change)="onStateChange($any($event.target).value)">
                         <option value="">Selecione</option>
                         @for (s of brLocations.states; track s.sigla) {
-                          <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                          <option [value]="s.sigla" [selected]="s.sigla === draft().state">{{ s.name }} ({{ s.sigla }})</option>
                         }
                       </select>
                     </og-form-field>
                     <og-form-field label="Cidade">
-                      <select class="og-select-el" [value]="draft().city" [disabled]="!draft().state" (change)="patch({ city: $any($event.target).value })">
+                      <select class="og-select-el" [disabled]="!draft().state" (change)="patch({ city: $any($event.target).value })">
                         <option value="">{{ !draft().state ? 'Selecione a UF primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}</option>
                         @for (c of citiesForState(); track c) {
-                          <option [value]="c">{{ c }}</option>
+                          <option [value]="c" [selected]="c === draft().city">{{ c }}</option>
                         }
                       </select>
                     </og-form-field>
@@ -641,6 +644,30 @@ function inputToDatetime(v: string): Date | null {
       color: var(--nx-text-dim);
       margin: 8px 0 0;
     }
+    .og-brl-input {
+      gap: 8px;
+    }
+    .og-brl-prefix {
+      flex: none;
+      font-family: var(--nx-font-mono);
+      font-size: 13px;
+      color: var(--nx-text-dim);
+    }
+    .og-brl-input input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--nx-text);
+    }
+    .og-brl-input input:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
   `,
 })
 export class CriarTorneioComponent {
@@ -683,6 +710,7 @@ export class CriarTorneioComponent {
 
   /** Categoria em edição no builder (cópia de trabalho). */
   protected readonly cat = signal<TournamentCategoryDraft>(emptyCategoryDraft('tmp'));
+  protected readonly catPriceInput = signal('0,00');
   protected readonly premioCategoryId = signal<string | null>(null);
 
   private readonly queryParams = toSignal(this.route.queryParamMap);
@@ -799,12 +827,6 @@ export class CriarTorneioComponent {
       if (!editId || this.draft().tournamentId === editId) return;
       void this.loadForEdit(editId);
     });
-    // DEBUG TEMPORÁRIO — remover depois de investigar o bug de estado/cidade na edição.
-    effect(() => {
-      const d = this.draft();
-      // eslint-disable-next-line no-console
-      console.log('[DEBUG torneio draft]', { tournamentId: d.tournamentId, city: d.city, state: d.state });
-    });
   }
 
   /** Preenche o rascunho NOVO com as regras padrão do organizador (`/painel/config`).
@@ -840,8 +862,6 @@ export class CriarTorneioComponent {
         this.feedback.set({ ok: false, message: 'Torneio não encontrado pra edição.' });
         return;
       }
-      // eslint-disable-next-line no-console
-      console.log('[DEBUG torneio loadForEdit] doc carregado:', { city: loaded.draft.city, state: loaded.draft.state, existingListingStatus: loaded.existingListingStatus });
       this.draft.set(loaded.draft);
       this.existingListingStatus = loaded.existingListingStatus;
       this.editEntry.set(true);
@@ -882,6 +902,17 @@ export class CriarTorneioComponent {
 
   protected patchCat(partial: Partial<TournamentCategoryDraft>): void {
     this.cat.update((c) => ({ ...c, ...partial }));
+  }
+
+  protected onCatPriceInput(value: string): void {
+    this.catPriceInput.set(value);
+    this.patchCat({ priceCents: parseBRLInputToCents(value) });
+  }
+
+  protected onCatUseDefaultPrice(on: boolean): void {
+    const priceCents = on ? this.draft().defaultPriceCents : this.cat().priceCents;
+    this.catPriceInput.set(formatCentsInputValue(priceCents));
+    this.patchCat({ useDefaultPrice: on, priceCents });
   }
 
   protected brl(cents: number): string {
@@ -1011,6 +1042,7 @@ export class CriarTorneioComponent {
             this.organizerDefaults,
           ),
     );
+    this.catPriceInput.set(formatCentsInputValue(this.cat().priceCents));
     this.subView.set('categoria');
   }
 

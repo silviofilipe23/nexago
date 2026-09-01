@@ -329,7 +329,7 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     teamsPerGroup: num(map['teamsPerGroup']) ?? 4,
     qualifiersPerGroup: num(map['qualifiersPerGroup']) ?? 2,
     bestOf: parseBestOf(map['bestOf']),
-    finalBestOf5: map['finalBestOf5'] !== false,
+    finalBestOf5: map['finalBestOf5'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
     prizes: parsePrizes(map['prizes']),
   };

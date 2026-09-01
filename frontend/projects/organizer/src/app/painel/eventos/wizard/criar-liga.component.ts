@@ -205,18 +205,18 @@ function inputToDate(v: string): Date | null {
               </div>
               <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="UF da etapa (vazio = UF da liga)">
-                  <select class="og-select-el" [value]="stage().state" (change)="onStageStateChange($any($event.target).value)">
+                  <select class="og-select-el" (change)="onStageStateChange($any($event.target).value)">
                     <option value="">— usa UF da liga —</option>
                     @for (s of brLocations.states; track s.sigla) {
-                      <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                      <option [value]="s.sigla" [selected]="s.sigla === stage().state">{{ s.name }} ({{ s.sigla }})</option>
                     }
                   </select>
                 </og-form-field>
                 <og-form-field label="Cidade (vazio = cidade da liga)">
-                  <select class="og-select-el" [value]="stage().city" [disabled]="!stageEffectiveState()" (change)="patchStage({ city: $any($event.target).value })">
+                  <select class="og-select-el" [disabled]="!stageEffectiveState()" (change)="patchStage({ city: $any($event.target).value })">
                     <option value="">{{ !stageEffectiveState() ? 'Defina a UF da liga primeiro' : '— usa cidade da liga —' }}</option>
                     @for (c of citiesForStageState(); track c) {
-                      <option [value]="c">{{ c }}</option>
+                      <option [value]="c" [selected]="c === stage().city">{{ c }}</option>
                     }
                   </select>
                 </og-form-field>
@@ -252,18 +252,18 @@ function inputToDate(v: string): Date | null {
                       <input class="og-input-el" [value]="draft().organizationName" (input)="patch({ organizationName: $any($event.target).value })" />
                     </og-form-field>
                     <og-form-field label="UF">
-                      <select class="og-select-el" [value]="draft().state" (change)="onStateChange($any($event.target).value)">
+                      <select class="og-select-el" (change)="onStateChange($any($event.target).value)">
                         <option value="">Selecione</option>
                         @for (s of brLocations.states; track s.sigla) {
-                          <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                          <option [value]="s.sigla" [selected]="s.sigla === draft().state">{{ s.name }} ({{ s.sigla }})</option>
                         }
                       </select>
                     </og-form-field>
                     <og-form-field label="Cidade-sede">
-                      <select class="og-select-el" [value]="draft().city" [disabled]="!draft().state" (change)="patch({ city: $any($event.target).value })">
+                      <select class="og-select-el" [disabled]="!draft().state" (change)="patch({ city: $any($event.target).value })">
                         <option value="">{{ !draft().state ? 'Selecione a UF primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}</option>
                         @for (c of citiesForState(); track c) {
-                          <option [value]="c">{{ c }}</option>
+                          <option [value]="c" [selected]="c === draft().city">{{ c }}</option>
                         }
                       </select>
                     </og-form-field>

@@ -341,12 +341,15 @@ void main() {
         RegistrationStepInput(
           categoryResolved: true,
           hasReceivedInvite: false,
+          hasSentInvitePending: false,
           hasRegistration: true,
           lgpdAccepted: true,
           partnerPending: true,
           uniformRequired: true,
           uniformComplete: false,
           isPaid: false,
+          levelConfirmationPending: false,
+          requestedStepWaitingOnly: false,
         ),
       );
 

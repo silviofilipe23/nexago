@@ -32,10 +32,14 @@ class RegistrationStepInput {
     required this.uniformRequired,
     required this.uniformComplete,
     required this.isPaid,
-    this.hasSentInvitePending = false,
-    this.levelConfirmationPending = false,
+    // Os três abaixo MUDAM a decisão e não têm default: um call site que os
+    // esquecesse em silêncio escolheria o passo errado sem o compilador
+    // reclamar — e foi exatamente por um deles (`hasSentInvitePending`) que o
+    // aceite LGPD se perdia no caminho de volta.
+    required this.hasSentInvitePending,
+    required this.levelConfirmationPending,
+    required this.requestedStepWaitingOnly,
     this.requestedStep,
-    this.requestedStepWaitingOnly = false,
   });
 
   /// A categoria da rota existe no torneio.
@@ -110,7 +114,17 @@ RegistrationWizardStep resolveRegistrationStep(RegistrationStepInput input) {
 
 RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
   if (!input.categoryResolved) return RegistrationWizardStep.categoria;
-  if (input.hasReceivedInvite) return RegistrationWizardStep.condicoes;
+  // `&& !hasRegistration` é o qualificador da regra pré-existente do projeto
+  // (`registrationCardState`, `registration_shell_logic.dart`), perdido na
+  // tradução para o porteiro. Receber convite COM inscrição já criada é um
+  // caso normal, não uma contradição: a CF permite convidar quem tem reserva
+  // solo aberta (`partnerPending`), porque o plano dela é ANEXAR o convidado
+  // à inscrição que já existe (`tournament-partner-invite.ts`, modo "attach").
+  // Sem o qualificador esse atleta ficava preso em "condições" — sem pagar,
+  // sem recusar, com o relógio da vaga correndo.
+  if (input.hasReceivedInvite && !input.hasRegistration) {
+    return RegistrationWizardStep.condicoes;
+  }
   if (!input.hasRegistration) {
     // Convite enviado e ainda sem resposta: a inscrição só nasce no aceite,
     // então o estado de ESPERA mora na tela do parceiro. Vem antes do

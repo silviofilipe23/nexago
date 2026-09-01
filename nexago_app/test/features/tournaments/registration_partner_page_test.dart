@@ -190,6 +190,15 @@ void main() {
           },
         ),
         GoRoute(
+          path: '/torneios/:tournamentId/inscricao/consentimento',
+          name: AppRouteNames.tournamentRegistrationConsent,
+          builder: (_, state) {
+            rotasAbertas.add('consentimento');
+            destinoQueryParams = Map.of(state.uri.queryParameters);
+            return const Scaffold(body: Text('consentimento'));
+          },
+        ),
+        GoRoute(
           path: '/torneios/:tournamentId',
           name: AppRouteNames.tournamentDetail,
           builder: (_, __) {
@@ -337,26 +346,90 @@ void main() {
       },
     );
 
-    testWidgets('sem aceite LGPD, sendInvite recebe lgpdAccepted false', (
-      tester,
-    ) async {
-      await abrirTela(
-        tester,
-        tournament: torneio([dupla()]),
-        lgpdAccepted: false,
-        resultadosBusca: [
-          const AppUserProfile(uid: 'parceiro-1', fullName: 'Bruno Alves', gender: 'Masculino'),
-        ],
-      );
+    testWidgets(
+      'sem aceite LGPD e sem inscrição, convidar NÃO chama a callable — '
+      'volta ao consentimento',
+      (tester) async {
+        // O aceite se perdia no retorno parceiro → porteiro → parceiro, e a
+        // callable era chamada com `lgpdAccepted: false`. A CF só GRAVA o
+        // aceite quando o flag é `true`: sem erro, sem log, e sem segunda
+        // chance (dali em diante o porteiro trata inscrição existente como
+        // consentida). O resultado era inscrição sem `lgpdAcceptedUids` e o
+        // painel do organizador mostrando o atleta sem aceite.
+        await abrirTela(
+          tester,
+          tournament: torneio([dupla()]),
+          lgpdAccepted: false,
+          resultadosBusca: [
+            const AppUserProfile(
+              uid: 'parceiro-1',
+              fullName: 'Bruno Alves',
+              gender: 'Masculino',
+            ),
+          ],
+        );
 
-      await buscar(tester, 'bru');
-      await tester.tap(find.text('Bruno Alves'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Convidar Bruno'));
-      await tester.pumpAndSettle();
+        await buscar(tester, 'bru');
+        await tester.tap(find.text('Bruno Alves'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Convidar Bruno'));
+        await tester.pumpAndSettle();
 
-      expect(servico.sendInviteCalls.single.lgpdAccepted, isFalse);
-    });
+        expect(servico.sendInviteCalls, isEmpty);
+        expect(rotasAbertas, contains('consentimento'));
+        expect(destinoQueryParams?['categoryId'], 'masc');
+      },
+    );
+
+    testWidgets(
+      'sem aceite LGPD e sem inscrição, a reserva solo também recolhe o '
+      'aceite antes de criar',
+      (tester) async {
+        await abrirTela(
+          tester,
+          tournament: torneio([dupla()], requireFormedPair: false),
+          lgpdAccepted: false,
+        );
+
+        await tester.tap(find.text('Sem dupla aqui? Garanta sua vaga'));
+        await tester.pumpAndSettle();
+
+        expect(servico.soloCalls, isEmpty);
+        expect(rotasAbertas, contains('consentimento'));
+      },
+    );
+
+    testWidgets(
+      'convite sem registrationId leva o aceite ADIANTE na URL da volta',
+      (tester) async {
+        // A callable de convite de dupla não devolve `registrationId` (a
+        // inscrição só nasce no aceite do convidado), então a volta é para a
+        // tela guarda-chuva. Sem `lgpd=1` ali, o porteiro devolvia o atleta
+        // para cá com `lgpdAccepted: false` e as ações que CRIAM inscrição
+        // continuariam disponíveis, agora sem aceite.
+        await abrirTela(
+          tester,
+          tournament: torneio([dupla()]),
+          lgpdAccepted: true,
+          resultadosBusca: [
+            const AppUserProfile(
+              uid: 'parceiro-1',
+              fullName: 'Bruno Alves',
+              gender: 'Masculino',
+            ),
+          ],
+        );
+
+        await buscar(tester, 'bru');
+        await tester.tap(find.text('Bruno Alves'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Convidar Bruno'));
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('inscrição'));
+        expect(destinoQueryParams?['lgpd'], '1');
+      },
+    );
 
     testWidgets(
       'convidado com cadastro incompleto avisa o convidante em vez do '
@@ -479,6 +552,82 @@ void main() {
         expect(rotasAbertas, isEmpty);
       },
     );
+  });
+
+  // ── variante dupla COM reserva solo já criada ───────────────────────────
+
+  group('dupla com inscrição existente', () {
+    TournamentRegistrationSnapshot reservaSolo({bool isPaid = false}) =>
+        TournamentRegistrationSnapshot(
+          registrationId: 'reg-solo-aberta',
+          isPaid: isPaid,
+          paidAmount: 0,
+          partnerPending: true,
+          player1Id: meuUid,
+          participantUids: const [meuUid],
+        );
+
+    testWidgets(
+      'esconde a reserva solo — o servidor recusa por definição',
+      (tester) async {
+        // "Você já possui inscrição nesta categoria."
+        // (`tournament-partner-invite.ts`). Oferecer a ação era convidar o
+        // atleta a bater no erro.
+        await abrirTela(
+          tester,
+          tournament: torneio([dupla()], requireFormedPair: false),
+          registrationId: 'reg-solo-aberta',
+          snapshot: reservaSolo(),
+        );
+
+        expect(find.text('Sem dupla aqui? Garanta sua vaga'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'oferece garantir a vaga pagando o integral, e leva ao pagamento com '
+      'o registrationId',
+      (tester) async {
+        // Regressão de feature documentada (solo paga o integral e garante a
+        // vaga): o passo 4 não oferecia, e o porteiro nunca honra
+        // `step=payment` com parceiro pendente — pagamento (5) é posterior a
+        // parceiro (3). Não havia caminho nenhum.
+        await abrirTela(
+          tester,
+          tournament: torneio([dupla()], requireFormedPair: false),
+          registrationId: 'reg-solo-aberta',
+          snapshot: reservaSolo(),
+        );
+
+        expect(
+          find.text('Garantir vaga pagando o valor integral'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Garantir vaga pagando o valor integral'));
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('pagamento'));
+        expect(destinoQueryParams?['registrationId'], 'reg-solo-aberta');
+        expect(destinoQueryParams?['categoryId'], 'masc');
+      },
+    );
+
+    testWidgets('inscrição JÁ paga não repete a oferta do integral', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: false),
+        registrationId: 'reg-solo-aberta',
+        snapshot: reservaSolo(isPaid: true),
+      );
+
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsNothing,
+      );
+    });
   });
 
   // ── variante equipe SEM inscrição ───────────────────────────────────────
@@ -659,6 +808,77 @@ void main() {
         // (que nem devolve `registrationId`).
         expect(rotasAbertas, contains('pagamento'));
         expect(destinoQueryParams?['registrationId'], 'reg-equipe');
+      },
+    );
+
+    testWidgets(
+      'integrante que NÃO é capitão não vê a busca nem o convite — vê a nota '
+      'e um caminho adiante',
+      (tester) async {
+        // "Apenas o capitão convida atletas para a equipe."
+        // (`tournament-partner-invite.ts`). A tela única distinguia com
+        // `registrationRosterNote(isCaptain: …)`; o wizard mostrava a busca
+        // inteira para qualquer integrante, só para levar um erro no fim.
+        await abrirTela(
+          tester,
+          tournament: torneio([equipe()]),
+          categoryId: 'quarteto',
+          registrationId: 'reg-equipe',
+          snapshot: TournamentRegistrationSnapshot(
+            registrationId: 'reg-equipe',
+            isPaid: false,
+            paidAmount: 0,
+            teamName: 'Areia Fera',
+            teamSize: 4,
+            captainUid: 'atleta-2',
+            participantUids: [meuUid, 'atleta-2'],
+          ),
+        );
+
+        expect(find.text('Elenco 2/4. O capitão está montando o elenco.'),
+            findsOneWidget);
+        expect(
+          find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
+          findsNothing,
+        );
+        expect(find.text('Convidar para a equipe'), findsNothing);
+
+        // Sem saída, o integrante ficaria preso: o passo dele é uniforme /
+        // pagamento, e o CTA leva para lá com o id já conhecido.
+        expect(find.text('Continuar'), findsOneWidget);
+        await tester.tap(find.text('Continuar'));
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('pagamento'));
+        expect(destinoQueryParams?['registrationId'], 'reg-equipe');
+      },
+    );
+
+    testWidgets(
+      'capitão identificado por player1Id (doc antigo, sem captainUid) '
+      'continua convidando',
+      (tester) async {
+        await abrirTela(
+          tester,
+          tournament: torneio([equipe()]),
+          categoryId: 'quarteto',
+          registrationId: 'reg-equipe',
+          snapshot: TournamentRegistrationSnapshot(
+            registrationId: 'reg-equipe',
+            isPaid: false,
+            paidAmount: 0,
+            teamName: 'Areia Fera',
+            teamSize: 4,
+            player1Id: meuUid,
+            participantUids: [meuUid, 'atleta-2'],
+          ),
+        );
+
+        expect(
+          find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
+          findsOneWidget,
+        );
+        expect(find.text('Convidar para a equipe'), findsOneWidget);
       },
     );
   });

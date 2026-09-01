@@ -453,6 +453,26 @@ abstract final class AppRoutes {
   static const String tournamentSubstitutionWizard =
       '/torneios/:tournamentId/inscricao/:registrationId/substituir';
 
+  /// Passo 1 do wizard: `/torneios/:tournamentId/inscricao/categoria`
+  static const String tournamentRegistrationCategory =
+      '/torneios/:tournamentId/inscricao/categoria';
+
+  /// Consentimento LGPD: `/torneios/:tournamentId/inscricao/consentimento`
+  static const String tournamentRegistrationConsent =
+      '/torneios/:tournamentId/inscricao/consentimento';
+
+  /// Condições da inscrição: `/torneios/:tournamentId/inscricao/condicoes`
+  static const String tournamentRegistrationTerms =
+      '/torneios/:tournamentId/inscricao/condicoes';
+
+  /// Parceiro/elenco: `/torneios/:tournamentId/inscricao/parceiro`
+  static const String tournamentRegistrationPartner =
+      '/torneios/:tournamentId/inscricao/parceiro';
+
+  /// Uniforme: `/torneios/:tournamentId/inscricao/uniforme`
+  static const String tournamentRegistrationUniform =
+      '/torneios/:tournamentId/inscricao/uniforme';
+
   /// Acompanhamento da substituição (Task 6):
   /// `/torneios/:tournamentId/substituicao/:inviteId`
   static const String tournamentSubstitutionStatus =
@@ -694,6 +714,16 @@ abstract final class AppRouteNames {
       'tournamentSubstitutionWizard';
   static const String tournamentSubstitutionStatus =
       'tournamentSubstitutionStatus';
+  static const String tournamentRegistrationCategory =
+      'tournamentRegistrationCategory';
+  static const String tournamentRegistrationConsent =
+      'tournamentRegistrationConsent';
+  static const String tournamentRegistrationTerms =
+      'tournamentRegistrationTerms';
+  static const String tournamentRegistrationPartner =
+      'tournamentRegistrationPartner';
+  static const String tournamentRegistrationUniform =
+      'tournamentRegistrationUniform';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
   static const String tournamentExternalInvite =
       'tournamentExternalInvite';

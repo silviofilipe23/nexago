@@ -147,3 +147,23 @@ String tournamentEnrolledEntriesLabel(int count, TournamentFormat format) {
   if (n == 0) return 'Nenhuma dupla inscrita';
   return n == 1 ? '1 dupla inscrita' : '$n duplas inscritas';
 }
+
+/// Meses abreviados escritos à mão de propósito: `DateFormat('MMM', 'pt_BR')`
+/// devolve `jul.` (com ponto), e o portal web escreve sem. Duas superfícies
+/// com grafias diferentes para a mesma data leem como bug.
+const _shortMonths = [
+  'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+  'jul', 'ago', 'set', 'out', 'nov', 'dez',
+];
+
+const _shortWeekdays = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+
+/// "qua, 08 jul · 23h59" — parede LOCAL do instante gravado em
+/// `registrationClosesAt`. Formatar o instante cru adianta 3h no Brasil.
+String tournamentRegistrationClosesLabel(DateTime closesAt) {
+  final local = closesAt.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  final weekday = _shortWeekdays[local.weekday - 1];
+  final month = _shortMonths[local.month - 1];
+  return '$weekday, ${two(local.day)} $month · ${two(local.hour)}h${two(local.minute)}';
+}

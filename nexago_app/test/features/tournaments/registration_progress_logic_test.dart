@@ -3,6 +3,7 @@
 // Espelha os casos de `registration-progress.spec.ts` do portal.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/registration_progress_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_wizard_step.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
@@ -201,7 +202,7 @@ void main() {
       expect(progress.totalSteps, 5);
       expect(
         progress.steps.map((s) => s.label).toList(),
-        ['Categoria', 'Uniforme', 'Dupla', 'Pagamento', 'Confirmada'],
+        ['Categoria', 'Dupla', 'Uniforme', 'Pagamento', 'Confirmada'],
       );
     });
 
@@ -211,7 +212,7 @@ void main() {
       )!;
 
       expect(progress.totalSteps, 5);
-      expect(progress.steps[1].label, 'Uniforme');
+      expect(progress.steps[2].label, 'Uniforme');
     });
 
     test('partnerPending: parado na Dupla com pendingLabel e caption', () {
@@ -232,27 +233,33 @@ void main() {
       expect(progress.paymentPending, isFalse);
     });
 
-    test('uniforme pendente: parado no Uniforme com caption Pendente', () {
+    test('uniforme pendente (dupla já fechada): parado no Uniforme com '
+        'caption Pendente', () {
+      // Dupla vem antes do uniforme na trilha — pra isolar o uniforme como
+      // passo atual, a dupla precisa estar fechada, senão é ela que bloqueia
+      // (ver grupo "ordem do wizard").
       final progress = build(
-        makeRegistration(category: uniformCategory),
+        makeRegistration(category: uniformCategory, partnerPending: false),
       )!;
 
-      expect(progress.currentStep, 2);
+      expect(progress.currentStep, 3);
       expect(progress.pendingLabel, 'Falta escolher o uniforme');
-      expect(progress.steps[1].caption, 'Pendente');
+      expect(progress.steps[2].caption, 'Pendente');
     });
 
-    test('uniforme salvo mostra Salvo e avança pra Dupla', () {
+    test('uniforme salvo (dupla já fechada) avança pro pagamento', () {
       final progress = build(
         makeRegistration(
           category: uniformCategory,
+          partnerPending: false,
+          participantUids: const [kMe, kPartner],
           uniformPlayer1: const TournamentUniformSelection(sizeTop: 'M'),
         ),
       )!;
 
-      expect(progress.currentStep, 3);
-      expect(progress.steps[1].caption, 'Salvo');
-      expect(progress.steps[2].label, 'Dupla');
+      expect(progress.currentStep, 4);
+      expect(progress.steps[2].caption, 'Salvo');
+      expect(progress.steps[3].label, 'Pagamento');
     });
 
     test('só falta pagar: paymentPending true e pendingLabel do pagamento',
@@ -300,6 +307,62 @@ void main() {
       expect(progress.tournamentName, 'Open Goiânia Beach');
       expect(progress.categoryName, 'Masc. Intermediário');
       expect(progress.startAt, start);
+    });
+  });
+
+  group('buildRegistrationProgress — ordem do wizard', () {
+    test('trilha segue a ordem do wizard: dupla antes do uniforme', () {
+      final progress = buildRegistrationProgress(
+        makeRegistration(category: uniformCategory, partnerPending: true),
+        myUid: kMe,
+        myName: 'Rafael Torres',
+      );
+
+      expect(
+        progress!.steps.map((s) => s.label).toList(),
+        ['Categoria', 'Dupla', 'Uniforme', 'Pagamento', 'Confirmada'],
+      );
+    });
+
+    test('a trilha concorda com o porteiro sobre qual é o próximo passo', () {
+      // As duas implementações existem porque partem de MODELOS diferentes
+      // (`MyTournamentRegistration` aqui, `UserCategoryRegistration` + snapshot
+      // no porteiro). Este teste é o que impede as duas divergirem em silêncio.
+      final registration = makeRegistration(
+        category: uniformCategory,
+        partnerPending: true,
+      );
+      final progress = buildRegistrationProgress(
+        registration,
+        myUid: kMe,
+        myName: 'Rafael Torres',
+      );
+      final step = resolveRegistrationStep(
+        RegistrationStepInput(
+          categoryResolved: true,
+          hasReceivedInvite: false,
+          hasRegistration: true,
+          lgpdAccepted: true,
+          partnerPending: true,
+          uniformRequired: true,
+          uniformComplete: false,
+          isPaid: false,
+        ),
+      );
+
+      expect(progress!.steps[progress.currentStep - 1].label, 'Dupla');
+      expect(step, RegistrationWizardStep.parceiro);
+    });
+
+    test('dupla pendente é o passo atual mesmo com uniforme pendente', () {
+      final progress = buildRegistrationProgress(
+        makeRegistration(category: uniformCategory, partnerPending: true),
+        myUid: kMe,
+        myName: 'Rafael Torres',
+      );
+
+      expect(progress!.currentStep, 2);
+      expect(progress.pendingLabel, 'Falta fechar a dupla');
     });
   });
 
@@ -382,14 +445,14 @@ void main() {
         ),
       )!;
 
-      expect(progress.steps[1].label, 'Uniforme');
+      expect(progress.steps[2].label, 'Uniforme');
       expect(progress.pendingLabel, 'Falta escolher o uniforme');
       expect(
         progress.steps.map((s) => s.state).toList(),
         [
           RegistrationStepState.done,
+          RegistrationStepState.done,
           RegistrationStepState.current,
-          RegistrationStepState.todo,
           RegistrationStepState.todo,
           RegistrationStepState.todo,
         ],
@@ -491,9 +554,9 @@ void main() {
         ),
       )!;
 
-      expect(pending.steps[1].caption, 'Pendente');
-      expect(saved.steps[1].caption, 'Salvo');
-      expect(saved.steps[2].label, 'Equipe');
+      expect(pending.steps[2].caption, 'Pendente');
+      expect(saved.steps[2].caption, 'Salvo');
+      expect(saved.steps[1].label, 'Equipe');
     });
   });
 

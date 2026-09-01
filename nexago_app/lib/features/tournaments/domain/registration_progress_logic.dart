@@ -6,7 +6,7 @@ import 'tournament_uniform_selection.dart';
 
 /// Acompanhamento de inscrição na Home (porte de `registration-progress.ts`
 /// do portal do atleta): dado o doc da inscrição já resolvido, devolve a
-/// trilha de passos ("Categoria → [Uniforme] → Dupla → Pagamento →
+/// trilha de passos ("Categoria → Dupla|Equipe → [Uniforme] → Pagamento →
 /// Confirmada"), em qual passo o atleta parou e o que o CTA deve fazer.
 ///
 /// Módulo puro de propósito (sem Flutter, sem Firestore) — é onde a regra
@@ -187,19 +187,23 @@ RegistrationProgress? buildRegistrationProgress(
   final partnerDone = !registration.partnerPending;
   final paymentDone = registration.isPaid;
 
+  // Ordem do wizard de inscrição (parceiro antes do uniforme). A Home e o
+  // porteiro (`resolveRegistrationStep`) precisam concordar sobre qual é o
+  // próximo passo — se divergirem, a Home diz "falta o uniforme" e o toque
+  // leva para a tela do parceiro.
   final drafts = <_StepDraft>[
     _StepDraft(label: 'Categoria', caption: category.name, done: true),
+    _StepDraft(
+      label: registration.teamSize != null ? 'Equipe' : 'Dupla',
+      caption: _partnerCaption(registration, myName, partnerName),
+      done: partnerDone,
+    ),
     if (categoryRequiresUniform(category))
       _StepDraft(
         label: 'Uniforme',
         caption: uniformDone ? 'Salvo' : 'Pendente',
         done: uniformDone,
       ),
-    _StepDraft(
-      label: registration.teamSize != null ? 'Equipe' : 'Dupla',
-      caption: _partnerCaption(registration, myName, partnerName),
-      done: partnerDone,
-    ),
     _StepDraft(
       label: 'Pagamento',
       caption: _paymentCaption(registration, category),

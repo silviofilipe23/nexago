@@ -109,4 +109,17 @@ void main() {
       );
     });
   });
+
+  group('tournamentRegistrationClosesLabel', () {
+    test('rótulo do prazo usa a parede local, dia da semana e mês sem ponto', () {
+      // Instante escolhido para cair numa quarta-feira na parede local.
+      final closesAt = DateTime(2026, 7, 8, 23, 59);
+      expect(tournamentRegistrationClosesLabel(closesAt), 'qua, 08 jul · 23h59');
+    });
+
+    test('rótulo do prazo zera minutos com dois dígitos', () {
+      final closesAt = DateTime(2026, 7, 12, 8, 5);
+      expect(tournamentRegistrationClosesLabel(closesAt), 'dom, 12 jul · 08h05');
+    });
+  });
 }

@@ -11,7 +11,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/brand/nexa_hashtag.dart';
-import '../../../core/layout/nexa_app_bar.dart';
 import '../../../core/review/app_review_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -31,6 +30,7 @@ import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_registration_receipt.dart';
 import '../domain/tournament_registration_share_phrases.dart';
 import '../domain/tournament_registration_success_args.dart';
+import 'widgets/registration_wizard/registration_wizard_scaffold.dart';
 import 'widgets/tournament_registration/tournament_registration_share_card.dart';
 
 /// Ainda sem valor e sem erro — vale a silhueta. Com erro, renderiza o que
@@ -61,7 +61,8 @@ class TournamentRegistrationSuccessPage extends ConsumerWidget {
     // Sem comprovante/torneio/vagas o card sairia com '—' no lugar dos nomes
     // e da vaga: enquanto carrega, mostra a silhueta do card. Em erro o card
     // sai como der — skeleton eterno prenderia o atleta sem compartilhar.
-    final contentLoading = _stillLoading(tournamentAsync) ||
+    final contentLoading =
+        _stillLoading(tournamentAsync) ||
         _stillLoading(receiptAsync) ||
         _stillLoading(enrollmentAsync);
 
@@ -176,128 +177,105 @@ class _TournamentRegistrationSuccessViewState
   Widget build(BuildContext context) {
     final args = widget.args;
 
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      appBar: _RegistrationSuccessAppBar(
-        receiptCode: widget.receiptCode,
-        onClose: () => _onClose(context),
-      ),
-      body: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 160,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    AppColors.brand.withValues(alpha: 0.18),
-                  ],
+    return RegistrationWizardScaffold(
+      title: 'Confirmado',
+      onBack: () => _onClose(context),
+      // Tela terminal: `onBack` não desfaz o pagamento que acabou de
+      // acontecer, sai para o detalhe do torneio. A seta padrão prometeria
+      // "voltar" e entregaria outra coisa — o "X" comunica "fechar" certo.
+      closeIcon: true,
+      stickyBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            0,
+            AppSpacing.screenH,
+            AppSpacing.xl,
+          ),
+          child: Row(
+            children: [
+              NexaIconSquareButton(
+                size: 54,
+                icon: Icons.calendar_month_outlined,
+                tooltip: 'Adicionar ao calendário',
+                onTap: () => _openCalendar(context),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 54,
+                  child: FilledButton.icon(
+                    onPressed: _sharing || widget.contentLoading
+                        ? null
+                        : () => _shareToStory(context),
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppRadii.lgAll,
+                      ),
+                    ),
+                    icon: _sharing
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            // O indicador não herda o foreground do
+                            // botão: sem cor fixa cairia no primary
+                            // (laranja sobre laranja).
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: AppColors.black,
+                            ),
+                          )
+                        : Icon(Icons.ios_share_rounded, size: 22),
+                    label: Text(
+                      'Compartilhar no story',
+                      style: AppTypography.soraRegular(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          SafeArea(
-            top: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenH,
-                      AppSpacing.md,
-                      AppSpacing.screenH,
-                      AppSpacing.lg,
-                    ),
-                    child: widget.contentLoading
-                        ? const NexaSkeleton(
-                            height: 420,
-                            radius: AppRadii.xlAll,
-                          )
-                        : RepaintBoundary(
-                            key: _shareCardKey,
-                            child: TournamentRegistrationShareCard(
-                              headlineLine1: _sharePhrase.line1,
-                              headlineLine2: _sharePhrase.line2,
-                              tournamentName: args.tournamentName,
-                              dateLabel: widget.dateLabel,
-                              categoryName: args.categoryName,
-                              slotLabel: widget.slotLabel,
-                              player1Name: widget.player1,
-                              player2Name: widget.player2,
-                              player1AvatarUrl: widget.player1AvatarUrl,
-                              player2AvatarUrl: widget.player2AvatarUrl,
-                              locationLine: widget.locationLine,
-                              footerLabel: widget.footerLabel,
-                            ),
-                          ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenH,
-                    0,
-                    AppSpacing.screenH,
-                    AppSpacing.xl,
-                  ),
-                  child: Row(
-                    children: [
-                      NexaIconSquareButton(
-                        size: 54,
-                        icon: Icons.calendar_month_outlined,
-                        tooltip: 'Adicionar ao calendário',
-                        onTap: () => _openCalendar(context),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: FilledButton.icon(
-                            onPressed: _sharing || widget.contentLoading
-                                ? null
-                                : () => _shareToStory(context),
-                            style: FilledButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: AppRadii.lgAll,
-                              ),
-                            ),
-                            icon: _sharing
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    // O indicador não herda o foreground do
-                                    // botão: sem cor fixa cairia no primary
-                                    // (laranja sobre laranja).
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: AppColors.black,
-                                    ),
-                                  )
-                                : Icon(Icons.ios_share_rounded, size: 22),
-                            label: Text(
-                              'Compartilhar no story',
-                              style: AppTypography.soraRegular(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
+      children: [
+        // O código do comprovante morava na toolbar antiga
+        // (`_RegistrationSuccessAppBar`) — a casca do wizard não tem slot de
+        // ação à direita do título, então ele migra para cá. Mesmo texto,
+        // mesma fonte mono, só de lugar novo.
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            widget.receiptCode,
+            style: AppTypography.monoMeta.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        widget.contentLoading
+            ? const NexaSkeleton(height: 420, radius: AppRadii.xlAll)
+            : RepaintBoundary(
+                key: _shareCardKey,
+                child: TournamentRegistrationShareCard(
+                  headlineLine1: _sharePhrase.line1,
+                  headlineLine2: _sharePhrase.line2,
+                  tournamentName: args.tournamentName,
+                  dateLabel: widget.dateLabel,
+                  categoryName: args.categoryName,
+                  slotLabel: widget.slotLabel,
+                  player1Name: widget.player1,
+                  player2Name: widget.player2,
+                  player1AvatarUrl: widget.player1AvatarUrl,
+                  player2AvatarUrl: widget.player2AvatarUrl,
+                  locationLine: widget.locationLine,
+                  footerLabel: widget.footerLabel,
+                ),
+              ),
+      ],
     );
   }
 
@@ -393,65 +371,5 @@ class _TournamentRegistrationSuccessViewState
       if (!context.mounted) return;
       showAppSnackBar(context, 'Não foi possível abrir o calendário.');
     }
-  }
-}
-
-/// Toolbar do sucesso — mesmo desenho da toolbar do PIX (quadrado de 40 à
-/// esquerda + título centralizado), com o código do comprovante à direita.
-class _RegistrationSuccessAppBar extends StatelessWidget
-    implements PreferredSizeWidget {
-  const _RegistrationSuccessAppBar({
-    required this.receiptCode,
-    required this.onClose,
-  });
-
-  final String receiptCode;
-  final VoidCallback onClose;
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return NexaAppBar(
-      backgroundColor: context.themeColors.canvas,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: true,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: AppSpacing.md),
-        child: Center(
-          child: NexaIconSquareButton(
-            icon: Icons.close_rounded,
-            onTap: onClose,
-            // Sem borda: o quadrado do BookingPixAppBar não tem, e as duas
-            // toolbars precisam ficar idênticas.
-            side: BorderSide.none,
-          ),
-        ),
-      ),
-      title: Text(
-        'Confirmado',
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: context.themeColors.onSurface,
-        ),
-      ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: AppSpacing.screenH),
-          child: Center(
-            child: Text(
-              receiptCode,
-              style: AppTypography.monoMeta.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }

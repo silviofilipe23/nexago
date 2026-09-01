@@ -47,6 +47,7 @@ class TournamentDetail {
     this.tournamentPrizes = const [],
     this.createdAt,
     this.registrationOpensAt,
+    this.registrationClosesAt,
     this.listingStatusRaw,
     this.sport = '',
     this.paymentMode = TournamentPaymentMode.appPixCard,
@@ -90,6 +91,12 @@ class TournamentDetail {
   /// Instante em que as inscrições abrem (`registrationOpensAt` no Firestore).
   /// Antes dele o servidor recusa inscrição mesmo com o torneio `open`.
   final DateTime? registrationOpensAt;
+
+  /// Instante em que as inscrições fecham (`registrationClosesAt` no
+  /// Firestore). O guard do servidor (`assertTournamentAcceptsRegistration`)
+  /// recusa inscrição depois dele; o app só passou a LER o campo no wizard.
+  /// `null` = sem prazo declarado, e aí nenhuma tela mostra a linha.
+  final DateTime? registrationClosesAt;
 
   final String? listingStatusRaw;
 

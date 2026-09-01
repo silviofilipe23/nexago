@@ -672,8 +672,12 @@ export const confirmFreeTournamentRegistration = onCall({
     sharePaidUids: FieldValue.arrayUnion(callerUid),
     isPaid,
     ...(shouldWaitlist ? {waitlist: true} : {}),
-    // Confirmada: a vaga deixa de ter prazo.
-    ...registrationHoldClearedFields(),
+    // Só a inscrição FECHADA perde o prazo. A confirmação de um atleta só não
+    // paga vaga nenhuma — categoria gratuita não tem dinheiro envolvido — e
+    // apagar o campo aqui prendia a vaga para sempre com a dupla incompleta,
+    // justamente o que o prazo veio resolver. Incompleta, o relógio que já
+    // estava correndo segue de pé, intocado.
+    ...(isPaid ? registrationHoldClearedFields() : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
@@ -857,8 +861,13 @@ export const reserveDirectOrganizerRegistration = onCall({
     // uma conferência que ninguém vai fazer.
     ...(bothAthletesReserved ? {declaredPaidAt: FieldValue.serverTimestamp()} : {}),
     ...(shouldWaitlist ? {waitlist: true} : {}),
-    // Declarou pagamento: a vaga deixa de ter prazo.
-    ...registrationHoldClearedFields(),
+    // Só a inscrição FECHADA perde o prazo — a dupla inteira declarou, ou um
+    // atleta declarou o integral. A declaração de PARCELA não basta: é honra,
+    // sem webhook e sem dinheiro na plataforma (nem entra na fila "A conferir"
+    // do organizador, que só olha `declaredPaidAt`). Apagar o campo nela
+    // prendia a vaga para sempre com o elenco ainda incompleto. Quem receber a
+    // baixa do organizador vira imune por `organizerConfirmedShareUids`.
+    ...(bothAthletesReserved ? registrationHoldClearedFields() : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 

@@ -51,6 +51,7 @@ import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 import {asaasArenaSecrets} from "./asaas-client";
 import {
   REGISTRATION_CANCELLATION_BLOCK_MESSAGES,
+  inviteMatchesCancelledRegistration,
   registrationCancellationBlockReason,
 } from "./tournament-registration-cancellation";
 import {
@@ -2268,3 +2269,73 @@ export const setRegistrationUniform = onCall(async (request) => {
 
   return {ok: true};
 });
+
+/**
+ * Mata os convites de dupla que uma inscrição deixou para trás — sem apagar
+ * nada, ao contrário de `releaseRegistration`.
+ *
+ * Existe porque fechar a dupla por fora do aceite (o organizador montando a
+ * dupla na mão) não consome o convite que ninguém respondeu: ele fica pendente
+ * apontando para uma inscrição que já está cheia, e se o convidado aceitar
+ * depois, o aceite trabalha em cima de um elenco fechado. Quando a fusão ainda
+ * APAGA a reserva solo do outro atleta, os convites dela ficam órfãos de um
+ * documento que não existe mais.
+ *
+ * O casamento é o mesmo de `releaseRegistration` (anexado por id, ou avulso do
+ * dono na categoria), de propósito: os dois respondem "quais convites esta
+ * inscrição segurava?", e responder diferente deixaria convite vivo em um dos
+ * caminhos. Convite de substituição fica de fora — ele não forma elenco.
+ *
+ * @param targets Cada par inscrição/dono cujos convites morrem. Na fusão são
+ * dois: a inscrição que recebeu a dupla e a reserva solo que foi apagada.
+ */
+export async function cancelPendingPartnerInvitesForRegistrations(params: {
+  db: Firestore;
+  tournamentId: string;
+  categoryId: string;
+  targets: Array<{registrationId: string; ownerUid: string}>;
+  cancelReason: string;
+}): Promise<number> {
+  const {db, tournamentId, categoryId, cancelReason} = params;
+  const targets = params.targets
+    .map((t) => ({
+      registrationId: t.registrationId.trim(),
+      ownerUid: t.ownerUid.trim(),
+    }))
+    .filter((t) => t.registrationId || t.ownerUid);
+  if (!tournamentId.trim() || targets.length === 0) return 0;
+
+  const snap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("status", "==", "pending")
+    .get();
+
+  const batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    const invite = doc.data();
+    if (invite.isSubstitutionInvite === true) continue;
+    const attachId = String(invite.attachRegistrationId ?? "").trim();
+    const matches = targets.some((t) => {
+      // Sem dono conhecido só dá para casar convite ANEXADO, que casa por id.
+      // No avulso o casamento é por `inviterUid`, e um uid vazio bateria com
+      // convite malformado.
+      if (!t.ownerUid && !attachId) return false;
+      return inviteMatchesCancelledRegistration(invite, {
+        registrationId: t.registrationId,
+        cancellerUid: t.ownerUid,
+        categoryId,
+      });
+    });
+    if (!matches) continue;
+    batch.update(doc.ref, {
+      status: "cancelled",
+      cancelReason,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    count++;
+  }
+  if (count > 0) await batch.commit();
+  return count;
+}

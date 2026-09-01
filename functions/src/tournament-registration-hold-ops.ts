@@ -60,17 +60,45 @@ export function registrationHoldClearedFields(): Record<string, unknown> {
   return {holdExpiresAt: FieldValue.delete()};
 }
 
+export interface RefreshRegistrationHoldOptions {
+  /** Relógio da chamada; existe para os testes fixarem o instante. */
+  nowMs?: number;
+  /**
+   * Nunca CRIAR prazo onde não havia — só recalcular o que já existe.
+   *
+   * Campo ausente é imunidade permanente, e é só isso que mantém fora da
+   * varredura o acervo anterior à regra, as inscrições criadas pelo
+   * organizador e a fila. Quem chama por um evento que pode cair em cima
+   * dessas populações (o organizador fechando a dupla sobre uma reserva
+   * qualquer) precisa desta trava, senão o evento ressuscita o prazo de quem
+   * era imune.
+   */
+  onlyIfPresent?: boolean;
+  /**
+   * O elenco acabou de fechar: os minutos de pagamento começam AGORA, mesmo
+   * que sobre convite pendente vivo.
+   *
+   * No aceite normal o convite é consumido, então "não há convite vivo" e
+   * "o elenco fechou" são a mesma coisa. Quando o ORGANIZADOR fecha a dupla,
+   * não — ele não mexe nos convites, e o convite que ninguém respondeu (o
+   * caso que motiva a tela) fica pendente. Sem esta trava o prazo seguiria
+   * um convite que não segura mais nada, dando 48h a uma dupla já formada.
+   */
+  rosterClosed?: boolean;
+}
+
 /**
  * Recalcula o prazo da inscrição. Enquanto há convite pendente vivo ligado a
- * ela, o prazo acompanha o convite mais longe; sem convite vivo, os minutos de
- * garantia contam de agora.
+ * ela, o prazo acompanha o convite mais longe; sem convite vivo — ou com o
+ * elenco já fechado — os minutos de garantia contam de agora.
  */
 export async function refreshRegistrationHold(
   db: Firestore,
   projectId: string,
   registrationId: string,
-  nowMs: number = Date.now(),
+  options: RefreshRegistrationHoldOptions = {},
 ): Promise<void> {
+  const nowMs = options.nowMs ?? Date.now();
   const id = registrationId.trim();
   if (!id) return;
   try {
@@ -80,6 +108,12 @@ export async function refreshRegistrationHold(
     const regSnap = await regRef.get();
     if (!regSnap.exists) return;
     const registration = regSnap.data() as Record<string, unknown>;
+
+    // Antes de qualquer decisão: sem prazo e proibido de criar, não há o que
+    // recalcular nem o que apagar.
+    if (options.onlyIfPresent && registration.holdExpiresAt === undefined) {
+      return;
+    }
 
     if (!shouldTrackRegistrationHold(registration)) {
       if (registration.holdExpiresAt !== undefined) {
@@ -101,13 +135,15 @@ export async function refreshRegistrationHold(
       return;
     }
 
-    const liveInviteExpiresAtMs = await latestLiveInviteExpiryMs({
-      db,
-      registrationId: id,
-      registration,
-      tournamentId,
-      nowMs,
-    });
+    const liveInviteExpiresAtMs = options.rosterClosed ?
+      null :
+      await latestLiveInviteExpiryMs({
+        db,
+        registrationId: id,
+        registration,
+        tournamentId,
+        nowMs,
+      });
 
     await regRef.set({
       holdExpiresAt: Timestamp.fromMillis(

@@ -12,8 +12,8 @@
  * cancelado) — ou quando o elenco fecha — os minutos de pagamento começam.
  */
 
-import {registrationCancellationBlockReason} from
-  "./tournament-registration-cancellation";
+import {organizerConfirmedShareUidsFromRegistration} from
+  "./organizer-payment-share";
 
 export const DEFAULT_REGISTRATION_HOLD_MINUTES = 30;
 
@@ -64,17 +64,57 @@ export function extendHoldForPixMs(
   return Math.max(currentHoldMs ?? 0, pixExpiresAtMs + PIX_HOLD_MARGIN_MS);
 }
 
+/** Por que esta inscrição já comprou a vaga e não tem mais prazo. */
+export type RegistrationHoldImmunityReason =
+  | "paid"
+  | "settledAmount"
+  | "organizerConfirmed";
+
 /**
- * A inscrição está sujeita ao prazo? Fila de espera não ocupa vaga, e qualquer
- * pagamento (integral, parcela ou declaração direta) compra a vaga de vez —
- * mesmo critério que barra o cancelamento pelo atleta.
+ * A vaga já foi COMPRADA? Só isso dá imunidade permanente ao prazo.
+ *
+ * Não é a mesma pergunta que `registrationCancellationBlockReason` responde.
+ * Lá basta a ALEGAÇÃO de pagamento para travar o cancelamento pelo atleta —
+ * conservador de propósito, para ninguém sumir em silêncio depois de dizer que
+ * pagou. Aqui a pergunta é outra, e mais exigente: a vaga está paga a ponto de
+ * ficar presa para sempre?
+ *
+ * Por isso `sharePaidUids` sozinho não vale. Em categoria GRATUITA
+ * (`confirmFreeTournamentRegistration`) e na declaração de PARCELA do
+ * pagamento direto (`reserveDirectOrganizerRegistration`), um atleta se marca
+ * sozinho sem que dinheiro nenhum mude de mãos — um clique. Tratar isso como
+ * pagamento devolvia exatamente o bug que o prazo veio matar: dupla
+ * incompleta segurando a vaga para sempre.
+ */
+export function registrationHoldImmunityReason(
+  registration: Record<string, unknown>,
+): RegistrationHoldImmunityReason | null {
+  // Inscrição fechada: o elenco inteiro pagou, declarou ou confirmou. Inclui
+  // o solo que declarou o valor INTEGRAL para garantir a vaga sozinho.
+  if (registration.isPaid === true) return "paid";
+  // Dinheiro que a plataforma registrou: PIX pago (integral ou parcela) e a
+  // baixa do organizador com valor.
+  if ((Number(registration.paidAmount) || 0) > 0) return "settledAmount";
+  // O organizador — quem RECEBE — deu baixa neste atleta. É dinheiro real que
+  // correu fora da plataforma, e vale mesmo sem valor gravado (a baixa por
+  // atleta não grava `paidAmount`). Diferente da declaração do próprio
+  // atleta, que ninguém conferiu.
+  if (organizerConfirmedShareUidsFromRegistration(registration).length > 0) {
+    return "organizerConfirmed";
+  }
+  return null;
+}
+
+/**
+ * A inscrição está sujeita ao prazo? Fila de espera não ocupa vaga, e vaga
+ * comprada não tem prazo.
  */
 export function shouldTrackRegistrationHold(
   registration: Record<string, unknown> | null | undefined,
 ): boolean {
   if (!registration) return false;
   if (registration.waitlist === true) return false;
-  return registrationCancellationBlockReason(registration) === null;
+  return registrationHoldImmunityReason(registration) === null;
 }
 
 /**

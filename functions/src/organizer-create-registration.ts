@@ -42,10 +42,12 @@ import {
 } from "./tournament-pair-uniqueness";
 import {
   asTournamentCategory,
+  cancelPendingPartnerInvitesForRegistrations,
   categoryRequiresUniform,
   registrationUniformForSlot,
   validateUniformPayload,
 } from "./tournament-partner-invite";
+import {refreshRegistrationHold} from "./tournament-registration-hold-ops";
 import {resolvePartnerRegistrationPlan} from "./tournament-solo-registration";
 import {isTeamCategory} from "./tournament-team-category";
 import {setTeamGenderWhenRegistrationPaid} from "./tournament-team-roster";
@@ -251,6 +253,16 @@ export const organizerCreateTeamRegistration = onCall({
         waitlist: payment?.waitlist === false ?
           false :
           baseReg.waitlist === true,
+        // Para a limpeza dos convites depois da transação: os convites que
+        // morrem são os das DUAS inscrições envolvidas — a que recebeu a dupla
+        // e a reserva solo que acabou de ser apagada.
+        ownerUid: baseOwnerUid,
+        releasedRegistrationId: plan.releaseRegistrationId,
+        releasedOwnerUid: plan.releaseRegistrationId ?
+          categoryRegs.find(
+            (r) => r.registrationId === plan.releaseRegistrationId,
+          )?.ownerUid ?? "" :
+          "",
       };
     }
 
@@ -293,6 +305,9 @@ export const organizerCreateTeamRegistration = onCall({
       merged: false,
       isPaid: payment?.isPaid === true,
       waitlist: registrationDoc.waitlist === true,
+      ownerUid: uidA,
+      releasedRegistrationId: "",
+      releasedOwnerUid: "",
     };
   });
 
@@ -304,6 +319,65 @@ export const organizerCreateTeamRegistration = onCall({
   });
 
   // Efeitos best-effort: a inscrição já está gravada, nenhum deles pode derrubar a resposta.
+
+  // Fechar a dupla por fora do aceite não consome o convite: o que ninguém
+  // respondeu — a razão de a tela existir — ficaria pendente apontando para uma
+  // inscrição já cheia, e a reserva solo apagada deixaria os dela órfãos de um
+  // documento que não existe mais. Antes do prazo, para o recálculo já ver o
+  // estado limpo.
+  if (result.merged) {
+    try {
+      const cancelledInvites =
+        await cancelPendingPartnerInvitesForRegistrations({
+          db,
+          tournamentId,
+          categoryId,
+          targets: [
+            {
+              registrationId: result.registrationId,
+              ownerUid: result.ownerUid,
+            },
+            {
+              registrationId: result.releasedRegistrationId,
+              ownerUid: result.releasedOwnerUid,
+            },
+          ],
+          cancelReason: "registration_merged_by_organizer",
+        });
+      if (cancelledInvites > 0) {
+        logger.info("Convites de dupla cancelados na fusão do organizador", {
+          registrationId: result.registrationId,
+          tournamentId,
+          categoryId,
+          cancelledInvites,
+        });
+      }
+    } catch (inviteError) {
+      logger.warn("Falha ao cancelar convites na fusão do organizador", {
+        registrationId: result.registrationId,
+        inviteError,
+      });
+    }
+  }
+
+  // Fechar a dupla sobre uma reserva que já existia reinicia o prazo da vaga:
+  // o elenco parou de depender de alguém aceitar e passou a depender de alguém
+  // pagar. `onlyIfPresent` porque a reserva-base pode ser de quem é imune
+  // (anterior à regra, fila, criada pelo organizador) e fechar a dupla não pode
+  // inventar um prazo para ela; `rosterClosed` porque o elenco fechou aqui, e o
+  // recálculo não pode voltar a seguir convite: o cancelamento acima é
+  // best-effort, e se ele falhar o prazo seguiria um convite pendente que não
+  // segura mais nada, dando 48h a uma dupla já formada.
+  //
+  // A dupla NOVA fica de fora de propósito: nasce sem `holdExpiresAt`, imune,
+  // como toda inscrição criada pelo organizador.
+  if (result.merged) {
+    await refreshRegistrationHold(db, projectId, result.registrationId, {
+      onlyIfPresent: true,
+      rosterClosed: true,
+    });
+  }
+
   if (result.isPaid) {
     try {
       await setTeamGenderWhenRegistrationPaid(db, projectId, result.teamId);

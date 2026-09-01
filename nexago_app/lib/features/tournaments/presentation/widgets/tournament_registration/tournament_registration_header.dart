@@ -15,6 +15,7 @@ class TournamentRegistrationHeader extends StatelessWidget {
     this.showTournamentInfo = false,
     this.immersive = false,
     this.onCover = false,
+    this.closeIcon = false,
   });
 
   final VoidCallback onBack;
@@ -26,11 +27,20 @@ class TournamentRegistrationHeader extends StatelessWidget {
   final bool immersive;
   final bool onCover;
 
+  /// `true` troca a seta de voltar por um "X" de fechar — para telas
+  /// terminais onde `onBack` não desfaz um passo, mas sai do fluxo (ex.: a
+  /// confirmação de inscrição, cujo botão navega para o detalhe do torneio,
+  /// não para trás). Default `false`: as demais telas do wizard continuam
+  /// com a seta.
+  final bool closeIcon;
+
   String _normalizeTournamentDateLabel(String raw) {
     final value = raw.trim();
     if (value.isEmpty) return value;
 
-    final slashRange = RegExp(r'^(\d{1,2}/\d{1,2})\s*[–-]\s*(\d{1,2}/\d{1,2})$');
+    final slashRange = RegExp(
+      r'^(\d{1,2}/\d{1,2})\s*[–-]\s*(\d{1,2}/\d{1,2})$',
+    );
     final slashMatch = slashRange.firstMatch(value);
     if (slashMatch != null) {
       final start = slashMatch.group(1)?.trim();
@@ -60,15 +70,14 @@ class TournamentRegistrationHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleColor = onCover
-        ? Colors.white
-        : context.themeColors.onSurface;
+    final titleColor = onCover ? Colors.white : context.themeColors.onSurface;
     final eyebrowColor = onCover ? AppColors.brand : AppColors.brand;
     final backFill = onCover
         ? AppColors.black.withValues(alpha: 0.42)
         : context.themeColors.surfaceRaised;
-    final backIconColor =
-        onCover ? Colors.white : context.themeColors.onSurface;
+    final backIconColor = onCover
+        ? Colors.white
+        : context.themeColors.onSurface;
 
     final content = Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
@@ -87,7 +96,7 @@ class TournamentRegistrationHeader extends StatelessWidget {
                   width: 44,
                   height: 44,
                   child: Icon(
-                    Icons.arrow_back_rounded,
+                    closeIcon ? Icons.close_rounded : Icons.arrow_back_rounded,
                     color: backIconColor,
                     size: 22,
                   ),
@@ -158,9 +167,6 @@ class TournamentRegistrationHeader extends StatelessWidget {
 
     if (immersive) return content;
 
-    return SafeArea(
-      bottom: false,
-      child: content,
-    );
+    return SafeArea(bottom: false, child: content);
   }
 }

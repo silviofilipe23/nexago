@@ -180,6 +180,10 @@ class _TournamentRegistrationSuccessViewState
     return RegistrationWizardScaffold(
       title: 'Confirmado',
       onBack: () => _onClose(context),
+      // Tela terminal: `onBack` não desfaz o pagamento que acabou de
+      // acontecer, sai para o detalhe do torneio. A seta padrão prometeria
+      // "voltar" e entregaria outra coisa — o "X" comunica "fechar" certo.
+      closeIcon: true,
       stickyBar: SafeArea(
         top: false,
         child: Padding(

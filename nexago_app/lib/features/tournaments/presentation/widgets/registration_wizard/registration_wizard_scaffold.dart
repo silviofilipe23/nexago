@@ -18,6 +18,7 @@ class RegistrationWizardScaffold extends StatelessWidget {
     required this.children,
     this.subtitle,
     this.stickyBar,
+    this.closeIcon = false,
   });
 
   final String title;
@@ -25,6 +26,12 @@ class RegistrationWizardScaffold extends StatelessWidget {
   final VoidCallback onBack;
   final List<Widget> children;
   final Widget? stickyBar;
+
+  /// Repassado a [TournamentRegistrationHeader]: `true` troca a seta de
+  /// voltar por um "X" de fechar, para telas terminais cujo `onBack` não
+  /// desfaz um passo (ver doc lá). Default `false` — preserva a seta nas
+  /// demais telas do wizard.
+  final bool closeIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +46,7 @@ class RegistrationWizardScaffold extends StatelessWidget {
               title: title,
               tournamentName: subtitle,
               showTournamentInfo: subtitle != null,
+              closeIcon: closeIcon,
             ),
             Expanded(
               child: ListView(

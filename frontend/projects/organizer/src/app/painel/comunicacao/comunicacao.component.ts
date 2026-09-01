@@ -61,9 +61,9 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
             </og-form-field>
           } @else {
             <og-form-field label="Categoria">
-              <select class="og-comm-select" [value]="selectedCategoryId()" (change)="onCategory($event)">
+              <select class="og-comm-select" (change)="onCategory($event)">
                 @for (c of categories(); track c.id) {
-                  <option [value]="c.id">{{ c.name }}</option>
+                  <option [value]="c.id" [selected]="c.id === selectedCategoryId()">{{ c.name }}</option>
                 }
               </select>
             </og-form-field>

@@ -45,9 +45,9 @@ const GENDER_LABEL: Record<LeagueGenderCat, string> = { M: 'Masculino', F: 'Femi
         }
 
         @if (categoriesForGender().length > 0) {
-          <select class="og-select-el og-liga-cat" [value]="categoryId() ?? ''" (change)="setCategory($any($event.target).value)">
+          <select class="og-select-el og-liga-cat" (change)="setCategory($any($event.target).value)">
             @for (c of categoriesForGender(); track c.id) {
-              <option [value]="c.id">{{ c.categoryName }}</option>
+              <option [value]="c.id" [selected]="c.id === categoryId()">{{ c.categoryName }}</option>
             }
           </select>
         }

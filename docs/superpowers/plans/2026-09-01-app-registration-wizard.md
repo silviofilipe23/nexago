@@ -105,7 +105,10 @@ Em `tournament_document_mapper_test.dart`, adicione:
       'name': 'Copa Aparecida',
       'registrationClosesAt': Timestamp.fromDate(DateTime.utc(2026, 7, 8, 23, 59)),
     });
-    expect(t.registrationClosesAt, DateTime.utc(2026, 7, 8, 23, 59));
+    // `Timestamp.toDate()` devolve DateTime LOCAL, e o `==` do Dart compara
+    // também a flag isUtc — comparar direto contra `DateTime.utc` falha mesmo
+    // com o instante certo.
+    expect(t.registrationClosesAt!.toUtc(), DateTime.utc(2026, 7, 8, 23, 59));
   });
 
   test('fromMap sem registrationClosesAt devolve null', () {
@@ -536,6 +539,13 @@ senão a Home diz uma coisa e o porteiro leva para outra.
 - Modify: `nexago_app/lib/features/tournaments/domain/registration_progress_logic.dart:180-200`
 - Test: `nexago_app/test/features/tournaments/registration_progress_logic_test.dart`
 
+> **Por que duas implementações e não uma.** A Task 2 diz "reusar, não duplicar", e o porteiro
+> **não** chama `buildRegistrationProgress`: as duas partem de modelos de entrada diferentes
+> (`MyTournamentRegistration` na Home; `UserCategoryRegistration` + snapshot no porteiro), e
+> forçar uma a construir o modelo da outra sairia pior. O que precisa ser verdade é que as duas
+> **concordem sobre a ordem** — e é isso que o primeiro teste desta task prende. Importe
+> `registration_wizard_step.dart` no arquivo de teste.
+
 **Interfaces:**
 - Consumes: nada de tasks anteriores.
 - Produces: `buildRegistrationProgress` com os passos na ordem
@@ -558,6 +568,36 @@ Adicione em `registration_progress_logic_test.dart`, dentro do `main()`:
       progress!.steps.map((s) => s.label).toList(),
       ['Categoria', 'Dupla', 'Uniforme', 'Pagamento', 'Confirmada'],
     );
+  });
+
+  test('a trilha concorda com o porteiro sobre qual é o próximo passo', () {
+    // As duas implementações existem porque partem de MODELOS diferentes
+    // (`MyTournamentRegistration` aqui, `UserCategoryRegistration` + snapshot
+    // no porteiro). Este teste é o que impede as duas divergirem em silêncio.
+    final registration = makeRegistration(
+      category: uniformCategory,
+      partnerPending: true,
+    );
+    final progress = buildRegistrationProgress(
+      registration,
+      myUid: kMe,
+      myName: 'Rafael Torres',
+    );
+    final step = resolveRegistrationStep(
+      RegistrationStepInput(
+        categoryResolved: true,
+        hasReceivedInvite: false,
+        hasRegistration: true,
+        lgpdAccepted: true,
+        partnerPending: true,
+        uniformRequired: true,
+        uniformComplete: false,
+        isPaid: false,
+      ),
+    );
+
+    expect(progress!.steps[progress.currentStep - 1].label, 'Dupla');
+    expect(step, RegistrationWizardStep.parceiro);
   });
 
   test('dupla pendente é o passo atual mesmo com uniforme pendente', () {
@@ -1933,7 +1973,9 @@ Crie `registration_consent_page.dart`. Estrutura: `ConsumerStatefulWidget` com t
    > organizador, e não existe pagamento por cartão. Ver a spec: descrever errado numa
    > declaração de tratamento de dados é o pior lugar para errar. **Não "corrigir" de volta.**
 
-4. Três `_ConsentTile` (checkbox + título + descrição + selo `OBRIGATÓRIO` nos dois primeiros):
+4. Três `_ConsentTile` (checkbox + título + descrição + selo `OBRIGATÓRIO` nos dois primeiros).
+   O cartão inteiro alterna a caixa ao toque (`InkWell` em volta), não só o quadradinho — é o que
+   o teste de desmarcar exercita, e é o alvo de toque decente:
 
 ```dart
   static const _dataTitle = 'Autorizo o uso dos meus dados para esta inscrição';
@@ -2476,6 +2518,10 @@ toggle Pix\|Cartão do protótipo **não** entra.
 
 - [ ] **Step 1: Escrever o teste que falha**
 
+`abrirPagamento` é o harness já existente no arquivo de teste desta tela — o mesmo
+`ProviderScope` + `GoRouter` das outras tasks, construindo
+`TournamentRegistrationPaymentPage(tournamentId: 't1', registrationId: 'reg-1')`.
+
 ```dart
   testWidgets('pagamento não oferece cartão', (tester) async {
     await abrirPagamento(tester, tournament: torneio([dupla(entryFee: 220)]));
@@ -2713,6 +2759,24 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
       if (widget.lgpdAccepted) 'lgpd': '1',
     };
 
+    // O detalhe da inscrição tem `registrationId` no CAMINHO, não na query —
+    // mandar por queryParameters estoura com "missing path parameter".
+    if (step == RegistrationWizardStep.sucesso) {
+      final regId = registrationId ?? '';
+      if (regId.isEmpty) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.pushReplacementNamed(
+          AppRouteNames.tournamentRegistrationDetail,
+          pathParameters: {
+            'tournamentId': widget.tournamentId,
+            'registrationId': regId,
+          },
+        );
+      });
+      return;
+    }
+
     final name = switch (step) {
       RegistrationWizardStep.categoria =>
         AppRouteNames.tournamentRegistrationCategory,
@@ -2726,6 +2790,7 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
         AppRouteNames.tournamentRegistrationUniform,
       RegistrationWizardStep.pagamento =>
         AppRouteNames.tournamentRegistrationPayment,
+      // `sucesso` já saiu acima (path param próprio).
       RegistrationWizardStep.sucesso =>
         AppRouteNames.tournamentRegistrationDetail,
     };

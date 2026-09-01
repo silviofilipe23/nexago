@@ -218,6 +218,17 @@ void main() {
 
       expect(find.text('JÁ INSCRITO'), findsOneWidget);
       expect(find.text('Continuar inscrição'), findsOneWidget);
+
+      // O CTA precisa estar HABILITADO e navegar de verdade — bloquear quem
+      // já tem inscrição (ou um "Continuar" que não leva a lugar nenhum) foi
+      // o beco sem saída histórico da vaga solo pendente.
+      final botao = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(botao.onPressed, isNotNull);
+
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('inscrição'), findsOneWidget);
     },
   );
 }

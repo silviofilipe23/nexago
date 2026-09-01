@@ -135,21 +135,45 @@ class _RegistrationCategoryPageState
     );
     final access = ref.watch(tournamentAccessStateProvider);
 
+    // `NexaAsyncView` não tem gancho pra embrulhar o ramo de ERRO num
+    // Scaffold — só `skeleton`/`empty` aceitam widget custom. Resolvo o erro
+    // ANTES de entrar no `NexaAsyncView` (mutuamente exclusivo com os outros
+    // ramos: nunca coexiste com `data`), pra não ter que escolher entre
+    // "erro sem Scaffold" e "Scaffold duplicado no caminho feliz" — o
+    // caminho de dados já é um `Scaffold` inteiro via `RegistrationWizardScaffold`,
+    // então essa tela nunca embrulha o `NexaAsyncView` inteiro (ver
+    // `_wizardChrome` abaixo, usado só em `skeleton`/`empty`).
+    if (tournamentAsync.hasError && !tournamentAsync.hasValue) {
+      return _wizardChrome(
+        context,
+        AppErrorView(
+          title: 'Não foi possível carregar',
+          message: 'Não foi possível carregar o torneio.',
+          onRetry: () =>
+              ref.invalidate(tournamentDetailProvider(widget.tournamentId)),
+        ),
+      );
+    }
+
     return NexaAsyncView<TournamentDetail?>(
       value: tournamentAsync,
       onRetry: () =>
           ref.invalidate(tournamentDetailProvider(widget.tournamentId)),
       errorTitle: 'Não foi possível carregar',
       errorMessage: 'Não foi possível carregar o torneio.',
+      skeleton: _wizardChrome(context, const AppLoadingView()),
       emptyWhen: (value) =>
           value == null ||
           !value.categoryOffers.any((c) => c.id == widget.categoryId),
-      empty: AppEmptyView(
-        icon: Icons.category_outlined,
-        title: 'Categoria não encontrada',
-        subtitle: 'Ela pode ter sido removida ou o link está desatualizado.',
-        actionLabel: 'Voltar',
-        onAction: _exit,
+      empty: _wizardChrome(
+        context,
+        AppEmptyView(
+          icon: Icons.category_outlined,
+          title: 'Categoria não encontrada',
+          subtitle: 'Ela pode ter sido removida ou o link está desatualizado.',
+          actionLabel: 'Voltar',
+          onAction: _exit,
+        ),
       ),
       data: (value) {
         final tournament = value!;
@@ -285,6 +309,21 @@ class _RegistrationCategoryPageState
       },
     );
   }
+}
+
+/// Casca mínima para os estados de carregando/erro/vazio: `Scaffold` +
+/// `SafeArea`, igual às telas irmãs (`tournament_registration_page.dart`,
+/// `tournament_category_view_page.dart`, `tournament_registration_payment_page.dart`).
+///
+/// Só usada em `skeleton`/`empty`/erro — nunca ao redor do `NexaAsyncView`
+/// inteiro, porque o ramo `data` já devolve `RegistrationWizardScaffold`
+/// (que É um `Scaffold`); embrulhar tudo por fora duplicaria o Scaffold só
+/// no caminho feliz.
+Widget _wizardChrome(BuildContext context, Widget child) {
+  return Scaffold(
+    backgroundColor: context.themeColors.canvas,
+    body: SafeArea(child: child),
+  );
 }
 
 /// Rótulo do cartão NÍVEL.

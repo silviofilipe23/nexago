@@ -25,10 +25,6 @@ class PartnerSearchService {
 
   final UsersRepository _users;
 
-  /// Sugestões iniciais: página única e enxuta. A tela de INSCRIÇÃO não usa
-  /// mais (abre sem listar nada); quem chama é a substituição de parceiro.
-  static const int initialBrowseLimit = 100;
-
   /// Quantos a tela mostra. O pedido de produto é "no máximo 10 por pesquisa".
   static const int kDisplayLimit = 10;
 
@@ -38,19 +34,8 @@ class PartnerSearchService {
   /// `max × 4` documentos (teto 100) — 15 significa 60, contra os 100 de antes.
   static const int kFetchLimit = 15;
 
-  Future<List<AppUserProfile>> listPartners({
-    required String currentUserId,
-    required String? categoryGenderType,
-    int browseLimit = initialBrowseLimit,
-  }) async {
-    var users = await _users.listAthleteProfiles(maxResults: browseLimit);
-    users = users.where((user) => user.uid != currentUserId).toList();
-    users = filterPartnersByCategoryGender(users, categoryGenderType);
-    return sortPartnersForDisplay(users);
-  }
-
   /// Busca por nome ou @. Abaixo de [kPartnerSearchMinQueryLength] devolve
-  /// VAZIO — antes caía em [listPartners] e lia 100 perfis a cada tecla curta.
+  /// VAZIO — a tela não busca a cada tecla curta.
   Future<List<AppUserProfile>> searchPartners({
     required String currentUserId,
     required String? categoryGenderType,

@@ -142,7 +142,7 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     teamsPerGroup: 4,
     qualifiersPerGroup: 2,
     bestOf: 'bestOf3',
-    finalBestOf5: true,
+    finalBestOf5: false,
     maxRegistrationsPerAthlete: 2,
     prizes: [],
   };

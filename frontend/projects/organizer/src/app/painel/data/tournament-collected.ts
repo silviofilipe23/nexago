@@ -87,6 +87,19 @@ export function formatCents(cents: number): string {
   return BRL_CENTS.format(cents / 100);
 }
 
+/** "1.234,56" / "6,00" → 123456 / 600. Entradas inválidas ou negativas viram 0. */
+export function parseBRLInputToCents(value: string): number {
+  const cleaned = value.trim().replace(/\./g, '').replace(',', '.');
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
+/** Valor editável no input — "220,00" a partir de centavos. */
+export function formatCentsInputValue(cents: number): string {
+  return (cents / 100).toFixed(2).replace('.', ',');
+}
+
 /** Valor redondo — KPIs e cards, onde os centavos só poluem. */
 export function formatCentsShort(cents: number): string {
   return BRL.format(cents / 100);

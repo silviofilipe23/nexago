@@ -11,6 +11,7 @@ import {
   type OrganizerEventDefaults,
 } from '../../data/organizer-settings.model';
 import { loadTournamentDraft, publishTournamentDraft } from '../../data/tournament-create-mapper';
+import { formatCentsInputValue, parseBRLInputToCents } from '../../data/tournament-collected';
 import {
   AGE_BAND_LABEL,
   BEST_OF_LABEL,
@@ -235,16 +236,18 @@ function inputToDatetime(v: string): Date | null {
             <og-card kicker="Vagas & preço" title="Configuração">
               <div class="og-field-grid">
                 <og-stepper-static label="Vagas" [value]="'' + cat().spots" [suffix]="catUnit()" (bump)="bumpCatSpots($event)" />
-                <og-form-field label="Preço desta categoria (R$)">
-                  <input
-                    class="og-input-el"
-                    type="number"
-                    min="0"
-                    step="10"
-                    [disabled]="cat().useDefaultPrice"
-                    [value]="cat().priceCents / 100"
-                    (input)="patchCat({ priceCents: toCents($any($event.target).value) })"
-                  />
+                <og-form-field label="Preço desta categoria">
+                  <div class="og-input og-brl-input">
+                    <span class="og-brl-prefix">R$</span>
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      [disabled]="cat().useDefaultPrice"
+                      [value]="catPriceInput()"
+                      (input)="onCatPriceInput($any($event.target).value)"
+                    />
+                  </div>
                 </og-form-field>
               </div>
               <div style="margin-top:14px">
@@ -252,7 +255,7 @@ function inputToDatetime(v: string): Date | null {
                   title="Usar preço padrão do torneio"
                   [desc]="brl(draft().defaultPriceCents) + ' por ' + catUnitSingular()"
                   [on]="cat().useDefaultPrice"
-                  (toggled)="patchCat({ useDefaultPrice: $event, priceCents: $event ? draft().defaultPriceCents : cat().priceCents })"
+                  (toggled)="onCatUseDefaultPrice($event)"
                 />
                 @if (catIsTeam()) {
                   <p class="og-wizard-hint">Preço por equipe — cada atleta paga a própria cota (≈ {{ brl(catPricePerAthlete()) }}) ou um atleta paga o valor cheio.</p>
@@ -641,6 +644,30 @@ function inputToDatetime(v: string): Date | null {
       color: var(--nx-text-dim);
       margin: 8px 0 0;
     }
+    .og-brl-input {
+      gap: 8px;
+    }
+    .og-brl-prefix {
+      flex: none;
+      font-family: var(--nx-font-mono);
+      font-size: 13px;
+      color: var(--nx-text-dim);
+    }
+    .og-brl-input input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--nx-text);
+    }
+    .og-brl-input input:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
   `,
 })
 export class CriarTorneioComponent {
@@ -683,6 +710,7 @@ export class CriarTorneioComponent {
 
   /** Categoria em edição no builder (cópia de trabalho). */
   protected readonly cat = signal<TournamentCategoryDraft>(emptyCategoryDraft('tmp'));
+  protected readonly catPriceInput = signal('0,00');
   protected readonly premioCategoryId = signal<string | null>(null);
 
   private readonly queryParams = toSignal(this.route.queryParamMap);
@@ -876,6 +904,17 @@ export class CriarTorneioComponent {
     this.cat.update((c) => ({ ...c, ...partial }));
   }
 
+  protected onCatPriceInput(value: string): void {
+    this.catPriceInput.set(value);
+    this.patchCat({ priceCents: parseBRLInputToCents(value) });
+  }
+
+  protected onCatUseDefaultPrice(on: boolean): void {
+    const priceCents = on ? this.draft().defaultPriceCents : this.cat().priceCents;
+    this.catPriceInput.set(formatCentsInputValue(priceCents));
+    this.patchCat({ useDefaultPrice: on, priceCents });
+  }
+
   protected brl(cents: number): string {
     return BRL.format(cents / 100);
   }
@@ -1003,6 +1042,7 @@ export class CriarTorneioComponent {
             this.organizerDefaults,
           ),
     );
+    this.catPriceInput.set(formatCentsInputValue(this.cat().priceCents));
     this.subView.set('categoria');
   }
 

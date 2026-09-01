@@ -228,6 +228,10 @@ class _RegistrationCategoryPageState
           alreadyRegistered: registration != null,
           spotsLeft: spotsLeft,
           registrationOpensAt: tournament.registrationOpensAt,
+          // A linha "Inscrições até …" abaixo só INFORMA o prazo; quem o
+          // APLICA é o status — sem ele o CTA seguia "Inscrever-se" depois do
+          // prazo e a recusa só vinha da callable, três telas adiante.
+          registrationClosesAt: tournament.registrationClosesAt,
           eligibility: RegistrationEligibilityInput(
             levelBlocked: !CategoryLevelEligibility.isCategoryEligibleForLevel(
               category,

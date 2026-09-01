@@ -580,6 +580,86 @@ void main() {
     });
   });
 
+  group('registrationCategoryStatus — prazo de inscrição vencido', () {
+    final closesAt = DateTime(2026, 9, 10, 23, 59);
+
+    test('depois do prazo a categoria fica ENCERRADA e bloqueada', () {
+      // O app EXIBIA "Inscrições até …" e não aplicava nada: o CTA seguia
+      // "Inscrever-se" e o atleta percorria três telas até a callable recusar
+      // com "Prazo de inscrição encerrado."
+      // (`functions/src/tournament-registration-guards.ts`).
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 5,
+        registrationClosesAt: closesAt,
+        now: DateTime(2026, 9, 11, 0, 1),
+      );
+
+      expect(status.badge, 'ENCERRADA');
+      expect(status.blocked, isTrue);
+      expect(status.message, contains('prazo'));
+    });
+
+    test('no instante do prazo a inscrição ainda vale', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 5,
+        registrationClosesAt: closesAt,
+        now: closesAt,
+      );
+
+      expect(status.blocked, isFalse);
+      expect(status.badge, isNull);
+    });
+
+    test('sem registrationClosesAt nada muda (campo opcional)', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 5,
+        now: DateTime(2030, 1, 1),
+      );
+
+      expect(status.blocked, isFalse);
+      expect(status.badge, isNull);
+    });
+
+    test('já inscrito ganha do prazo vencido — a vaga já é do atleta', () {
+      // Precedência de contrato: já inscrito > encerrada > lotada >
+      // elegibilidade. Bloquear quem já se inscreveu era o beco sem saída da
+      // reserva solo pendente.
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: true,
+        spotsLeft: 5,
+        registrationClosesAt: closesAt,
+        now: DateTime(2026, 9, 11, 0, 1),
+      );
+
+      expect(status.badge, 'JÁ INSCRITO');
+      expect(status.blocked, isFalse);
+    });
+
+    test('prazo vencido ganha de lotada e da elegibilidade', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        eligibility: const RegistrationEligibilityInput(
+          genderBlocked: true,
+          levelBlocked: true,
+        ),
+        registrationClosesAt: closesAt,
+        now: DateTime(2026, 9, 11, 0, 1),
+      );
+
+      expect(status.badge, 'ENCERRADA');
+      expect(status.message, contains('prazo'));
+    });
+  });
+
   group('registrationHoldNotice — prazo de garantia da vaga', () {
     final now = DateTime(2026, 9, 1, 14, 13);
 

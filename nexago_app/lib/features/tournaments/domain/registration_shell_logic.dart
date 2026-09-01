@@ -62,6 +62,7 @@ RegistrationCategoryStatus registrationCategoryStatus({
   required int? spotsLeft,
   RegistrationEligibilityInput eligibility = const RegistrationEligibilityInput(),
   DateTime? registrationOpensAt,
+  DateTime? registrationClosesAt,
   DateTime? now,
 }) {
   if (alreadyRegistered) {
@@ -70,9 +71,20 @@ RegistrationCategoryStatus registrationCategoryStatus({
     );
   }
   // Espelha o guard do servidor (`assertTournamentAcceptsRegistration`): o
-  // calendário do torneio vem antes das travas de categoria. Antes de
-  // `registrationOpensAt` a CF recusa qualquer inscrição, então a tela precisa
-  // dizer quando abre — não que "encerrou".
+  // calendário do torneio vem antes das travas de categoria, e o PRAZO vem
+  // antes da abertura (é a ordem das checagens da CF). Sem isto o app exibia
+  // "Inscrições até …" e mesmo assim deixava o atleta percorrer três telas
+  // para a callable recusar com "Prazo de inscrição encerrado.".
+  if (registrationClosesAt != null &&
+      (now ?? DateTime.now()).isAfter(registrationClosesAt)) {
+    return const RegistrationCategoryStatus(
+      badge: 'ENCERRADA',
+      blocked: true,
+      message: 'O prazo de inscrição deste torneio já passou.',
+    );
+  }
+  // Antes de `registrationOpensAt` a CF recusa qualquer inscrição, então a
+  // tela precisa dizer quando abre — não que "encerrou".
   if (tournamentRegistrationNotYetOpen(registrationOpensAt, now: now)) {
     return RegistrationCategoryStatus(
       badge: 'EM BREVE',

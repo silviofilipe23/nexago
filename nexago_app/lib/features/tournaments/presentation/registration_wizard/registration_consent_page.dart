@@ -53,8 +53,13 @@ class RegistrationConsentPage extends ConsumerStatefulWidget {
 
 class _RegistrationConsentPageState
     extends ConsumerState<RegistrationConsentPage> {
-  bool _dataConsent = true;
-  bool _imageConsent = true;
+  // As duas obrigatórias começam DESMARCADAS. Consentimento pré-marcado é o
+  // exemplo clássico de consentimento inválido sob a LGPD (art. 8) — o aceite
+  // tem de ser ato afirmativo do titular, como já era na tela aposentada
+  // (`_lgpdAccepted = false`). O protótipo desenhá-las marcadas é convenção de
+  // mockup, não decisão de produto.
+  bool _dataConsent = false;
+  bool _imageConsent = false;
   bool _marketing = false;
   bool _showTerm = false;
   bool _saving = false;

@@ -359,6 +359,47 @@ void main() {
     });
 
     testWidgets(
+      'convidado com cadastro incompleto avisa o convidante em vez do '
+      'snackbar padrão',
+      (tester) async {
+        await abrirTela(
+          tester,
+          tournament: torneio([dupla()]),
+          resultadosBusca: [
+            const AppUserProfile(
+              uid: 'parceiro-1',
+              fullName: 'Bruno Alves',
+              gender: 'Masculino',
+            ),
+          ],
+        );
+        servico.sendInviteResult = const TournamentPartnerInviteSendResult(
+          inviteId: 'convite-novo',
+          inviteeProfileReady: false,
+          inviteeMissingSteps: ['WhatsApp'],
+        );
+
+        await buscar(tester, 'bru');
+        await tester.tap(find.text('Bruno Alves'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Convidar Bruno'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'Convite enviado! Avise Bruno: falta completar WhatsApp no '
+            'perfil para poder aceitar.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Convite enviado para Bruno.'), findsNothing);
+        // O convite foi enviado de verdade (não é caminho de erro) — segue
+        // navegando normalmente, mesma regra de sucesso das outras variantes.
+        expect(rotasAbertas, contains('inscrição'));
+      },
+    );
+
+    testWidgets(
       'torneio SEM dupla obrigatória mostra a reserva solo, e ela navega '
       'para o uniforme quando a categoria exige',
       (tester) async {
@@ -418,6 +459,11 @@ void main() {
           tester,
           tournament: torneio([dupla()], requireFormedPair: false),
         );
+        // Mensagem que casa com `isRegistrationConflict`
+        // (`TournamentPartnerInviteException`) — o erro vira página de
+        // ALERTA (`pushAlertFeedback`), não snackbar. As duas metades do
+        // nome do teste precisam de asserção: "mostra o feedback" é o
+        // título+descrição da página; "NÃO navega" é `rotasAbertas` vazio.
         servico.erroSolo = TournamentPartnerInviteException(
           'Você já possui inscrição nesta categoria.',
         );
@@ -425,6 +471,11 @@ void main() {
         await tester.tap(find.text('Sem dupla aqui? Garanta sua vaga'));
         await tester.pumpAndSettle();
 
+        expect(find.text('Inscrição indisponível'), findsOneWidget);
+        expect(
+          find.text('Você já possui inscrição nesta categoria.'),
+          findsOneWidget,
+        );
         expect(rotasAbertas, isEmpty);
       },
     );
@@ -565,6 +616,11 @@ void main() {
           find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
           findsNothing,
         );
+        // "trava o CTA": sem o passo de busca não há como selecionar
+        // ninguém, então o botão fica desabilitado — mesma asserção forte
+        // do teste "CTA fica travado..." acima, não só o texto do aviso.
+        final botao = tester.widget<FilledButton>(find.byType(FilledButton));
+        expect(botao.onPressed, isNull);
       },
     );
 
@@ -635,6 +691,15 @@ class _FakeInviteService implements TournamentPartnerInviteService {
 
   TournamentPartnerInviteException? erroSolo;
 
+  /// Resultado que `sendInvite` devolve — sobrescrevível para exercitar o
+  /// convidado com cadastro incompleto (`inviteeProfileReady: false`).
+  TournamentPartnerInviteSendResult sendInviteResult =
+      const TournamentPartnerInviteSendResult(
+        inviteId: 'convite-novo',
+        inviteeProfileReady: true,
+        inviteeMissingSteps: [],
+      );
+
   @override
   Future<TournamentPartnerInviteSendResult> sendInvite({
     required String tournamentId,
@@ -652,11 +717,7 @@ class _FakeInviteService implements TournamentPartnerInviteService {
       inviteeName: inviteeName,
       lgpdAccepted: lgpdAccepted,
     ));
-    return const TournamentPartnerInviteSendResult(
-      inviteId: 'convite-novo',
-      inviteeProfileReady: true,
-      inviteeMissingSteps: [],
-    );
+    return sendInviteResult;
   }
 
   @override

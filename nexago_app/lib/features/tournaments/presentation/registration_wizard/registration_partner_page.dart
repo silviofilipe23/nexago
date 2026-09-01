@@ -11,6 +11,8 @@ import '../../../../core/ui/nexa_async_view.dart';
 import '../../../../core/ui/nexa_share.dart';
 import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../athlete/domain/profile_access.dart'
+    show formatMissingProfileStepsForAccess;
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../data/tournament_partner_invite_service.dart';
 import '../../domain/registration_shell_logic.dart';
@@ -148,7 +150,7 @@ class _RegistrationPartnerPageState
       final inviterName = profile != null
           ? athleteDisplayName(profile, fallback: 'Atleta')
           : 'Atleta';
-      await ref
+      final result = await ref
           .read(tournamentPartnerInviteServiceProvider)
           .sendInvite(
             tournamentId: widget.tournamentId,
@@ -159,9 +161,21 @@ class _RegistrationPartnerPageState
             lgpdAccepted: widget.lgpdAccepted,
           );
       if (!mounted) return;
+      final firstName = _firstNameOf(candidate.name);
+      // Parceiro com cadastro incompleto não consegue aceitar: sem este
+      // aviso o convite ficava "aguardando" até expirar sem ninguém saber o
+      // motivo — mesma ramificação da tela única (`inviteeProfileReady` /
+      // `inviteeMissingSteps`, já devolvidos por `sendInvite`).
+      final missing = formatMissingProfileStepsForAccess(
+        result.inviteeMissingSteps,
+      );
       showAppSnackBar(
         context,
-        'Convite enviado para ${_firstNameOf(candidate.name)}.',
+        result.inviteeProfileReady
+            ? 'Convite enviado para $firstName.'
+            : 'Convite enviado! Avise $firstName: falta completar '
+                  '${missing.isEmpty ? 'o cadastro' : missing} no perfil '
+                  'para poder aceitar.',
       );
       _advanceAfterSuccess(category, widget.registrationId);
     } on TournamentPartnerInviteException catch (e) {

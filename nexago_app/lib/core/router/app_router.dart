@@ -185,6 +185,7 @@ import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
 import '../../features/tournaments/domain/tournament_registration_success_args.dart';
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
+import '../../features/tournaments/presentation/registration_wizard/registration_category_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
@@ -1261,6 +1262,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             initialRegistrationId: registrationId,
             initialInviteId: inviteId,
             initialStep: initialStep,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationCategory,
+        name: AppRouteNames.tournamentRegistrationCategory,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId =
+              state.uri.queryParameters['categoryId']?.trim() ?? '';
+          return RegistrationCategoryPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
           );
         },
       ),

@@ -32,9 +32,27 @@ RegistrationTermsCopy registrationTermsCopy({
   required bool requireFormedPair,
   required bool hasReceivedInvite,
   String? inviterName,
+  /// O convite RECEBIDO é de equipe (`TournamentPartnerInvite.isTeamInvite`).
+  /// Checado ANTES de `category.teamSize` no ramo de convite porque é o
+  /// convite — não a categoria — quem diz se é elenco: uma categoria sem
+  /// `teamSize` preenchido (dado legado/ausente) ainda pode ter um convite
+  /// de equipe válido.
+  bool isTeamInvite = false,
 }) {
   if (hasReceivedInvite) {
     final who = (inviterName ?? '').trim();
+    if (isTeamInvite) {
+      return RegistrationTermsCopy(
+        eyebrow: 'CONVITE RECEBIDO',
+        title: who.isEmpty
+            ? 'Você foi convidado para este elenco'
+            : '$who te chamou para o elenco',
+        body: 'Ao aceitar, você entra no elenco e a vaga fica reservada — o '
+            'pagamento abre em seguida.',
+        ctaLabel: 'Aceitar convite',
+        allowsSolo: false,
+      );
+    }
     return RegistrationTermsCopy(
       eyebrow: 'CONVITE RECEBIDO',
       title: who.isEmpty

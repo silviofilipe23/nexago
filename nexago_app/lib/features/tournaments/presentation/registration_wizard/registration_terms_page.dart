@@ -189,9 +189,21 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
           requireFormedPair: tournament.requireFormedPair,
           hasReceivedInvite: receivedInvite != null,
           inviterName: receivedInvite?.inviterName,
+          isTeamInvite: receivedInvite?.isTeamInvite ?? false,
         );
 
         final closesAt = tournament.registrationClosesAt;
+
+        // "Ver outras categorias" é uma saída de troca de categoria — faz
+        // sentido em toda variante em que o atleta ainda não se comprometeu
+        // com uma ação específica (dupla obrigatória, dupla com reserva
+        // solo, equipe). NÃO depende de `copy.secondaryLabel` (que só é
+        // não-nulo na variante de reserva solo) — prender o botão a esse
+        // gate deixava quem está em "dupla obrigatória" sem saída de um
+        // toque, justamente quem mais precisa dela por não poder reservar
+        // sozinho. Só fica de fora em "convite recebido": ali a decisão é
+        // aceitar ou recusar o convite, não trocar de categoria.
+        final showOtherCategories = receivedInvite == null;
 
         return RegistrationWizardScaffold(
           title: 'Condições',
@@ -203,9 +215,8 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
             submitting: _processing,
             onConfirm: () => _advance(copy),
             onSecondary: copy.secondaryLabel == null ? null : _reserveSolo,
-            onOtherCategories: copy.secondaryLabel == null
-                ? null
-                : _goToTournamentDetail,
+            onOtherCategories:
+                showOtherCategories ? _goToTournamentDetail : null,
           ),
           children: [
             RegistrationWizardNotice(
@@ -448,8 +459,15 @@ class _PriceOption extends StatelessWidget {
   }
 }
 
-/// Barra fixa: CTA principal + (só quando a categoria oferece reserva solo)
-/// "Guardar minha vaga sem parceiro" e "Ver outras categorias" abaixo.
+/// Barra fixa: CTA principal + duas ações abaixo, cada uma com seu próprio
+/// gate — NÃO amarradas uma à outra:
+/// - "Guardar minha vaga sem parceiro" só quando `secondaryLabel != null`
+///   (variante dupla com reserva solo — a única que oferece essa ação).
+/// - "Ver outras categorias" quando `onOtherCategories != null` (toda
+///   variante em que trocar de categoria faz sentido — ver o comentário em
+///   `showOtherCategories`, no `build()` da tela). Prender as duas ao mesmo
+///   gate deixava "dupla obrigatória" sem saída de categoria, que é
+///   justamente quem mais precisa dela.
 class _TermsStickyBar extends StatelessWidget {
   const _TermsStickyBar({
     required this.ctaLabel,
@@ -487,7 +505,7 @@ class _TermsStickyBar extends StatelessWidget {
               ctaLabel: ctaLabel,
               onConfirm: onConfirm,
             ),
-            if (secondaryLabel != null) ...[
+            if (secondaryLabel != null)
               TextButton(
                 onPressed: submitting ? null : onSecondary,
                 child: Text(
@@ -498,6 +516,7 @@ class _TermsStickyBar extends StatelessWidget {
                   ),
                 ),
               ),
+            if (onOtherCategories != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: TextButton(
@@ -511,7 +530,6 @@ class _TermsStickyBar extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
           ],
         ),
       ),

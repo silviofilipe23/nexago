@@ -69,6 +69,11 @@ void main() {
 
   late List<String> rotasAbertas;
   late _FakeInviteService servico;
+  // Capturado pelo builder da rota do parceiro — prova que a URL de destino
+  // carrega `lgpd=1` e `categoryId`, não só que a navegação por nome
+  // aconteceu (ver achado 2 da revisão: um builder que descarta `state` não
+  // pega regressão nenhuma no aceite LGPD).
+  late Map<String, String>? parceiroQueryParams;
 
   Future<void> abrirTela(
     WidgetTester tester, {
@@ -84,6 +89,7 @@ void main() {
 
     rotasAbertas = <String>[];
     servico = _FakeInviteService();
+    parceiroQueryParams = null;
 
     final router = GoRouter(
       initialLocation: '/inscricao',
@@ -99,8 +105,9 @@ void main() {
         GoRoute(
           path: '/torneios/:tournamentId/inscricao/parceiro',
           name: AppRouteNames.tournamentRegistrationPartner,
-          builder: (_, __) {
+          builder: (_, state) {
             rotasAbertas.add('parceiro');
+            parceiroQueryParams = Map.of(state.uri.queryParameters);
             return const Scaffold(body: Text('parceiro'));
           },
         ),
@@ -113,7 +120,12 @@ void main() {
           },
         ),
         GoRoute(
-          path: '/torneio',
+          // A rota real declara `:tournamentId` (`AppRoutes.tournamentDetail`)
+          // — sem o parâmetro aqui, `goNamed` com `pathParameters:
+          // {'tournamentId': ...}` derruba uma asserção do go_router
+          // ("unknown param"). "Ver outras categorias" é quem de fato
+          // exercita este caminho (`_goToTournamentDetail`).
+          path: '/torneios/:tournamentId',
           name: AppRouteNames.tournamentDetail,
           builder: (_, __) {
             rotasAbertas.add('detalhe');
@@ -172,19 +184,93 @@ void main() {
     expect(find.text('Guardar minha vaga sem parceiro'), findsNothing);
   });
 
+  testWidgets(
+    'dupla obrigatória AINDA ASSIM mostra "Ver outras categorias" e navega '
+    'para o detalhe do torneio',
+    (tester) async {
+      // Achado 1 da revisão: "Ver outras categorias" não pode depender de
+      // `copy.secondaryLabel` (só preenchido na variante de reserva solo) —
+      // dupla obrigatória é justamente a variante em que o atleta pode não
+      // ter parceiro e mais precisa de uma saída de um toque.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+      );
+
+      expect(find.text('Ver outras categorias'), findsOneWidget);
+
+      await tester.tap(find.text('Ver outras categorias'));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('detalhe'));
+    },
+  );
+
+  testWidgets(
+    'equipe trio+ também mostra "Ver outras categorias"',
+    (tester) async {
+      // Julgamento do fix: equipe é outra variante em que o atleta ainda não
+      // se comprometeu com nada — trocar de categoria faz o mesmo sentido
+      // que em dupla obrigatória/reserva solo.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
+      );
+
+      expect(find.text('Ver outras categorias'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'convite recebido NÃO mostra "Ver outras categorias"',
+    (tester) async {
+      // Ali a decisão é aceitar ou recusar o convite, não trocar de
+      // categoria — explicitamente fora do escopo do achado 1.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+        pendingInvites: [_convite(inviterName: 'Bia Souza')],
+      );
+
+      expect(find.text('Ver outras categorias'), findsNothing);
+    },
+  );
+
   testWidgets('CTA leva ao parceiro carregando o aceite adiante', (
     tester,
   ) async {
     await abrirTela(
       tester,
       tournament: torneio([dupla()], requireFormedPair: true),
+      lgpdAccepted: true,
     );
 
     await tester.tap(find.text('Definir meu parceiro'));
     await tester.pumpAndSettle();
 
     expect(rotasAbertas, contains('parceiro'));
+    // A promessa do nome do teste é o aceite ATRAVESSANDO na URL — checar só
+    // a navegação por nome deixaria passar uma regressão que perdesse
+    // `lgpd=1` no caminho.
+    expect(parceiroQueryParams?['lgpd'], '1');
+    expect(parceiroQueryParams?['categoryId'], 'masc');
   });
+
+  testWidgets(
+    'CTA sem aceite LGPD não carrega lgpd=1 para o parceiro',
+    (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+        lgpdAccepted: false,
+      );
+
+      await tester.tap(find.text('Definir meu parceiro'));
+      await tester.pumpAndSettle();
+
+      expect(parceiroQueryParams?.containsKey('lgpd'), isFalse);
+    },
+  );
 
   testWidgets(
     'dupla com reserva solo mostra a ação de guardar a vaga sozinho',
@@ -247,6 +333,27 @@ void main() {
     expect(find.text('Aceitar convite'), findsOneWidget);
   });
 
+  testWidgets(
+    'convite recebido de EQUIPE fala em elenco, não em "jogar com você"',
+    (tester) async {
+      // Achado 3 da revisão: `isTeamInvite` vem do CONVITE
+      // (`TournamentPartnerInvite.isTeamInvite`), então mesmo uma categoria
+      // com `teamSize` preenchido só ganha o texto de elenco quando o
+      // convite em si é marcado como de equipe.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
+        pendingInvites: [
+          _convite(inviterName: 'Bia Souza', isTeamInvite: true),
+        ],
+      );
+
+      expect(find.text('Bia Souza te chamou para o elenco'), findsOneWidget);
+      expect(find.text('Bia Souza quer jogar com você'), findsNothing);
+      expect(find.text('Aceitar convite'), findsOneWidget);
+    },
+  );
+
   testWidgets('sem registrationClosesAt a linha do prazo não aparece', (
     tester,
   ) async {
@@ -256,7 +363,10 @@ void main() {
   });
 }
 
-TournamentPartnerInvite _convite({required String inviterName}) {
+TournamentPartnerInvite _convite({
+  required String inviterName,
+  bool isTeamInvite = false,
+}) {
   final now = DateTime.now();
   return TournamentPartnerInvite(
     id: 'convite-1',
@@ -269,6 +379,7 @@ TournamentPartnerInvite _convite({required String inviterName}) {
     status: 'pending',
     createdAt: now,
     expiresAt: now.add(const Duration(hours: 48)),
+    isTeamInvite: isTeamInvite,
   );
 }
 

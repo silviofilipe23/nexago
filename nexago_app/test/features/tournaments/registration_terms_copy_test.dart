@@ -59,4 +59,25 @@ void main() {
     expect(copy.title, 'Bia Souza quer jogar com você');
     expect(copy.ctaLabel, 'Aceitar convite');
   });
+
+  test(
+    'convite recebido de EQUIPE: fala em elenco, não em "jogar com você"',
+    () {
+      // `isTeamInvite` vem do CONVITE (`TournamentPartnerInvite.isTeamInvite`),
+      // não da categoria — por isso `teamSize` aqui nem precisa estar
+      // preenchido para o ramo de equipe disparar.
+      final copy = registrationTermsCopy(
+        category: categoria(teamSize: 4),
+        requireFormedPair: true,
+        hasReceivedInvite: true,
+        inviterName: 'Bia Souza',
+        isTeamInvite: true,
+      );
+
+      expect(copy.eyebrow, 'CONVITE RECEBIDO');
+      expect(copy.title, 'Bia Souza te chamou para o elenco');
+      expect(copy.ctaLabel, 'Aceitar convite');
+      expect(copy.title, isNot(contains('jogar com você')));
+    },
+  );
 }

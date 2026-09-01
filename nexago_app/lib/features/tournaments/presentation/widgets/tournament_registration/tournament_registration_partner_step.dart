@@ -5,18 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
-import '../../../../../core/search/search_keywords.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/partner_search_service.dart';
-import '../../../data/recent_partners_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../../domain/partner_search_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
 import 'tournament_registration_partner_candidate_tile.dart';
 import 'tournament_registration_partner_phone_card.dart';
-import 'tournament_registration_recent_partners_chips.dart';
 import 'tournament_registration_solo_card.dart';
 
 class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
@@ -65,8 +62,7 @@ class _TournamentRegistrationPartnerStepState
   final _focusNode = FocusNode();
 
   List<AppUserProfile> _displayPartners = const [];
-  List<AppUserProfile> _recentPartners = const [];
-  bool _loadingPartners = true;
+  bool _loadingPartners = false;
   bool _focused = false;
   Timer? _searchDebounce;
 
@@ -75,7 +71,6 @@ class _TournamentRegistrationPartnerStepState
     super.initState();
     _focusNode.addListener(() => setState(() => _focused = _focusNode.hasFocus));
     _searchController.addListener(_onSearchChanged);
-    _loadInitialPartners();
   }
 
   @override
@@ -92,46 +87,17 @@ class _TournamentRegistrationPartnerStepState
     setState(() {});
   }
 
-  Future<void> _loadInitialPartners() async {
-    final uid = ref.read(authProvider).valueOrNull?.uid ?? '';
-    if (uid.isEmpty) {
-      if (mounted) setState(() => _loadingPartners = false);
-      return;
-    }
-
-    try {
-      final service = ref.read(partnerSearchServiceProvider);
-      final recentRepo = ref.read(recentPartnersRepositoryProvider);
-      final partnersFuture = service.listPartners(
-        currentUserId: uid,
-        categoryGenderType: categoryGenderForPartnerFilter(widget.category),
-      );
-      final recentFuture = recentRepo.loadRecentPartners(
-        currentUserId: uid,
-        categoryGenderType: categoryGenderForPartnerFilter(widget.category),
-      );
-      final partners = await partnersFuture;
-      final recent = await recentFuture;
-
-      if (!mounted) return;
-      setState(() {
-        _displayPartners = partners;
-        _recentPartners =
-            recent.where((profile) => profile.uid != uid).toList();
-        _loadingPartners = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loadingPartners = false);
-    }
-  }
-
   Future<void> _runPartnerSearch() async {
     final uid = ref.read(authProvider).valueOrNull?.uid ?? '';
     if (uid.isEmpty || !mounted) return;
 
     final query = _searchController.text.trim();
-    if (!isSearchTermLongEnough(query)) {
-      await _loadInitialPartners();
+    // Abaixo do mínimo a tela volta ao estado vazio SEM ir ao servidor.
+    if (!isPartnerQueryLongEnough(query)) {
+      setState(() {
+        _displayPartners = const [];
+        _loadingPartners = false;
+      });
       return;
     }
 
@@ -164,7 +130,7 @@ class _TournamentRegistrationPartnerStepState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final query = _searchController.text.trim();
-    final isFiltering = isSearchTermLongEnough(query);
+    final isFiltering = isPartnerQueryLongEnough(query);
     final requiredGender = requiredPartnerGenderTag(
       offer: widget.category,
       currentGenders: widget.currentGenders,
@@ -180,9 +146,7 @@ class _TournamentRegistrationPartnerStepState
             count: displayProfiles.length,
             category: widget.category,
           )
-        : displayProfiles.isEmpty
-            ? ''
-            : '${displayProfiles.length} ATLETAS · ${categoryBadgeLabel(widget.category)}';
+        : '';
 
     final borderColor = _focused || query.isNotEmpty
         ? AppColors.brand
@@ -213,7 +177,7 @@ class _TournamentRegistrationPartnerStepState
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
-            hintText: 'Nome, @, apelido ou e-mail…',
+            hintText: 'Buscar atleta por nome ou @',
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.6),
             ),
@@ -234,14 +198,6 @@ class _TournamentRegistrationPartnerStepState
             contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
-        if (!isFiltering && !_loadingPartners && _recentPartners.isNotEmpty) ...[
-          SizedBox(height: 16),
-          TournamentRegistrationRecentPartnersChips(
-            partners: _recentPartners,
-            selectedUserId: widget.selectedUserId,
-            onSelected: (p) => _selectProfile(p, tagLabel: 'Jogou com você'),
-          ),
-        ],
         if (resultsHeader.isNotEmpty) ...[
           SizedBox(height: 22),
           Text(
@@ -271,7 +227,7 @@ class _TournamentRegistrationPartnerStepState
             child: Text(
               isFiltering
                   ? 'Nenhum atleta encontrado.'
-                  : 'Nenhum atleta cadastrado no momento.',
+                  : 'Digite ao menos 3 letras do nome ou do @ para buscar.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: context.themeColors.onSurfaceMuted,
@@ -281,18 +237,9 @@ class _TournamentRegistrationPartnerStepState
         else
           ...displayProfiles.map(
             (profile) {
-              // Pendência de gênero vence o "Jogou com você": é o que impede
-              // o aceite e o convidante precisa ver antes de convidar.
               final candidate = partnerCandidateFromProfile(
                 profile,
-                tagLabel: partnerGenderPendencyLabel(
-                      profile,
-                      requiredGender,
-                    ) ??
-                    (!isFiltering &&
-                            _recentPartners.any((p) => p.uid == profile.uid)
-                        ? 'Jogou com você'
-                        : null),
+                tagLabel: partnerGenderPendencyLabel(profile, requiredGender),
               );
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),

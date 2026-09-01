@@ -6,15 +6,37 @@ import '../../../core/search/search_keywords.dart';
 import '../../../core/auth/user_roles.dart';
 import '../domain/partner_search_logic.dart';
 
+/// Mínimo de letras para a busca de parceiro disparar.
+///
+/// LOCAL de propósito: `kSearchMinPrefixLength` (2) vale para arena, ligas,
+/// equipes e torneios, e é o mesmo número que o gerador de `keywords` usa para
+/// montar os prefixos gravados nos perfis. Subir a constante global quebraria
+/// o índice, cujo backfill em `users` nunca rodou.
+const int kPartnerSearchMinQueryLength = 3;
+
+/// Conta sobre o termo NORMALIZADO: acento e pontuação não valem letra, então
+/// `J.R` vira `jr` e continua insuficiente.
+bool isPartnerQueryLongEnough(String raw) {
+  return normalizeSearchTerm(raw).length >= kPartnerSearchMinQueryLength;
+}
+
 class PartnerSearchService {
   PartnerSearchService(this._users);
 
   final UsersRepository _users;
 
-  /// Sugestões iniciais: página única e enxuta — antes eram até 2000 docs por
-  /// abertura da tela. Quem procura alguém específico usa a busca por nome.
+  /// Sugestões iniciais: página única e enxuta. A tela de INSCRIÇÃO não usa
+  /// mais (abre sem listar nada); quem chama é a substituição de parceiro.
   static const int initialBrowseLimit = 100;
-  static const int searchResultLimit = 25;
+
+  /// Quantos a tela mostra. O pedido de produto é "no máximo 10 por pesquisa".
+  static const int kDisplayLimit = 10;
+
+  /// Quantos o repositório devolve. Pedir 15 para exibir 10 dá folga ao filtro
+  /// de gênero da categoria, que roda DEPOIS: cortar em 10 antes do filtro
+  /// deixava 4 ou 5 numa categoria de gênero fixo. O repositório lê
+  /// `max × 4` documentos (teto 100) — 15 significa 60, contra os 100 de antes.
+  static const int kFetchLimit = 15;
 
   Future<List<AppUserProfile>> listPartners({
     required String currentUserId,
@@ -27,19 +49,16 @@ class PartnerSearchService {
     return sortPartnersForDisplay(users);
   }
 
+  /// Busca por nome ou @. Abaixo de [kPartnerSearchMinQueryLength] devolve
+  /// VAZIO — antes caía em [listPartners] e lia 100 perfis a cada tecla curta.
   Future<List<AppUserProfile>> searchPartners({
     required String currentUserId,
     required String? categoryGenderType,
     required String query,
-    int max = searchResultLimit,
+    int max = kFetchLimit,
   }) async {
     final trimmed = query.trim();
-    if (!isSearchTermLongEnough(trimmed)) {
-      return listPartners(
-        currentUserId: currentUserId,
-        categoryGenderType: categoryGenderType,
-      );
-    }
+    if (!isPartnerQueryLongEnough(trimmed)) return const [];
 
     var users = await _users.searchUsersByNicknameOrName(
       trimmed,
@@ -48,7 +67,10 @@ class PartnerSearchService {
     );
     users = users.where((user) => user.uid != currentUserId).toList();
     users = filterPartnersByCategoryGender(users, categoryGenderType);
-    return sortPartnersForDisplay(users);
+    final sorted = sortPartnersForDisplay(users);
+    return sorted.length > kDisplayLimit
+        ? sorted.sublist(0, kDisplayLimit)
+        : sorted;
   }
 }
 

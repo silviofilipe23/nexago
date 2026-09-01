@@ -454,7 +454,7 @@ class _FakePartnerSearchService implements PartnerSearchService {
     required String currentUserId,
     required String? categoryGenderType,
     required String query,
-    int max = PartnerSearchService.searchResultLimit,
+    int max = PartnerSearchService.kFetchLimit,
   }) async {
     chamadas.add((
       currentUserId: currentUserId,

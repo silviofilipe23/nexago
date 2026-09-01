@@ -112,10 +112,10 @@ export function inputToDatetime(v: string): Date | null {
               } @else if (leagues().length === 0) {
                 <p class="og-etapa-hint">Nenhuma liga publicada — crie um circuito primeiro.</p>
               } @else {
-                <select class="og-select-el" [value]="selectedLeagueId() ?? ''" (change)="onLeague($event)">
-                  <option value="" disabled>Escolha a liga…</option>
+                <select class="og-select-el" (change)="onLeague($event)">
+                  <option value="" disabled [selected]="!selectedLeagueId()">Escolha a liga…</option>
                   @for (l of leagues(); track l.id) {
-                    <option [value]="l.id">{{ l.name }}</option>
+                    <option [value]="l.id" [selected]="l.id === selectedLeagueId()">{{ l.name }}</option>
                   }
                 </select>
                 @if (leagueError(); as msg) {
@@ -137,18 +137,18 @@ export function inputToDatetime(v: string): Date | null {
               </div>
               <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="UF da etapa (vazio = UF da liga)">
-                  <select class="og-select-el" [value]="stage().state" (change)="onStageStateChange($any($event.target).value)">
+                  <select class="og-select-el" (change)="onStageStateChange($any($event.target).value)">
                     <option value="">— usa UF da liga —</option>
                     @for (s of brLocations.states; track s.sigla) {
-                      <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                      <option [value]="s.sigla" [selected]="s.sigla === stage().state">{{ s.name }} ({{ s.sigla }})</option>
                     }
                   </select>
                 </og-form-field>
                 <og-form-field label="Cidade (vazio = cidade da liga)">
-                  <select class="og-select-el" [value]="stage().city" [disabled]="!stageEffectiveState()" (change)="patchStage({ city: $any($event.target).value })">
+                  <select class="og-select-el" [disabled]="!stageEffectiveState()" (change)="patchStage({ city: $any($event.target).value })">
                     <option value="">{{ !stageEffectiveState() ? 'Defina a UF da liga primeiro' : '— usa cidade da liga —' }}</option>
                     @for (c of citiesForStageState(); track c) {
-                      <option [value]="c">{{ c }}</option>
+                      <option [value]="c" [selected]="c === stage().city">{{ c }}</option>
                     }
                   </select>
                 </og-form-field>

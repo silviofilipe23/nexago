@@ -77,9 +77,9 @@ const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'
 
         <div class="og-field-grid">
           <og-form-field label="Esporte">
-            <select class="og-select-el" [value]="draft().sport" (change)="patch({ sport: $any($event.target).value })">
+            <select class="og-select-el" (change)="patch({ sport: $any($event.target).value })">
               @for (s of sports; track s) {
-                <option [value]="s">{{ sportLabel[s] }}</option>
+                <option [value]="s" [selected]="s === draft().sport">{{ sportLabel[s] }}</option>
               }
             </select>
           </og-form-field>
@@ -93,16 +93,16 @@ const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'
         <div class="og-cfg-section">Formato das categorias</div>
         <div class="og-field-grid">
           <og-form-field label="Formato padrão">
-            <select class="og-select-el" [value]="draft().bracketSystem" (change)="patch({ bracketSystem: $any($event.target).value })">
+            <select class="og-select-el" (change)="patch({ bracketSystem: $any($event.target).value })">
               @for (b of bracketOptions(); track b) {
-                <option [value]="b">{{ bracketLabel[b] }}</option>
+                <option [value]="b" [selected]="b === draft().bracketSystem">{{ bracketLabel[b] }}</option>
               }
             </select>
           </og-form-field>
           <og-form-field label="Partidas">
-            <select class="og-select-el" [value]="draft().bestOf" (change)="patch({ bestOf: $any($event.target).value })">
+            <select class="og-select-el" (change)="patch({ bestOf: $any($event.target).value })">
               @for (b of bestOfs; track b) {
-                <option [value]="b">{{ bestOfLabel[b] }}</option>
+                <option [value]="b" [selected]="b === draft().bestOf">{{ bestOfLabel[b] }}</option>
               }
             </select>
           </og-form-field>

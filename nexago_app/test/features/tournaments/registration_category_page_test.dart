@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/athlete/domain/tournament_access_providers.dart';
@@ -229,6 +232,80 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('inscrição'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'stream com dado carregado e erro depois (assinatura já estabelecida) '
+    'sai embrulhado em Scaffold, não pelo ramo interno do NexaAsyncView',
+    (tester) async {
+      // Reproduz o mecanismo real: erro numa assinatura JÁ estabelecida passa
+      // por `asyncTransition(seamless: true)`, e `AsyncError.copyWithPrevious`
+      // preserva `hasValue: previous.hasValue` — dado antigo E erro novo
+      // coexistem no MESMO AsyncValue. Uma guarda `hasError && !hasValue`
+      // deixa esse caso escapar; só `hasError` sozinho cobre.
+      final controller = StreamController<TournamentDetail?>();
+      addTearDown(controller.close);
+
+      final router = GoRouter(
+        initialLocation: '/inscricao',
+        routes: [
+          GoRoute(
+            path: '/inscricao',
+            builder: (_, __) => const RegistrationCategoryPage(
+              tournamentId: 't1',
+              categoryId: 'masc',
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            athleteProfileProvider.overrideWith(
+              (ref) => Stream.value(perfil()),
+            ),
+            tournamentAccessStateProvider.overrideWithValue(
+              const TournamentAccessState(
+                canAccess: true,
+                onboardingCompleted: true,
+                isProfileComplete: true,
+              ),
+            ),
+            tournamentDetailProvider(
+              't1',
+            ).overrideWith((ref) => controller.stream),
+            tournamentUserRegistrationsByCategoryProvider('t1').overrideWith(
+              (ref) => Stream.value(const <String, UserCategoryRegistration>{}),
+            ),
+            tournamentCategoryEnrollmentCountsProvider(
+              't1',
+            ).overrideWith((ref) => Stream.value(const <String, int>{})),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      // Ainda carregando: só `pump()`, nunca `pumpAndSettle()` — o spinner
+      // indeterminado do `AppLoadingView` gira pra sempre e nunca assenta.
+      await tester.pump();
+
+      controller.add(torneio([dupla()]));
+      await tester.pumpAndSettle();
+      expect(find.text('VAGAS'), findsOneWidget); // confirma que já carregou
+
+      controller.addError(Exception('Firestore unavailable'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppErrorView), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.byType(AppErrorView),
+          matching: find.byType(Scaffold),
+        ),
+        findsOneWidget,
+      );
     },
   );
 }

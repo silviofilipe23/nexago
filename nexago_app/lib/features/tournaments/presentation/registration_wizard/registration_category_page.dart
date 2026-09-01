@@ -137,13 +137,25 @@ class _RegistrationCategoryPageState
 
     // `NexaAsyncView` não tem gancho pra embrulhar o ramo de ERRO num
     // Scaffold — só `skeleton`/`empty` aceitam widget custom. Resolvo o erro
-    // ANTES de entrar no `NexaAsyncView` (mutuamente exclusivo com os outros
-    // ramos: nunca coexiste com `data`), pra não ter que escolher entre
+    // ANTES de entrar no `NexaAsyncView`, pra não ter que escolher entre
     // "erro sem Scaffold" e "Scaffold duplicado no caminho feliz" — o
     // caminho de dados já é um `Scaffold` inteiro via `RegistrationWizardScaffold`,
     // então essa tela nunca embrulha o `NexaAsyncView` inteiro (ver
     // `_wizardChrome` abaixo, usado só em `skeleton`/`empty`).
-    if (tournamentAsync.hasError && !tournamentAsync.hasValue) {
+    //
+    // A guarda é só `hasError` — SEM `&& !hasValue`. Erro numa assinatura já
+    // estabelecida passa por `asyncTransition` com `seamless: true`, e
+    // `AsyncError.copyWithPrevious` preserva `hasValue: previous.hasValue`:
+    // dado antigo + erro novo coexistem no MESMO `AsyncValue`. O `.when()` do
+    // `NexaAsyncView` usa `skipError: false` (padrão), então SEMPRE cai no
+    // ramo de erro quando `hasError` é true, mesmo com valor anterior — a
+    // guarda replica exatamente essa condição, senão o caso "tinha dado,
+    // stream caiu depois" escapa por aqui e cai sem Scaffold lá dentro. Não
+    // é caso exótico: `tournamentDetailProvider` é um `StreamProvider` sobre
+    // `snapshots()` do Firestore sem `handleError` na cadeia — permissão
+    // revogada, `unavailable`, queda de rede no celular depois da primeira
+    // carga é o caso comum, não a exceção.
+    if (tournamentAsync.hasError) {
       return _wizardChrome(
         context,
         AppErrorView(

@@ -1,173 +1,260 @@
 <div class="reg">
   @for (card of cards(); track card.id) {
-    <section class="reg-card">
-      <header class="reg-head">
-        <div>
-          <span class="reg-kicker">Categoria</span>
-          <h2 class="reg-title">{{ card.categoryName }}</h2>
-        </div>
-        <span class="reg-status" [attr.data-state]="card.paymentState">{{ card.paymentLabel }}</span>
+    <article class="reg-card" [attr.data-state]="card.paymentState">
+      <header class="reg-page-head">
+        <h2 class="reg-page-title">{{ card.pageTitle }}</h2>
+        <p class="reg-page-sub">{{ card.pageSubtitle }}</p>
       </header>
 
-      <p class="reg-hint">{{ card.paymentHint }}</p>
-
-      <dl class="reg-facts">
-        <div class="reg-fact">
-          <dt>{{ card.teamLabel }}</dt>
-          <dd>
-            {{ card.teamName }}
-            @if (card.rosterFlag; as flag) {
-              <span class="reg-flag">{{ flag }}</span>
+      <section class="reg-hero" [attr.data-tone]="card.paymentState === 'paid' ? 'ok' : 'warn'">
+        <div class="reg-hero-avatars" aria-hidden="true">
+          @for (athlete of card.athletes; track $index) {
+            <span class="reg-avatar" [style.z-index]="card.athletes.length - $index">
+              @if (athlete.photo) {
+                <img [src]="athlete.photo" [alt]="athlete.name" />
+              } @else {
+                <span class="reg-avatar-fallback">{{ athlete.initials }}</span>
+              }
+              @if (card.paymentState === 'paid') {
+                <span class="reg-avatar-check">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+              }
+            </span>
+          }
+        </div>
+        <div class="reg-hero-copy">
+          <h3 class="reg-hero-title">{{ card.heroTitle }}</h3>
+          <p class="reg-hero-body">
+            @for (part of card.heroBodyParts; track $index) {
+              @if (part.emphasize) {
+                <strong>{{ part.text }}</strong>
+              } @else {
+                <span>{{ part.text }}</span>
+              }
             }
-          </dd>
+          </p>
         </div>
-        <div class="reg-fact">
-          <dt>Inscrição</dt>
-          <dd>{{ card.entryFee }}</dd>
+      </section>
+
+      <div class="reg-metrics">
+        <div class="reg-metric">
+          <span class="reg-metric-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </span>
+          <span class="reg-metric-kicker">{{ card.teamLabel }}</span>
+          <strong class="reg-metric-value">{{ card.teamMetricValue }}</strong>
         </div>
-        @if (card.uniformRequired) {
-          <div class="reg-fact">
-            <dt>Uniforme</dt>
-            <dd>{{ uniformSummary(card.uniform) ?? 'Ainda não informado' }}</dd>
-          </div>
+        <div class="reg-metric">
+          <span class="reg-metric-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <path d="M2 10h20" />
+            </svg>
+          </span>
+          <span class="reg-metric-kicker">Pagamento</span>
+          <strong class="reg-metric-value">{{ card.paymentMetricValue }}</strong>
+        </div>
+      </div>
+
+      <ul class="reg-details">
+        @if (card.whenLabel || card.whereLabel) {
+          <li class="reg-detail">
+            <span class="reg-detail-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
+            </span>
+            <div>
+              @if (card.whenLabel) {
+                <strong>{{ card.whenLabel }}</strong>
+              }
+              @if (card.whereLabel) {
+                <span>{{ card.whereLabel }}</span>
+              }
+            </div>
+          </li>
         }
-      </dl>
+        <li class="reg-detail">
+          <span class="reg-detail-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 21V11l4-3 4 3v10" />
+              <path d="M4 21h16" />
+              <path d="M12 8V3" />
+            </svg>
+          </span>
+          <div>
+            <strong>{{ card.categoryName }}</strong>
+            @if (card.uniformRequired) {
+              <span>{{ uniformSummary(card.uniform) ?? 'Uniforme ainda não informado' }}</span>
+            } @else {
+              <span>{{ card.teamName }}</span>
+            }
+          </div>
+        </li>
+        @if (card.canOfferSubstitution || card.pendingSubstitution) {
+          <li class="reg-detail">
+            <span class="reg-detail-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />
+              </svg>
+            </span>
+            <div>
+              @if (card.pendingSubstitution; as swap) {
+                <strong>Substituição em curso</strong>
+                <span>{{ swap.replacedName }} sai, {{ swap.inviteeName }} entra</span>
+              } @else {
+                <strong>Precisou trocar alguém?</strong>
+                <span>A substituição de parceiro fica disponível até o sorteio</span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+
+      <div class="reg-tournament">
+        @if (card.tournamentCoverUrl) {
+          <img class="reg-tournament-cover" [src]="card.tournamentCoverUrl" [alt]="card.tournamentName" />
+        } @else {
+          <span class="reg-tournament-cover reg-tournament-cover--empty" aria-hidden="true">{{ card.tournamentName.slice(0, 1) }}</span>
+        }
+        <div class="reg-tournament-copy">
+          <strong>{{ card.tournamentName }}</strong>
+          <span>
+            {{ card.categoryName }}
+            @if (card.whenLabel) {
+              · {{ card.whenLabel }}
+            }
+          </span>
+          @if (card.whereLabel) {
+            <span>{{ card.whereLabel }}</span>
+          }
+        </div>
+      </div>
 
       @if (card.captainOnlyHint; as hint) {
         <p class="reg-roster-hint">{{ hint }}</p>
       }
 
-      @if (card.inviteLabel; as label) {
-        <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta reg-cta--invite">
-          {{ label }}
-        </a>
-      }
-
-      @if (card.paymentState === 'pending' || card.paymentState === 'share-paid') {
-        <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao', 'pagamento']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta">
-          Ir para o pagamento
-        </a>
-      }
-
-      @if (card.canShare) {
-        <button type="button" class="reg-cta reg-cta--share" (click)="openShare(card)">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
-          </svg>
-          Compartilhar no story
-        </button>
-      }
-
-      @if (card.canShareCampaign) {
-        <button type="button" class="reg-cta reg-cta--share" (click)="openCampaignShare(card)">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
-          </svg>
-          Compartilhar campanha
-        </button>
-      }
-
-      <!-- Elenco: trocas já feitas, e a troca em curso OU a ação de substituir (nunca as duas —
-           com convite pendente o servidor recusaria um segundo). -->
-      @if (card.substitutionHistory.length > 0) {
-        <ul class="reg-swaps" aria-label="Trocas já feitas">
-          @for (entry of card.substitutionHistory; track $index) {
-            <li class="reg-swap">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />
-              </svg>
-              <span>
-                <strong>{{ entry.inName }}</strong> entrou no lugar de <strong>{{ entry.outName }}</strong>{{ entry.dateLabel ? ' ' + entry.dateLabel : '' }}.
-              </span>
-            </li>
-          }
-        </ul>
-      }
-
-      @if (card.pendingSubstitution; as swap) {
-        <div class="reg-req reg-req--pending">
-          <span class="reg-req-kicker">Substituição em curso</span>
-          <p class="reg-swap-line"><strong>{{ swap.replacedName }}</strong> sai, <strong>{{ swap.inviteeName }}</strong> entra</p>
-          <p class="reg-req-text">
-            {{ swap.inviteeFirstName }} precisa aceitar o convite{{ swap.deadlineLabel ? ' em até ' + swap.deadlineLabel : '' }}.
-            Enquanto isso, {{ swap.replacedName }} segue na {{ card.substitutionUnit }}.
-          </p>
-          <div class="reg-req-actions">
-            <a class="reg-req-wa reg-swap-remind" [href]="swap.whatsAppHref" target="_blank" rel="noopener noreferrer">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.297-.497.1-.198.05-.371-.025-.52-.074-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413" />
-              </svg>
-              Lembrar pelo WhatsApp
-            </a>
-            <button type="button" class="reg-cancel" [disabled]="cancellingSubstitution()" (click)="askCancelSubstitution(card)">
-              Cancelar troca
-            </button>
-          </div>
-        </div>
-      } @else if (card.substitutionSlots.length > 0) {
-        <button type="button" class="reg-cta reg-cta--swap" (click)="openSubstitution(card)">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />
-          </svg>
-          Substituir atleta
-        </button>
-      }
-
-      @if (card.canCancel) {
-        <button type="button" class="reg-cancel" (click)="askCancel(card)">Cancelar inscrição</button>
-      } @else if (card.cancellationState === 'pending') {
-        <div class="reg-req reg-req--pending">
-          <strong class="reg-req-title">Cancelamento solicitado</strong>
-          <p class="reg-req-text">{{ refundPendingNotice }}</p>
-          <button type="button" class="reg-req-wa" [disabled]="organizerContactBusy()" (click)="contactOrganizer(card)">
-            {{ organizerContactBusy() ? 'Abrindo…' : 'Falar com o organizador' }}
+      <div class="reg-actions">
+        @if (card.canShare) {
+          <button type="button" class="reg-cta" (click)="openShare(card)">
+            Ver inscrição
+            <span aria-hidden="true">→</span>
           </button>
-        </div>
-      } @else if (requestFormFor() === card.id) {
-        <div class="reg-req">
-          <strong class="reg-req-title">Solicitar cancelamento</strong>
-          <p class="reg-req-text">{{ refundNotice }}</p>
-          <label class="reg-req-label" [attr.for]="'motivo-' + card.id">Por que você precisa cancelar?</label>
-          <textarea
-            class="reg-req-input"
-            [id]="'motivo-' + card.id"
-            rows="3"
-            maxlength="500"
-            placeholder="Escreva um motivo para o organizador"
-            [value]="requestReason()"
-            (input)="onReasonInput($event)"
-          ></textarea>
-          <div class="reg-req-actions">
-            <button
-              type="button"
-              class="reg-req-send"
-              [disabled]="requestSending() || !requestReason().trim()"
-              (click)="submitRequest(card)"
-            >
-              {{ requestSending() ? 'Enviando…' : 'Enviar pedido' }}
-            </button>
-            <button type="button" class="reg-cancel" [disabled]="requestSending()" (click)="closeRequestForm()">Voltar</button>
-          </div>
-        </div>
-      } @else {
-        @if (card.cancellationState === 'declined') {
-          <div class="reg-req reg-req--declined">
-            <strong class="reg-req-title">Pedido de cancelamento recusado</strong>
-            @if (card.cancellationResponseNote) {
-              <p class="reg-req-text">“{{ card.cancellationResponseNote }}”</p>
-            }
-            <p class="reg-req-text">O organizador manteve sua inscrição.</p>
-          </div>
         }
-        <button type="button" class="reg-cancel" (click)="openRequestForm(card)">Solicitar cancelamento</button>
-      }
-    </section>
+
+        @if (card.inviteLabel; as label) {
+          <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta reg-cta--secondary">
+            {{ label }}
+          </a>
+        }
+
+        @if (card.paymentState === 'pending' || card.paymentState === 'share-paid') {
+          <a [routerLink]="['/torneios', store.tournamentId(), 'inscricao', 'pagamento']" [queryParams]="{ categoria: card.categoryId }" class="reg-cta">
+            Ir para o pagamento
+          </a>
+        }
+
+        @if (card.canShareCampaign) {
+          <button type="button" class="reg-cta reg-cta--secondary" (click)="openCampaignShare(card)">
+            Compartilhar campanha
+          </button>
+        }
+
+        @if (card.substitutionHistory.length > 0) {
+          <ul class="reg-swaps" aria-label="Trocas já feitas">
+            @for (entry of card.substitutionHistory; track $index) {
+              <li class="reg-swap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />
+                </svg>
+                <span>
+                  <strong>{{ entry.inName }}</strong> entrou no lugar de <strong>{{ entry.outName }}</strong>{{ entry.dateLabel ? ' ' + entry.dateLabel : '' }}.
+                </span>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (card.pendingSubstitution; as swap) {
+          <div class="reg-req reg-req--pending">
+            <span class="reg-req-kicker">Substituição em curso</span>
+            <p class="reg-swap-line"><strong>{{ swap.replacedName }}</strong> sai, <strong>{{ swap.inviteeName }}</strong> entra</p>
+            <p class="reg-req-text">
+              {{ swap.inviteeFirstName }} precisa aceitar o convite{{ swap.deadlineLabel ? ' em até ' + swap.deadlineLabel : '' }}.
+              Enquanto isso, {{ swap.replacedName }} segue na {{ card.substitutionUnit }}.
+            </p>
+            <div class="reg-req-actions">
+              <a class="reg-req-wa reg-swap-remind" [href]="swap.whatsAppHref" target="_blank" rel="noopener noreferrer">
+                Lembrar pelo WhatsApp
+              </a>
+              <button type="button" class="reg-cancel" [disabled]="cancellingSubstitution()" (click)="askCancelSubstitution(card)">
+                Cancelar troca
+              </button>
+            </div>
+          </div>
+        } @else if (card.canOfferSubstitution) {
+          <button type="button" class="reg-cta reg-cta--secondary" (click)="openSubstitution(card)">
+            Substituir atleta
+          </button>
+        }
+
+        @if (card.canCancel) {
+          <button type="button" class="reg-cancel" (click)="askCancel(card)">Cancelar inscrição</button>
+        } @else if (card.cancellationState === 'pending') {
+          <div class="reg-req reg-req--pending">
+            <strong class="reg-req-title">Cancelamento solicitado</strong>
+            <p class="reg-req-text">{{ refundPendingNotice }}</p>
+            <button type="button" class="reg-req-wa" [disabled]="organizerContactBusy()" (click)="contactOrganizer(card)">
+              {{ organizerContactBusy() ? 'Abrindo…' : 'Falar com o organizador' }}
+            </button>
+          </div>
+        } @else if (requestFormFor() === card.id) {
+          <div class="reg-req">
+            <strong class="reg-req-title">Solicitar cancelamento</strong>
+            <p class="reg-req-text">{{ refundNotice }}</p>
+            <label class="reg-req-label" [attr.for]="'motivo-' + card.id">Por que você precisa cancelar?</label>
+            <textarea
+              class="reg-req-input"
+              [id]="'motivo-' + card.id"
+              rows="3"
+              maxlength="500"
+              placeholder="Escreva um motivo para o organizador"
+              [value]="requestReason()"
+              (input)="onReasonInput($event)"
+            ></textarea>
+            <div class="reg-req-actions">
+              <button
+                type="button"
+                class="reg-req-send"
+                [disabled]="requestSending() || !requestReason().trim()"
+                (click)="submitRequest(card)"
+              >
+                {{ requestSending() ? 'Enviando…' : 'Enviar pedido' }}
+              </button>
+              <button type="button" class="reg-cancel" [disabled]="requestSending()" (click)="closeRequestForm()">Voltar</button>
+            </div>
+          </div>
+        } @else {
+          @if (card.cancellationState === 'declined') {
+            <div class="reg-req reg-req--declined">
+              <strong class="reg-req-title">Pedido de cancelamento recusado</strong>
+              @if (card.cancellationResponseNote) {
+                <p class="reg-req-text">“{{ card.cancellationResponseNote }}”</p>
+              }
+              <p class="reg-req-text">O organizador manteve sua inscrição.</p>
+            </div>
+          }
+          <button type="button" class="reg-cancel" (click)="openRequestForm(card)">Solicitar cancelamento</button>
+        }
+      </div>
+    </article>
   }
 
   @if (shareData(); as share) {

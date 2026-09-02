@@ -38,6 +38,7 @@ import { TournamentLiveStore } from '../tournament-live.store';
 import { registrationRosterView } from './registration-roster-cta';
 import {
   firstNameOf,
+  initialsOf,
   pendingSubstitutionFor,
   substitutionDateLabel,
   substitutionDeadlineLabel,
@@ -52,6 +53,14 @@ import {
   type SubstitutionSendRequest,
   type SubstitutionSlot,
 } from './substitution-dialog.component';
+import {
+  registrationTabBodyParts,
+  registrationTabHeroBody,
+  registrationTabPaymentMetricValue,
+  registrationTabTeamMetricValue,
+  registrationTabWhenLabel,
+  registrationTabWhereLabel,
+} from './registration-tab-view';
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -71,6 +80,12 @@ interface ShareAthleteProfile {
 
 export type RegistrationPaymentState = 'paid' | 'share-paid' | 'pending' | 'waitlist';
 
+export interface RegistrationCardAthlete {
+  name: string;
+  photo: string | null;
+  initials: string;
+}
+
 export interface RegistrationCard {
   id: string;
   categoryName: string;
@@ -78,7 +93,7 @@ export interface RegistrationCard {
   entryFee: string;
   teamName: string;
   /** "Equipe" (trio+) ou "Dupla" — rótulo do fato no card. */
-  teamLabel: string;
+  teamLabel: 'Equipe' | 'Dupla';
   /** "Elenco 2/4" / "convite pendente" enquanto o elenco está aberto. */
   rosterFlag: string | null;
   /** CTA que leva ao shell de inscrição pra convidar; `null` = sem CTA. */
@@ -109,6 +124,22 @@ export interface RegistrationCard {
   substitutionPaymentRule: string | null;
   /** Convite de substituição em aberto: o card mostra o acompanhamento no lugar do botão. */
   pendingSubstitution: PendingSubstitutionView | null;
+
+  /** Cabeçalho do card no protótipo: "Inscrição confirmada" / "Pagamento pendente". */
+  pageTitle: string;
+  /** "Copa Aparecida · Masc. Intermediário". */
+  pageSubtitle: string;
+  athletes: RegistrationCardAthlete[];
+  heroTitle: string;
+  heroBodyParts: readonly { text: string; emphasize: boolean }[];
+  teamMetricValue: string;
+  paymentMetricValue: string;
+  whenLabel: string | null;
+  whereLabel: string | null;
+  tournamentName: string;
+  tournamentCoverUrl: string | null;
+  /** Troca disponível (sem convite pendente) — linha "Precisou trocar alguém?". */
+  canOfferSubstitution: boolean;
 }
 
 export interface PendingSubstitutionView {
@@ -156,10 +187,16 @@ export class RegistrationTabComponent {
   protected readonly cards = computed<RegistrationCard[]>(() => {
     const t = this.store.tournament();
     if (!t) return [];
-    return this.store.myRegistrations().map((r) => this.cardOf(r, t.categories.find((c) => c.id === r.categoryId) ?? null));
+    return this.store.myRegistrations().map((r) =>
+      this.cardOf(r, t.categories.find((c) => c.id === r.categoryId) ?? null, t),
+    );
   });
 
-  private cardOf(r: AthleteTournamentRegistration, category: TournamentCategoryOffer | null): RegistrationCard {
+  private cardOf(
+    r: AthleteTournamentRegistration,
+    category: TournamentCategoryOffer | null,
+    tournament: { name: string; city: string; location: string; startAt: Date | null; coverUrl: string | null },
+  ): RegistrationCard {
     const uid = this.auth.user()?.uid ?? null;
     const isPlayer1 = uid != null && (r.player1Id === uid || r.participantUids[0] === uid);
     const isTeam = r.teamSize != null;
@@ -190,11 +227,34 @@ export class RegistrationTabComponent {
         }));
     const categoryName = category?.categoryName ?? r.categoryId;
     const pendingInvite = pendingSubstitutionFor(this.sentInvites(), r.id);
+    const entryFeeLabel = category ? formatBRL(category.entryFee) : '—';
+    const rosterComplete = !r.partnerPending && !r.waitlist;
+    const athletes = this.athletesOf(r, uid, profiles);
+    const partnerUid = r.participantUids.find((id) => id !== uid) ?? null;
+    const partnerName = partnerUid
+      ? (profiles.get(partnerUid)?.name ?? this.fallbackNameOf(partnerUid))
+      : null;
+    const hero = registrationTabHeroBody({
+      paymentState,
+      teamLabel: roster.teamLabel,
+      rosterComplete,
+      partnerFirstName: partnerName ? firstNameOf(partnerName) : null,
+      entryFee: category?.entryFee ?? null,
+      teamSize: r.teamSize ?? category?.teamSize ?? 2,
+      paymentHint,
+    });
+    const pageTitle =
+      paymentState === 'paid' && rosterComplete
+        ? 'Inscrição confirmada'
+        : paymentState === 'waitlist'
+          ? 'Lista de espera'
+          : PAYMENT_LABEL[paymentState];
+
     return {
       id: r.id,
       categoryId: r.categoryId,
       categoryName,
-      entryFee: category ? formatBRL(category.entryFee) : '—',
+      entryFee: entryFeeLabel,
       teamName,
       teamLabel: roster.teamLabel,
       rosterFlag: roster.rosterFlag,
@@ -219,7 +279,51 @@ export class RegistrationTabComponent {
       substitutionUnit: isTeam ? 'equipe' : 'dupla',
       substitutionPaymentRule: substitutionPaymentRule(r, category ? formatBRL(category.entryFee) : null),
       pendingSubstitution: pendingInvite ? this.pendingSubstitutionView(pendingInvite, categoryName) : null,
+      pageTitle,
+      pageSubtitle: `${tournament.name} · ${categoryName}`,
+      athletes,
+      heroTitle: hero.title,
+      heroBodyParts: registrationTabBodyParts(hero.body, hero.highlights),
+      teamMetricValue: registrationTabTeamMetricValue({
+        paymentState,
+        rosterComplete,
+        rosterFlag: roster.rosterFlag,
+      }),
+      paymentMetricValue: registrationTabPaymentMetricValue({
+        paymentState,
+        entryFeeLabel,
+      }),
+      whenLabel: registrationTabWhenLabel(tournament.startAt),
+      whereLabel: registrationTabWhereLabel(tournament.location, tournament.city),
+      tournamentName: tournament.name,
+      tournamentCoverUrl: tournament.coverUrl,
+      canOfferSubstitution: slots.length > 0 && pendingInvite == null,
     };
+  }
+
+  /** Elenco do card: eu primeiro (como no protótipo VC + parceiro). */
+  private athletesOf(
+    r: AthleteTournamentRegistration,
+    uid: string | null,
+    profiles: ReadonlyMap<string, ShareAthleteProfile>,
+  ): RegistrationCardAthlete[] {
+    const ordered = [...r.participantUids];
+    if (uid) {
+      ordered.sort((a, b) => (a === uid ? -1 : b === uid ? 1 : 0));
+    }
+    const shown = ordered.slice(0, 5);
+    if (shown.length === 0 && uid) {
+      const name = this.fallbackNameOf(uid);
+      return [{ name, photo: null, initials: initialsOf(name) }];
+    }
+    return shown.map((athleteUid) => {
+      const name = profiles.get(athleteUid)?.name ?? this.fallbackNameOf(athleteUid);
+      return {
+        name,
+        photo: profiles.get(athleteUid)?.photo ?? null,
+        initials: initialsOf(name),
+      };
+    });
   }
 
   // ——— Compartilhar a inscrição (card instagramável) ———

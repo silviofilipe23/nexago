@@ -7,101 +7,311 @@
 .reg {
   display: flex;
   flex-direction: column;
-  gap: var(--nx-s-4);
+  gap: var(--nx-s-5);
 }
 
 .reg-card {
-  @include tl.card;
-}
-
-.reg-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--nx-s-3);
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--nx-s-4);
+  padding: var(--nx-s-5);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
 }
 
-.reg-kicker {
-  @include tl.kicker;
+.reg-page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.reg-title {
-  margin: var(--nx-s-1) 0 0;
+.reg-page-title {
+  margin: 0;
   font-family: var(--nx-font-display);
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
   color: var(--nx-text);
 }
 
-.reg-status {
-  @include tl.status-badge;
+.reg-page-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--nx-text-mute);
+}
 
-  &[data-state='paid'] {
-    border-color: rgba(43, 209, 126, 0.35);
-    background: rgba(43, 209, 126, 0.1);
-    color: var(--nx-win);
-  }
+/* ——— Hero (borda verde no confirmado) ——— */
 
-  &[data-state='pending'],
-  &[data-state='share-paid'] {
+.reg-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nx-s-4);
+  padding: var(--nx-s-4);
+  border-radius: var(--nx-r-3);
+  border: 1px solid rgba(43, 209, 126, 0.35);
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(43, 209, 126, 0.14), transparent 55%),
+    var(--nx-surface-2);
+
+  &[data-tone='warn'] {
     border-color: rgba(244, 197, 67, 0.4);
-    background: rgba(244, 197, 67, 0.1);
-    color: var(--nx-pending);
+    background:
+      radial-gradient(120% 90% at 0% 0%, rgba(244, 197, 67, 0.12), transparent 55%),
+      var(--nx-surface-2);
   }
 }
 
-.reg-hint {
-  margin: var(--nx-s-3) 0 0;
+.reg-hero-avatars {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.reg-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  border-radius: 50%;
+  border: 2px solid var(--nx-surface-2);
+  overflow: visible;
+  background: linear-gradient(135deg, #ff6a1a, #c2185b);
+
+  &:first-child {
+    margin-left: 0;
+    background: linear-gradient(135deg, #2bd17e, #1e7a4d);
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+}
+
+.reg-avatar-fallback {
+  font-family: var(--nx-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.reg-avatar-check {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--nx-surface-2);
+  background: var(--nx-win);
+  color: #0b0b0c;
+}
+
+.reg-hero-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.reg-hero-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--nx-text);
+}
+
+.reg-hero-body {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+
+  strong {
+    font-weight: 800;
+    color: var(--nx-text);
+  }
+}
+
+/* ——— Métricas DUPLA / PAGAMENTO ——— */
+
+.reg-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--nx-s-3);
+}
+
+.reg-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--nx-s-3) var(--nx-s-4);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-2);
+}
+
+.reg-metric-icon {
+  display: inline-flex;
+  color: var(--nx-win);
+}
+
+.reg-metric-kicker {
+  font-family: var(--nx-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-win);
+}
+
+.reg-metric-value {
+  font-family: var(--nx-font-display);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--nx-text);
+  text-transform: lowercase;
+}
+
+/* ——— Linhas de detalhe ——— */
+
+.reg-details {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-2);
+  overflow: hidden;
+}
+
+.reg-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3) var(--nx-s-4);
+
+  & + & {
+    border-top: 1px solid var(--nx-line);
+  }
+
+  strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+
+  span:not(.reg-detail-icon) {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--nx-text-mute);
+  }
+}
+
+.reg-detail-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--nx-text-mute);
+}
+
+/* ——— Mini card do torneio ——— */
+
+.reg-tournament {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-s-3);
+  padding: var(--nx-s-3);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-2);
+}
+
+.reg-tournament-cover {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--nx-surface-3, #1a1a1a);
+
+  &--empty {
+    display: grid;
+    place-items: center;
+    font-family: var(--nx-font-display);
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--nx-orange-500);
+  }
+}
+
+.reg-tournament-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+
+  span {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--nx-text-mute);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.reg-roster-hint {
+  margin: 0;
   font-size: 13px;
   line-height: 1.55;
   color: var(--nx-text-mute);
 }
 
-.reg-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--nx-s-4);
-  margin: var(--nx-s-5) 0 0;
-}
+/* ——— Ações ——— */
 
-.reg-fact {
-  min-width: 0;
-
-  dt {
-    @include tl.kicker;
-  }
-
-  dd {
-    margin: var(--nx-s-2) 0 0;
-    font-size: 15px;
-    color: var(--nx-text);
-  }
-}
-
-.reg-flag {
-  display: inline-block;
-  margin-left: var(--nx-s-2);
-  padding: 2px 8px;
-  border-radius: var(--nx-r-pill);
-  background: rgba(244, 197, 67, 0.12);
-  color: var(--nx-pending);
-  font-size: 11px;
+.reg-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-3);
 }
 
 .reg-cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  margin-top: var(--nx-s-5);
+  gap: var(--nx-s-2);
+  width: 100%;
+  min-height: 48px;
   padding: 0 var(--nx-s-5);
+  border: 0;
   border-radius: var(--nx-r-2);
   background: var(--nx-orange-500);
   color: var(--nx-text-on-orange);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
 
   &:hover,
   &:focus-visible {
@@ -109,11 +319,7 @@
   }
 }
 
-/* Compartilhar é a única ação do card já confirmado, mas não é uma pendência — outline, pra não
-   gritar como o laranja do pagamento. */
-.reg-cta--share {
-  gap: var(--nx-s-2);
-  margin-right: var(--nx-s-3);
+.reg-cta--secondary {
   border: 1px solid var(--nx-line-strong);
   background: transparent;
   color: var(--nx-text);
@@ -125,50 +331,11 @@
   }
 }
 
-/* Convidar atletas/parceiro convive com o CTA laranja de pagamento no mesmo card —
-   outline pra não disputar com ele. */
-.reg-cta--invite {
-  margin-right: var(--nx-s-3);
-  border: 1px solid var(--nx-line-strong);
-  background: transparent;
-  color: var(--nx-text);
-
-  &:hover,
-  &:focus-visible {
-    background: var(--nx-surface-2);
-    border-color: var(--nx-orange-500);
-  }
-}
-
-.reg-roster-hint {
-  margin: var(--nx-s-3) 0 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--nx-text-mute);
-}
-
-/* Substituir atleta convive com o CTA laranja de pagamento e com os de compartilhar —
-   outline, como eles, e com o ícone de troca pra não parecer mais um "compartilhar". */
-.reg-cta--swap {
-  gap: var(--nx-s-2);
-  margin-right: var(--nx-s-3);
-  border: 1px solid var(--nx-line-strong);
-  background: transparent;
-  color: var(--nx-text);
-
-  &:hover,
-  &:focus-visible {
-    background: var(--nx-surface-2);
-    border-color: var(--nx-orange-500);
-  }
-}
-
-/* Trocas já concluídas: uma linha por troca, com o ícone verde de "feito". */
 .reg-swaps {
   display: flex;
   flex-direction: column;
   gap: var(--nx-s-2);
-  margin: var(--nx-s-5) 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -193,7 +360,6 @@
   }
 }
 
-/* Cabeçalho do bloco "Substituição em curso" — mesmo kicker mono dos fatos, em âmbar. */
 .reg-req-kicker {
   @include tl.kicker;
 
@@ -216,8 +382,8 @@
 .reg-cancel {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 40px;
-  margin-top: var(--nx-s-3);
   padding: 0;
   border: 0;
   background: none;
@@ -239,10 +405,8 @@
   }
 }
 
-/* Bloco do pedido de cancelamento (inscrição paga): formulário, estado pendente
-   e recusa. O aviso de que o reembolso é fora da plataforma vive aqui. */
 .reg-req {
-  margin-top: var(--nx-s-4);
+  margin: 0;
   padding: var(--nx-s-4);
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-r-2);
@@ -318,6 +482,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
 
   &:hover:not(:disabled),
   &:focus-visible:not(:disabled) {
@@ -330,7 +495,6 @@
   }
 }
 
-/* O lembrete é um link (abre o WhatsApp), mas veste o mesmo botão. */
 .reg-swap-remind {
   text-decoration: none;
 }

@@ -22,6 +22,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
     this.cancelLabel = 'Cancelar inscrição',
     this.partnerPendingSubtitle = 'Pendente',
     this.reservationHoursLabel = '24 horas',
+    this.requireFormedPair = false,
     this.isLoading = false,
   });
 
@@ -53,6 +54,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
 
   final String partnerPendingSubtitle;
   final String reservationHoursLabel;
+  final bool requireFormedPair;
   final bool isLoading;
 
   @override
@@ -117,20 +119,28 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                             height: 1.5,
                             fontWeight: FontWeight.w500,
                           ),
-                          children: [
-                            const TextSpan(
-                              text:
-                                  'Avisamos pelo app e por celular. Sua vaga fica reservada por ',
-                            ),
-                            TextSpan(
-                              text: reservationHoursLabel,
-                              style: TextStyle(
-                                color: AppColors.pending,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const TextSpan(text: '.'),
-                          ],
+                          children: requireFormedPair
+                              ? const [
+                                  TextSpan(
+                                    text:
+                                        'Avisamos pelo app e por celular. A vaga '
+                                        'só é confirmada quando o parceiro aceitar.',
+                                  ),
+                                ]
+                              : [
+                                  const TextSpan(
+                                    text:
+                                        'Avisamos pelo app e por celular. Sua vaga fica reservada por ',
+                                  ),
+                                  TextSpan(
+                                    text: reservationHoursLabel,
+                                    style: TextStyle(
+                                      color: AppColors.pending,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const TextSpan(text: '.'),
+                                ],
                         ),
                         textAlign: TextAlign.center,
                       ),

@@ -8,6 +8,8 @@ class TournamentRegistrationPixArgs {
     required this.shareAmountReais,
     this.amountType = 'share',
     this.paymentExpiresAt,
+    this.holdExpiresAt,
+    this.holdMinutes = 30,
   });
 
   final String registrationId;
@@ -19,4 +21,10 @@ class TournamentRegistrationPixArgs {
   /// 'share' (parcela do atleta) ou 'full' (paga a dupla inteira).
   final String amountType;
   final DateTime? paymentExpiresAt;
+
+  /// Prazo absoluto da vaga reservada — mesmo relógio da tela de pagamento.
+  final DateTime? holdExpiresAt;
+
+  /// Minutos configurados no torneio — janela fixa do countdown da vaga.
+  final int holdMinutes;
 }

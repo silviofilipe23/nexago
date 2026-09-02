@@ -271,6 +271,23 @@ int registrationRemainingInviteSlots({
   return left < 0 ? 0 : left;
 }
 
+/// Prazo efetivo para concluir o pagamento: o mais cedo entre a garantia
+/// da vaga (`holdExpiresAt`) e o vencimento da cobrança PIX.
+DateTime? registrationEffectivePaymentDeadline({
+  required DateTime? holdExpiresAt,
+  required DateTime? pixExpiresAt,
+}) {
+  if (holdExpiresAt == null) return pixExpiresAt;
+  if (pixExpiresAt == null) return holdExpiresAt;
+  return holdExpiresAt.isBefore(pixExpiresAt) ? holdExpiresAt : pixExpiresAt;
+}
+
+/// Janela total do countdown de pagamento — vem do torneio, não do tempo
+/// restante no mount (senão voltar à tela reinicia barra e rótulo).
+Duration registrationHoldCountdownTotalWindow({required int holdMinutes}) {
+  return Duration(minutes: holdMinutes.clamp(1, 9999));
+}
+
 /// Aviso do prazo de garantia da vaga na inscrição ainda não paga, ou `null`
 /// quando não há relógio para mostrar.
 ///

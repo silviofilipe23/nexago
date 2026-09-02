@@ -56,6 +56,7 @@ class TournamentDetail {
     this.organizerPixRecipientName = '',
     this.organizerPixCity = '',
     this.requireFormedPair = false,
+    this.registrationHoldMinutes = 30,
   });
 
   final String id;
@@ -119,6 +120,10 @@ class TournamentDetail {
   /// A trava real é da Cloud Function `registerSoloTournament`; aqui o app só
   /// deixa de oferecer o caminho da reserva solo.
   final bool requireFormedPair;
+
+  /// Minutos de garantia da vaga após o elenco fechar (`registrationHoldMinutes`
+  /// no Firestore). Default 30 — mesma regra do backend quando o campo falta.
+  final int registrationHoldMinutes;
 
   DiscoveryTournament toDiscovery() {
     return DiscoveryTournament(

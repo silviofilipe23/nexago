@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
+import '../../../domain/tournament_team_roster_logic.dart';
 import 'tournament_registration_direct_organizer_panel.dart';
+import 'tournament_registration_payment_sections.dart';
 import 'tournament_registration_solo_invite_card.dart';
 
 class TournamentRegistrationPaymentStep extends StatelessWidget {
@@ -37,6 +40,10 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.onInformUniform,
     this.onCancelRegistration,
     this.cancellationSection,
+    this.duoRoster,
+    this.tournamentStartDate,
+    this.currentAthleteUid,
+    this.sharePaidUids = const [],
   });
 
   final TournamentCategoryOffer category;
@@ -80,18 +87,40 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   /// organizador ou acompanhar o pedido. Quando presente, substitui
   /// [onCancelRegistration].
   final Widget? cancellationSection;
+  final List<TournamentRosterMember>? duoRoster;
+  final DateTime? tournamentStartDate;
+  final String? currentAthleteUid;
+  final List<String> sharePaidUids;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final amountLabel = paymentAmountLabel(
-      quote: quote,
-      amountType: paymentType,
+    final showDuoSummary = duoRoster != null &&
+        duoRoster!.length >= 2 &&
+        !showSoloPartnerInvite;
+    final eventSubtitle = registrationPaymentEventSubtitle(
+      category: category,
+      startDate: tournamentStartDate,
     );
+    final partnerMember = duoRoster
+        ?.where((m) => m.uid != currentAthleteUid)
+        .firstOrNull;
+    final partnerSharePaid = partnerMember != null &&
+        sharePaidUids.contains(partnerMember.uid);
+    final mySharePaid = currentAthleteUid != null &&
+        sharePaidUids.contains(currentAthleteUid);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (showDuoSummary) ...[
+          TournamentRegistrationDuoSummaryCard(
+            roster: duoRoster!,
+            eventSubtitle: eventSubtitle,
+            isTeamCategory: quote.isTeamCategory,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         if (showSoloPartnerInvite && onInvitePartner != null) ...[
           TournamentRegistrationSoloInviteCard(
             onInvitePartner: onInvitePartner!,
@@ -113,24 +142,51 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
           SizedBox(height: 12),
         ],
 
-        Text(
-          isFreeRegistration ? 'CONFIRMAÇÃO' : 'PAGAMENTO',
-          style: AppTypography.mono(
-            color: context.themeColors.onSurfaceMuted,
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-            letterSpacing: 0.8,
+        if (isFreeRegistration) ...[
+          Text(
+            'CONFIRMAÇÃO',
+            style: AppTypography.mono(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              letterSpacing: 0.8,
+            ),
           ),
-        ),
-        SizedBox(height: 12),
-        Text(
-          category.name,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
+          SizedBox(height: 12),
+          Text(
+            category.name,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+            ),
           ),
-        ),
-        if (isDirectOrganizerPayment) ...[
+          SizedBox(height: 4),
+          Text(
+            'Esta categoria é gratuita. Cada atleta confirma a inscrição e a '
+            'dupla é validada quando os dois confirmarem.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ] else if (isDirectOrganizerPayment) ...[
+          Text(
+            'PAGAMENTO',
+            style: AppTypography.mono(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              letterSpacing: 0.8,
+            ),
+          ),
+          SizedBox(height: 12),
+          Text(
+            category.name,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+            ),
+          ),
           SizedBox(height: 16),
           Row(
             children: [
@@ -160,30 +216,6 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 12),
-
-          // Builder(
-          //   builder: (context) {
-          //     final parts = directOrganizerPaymentBodyParts(quote);
-          //     return RichText(
-          //       text: TextSpan(
-          //         style: theme.textTheme.bodyMedium?.copyWith(
-          //           color: context.themeColors.onSurfaceMuted,
-          //           fontWeight: FontWeight.w500,
-          //           height: 1.45,
-          //         ),
-          //         children: [
-          //           TextSpan(text: parts.$1),
-          //           TextSpan(
-          //             text: parts.$2,
-          //             style: const TextStyle(fontWeight: FontWeight.w800),
-          //           ),
-          //           TextSpan(text: parts.$3),
-          //         ],
-          //       ),
-          //     );
-          //   },
-          // ),
           SizedBox(height: 16),
           TournamentRegistrationDirectOrganizerPanel(
             tournamentId: tournamentId,
@@ -200,17 +232,21 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             tournamentCity: tournamentCity,
           ),
         ] else ...[
-          SizedBox(height: 4),
-          Text(
-            isFreeRegistration
-                ? 'Esta categoria é gratuita. Cada atleta confirma a inscrição e a dupla é validada quando os dois confirmarem.'
-                : dualPaymentOnly
-                ? 'Cada atleta paga sua parcela. A inscrição da dupla é confirmada quando os dois pagarem.'
-                : 'Escolha como deseja pagar a inscrição.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w500,
-            ),
+          TournamentRegistrationPaymentOptionsSection(
+            quote: quote,
+            paymentType: paymentType,
+            onPaymentTypeChanged: onPaymentTypeChanged,
+            dualPaymentOnly: dualPaymentOnly,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          TournamentRegistrationPaymentSummaryCard(
+            quote: quote,
+            paymentType: paymentType,
+            myName: duoRoster?.where((m) => m.isMe).firstOrNull?.name ?? 'Você',
+            partnerName: partnerMember?.name ?? 'Parceiro',
+            mySharePaid: mySharePaid,
+            partnerSharePaid: partnerSharePaid,
+            isFullyPaid: isFullyPaid,
           ),
         ],
         if (progressLabel != null && progressLabel!.isNotEmpty) ...[
@@ -250,56 +286,6 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
                 color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
               ),
-            ),
-          ),
-        ],
-
-        if (!dualPaymentOnly && !isDirectOrganizerPayment) ...[
-          SizedBox(height: 16),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'share', label: Text('Minha parte')),
-              ButtonSegment(value: 'full', label: Text('Integral')),
-            ],
-            selected: {paymentType},
-            onSelectionChanged: (selection) {
-              if (selection.isEmpty) return;
-              onPaymentTypeChanged(selection.first);
-            },
-          ),
-        ],
-        if (!isFreeRegistration && !isDirectOrganizerPayment) ...[
-          SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: context.themeColors.surfaceRaised,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: context.themeColors.onSurfaceMuted.withValues(
-                  alpha: 0.12,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  paymentType == 'full' ? 'Total da dupla' : 'Sua parcela',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Spacer(),
-                Text(
-                  amountLabel,
-                  style: AppTypography.mono(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.brand,
-                  ),
-                ),
-              ],
             ),
           ),
         ],

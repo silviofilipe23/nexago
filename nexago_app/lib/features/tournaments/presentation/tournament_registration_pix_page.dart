@@ -28,9 +28,11 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../data/tournament_registration_service.dart';
+import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
+import 'widgets/registration_wizard/registration_wizard_notice.dart';
 
 class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPixPage({
@@ -63,10 +65,7 @@ class _TournamentRegistrationPixPageState
   void initState() {
     super.initState();
     _cpfController.addListener(_onCpfTextChanged);
-    final initialExpiry = widget.args.paymentExpiresAt;
-    if (initialExpiry != null) {
-      _scheduleExpiry(initialExpiry);
-    }
+    _rescheduleExpiries();
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillCpf());
   }
 
@@ -110,7 +109,43 @@ class _TournamentRegistrationPixPageState
     } catch (_) {}
   }
 
+  DateTime? _resolveHoldExpiresAt(TournamentRegistrationSnapshot? snap) {
+    return snap?.holdExpiresAt ?? widget.args.holdExpiresAt;
+  }
+
+  DateTime? _resolvePixExpiresAt() {
+    return _pix?.expiresAt ?? widget.args.paymentExpiresAt;
+  }
+
+  DateTime? _effectiveDeadline(TournamentRegistrationSnapshot? snap) {
+    return registrationEffectivePaymentDeadline(
+      holdExpiresAt: _resolveHoldExpiresAt(snap),
+      pixExpiresAt: _resolvePixExpiresAt(),
+    );
+  }
+
+  void _rescheduleExpiries() {
+    final snap = ref
+        .read(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
+        .valueOrNull;
+    final deadline = _effectiveDeadline(snap);
+    if (deadline == null) return;
+    _scheduleExpiry(deadline);
+  }
+
   Future<void> _loadPix() async {
+    final snap = ref
+        .read(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
+        .valueOrNull;
+    final holdAt = _resolveHoldExpiresAt(snap);
+    if (holdAt != null && !holdAt.isAfter(DateTime.now())) {
+      setState(() {
+        _pixError = 'O prazo da vaga encerrou. Volte à inscrição.';
+        _loadingPix = false;
+      });
+      return;
+    }
+
     final cpfMsg = _cpfHint;
     if (!_hasValidCpf) {
       setState(() {
@@ -137,7 +172,7 @@ class _TournamentRegistrationPixPageState
         _pix = pix;
         _loadingPix = false;
       });
-      _scheduleExpiry(pix.expiresAt);
+      _rescheduleExpiries();
     } on PaymentException catch (e) {
       if (!mounted) return;
       setState(() => _loadingPix = false);
@@ -267,11 +302,19 @@ class _TournamentRegistrationPixPageState
   @override
   Widget build(BuildContext context) {
     final access = ref.watch(tournamentAccessStateProvider);
+    final snap = ref
+        .watch(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
+        .valueOrNull;
 
     ref.listen(
       tournamentRegistrationSnapshotProvider(widget.args.registrationId),
       (prev, next) {
-        next.whenData(_onRegistrationUpdate);
+        next.whenData((registration) {
+          _onRegistrationUpdate(registration);
+          if (!_navigatedBack && !_paymentFailed) {
+            _rescheduleExpiries();
+          }
+        });
       },
     );
 
@@ -297,7 +340,14 @@ class _TournamentRegistrationPixPageState
       );
     }
 
-    final expiresAt = _pix?.expiresAt ?? widget.args.paymentExpiresAt;
+    final holdExpiresAt = _resolveHoldExpiresAt(snap);
+    final hasHoldCountdown =
+        holdExpiresAt != null && snap?.isPaid != true;
+    final pixExpiresAt = _resolvePixExpiresAt();
+    final displayExpiresAt = registrationEffectivePaymentDeadline(
+      holdExpiresAt: holdExpiresAt,
+      pixExpiresAt: pixExpiresAt,
+    );
     final showQr = _pix != null && !_loadingPix;
 
     return Scaffold(
@@ -318,6 +368,15 @@ class _TournamentRegistrationPixPageState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (hasHoldCountdown) ...[
+                          RegistrationWizardNotice(
+                            expiresAt: holdExpiresAt,
+                            totalWindow: registrationHoldCountdownTotalWindow(
+                              holdMinutes: widget.args.holdMinutes,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
                         if (!showQr) ...[
                           BookingPixMethodCard(
                             amountLabel: BookingPixMethodCard.formatAmount(
@@ -353,13 +412,13 @@ class _TournamentRegistrationPixPageState
                             ),
                           ],
                         ] else ...[
-                          if (expiresAt != null) ...[
+                          if (displayExpiresAt != null) ...[
                             BookingPixExpiryCard(
-                              expiresAt: expiresAt,
+                              expiresAt: displayExpiresAt,
                               amountReais:
                                   _pix?.amountToPayNowReais ?? _shareReais,
                             ),
-                            SizedBox(height: 20),
+                            const SizedBox(height: 20),
                           ],
                           BookingPixQrCard(
                             base64: _pix!.qrCodeBase64,
@@ -405,9 +464,17 @@ class _TournamentRegistrationPixPageState
   }
 
   Widget _buildFailedBody(BuildContext context) {
+    final snap = ref
+        .read(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
+        .valueOrNull;
+    final holdAt = _resolveHoldExpiresAt(snap);
+    final holdExpired =
+        holdAt != null && !holdAt.isAfter(DateTime.now());
     return FeedbackPage.error(
-      title: 'PIX expirado',
-      description: 'Gere um novo código na tela de inscrição.',
+      title: holdExpired ? 'Prazo da vaga encerrado' : 'PIX expirado',
+      description: holdExpired
+          ? 'Sua vaga foi liberada. Volte à inscrição se ainda houver vagas.'
+          : 'Gere um novo código na tela de inscrição.',
       primaryAction: FeedbackAction(
         label: 'Voltar à inscrição',
         onPressed: _onBack,

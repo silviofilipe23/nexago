@@ -660,6 +660,48 @@ void main() {
     });
   });
 
+  group('registrationEffectivePaymentDeadline — prazo efetivo do PIX', () {
+    final hold = DateTime(2026, 9, 1, 15, 0);
+    final pix = DateTime(2026, 9, 1, 15, 30);
+
+    test('sem hold usa só o PIX', () {
+      expect(
+        registrationEffectivePaymentDeadline(
+          holdExpiresAt: null,
+          pixExpiresAt: pix,
+        ),
+        pix,
+      );
+    });
+
+    test('sem PIX usa só o hold', () {
+      expect(
+        registrationEffectivePaymentDeadline(
+          holdExpiresAt: hold,
+          pixExpiresAt: null,
+        ),
+        hold,
+      );
+    });
+
+    test('usa o mais cedo entre hold e PIX', () {
+      expect(
+        registrationEffectivePaymentDeadline(
+          holdExpiresAt: hold,
+          pixExpiresAt: pix,
+        ),
+        hold,
+      );
+      expect(
+        registrationEffectivePaymentDeadline(
+          holdExpiresAt: pix,
+          pixExpiresAt: hold,
+        ),
+        hold,
+      );
+    });
+  });
+
   group('registrationHoldNotice — prazo de garantia da vaga', () {
     final now = DateTime(2026, 9, 1, 14, 13);
 

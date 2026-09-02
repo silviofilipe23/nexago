@@ -23,6 +23,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_prov
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_registration_payment_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/registration_wizard/registration_wizard_notice.dart';
 
@@ -172,10 +173,8 @@ void main() {
   testWidgets(
     'pagamento mostra o aviso do relógio da vaga na casca do wizard',
     (tester) async {
-      // O aviso já existia (`registrationHoldNotice`, computado na própria
-      // página) — o que muda aqui é só a casca visual, para
-      // `RegistrationWizardNotice`. O texto continua vindo do prazo real
-      // derivado de `holdExpiresAt`, não de um número fixo.
+      // O aviso usa `RegistrationWizardNotice` com countdown a partir de
+      // `holdExpiresAt` e janela fixa do torneio (`registrationHoldMinutes`).
       await abrirPagamento(
         tester,
         tournament: torneio([dupla()]),
@@ -183,18 +182,16 @@ void main() {
           registrationId: 'reg-1',
           isPaid: false,
           paidAmount: 0,
-          holdExpiresAt: DateTime.now().add(const Duration(hours: 2)),
+          holdExpiresAt: DateTime.now().add(const Duration(minutes: 15)),
         ),
       );
 
-      // Asserção forte: o texto sozinho já existia (a casca ANTIGA também o
-      // mostrava, inline no passo) — quem prova o re-skin é o tipo do
-      // widget que carrega o aviso.
       expect(find.byType(RegistrationWizardNotice), findsOneWidget);
+      expect(find.text('PAGUE EM 30 MIN'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(RegistrationWizardNotice),
-          matching: find.textContaining('Vaga garantida até'),
+          matching: find.textContaining(':'),
         ),
         findsOneWidget,
       );
@@ -218,4 +215,28 @@ void main() {
       expect(find.textContaining('Prazo encerrado'), findsNothing);
     },
   );
+
+  testWidgets('mostra dupla confirmada, opções e resumo do protótipo', (
+    tester,
+  ) async {
+    await abrirPagamento(
+      tester,
+      tournament: torneio([dupla(entryFee: 220, name: 'Intermediário')]),
+      snapshot: const TournamentRegistrationSnapshot(
+        registrationId: 'reg-1',
+        isPaid: false,
+        paidAmount: 0,
+        participantUids: ['atleta-1', 'parceiro-1'],
+        player1Id: 'atleta-1',
+      ),
+    );
+
+    expect(find.text('DUPLA CONFIRMADA'), findsOneWidget);
+    expect(find.text('AGORA SIM: O PAGAMENTO'), findsOneWidget);
+    expect(find.textContaining('Metade e metade'), findsOneWidget);
+    expect(find.textContaining('Pagar a inscrição inteira'), findsOneWidget);
+    expect(find.text('RESUMO'), findsOneWidget);
+    expect(find.textContaining('no total'), findsOneWidget);
+    expect(find.text(formatRegistrationMoney(110)), findsWidgets);
+  });
 }

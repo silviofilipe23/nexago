@@ -17,7 +17,6 @@ import '../../athlete/domain/tournament_access_providers.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../data/tournament_registration_service.dart';
-import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -25,6 +24,7 @@ import '../domain/tournament_invite_announcer.dart';
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
 import '../domain/tournament_registration_logic.dart';
+import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import '../domain/tournament_registration_success_args.dart';
@@ -247,6 +247,9 @@ class _TournamentRegistrationPaymentPageState
           ? quote.displayTotal
           : quote.shareAmount;
       if (!mounted) return;
+      final snap = ref
+          .read(tournamentRegistrationSnapshotProvider(widget.registrationId))
+          .valueOrNull;
       await context.pushNamed(
         AppRouteNames.tournamentRegistrationPix,
         pathParameters: <String, String>{'tournamentId': widget.tournamentId},
@@ -265,6 +268,8 @@ class _TournamentRegistrationPaymentPageState
           categoryName: category.name,
           shareAmountReais: amountReais,
           amountType: amountType,
+          holdExpiresAt: snap?.holdExpiresAt,
+          holdMinutes: tournament.registrationHoldMinutes,
         ),
       );
     } on PaymentException catch (e) {
@@ -520,11 +525,9 @@ class _TournamentRegistrationPaymentPageState
           tournamentId: widget.tournamentId,
           categoryId: category.id,
         ).isNotEmpty;
-        final holdNotice = registrationHoldNotice(
-          holdExpiresAt: snap?.holdExpiresAt,
-          isPaid: isFullyPaid,
-          hasLivePartnerInvite: hasLivePartnerInvite,
-        );
+        final hasHoldCountdown = snap?.holdExpiresAt != null &&
+            !isFullyPaid &&
+            !hasLivePartnerInvite;
 
         final awaitingSoloPartner = registrationAwaitingSoloPartner(
           snap: snap,
@@ -584,6 +587,10 @@ class _TournamentRegistrationPaymentPageState
                   'ele entra sem taxa.'
             : progressLabel;
 
+        final duoRoster = snap != null && snap.participantUids.length >= 2
+            ? _teamRoster(snap)
+            : null;
+
         final isFree = !registrationRequiresPayment(quote);
         final ctaEnabled = !isFullyPaid && !athleteSharePaid;
 
@@ -616,13 +623,14 @@ class _TournamentRegistrationPaymentPageState
                 : null,
           ),
           children: [
-            // Aviso do prazo de garantia da vaga — já existia (calculado
-            // acima com `registrationHoldNotice`); a mudança é só a casca,
-            // que passa a ser a mesma dos demais avisos do wizard.
-            if (holdNotice != null) ...[
+            // Countdown da vaga reservada — `RegistrationWizardNotice` com
+            // `expiresAt` (protótipo "PAGUE EM …" + barra).
+            if (hasHoldCountdown) ...[
               RegistrationWizardNotice(
-                icon: Icons.timer_outlined,
-                child: Text(holdNotice),
+                expiresAt: snap!.holdExpiresAt,
+                totalWindow: registrationHoldCountdownTotalWindow(
+                  holdMinutes: tournament.registrationHoldMinutes,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
@@ -655,6 +663,10 @@ class _TournamentRegistrationPaymentPageState
               onInvitePartner: awaitingPartner ? _openPartnerInvite : null,
               // Uniforme mora no cartão da tela de inscrição.
               showInformUniform: false,
+              duoRoster: duoRoster,
+              tournamentStartDate: tournament.startDate,
+              currentAthleteUid: currentUid,
+              sharePaidUids: snap?.sharePaidUids ?? const [],
               cancellationSection: TournamentRegistrationCancellationSection(
                 snapshot: snap,
                 onCancelDirectly:

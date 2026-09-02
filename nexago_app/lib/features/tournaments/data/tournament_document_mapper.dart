@@ -143,7 +143,23 @@ abstract final class TournamentDocumentMapper {
       organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),
       organizerPixCity: _pixField(data['organizerPix'], 'city'),
       requireFormedPair: data['requireFormedPair'] == true,
+      registrationHoldMinutes: _registrationHoldMinutes(data),
     );
+  }
+
+  /// Minutos de garantia da vaga — espelha `resolveRegistrationHoldMinutes`
+  /// do backend (default 30 quando ausente ou inválido).
+  static int _registrationHoldMinutes(Map<String, dynamic> data) {
+    if (data['registrationHoldEnabled'] == false) {
+      return 30;
+    }
+    final raw = data['registrationHoldMinutes'];
+    if (raw is num && raw > 0) return raw.toInt();
+    if (raw is String) {
+      final parsed = int.tryParse(raw);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return 30;
   }
 
   static String _pixField(dynamic raw, String key) {

@@ -45,11 +45,12 @@ import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
 
 /// Aba Início do atleta — convites de dupla recebidos aparecem primeiro,
-/// logo após o header (pedido do dono, 27/08), seguidos do mesmo padrão de
-/// layout do painel do portal web no mobile: meus torneios (quando ativa,
-/// em destaque no topo) → Modo Focus (no dia do evento) → KPIs →
-/// acompanhamento de inscrição → convites enviados por mim → competições →
-/// próxima reserva → evolução → comunidade → missões → atalhos.
+/// logo após o header (pedido do dono, 27/08); em seguida convites enviados
+/// por mim (aguardando parceiro). Depois o mesmo padrão de layout do painel
+/// do portal web no mobile: meus torneios (quando ativa, em destaque no
+/// topo) → Modo Focus (no dia do evento) → KPIs → acompanhamento de
+/// inscrição → competições → próxima reserva → evolução → comunidade →
+/// missões → atalhos.
 class AthleteHomePage extends ConsumerWidget {
   const AthleteHomePage({super.key});
 
@@ -88,8 +89,9 @@ class AthleteHomePage extends ConsumerWidget {
                   ),
                   child: Consumer(
                     builder: (context, ref, _) {
-                      final profile =
-                          ref.watch(athleteProfileProvider).valueOrNull;
+                      final profile = ref
+                          .watch(athleteProfileProvider)
+                          .valueOrNull;
                       final name = profile != null
                           ? athleteDisplayName(profile)
                           : 'Atleta';
@@ -110,7 +112,7 @@ class AthleteHomePage extends ConsumerWidget {
                         ),
                         sandRankEnabled:
                             ref.watch(sandRankEnabledProvider).valueOrNull ??
-                                false,
+                            false,
                         sandRankFrameId: ref
                             .watch(sandRankCosmeticsProvider)
                             .valueOrNull
@@ -129,13 +131,14 @@ class AthleteHomePage extends ConsumerWidget {
                       // header, à frente até de "meus torneios".
                       Consumer(
                         builder: (context, ref, _) {
-                          final hasReceivedInvites = (ref
-                                      .watch(
-                                        pendingTournamentPartnerInvitesProvider,
-                                      )
-                                      .valueOrNull ??
-                                  const [])
-                              .isNotEmpty;
+                          final hasReceivedInvites =
+                              (ref
+                                          .watch(
+                                            pendingTournamentPartnerInvitesProvider,
+                                          )
+                                          .valueOrNull ??
+                                      const [])
+                                  .isNotEmpty;
                           if (!hasReceivedInvites) {
                             return const SizedBox.shrink();
                           }
@@ -147,6 +150,31 @@ class AthleteHomePage extends ConsumerWidget {
                               AppSpacing.sectionGap,
                             ),
                             child: PendingTournamentInviteeInvitesSection(),
+                          );
+                        },
+                      ),
+                      // Convites enviados por mim (aguardando parceiro ou
+                      // pagamento pendente) — logo abaixo dos recebidos,
+                      // sempre no topo quando existem.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasInvites =
+                              (ref
+                                          .watch(
+                                            ongoingTournamentPartnerInvitesHomeProvider,
+                                          )
+                                          .valueOrNull ??
+                                      const [])
+                                  .isNotEmpty;
+                          if (!hasInvites) return const SizedBox.shrink();
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              0,
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                            ),
+                            child: PendingTournamentInviterInvitesSection(),
                           );
                         },
                       ),
@@ -163,7 +191,8 @@ class AthleteHomePage extends ConsumerWidget {
                         ),
                         child: Consumer(
                           builder: (context, ref, _) {
-                            final matches = ref
+                            final matches =
+                                ref
                                     .watch(
                                       currentAthleteMatchHistoryBundleProvider,
                                     )
@@ -189,31 +218,6 @@ class AthleteHomePage extends ConsumerWidget {
                         ),
                         child: _HomeRegistrationTrackerSection(),
                       ),
-                      // Convites enviados por mim (aguardando parceiro ou
-                      // pagamento pendente) — só ocupam espaço quando
-                      // existem, senão o gap soma com o das competições e
-                      // vira buraco.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasInvites = (ref
-                                      .watch(
-                                        ongoingTournamentPartnerInvitesHomeProvider,
-                                      )
-                                      .valueOrNull ??
-                                  const [])
-                              .isNotEmpty;
-                          if (!hasInvites) return const SizedBox.shrink();
-                          return const Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                              AppSpacing.screenH,
-                              0,
-                            ),
-                            child: PendingTournamentInviterInvitesSection(),
-                          );
-                        },
-                      ),
                       const SizedBox(height: AppSpacing.sectionGap),
                       const AthleteHomeCompetitionsSection(),
                       const SizedBox(height: AppSpacing.sectionGap),
@@ -224,8 +228,10 @@ class AthleteHomePage extends ConsumerWidget {
                         child: Consumer(
                           builder: (context, ref, _) {
                             final bookings =
-                                ref.watch(myBookingsStreamProvider).valueOrNull ??
-                                    [];
+                                ref
+                                    .watch(myBookingsStreamProvider)
+                                    .valueOrNull ??
+                                [];
                             final now = DateTime.now();
                             final nextBooking = findNextAthleteBooking(
                               bookings,
@@ -243,39 +249,49 @@ class AthleteHomePage extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final matches = ref
-                                    .watch(
-                                      currentAthleteMatchHistoryBundleProvider,
-                                    )
-                                    .valueOrNull
-                                    ?.matches ??
-                                const [];
-                            final evolution = buildAthleteEvolutionSeries(
-                              matches: matches,
-                              now: DateTime.now(),
-                            );
-                            return AthleteHomeEvolutionChart(
-                              series: evolution,
-                            );
-                          },
-                        ),
+                      // Evolução só quando há histórico de partidas — evita
+                      // card vazio para quem ainda não jogou.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final matches =
+                              ref
+                                  .watch(
+                                    currentAthleteMatchHistoryBundleProvider,
+                                  )
+                                  .valueOrNull
+                                  ?.matches ??
+                              const [];
+                          if (matches.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          final evolution = buildAthleteEvolutionSeries(
+                            matches: matches,
+                            now: DateTime.now(),
+                          );
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.screenH,
+                                ),
+                                child: AthleteHomeEvolutionChart(
+                                  series: evolution,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.sectionGap),
+                            ],
+                          );
+                        },
                       ),
-                      const SizedBox(height: AppSpacing.sectionGap),
                       // Mesmo racional dos convites: comunidade vazia não
                       // deixa gap duplo entre evolução e missões.
                       Consumer(
                         builder: (context, ref, _) {
-                          final hasCommunityItems = (ref
-                                      .watch(communityFeedProvider)
-                                      .valueOrNull ??
-                                  const [])
-                              .isNotEmpty;
+                          final hasCommunityItems =
+                              (ref.watch(communityFeedProvider).valueOrNull ??
+                                      const [])
+                                  .isNotEmpty;
                           if (!hasCommunityItems) {
                             return const SizedBox.shrink();
                           }
@@ -298,41 +314,41 @@ class AthleteHomePage extends ConsumerWidget {
                           );
                         },
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final missions =
-                                ref.watch(dailyMissionsProvider).valueOrNull;
-                            return AthleteHomeDailyMissionsSection(
-                              missions: missions,
-                              onViewAll: () => context.pushNamed(
-                                AppRouteNames.athleteQuest,
-                              ),
-                              onMissionTap: (mission) =>
-                                  navigateForDailyMission(
-                                context,
-                                ref,
-                                mission,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: AthleteHomeShortcutsGrid(
-                          onReserveTap: () =>
-                              _goToTab(ref, athleteShellReservarTabIndex),
-                          onCompeteTap: () =>
-                              _goToTab(ref, athleteShellCompeteTabIndex),
-                        ),
-                      ),
+                      // Padding(
+                      //   padding: const EdgeInsets.symmetric(
+                      //     horizontal: AppSpacing.screenH,
+                      //   ),
+                      //   child: Consumer(
+                      //     builder: (context, ref, _) {
+                      //       final missions = ref
+                      //           .watch(dailyMissionsProvider)
+                      //           .valueOrNull;
+                      //       return AthleteHomeDailyMissionsSection(
+                      //         missions: missions,
+                      //         onViewAll: () =>
+                      //             context.pushNamed(AppRouteNames.athleteQuest),
+                      //         onMissionTap: (mission) =>
+                      //             navigateForDailyMission(
+                      //               context,
+                      //               ref,
+                      //               mission,
+                      //             ),
+                      //       );
+                      //     },
+                      //   ),
+                      // ),
+                      // const SizedBox(height: AppSpacing.sectionGap),
+                      // Padding(
+                      //   padding: const EdgeInsets.symmetric(
+                      //     horizontal: AppSpacing.screenH,
+                      //   ),
+                      //   child: AthleteHomeShortcutsGrid(
+                      //     onReserveTap: () =>
+                      //         _goToTab(ref, athleteShellReservarTabIndex),
+                      //     onCompeteTap: () =>
+                      //         _goToTab(ref, athleteShellCompeteTabIndex),
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
@@ -417,9 +433,8 @@ class _HomeRegistrationTrackerSectionState
 
   @override
   Widget build(BuildContext context) {
-    final items = ref
-            .watch(athleteHomeInProgressRegistrationsProvider)
-            .valueOrNull ??
+    final items =
+        ref.watch(athleteHomeInProgressRegistrationsProvider).valueOrNull ??
         const <RegistrationProgress>[];
     if (items.isEmpty) return const SizedBox.shrink();
 
@@ -455,17 +470,25 @@ class _AthleteHomeSkeleton extends StatelessWidget {
             SizedBox(height: AppSpacing.lg),
             Row(
               children: [
-                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+                Expanded(
+                  child: NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+                ),
                 SizedBox(width: AppSpacing.md),
-                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+                Expanded(
+                  child: NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+                ),
               ],
             ),
             SizedBox(height: AppSpacing.md),
             Row(
               children: [
-                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+                Expanded(
+                  child: NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+                ),
                 SizedBox(width: AppSpacing.md),
-                Expanded(child: NexaSkeleton(height: 96, radius: AppRadii.lgAll)),
+                Expanded(
+                  child: NexaSkeleton(height: 96, radius: AppRadii.lgAll),
+                ),
               ],
             ),
             SizedBox(height: AppSpacing.sectionGap),

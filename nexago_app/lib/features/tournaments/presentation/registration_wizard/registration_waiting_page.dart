@@ -403,6 +403,7 @@ class _RegistrationWaitingPageState
           inviteAccepted: accepted,
           partnerPendingSubtitle: accepted ? 'Confirmado' : 'Convite enviado',
           reservationHoursLabel: partnerInviteRemainingLabel(invite),
+          requireFormedPair: tournament.requireFormedPair,
           isLoading: _cancelling,
         ),
       ],

@@ -45,7 +45,10 @@ void main() {
     uniformType: uniformType,
   );
 
-  TournamentDetail torneio(List<TournamentCategoryOffer> categorias) =>
+  TournamentDetail torneio(
+    List<TournamentCategoryOffer> categorias, {
+    bool requireFormedPair = false,
+  }) =>
       TournamentDetail(
         id: 't1',
         name: 'Copa de Teste',
@@ -66,6 +69,7 @@ void main() {
         liveMatchesNow: 0,
         categoryOffers: categorias,
         sport: 'beachTennis',
+        requireFormedPair: requireFormedPair,
       );
 
   /// Convite que EU enviei — o único que esta tela acompanha.
@@ -252,7 +256,25 @@ void main() {
     expect(find.text('Aguardando confirmação'), findsOneWidget);
     expect(find.text('Bruno Alves'), findsOneWidget);
     expect(find.textContaining('Bruno recebeu'), findsOneWidget);
+    expect(find.textContaining('Sua vaga fica reservada por'), findsOneWidget);
   });
+
+  testWidgets(
+    'com dupla obrigatória não promete reserva de vaga antes do aceite',
+    (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+      );
+
+      expect(find.text('Aguardando confirmação'), findsOneWidget);
+      expect(
+        find.textContaining('A vaga só é confirmada quando o parceiro aceitar'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Sua vaga fica reservada por'), findsNothing);
+    },
+  );
 
   testWidgets(
     'não oferece "Reenviar convite": não existe callable de reenvio para '

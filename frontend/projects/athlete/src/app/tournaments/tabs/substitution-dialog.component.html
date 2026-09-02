@@ -1,0 +1,244 @@
+<div class="sd-backdrop" (click)="close()" aria-hidden="true"></div>
+
+<div class="sd-sheet" role="dialog" aria-modal="true" [attr.aria-labelledby]="titleId">
+  <header class="sd-head">
+    <div class="sd-head-text">
+      <span class="sd-eyebrow">Substituir atleta · passo {{ step() }} de 2</span>
+      <h2 class="sd-title" [id]="titleId">
+        {{ step() === 1 ? 'Quem não vai poder jogar?' : 'Quem entra no lugar?' }}
+      </h2>
+    </div>
+    <button type="button" class="sd-close" [disabled]="busy()" (click)="close()" aria-label="Fechar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="sd-progress" aria-hidden="true">
+    <span class="sd-progress-seg sd-progress-seg--on"></span>
+    <span class="sd-progress-seg" [class.sd-progress-seg--on]="step() === 2"></span>
+  </div>
+
+  @if (step() === 1) {
+    <div class="sd-body">
+      <p class="sd-lead">
+        A vaga da {{ unitLabel() }} continua sua. Só precisamos saber quem sai e quem entra no lugar.
+      </p>
+
+      <fieldset class="sd-group">
+        <legend class="sd-sr-only">Quem sai</legend>
+        @for (slot of slots(); track slot.uid) {
+          <label class="sd-option" [class.sd-option--on]="replaced()?.uid === slot.uid">
+            <input
+              class="sd-radio"
+              type="radio"
+              name="sub-slot"
+              [value]="slot.uid"
+              [checked]="replaced()?.uid === slot.uid"
+              (change)="choose(slot)"
+            />
+            <span class="sd-avatar" aria-hidden="true">
+              <span class="sd-avatar-fallback">{{ initials(slot.name) }}</span>
+              @if (slot.photo; as photo) {
+                <img class="sd-avatar-img" [src]="photo" alt="" loading="lazy" />
+              }
+            </span>
+            <span class="sd-option-text">
+              <strong>{{ slot.name }}</strong>
+              <span>{{ slot.role }}</span>
+            </span>
+            <span class="sd-option-check" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 12 5 5L20 7" />
+              </svg>
+            </span>
+          </label>
+        }
+      </fieldset>
+
+      <div class="sd-group">
+        <span class="sd-eyebrow" id="sd-reason-label">Motivo · vai pro organizador <em>opcional</em></span>
+        <div class="sd-chips" role="group" aria-labelledby="sd-reason-label">
+          @for (item of reasons; track item.id) {
+            <button
+              type="button"
+              class="sd-chip"
+              [class.sd-chip--on]="reason() === item.id"
+              [attr.aria-pressed]="reason() === item.id"
+              (click)="toggleReason(item.id)"
+            >
+              {{ item.label }}
+            </button>
+          }
+        </div>
+        <label class="sd-field sd-field--note">
+          <span class="sd-sr-only">Detalhe do motivo</span>
+          <textarea
+            class="sd-textarea"
+            rows="2"
+            [maxLength]="noteMax"
+            placeholder="Conte o que aconteceu (opcional)"
+            [value]="reasonNote()"
+            (input)="onNoteInput($event)"
+          ></textarea>
+          <span class="sd-counter" aria-live="polite">{{ reasonNote().length }}/{{ noteMax }}</span>
+        </label>
+      </div>
+
+      <section class="sd-rules" aria-labelledby="sd-rules-label">
+        <span class="sd-eyebrow" id="sd-rules-label">Regras deste torneio</span>
+        <ul class="sd-rule-list">
+          <li class="sd-rule">
+            <span class="sd-rule-icon sd-rule-icon--pending" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" />
+              </svg>
+            </span>
+            <span class="sd-rule-text">
+              <strong>Troca permitida até a publicação das chaves</strong>
+              <span>Depois de publicadas, não é possível substituir</span>
+            </span>
+          </li>
+          <li class="sd-rule">
+            <span class="sd-rule-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M17 6h3v2a3 3 0 0 1-3 3M7 6H4v2a3 3 0 0 0 3 3" />
+              </svg>
+            </span>
+            <span class="sd-rule-text">
+              <strong>O substituto precisa caber na categoria</strong>
+              <span>Nível compatível com {{ categoryName() || 'a categoria' }}</span>
+            </span>
+          </li>
+          @if (paymentRule(); as rule) {
+            <li class="sd-rule">
+              <span class="sd-rule-icon sd-rule-icon--win" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z" /><path d="M13 5v14" stroke-dasharray="2 3" />
+                </svg>
+              </span>
+              <span class="sd-rule-text">
+                <strong>Inscrição já paga é mantida</strong>
+                <span>{{ rule }}</span>
+              </span>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    <footer class="sd-foot">
+      <button type="button" class="sd-cta" [disabled]="!replaced()" (click)="next()">
+        Escolher o substituto
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
+      <button type="button" class="sd-ghost" (click)="close()">Cancelar</button>
+    </footer>
+  } @else {
+    <div class="sd-body">
+      <button type="button" class="sd-out" [disabled]="busy()" (click)="back()" aria-label="Alterar quem sai">
+        <span class="sd-avatar sd-avatar--sm" aria-hidden="true">
+          <span class="sd-avatar-fallback">{{ initials(replaced()?.name ?? '') }}</span>
+          @if (replaced()?.photo; as photo) {
+            <img class="sd-avatar-img" [src]="photo" alt="" loading="lazy" />
+          }
+        </span>
+        <span class="sd-out-text">
+          <span class="sd-out-kicker">Saindo</span>
+          <strong>{{ replaced()?.name }}@if (reasonLabel(); as label) {<span class="sd-out-reason"> · {{ label }}</span>}</strong>
+        </span>
+        <span class="sd-out-edit">Alterar</span>
+      </button>
+
+      <label class="sd-field">
+        <span class="sd-label">Buscar atleta</span>
+        <span class="sd-input-wrap">
+          <svg class="sd-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            #searchField
+            class="sd-input"
+            type="search"
+            autocomplete="off"
+            placeholder="Digite pelo menos 3 letras do nome"
+            [value]="term()"
+            (input)="onTermInput($any($event.target).value)"
+            (keydown.enter)="onTermEnter()"
+          />
+        </span>
+      </label>
+
+      @if (searching()) {
+        <div class="sd-searching" role="status">
+          <app-nx-spinner [size]="18" />
+          <span>Buscando atletas…</span>
+        </div>
+      } @else if (searchError()) {
+        <p class="sd-empty sd-empty--error" role="alert">Não foi possível buscar atletas. Tente de novo.</p>
+      } @else if (results().length > 0) {
+        <ul class="sd-results" aria-label="Atletas encontrados">
+          @for (candidate of results(); track candidate.uid) {
+            <li>
+              <button
+                type="button"
+                class="sd-result"
+                [class.sd-result--on]="selected()?.uid === candidate.uid"
+                [attr.aria-pressed]="selected()?.uid === candidate.uid"
+                (click)="pick(candidate)"
+              >
+                <span class="sd-avatar" aria-hidden="true">
+                  <span class="sd-avatar-fallback">{{ initials(candidate.name) }}</span>
+                  @if (candidate.photo; as photo) {
+                    <img class="sd-avatar-img" [src]="photo" alt="" loading="lazy" />
+                  }
+                </span>
+                <span class="sd-option-text">
+                  <strong>{{ candidate.name }}</strong>
+                  <span>{{ candidate.subtitle }}</span>
+                </span>
+                <span class="sd-option-check" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m5 12 5 5L20 7" />
+                  </svg>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else if (searchCameUpEmpty()) {
+        <p class="sd-empty">
+          Ninguém encontrado com esse nome. Confira a grafia — quem entra precisa ter conta no nexaGO.
+        </p>
+      } @else {
+        <p class="sd-empty">Digite pelo menos 3 letras para ver atletas.</p>
+      }
+
+      @if (paymentRule()) {
+        <div class="sd-notice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+          </svg>
+          <p>
+            Nada é cobrado de novo pra quem entra. O acerto do valor com {{ replaced()?.name }} é entre vocês.
+          </p>
+        </div>
+      }
+    </div>
+
+    <footer class="sd-foot">
+      <button type="button" class="sd-cta" [disabled]="!selected() || busy()" (click)="submit()">
+        @if (busy()) {
+          <app-nx-spinner [size]="18" tone="dark" />
+          Enviando…
+        } @else {
+          {{ ctaLabel() }}
+        }
+      </button>
+      <button type="button" class="sd-ghost" [disabled]="busy()" (click)="back()">Voltar</button>
+    </footer>
+  }
+</div>

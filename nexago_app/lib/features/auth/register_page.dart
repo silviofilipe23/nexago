@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/auth/auth_service.dart';
 import '../../core/observability/analytics_service.dart';
 import '../../features/athlete/onboarding/domain/athlete_onboarding_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
@@ -19,6 +22,22 @@ import '../../core/ui/fade_slide_in.dart';
 import 'auth_legal_urls.dart';
 import 'domain/auth_password_strength.dart';
 import 'widgets/auth_form_widgets.dart';
+
+/// Tempo máximo esperando `createUserWithEmailAndPassword` responder. O SDK
+/// pode criar a conta e abrir a sessão sem a chamada voltar (resposta nativa
+/// perdida); o atleta não pode ficar com o botão girando para sempre.
+@visibleForTesting
+const Duration kRegisterCreateTimeout = Duration(seconds: 30);
+
+/// Janela para o evento de auth chegar DEPOIS de a chamada falhar — no
+/// Android a sessão pode aparecer alguns instantes após a exceção.
+@visibleForTesting
+const Duration kRegisterLateSessionGrace = Duration(milliseconds: 1500);
+
+@visibleForTesting
+const String kRegisterTimeoutMessage =
+    'A criação da conta está demorando mais que o normal. '
+    'Verifique sua conexão e tente de novo.';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -40,6 +59,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _termsAccepted = false;
   bool _passwordFocused = false;
   bool _pendingSuccess = false;
+
+  /// Assinatura do `authStateChanges` durante o cadastro por e-mail/senha:
+  /// a sessão virando a conta pedida É o sucesso, venha ou não a resposta
+  /// da chamada (ver [_submit]).
+  StreamSubscription<User?>? _signupSessionSub;
+  bool _signupSettled = false;
 
   bool _isSuccessPhase(BuildContext context) =>
       _pendingSuccess ||
@@ -82,6 +107,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   @override
   void dispose() {
+    _signupSessionSub?.cancel();
     _passwordFocusNode.removeListener(_onPasswordFocusChange);
     _passwordFocusNode.dispose();
     _emailController.dispose();
@@ -199,60 +225,111 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     // A navegação para o sucesso não pode depender deste State continuar vivo.
     final router = GoRouter.of(context);
     final auth = ref.read(authServiceProvider);
+    final firebaseAuth = ref.read(firebaseAuthProvider);
     final analytics = ref.read(analyticsServiceProvider);
+
+    // A SESSÃO é a fonte da verdade, não o retorno da chamada. O SDK pode
+    // criar a conta e abrir a sessão sem a chamada voltar (resposta nativa
+    // perdida) ou lançando antes de `currentUser` ser preenchido — nos dois
+    // casos a conta existe e o atleta tem de chegar à tela de sucesso, como
+    // o login já faz pelo redirect do router. Assinado ANTES da chamada para
+    // não perder o evento; a intercalação normal (evento antes da resposta)
+    // também passa por aqui.
+    _signupSettled = false;
+    await _signupSessionSub?.cancel();
+    _signupSessionSub = firebaseAuth.authStateChanges().listen((user) {
+      if (_isSessionOf(user, email)) {
+        _finishSignup(router: router, auth: auth, analytics: analytics);
+      }
+    });
 
     Object? createError;
     StackTrace? createStack;
     try {
-      await auth.registerWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      await auth
+          .registerWithEmailAndPassword(email: email, password: password)
+          .timeout(kRegisterCreateTimeout);
     } catch (e, st) {
       createError = e;
       createStack = st;
     }
 
-    if (createError != null) {
-      // A chamada falhou, mas a conta pode ter nascido mesmo assim — o SDK
-      // já lançou exceção DEPOIS de criar e logar (bug histórico do
-      // firebase_auth no Android), e "e-mail já em uso" num novo toque cai
-      // aqui também. Se a sessão atual é da conta pedida, o cadastro DE FATO
-      // aconteceu: registra o erro e segue ao sucesso em vez de prender o
-      // atleta num formulário que nunca mais vai passar.
-      final current = ref.read(firebaseAuthProvider).currentUser;
-      final signedInAsRequested =
-          current?.email?.toLowerCase() == email.toLowerCase();
-      if (!signedInAsRequested) {
-        _logRegisterFlowError('createUser', createError, createStack!);
-        if (!mounted) return;
-        setState(() => _submitting = false);
-        showAppSnackBar(
-          context,
-          createError is FirebaseAuthException
-              ? mapFirebaseAuthException(createError)
-              : 'Erro inesperado. Tente novamente.',
-          isError: true,
+    if (_signupSettled) {
+      // O evento de auth chegou primeiro e já levou ao sucesso. Se mesmo
+      // assim a chamada falhou (ou nunca respondeu), fica registrado: é o
+      // SDK se comportando mal e é isso que o Crashlytics precisa mostrar.
+      if (createError != null) {
+        _logRegisterFlowError(
+          'createUserAfterSession',
+          createError,
+          createStack!,
         );
-        return;
       }
-      _logRegisterFlowError('createUserRecovered', createError, createStack!);
+      return;
     }
 
-    // A partir daqui a conta EXISTE e o atleta está autenticado: nada abaixo
-    // pode segurá-lo fora da tela de sucesso. E-mail de verificação e
-    // analytics são efeitos colaterais — se falharem, ficam registrados e o
-    // reenvio acontece depois; a tela de sucesso já pede a confirmação.
-    try {
-      await auth.sendEmailVerification();
-    } catch (e, st) {
-      _logRegisterFlowError('sendEmailVerification', e, st);
+    if (createError == null) {
+      _finishSignup(router: router, auth: auth, analytics: analytics);
+      return;
     }
-    try {
-      analytics.logSignUp('password');
-    } catch (e, st) {
-      _logRegisterFlowError('logSignUp', e, st);
+
+    // A chamada falhou, mas a conta pode ter nascido mesmo assim — o SDK
+    // já lançou exceção DEPOIS de criar e logar (bug histórico do
+    // firebase_auth no Android), e "e-mail já em uso" num novo toque cai
+    // aqui também. Se a sessão atual é da conta pedida, o cadastro DE FATO
+    // aconteceu: registra o erro e segue ao sucesso em vez de prender o
+    // atleta num formulário que nunca mais vai passar.
+    if (_isSessionOf(firebaseAuth.currentUser, email)) {
+      _logRegisterFlowError('createUserRecovered', createError, createStack!);
+      _finishSignup(router: router, auth: auth, analytics: analytics);
+      return;
     }
+
+    // `currentUser` ainda vazio: o evento de auth pode estar a caminho. Dá
+    // uma janela curta antes de dizer que falhou — se a sessão aparecer, o
+    // listener acima resolve sozinho.
+    await Future<void>.delayed(kRegisterLateSessionGrace);
+    if (_signupSettled) {
+      _logRegisterFlowError(
+        'createUserRecoveredLate',
+        createError,
+        createStack!,
+      );
+      return;
+    }
+
+    _logRegisterFlowError('createUser', createError, createStack!);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    showAppSnackBar(
+      context,
+      switch (createError) {
+        TimeoutException() => kRegisterTimeoutMessage,
+        FirebaseAuthException e => mapFirebaseAuthException(e),
+        _ => 'Erro inesperado. Tente novamente.',
+      },
+      isError: true,
+    );
+  }
+
+  static bool _isSessionOf(User? user, String email) =>
+      user?.email?.toLowerCase() == email.toLowerCase();
+
+  /// A conta EXISTE e o atleta está autenticado: nada abaixo pode segurá-lo
+  /// fora da tela de sucesso. Idempotente — chega aqui por quem resolver
+  /// primeiro (evento de auth ou retorno da chamada). A navegação vai na
+  /// frente; e-mail de verificação e analytics são efeitos colaterais que
+  /// correm depois, sem prender o fluxo numa rede lenta (a tela de sucesso já
+  /// pede a confirmação do e-mail e o reenvio existe).
+  void _finishSignup({
+    required GoRouter router,
+    required AuthService auth,
+    required AnalyticsService analytics,
+  }) {
+    if (_signupSettled) return;
+    _signupSettled = true;
+    unawaited(_signupSessionSub?.cancel());
+    _signupSessionSub = null;
 
     if (mounted) {
       setState(() {
@@ -266,6 +343,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         queryParameters: const {'step': 'success'},
       ).toString(),
     );
+
+    unawaited(() async {
+      try {
+        await auth.sendEmailVerification();
+      } catch (e, st) {
+        _logRegisterFlowError('sendEmailVerification', e, st);
+      }
+    }());
+    try {
+      analytics.logSignUp('password');
+    } catch (e, st) {
+      _logRegisterFlowError('logSignUp', e, st);
+    }
   }
 
   /// Erros do fluxo de cadastro nunca somem em silêncio: em produção vão ao

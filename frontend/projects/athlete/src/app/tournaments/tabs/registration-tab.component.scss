@@ -147,11 +147,70 @@
   color: var(--nx-text-mute);
 }
 
-.reg-sub-history {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 0.85rem;
-  opacity: 0.75;
+/* Substituir atleta convive com o CTA laranja de pagamento e com os de compartilhar —
+   outline, como eles, e com o ícone de troca pra não parecer mais um "compartilhar". */
+.reg-cta--swap {
+  gap: var(--nx-s-2);
+  margin-right: var(--nx-s-3);
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  color: var(--nx-text);
+
+  &:hover,
+  &:focus-visible {
+    background: var(--nx-surface-2);
+    border-color: var(--nx-orange-500);
+  }
+}
+
+/* Trocas já concluídas: uma linha por troca, com o ícone verde de "feito". */
+.reg-swaps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-s-2);
+  margin: var(--nx-s-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reg-swap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nx-s-2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+
+  svg {
+    flex: none;
+    margin-top: 3px;
+    color: var(--nx-win);
+  }
+
+  strong {
+    font-weight: 600;
+    color: var(--nx-text);
+  }
+}
+
+/* Cabeçalho do bloco "Substituição em curso" — mesmo kicker mono dos fatos, em âmbar. */
+.reg-req-kicker {
+  @include tl.kicker;
+
+  color: var(--nx-pending);
+}
+
+.reg-swap-line {
+  margin: var(--nx-s-2) 0 0;
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--nx-text-mute);
+
+  strong {
+    font-weight: 700;
+    color: var(--nx-text);
+  }
 }
 
 .reg-cancel {
@@ -248,6 +307,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--nx-s-2);
   min-height: 44px;
   margin-top: var(--nx-s-3);
   padding: 0 var(--nx-s-5);
@@ -268,4 +328,9 @@
     opacity: 0.55;
     cursor: default;
   }
+}
+
+/* O lembrete é um link (abre o WhatsApp), mas veste o mesmo botão. */
+.reg-swap-remind {
+  text-decoration: none;
 }

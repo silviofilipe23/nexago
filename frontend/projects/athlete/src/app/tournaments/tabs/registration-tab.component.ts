@@ -8,16 +8,20 @@ import { athleteFunctions } from '../../data/functions';
 import { fetchPublicProfilesByIds, searchAthleteDirectory } from '../../data/public-profiles-repository';
 import {
   cancelMyRegistration,
+  cancelSentPartnerInvite,
   fetchTournamentOrganizerContact,
   registrationCancellable,
   requestRegistrationCancellation,
   sendSubstitutionInvite,
   TournamentRegistrationError,
+  watchMySentInvites,
   type AthleteTournamentRegistration,
   type RegistrationUniformSlot,
+  type SentPartnerInvite,
 } from '../../data/tournament-registrations-repository';
 import type { TournamentCategoryOffer } from '../../data/tournaments-repository';
 import { NxBlockingDialogComponent, NxToastService } from '../../shared/feedback';
+import { whatsAppShareUrl } from '../../shared/partner-invite/partner-invite';
 import {
   pickRegistrationSharePhrase,
   registrationShareDateLabel,
@@ -32,8 +36,22 @@ import { CampaignShareDialogComponent } from '../campaign/campaign-share-dialog.
 import { RegistrationShareDialogComponent } from '../registration/registration-share-dialog.component';
 import { TournamentLiveStore } from '../tournament-live.store';
 import { registrationRosterView } from './registration-roster-cta';
-import { substitutionSlots } from './substitution-view';
-import { SubstitutionDialogComponent, type SubstitutionSendRequest } from './substitution-dialog.component';
+import {
+  firstNameOf,
+  pendingSubstitutionFor,
+  substitutionDateLabel,
+  substitutionDeadlineLabel,
+  substitutionPaymentRule,
+  substitutionReminderMessage,
+  substitutionSlotRole,
+  substitutionSlots,
+} from './substitution-view';
+import {
+  SubstitutionDialogComponent,
+  type SubstitutionCandidate,
+  type SubstitutionSendRequest,
+  type SubstitutionSlot,
+} from './substitution-dialog.component';
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -83,8 +101,25 @@ export interface RegistrationCard {
   cancellationState: 'none' | 'pending' | 'declined';
   cancellationResponseNote: string;
   /** Vagas que o atleta logado pode substituir; vazio = ação oculta. */
-  substitutionSlots: { uid: string; name: string }[];
-  substitutionHistory: { outName: string; inName: string }[];
+  substitutionSlots: SubstitutionSlot[];
+  substitutionHistory: { outName: string; inName: string; dateLabel: string | null }[];
+  /** "dupla"/"equipe" — copy do diálogo e do acompanhamento. */
+  substitutionUnit: 'dupla' | 'equipe';
+  /** Regra "inscrição já paga é mantida" do diálogo; `null` sem pagamento nenhum. */
+  substitutionPaymentRule: string | null;
+  /** Convite de substituição em aberto: o card mostra o acompanhamento no lugar do botão. */
+  pendingSubstitution: PendingSubstitutionView | null;
+}
+
+export interface PendingSubstitutionView {
+  inviteId: string;
+  inviteeName: string;
+  inviteeFirstName: string;
+  replacedName: string;
+  /** "1d 04h" até o convite vencer; `null` quando o prazo já passou. */
+  deadlineLabel: string | null;
+  /** Lembrete pelo WhatsApp SEM destinatário — o atleta escolhe o contato. */
+  whatsAppHref: string;
 }
 
 /** Texto que aparece em TODO ponto do fluxo: a plataforma não devolve dinheiro. */
@@ -145,16 +180,20 @@ export class RegistrationTabComponent {
     const roster = registrationRosterView(r, uid);
     const bracketPublished = this.store.matches().some((m) => m.categoryId === r.categoryId);
     const profiles = this.athleteProfiles();
-    const slots = bracketPublished
+    const slots: SubstitutionSlot[] = bracketPublished
       ? []
       : substitutionSlots(r, uid).map((slotUid) => ({
           uid: slotUid,
           name: profiles.get(slotUid)?.name ?? this.fallbackNameOf(slotUid),
+          photo: profiles.get(slotUid)?.photo ?? null,
+          role: substitutionSlotRole(r, slotUid, uid),
         }));
+    const categoryName = category?.categoryName ?? r.categoryId;
+    const pendingInvite = pendingSubstitutionFor(this.sentInvites(), r.id);
     return {
       id: r.id,
       categoryId: r.categoryId,
-      categoryName: category?.categoryName ?? r.categoryId,
+      categoryName,
       entryFee: category ? formatBRL(category.entryFee) : '—',
       teamName,
       teamLabel: roster.teamLabel,
@@ -172,7 +211,14 @@ export class RegistrationTabComponent {
       cancellationState: r.cancellationRequest?.status ?? 'none',
       cancellationResponseNote: r.cancellationRequest?.responseNote ?? '',
       substitutionSlots: slots,
-      substitutionHistory: r.substitutionHistory.map((h) => ({ outName: h.outName, inName: h.inName })),
+      substitutionHistory: r.substitutionHistory.map((h) => ({
+        outName: h.outName,
+        inName: h.inName,
+        dateLabel: substitutionDateLabel(h.at),
+      })),
+      substitutionUnit: isTeam ? 'equipe' : 'dupla',
+      substitutionPaymentRule: substitutionPaymentRule(r, category ? formatBRL(category.entryFee) : null),
+      pendingSubstitution: pendingInvite ? this.pendingSubstitutionView(pendingInvite, categoryName) : null,
     };
   }
 
@@ -414,11 +460,53 @@ export class RegistrationTabComponent {
 
   // ——— Substituir atleta (dupla: qualquer membro; equipe: só o capitão) ———
 
+  /** Convites que EU enviei neste torneio, ao vivo. É daqui que sai a "substituição em curso"
+   *  do card — e ela some sozinha quando o convidado aceita, recusa ou o prazo vence, sem
+   *  recarregar o torneio. */
+  private readonly sentInvites = signal<readonly SentPartnerInvite[]>([]);
+
+  private readonly sentInvitesWatcher = effect((onCleanup) => {
+    const db = this.db;
+    const uid = this.auth.user()?.uid ?? null;
+    const tournamentId = this.store.tournamentId();
+    if (!db || !uid || tournamentId.length === 0) {
+      this.sentInvites.set([]);
+      return;
+    }
+    const unsubscribe = watchMySentInvites(
+      db,
+      uid,
+      tournamentId,
+      (invites) => this.sentInvites.set(invites),
+      () => this.sentInvites.set([]),
+    );
+    onCleanup(unsubscribe);
+  });
+
+  private pendingSubstitutionView(invite: SentPartnerInvite, categoryName: string): PendingSubstitutionView {
+    const replacedName = invite.replacedName ?? 'Atleta';
+    return {
+      inviteId: invite.id,
+      inviteeName: invite.inviteeName,
+      inviteeFirstName: firstNameOf(invite.inviteeName),
+      replacedName,
+      deadlineLabel: substitutionDeadlineLabel(invite.expiresAt, this.store.now()),
+      whatsAppHref: whatsAppShareUrl(
+        substitutionReminderMessage({
+          inviteeName: invite.inviteeName,
+          replacedName,
+          tournamentName: this.store.tournament()?.name ?? 'torneio',
+          categoryName,
+        }),
+      ),
+    };
+  }
+
   protected readonly substitutionTarget = signal<RegistrationCard | null>(null);
   protected readonly substitutionSending = signal(false);
 
   /** Busca do dialog: diretório público menos quem já está na inscrição. */
-  protected readonly substitutionSearchFn = async (term: string) => {
+  protected readonly substitutionSearchFn = async (term: string): Promise<SubstitutionCandidate[]> => {
     const db = this.db;
     const target = this.substitutionTarget();
     if (!db || !target) return [];
@@ -427,7 +515,12 @@ export class RegistrationTabComponent {
     const results = await searchAthleteDirectory(db, term);
     return results
       .filter((p) => !memberUids.has(p.id))
-      .map((p) => ({ uid: p.id, name: p.displayName }));
+      .map((p) => ({
+        uid: p.id,
+        name: p.displayName,
+        photo: p.avatarUrl,
+        subtitle: p.city ?? 'Atleta',
+      }));
   };
 
   protected openSubstitution(card: RegistrationCard): void {
@@ -450,11 +543,13 @@ export class RegistrationTabComponent {
         inviteeUid: request.inviteeUid,
         inviteeName: request.inviteeName,
         inviterName: this.auth.user()?.displayName?.trim() || 'Atleta',
+        reason: request.reason,
+        reasonNote: request.reasonNote,
       });
       this.substitutionTarget.set(null);
       this.toasts.success(
         'Convite enviado',
-        `A troca acontece quando ${request.inviteeName} aceitar.`,
+        `A troca acontece quando ${request.inviteeName} aceitar. Acompanhe aqui no card.`,
       );
     } catch (err) {
       this.toasts.error(
@@ -463,6 +558,39 @@ export class RegistrationTabComponent {
       );
     } finally {
       this.substitutionSending.set(false);
+    }
+  }
+
+  // ——— Cancelar a troca em curso (convite de substituição pendente) ———
+
+  protected readonly cancelSubstitutionTarget = signal<RegistrationCard | null>(null);
+  protected readonly cancellingSubstitution = signal(false);
+
+  protected askCancelSubstitution(card: RegistrationCard): void {
+    this.cancelSubstitutionTarget.set(card);
+  }
+
+  protected closeCancelSubstitution(): void {
+    if (!this.cancellingSubstitution()) this.cancelSubstitutionTarget.set(null);
+  }
+
+  protected async confirmCancelSubstitution(): Promise<void> {
+    const target = this.cancelSubstitutionTarget();
+    const pending = target?.pendingSubstitution;
+    if (!target || !pending || this.cancellingSubstitution()) return;
+    this.cancellingSubstitution.set(true);
+    try {
+      await cancelSentPartnerInvite(athleteFunctions(), pending.inviteId);
+      // O listener de convites enviados tira o bloco do card; nada a atualizar na mão.
+      this.cancelSubstitutionTarget.set(null);
+      this.toasts.success('Troca cancelada', `A ${target.substitutionUnit} segue como estava.`);
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível cancelar a troca',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+      );
+    } finally {
+      this.cancellingSubstitution.set(false);
     }
   }
 

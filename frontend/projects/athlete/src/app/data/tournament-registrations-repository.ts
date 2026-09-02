@@ -334,6 +334,11 @@ export interface SentPartnerInvite {
   registrationId: string | null;
   isTeamInvite: boolean;
   teamName: string | null;
+  /** Convite de SUBSTITUIÇÃO: `inviteeName` entraria no lugar de `replacedName` na inscrição
+   *  `attachRegistrationId` (é por ele que a aba Minha inscrição acha a troca em curso). */
+  isSubstitutionInvite: boolean;
+  replacedName: string | null;
+  attachRegistrationId: string | null;
 }
 
 function sentInviteFromDoc({ id, data }: RawInviteDoc, now: number): SentPartnerInvite {
@@ -353,6 +358,9 @@ function sentInviteFromDoc({ id, data }: RawInviteDoc, now: number): SentPartner
     registrationId: optionalStr(data['registrationId']),
     isTeamInvite: data['isTeamInvite'] === true,
     teamName: optionalStr(data['teamName']),
+    isSubstitutionInvite: data['isSubstitutionInvite'] === true,
+    replacedName: optionalStr(data['replacedName']),
+    attachRegistrationId: optionalStr(data['attachRegistrationId']),
   };
 }
 
@@ -561,24 +569,37 @@ export async function sendPartnerInvite(
   }
 }
 
+export interface SubstitutionInviteParams {
+  registrationId: string;
+  replacedUid: string;
+  replacedName: string;
+  inviteeUid: string;
+  inviteeName: string;
+  inviterName: string;
+  /** Motivo declarado (`lesao|imprevisto|trabalho|viagem|outro`) e detalhe livre — opcionais;
+   *  vão pro convite, pro histórico e pra notificação do organizador no aceite. */
+  reason?: string | null;
+  reasonNote?: string | null;
+}
+
 /** Convite de substituição: `inviteeUid` entraria no lugar de `replacedUid` na
  *  inscrição. Permitido até a publicação das chaves da categoria. */
 export async function sendSubstitutionInvite(
   functions: Functions,
-  params: {
-    registrationId: string;
-    replacedUid: string;
-    replacedName: string;
-    inviteeUid: string;
-    inviteeName: string;
-    inviterName: string;
-  },
+  params: SubstitutionInviteParams,
 ): Promise<{ inviteId: string }> {
+  const { reason, reasonNote, ...rest } = params;
+  // Chave ausente, não `null`: a CF valida o motivo só quando ele vem.
+  const payload = {
+    ...rest,
+    ...(reason ? { reason } : {}),
+    ...(reasonNote?.trim() ? { reasonNote: reasonNote.trim() } : {}),
+  };
   try {
-    const result = await httpsCallable<typeof params, { inviteId: string }>(
+    const result = await httpsCallable<typeof payload, { inviteId: string }>(
       functions,
       'sendTournamentSubstitutionInvite',
-    )(params);
+    )(payload);
     return result.data;
   } catch (err) {
     throw mapCallableError(err);

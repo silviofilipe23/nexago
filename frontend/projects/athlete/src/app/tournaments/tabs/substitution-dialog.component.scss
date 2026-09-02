@@ -1,0 +1,745 @@
+// Diálogo "Substituir atleta". Mobile-first: folha ancorada embaixo; a partir de 641px vira
+// modal centrado. Tokens `nx-` em tudo — nada de cor crua fora dos tons de estado já usados
+// pelo restante da aba (âmbar do pendente, verde do pago).
+
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  @media (min-width: 641px) {
+    align-items: center;
+    padding: 16px;
+  }
+}
+
+.sd-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 5, 5, 0.72);
+  backdrop-filter: blur(6px);
+  animation: sd-scrim-in var(--nx-d-fast) var(--nx-ease-out) both;
+}
+
+.sd-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line-strong);
+  border-bottom: 0;
+  border-radius: var(--nx-r-5) var(--nx-r-5) 0 0;
+  box-shadow: var(--nx-elev-3);
+  animation: sd-sheet-in var(--nx-d-base) var(--nx-ease-out) both;
+
+  @media (min-width: 641px) {
+    width: min(500px, 100%);
+    max-height: calc(100dvh - 32px);
+    border-bottom: 1px solid var(--nx-line-strong);
+    border-radius: var(--nx-r-5);
+    animation-name: sd-dialog-in;
+  }
+}
+
+// ── cabeçalho ─────────────────────────────────────────────────────────────
+.sd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 12px;
+  }
+}
+
+.sd-head-text {
+  min-width: 0;
+}
+
+.sd-eyebrow {
+  display: block;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+
+  em {
+    font-style: normal;
+    font-weight: 500;
+    color: var(--nx-text-dim);
+    opacity: 0.8;
+  }
+}
+
+.sd-title {
+  margin: 6px 0 0;
+  font-family: var(--nx-font-display);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.sd-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  color: var(--nx-text-mute);
+  cursor: pointer;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--nx-line-strong);
+    color: var(--nx-text);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  @media (max-width: 640px) {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+// Dois segmentos: o passo atual e os anteriores acendem em laranja.
+.sd-progress {
+  display: flex;
+  gap: 6px;
+  padding: 0 20px 14px;
+
+  @media (max-width: 640px) {
+    padding: 0 16px 12px;
+  }
+}
+
+.sd-progress-seg {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-line-strong);
+  transition: background var(--nx-d-base) var(--nx-ease-out);
+
+  &--on {
+    background: var(--nx-orange-500);
+  }
+}
+
+// ── corpo ─────────────────────────────────────────────────────────────────
+.sd-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 4px 20px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-top: 1px solid var(--nx-line);
+  padding-top: 16px;
+  animation: sd-step-in 180ms var(--nx-ease-out) both;
+
+  @media (max-width: 640px) {
+    padding-inline: 16px;
+  }
+}
+
+.sd-lead {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.sd-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sd-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// ── opção (rádio com avatar) e resultado da busca — mesmo desenho ─────────
+.sd-option,
+.sd-result {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    background var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--on {
+    border-color: rgba(255, 106, 26, 0.55);
+    background: var(--nx-orange-tint);
+  }
+
+  &:has(.sd-radio:focus-visible),
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-400);
+    outline-offset: 2px;
+  }
+}
+
+// O rádio nativo fica invisível mas presente: teclado, leitor de tela e o `:has()` acima.
+.sd-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sd-avatar {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--nx-line);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--nx-surface-2);
+
+  &--sm {
+    width: 30px;
+    height: 30px;
+
+    .sd-avatar-fallback {
+      font-size: 10px;
+    }
+  }
+}
+
+.sd-avatar-fallback {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nx-text-mute);
+}
+
+.sd-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sd-option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  strong {
+    display: block;
+    font-family: var(--nx-font-display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nx-text);
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--nx-font-ui);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--nx-text-mute);
+  }
+}
+
+// Marcador de escolha: anel vazio → disco laranja com check. Não é só cor: o check aparece.
+.sd-option-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--nx-line-strong);
+  border-radius: 50%;
+  color: transparent;
+  transition:
+    background var(--nx-d-fast) var(--nx-ease-out),
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    color var(--nx-d-fast) var(--nx-ease-out);
+
+  .sd-option--on &,
+  .sd-result--on & {
+    border-color: var(--nx-orange-500);
+    background: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+  }
+}
+
+// ── motivo ────────────────────────────────────────────────────────────────
+.sd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sd-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--nx-line-strong);
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background var(--nx-d-fast) var(--nx-ease-out),
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover {
+    border-color: var(--nx-orange-400);
+  }
+
+  &--on {
+    border-color: var(--nx-orange-500);
+    background: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+  }
+
+  @media (max-width: 640px) {
+    min-height: 40px;
+  }
+}
+
+.sd-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sd-label {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.sd-textarea,
+.sd-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+
+  &::placeholder {
+    color: var(--nx-text-dim);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--nx-orange-500);
+  }
+
+  // < 16px faz o iOS dar zoom ao focar.
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
+}
+
+.sd-textarea {
+  min-height: 64px;
+  padding: 12px 14px 22px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.sd-counter {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+  pointer-events: none;
+}
+
+// ── regras ────────────────────────────────────────────────────────────────
+.sd-rules {
+  padding: 14px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+}
+
+.sd-rule-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--nx-line);
+
+  &:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+  }
+}
+
+.sd-rule-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-0);
+  color: var(--nx-text-mute);
+
+  &--pending {
+    color: var(--nx-pending);
+  }
+
+  &--win {
+    color: var(--nx-win);
+  }
+}
+
+.sd-rule-text {
+  min-width: 0;
+
+  strong {
+    display: block;
+    font-family: var(--nx-font-display);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--nx-text);
+  }
+
+  span {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--nx-font-ui);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--nx-text-mute);
+  }
+}
+
+// ── passo 2 ───────────────────────────────────────────────────────────────
+// Quem sai, como um resumo tocável: leva de volta ao passo 1.
+.sd-out {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px dashed var(--nx-line-strong);
+  border-radius: var(--nx-r-3);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--nx-orange-400);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.sd-out-text {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  strong {
+    display: block;
+    font-family: var(--nx-font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--nx-text);
+    overflow-wrap: anywhere;
+  }
+}
+
+.sd-out-kicker {
+  display: block;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.sd-out-reason {
+  font-weight: 500;
+  color: var(--nx-text-mute);
+}
+
+.sd-out-edit {
+  flex: none;
+  font-family: var(--nx-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nx-orange-500);
+}
+
+.sd-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.sd-input-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: var(--nx-text-dim);
+  pointer-events: none;
+}
+
+.sd-input {
+  min-height: 46px;
+  padding: 0 14px 0 40px;
+
+  &::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+}
+
+.sd-searching {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.sd-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sd-empty {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+
+  &--error {
+    color: var(--nx-live);
+  }
+}
+
+.sd-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid rgba(244, 197, 67, 0.35);
+  border-radius: var(--nx-r-3);
+  background: rgba(244, 197, 67, 0.08);
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--nx-text);
+
+  svg {
+    flex: none;
+    margin-top: 1px;
+    color: var(--nx-pending);
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+// ── rodapé ────────────────────────────────────────────────────────────────
+.sd-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+
+  @media (max-width: 640px) {
+    padding-inline: 16px;
+  }
+}
+
+.sd-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background var(--nx-d-fast) var(--nx-ease-out),
+    opacity var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover:not(:disabled) {
+    background: var(--nx-orange-400);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.sd-ghost {
+  align-self: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  background: none;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--nx-text);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+// ── movimento ─────────────────────────────────────────────────────────────
+@keyframes sd-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sd-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+@keyframes sd-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes sd-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-backdrop,
+  .sd-sheet,
+  .sd-body {
+    animation: none;
+  }
+}

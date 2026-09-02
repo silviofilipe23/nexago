@@ -12,12 +12,14 @@ import '../../../../core/ui/app_status_views.dart';
 import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../data/tournament_partner_invite_service.dart';
+import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_invite_announcer.dart';
 import '../../domain/tournament_partner_invite.dart';
 import '../../domain/tournament_partner_invite_providers.dart';
 import '../../domain/tournament_registration_logic.dart';
+import '../../domain/tournament_registration_providers.dart';
 import '../widgets/registration_wizard/registration_wizard_scaffold.dart';
 import '../widgets/tournament_registration/tournament_registration_waiting_step.dart';
 
@@ -92,6 +94,12 @@ class _RegistrationWaitingPageState
 
   bool _cancelling = false;
 
+  /// Id do convite que esta tela chegou a mostrar. Quando ele some da
+  /// coleção, é por ele que descobrimos O QUE aconteceu — o stream do
+  /// convidante só carrega `pending`/`accepted`, então recusa, cancelamento e
+  /// expiração chegam aqui todos como ausência.
+  String? _shownInviteId;
+
   /// A tela já está de saída. Duas guardas em uma:
   ///
   /// - o convite que some da coleção só devolve ao porteiro UMA vez — sem
@@ -109,11 +117,18 @@ class _RegistrationWaitingPageState
 
   // ── navegação ────────────────────────────────────────────────────────────
 
+  /// Sair do fluxo. **Nunca** um `pop`.
+  ///
+  /// A pilha real ao chegar aqui é `[…, parceiro, aguardando]`: a etapa 4
+  /// empurra o porteiro com `push` e o porteiro se substitui por esta tela.
+  /// Um `pop` cairia exatamente na busca de parceiro, com o campo aberto —
+  /// que é o que esta etapa existe para evitar. E não há passo a desfazer:
+  /// o convite já está em voo.
+  ///
+  /// `go` também limpa a pilha do wizard, então o gesto de voltar do sistema
+  /// não reabre a busca por baixo. Por isso o cabeçalho mostra um "X", não
+  /// uma seta ([RegistrationWizardScaffold.closeIcon]).
   void _exit() {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
     context.goNamed(
       AppRouteNames.tournamentDetail,
       pathParameters: {'tournamentId': widget.tournamentId},
@@ -149,6 +164,19 @@ class _RegistrationWaitingPageState
         if ((widget.registrationId?.trim() ?? '').isNotEmpty)
           'registrationId': widget.registrationId!.trim(),
         if (widget.lgpdAccepted) 'lgpd': '1',
+      },
+    );
+  }
+
+  /// Abre o pagamento de uma inscrição que JÁ existe — mesma rota e mesmos
+  /// parâmetros que a tela do parceiro usa em "garantir a vaga".
+  void _goToPayment(String registrationId) {
+    context.pushNamed(
+      AppRouteNames.tournamentRegistrationPayment,
+      pathParameters: {'tournamentId': widget.tournamentId},
+      queryParameters: {
+        'categoryId': widget.categoryId,
+        'registrationId': registrationId,
       },
     );
   }
@@ -287,16 +315,33 @@ class _RegistrationWaitingPageState
 
     final invite = _currentInvite(invitesAsync.value!);
     if (invite == null) {
-      // Convite recusado, cancelado ou expirado enquanto a tela estava
-      // aberta: não há espera a mostrar. O porteiro sabe para onde ir.
-      if (!_leaving) {
-        _leaving = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _backToGate();
-        });
+      final shownId = _shownInviteId;
+
+      // Nunca houve convite nesta tela (link direto, categoria errada, aceite
+      // que já virou inscrição): não há notícia a dar, e o porteiro sabe para
+      // onde ir. Uma saída só — cada build repetiria o `pushReplacement`.
+      if (shownId == null || _leaving) {
+        if (!_leaving) {
+          _leaving = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _backToGate();
+          });
+        }
+        return _wizardChrome(context, const AppLoadingView());
       }
-      return _wizardChrome(context, const AppLoadingView());
+
+      // O convite que o atleta estava vendo saiu do ar. Ler o DOC dá o
+      // desfecho exato (recusado / cancelado / expirado); o stream da lista
+      // não dá, porque filtra por status antes de emitir. Sem isto a tela
+      // pulava para trás sem uma palavra — e a CF só notifica recusa de
+      // SUBSTITUIÇÃO, então não vem push nenhum para avisar.
+      final goneAsync = ref.watch(tournamentPartnerInviteProvider(shownId));
+      if (!goneAsync.hasValue && !goneAsync.hasError) {
+        return _wizardChrome(context, const AppLoadingView());
+      }
+      return _inviteGoneView(tournament, goneAsync.valueOrNull);
     }
+    _shownInviteId = invite.id;
 
     final accepted = invite.isAccepted;
     if (accepted) {
@@ -311,10 +356,31 @@ class _RegistrationWaitingPageState
 
     final profile = ref.watch(athleteProfileProvider).valueOrNull;
 
+    // Reserva solo em aberto e ainda não paga: pagar o INTEGRAL garante a
+    // vaga desde já, e o parceiro que aceitar depois entra sem taxa. A ação
+    // vem junto do atleta que veio da reserva solo — deixá-la para trás na
+    // tela do parceiro a tornaria inalcançável de novo, que é a regressão que
+    // esta branch já teve uma vez. O porteiro nunca honra `step=payment` com
+    // parceiro pendente (pagamento é posterior), então este é o único caminho.
+    final registrationId = widget.registrationId?.trim() ?? '';
+    final snap = registrationId.isEmpty
+        ? null
+        : ref
+              .watch(tournamentRegistrationSnapshotProvider(registrationId))
+              .valueOrNull;
+    final canGuaranteeSpot =
+        category.entryFee > 0 &&
+        registrationAwaitingSoloPartner(
+          snap: snap,
+          isFullyPaid: snap?.isPaid ?? false,
+        );
+
     return RegistrationWizardScaffold(
       title: 'Aguardando a dupla',
       subtitle: tournament.name,
       onBack: _exit,
+      // `onBack` aqui SAI do fluxo, não desfaz um passo — ver [_exit].
+      closeIcon: true,
       children: [
         TournamentRegistrationWaitingStep(
           partner: _partnerOf(invite),
@@ -328,6 +394,9 @@ class _RegistrationWaitingPageState
           // substituição (`failed-precondition`). Sem ação real, o botão fica
           // fora da tela em vez de mentir.
           onResendInvite: null,
+          onGuaranteeSpot: canGuaranteeSpot && !accepted
+              ? () => _goToPayment(registrationId)
+              : null,
           onCancelRegistration: () => _cancelInvite(invite),
           cancelLabel: 'Cancelar convite',
           onContinueBrowsing: _exit,
@@ -340,12 +409,72 @@ class _RegistrationWaitingPageState
     );
   }
 
+  /// O convite saiu do ar enquanto o atleta olhava a espera.
+  ///
+  /// Diz O QUE aconteceu antes de qualquer salto. Recusa de convite comum
+  /// **não gera notificação** (a CF só notifica recusa de substituição), então
+  /// sem esta tela o atleta veria a espera pular para trás sem uma palavra.
+  ///
+  /// O desfecho vem do DOC do convite, não da lista: `watchInvitesAsInviter`
+  /// filtra por `status in ['pending','accepted']` e por expiração antes de
+  /// emitir, de modo que recusado, cancelado e expirado chegam à lista todos
+  /// como ausência. [gone] nulo = o documento sumiu de vez, e aí não há o que
+  /// distinguir.
+  Widget _inviteGoneView(TournamentDetail tournament, TournamentPartnerInvite? gone) {
+    final firstName = _firstNameOf(gone?.inviteeName ?? '');
+    final (String title, String subtitle) = switch (gone) {
+      null => (
+        'Convite indisponível',
+        'Ele não está mais disponível. Convide outra pessoa para formar a '
+            'dupla.',
+      ),
+      final invite when invite.isDeclined => (
+        '$firstName não aceitou',
+        'Sua vaga continua livre para outra dupla — convide outra pessoa.',
+      ),
+      final invite when invite.isCancelled => (
+        'Convite cancelado',
+        'Este convite foi cancelado. Convide outra pessoa para formar a dupla.',
+      ),
+      final invite when invite.isExpired => (
+        'O convite expirou',
+        '$firstName não respondeu a tempo. Convide de novo, ou chame outra '
+            'pessoa.',
+      ),
+      _ => (
+        'Convite indisponível',
+        'Ele não está mais aguardando resposta. Convide outra pessoa para '
+            'formar a dupla.',
+      ),
+    };
+
+    return RegistrationWizardScaffold(
+      title: 'Aguardando a dupla',
+      subtitle: tournament.name,
+      onBack: _exit,
+      closeIcon: true,
+      children: [
+        AppEmptyView(
+          icon: Icons.person_off_outlined,
+          title: title,
+          subtitle: subtitle,
+          actionLabel: 'Escolher outro parceiro',
+          onAction: _backToPartnerStep,
+        ),
+      ],
+    );
+  }
+
   /// O convite que esta tela acompanha.
   ///
-  /// Preferência para o id que a rota afirma; depois o pendente mais antigo
-  /// (o mais perto de expirar); e, por fim, um ACEITO da categoria — este
-  /// último é o que sustenta a virada, já que `sentPendingInvitesFor` filtra
-  /// justamente os pendentes e o aceite esvaziaria a tela no pior momento.
+  /// Preferência para o id que a rota afirma; depois o pendente mais RECENTE;
+  /// e, por fim, um ACEITO da categoria — este último é o que sustenta a
+  /// virada, já que `sentPendingInvitesFor` filtra justamente os pendentes e
+  /// o aceite esvaziaria a tela no pior momento.
+  ///
+  /// O mais recente, e não o mais antigo, porque a tela abre logo depois da
+  /// ação: com dois convites em voo, quem acabou de convidar o Carlos não
+  /// pode ler "aguardando Bruno" nem cancelar o convite errado.
   TournamentPartnerInvite? _currentInvite(
     List<TournamentPartnerInvite> invites,
   ) {
@@ -360,7 +489,7 @@ class _RegistrationWaitingPageState
       tournamentId: widget.tournamentId,
       categoryId: widget.categoryId,
     );
-    if (pending.isNotEmpty) return pending.first;
+    if (pending.isNotEmpty) return pending.last;
 
     return invites
         .where(

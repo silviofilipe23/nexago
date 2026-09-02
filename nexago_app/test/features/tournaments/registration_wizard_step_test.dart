@@ -101,7 +101,8 @@ void main() {
       );
     });
 
-    test('inscrição com parceiro pendente abre o parceiro', () {
+    test('inscrição com parceiro pendente e SEM convite abre o parceiro', () {
+      // Quem reservou sozinho e ainda não chamou ninguém precisa da busca.
       expect(
         resolveRegistrationStep(
           input(hasRegistration: true, partnerPending: true),
@@ -261,6 +262,67 @@ void main() {
   // ENTRE parceiro e uniforme, e é isso que faz `?step=uniform` continuar
   // valendo para quem já fechou a dupla e `?step=waiting` não furar o
   // pagamento.
+  // Reserva solo (`registerSolo`) cria a inscrição ANTES do parceiro existir,
+  // então ela chega ao porteiro com `hasRegistration && partnerPending`. Os
+  // dois caminhos — convite "no vácuo" e reserva solo + convite — passaram a
+  // ter o mesmo destino, e o que os separa do "reservei e ainda não chamei
+  // ninguém" é exatamente o convite em voo.
+  group('reserva solo: o convite em voo decide o destino', () {
+    test('com convite enviado, a reserva solo vai para a espera', () {
+      final step = resolveRegistrationStep(
+        input(
+          hasRegistration: true,
+          partnerPending: true,
+          hasSentInvitePending: true,
+        ),
+      );
+
+      expect(step, RegistrationWizardStep.aguardando);
+      expect(step, isNot(RegistrationWizardStep.parceiro));
+    });
+
+    test('sem convite enviado, a reserva solo continua na busca', () {
+      final step = resolveRegistrationStep(
+        input(hasRegistration: true, partnerPending: true),
+      );
+
+      expect(step, RegistrationWizardStep.parceiro);
+      expect(step, isNot(RegistrationWizardStep.aguardando));
+    });
+
+    test('a espera não sequestra quem já fechou a dupla', () {
+      // Convite aceito, `partnerPending` falso: o convite segue no stream do
+      // convidante (status `accepted`), mas o passo é o pagamento.
+      final step = resolveRegistrationStep(
+        input(
+          hasRegistration: true,
+          partnerPending: false,
+          hasSentInvitePending: true,
+        ),
+      );
+
+      expect(step, RegistrationWizardStep.pagamento);
+      expect(step, isNot(RegistrationWizardStep.aguardando));
+    });
+
+    test('uniforme pendente ainda perde para a espera', () {
+      // A espera (4) vem antes do uniforme (5): não dá para configurar
+      // uniforme de uma dupla que ainda pode não existir.
+      final step = resolveRegistrationStep(
+        input(
+          hasRegistration: true,
+          partnerPending: true,
+          hasSentInvitePending: true,
+          uniformRequired: true,
+          uniformComplete: false,
+        ),
+      );
+
+      expect(step, RegistrationWizardStep.aguardando);
+      expect(step, isNot(RegistrationWizardStep.uniforme));
+    });
+  });
+
   group('lugar de `aguardando` na ordem', () {
     test('fica entre parceiro e uniforme', () {
       expect(
@@ -390,13 +452,12 @@ void main() {
     });
 
     test(
-      'com inscrição e parceiro ainda pendente, cai no parceiro — a espera '
-      'pedida não pula o passo que falta',
+      'reserva solo SEM convite: nem o pedido de espera fura a busca',
       () {
-        // Reserva solo em aberto: o passo natural é o do parceiro (índice 3),
-        // ANTES de `aguardando` (4). Um pedido posterior nunca fura o passo
-        // pendente, então a tela de espera não rouba a vez da tela onde o
-        // atleta ainda pode convidar alguém ou garantir a vaga.
+        // O passo natural é o do parceiro (índice 3), ANTES de `aguardando`
+        // (4), e um pedido posterior nunca fura o passo pendente. Sem convite
+        // em voo não há espera nenhuma a mostrar — a tela de espera se
+        // desenha em cima de um convite.
         final step = resolveRegistrationStep(
           input(
             hasRegistration: true,
@@ -410,6 +471,21 @@ void main() {
         expect(step, isNot(RegistrationWizardStep.aguardando));
       },
     );
+
+    test('reserva solo COM convite: a espera pedida coincide com a natural', () {
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasRegistration: true,
+            partnerPending: true,
+            hasSentInvitePending: true,
+            requestedStep: RegistrationWizardStep.aguardando,
+            requestedStepWaitingOnly: true,
+          ),
+        ),
+        RegistrationWizardStep.aguardando,
+      );
+    });
 
     test('sem inscrição nenhuma, waiting vale', () {
       expect(

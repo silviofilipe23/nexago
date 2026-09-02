@@ -60,6 +60,9 @@ class RegistrationStepInput {
   /// aceita. Sem este sinal, o atleta que voltasse por push ou pela Home
   /// (sem `lgpd` na rota) cairia no consentimento e refaria o aceite e as
   /// condições com um convite já em voo.
+  ///
+  /// O mesmo sinal separa os dois destinos da reserva solo: com convite em
+  /// voo o destino é a espera, sem convite é a busca de parceiro.
   final bool hasSentInvitePending;
 
   final bool hasRegistration;
@@ -146,7 +149,18 @@ RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
         ? RegistrationWizardStep.categoria
         : RegistrationWizardStep.consentimento;
   }
-  if (input.partnerPending) return RegistrationWizardStep.parceiro;
+  if (input.partnerPending) {
+    // Reserva solo: os dois caminhos convergem aqui, e o que os separa é ter
+    // ou não convite em voo.
+    //
+    // Com convite enviado, a espera é a MESMA do convite "no vácuo" — o
+    // atleta acabou de escolher alguém, e reabrir a busca é justamente o que
+    // a etapa `aguardando` existe para evitar. Sem convite, quem reservou
+    // sozinho ainda PRECISA da busca: é lá que ele convida e reserva.
+    return input.hasSentInvitePending
+        ? RegistrationWizardStep.aguardando
+        : RegistrationWizardStep.parceiro;
+  }
   if (input.uniformRequired && !input.uniformComplete) {
     return RegistrationWizardStep.uniforme;
   }

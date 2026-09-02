@@ -8,11 +8,13 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_partner_invite_service.dart';
+import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/registration_wizard/registration_waiting_page.dart';
 
 /// Testes da etapa 5 do wizard: **aguardando a dupla**.
@@ -112,6 +114,14 @@ void main() {
     bool lgpdAccepted = true,
     List<TournamentPartnerInvite>? convites,
     Stream<List<TournamentPartnerInvite>>? convitesStream,
+    TournamentRegistrationSnapshot? snapshot,
+    /// Convite lido por ID — é por ele que a tela descobre o desfecho quando
+    /// o convite some da lista do convidante.
+    TournamentPartnerInvite? convitePorId,
+    /// Monta a PILHA REAL: a etapa 4 empurra o porteiro com `push` e o
+    /// porteiro se substitui pela espera, então a busca de parceiro fica
+    /// viva embaixo. É a pilha em que sair da espera pode cair na busca.
+    bool pilhaDoParceiro = false,
   }) async {
     // Tela alta o bastante pra caber o orbe + o cartão da dupla + os botões;
     // o viewport padrão do teste corta antes do rodapé e o `tap` recusaria.
@@ -134,7 +144,9 @@ void main() {
     );
 
     final router = GoRouter(
-      initialLocation: '/torneios/t1/inscricao/aguardando',
+      initialLocation: pilhaDoParceiro
+          ? '/torneios/t1/inscricao/parceiro'
+          : '/torneios/t1/inscricao/aguardando',
       routes: [
         GoRoute(
           path: AppRoutes.tournamentRegistrationWaiting,
@@ -190,10 +202,36 @@ void main() {
           inviterTournamentPartnerInvitesProvider.overrideWith(
             (ref) => convitesStream ?? Stream.value(convites ?? [convite()]),
           ),
+          if (convitePorId != null)
+            tournamentPartnerInviteProvider(
+              convitePorId.id,
+            ).overrideWith((ref) => Stream.value(convitePorId)),
+          if (registrationId != null)
+            tournamentRegistrationSnapshotProvider(
+              registrationId,
+            ).overrideWith((ref) => Stream.value(snapshot)),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
+    if (pilhaDoParceiro) {
+      await tester.pumpAndSettle();
+      router.pushNamed(
+        AppRouteNames.tournamentRegistrationWaiting,
+        pathParameters: {'tournamentId': 't1'},
+        queryParameters: {
+          'categoryId': categoryId,
+          if (registrationId != null) 'registrationId': registrationId,
+          if (lgpdAccepted) 'lgpd': '1',
+        },
+      );
+      await tester.pumpAndSettle();
+      // A busca já foi construída no boot; o que interessa daqui em diante é
+      // o que a SAÍDA abre.
+      rotasAbertas.clear();
+      destinoQueryParams = null;
+      return;
+    }
     if (convitesStream == null) {
       await tester.pumpAndSettle();
     } else {
@@ -225,6 +263,9 @@ void main() {
       // seria pior que a ausência da ação.
       await abrirTela(tester, tournament: torneio([dupla()]));
 
+      // Âncora: sem ela o `findsNothing` passaria com a tela em branco.
+      expect(find.text('Aguardando confirmação'), findsOneWidget);
+      expect(find.text('Continuar no app'), findsOneWidget);
       expect(find.text('Reenviar convite'), findsNothing);
     },
   );
@@ -382,18 +423,56 @@ void main() {
 
   // ── sair e estados de borda ──────────────────────────────────────────────
 
-  testWidgets('"Continuar no app" sai do fluxo para o torneio', (tester) async {
-    await abrirTela(tester, tournament: torneio([dupla()]));
+  // Sair da espera é o caso em que a tela poderia desfazer o próprio motivo
+  // de existir: a pilha real é `[…, parceiro, aguardando]`, porque a etapa 4
+  // empurra o porteiro com `push` e o porteiro se substitui por esta tela.
+  // Um `pop` cairia direto na busca de parceiro, com o campo aberto.
+  group('sair da espera, com a busca de parceiro VIVA na pilha', () {
+    testWidgets('"Continuar no app" vai ao torneio, não de volta à busca', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        pilhaDoParceiro: true,
+      );
+      expect(find.text('Aguardando confirmação'), findsOneWidget);
 
-    await tester.tap(find.text('Continuar no app'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuar no app'));
+      await tester.pumpAndSettle();
 
-    expect(rotasAbertas, contains('detalhe do torneio'));
+      expect(rotasAbertas, contains('detalhe do torneio'));
+      expect(rotasAbertas, isNot(contains('parceiro')));
+      expect(find.text('parceiro'), findsNothing);
+    });
+
+    testWidgets('o cabeçalho fecha (X) e também não volta à busca', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        pilhaDoParceiro: true,
+      );
+
+      // "X", não seta: `onBack` aqui SAI do fluxo, não desfaz um passo.
+      expect(find.byIcon(Icons.arrow_back_rounded), findsNothing);
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('detalhe do torneio'));
+      expect(rotasAbertas, isNot(contains('parceiro')));
+    });
   });
 
-  testWidgets(
-    'convite que some (recusado, cancelado ou expirado) devolve ao porteiro',
-    (tester) async {
+  // Recusa de convite comum NÃO gera notificação (a CF só notifica recusa de
+  // substituição). Sem estas telas, o atleta que está olhando a espera ao
+  // vivo veria ela pular para trás sem uma palavra.
+  group('o convite sai do ar enquanto o atleta olha', () {
+    Future<void> abrirEDerrubar(
+      WidgetTester tester, {
+      required TournamentPartnerInvite desfecho,
+    }) async {
       final convites = StreamController<List<TournamentPartnerInvite>>();
       addTearDown(convites.close);
 
@@ -401,12 +480,67 @@ void main() {
         tester,
         tournament: torneio([dupla()]),
         convitesStream: convites.stream,
+        convitePorId: desfecho,
       );
       convites.add([convite()]);
       await tester.pumpAndSettle();
       expect(rotasAbertas, isEmpty);
 
+      // O stream do convidante só carrega `pending`/`accepted`: recusa,
+      // cancelamento e expiração chegam à lista todos como ausência.
       convites.add(const []);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('recusa: diz que não foi aceito e NÃO salta em silêncio', (
+      tester,
+    ) async {
+      await abrirEDerrubar(tester, desfecho: convite(status: 'declined'));
+
+      expect(find.text('Bruno não aceitou'), findsOneWidget);
+      expect(rotasAbertas, isEmpty);
+    });
+
+    testWidgets('cancelamento tem texto próprio', (tester) async {
+      await abrirEDerrubar(tester, desfecho: convite(status: 'cancelled'));
+
+      expect(find.text('Convite cancelado'), findsOneWidget);
+      expect(rotasAbertas, isEmpty);
+    });
+
+    testWidgets('expiração tem texto próprio', (tester) async {
+      await abrirEDerrubar(
+        tester,
+        desfecho: convite(expiresAt: DateTime(2020, 1, 1)),
+      );
+
+      expect(find.text('O convite expirou'), findsOneWidget);
+      expect(rotasAbertas, isEmpty);
+    });
+
+    testWidgets('do aviso, o caminho é escolher outro parceiro', (
+      tester,
+    ) async {
+      await abrirEDerrubar(tester, desfecho: convite(status: 'declined'));
+
+      await tester.tap(find.text('Escolher outro parceiro'));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('parceiro'));
+      expect(destinoQueryParams?['categoryId'], 'masc');
+      expect(destinoQueryParams?['lgpd'], '1');
+    });
+  });
+
+  testWidgets(
+    'sem convite NENHUM desde o começo, devolve ao porteiro sem inventar '
+    'aviso: não houve notícia a dar',
+    (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        convites: const [],
+      );
       await tester.pumpAndSettle();
 
       expect(rotasAbertas, contains('porteiro'));
@@ -447,6 +581,139 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rotasAbertas, contains('porteiro'));
+  });
+
+  // ── reserva solo: a ação de garantir a vaga veio junto ───────────────────
+
+  // Ela já sumiu uma vez nesta branch: o porteiro nunca honra `step=payment`
+  // com parceiro pendente (pagamento é posterior), então a única porta para o
+  // pagamento nesse estado é o botão. Levar o atleta da reserva solo para a
+  // espera sem levar a ação repetiria a regressão por outro caminho.
+  group('garantir a vaga pagando o integral', () {
+    TournamentRegistrationSnapshot reservaSolo({bool isPaid = false}) =>
+        TournamentRegistrationSnapshot(
+          registrationId: 'reg-solo',
+          isPaid: isPaid,
+          paidAmount: 0,
+          partnerPending: true,
+          player1Id: meuUid,
+          participantUids: const [meuUid],
+        );
+
+    testWidgets('aparece na reserva solo em aberto e abre o pagamento', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        registrationId: 'reg-solo',
+        snapshot: reservaSolo(),
+      );
+
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Garantir vaga pagando o valor integral'));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('pagamento'));
+      expect(destinoQueryParams?['registrationId'], 'reg-solo');
+      expect(destinoQueryParams?['categoryId'], 'masc');
+    });
+
+    testWidgets('não aparece no convite "no vácuo": não há vaga a garantir', (
+      tester,
+    ) async {
+      // Sem inscrição, não existe nada a pagar — a callable só cria a
+      // inscrição no aceite.
+      await abrirTela(tester, tournament: torneio([dupla()]));
+
+      expect(find.text('Aguardando confirmação'), findsOneWidget);
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('não aparece quando a vaga JÁ está garantida', (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        registrationId: 'reg-solo',
+        snapshot: reservaSolo(isPaid: true),
+      );
+
+      expect(find.text('Aguardando confirmação'), findsOneWidget);
+      expect(
+        find.text('Garantir vaga pagando o valor integral'),
+        findsNothing,
+      );
+    });
+  });
+
+  // ── qual convite a tela acompanha ────────────────────────────────────────
+
+  testWidgets(
+    'com dois convites em voo, acompanha o MAIS RECENTE — e é o dele que o '
+    'cancelar cancela',
+    (tester) async {
+      // Quem acabou de convidar o Carlos não pode ler "aguardando Bruno" nem
+      // cancelar o convite errado.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        convites: [
+          convite(),
+          TournamentPartnerInvite(
+            id: 'convite-2',
+            tournamentId: 't1',
+            categoryId: 'masc',
+            inviterUid: meuUid,
+            inviterName: 'Eu Mesmo',
+            inviteeUid: 'parceiro-2',
+            inviteeName: 'Carlos Dias',
+            status: 'pending',
+            createdAt: DateTime(2026, 8, 2),
+            expiresAt: DateTime(2027, 1, 1),
+          ),
+        ],
+      );
+
+      expect(find.text('Carlos Dias'), findsOneWidget);
+      expect(find.text('Bruno Alves'), findsNothing);
+
+      await tester.tap(find.text('Cancelar convite'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Cancelar convite'));
+      await tester.pumpAndSettle();
+
+      expect(servico.cancelInviteCalls, ['convite-2']);
+    },
+  );
+
+  testWidgets('depois do aceite não há mais convite a cancelar', (
+    tester,
+  ) async {
+    final convites = StreamController<List<TournamentPartnerInvite>>();
+    addTearDown(convites.close);
+
+    await abrirTela(
+      tester,
+      tournament: torneio([dupla()]),
+      convitesStream: convites.stream,
+    );
+    convites.add([convite()]);
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelar convite'), findsOneWidget);
+
+    convites.add([convite(status: 'accepted', registrationId: 'reg-nova')]);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Parceiro confirmou'), findsOneWidget);
+    expect(find.text('Cancelar convite'), findsNothing);
   });
 
   // ── o rótulo do prazo ────────────────────────────────────────────────────

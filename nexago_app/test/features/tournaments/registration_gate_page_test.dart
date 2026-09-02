@@ -566,6 +566,60 @@ void main() {
     });
 
     testWidgets(
+      'reserva solo COM convite em voo abre a espera, levando o '
+      'registrationId',
+      (tester) async {
+        // Os dois caminhos convergem: quem reservou sozinho e depois convidou
+        // vê a mesma tela de quem convidou "no vácuo". O `registrationId` tem
+        // de viajar — é dele que a espera tira a ação "garantir a vaga".
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          convitesEnviados: [conviteEnviado()],
+          registrations: const {
+            'masc': UserCategoryRegistration(
+              registrationId: 'reg-solo',
+              isPaid: false,
+              partnerPending: true,
+            ),
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('aguardando'));
+        expect(rotasAbertas, isNot(contains('parceiro')));
+        expect(destinoQueryParams?['registrationId'], 'reg-solo');
+        expect(destinoQueryParams?['categoryId'], 'masc');
+      },
+    );
+
+    testWidgets(
+      'reserva solo SEM convite continua abrindo a busca de parceiro',
+      (tester) async {
+        // Quem reservou sozinho e ainda não chamou ninguém precisa da busca —
+        // é lá que ele convida.
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          registrations: const {
+            'masc': UserCategoryRegistration(
+              registrationId: 'reg-solo',
+              isPaid: false,
+              partnerPending: true,
+            ),
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('parceiro'));
+        expect(rotasAbertas, isNot(contains('aguardando')));
+        expect(destinoQueryParams?['registrationId'], 'reg-solo');
+      },
+    );
+
+    testWidgets(
       'step=waiting NÃO segura quem já fechou a dupla: vai ao pagamento',
       (tester) async {
         // A caducidade de `waiting` continua valendo com a etapa nova: sem

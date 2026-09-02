@@ -21,9 +21,10 @@ etapa, sob `/torneios/:tournamentId/inscricao`:
 | 2 | Consentimento LGPD | `…/inscricao/consentimento` | nova — era checkbox inline |
 | 3 | Condições da inscrição | `…/inscricao/condicoes` | nova |
 | 4 | Parceiro / elenco | `…/inscricao/parceiro` | nova casca, passo reusado |
-| 5 | Uniforme | `…/inscricao/uniforme` | nova casca, passo reusado |
-| 6 | Pagamento | `…/inscricao/pagamento` | **já existe**, re-skin |
-| 7 | Confirmação | `…/inscricao/sucesso` | **já existe**, re-skin |
+| 5 | Aguardando a dupla | `…/inscricao/aguardando` | nova casca, widget órfão reusado |
+| 6 | Uniforme | `…/inscricao/uniforme` | nova casca, passo reusado |
+| 7 | Pagamento | `…/inscricao/pagamento` | **já existe**, re-skin |
+| 8 | Confirmação | `…/inscricao/sucesso` | **já existe**, re-skin |
 
 Cobre **dupla, vaga solo e equipes trio+**. A tela única é aposentada.
 
@@ -46,16 +47,64 @@ convite, home do atleta, "continuar inscrição", detalhe do torneio, aba "minha
 | 2 | convite recebido pendente | `condicoes` (modo "aceitar convite") |
 | 3 | sem inscrição e sem aceite LGPD | `consentimento` |
 | 4 | sem inscrição | `condicoes` |
-| 5 | parceiro/elenco pendente | `parceiro` |
-| 6 | uniforme exigido e incompleto | `uniforme` |
-| 7 | não pago | `pagamento` |
-| 8 | pago e completo | `sucesso` |
+| 5 | sem inscrição, mas com convite ENVIADO pendente | `aguardando` |
+| 6 | parceiro/elenco pendente **com** convite enviado | `aguardando` |
+| 7 | parceiro/elenco pendente **sem** convite enviado | `parceiro` |
+| 8 | uniforme exigido e incompleto | `uniforme` |
+| 9 | não pago | `pagamento` |
+| 10 | pago e completo | `sucesso` |
 
 O cérebro dessa decisão já existe: `buildRegistrationProgress`
 (`domain/registration_progress_logic.dart`) sabe dizer qual passo está pendente numa
 inscrição. **Reusar, não duplicar** — a trilha da Home e o porteiro têm que concordar sempre.
 
 ## Decisões que se perdem se não estiverem escritas
+
+### A etapa 5 existe porque convidar não cria inscrição
+
+O backend só cria a inscrição no **aceite** do convidado. Sem a etapa 5, quem
+enviava o convite voltava ao porteiro e caía de novo na **busca de parceiro**,
+com o campo aberto, logo depois de ter escolhido alguém.
+
+Os **dois** caminhos vão para lá, e o que os separa de "reservei sozinho e
+ainda não chamei ninguém" é o convite em voo (`hasSentInvitePending`):
+
+- convite "no vácuo" (sem inscrição) → `aguardando`;
+- reserva solo **com** convite enviado → `aguardando`;
+- reserva solo **sem** convite → `parceiro`, porque é lá que se convida.
+
+Duas consequências que não se deduzem olhando só a tela:
+
+- **"Cancelar" cancela o CONVITE, não a inscrição** — não existe inscrição a
+  cancelar. Volta para a etapa 4.
+- **A ação "garantir a vaga pagando o integral" viaja junto** para a etapa 5
+  quando há reserva solo em aberto. Ela já ficou inalcançável uma vez nesta
+  branch: o porteiro nunca honra `step=payment` com parceiro pendente (o
+  pagamento é posterior na ordem), então o botão é a única porta.
+
+A tela é **viva**: o aceite chega pelo mesmo stream que a desenha
+(`inviterTournamentPartnerInvitesProvider` carrega `pending` **e** `accepted`,
+e o aceite carimba `registrationId` no próprio convite), ela mostra a virada e
+só então segue para uniforme/pagamento. E quando o convite **sai do ar**, ela
+lê o doc para dizer o desfecho — recusa de convite comum não gera notificação
+nenhuma, e um salto silencioso para trás era tudo o que o atleta veria.
+
+**Não há callable de reenvio** para convite de dupla: `resendSubstitutionInvite`
+recusa qualquer convite que não seja de substituição. A ação fica fora da tela
+até existir uma.
+
+### A ordem do enum é contrato, e a caducidade de `waiting` acompanha a ETAPA
+
+`resolveRegistrationStep` compara `index` para decidir se um passo pedido já
+está liberado — mexer na ordem de `RegistrationWizardStep` muda o
+comportamento de todas as rotas com `?step=`.
+
+`registrationStepFromParam` deriva `waitingOnly` de
+`step == RegistrationWizardStep.aguardando`, **não** de `value == 'waiting'`.
+As duas grafias (`waiting`, das rotas antigas, e `aguardando`) pedem a mesma
+tela, e as duas precisam caducar quando a dupla fecha: `aguardando` é o índice
+4, menor que `uniforme` (5) e `pagamento` (6), e sem a caducidade venceria
+sempre — prendendo na espera justamente quem acabou de fechar a dupla.
 
 ### `step` na rota é preferência, nunca ordem
 

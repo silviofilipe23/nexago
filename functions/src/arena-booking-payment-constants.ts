@@ -8,9 +8,9 @@ export const ARENA_BOOKING_MP_REF_PREFIX = ARENA_BOOKING_PAYMENT_REF_PREFIX;
 export const TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX = "tournamentRegistration:";
 
 /**
- * TETO da cobrança PIX de inscrição — não o prazo dela. A janela real sai de
- * `computePixWindow`, que recorta este teto pelo prazo da vaga e pelo fim das
- * inscrições; só sobra inteiro quando ambos estão longe.
+ * Janela da cobrança PIX de inscrição SEM prazo de vaga (inscrição imune ou
+ * torneio com o prazo desligado). Com prazo, a cobrança vence junto com a
+ * vaga — ver `computePixWindow`, que também recorta pelo fim das inscrições.
  */
 export const TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES = 15;
 

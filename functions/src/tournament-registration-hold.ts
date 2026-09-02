@@ -74,23 +74,29 @@ export type PixWindowResult =
   | {ok: false; reason: PixWindowRefusal};
 
 /**
- * Quando a cobrança PIX vence — ela cabe DENTRO do prazo da vaga, nunca o
- * estica.
+ * Quando a cobrança PIX vence — ela É o prazo da vaga, menos a margem.
  *
  * A regra já foi a inversa: a cobrança empurrava o `holdExpiresAt` para depois
  * de si, para a varredura não matá-la viva. O efeito era o prazo virar
  * elástico — quem demorasse na tela ganhava 15 minutos extras, e gerar o QR de
- * novo esticava a vaga outra vez, sem teto. Agora quem manda é o prazo: a
- * cobrança é recortada para caber nele, menos a margem.
+ * novo esticava a vaga outra vez, sem teto. Depois a cobrança passou a caber
+ * no prazo, mas ainda com o teto fixo de 15 minutos por cima: com 30 minutos
+ * de vaga o atleta via um relógio de 15, e voltar da tela e gerar de novo
+ * zerava esse relógio — 15 minutos NOVOS, contados de "agora", enquanto a vaga
+ * seguia correndo por baixo.
  *
- * Três tetos, o menor vence:
- * - o teto fixo da cobrança (15 min), que continua valendo quando sobra prazo;
- * - o prazo da vaga menos a margem — ausente quando a inscrição é imune
- *   (anterior à regra, criada pelo organizador, em fila, ou torneio com o
- *   prazo desligado), e aí ele não limita nada;
- * - o fim das inscrições do torneio, este SEM margem: ninguém varre vaga nesse
- *   instante, então não há corrida da qual se proteger, e o QR simplesmente não
- *   sobrevive ao fechamento.
+ * Agora o vencimento é uma data absoluta amarrada ao prazo: gerar o código
+ * uma, duas ou dez vezes devolve o MESMO instante. O relógio que o atleta vê
+ * é o tempo que resta da vaga, e nunca reinicia.
+ *
+ * O teto fixo de 15 minutos só sobra para a inscrição SEM prazo — imune
+ * (anterior à regra, criada pelo organizador, em fila) ou de torneio com o
+ * prazo desligado. Ali não há nada a que amarrar o vencimento, e uma cobrança
+ * sem fim nenhum seria pior.
+ *
+ * O fim das inscrições do torneio é teto sobre os dois, este SEM margem:
+ * ninguém varre vaga nesse instante, então não há corrida da qual se proteger,
+ * e o QR simplesmente não sobrevive ao fechamento.
  */
 export function computePixWindow(params: {
   nowMs: number;
@@ -98,17 +104,13 @@ export function computePixWindow(params: {
   registrationClosesAtMs?: number | null;
 }): PixWindowResult {
   const {nowMs} = params;
-  let expiresAtMs =
+  const hold = params.holdExpiresAtMs;
+  let expiresAtMs = hold != null ?
+    hold - PIX_HOLD_MARGIN_MS :
     nowMs + TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES * 60 * 1000;
   // Qual teto apertou: o atleta precisa saber se o que está acabando é o prazo
   // dele ou as inscrições do torneio — são situações diferentes.
   let reason: PixWindowRefusal = "holdEndingSoon";
-
-  const hold = params.holdExpiresAtMs;
-  if (hold != null) {
-    const holdCeiling = hold - PIX_HOLD_MARGIN_MS;
-    if (holdCeiling < expiresAtMs) expiresAtMs = holdCeiling;
-  }
 
   const closes = params.registrationClosesAtMs;
   if (closes != null && closes < expiresAtMs) {

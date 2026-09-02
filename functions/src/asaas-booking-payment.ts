@@ -159,6 +159,54 @@ export async function createAsaasPixCharge(params: {
 }
 
 /**
+ * Cria cobrança de cartão no Asaas e devolve o checkout HOSPEDADO
+ * (`invoiceUrl`). Nenhum dado de cartão passa por nós: o atleta digita no
+ * domínio do Asaas. Mesmo formato de `createAsaasPixCharge` — o que muda é o
+ * `billingType` e o fato de não haver QR para buscar.
+ */
+export async function createAsaasCardCharge(params: {
+  customerId: string;
+  valueReais: number;
+  dueDate: Date;
+  description: string;
+  externalReference: string;
+  idempotencyKey: string;
+}): Promise<{paymentId: string; invoiceUrl: string}> {
+  const dueDate = resolveDueDate(params.dueDate);
+
+  const payment = await fetchAsaas<AsaasPaymentResponse>("/v3/payments", {
+    method: "POST",
+    body: {
+      customer: params.customerId,
+      billingType: "CREDIT_CARD",
+      value: params.valueReais,
+      dueDate,
+      description: params.description.slice(0, 500),
+      externalReference: params.externalReference,
+    },
+    idempotencyKey: params.idempotencyKey,
+  });
+
+  const paymentId = payment.id?.trim() ?? "";
+  if (!paymentId) {
+    throw new Error("ASAAS_PAYMENT_MISSING_ID");
+  }
+
+  const invoiceUrl = payment.invoiceUrl?.trim() ?? "";
+  if (!invoiceUrl) {
+    // Sem checkout não há como o atleta pagar: falhar aqui é melhor que
+    // devolver uma tela com botão para lugar nenhum.
+    throw new Error("ASAAS_CARD_INVOICE_URL_MISSING");
+  }
+
+  logger.info(
+    `createAsaasCardCharge: payment ${paymentId} status=${payment.status ?? "?"} dueDate=${dueDate}`,
+  );
+
+  return {paymentId, invoiceUrl};
+}
+
+/**
  * Estorna um pagamento recebido (PIX volta integral ao pagador). Estorno já
  * feito é tratado como sucesso — o fluxo de cancelamento fica idempotente.
  */
@@ -221,6 +269,10 @@ export type AsaasPaymentDetails = {
   id?: string;
   status?: string;
   value?: number;
+  /** `PIX`, `CREDIT_CARD`, … — decide o tratamento no webhook de inscrição. */
+  billingType?: string;
+  /** Bruto − taxa do gateway. A diferença para `value` é o custo da cobrança. */
+  netValue?: number;
   externalReference?: string;
   /** Id da assinatura Asaas, quando o pagamento é gerado por uma `/subscriptions`. */
   subscription?: string;

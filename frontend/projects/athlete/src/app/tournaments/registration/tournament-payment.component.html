@@ -218,7 +218,7 @@
             </section>
           } @else {
             <section class="tp-card">
-              <h2 class="tp-card-title">Pagamento via Pix</h2>
+              <h2 class="tp-card-title">Pagamento</h2>
 
               <div class="tp-amount-section">
                 <p class="tp-amount-label">Quanto você quer pagar agora?</p>
@@ -227,7 +227,7 @@
                     type="button"
                     class="tp-amount-btn"
                     [class.tp-amount-btn--active]="amountType() === 'share'"
-                    [disabled]="!!pixResult()"
+                    [disabled]="hasLiveCharge()"
                     (click)="setAmountType('share')"
                   >
                     <span class="tp-amount-btn-title">Minha parte</span>
@@ -238,7 +238,7 @@
                     type="button"
                     class="tp-amount-btn"
                     [class.tp-amount-btn--active]="amountType() === 'full'"
-                    [disabled]="!!pixResult()"
+                    [disabled]="hasLiveCharge()"
                     (click)="setAmountType('full')"
                   >
                     <span class="tp-amount-btn-title">Integral</span>
@@ -253,12 +253,38 @@
                 <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
               </div>
 
-              @if (!pixResult()) {
+              @if (!hasLiveCharge() && methods().length > 1) {
+                <div class="tp-method-section">
+                  <p class="tp-amount-label">Como você quer pagar?</p>
+                  <div class="tp-method-toggle" role="group" aria-label="Meio de pagamento">
+                    <button
+                      type="button"
+                      class="tp-method-btn"
+                      [class.tp-method-btn--active]="method() === 'pix'"
+                      (click)="setMethod('pix')"
+                    >
+                      <span class="tp-method-btn-title">Pix</span>
+                      <span class="tp-method-btn-hint">Confirmação na hora</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="tp-method-btn"
+                      [class.tp-method-btn--active]="method() === 'card'"
+                      (click)="setMethod('card')"
+                    >
+                      <span class="tp-method-btn-title">Cartão de crédito</span>
+                      <span class="tp-method-btn-hint">Checkout seguro do Asaas</span>
+                    </button>
+                  </div>
+                </div>
+              }
+
+              @if (!hasLiveCharge()) {
                 <div class="tp-pix-block">
                   @if (pixExpired()) {
-                    <p class="tp-pix-expired">O Pix anterior expirou — gere um novo código.</p>
+                    <p class="tp-pix-expired">A cobrança anterior expirou — gere uma nova.</p>
                   }
-                  <label class="tp-cpf-label" for="tp-cpf">CPF ou CNPJ (necessário pra gerar o Pix)</label>
+                  <label class="tp-cpf-label" for="tp-cpf">CPF ou CNPJ (exigido pelo emissor da cobrança)</label>
                   <input
                     id="tp-cpf"
                     type="text"
@@ -272,12 +298,40 @@
                   @if (documentError(); as err) {
                     <app-nx-field-error>{{ err }}</app-nx-field-error>
                   }
-                  <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
-                    @if (processing()) {
-                      <app-nx-spinner [size]="14" tone="dark" />
-                    }
-                    {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(amountDueReais()) }}
-                  </button>
+                  @if (method() === 'card') {
+                    <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generateCardCheckout()">
+                      @if (processing()) {
+                        <app-nx-spinner [size]="14" tone="dark" />
+                      }
+                      {{ processing() ? 'Abrindo…' : 'Pagar ' + formatBRL(amountDueReais()) + ' no cartão' }}
+                    </button>
+                  } @else {
+                    <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
+                      @if (processing()) {
+                        <app-nx-spinner [size]="14" tone="dark" />
+                      }
+                      {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(amountDueReais()) }}
+                    </button>
+                  }
+                </div>
+              } @else if (cardResult(); as card) {
+                <!-- O pagamento acontece no domínio do Asaas. Link real em vez de
+                     `window.open()` depois do await: bloqueador de popup mataria a
+                     chamada sem erro visível. Mesmo padrão do portal da arena. -->
+                <div class="tp-pix-block">
+                  <p class="tp-pix-amount">Cartão de <strong>{{ formatBRL(card.amountReais || amountDueReais()) }}</strong></p>
+                  @if (pixCountdownLabel(); as countdown) {
+                    <p class="tp-pix-countdown">Você tem {{ countdown }} para concluir</p>
+                  }
+                  <a class="tp-btn-primary" [href]="card.invoiceUrl" target="_blank" rel="noopener">
+                    Abrir checkout seguro
+                  </a>
+                  <p class="tp-pix-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
+                    O pagamento acontece no ambiente do Asaas — seus dados de cartão não passam pelo nexaGO.
+                    Assim que for aprovado, esta tela confirma sozinha.
+                  </p>
+                  <button type="button" class="tp-btn-ghost" (click)="cancelPix()">Cancelar e trocar o meio de pagamento</button>
                 </div>
               } @else {
                 <div class="tp-pix-block">

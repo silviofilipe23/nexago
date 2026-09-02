@@ -526,3 +526,61 @@
   color: var(--nx-text);
   margin: 0;
 }
+
+// ── meio de pagamento ───────────────────────────────────────────────────────
+// Mesma gramática visual do seletor de valor logo acima: o atleta faz duas
+// escolhas seguidas (quanto e como), e elas não podem parecer widgets
+// diferentes.
+.tp-method-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.tp-method-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tp-method-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-text);
+  }
+}
+
+.tp-method-btn-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tp-method-btn-hint {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}

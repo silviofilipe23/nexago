@@ -38,6 +38,7 @@ import {
 } from "./tournament-substitution";
 import {
   createTournamentRegistrationPixPayment,
+  createTournamentRegistrationCardPayment,
   cancelPendingTournamentRegistrationPix,
   confirmFreeTournamentRegistration,
   reserveDirectOrganizerRegistration,
@@ -190,6 +191,7 @@ export {
   markSubstitutionInviteViewed,
   resendSubstitutionInvite,
   createTournamentRegistrationPixPayment,
+  createTournamentRegistrationCardPayment,
   cancelPendingTournamentRegistrationPix,
   confirmFreeTournamentRegistration,
   reserveDirectOrganizerRegistration,

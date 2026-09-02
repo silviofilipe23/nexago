@@ -1,14 +1,16 @@
 /**
- * `organizerCreateTeamRegistration` — o organizador inscreve uma dupla que não conseguiu se
- * inscrever sozinha (prazo estourado, convite nunca aceito, pagamento travado).
+ * `organizerCreateTeamRegistration` — o organizador inscreve uma dupla/equipe que não conseguiu
+ * se inscrever sozinha (prazo estourado, convite nunca aceito, pagamento travado).
  *
- * É o MESMO motor do aceite de convite, sem o convite: `resolvePartnerRegistrationPlan` decide
- * entre criar dupla nova, fechar a dupla sobre uma reserva solo que já existe (o caso mais
- * comum: um atleta reservou e o parceiro sumiu) ou bloquear por unicidade. Reusar essa decisão
- * é o ponto do desenho — duplicá-la aqui é como duas duplas iguais entram na mesma chave.
+ * Dupla: é o MESMO motor do aceite de convite, sem o convite — `resolvePartnerRegistrationPlan`
+ * decide entre criar, fechar sobre reserva solo ou bloquear por unicidade.
+ *
+ * Equipe (trio+): cria a equipe nomeada com elenco completo (`partnerPending: false`), sem
+ * o fluxo de convites do capitão. O organizador monta todos de uma vez.
  *
  * O que o organizador PODE furar: prazo e vitrine fechada. O que ele NÃO fura: torneio
- * cancelado/rascunho, categoria concluída, nível (anti-sandbagging), idade e unicidade da dupla.
+ * cancelado/rascunho, categoria concluída, nível (anti-sandbagging), idade, unicidade e
+ * composição de gênero.
  */
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -45,15 +47,32 @@ import {
   cancelPendingPartnerInvitesForRegistrations,
   categoryRequiresUniform,
   registrationUniformForSlot,
+  uniformByUidEntry,
   validateUniformPayload,
 } from "./tournament-partner-invite";
 import {refreshRegistrationHold} from "./tournament-registration-hold-ops";
 import {resolvePartnerRegistrationPlan} from "./tournament-solo-registration";
-import {isTeamCategory} from "./tournament-team-category";
-import {setTeamGenderWhenRegistrationPaid} from "./tournament-team-roster";
+import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import {
+  evaluateTeamJoin,
+  isTeamCategory,
+  normalizeTeamName,
+  parseGenderComposition,
+  resolveCategoryTeamSize,
+  teamJoinDenialMessage,
+  teamNameKey,
+  teamNameValidationError,
+} from "./tournament-team-category";
+import {
+  loadUserGenderBucket,
+  setTeamGenderWhenRegistrationPaid,
+} from "./tournament-team-roster";
+import {
+  assertAthleteUidsMatchCategorySize,
+  buildOrganizerNamedTeamDoc,
   buildOrganizerPaymentFields,
   buildOrganizerRegistrationDoc,
+  defaultOrganizerTeamName,
   effectiveUniformCategory,
   organizerRegistrationNotification,
   organizerRegistrationStamp,
@@ -61,7 +80,7 @@ import {
   resolveJoiningUid,
 } from "./organizer-create-registration-core";
 
-/** Confere que os dois atletas existem antes de escrever qualquer coisa. */
+/** Confere que todos os atletas existem antes de escrever qualquer coisa. */
 async function assertAthletesExist(
   db: Firestore,
   uids: readonly string[],
@@ -73,8 +92,113 @@ async function assertAthletesExist(
   if (missing) {
     throw new HttpsError(
       "not-found",
-      "Atleta não encontrado. Selecione os dois pela busca.",
+      "Atleta não encontrado. Selecione os atletas pela busca.",
     );
+  }
+}
+
+/** Nome exibível do atleta (users/{uid}) — usado no nome padrão da equipe. */
+async function loadAthleteDisplayName(
+  db: Firestore,
+  uid: string,
+): Promise<string> {
+  try {
+    const snap = await db.doc(`users/${uid}`).get();
+    const data = snap.data() ?? {};
+    for (const key of ["name", "displayName", "fullName", "firstName"]) {
+      const value = data[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  } catch {
+    // fallback abaixo
+  }
+  return "Atleta";
+}
+
+/**
+ * Valida composição de gênero do elenco completo (um a um, na ordem enviada).
+ * Sem composição, não há o que checar.
+ */
+async function assertTeamGenderComposition(params: {
+  db: Firestore;
+  category: Record<string, unknown>;
+  teamSize: number;
+  athleteUids: readonly string[];
+}): Promise<void> {
+  const {db, category, teamSize, athleteUids} = params;
+  const composition = parseGenderComposition(category, teamSize);
+  if (!composition) return;
+
+  const currentBuckets: Array<AthleteGenderBucket | null> = [];
+  for (const uid of athleteUids) {
+    const joiningBucket = await loadUserGenderBucket(db, uid);
+    const joinCheck = evaluateTeamJoin({
+      teamSize,
+      composition,
+      currentBuckets,
+      joiningBucket,
+    });
+    if (!joinCheck.ok) {
+      throw new HttpsError(
+        "failed-precondition",
+        teamJoinDenialMessage(joinCheck.reason, "invitee"),
+      );
+    }
+    currentBuckets.push(joiningBucket);
+  }
+}
+
+/**
+ * Nenhum atleta já inscrito na categoria + nome de equipe único (quando nomeado).
+ */
+async function assertTeamCategoryAvailability(params: {
+  db: Firestore;
+  projectId: string;
+  tournamentId: string;
+  categoryKeys: Set<string>;
+  athleteUids: readonly string[];
+  nameKey: string;
+}): Promise<void> {
+  const {
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+    athleteUids,
+    nameKey,
+  } = params;
+  const uidSet = new Set(athleteUids);
+  const snap = await db
+    .collection(artifactsInscriptionsPath(projectId))
+    .where("tournamentId", "==", tournamentId)
+    .get();
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (!categoryKeys.has(String(data.categoryId ?? "").trim())) continue;
+
+    const participants = Array.isArray(data.participantUids)
+      ? (data.participantUids as unknown[]).map((p) => String(p).trim())
+      : [];
+    const player1Id = String(data.player1Id ?? "").trim();
+    const captainUid = String(data.captainUid ?? "").trim();
+    const already = [...participants, player1Id, captainUid].some(
+      (uid) => uid && uidSet.has(uid),
+    );
+    if (already) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Um dos atletas já possui inscrição nesta categoria.",
+      );
+    }
+
+    const existingName = String(data.teamName ?? "").trim();
+    if (existingName && teamNameKey(existingName) === nameKey) {
+      throw new HttpsError(
+        "already-exists",
+        "Já existe uma equipe com esse nome nesta categoria. Escolha outro nome.",
+      );
+    }
   }
 }
 
@@ -86,9 +210,14 @@ export const organizerCreateTeamRegistration = onCall({
     throw new HttpsError("unauthenticated", "Login necessário");
   }
 
-  const {tournamentId, categoryId, athleteUids, markAsPaid, uniforms} =
-    parseCreateTeamRegistrationInput(request.data);
-  const [uidA, uidB] = athleteUids;
+  const {
+    tournamentId,
+    categoryId,
+    athleteUids,
+    markAsPaid,
+    uniforms,
+    teamName: teamNameInput,
+  } = parseCreateTeamRegistrationInput(request.data);
 
   const db = getFirestore();
   const projectId = getFirebaseProjectId();
@@ -104,18 +233,10 @@ export const organizerCreateTeamRegistration = onCall({
   );
   const shouldWaitlist = tournament.__shouldWaitlist === true;
   const category = findCategory(tournament, categoryId);
+  const teamSize = resolveCategoryTeamSize(category);
+  assertAthleteUidsMatchCategorySize(athleteUids, teamSize);
 
-  // Categoria de trio+ tem elenco nomeado pelo capitão e uniforme por uid — nada disso cabe
-  // num formulário de dupla, e uma "dupla" em categoria de quarteto entraria torta na chave.
-  if (isTeamCategory(category)) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Esta categoria é de equipe. Use a inscrição de equipe para montar o elenco.",
-    );
-  }
-
-  // Uniforme é obrigatório para o organizador na mesma medida em que é para o atleta: a
-  // inscrição criada aqui não pode nascer com um pedido de uniforme pela metade.
+  // Uniforme é obrigatório para o organizador na mesma medida em que é para o atleta.
   const uniformCategory = asTournamentCategory(category);
   const requiresUniform =
     uniformCategory != null &&
@@ -128,14 +249,188 @@ export const organizerCreateTeamRegistration = onCall({
   }
 
   await assertAthletesExist(db, athleteUids);
-  await assertTeamLevelEligibility({db, tournament, category, uids: [uidA, uidB]});
-  await assertTeamAgeEligibility({db, tournament, category, uids: [uidA, uidB]});
+  await assertTeamLevelEligibility({
+    db,
+    tournament,
+    category,
+    uids: [...athleteUids],
+  });
+  await assertTeamAgeEligibility({
+    db,
+    tournament,
+    category,
+    uids: [...athleteUids],
+  });
 
   const entryFee = resolveCategoryEntryFee(tournament, categoryId);
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
   const teamsPath = artifactsTeamsPath(projectId);
   const teamsRef = db.collection(teamsPath);
+
+  // ---------------------------------------------------------------------------
+  // Equipe (trio+): elenco completo de uma vez, sem convite.
+  // ---------------------------------------------------------------------------
+  if (isTeamCategory(category)) {
+    await assertTeamGenderComposition({
+      db,
+      category: category as Record<string, unknown>,
+      teamSize,
+      athleteUids,
+    });
+
+    let teamName = teamNameInput ? normalizeTeamName(teamNameInput) : "";
+    if (!teamName) {
+      const names = await Promise.all(
+        athleteUids.map((uid) => loadAthleteDisplayName(db, uid)),
+      );
+      teamName = defaultOrganizerTeamName(names);
+    }
+    const nameError = teamNameValidationError(teamName);
+    if (nameError) {
+      throw new HttpsError("invalid-argument", nameError);
+    }
+    teamName = normalizeTeamName(teamName);
+    const nameKey = teamNameKey(teamName);
+
+    await assertTeamCategoryAvailability({
+      db,
+      projectId,
+      tournamentId,
+      categoryKeys,
+      athleteUids,
+      nameKey,
+    });
+
+    const result = await db.runTransaction(async (tx) => {
+      // Releitura estreita: evita duas equipes iguais se o organizador clicar duas vezes.
+      for (const uid of athleteUids) {
+        const mine = await tx.get(
+          inscriptionsRef
+            .where("tournamentId", "==", tournamentId)
+            .where("participantUids", "array-contains", uid),
+        );
+        const alreadyInCategory = mine.docs.some((doc) =>
+          categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
+        );
+        if (alreadyInCategory) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Um dos atletas já possui inscrição nesta categoria.",
+          );
+        }
+      }
+
+      const teamRef = teamsRef.doc();
+      const regRef = inscriptionsRef.doc();
+      const timestamp = FieldValue.serverTimestamp();
+
+      tx.set(
+        teamRef,
+        buildOrganizerNamedTeamDoc({
+          tournamentId,
+          categoryId,
+          athleteUids,
+          teamSize,
+          teamName,
+          timestamp,
+        }),
+      );
+
+      const registrationDoc = buildOrganizerRegistrationDoc({
+        teamId: teamRef.id,
+        tournamentId,
+        categoryId,
+        athleteUids,
+        organizerUid,
+        waitlist: shouldWaitlist,
+        timestamp,
+        teamSize,
+        teamName,
+      });
+      const payment = buildOrganizerPaymentFields({
+        entryFee,
+        markAsPaid,
+        alreadyPaid: false,
+        organizerUid,
+        timestamp,
+      });
+      if (payment) Object.assign(registrationDoc, payment);
+
+      const uniformByUid: Record<string, Record<string, string | number>> = {};
+      for (const uid of athleteUids) {
+        const uniform = uniforms[uid];
+        if (uniform) uniformByUid[uid] = uniformByUidEntry(uniform);
+      }
+      if (Object.keys(uniformByUid).length > 0) {
+        registrationDoc.uniformByUid = uniformByUid;
+      }
+
+      tx.set(regRef, registrationDoc);
+
+      return {
+        registrationId: regRef.id,
+        teamId: teamRef.id,
+        merged: false,
+        isPaid: payment?.isPaid === true,
+        waitlist: registrationDoc.waitlist === true,
+        isTeam: true as const,
+      };
+    });
+
+    logger.info("Organizer created named team registration", {
+      organizerUid,
+      tournamentId,
+      categoryId,
+      teamSize,
+      ...result,
+    });
+
+    if (result.isPaid) {
+      try {
+        await setTeamGenderWhenRegistrationPaid(db, projectId, result.teamId);
+      } catch (genderError) {
+        logger.warn(
+          `Falha ao definir gender da equipe ${result.teamId}`,
+          genderError,
+        );
+      }
+    }
+
+    const {title, body} = organizerRegistrationNotification({
+      tournamentName: typeof tournament.name === "string" ? tournament.name : "",
+      categoryName: categoryId,
+      isPaid: result.isPaid,
+      isTeam: true,
+    });
+    await Promise.all(
+      athleteUids.map((uid) =>
+        deliverNotificationToUser({
+          userId: uid,
+          title,
+          body,
+          type: "tournament_registration_created_by_organizer",
+          data: {
+            tournamentId,
+            registrationId: result.registrationId,
+            url: `/torneios/${tournamentId}`,
+          },
+        }).catch(() => undefined),
+      ),
+    );
+
+    return {
+      registrationId: result.registrationId,
+      teamId: result.teamId,
+      merged: result.merged,
+      waitlist: result.waitlist,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dupla: motor de attach/create via resolvePartnerRegistrationPlan.
+  // ---------------------------------------------------------------------------
+  const [uidA, uidB] = athleteUids as [string, string];
 
   const result = await db.runTransaction(async (tx) => {
     const categoryRegs = await loadCategoryRegistrationsTx(

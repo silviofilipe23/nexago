@@ -72,6 +72,9 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
  *  direito, e passar disso vira rolagem interna. */
 const MAX_EVENTOS_ARRECADACAO = 6;
 
+/** Extrato usado no KPI de taxas e na tabela — acima do default (30) pra somar o histórico real. */
+const LEDGER_LIMIT_FINANCEIRO = 500;
+
 interface EventoArrecadacaoRow {
   id: string;
   name: string;
@@ -116,9 +119,8 @@ interface EventoArrecadacaoRow {
             <div class="og-kpi-value sm" style="font-size:26px">—</div>
           </og-card>
           <og-card pad="sm" flex="1">
-            <!-- mock (fase 2): taxas agregadas não expostas (só o extrato paginado do ledger) -->
-            <div class="og-kpi-label">Taxas da plataforma — em breve</div>
-            <div class="og-kpi-value sm" style="font-size:26px">—</div>
+            <div class="og-kpi-label">Taxas da plataforma</div>
+            <div class="og-kpi-value sm" style="font-size:26px;color:var(--nx-text-dim)">{{ taxasPlataformaLabel() }}</div>
           </og-card>
           <og-card pad="sm" flex="1">
             <div class="og-kpi-label">Pendente de repasse</div>
@@ -126,139 +128,141 @@ interface EventoArrecadacaoRow {
           </og-card>
         </div>
 
-        <div class="og-financeiro-grid">
-          <og-card kicker="Movimentação" title="Extrato" pad="0">
-            <div class="og-table-head">
-              <span style="flex:1">Data</span>
-              <span style="width:90px;text-align:right">Bruto</span>
-              <span style="width:90px;text-align:right">Taxa</span>
-              <span style="width:90px;text-align:right">Líquido</span>
-            </div>
-            <div class="og-table-body">
-              @for (e of ledger(); track e.id) {
-                <div class="og-row">
-                  <span style="flex:1" class="og-fin-date">{{ dateLabel(e.createdAt) }}</span>
-                  <span style="width:90px;text-align:right" class="og-fin-value">{{ brl(e.grossReais) }}</span>
-                  <span style="width:90px;text-align:right;color:var(--nx-text-dim)" class="og-fin-value">{{ brl(e.platformFeeReais) }}</span>
-                  <span style="width:90px;text-align:right;color:var(--nx-win)" class="og-fin-value">{{ brl(e.netReais) }}</span>
-                </div>
-              } @empty {
-                <p class="og-empty">Nenhum recebimento ainda.</p>
-              }
-            </div>
-          </og-card>
-
-          <div class="og-financeiro-side">
-            <og-card kicker="Evolução" title="Receita por mês">
-              <!-- mock (fase 2): sem série histórica de receita mensal disponível ainda -->
-              <p class="og-empty">— em breve</p>
-            </og-card>
-            <og-card kicker="Por evento" title="Arrecadação" flex="1">
-              @if (eventosArrecadacao(); as eventos) {
-                @if (eventos.length === 0) {
-                  <p class="og-empty">{{ tournamentsLoading() ? 'Carregando…' : 'Nenhum recebimento ainda.' }}</p>
-                } @else {
-                  @for (e of eventos; track e.id; let last = $last) {
-                    <og-bar-row [label]="e.name" [sub]="e.sub" [pct]="e.pct" [tone]="e.tone" [last]="last" />
-                  }
-                  <!-- A carteira só guarda o que passou pela plataforma; sem esta linha o card
-                       sugere que todo o valor listado é sacável. -->
-                  <p class="og-fin-hint">
-                    Só o que entra pela plataforma cai na sua carteira — o que você recebe direto
-                    entra aqui para fechar o total do evento.
-                  </p>
+        <div class="og-financeiro-sections">
+          <div class="og-financeiro-grid">
+            <og-card kicker="Movimentação" title="Extrato" pad="0">
+              <div class="og-table-head">
+                <span style="flex:1">Data</span>
+                <span style="width:90px;text-align:right">Bruto</span>
+                <span style="width:90px;text-align:right">Taxa</span>
+                <span style="width:90px;text-align:right">Líquido</span>
+              </div>
+              <div class="og-table-body">
+                @for (e of ledger(); track e.id) {
+                  <div class="og-row">
+                    <span style="flex:1" class="og-fin-date">{{ dateLabel(e.createdAt) }}</span>
+                    <span style="width:90px;text-align:right" class="og-fin-value">{{ brl(e.grossReais) }}</span>
+                    <span style="width:90px;text-align:right;color:var(--nx-text-dim)" class="og-fin-value">{{ brl(e.platformFeeReais) }}</span>
+                    <span style="width:90px;text-align:right;color:var(--nx-win)" class="og-fin-value">{{ brl(e.netReais) }}</span>
+                  </div>
+                } @empty {
+                  <p class="og-empty">Nenhum recebimento ainda.</p>
                 }
-              }
+              </div>
             </og-card>
-          </div>
-        </div>
 
-        <div class="og-financeiro-grid">
-          <og-card kicker="Repasses" title="Saques" pad="0">
-            <div class="og-table-head">
-              <span style="flex:1">Data</span>
-              <span style="flex:1">Chave PIX</span>
-              <span style="width:100px;text-align:right">Valor</span>
-              <span style="width:90px;text-align:right">Status</span>
-            </div>
-            <div class="og-table-body">
-              @for (w of withdrawals(); track w.id) {
-                <div class="og-row">
-                  <span style="flex:1" class="og-fin-date">{{ dateLabel(w.createdAt) }}</span>
-                  <span style="flex:1" class="og-fin-evento">{{ maskPixKeyDisplay(w.pixKey) }}</span>
-                  <span style="width:100px;text-align:right" class="og-fin-value">{{ brl(w.amountReais) }}</span>
-                  <span style="width:90px;text-align:right"><og-pill [tone]="withdrawalToneOf(w)">{{ withdrawalLabelOf(w) }}</og-pill></span>
-                </div>
-              } @empty {
-                <p class="og-empty">Nenhum saque ainda.</p>
-              }
-            </div>
-          </og-card>
-
-          <div class="og-financeiro-side">
-            <og-card kicker="Repasse" title="Chave PIX de saque" pad="sm">
-              @if (!editingPix()) {
-                <div class="og-fin-pixrow">
-                  <span class="og-fin-pixkey">{{ currentPixLabel() }}</span>
-                  <button type="button" class="og-ghost-btn" (click)="startEditPix()">
-                    <og-icon name="edit" [size]="14" />{{ hasPixKey() ? 'Trocar' : 'Cadastrar' }}
-                  </button>
-                </div>
-              } @else {
-                <form [formGroup]="pixForm" (ngSubmit)="submitPixKey()" class="og-fin-pixform">
-                  <og-form-field label="Tipo de chave">
-                    <select class="og-input" formControlName="pixKeyType">
-                      @for (t of pixKeyTypes; track t) {
-                        <option [value]="t">{{ pixKeyTypeLabel[t] }}</option>
-                      }
-                    </select>
-                  </og-form-field>
-                  <og-form-field label="Chave PIX">
-                    <input class="og-input" type="text" formControlName="pixKey" autocomplete="off" [placeholder]="pixKeyHintFor(pixKeyTypeValue())" />
-                  </og-form-field>
-                  @if (pixKeyErrorLive(); as err) {
-                    <p class="og-fin-error">{{ err }}</p>
+            <div class="og-financeiro-side">
+              <og-card kicker="Evolução" title="Receita por mês">
+                <!-- mock (fase 2): sem série histórica de receita mensal disponível ainda -->
+                <p class="og-empty">— em breve</p>
+              </og-card>
+              <og-card kicker="Por evento" title="Arrecadação" flex="1">
+                @if (eventosArrecadacao(); as eventos) {
+                  @if (eventos.length === 0) {
+                    <p class="og-empty">{{ tournamentsLoading() ? 'Carregando…' : 'Nenhum recebimento ainda.' }}</p>
+                  } @else {
+                    @for (e of eventos; track e.id; let last = $last) {
+                      <og-bar-row [label]="e.name" [sub]="e.sub" [pct]="e.pct" [tone]="e.tone" [last]="last" />
+                    }
+                    <!-- A carteira só guarda o que passou pela plataforma; sem esta linha o card
+                         sugere que todo o valor listado é sacável. -->
+                    <p class="og-fin-hint">
+                      Só o que entra pela plataforma cai na sua carteira — o que você recebe direto
+                      entra aqui para fechar o total do evento.
+                    </p>
                   }
-                  <div class="og-fin-formactions">
-                    <button type="button" class="og-ghost-btn" (click)="cancelEditPix()">Cancelar</button>
-                    <button type="submit" class="og-mini-btn og-mini-btn-primary" [disabled]="!canSavePix()">
-                      @if (pixSaving()) {
-                        <app-nx-spinner [size]="12" tone="dark" />
-                      }
-                      {{ pixSaving() ? 'Salvando…' : 'Salvar' }}
+                }
+              </og-card>
+            </div>
+          </div>
+
+          <div class="og-financeiro-grid">
+            <og-card kicker="Repasses" title="Saques" pad="0">
+              <div class="og-table-head">
+                <span style="flex:1">Data</span>
+                <span style="flex:1">Chave PIX</span>
+                <span style="width:100px;text-align:right">Valor</span>
+                <span style="width:90px;text-align:right">Status</span>
+              </div>
+              <div class="og-table-body">
+                @for (w of withdrawals(); track w.id) {
+                  <div class="og-row">
+                    <span style="flex:1" class="og-fin-date">{{ dateLabel(w.createdAt) }}</span>
+                    <span style="flex:1" class="og-fin-evento">{{ maskPixKeyDisplay(w.pixKey) }}</span>
+                    <span style="width:100px;text-align:right" class="og-fin-value">{{ brl(w.amountReais) }}</span>
+                    <span style="width:90px;text-align:right"><og-pill [tone]="withdrawalToneOf(w)">{{ withdrawalLabelOf(w) }}</og-pill></span>
+                  </div>
+                } @empty {
+                  <p class="og-empty">Nenhum saque ainda.</p>
+                }
+              </div>
+            </og-card>
+
+            <div class="og-financeiro-side">
+              <og-card kicker="Repasse" title="Chave PIX de saque" pad="sm">
+                @if (!editingPix()) {
+                  <div class="og-fin-pixrow">
+                    <span class="og-fin-pixkey">{{ currentPixLabel() }}</span>
+                    <button type="button" class="og-ghost-btn" (click)="startEditPix()">
+                      <og-icon name="edit" [size]="14" />{{ hasPixKey() ? 'Trocar' : 'Cadastrar' }}
                     </button>
                   </div>
-                </form>
-              }
-              @if (pixFeedback(); as f) {
-                <p class="og-fin-feedback" [style.color]="f.ok ? 'var(--nx-win)' : 'var(--nx-live)'">{{ f.message }}</p>
-              }
-            </og-card>
-
-            <og-card kicker="Saque" title="Solicitar saque" pad="sm" id="og-saque-card">
-              <og-form-field label="Valor do saque">
-                <div class="og-input og-fin-amount-input">
-                  <span class="prefix">R$</span>
-                  <input type="text" inputmode="decimal" [formControl]="withdrawForm.controls.amount" placeholder="0,00" />
-                  <og-pill tone="orange" style="cursor:pointer" (click)="withdrawAll()">Tudo</og-pill>
-                </div>
-              </og-form-field>
-              @if (amountError(); as err) {
-                <p class="og-fin-error">{{ err }}</p>
-              }
-              @if (!hasPixKey()) {
-                <p class="og-fin-hint">Cadastre uma chave PIX acima para poder sacar.</p>
-              }
-              <button type="button" class="og-mini-btn og-mini-btn-primary og-fin-submit" [disabled]="!canWithdraw()" (click)="submitWithdrawal()">
-                @if (withdrawing()) {
-                  <app-nx-spinner [size]="12" tone="dark" />
+                } @else {
+                  <form [formGroup]="pixForm" (ngSubmit)="submitPixKey()" class="og-fin-pixform">
+                    <og-form-field label="Tipo de chave">
+                      <select class="og-input" formControlName="pixKeyType">
+                        @for (t of pixKeyTypes; track t) {
+                          <option [value]="t">{{ pixKeyTypeLabel[t] }}</option>
+                        }
+                      </select>
+                    </og-form-field>
+                    <og-form-field label="Chave PIX">
+                      <input class="og-input" type="text" formControlName="pixKey" autocomplete="off" [placeholder]="pixKeyHintFor(pixKeyTypeValue())" />
+                    </og-form-field>
+                    @if (pixKeyErrorLive(); as err) {
+                      <p class="og-fin-error">{{ err }}</p>
+                    }
+                    <div class="og-fin-formactions">
+                      <button type="button" class="og-ghost-btn" (click)="cancelEditPix()">Cancelar</button>
+                      <button type="submit" class="og-mini-btn og-mini-btn-primary" [disabled]="!canSavePix()">
+                        @if (pixSaving()) {
+                          <app-nx-spinner [size]="12" tone="dark" />
+                        }
+                        {{ pixSaving() ? 'Salvando…' : 'Salvar' }}
+                      </button>
+                    </div>
+                  </form>
                 }
-                {{ withdrawing() ? 'Enviando…' : 'Solicitar saque' }}
-              </button>
-              @if (withdrawFeedback(); as f) {
-                <p class="og-fin-feedback" [style.color]="f.ok ? 'var(--nx-win)' : 'var(--nx-live)'">{{ f.message }}</p>
-              }
-            </og-card>
+                @if (pixFeedback(); as f) {
+                  <p class="og-fin-feedback" [style.color]="f.ok ? 'var(--nx-win)' : 'var(--nx-live)'">{{ f.message }}</p>
+                }
+              </og-card>
+
+              <og-card kicker="Saque" title="Solicitar saque" pad="sm" id="og-saque-card">
+                <og-form-field label="Valor do saque">
+                  <div class="og-input og-fin-amount-input">
+                    <span class="prefix">R$</span>
+                    <input type="text" inputmode="decimal" [formControl]="withdrawForm.controls.amount" placeholder="0,00" />
+                    <og-pill tone="orange" style="cursor:pointer" (click)="withdrawAll()">Tudo</og-pill>
+                  </div>
+                </og-form-field>
+                @if (amountError(); as err) {
+                  <p class="og-fin-error">{{ err }}</p>
+                }
+                @if (!hasPixKey()) {
+                  <p class="og-fin-hint">Cadastre uma chave PIX acima para poder sacar.</p>
+                }
+                <button type="button" class="og-mini-btn og-mini-btn-primary og-fin-submit" [disabled]="!canWithdraw()" (click)="submitWithdrawal()">
+                  @if (withdrawing()) {
+                    <app-nx-spinner [size]="12" tone="dark" />
+                  }
+                  {{ withdrawing() ? 'Enviando…' : 'Solicitar saque' }}
+                </button>
+                @if (withdrawFeedback(); as f) {
+                  <p class="og-fin-feedback" [style.color]="f.ok ? 'var(--nx-win)' : 'var(--nx-live)'">{{ f.message }}</p>
+                }
+              </og-card>
+            </div>
           </div>
         </div>
       }
@@ -287,18 +291,35 @@ interface EventoArrecadacaoRow {
       padding: 8px 0;
       margin: 0;
     }
+    .og-financeiro-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: none;
+      min-width: 0;
+    }
     .og-financeiro-grid {
       display: grid;
       grid-template-columns: 1.4fr 1fr;
       gap: 16px;
-      flex: 1;
-      min-height: 0;
+      align-items: start;
+      flex: none;
+      min-width: 0;
     }
     .og-financeiro-side {
       display: flex;
       flex-direction: column;
       gap: 16px;
-      min-height: 0;
+      min-width: 0;
+    }
+    /* Tabelas longas rolam dentro do card em vez de estourar a coluna. */
+    .og-financeiro-grid > og-card.og-card-pad-0 {
+      max-height: min(420px, 50vh);
+    }
+    @media (max-width: 1023.98px) {
+      .og-financeiro-grid {
+        grid-template-columns: 1fr;
+      }
     }
     .og-fin-desc {
       font-family: var(--nx-font-display);
@@ -456,6 +477,10 @@ export class FinanceiroComponent {
 
   protected readonly saldoLabel = computed(() => BRL.format(this.wallet().availableReais));
   protected readonly pendenteLabel = computed(() => BRL.format(this.wallet().pendingReais));
+  /** Soma das taxas já descontadas nos créditos da carteira (campo `platformFeeReais` do ledger). */
+  protected readonly taxasPlataformaLabel = computed(() =>
+    BRL.format(this.ledger().reduce((sum, e) => sum + e.platformFeeReais, 0)),
+  );
   protected readonly hasPixKey = computed(() => this.payoutPixKey().trim().length >= 5);
   protected readonly currentPixLabel = computed(() =>
     this.hasPixKey() ? `${PIX_KEY_TYPE_LABEL[this.payoutPixKeyType()]} · ${this.payoutPixKey()}` : 'Nenhuma chave cadastrada',
@@ -525,7 +550,7 @@ export class FinanceiroComponent {
     });
     this.destroyRef.onDestroy(() => unsubscribeWallet());
 
-    const unsubscribeLedger = watchLedger(uid, (entries) => this.ledger.set(entries));
+    const unsubscribeLedger = watchLedger(uid, (entries) => this.ledger.set(entries), LEDGER_LIMIT_FINANCEIRO);
     this.destroyRef.onDestroy(() => unsubscribeLedger());
 
     const unsubscribeWithdrawals = watchWithdrawals(uid, (items) => this.withdrawals.set(items));

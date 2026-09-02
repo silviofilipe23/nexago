@@ -17,7 +17,10 @@ import { OgToggleRowComponent } from '../ui/toggle-row.component';
 import { OgNovaInscricaoUniformeComponent } from './nova-inscricao-uniforme.component';
 
 const SEARCH_DEBOUNCE_MS = 350;
-const PAIR_SIZE = 2;
+const DUPLA_SIZE = 2;
+/** Mesma faixa da Cloud Function (`teamNameValidationError`). */
+const TEAM_NAME_MIN = 3;
+const TEAM_NAME_MAX = 30;
 
 /** Uniforme no formato que a Cloud Function recebe (campos vazios não são enviados). */
 export interface NovaInscricaoUniform {
@@ -29,17 +32,43 @@ export interface NovaInscricaoUniform {
 
 export interface NovaInscricaoSubmit {
   categoryId: string;
-  athleteUids: [string, string];
+  /** Elenco completo: 2 na dupla, ou `teamSize` (3–5) na equipe. */
+  athleteUids: string[];
   markAsPaid: boolean;
   /** Por uid; vazio quando a categoria não pede uniforme. */
   uniforms: Record<string, NovaInscricaoUniform>;
+  /** Obrigatório em trio+; `null` na dupla. */
+  teamName: string | null;
+}
+
+/** Nome canônico da equipe (espaços colapsados) — mesma regra do servidor. */
+export function normalizeTeamName(raw: string): string {
+  return raw.replace(/\s+/g, ' ').trim();
+}
+
+/** Mensagem de erro do nome, ou `null` quando válido / não exigido. */
+export function teamNameValidationError(raw: string): string | null {
+  const name = normalizeTeamName(raw);
+  if (name.length < TEAM_NAME_MIN) {
+    return `O nome da equipe precisa ter pelo menos ${TEAM_NAME_MIN} caracteres.`;
+  }
+  if (name.length > TEAM_NAME_MAX) {
+    return `O nome da equipe pode ter no máximo ${TEAM_NAME_MAX} caracteres.`;
+  }
+  return null;
+}
+
+/** Quantos atletas a categoria pede — `teamSize` 3–5 vence; resto é dupla. */
+export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSize'> | null | undefined): number {
+  const size = category?.teamSize;
+  return size != null && size >= 3 && size <= 5 ? size : DUPLA_SIZE;
 }
 
 /** Formulário de inscrição criada pelo organizador — a saída para quem não conseguiu se
  *  inscrever sozinho (prazo estourado, convite nunca aceito, pagamento travado).
  *
  *  Só monta o pedido: quem chama a Cloud Function, recarrega a lista e mostra o resultado é a
- *  tela de Inscrições. As regras (dupla repetida, nível, idade, categoria concluída) são
+ *  tela de Inscrições. As regras (dupla/equipe repetida, nível, idade, categoria concluída) são
  *  decididas no servidor — replicá-las aqui só criaria uma segunda verdade para divergir. */
 @Component({
   selector: 'og-nova-inscricao',
@@ -53,9 +82,10 @@ export interface NovaInscricaoSubmit {
     NxSpinnerComponent,
   ],
   template: `
-    <og-card kicker="Nova inscrição" title="Inscrever uma dupla" pad="lg">
+    <og-card kicker="Nova inscrição" [title]="'Inscrever uma ' + unitLabel().toLowerCase()" pad="lg">
       <p class="og-ni-hint">
-        Para quando os atletas não conseguiram se inscrever. Os dois precisam ter conta no nexaGO.
+        Para quando os atletas não conseguiram se inscrever.
+        {{ rosterSize() === 2 ? 'Os dois' : 'Todos os ' + rosterSize() }} precisam ter conta no nexaGO.
       </p>
 
       @if (categorias().length > 1) {
@@ -69,7 +99,7 @@ export interface NovaInscricaoSubmit {
                 [class.active]="categoryId() === c.id"
                 [attr.aria-pressed]="categoryId() === c.id"
                 [disabled]="busy()"
-                (click)="categoryId.set(c.id)"
+                (click)="pickCategory(c.id)"
               >
                 {{ c.name }}
               </button>
@@ -79,7 +109,7 @@ export interface NovaInscricaoSubmit {
       }
 
       <div class="og-ni-field">
-        <span class="og-ni-label">Dupla</span>
+        <span class="og-ni-label">{{ unitLabel() }} · {{ rosterSize() }} atletas</span>
         <div class="og-ni-slots">
           @for (slot of slots(); track $index) {
             <div class="og-ni-slot" [class.filled]="slot !== null">
@@ -90,7 +120,7 @@ export interface NovaInscricaoSubmit {
                   type="button"
                   class="og-ghost-btn"
                   [disabled]="busy()"
-                  [attr.aria-label]="'Remover ' + nameOf(athlete) + ' da dupla'"
+                  [attr.aria-label]="'Remover ' + nameOf(athlete) + ' da ' + unitLabel().toLowerCase()"
                   (click)="remove(athlete.uid)"
                 >
                   Trocar
@@ -104,7 +134,27 @@ export interface NovaInscricaoSubmit {
         </div>
       </div>
 
-      @if (!isPairComplete()) {
+      @if (isNamedTeam()) {
+        <div class="og-ni-field">
+          <label class="og-ni-label" for="og-ni-team-name">Nome da equipe</label>
+          <input
+            id="og-ni-team-name"
+            class="og-ni-search"
+            type="text"
+            [attr.maxlength]="teamNameMax"
+            placeholder="Ex.: Equipe Calango"
+            aria-label="Nome da equipe"
+            [value]="teamName()"
+            [disabled]="busy()"
+            (input)="onTeamNameInput($event)"
+          />
+          @if (teamNameError(); as err) {
+            <p class="og-ni-status og-ni-error">{{ err }}</p>
+          }
+        </div>
+      }
+
+      @if (!isRosterComplete()) {
         <input
           class="og-ni-search"
           type="text"
@@ -134,9 +184,9 @@ export interface NovaInscricaoSubmit {
         }
       }
 
-      <!-- Uniforme só faz sentido com a dupla escolhida: os campos são POR atleta. -->
+      <!-- Uniforme só faz sentido com o elenco escolhido: os campos são POR atleta. -->
       @if (uniformConfig(); as uniform) {
-        @if (isPairComplete()) {
+        @if (isRosterComplete()) {
           <div class="og-ni-field">
             <span class="og-ni-label">Uniforme · {{ uniform.modelLabel }}</span>
             @for (a of athletes(); track a.uid) {
@@ -151,7 +201,11 @@ export interface NovaInscricaoSubmit {
             }
           </div>
         } @else {
-          <p class="og-ni-status">Esta categoria tem uniforme: escolha os dois atletas para informar os tamanhos.</p>
+          <p class="og-ni-status">
+            Esta categoria tem uniforme: escolha
+            {{ rosterSize() === 2 ? 'os dois atletas' : 'os ' + rosterSize() + ' atletas' }}
+            para informar os tamanhos.
+          </p>
         }
       }
 
@@ -173,7 +227,7 @@ export interface NovaInscricaoSubmit {
           @if (busy()) {
             <app-nx-spinner [size]="12" tone="dark" />
           }
-          {{ busy() ? 'Inscrevendo…' : 'Inscrever dupla' }}
+          {{ busy() ? 'Inscrevendo…' : 'Inscrever ' + unitLabel().toLowerCase() }}
         </button>
       </div>
     </og-card>
@@ -246,6 +300,9 @@ export interface NovaInscricaoSubmit {
       font-family: var(--nx-font-ui);
       font-size: 13px;
     }
+    .og-ni-field > .og-ni-search {
+      margin-top: 0;
+    }
     .og-ni-search:focus {
       outline: 2px solid var(--nx-orange-500);
       outline-offset: 0;
@@ -258,6 +315,12 @@ export interface NovaInscricaoSubmit {
       font-family: var(--nx-font-ui);
       font-size: 12.5px;
       color: var(--nx-text-mute);
+    }
+    .og-ni-field > .og-ni-status {
+      margin: 0;
+    }
+    .og-ni-error {
+      color: var(--nx-danger, #c44);
     }
     .og-ni-results {
       display: flex;
@@ -318,21 +381,48 @@ export class OgNovaInscricaoComponent {
   protected readonly athletes = signal<AthleteSearchResult[]>([]);
   protected readonly markAsPaid = signal(false);
   protected readonly uniformByUid = signal<Record<string, InscriptionUniformSlot>>({});
+  protected readonly teamName = signal('');
 
   protected readonly searchTerm = signal('');
   protected readonly searching = signal(false);
   protected readonly searched = signal(false);
   protected readonly candidates = signal<AthleteSearchResult[]>([]);
+  protected readonly teamNameMax = TEAM_NAME_MAX;
 
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Sempre dois lugares na tela, preenchidos ou não — a dupla incompleta fica visível. */
-  protected readonly slots = computed<(AthleteSearchResult | null)[]>(() => {
-    const chosen = this.athletes();
-    return Array.from({ length: PAIR_SIZE }, (_, i) => chosen[i] ?? null);
+  protected readonly selectedCategory = computed(
+    () => this.categorias().find((c) => c.id === this.categoryId()) ?? null,
+  );
+
+  /** Quantos lugares a categoria pede — muda com o chip ativo. */
+  protected readonly rosterSize = computed(() => rosterSizeOf(this.selectedCategory()));
+
+  protected readonly isNamedTeam = computed(() => this.rosterSize() >= 3);
+
+  protected readonly unitLabel = computed(() => (this.isNamedTeam() ? 'Equipe' : 'Dupla'));
+
+  /** Erro só depois que o organizador começou a digitar — campo vazio trava o botão sem gritar. */
+  protected readonly teamNameError = computed(() => {
+    if (!this.isNamedTeam()) return null;
+    const raw = this.teamName();
+    if (!raw.trim()) return null;
+    return teamNameValidationError(raw);
   });
 
-  protected readonly isPairComplete = computed(() => this.athletes().length >= PAIR_SIZE);
+  protected readonly isTeamNameValid = computed(() => {
+    if (!this.isNamedTeam()) return true;
+    return teamNameValidationError(this.teamName()) === null;
+  });
+
+  /** Sempre `rosterSize` lugares na tela, preenchidos ou não — o elenco incompleto fica visível. */
+  protected readonly slots = computed<(AthleteSearchResult | null)[]>(() => {
+    const chosen = this.athletes();
+    const size = this.rosterSize();
+    return Array.from({ length: size }, (_, i) => chosen[i] ?? null);
+  });
+
+  protected readonly isRosterComplete = computed(() => this.athletes().length >= this.rosterSize());
 
   protected readonly isPaidCategory = computed(() => {
     const id = this.categoryId();
@@ -351,13 +441,13 @@ export class OgNovaInscricaoComponent {
     return config?.requiresUniform ? config : null;
   });
 
-  /** Uniforme completo dos DOIS atletas, pela mesma regra que a tela de Uniformes usa para
+  /** Uniforme completo de TODOS os atletas, pela mesma regra que a tela de Uniformes usa para
    *  dizer "confirmado" — o organizador não inscreve deixando um pedido pela metade. */
   protected readonly isUniformComplete = computed(() => {
     const config = this.uniformConfig();
     if (!config) return true;
     const chosen = this.athletes();
-    if (chosen.length < PAIR_SIZE) return false;
+    if (chosen.length < this.rosterSize()) return false;
     return chosen.every((a) => uniformStatusOf(config, this.uniformOf(a.uid)) === 'confirmado');
   });
 
@@ -365,8 +455,9 @@ export class OgNovaInscricaoComponent {
     () =>
       !this.busy() &&
       this.categoryId() !== '' &&
-      this.isPairComplete() &&
-      this.isUniformComplete(),
+      this.isRosterComplete() &&
+      this.isUniformComplete() &&
+      this.isTeamNameValid(),
   );
 
   constructor() {
@@ -382,6 +473,29 @@ export class OgNovaInscricaoComponent {
       }
       this.categoryId.set(cats.length === 1 ? cats[0].id : '');
     });
+
+    // Trocar pra uma categoria menor (quarteto → dupla) não pode deixar atletas extras no payload.
+    effect(() => {
+      const size = this.rosterSize();
+      const chosen = this.athletes();
+      if (chosen.length <= size) return;
+      const kept = chosen.slice(0, size);
+      const dropped = chosen.slice(size).map((a) => a.uid);
+      this.athletes.set(kept);
+      this.uniformByUid.update((cur) => {
+        const next = { ...cur };
+        for (const uid of dropped) delete next[uid];
+        return next;
+      });
+    });
+  }
+
+  protected pickCategory(id: string): void {
+    this.categoryId.set(id);
+  }
+
+  protected onTeamNameInput(event: Event): void {
+    this.teamName.set((event.target as HTMLInputElement).value);
   }
 
   protected onSearchInput(event: Event): void {
@@ -415,7 +529,7 @@ export class OgNovaInscricaoComponent {
   }
 
   protected select(athlete: AthleteSearchResult): void {
-    if (this.isPairComplete()) return;
+    if (this.isRosterComplete()) return;
     this.athletes.update((cur) =>
       cur.some((a) => a.uid === athlete.uid) ? cur : [...cur, athlete],
     );
@@ -444,17 +558,15 @@ export class OgNovaInscricaoComponent {
 
   protected submit(): void {
     if (!this.canSubmit()) return;
-    const [first, second] = this.athletes();
+    const chosen = this.athletes();
     this.submitted.emit({
       categoryId: this.categoryId(),
-      athleteUids: [first.uid, second.uid],
+      athleteUids: chosen.map((a) => a.uid),
       markAsPaid: this.isPaidCategory() && this.markAsPaid(),
       uniforms: this.uniformConfig()
-        ? {
-          [first.uid]: uniformPayload(this.uniformOf(first.uid)),
-          [second.uid]: uniformPayload(this.uniformOf(second.uid)),
-        }
+        ? Object.fromEntries(chosen.map((a) => [a.uid, uniformPayload(this.uniformOf(a.uid))]))
         : {},
+      teamName: this.isNamedTeam() ? normalizeTeamName(this.teamName()) : null,
     });
   }
 }

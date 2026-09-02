@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { AthleteSearchResult } from '../data/athlete-search-repository';
 import type { OrganizerTournamentCategory } from '../data/tournament.model';
 import type { UniformCategoryConfig } from '../data/uniforms';
-import { OgNovaInscricaoComponent, type NovaInscricaoSubmit } from './nova-inscricao.component';
+import { OgNovaInscricaoComponent, rosterSizeOf, type NovaInscricaoSubmit } from './nova-inscricao.component';
 
 function uniformConfig(over: Partial<UniformCategoryConfig> = {}): UniformCategoryConfig {
   return {
@@ -75,6 +75,7 @@ describe('OgNovaInscricaoComponent', () => {
     select(a: AthleteSearchResult): void;
     markAsPaid: { set(v: boolean): void };
     categoryId: { set(v: string): void };
+    teamName: { set(v: string): void };
   } {
     return fixture.componentInstance as unknown as ReturnType<typeof internals>;
   }
@@ -163,6 +164,7 @@ describe('OgNovaInscricaoComponent', () => {
       athleteUids: ['uid-a', 'uid-b'],
       markAsPaid: true,
       uniforms: {},
+      teamName: null,
     });
   });
 
@@ -331,5 +333,96 @@ describe('OgNovaInscricaoComponent', () => {
     await pickPair();
     submitButton(el).click();
     expect(emitted[0].markAsPaid).toBeFalse();
+  });
+
+  describe('categoria de equipe (trio+)', () => {
+    it('rosterSizeOf usa teamSize 3–5 e cai em 2 fora disso', () => {
+      expect(rosterSizeOf(category({ teamSize: 3 }))).toBe(3);
+      expect(rosterSizeOf(category({ teamSize: 4 }))).toBe(4);
+      expect(rosterSizeOf(category({ teamSize: 5 }))).toBe(5);
+      expect(rosterSizeOf(category({ teamSize: null }))).toBe(2);
+      expect(rosterSizeOf(category({ teamSize: 2 }))).toBe(2);
+    });
+
+    it('trio mostra 3 slots e o campo de nome da equipe', async () => {
+      const el = await render([category({ teamSize: 3, name: 'Misto Trio' })]);
+      expect(el.querySelectorAll('.og-ni-slot').length).toBe(3);
+      expect(el.textContent).toContain('Equipe · 3 atletas');
+      expect(el.textContent).toContain('Inscrever uma equipe');
+      expect(el.textContent).toContain('Nome da equipe');
+      expect(el.querySelector('#og-ni-team-name')).not.toBeNull();
+      expect(submitButton(el).textContent).toContain('Inscrever equipe');
+    });
+
+    it('exige os 3 atletas e o nome antes de liberar o submit', async () => {
+      const el = await render([category({ teamSize: 3 })]);
+      expect(submitButton(el).disabled).toBeTrue();
+
+      internals().select(athlete('uid-a', 'Ana Paula'));
+      internals().select(athlete('uid-b', 'Beatriz Costa'));
+      await fixture.whenStable();
+      expect(submitButton(el).disabled).toBeTrue();
+      expect(el.querySelector('.og-ni-search:not(#og-ni-team-name)')).not.toBeNull();
+
+      internals().select(athlete('uid-c', 'Carla Dias'));
+      await fixture.whenStable();
+      // Elenco completo sem nome ainda trava.
+      expect(submitButton(el).disabled).toBeTrue();
+      expect(el.querySelector('.og-ni-search:not(#og-ni-team-name)')).toBeNull();
+
+      internals().teamName.set('Os Feras');
+      await fixture.whenStable();
+      expect(submitButton(el).disabled).toBeFalse();
+    });
+
+    it('emite os 3 uids e o nome da equipe', async () => {
+      const el = await render([category({ teamSize: 3 })]);
+      const emitted: NovaInscricaoSubmit[] = [];
+      fixture.componentInstance.submitted.subscribe((e) => emitted.push(e));
+
+      internals().select(athlete('uid-a', 'Ana Paula'));
+      internals().select(athlete('uid-b', 'Beatriz Costa'));
+      internals().select(athlete('uid-c', 'Carla Dias'));
+      internals().teamName.set('  Os   Feras  ');
+      await fixture.whenStable();
+      submitButton(el).click();
+
+      expect(emitted[0].athleteUids).toEqual(['uid-a', 'uid-b', 'uid-c']);
+      expect(emitted[0].teamName).toBe('Os Feras');
+    });
+
+    it('dupla não mostra o campo de nome', async () => {
+      const el = await render([category({ teamSize: null })]);
+      expect(el.querySelector('#og-ni-team-name')).toBeNull();
+    });
+
+    it('trocar de quarteto pra dupla corta o elenco e os slots', async () => {
+      const el = await render([
+        category({ id: 'c-q', teamSize: 4, name: 'Quarteto' }),
+        category({ id: 'c-d', teamSize: null, name: 'Dupla' }),
+      ]);
+      internals().categoryId.set('c-q');
+      await fixture.whenStable();
+      expect(el.querySelectorAll('.og-ni-slot').length).toBe(4);
+      expect(el.querySelector('#og-ni-team-name')).not.toBeNull();
+
+      for (const a of [
+        athlete('uid-a', 'Ana'),
+        athlete('uid-b', 'Bia'),
+        athlete('uid-c', 'Carla'),
+        athlete('uid-d', 'Duda'),
+      ]) {
+        internals().select(a);
+      }
+      await fixture.whenStable();
+      expect(el.querySelectorAll('.og-ni-slot.filled').length).toBe(4);
+
+      internals().categoryId.set('c-d');
+      await fixture.whenStable();
+      expect(el.querySelectorAll('.og-ni-slot').length).toBe(2);
+      expect(el.querySelectorAll('.og-ni-slot.filled').length).toBe(2);
+      expect(el.querySelector('#og-ni-team-name')).toBeNull();
+      expect(el.textContent).toContain('Dupla · 2 atletas');
+    });
   });
 });

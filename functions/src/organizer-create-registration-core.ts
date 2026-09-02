@@ -1,15 +1,14 @@
 /**
  * Lógica pura da inscrição criada PELO ORGANIZADOR (`organizerCreateTeamRegistration`).
  *
- * Existe para os casos em que a dupla não conseguiu se inscrever sozinha: prazo estourado,
- * convite que o parceiro nunca aceitou, pagamento que travou. O organizador escolhe os dois
- * atletas (ambos já cadastrados) e a inscrição nasce igual à do fluxo do atleta — mesma
- * coleção, mesmos campos, mesmo motor de unicidade.
+ * Existe para os casos em que a dupla/equipe não conseguiu se inscrever sozinha: prazo
+ * estourado, convite que o parceiro nunca aceitou, pagamento que travou. O organizador
+ * escolhe o elenco completo (todos já cadastrados) e a inscrição nasce igual à do fluxo
+ * do atleta — mesma coleção, mesmos campos.
  *
  * O que NÃO está aqui, de propósito:
  * - Aceite do termo de imagem (LGPD): o organizador não consente pelo atleta, então a inscrição
  *   nasce sem aceite e a lista do painel já a mostra como "LGPD pendente".
- * - Uniforme: ninguém escolheu tamanho; o atleta preenche depois pelo portal.
  */
 
 import {HttpsError} from "firebase-functions/v2/https";
@@ -19,6 +18,11 @@ import {
 } from "./organizer-category-ops-payments";
 import {parseUniformPayload} from "./tournament-partner-invite";
 import type {TournamentCategory, UniformPayload} from "./tournament-partner-invite";
+import {
+  DUPLA_TEAM_SIZE,
+  MAX_TEAM_CATEGORY_SIZE,
+  MIN_TEAM_CATEGORY_SIZE,
+} from "./tournament-team-category";
 
 /** Marca de origem gravada na inscrição — separa do que veio do fluxo do atleta. */
 export const ORGANIZER_CREATED_VIA = "organizer";
@@ -26,8 +30,11 @@ export const ORGANIZER_CREATED_VIA = "organizer";
 export interface CreateTeamRegistrationInput {
   tournamentId: string;
   categoryId: string;
-  /** Exatamente 2 atletas, distintos, ambos com conta. */
-  athleteUids: [string, string];
+  /**
+   * Elenco completo e distinto. A Cloud Function confere se o tamanho bate com a
+   * categoria (2 na dupla, 3–5 na equipe) — o parse só garante faixa e unicidade.
+   */
+  athleteUids: string[];
   /** O organizador já recebeu o valor por fora (Pix/dinheiro na mão). */
   markAsPaid: boolean;
   /**
@@ -36,6 +43,11 @@ export interface CreateTeamRegistrationInput {
    * `validateUniformPayload` — a mesma do fluxo do atleta.
    */
   uniforms: Record<string, UniformPayload>;
+  /**
+   * Nome da equipe (trio+). Vazio na dupla. Quando a categoria é de equipe e o
+   * organizador não manda nome, a CF gera um a partir dos atletas.
+   */
+  teamName: string | null;
 }
 
 function requiredText(value: unknown, field: string): string {
@@ -59,16 +71,16 @@ export function parseCreateTeamRegistrationInput(
       .filter((uid) => uid.length > 0)
     : [];
 
-  if (uids.length !== 2) {
+  if (uids.length < DUPLA_TEAM_SIZE || uids.length > MAX_TEAM_CATEGORY_SIZE) {
     throw new HttpsError(
       "invalid-argument",
-      "Informe os dois atletas da dupla.",
+      `Informe de ${DUPLA_TEAM_SIZE} a ${MAX_TEAM_CATEGORY_SIZE} atletas.`,
     );
   }
-  if (uids[0] === uids[1]) {
+  if (new Set(uids).size !== uids.length) {
     throw new HttpsError(
       "invalid-argument",
-      "Os dois atletas da dupla precisam ser diferentes.",
+      "Os atletas da inscrição precisam ser diferentes.",
     );
   }
 
@@ -82,13 +94,33 @@ export function parseCreateTeamRegistrationInput(
     if (payload) uniforms[uid] = payload;
   }
 
+  const teamNameRaw =
+    typeof raw.teamName === "string" ? raw.teamName.trim() : "";
+
   return {
     tournamentId,
     categoryId,
-    athleteUids: [uids[0], uids[1]],
+    athleteUids: uids,
     markAsPaid: raw.markAsPaid === true,
     uniforms,
+    teamName: teamNameRaw.length > 0 ? teamNameRaw : null,
   };
+}
+
+/**
+ * Confere que o elenco enviado tem exatamente o tamanho da categoria.
+ * Separado do parse porque o tamanho certo só existe depois de ler o torneio.
+ */
+export function assertAthleteUidsMatchCategorySize(
+  athleteUids: readonly string[],
+  expectedSize: number,
+): void {
+  if (athleteUids.length === expectedSize) return;
+  const unit = expectedSize >= MIN_TEAM_CATEGORY_SIZE ? "equipe" : "dupla";
+  throw new HttpsError(
+    "invalid-argument",
+    `Esta ${unit} precisa de ${expectedSize} atletas. Você informou ${athleteUids.length}.`,
+  );
 }
 
 /**
@@ -184,11 +216,15 @@ export interface OrganizerRegistrationDocParams {
   teamId: string;
   tournamentId: string;
   categoryId: string;
-  athleteUids: readonly [string, string];
+  athleteUids: readonly string[];
   organizerUid: string;
   /** Categoria lotada com fila ativa. */
   waitlist: boolean;
   timestamp: unknown;
+  /** 3–5 em categoria de equipe; omitido/2 = dupla clássica. */
+  teamSize?: number;
+  /** Nome da equipe nomeada (trio+). */
+  teamName?: string | null;
 }
 
 /**
@@ -210,44 +246,108 @@ export function organizerRegistrationStamp(
 }
 
 /**
- * Documento da inscrição nova. Espelha o que `acceptTournamentPartnerInvite` grava ao fechar
- * uma dupla, mais a procedência.
+ * Documento da inscrição nova. Espelha o que o fluxo do atleta grava ao fechar
+ * a vaga, mais a procedência do organizador.
  */
 export function buildOrganizerRegistrationDoc(
   params: OrganizerRegistrationDocParams,
 ): Record<string, unknown> {
-  const {teamId, tournamentId, categoryId, athleteUids, organizerUid, waitlist, timestamp} =
-    params;
+  const {
+    teamId,
+    tournamentId,
+    categoryId,
+    athleteUids,
+    organizerUid,
+    waitlist,
+    timestamp,
+    teamSize,
+    teamName,
+  } = params;
+  const captainUid = athleteUids[0] ?? "";
+  const isTeam =
+    teamSize != null && teamSize >= MIN_TEAM_CATEGORY_SIZE;
 
   return {
     teamId,
     tournamentId,
     categoryId,
-    participantUids: [athleteUids[0], athleteUids[1]],
+    participantUids: [...athleteUids],
     isPaid: false,
     paidAmount: 0,
     createdAt: timestamp,
     createdVia: ORGANIZER_CREATED_VIA,
     ...organizerRegistrationStamp(organizerUid, timestamp),
     ...(waitlist ? {waitlist: true} : {}),
+    // Dupla mantém o shape legado (sem player1Id / partnerPending na inscrição).
+    // Equipe espelha o fluxo do capitão, com elenco já completo.
+    ...(isTeam
+      ? {
+          teamSize,
+          captainUid,
+          player1Id: captainUid,
+          partnerPending: false,
+          ...(teamName?.trim() ? {teamName: teamName.trim()} : {}),
+        }
+      : {}),
   };
 }
 
-/** Aviso enviado aos dois atletas — o par (título, corpo) muda com o estado do pagamento. */
+/** Doc da coleção `teams` para equipe nomeada criada pelo organizador (elenco completo). */
+export function buildOrganizerNamedTeamDoc(params: {
+  tournamentId: string;
+  categoryId: string;
+  athleteUids: readonly string[];
+  teamSize: number;
+  teamName: string;
+  timestamp: unknown;
+}): Record<string, unknown> {
+  const {tournamentId, categoryId, athleteUids, teamSize, teamName, timestamp} =
+    params;
+  const captainUid = athleteUids[0] ?? "";
+  return {
+    teamName,
+    captainUid,
+    memberUids: [...athleteUids],
+    teamSize,
+    player1Id: captainUid,
+    player2Id: athleteUids[1] ?? "",
+    tournamentId,
+    categoryId,
+    createdAt: timestamp,
+  };
+}
+
+/**
+ * Nome padrão quando o organizador não informou um: primeiros nomes unidos.
+ * Garante pelo menos 3 caracteres (mínimo da regra de nome de equipe).
+ */
+export function defaultOrganizerTeamName(athleteNames: readonly string[]): string {
+  const firsts = athleteNames
+    .map((n) => n.trim().split(/\s+/)[0] ?? "")
+    .filter((n) => n.length > 0);
+  const joined = firsts.slice(0, 3).join(" / ");
+  if (joined.length >= 3) return joined.slice(0, 30);
+  return "Equipe";
+}
+
+/** Aviso enviado aos atletas — o par (título, corpo) muda com o estado do pagamento. */
 export function organizerRegistrationNotification(params: {
   tournamentName: string;
   categoryName: string;
   isPaid: boolean;
+  /** `true` = trio+; copy fala em equipe. */
+  isTeam?: boolean;
 }): {title: string; body: string} {
-  const {tournamentName, categoryName, isPaid} = params;
+  const {tournamentName, categoryName, isPaid, isTeam = false} = params;
   const where = tournamentName
     ? `${tournamentName}${categoryName ? ` · ${categoryName}` : ""}`
     : categoryName;
+  const unit = isTeam ? "equipe" : "dupla";
 
   return {
     title: "Inscrição criada pelo organizador",
     body: isPaid
-      ? `Sua dupla está inscrita em ${where}. Vaga confirmada.`
-      : `Sua dupla está inscrita em ${where}. O pagamento segue pendente.`,
+      ? `Sua ${unit} está inscrita em ${where}. Vaga confirmada.`
+      : `Sua ${unit} está inscrita em ${where}. O pagamento segue pendente.`,
   };
 }

@@ -1,8 +1,11 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertAthleteUidsMatchCategorySize,
+  buildOrganizerNamedTeamDoc,
   buildOrganizerPaymentFields,
   buildOrganizerRegistrationDoc,
+  defaultOrganizerTeamName,
   effectiveUniformCategory,
   organizerRegistrationNotification,
   organizerRegistrationStamp,
@@ -36,7 +39,19 @@ describe("parseCreateTeamRegistrationInput", () => {
       athleteUids: ["uid-a", "uid-b"],
       markAsPaid: true,
       uniforms: {},
+      teamName: null,
     });
+  });
+
+  it("aceita elenco de 3 a 5 atletas distintos", () => {
+    const input = parseCreateTeamRegistrationInput({
+      tournamentId: "t1",
+      categoryId: "Misto 4x4",
+      athleteUids: ["a", "b", "c", "d"],
+      teamName: "  Os Feras  ",
+    });
+    assert.deepEqual(input.athleteUids, ["a", "b", "c", "d"]);
+    assert.equal(input.teamName, "Os Feras");
   });
 
   it("recolhe o uniforme de cada atleta e descarta o resto", () => {
@@ -84,15 +99,46 @@ describe("parseCreateTeamRegistrationInput", () => {
     rejectsInvalidArgument({tournamentId: "  ", categoryId: "c", athleteUids: ["a", "b"]});
   });
 
-  it("exige exatamente dois atletas distintos", () => {
+  it("exige de 2 a 5 atletas distintos", () => {
     const base = {tournamentId: "t1", categoryId: "c"};
     rejectsInvalidArgument({...base, athleteUids: ["a"]});
-    rejectsInvalidArgument({...base, athleteUids: ["a", "b", "c"]});
+    rejectsInvalidArgument({...base, athleteUids: ["a", "b", "c", "d", "e", "f"]});
     rejectsInvalidArgument({...base, athleteUids: ["a", "a"]});
-    // Um uid vazio some na limpeza e cai no mesmo erro de "informe os dois".
+    rejectsInvalidArgument({...base, athleteUids: ["a", "b", "a"]});
+    // Um uid vazio some na limpeza e cai no mesmo erro de faixa.
     rejectsInvalidArgument({...base, athleteUids: ["a", "   "]});
     rejectsInvalidArgument({...base, athleteUids: "a,b"});
     rejectsInvalidArgument({...base});
+  });
+});
+
+describe("assertAthleteUidsMatchCategorySize", () => {
+  it("aceita o tamanho exato", () => {
+    assert.doesNotThrow(() =>
+      assertAthleteUidsMatchCategorySize(["a", "b", "c"], 3),
+    );
+  });
+
+  it("rejeita elenco menor ou maior que a categoria", () => {
+    assert.throws(
+      () => assertAthleteUidsMatchCategorySize(["a", "b"], 4),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        assert.match(err.message, /4 atletas/);
+        return true;
+      },
+    );
+  });
+});
+
+describe("defaultOrganizerTeamName", () => {
+  it("une primeiros nomes e corta em 30", () => {
+    assert.equal(
+      defaultOrganizerTeamName(["Ana Silva", "Bia Costa", "Carla"]),
+      "Ana / Bia / Carla",
+    );
+    assert.equal(defaultOrganizerTeamName(["X"]), "Equipe");
+    assert.equal(defaultOrganizerTeamName([]), "Equipe");
   });
 });
 
@@ -227,6 +273,45 @@ describe("buildOrganizerRegistrationDoc", () => {
   it("fora da fila não grava o campo (não vira 'espera: false' na lista)", () => {
     assert.equal("waitlist" in buildOrganizerRegistrationDoc(params), false);
   });
+
+  it("equipe nomeada grava tamanho, capitão e elenco completo", () => {
+    const doc = buildOrganizerRegistrationDoc({
+      ...params,
+      athleteUids: ["a", "b", "c"],
+      teamSize: 3,
+      teamName: "Os Feras",
+    });
+    assert.equal(doc.teamSize, 3);
+    assert.equal(doc.captainUid, "a");
+    assert.equal(doc.player1Id, "a");
+    assert.equal(doc.partnerPending, false);
+    assert.equal(doc.teamName, "Os Feras");
+    assert.deepEqual(doc.participantUids, ["a", "b", "c"]);
+  });
+});
+
+describe("buildOrganizerNamedTeamDoc", () => {
+  it("espelha o doc do capitão com elenco já completo", () => {
+    const doc = buildOrganizerNamedTeamDoc({
+      tournamentId: "t1",
+      categoryId: "Misto 3x3",
+      athleteUids: ["a", "b", "c"],
+      teamSize: 3,
+      teamName: "Os Feras",
+      timestamp: TS,
+    });
+    assert.deepEqual(doc, {
+      teamName: "Os Feras",
+      captainUid: "a",
+      memberUids: ["a", "b", "c"],
+      teamSize: 3,
+      player1Id: "a",
+      player2Id: "b",
+      tournamentId: "t1",
+      categoryId: "Misto 3x3",
+      createdAt: TS,
+    });
+  });
 });
 
 describe("organizerRegistrationStamp", () => {
@@ -249,6 +334,7 @@ describe("organizerRegistrationNotification", () => {
     });
     assert.match(paid.body, /Copa VH · Masculino B/);
     assert.match(paid.body, /confirmada/);
+    assert.match(paid.body, /dupla/);
 
     const pending = organizerRegistrationNotification({
       tournamentName: "Copa VH",
@@ -256,6 +342,17 @@ describe("organizerRegistrationNotification", () => {
       isPaid: false,
     });
     assert.match(pending.body, /pendente/);
+  });
+
+  it("equipe usa a palavra equipe no corpo", () => {
+    const {body} = organizerRegistrationNotification({
+      tournamentName: "Copa",
+      categoryName: "Misto 4x4",
+      isPaid: true,
+      isTeam: true,
+    });
+    assert.match(body, /equipe/);
+    assert.doesNotMatch(body, /dupla/);
   });
 
   it("sem nome de torneio o corpo ainda faz sentido", () => {

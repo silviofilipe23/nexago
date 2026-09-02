@@ -510,7 +510,9 @@ export class InscricoesComponent {
    *  dupla nova na lista, ou a reserva que um dos atletas já tinha, agora fechada — sem esse
    *  aviso ele procura uma linha nova que não existe. */
   protected onCreate(form: NovaInscricaoSubmit): void {
-    const categoria = this.categorias().find((c) => c.id === form.categoryId)?.name ?? 'categoria';
+    const categoria = this.categorias().find((c) => c.id === form.categoryId);
+    const categoriaNome = categoria?.name ?? 'categoria';
+    const unit = (categoria?.teamSize ?? 0) >= 3 ? 'Equipe' : 'Dupla';
     void this.run(
       'create',
       async () => {
@@ -520,14 +522,15 @@ export class InscricoesComponent {
           athleteUids: form.athleteUids,
           markAsPaid: form.markAsPaid,
           uniforms: form.uniforms,
+          teamName: form.teamName,
         });
         this.creating.set(false);
         return result;
       },
       (result) => {
         const base = result.merged
-          ? `Dupla fechada em ${categoria} sobre a inscrição que o atleta já tinha.`
-          : `Dupla inscrita em ${categoria}.`;
+          ? `${unit} fechada em ${categoriaNome} sobre a inscrição que o atleta já tinha.`
+          : `${unit} inscrita em ${categoriaNome}.`;
         return result.waitlist ? `${base} A categoria está lotada: entrou na lista de espera.` : base;
       },
     );

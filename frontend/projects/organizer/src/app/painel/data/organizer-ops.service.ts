@@ -90,17 +90,21 @@ export interface CreateTeamRegistrationResult {
 export function createTeamRegistration(params: {
   tournamentId: string;
   categoryId: string;
-  athleteUids: readonly [string, string];
+  athleteUids: readonly string[];
   markAsPaid: boolean;
   /** Uniforme por uid — obrigatório quando a categoria exige; o servidor valida os tamanhos. */
   uniforms?: Record<string, TeamRegistrationUniform>;
+  /** Nome da equipe (trio+). Omitido na dupla. */
+  teamName?: string | null;
 }): Promise<CreateTeamRegistrationResult> {
+  const teamName = params.teamName?.trim() ?? '';
   return call<CreateTeamRegistrationResult>('organizerCreateTeamRegistration', {
     tournamentId: params.tournamentId.trim(),
     categoryId: params.categoryId.trim(),
-    athleteUids: [params.athleteUids[0].trim(), params.athleteUids[1].trim()],
+    athleteUids: params.athleteUids.map((uid) => uid.trim()).filter((uid) => uid.length > 0),
     markAsPaid: params.markAsPaid,
     uniforms: params.uniforms ?? {},
+    ...(teamName ? { teamName } : {}),
   });
 }
 

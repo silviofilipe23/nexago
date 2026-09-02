@@ -34,6 +34,7 @@ import type {
   FilterFormat,
 } from './tournament-discovery.models';
 import { collectLeagueTournamentIds } from './tournament-league.helpers';
+import { sortByStartProximity } from './tournament-discovery.order';
 import {
   discoveryEnrolledLabel,
   discoveryFillPercent,
@@ -307,9 +308,7 @@ export class TournamentDiscoveryComponent {
   protected readonly filteredTournaments = computed(() => this.allTournaments().filter((t) => this.passesFilters(t)));
 
   protected readonly standaloneTournaments = computed(() =>
-    [...this.filteredTournaments()]
-      .filter((t) => !this.leagueTournamentIds().has(t.id))
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime()),
+    sortByStartProximity(this.filteredTournaments().filter((t) => !this.leagueTournamentIds().has(t.id))),
   );
 
   protected readonly leagueCards = computed<CompeteLeagueCard[]>(() => {

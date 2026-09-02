@@ -46,8 +46,9 @@ import {
 } from '../shared/feedback';
 
 /** Métodos reais do backend: PIX (Asaas, 100% ou 50% agora) e pagamento no local.
- *  **Não existe pagamento por cartão em lugar nenhum do fluxo real** — a aba "cartão"
- *  do mock foi removida, igual à decisão já tomada no pagamento de inscrição de torneio.
+ *  **RESERVA de arena não tem pagamento por cartão** — a aba "cartão" do mock foi removida,
+ *  e é isso que o backend oferece aqui. (A INSCRIÇÃO em torneio ganhou cartão em 02/09, por
+ *  checkout hospedado; não confundir os dois fluxos.)
  *  "Dividir com amigos" (split de PIX) é real, ver `arena-booking-split-repository.ts`. */
 export type PaymentMethod = 'pix' | 'onsite';
 

@@ -86,11 +86,13 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
  *  do atleta o único momento em que ele vê "inscrição confirmada". */
 const PAID_REVEAL_MS = 2000;
 
-/** Pagamento real: PIX via Asaas (`createTournamentRegistrationPixPayment`, exige CPF) quando
- *  `paymentMode==='appPixCard'`, ou reserva sem cobrança online quando
- *  `paymentMode==='directWithOrganizer'` (o acerto é direto com o organizador, mostrando só a
- *  chave Pix dele). **Não existe pagamento por cartão de crédito em lugar nenhum do fluxo real**
- *  — a opção "cartão" do mock foi removida, não é um corte de escopo, é reflexo do que existe. */
+/** Pagamento real quando `paymentMode==='appPixCard'`: PIX via Asaas
+ *  (`createTournamentRegistrationPixPayment`) ou cartão de crédito
+ *  (`createTournamentRegistrationCardPayment`), os dois exigindo CPF. O cartão devolve o
+ *  `invoiceUrl` do checkout HOSPEDADO do Asaas — nenhum dado de cartão passa por esta tela.
+ *
+ *  Com `paymentMode==='directWithOrganizer'` não há cobrança online: o acerto é direto com o
+ *  organizador e a tela mostra só a chave Pix dele. */
 @Component({
   selector: 'app-tournament-payment',
   standalone: true,

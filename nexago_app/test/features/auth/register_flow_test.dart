@@ -15,6 +15,7 @@ import 'package:nexago_app/core/observability/analytics_service.dart';
 import 'package:nexago_app/core/router/app_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/auth/register_page.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -76,6 +77,58 @@ class _CreateThrowsAfterSigningInAuthService extends AuthService {
       password: password,
     );
     throw StateError('erro de parsing do SDK pós-criação');
+  }
+}
+
+/// A chamada NUNCA responde (resposta nativa perdida), mas o SDK criou a
+/// conta e abriu a sessão por baixo — `authStateChanges` emite o usuário.
+/// Sem tratar isso, o botão fica girando para sempre com a conta já criada.
+class _CreateHangsAfterSigningInAuthService extends AuthService {
+  _CreateHangsAfterSigningInAuthService(this._mock) : super(_mock);
+
+  final MockFirebaseAuth _mock;
+
+  @override
+  Future<UserCredential> registerWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) {
+    Future<void>.delayed(const Duration(milliseconds: 300), () {
+      _mock.createUserWithEmailAndPassword(email: email, password: password);
+    });
+    return Completer<UserCredential>().future;
+  }
+}
+
+/// A chamada nunca responde E a sessão nunca abre (rede morta no meio).
+class _CreateHangsForeverAuthService extends AuthService {
+  _CreateHangsForeverAuthService(super.auth);
+
+  @override
+  Future<UserCredential> registerWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) {
+    return Completer<UserCredential>().future;
+  }
+}
+
+/// Lança ANTES de a sessão aparecer: no `catch`, `currentUser` ainda é null
+/// e o usuário só chega pelo `authStateChanges` logo depois.
+class _CreateThrowsBeforeSessionAuthService extends AuthService {
+  _CreateThrowsBeforeSessionAuthService(this._mock) : super(_mock);
+
+  final MockFirebaseAuth _mock;
+
+  @override
+  Future<UserCredential> registerWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    Future<void>.delayed(const Duration(milliseconds: 300), () {
+      _mock.createUserWithEmailAndPassword(email: email, password: password);
+    });
+    throw StateError('erro de parsing do SDK antes da sessão');
   }
 }
 
@@ -274,6 +327,94 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       _expectSuccessScreen(tester, h);
+    },
+  );
+
+  testWidgets(
+    'SDK cria a conta e abre a sessão mas a chamada NUNCA responde: a '
+    'sessão leva ao sucesso (sem spinner eterno com a conta criada)',
+    (tester) async {
+      final h = await _pumpFilledRegisterForm(
+        tester,
+        authService: _CreateHangsAfterSigningInAuthService.new,
+      );
+
+      h.profile.add(null);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // A sessão abre com a chamada ainda pendurada.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      _expectSuccessScreen(tester, h);
+
+      // O tempo limite da chamada pendurada estoura depois: já resolvido,
+      // nada muda e nenhum erro aparece.
+      await tester.pump(kRegisterCreateTimeout + const Duration(seconds: 2));
+      _expectSuccessScreen(tester, h);
+      expect(find.text(kRegisterTimeoutMessage), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'SDK lança ANTES de a sessão aparecer: o usuário chega em seguida e o '
+    'atleta vai ao sucesso sem ver erro',
+    (tester) async {
+      final h = await _pumpFilledRegisterForm(
+        tester,
+        authService: _CreateThrowsBeforeSessionAuthService.new,
+      );
+
+      h.profile.add(null);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      _expectSuccessScreen(tester, h);
+      expect(find.text('Erro inesperado. Tente novamente.'), findsNothing);
+
+      await tester.pump(
+        kRegisterLateSessionGrace + const Duration(milliseconds: 100),
+      );
+      _expectSuccessScreen(tester, h);
+      expect(find.text('Erro inesperado. Tente novamente.'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'chamada nunca responde e a sessão não abre: após o tempo limite o '
+    'formulário volta a aceitar toque e explica o que houve',
+    (tester) async {
+      final h = await _pumpFilledRegisterForm(
+        tester,
+        authService: _CreateHangsForeverAuthService.new,
+      );
+
+      await tester.pump(
+        kRegisterCreateTimeout +
+            kRegisterLateSessionGrace +
+            const Duration(milliseconds: 200),
+      );
+
+      expect(h.mockAuth.currentUser, isNull);
+      expect(find.text('Criar conta.'), findsOneWidget);
+      expect(find.text(kRegisterTimeoutMessage), findsOneWidget);
+
+      final page = find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == 'RegisterPage',
+      );
+      final button = tester.widget<FilledButton>(
+        find.descendant(
+          of: page,
+          matching: find.widgetWithText(FilledButton, 'Criar conta'),
+        ),
+      );
+      expect(
+        button.onPressed,
+        isNotNull,
+        reason: 'o botão precisa voltar a aceitar toque depois do tempo limite',
+      );
     },
   );
 }

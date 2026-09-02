@@ -1,0 +1,95 @@
+@if (loading()) {
+  <app-registration-wizard-shell title="Inscrição" [userName]="store.accountLabel()" (back)="exit()">
+    <app-nx-page-loading title="Carregando categoria…" subtitle="Buscando vagas e valores" />
+  </app-registration-wizard-shell>
+} @else if (tournament(); as t) {
+  @if (category(); as cat) {
+    <app-registration-wizard-shell
+      [title]="cat.categoryName"
+      [subtitle]="t.name"
+      [stepNumber]="1"
+      [userName]="store.accountLabel()"
+      (back)="exit()"
+    >
+      @if (status(); as st) {
+        @if (st.badge) {
+          <span class="wz-badge">{{ st.badge }}</span>
+        }
+      }
+
+      <dl class="wz-tiles">
+        <div class="wz-tile" [class.wz-tile--emphasis]="(spotsLeft() ?? 0) > 0">
+          <dt>Vagas</dt>
+          <dd>{{ spotsLabel() }}</dd>
+        </div>
+        <div class="wz-tile">
+          <dt>Nível</dt>
+          <dd>{{ levelLabel() }}</dd>
+        </div>
+      </dl>
+
+      <dl class="wz-card wz-specs">
+        <div class="wz-spec">
+          <dt>Inscrição por {{ unitSingular() }}</dt>
+          <dd>{{ priceLabel() }}</dd>
+        </div>
+        @if (closesLabel(); as closes) {
+          <div class="wz-spec wz-spec--highlight">
+            <dt>Inscrições até</dt>
+            <dd>{{ closes }}</dd>
+          </div>
+        }
+        <div class="wz-spec">
+          <dt>Formato</dt>
+          <dd>{{ formatLabel() }}</dd>
+        </div>
+      </dl>
+
+      @if (pairRequired()) {
+        <div class="wz-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+          <p>Esta categoria só aceita inscrição em dupla — você vai precisar informar o parceiro no próximo passo.</p>
+        </div>
+      }
+
+      <div class="wz-bar" wizardActions>
+        <button type="button" class="wz-cta" [disabled]="!canAdvance() || advancing()" (click)="confirm()">
+          {{ advancing() ? 'Aguarde…' : ctaLabel() }}
+        </button>
+        @if (status()?.message; as msg) {
+          <p class="wz-cta-hint">{{ msg }}</p>
+        }
+        <a class="wz-link" [routerLink]="['/torneios', t.id, 'categorias']">Ver outras categorias</a>
+      </div>
+    </app-registration-wizard-shell>
+
+    @if (levelPrompt(); as prompt) {
+      <app-nx-blocking-dialog
+        tone="info"
+        role="dialog"
+        heading="Confirme seu nível"
+        [body]="'Você vai se inscrever como ' + prompt.levelLabel + ' em ' + prompt.sportLabel + '. Após a inscrição, o nível só poderá subir.'"
+        primaryLabel="Confirmar e continuar"
+        secondaryLabel="Ajustar nível"
+        (primary)="confirmLevel()"
+        (secondary)="adjustLevel()"
+      />
+    }
+  } @else {
+    <app-registration-wizard-shell title="Inscrição" [subtitle]="t.name" [userName]="store.accountLabel()" (back)="exit()">
+      <div class="wz-empty">
+        <h2>Categoria não encontrada</h2>
+        <p>Ela pode ter sido removida ou o link está desatualizado.</p>
+        <a class="wz-cta" [routerLink]="['/torneios', t.id, 'categorias']">Ver categorias</a>
+      </div>
+    </app-registration-wizard-shell>
+  }
+} @else {
+  <app-registration-wizard-shell title="Inscrição" [userName]="store.accountLabel()" (back)="exit()">
+    <div class="wz-empty">
+      <h2>Torneio não encontrado</h2>
+      <p>Ele pode ter sido removido ou o link está desatualizado.</p>
+      <a class="wz-cta" routerLink="/torneios">Ver torneios</a>
+    </div>
+  </app-registration-wizard-shell>
+}

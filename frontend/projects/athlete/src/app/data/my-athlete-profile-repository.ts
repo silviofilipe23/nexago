@@ -1,4 +1,4 @@
-import { doc, getDoc, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
 
 /** Perfil PRÓPRIO (`users/{uid}`) — só os campos que a inscrição precisa: gênero/nascimento
  *  (elegibilidade) e nome/apelido (nome default na camisa). `public_profiles` não serve aqui:
@@ -53,4 +53,18 @@ export async function fetchMyAthleteProfile(db: Firestore, uid: string): Promise
     nickname: optionalStr(data['nickname']),
     profilePhotoUrl: optionalStr(data['profilePhotoUrl']),
   };
+}
+
+/** Opt-in de MARKETING do passo de consentimento.
+ *
+ *  É consentimento de PLATAFORMA, não do evento: mora em `users/{uid}.marketingOptIn`, fora da
+ *  inscrição. Falhar aqui nunca pode travar o fluxo — o aceite que importa para a inscrição é
+ *  o do termo, e ele viaja na callable.
+ *
+ *  Não exige mudança no `firestore.rules`: a regra de update de `users` é uma lista de
+ *  PROIBIÇÕES (`roles`, `superAdmin`, `reputation`, níveis…), não um allow-list de campos —
+ *  campo novo do próprio dono passa. O campo também não entra em `PUBLIC_PROFILE_FIELDS`, então
+ *  não vaza para o espelho público. */
+export async function saveMarketingOptIn(db: Firestore, uid: string, optIn: boolean): Promise<void> {
+  await setDoc(doc(db, 'users', uid), { marketingOptIn: optIn }, { merge: true });
 }

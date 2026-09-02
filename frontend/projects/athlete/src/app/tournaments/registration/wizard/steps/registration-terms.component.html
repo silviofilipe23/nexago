@@ -1,0 +1,119 @@
+@if (loading()) {
+  <app-registration-wizard-shell title="Condições" [userName]="store.accountLabel()" (back)="exit()">
+    <app-nx-page-loading title="Carregando…" subtitle="Buscando as condições da inscrição" />
+  </app-registration-wizard-shell>
+} @else if (tournament(); as t) {
+  @if (category(); as cat) {
+    <app-registration-wizard-shell
+      title="Condições"
+      [subtitle]="t.name"
+      [stepNumber]="3"
+      [userName]="store.accountLabel()"
+      (back)="exit()"
+    >
+      @if (copy(); as c) {
+        <div class="wz-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+          <div>
+            <p class="wz-eyebrow wz-notice-eyebrow">{{ c.eyebrow }}</p>
+            <p class="wz-notice-title">{{ c.title }}</p>
+            <p>{{ c.body }}</p>
+          </div>
+        </div>
+      }
+
+      <section class="wz-card">
+        <div class="wz-row">
+          <span class="wz-row-icon wz-row-icon--win">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+          </span>
+          <span class="wz-row-text">
+            <strong>Parceiro definido antes de pagar</strong>
+            <span>Nenhum valor é cobrado enquanto a dupla não estiver formada</span>
+          </span>
+        </div>
+        @if (closesLabel(); as closes) {
+          <div class="wz-row">
+            <span class="wz-row-icon wz-row-icon--pending">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+            </span>
+            <span class="wz-row-text">
+              <strong>Inscrições até {{ closes }}</strong>
+              <span>Depois desse prazo a chave é sorteada</span>
+            </span>
+          </div>
+        }
+        <div class="wz-row">
+          <span class="wz-row-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M6 4h12v5a6 6 0 0 1-12 0z" /><path d="M12 15v4M8 21h8" /></svg>
+          </span>
+          <span class="wz-row-text">
+            <strong>Os dois precisam caber na categoria</strong>
+            <span>Nível compatível com {{ cat.categoryName }}</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="wz-card">
+        <div class="tm-price-head">
+          <p class="wz-eyebrow">{{ isTeam() ? 'Inscrição da equipe' : 'Inscrição da dupla' }}</p>
+          <strong class="tm-total">{{ totalLabel() }}</strong>
+        </div>
+        <div class="tm-option">
+          <span class="wz-row-text">
+            <strong>{{ isTeam() ? 'Dividido pelo elenco' : 'Metade e metade' }}</strong>
+            <span>cada atleta paga {{ perAthleteLabel() }} no app</span>
+          </span>
+          <span class="tm-option-value">
+            <strong>{{ perAthleteLabel() }}</strong>
+            <span class="wz-pill wz-pill--brand">Por atleta</span>
+          </span>
+        </div>
+        <div class="tm-option">
+          <span class="wz-row-text">
+            <strong>Ou tudo por você</strong>
+            <span>{{ isTeam() ? 'o restante vocês acertam direto' : 'a metade dele vocês acertam direto' }}</span>
+          </span>
+          <span class="tm-option-value">
+            <strong>{{ totalLabel() }}</strong>
+            <span class="wz-pill">Integral</span>
+          </span>
+        </div>
+      </section>
+
+      <div class="wz-bar" wizardActions>
+        @if (copy(); as c) {
+          <button type="button" class="wz-cta" [disabled]="processing()" (click)="primary()">
+            {{ processing() ? 'Aguarde…' : c.ctaLabel }}
+          </button>
+          @if (c.secondaryLabel) {
+            <button type="button" class="wz-link wz-link--brand" [disabled]="processing()" (click)="reserveSolo()">
+              {{ c.secondaryLabel }}
+            </button>
+          }
+          @if (receivedInvite()) {
+            <button type="button" class="wz-link" [disabled]="processing()" (click)="declineInvite()">Recusar convite</button>
+          }
+        }
+        @if (showOtherCategories()) {
+          <a class="wz-link" [routerLink]="['/torneios', t.id, 'categorias']">Ver outras categorias</a>
+        }
+      </div>
+    </app-registration-wizard-shell>
+  } @else {
+    <app-registration-wizard-shell title="Condições" [subtitle]="t.name" [userName]="store.accountLabel()" (back)="exit()">
+      <div class="wz-empty">
+        <h2>Categoria não encontrada</h2>
+        <p>Ela pode ter sido removida ou o link está desatualizado.</p>
+        <a class="wz-cta" [routerLink]="['/torneios', t.id, 'categorias']">Ver categorias</a>
+      </div>
+    </app-registration-wizard-shell>
+  }
+} @else {
+  <app-registration-wizard-shell title="Condições" [userName]="store.accountLabel()" (back)="exit()">
+    <div class="wz-empty">
+      <h2>Torneio não encontrado</h2>
+      <p>Ele pode ter sido removido ou o link está desatualizado.</p>
+    </div>
+  </app-registration-wizard-shell>
+}

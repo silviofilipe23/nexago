@@ -3,6 +3,7 @@ import { authGuard } from './auth/auth.guard';
 import { onboardingGuard } from './auth/onboarding.guard';
 import { staffGuard } from './auth/staff.guard';
 import { TournamentLiveStore } from './tournaments/tournament-live.store';
+import { RegistrationWizardStore } from './tournaments/registration/wizard/registration-wizard.store';
 
 /** As abas "Partidas & tabela" e "Chaves" viraram sub-visões da categoria. O link antigo já
  *  carregava a categoria em `?categoria=`, então o redirect entrega a MESMA vista; sem o
@@ -230,20 +231,82 @@ export const routes: Routes = [
       import('./tournaments/league-detail-shell.component').then((m) => m.LeagueDetailShellComponent),
   },
   {
-    path: 'torneios/:id/inscricao/pagamento',
-    canActivate: [authGuard, onboardingGuard],
-    loadComponent: () =>
-      import('./tournaments/registration/tournament-payment.component').then(
-        (m) => m.TournamentPaymentComponent,
-      ),
-  },
-  {
+    // Wizard de inscrição: uma rota por etapa, sob `torneios/:id/inscricao`.
+    //
+    // A rota-mãe é COMPONENTLESS de propósito. Duas consequências, as duas necessárias: o
+    // `RegistrationWizardStore` vive uma instância por entrada no fluxo (os seis passos leem o
+    // mesmo torneio, as mesmas inscrições e os mesmos convites, sem refazer a cadeia de
+    // leituras a cada navegação), e o `:id` é herdado pelos filhos sem
+    // `paramsInheritanceStrategy`.
+    //
+    // `''` é o PORTEIRO, não uma tela: ele deriva a etapa do Firestore e se substitui pela rota
+    // dela. É por isso que os ~8 pontos de entrada do portal (painel, agenda, anunciador de
+    // convite, aba do torneio, liga, "continuar inscrição") continuam apontando para
+    // `torneios/:id/inscricao` sem nenhuma mudança.
     path: 'torneios/:id/inscricao',
     canActivate: [authGuard, onboardingGuard],
-    loadComponent: () =>
-      import('./tournaments/registration/tournament-registration-shell.component').then(
-        (m) => m.TournamentRegistrationShellComponent,
-      ),
+    providers: [RegistrationWizardStore],
+    children: [
+      {
+        path: 'categoria',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/steps/registration-category.component').then(
+            (m) => m.RegistrationCategoryComponent,
+          ),
+      },
+      {
+        path: 'consentimento',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/steps/registration-consent.component').then(
+            (m) => m.RegistrationConsentComponent,
+          ),
+      },
+      {
+        path: 'condicoes',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/steps/registration-terms.component').then(
+            (m) => m.RegistrationTermsComponent,
+          ),
+      },
+      {
+        path: 'parceiro',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/steps/registration-partner.component').then(
+            (m) => m.RegistrationPartnerComponent,
+          ),
+      },
+      {
+        path: 'aguardando',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/steps/registration-waiting.component').then(
+            (m) => m.RegistrationWaitingComponent,
+          ),
+      },
+      {
+        path: 'uniforme',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/steps/registration-uniform.component').then(
+            (m) => m.RegistrationUniformComponent,
+          ),
+      },
+      {
+        // Já existia como rota irmã; virou filha para herdar o store e o `:id`. A URL é a
+        // mesma, então os links de "pagar" do painel e da aba do torneio seguem valendo.
+        path: 'pagamento',
+        loadComponent: () =>
+          import('./tournaments/registration/tournament-payment.component').then(
+            (m) => m.TournamentPaymentComponent,
+          ),
+      },
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () =>
+          import('./tournaments/registration/wizard/registration-gate.component').then(
+            (m) => m.RegistrationGateComponent,
+          ),
+      },
+    ],
   },
   {
     // Um único `TournamentLiveStore` para a casca de abas E para a tela de partida (que é irmã,

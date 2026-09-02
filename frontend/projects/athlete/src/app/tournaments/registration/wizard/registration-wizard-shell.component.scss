@@ -1,0 +1,124 @@
+:host {
+  display: block;
+}
+
+.wz {
+  flex: 1;
+  overflow: auto;
+  // Sem respiro embaixo: o `bottom: 0` da barra grudenta para no PADDING do scroller, e um
+  // padding aqui a deixaria flutuando acima da borda, com conteúdo aparecendo na fresta. O
+  // respiro mora dentro da própria barra.
+  padding: 22px 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 0;
+  }
+}
+
+.wz-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(660px, 100%);
+  margin: 0 auto;
+}
+
+.wz-back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
+
+  @media (max-width: 640px) {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.wz-head-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wz-title {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--nx-text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.wz-subtitle {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.wz-step-count {
+  flex: none;
+  margin: 6px 0 0;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+}
+
+.wz-body {
+  width: min(660px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Barra de ação sempre à vista: o corpo pode ser longo (consentimento, condições) e o CTA é o
+// que fecha o passo. O fundo é SÓLIDO — com gradiente translúcido o texto que rola por baixo
+// aparecia atrás do botão — e o esmaecido fica num pseudo-elemento ACIMA da barra, que é onde
+// ele serve para alguma coisa: avisar que ainda há conteúdo.
+.wz-actions {
+  width: min(660px, 100%);
+  margin: 0 auto;
+  position: sticky;
+  bottom: 0;
+  padding: 8px 0 20px;
+  background: var(--nx-bg);
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 24px;
+    background: linear-gradient(to bottom, transparent, var(--nx-bg));
+    pointer-events: none;
+  }
+
+  &:empty {
+    display: none;
+  }
+}

@@ -100,6 +100,7 @@ function makeTournament(overrides: Partial<TournamentSummary> = {}): TournamentS
     waitlistEnabled: false,
     requireFormedPair: false,
     registrationOpensAt: null,
+    registrationClosesAt: null,
     tournamentPrizes: [],
     categories: [makeCategory()],
     ...overrides,

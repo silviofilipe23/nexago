@@ -1,0 +1,30 @@
+<app-at-panel-shell [userName]="userName()">
+  <div class="wz">
+    <header class="wz-head">
+      <button type="button" class="wz-back" (click)="back.emit()" [attr.aria-label]="closeIcon() ? 'Sair da inscrição' : 'Voltar'">
+        @if (closeIcon()) {
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        } @else {
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        }
+      </button>
+      <div class="wz-head-text">
+        <h1 class="wz-title">{{ title() }}</h1>
+        @if (subtitle()) {
+          <p class="wz-subtitle">{{ subtitle() }}</p>
+        }
+      </div>
+      @if (stepNumber(); as n) {
+        <p class="wz-step-count">Passo {{ n }} de {{ stepCount() }}</p>
+      }
+    </header>
+
+    <div class="wz-body">
+      <ng-content />
+    </div>
+
+    <div class="wz-actions">
+      <ng-content select="[wizardActions]" />
+    </div>
+  </div>
+</app-at-panel-shell>

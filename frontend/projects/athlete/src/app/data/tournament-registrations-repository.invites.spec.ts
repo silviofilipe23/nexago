@@ -1,4 +1,9 @@
-import { partnerInvitesFromDocs, sentInvitesFromDocs, type RawInviteDoc } from './tournament-registrations-repository';
+import {
+  allSentInvitesFromDocs,
+  partnerInvitesFromDocs,
+  sentPendingInvitesFor,
+  type RawInviteDoc,
+} from './tournament-registrations-repository';
 
 /** Mesma função para a busca única e para o listener (`watchMyPendingPartnerInvites`): é aqui
  *  que mora a regra de "pendente de verdade", já que o Firestore não filtra `expiresAt`. */
@@ -67,20 +72,59 @@ describe('partnerInvitesFromDocs', () => {
   });
 });
 
-describe('sentInvitesFromDocs', () => {
+describe('allSentInvitesFromDocs', () => {
   const now = Date.UTC(2026, 7, 14, 12, 0, 0);
 
-  it('lista os enviados que ainda valem, com o nome de quem foi convidado', () => {
-    const invites = sentInvitesFromDocs(
+  it('mapeia o enviado com nome, torneio e categoria', () => {
+    const [invite] = allSentInvitesFromDocs(
+      [doc('i1', { inviteeUid: 'u2', inviteeName: 'Ana', tournamentId: 't1', categoryId: 'c1', expiresAt: timestamp(now + 1) })],
+      now,
+    );
+
+    expect(invite!.inviteeUid).toBe('u2');
+    expect(invite!.inviteeName).toBe('Ana');
+    expect(invite!.tournamentId).toBe('t1');
+    expect(invite!.status).toBe('pending');
+  });
+
+  // A CF só carimba `expired` quando alguém tenta usar o convite; para quem olha a tela, um
+  // `pending` com o prazo vencido já é expirado.
+  it('deriva `expired` de um pendente com prazo vencido', () => {
+    const [invite] = allSentInvitesFromDocs([doc('i2', { expiresAt: timestamp(now - 1) })], now);
+    expect(invite!.status).toBe('expired');
+  });
+
+  // O desfecho é a ÚNICA forma de contar ao atleta por que a espera acabou: recusa de convite
+  // comum não gera notificação nenhuma.
+  it('preserva recusa, cancelamento e aceite em vez de sumir com eles', () => {
+    const invites = allSentInvitesFromDocs(
       [
-        doc('i1', { inviteeUid: 'u2', inviteeName: 'Ana', expiresAt: timestamp(now + 1) }),
-        doc('i2', { inviteeUid: 'u3', inviteeName: 'Bia', expiresAt: timestamp(now - 1) }),
+        doc('i1', { status: 'declined', expiresAt: timestamp(now + 1) }),
+        doc('i2', { status: 'canceled', expiresAt: timestamp(now + 1) }),
+        doc('i3', { status: 'accepted', registrationId: 'r9', expiresAt: timestamp(now + 1) }),
       ],
       now,
     );
 
-    expect(invites.length).toBe(1);
-    expect(invites[0]!.inviteeUid).toBe('u2');
-    expect(invites[0]!.inviteeName).toBe('Ana');
+    expect(invites.map((i) => i.status)).toEqual(['declined', 'cancelled', 'accepted']);
+    // É por este id que a tela de espera acha a inscrição que acabou de nascer.
+    expect(invites[2]!.registrationId).toBe('r9');
+  });
+});
+
+describe('sentPendingInvitesFor', () => {
+  const now = Date.UTC(2026, 7, 14, 12, 0, 0);
+
+  it('recorta os pendentes da categoria, ignorando desfechos e outras categorias', () => {
+    const invites = allSentInvitesFromDocs(
+      [
+        doc('i1', { tournamentId: 't1', categoryId: 'c1', expiresAt: timestamp(now + 1) }),
+        doc('i2', { tournamentId: 't1', categoryId: 'c2', expiresAt: timestamp(now + 1) }),
+        doc('i3', { tournamentId: 't1', categoryId: 'c1', status: 'declined', expiresAt: timestamp(now + 1) }),
+      ],
+      now,
+    );
+
+    expect(sentPendingInvitesFor(invites, 't1', 'c1').map((i) => i.id)).toEqual(['i1']);
   });
 });

@@ -138,12 +138,45 @@ vale para arena, ligas, equipes e torneios — e é o mesmo número que o **gera
 
 *Se você chegou aqui achando a diferença entre 2 e 3 uma inconsistência: não é. É deliberada.*
 
-### A paridade com o portal web está quebrada **de propósito**
+### A paridade com o portal web foi **restaurada** em 02/09
 
-O portal do atleta continua em tela única. O código de hoje diz, em comentário, que a tela
-única "espelha o shell do portal do atleta" — esse comentário sai junto com a tela. Quem
-mexer depois **não deve** restaurar a paridade sem decisão nova: o app foi adiante sozinho
-por escolha.
+Esta seção dizia o contrário: "a paridade está quebrada de propósito, o portal continua em
+tela única, não restaure sem decisão nova". **A decisão nova veio** — o dono pediu o fluxo
+novo funcionando também no portal do atleta — e o wizard foi portado para o Angular em
+02/09/2026. A tela única do portal (`tournament-registration-shell.component`, 1210 linhas)
+foi aposentada junto, como a do app tinha sido.
+
+O que o portal ganhou, em `frontend/projects/athlete/src/app/tournaments/registration/wizard/`:
+
+| Peça | Arquivo |
+|---|---|
+| Porteiro (regra) | `registration-wizard-step.ts` — porte fiel de `registration_wizard_step.dart` |
+| Porteiro (rota) | `registration-gate.component.ts`, em `torneios/:id/inscricao` |
+| Cópia do passo 3 | `registration-terms-copy.ts` — porte de `registration_terms_copy.dart` |
+| Status da categoria | `registration-category-status.ts` |
+| Dados compartilhados | `registration-wizard.store.ts`, provido na rota-mãe |
+| Seis passos | `steps/registration-{category,consent,terms,partner,waiting,uniform}.component.ts` |
+
+**`resolveRegistrationStep` agora existe duas vezes** — Dart e TypeScript — com o mesmo
+contrato e o mesmo conjunto de testes. É duplicação deliberada (não há runtime compartilhado
+entre Flutter e Angular), e é o único ponto em que as duas superfícies **têm** de concordar:
+quem começa a inscrição no celular e volta pelo navegador não pode cair num passo diferente.
+Mexeu num, mexa no outro, e nos dois testes.
+
+Três divergências que o portal mantém, todas por não existir equivalente lá:
+
+- **O aceite do convite acontece no passo 3**, não numa rota dedicada. O app abre
+  `tournamentPartnerInvite`; o portal nunca teve essa rota — o aceite sempre viveu dentro da
+  tela de inscrição. O uniforme do convidado não viaja no aceite: o porteiro manda para o
+  passo do uniforme logo em seguida.
+- **`sucesso` é a aba `minha-inscricao`** do torneio, que já mostra elenco, pagamento e
+  compartilhamento. O portal não ganhou tela de sucesso própria.
+- **O convite por link** continua sendo o `InvitePartnerDialogComponent` (link para
+  `/cadastro` com indicação), não a callable `createExternalPartnerInvite` que o app usa.
+
+E dois nomes de query param: o portal escreve `categoria`/`registro`/`convite`, mas **lê as
+duas grafias** (as do app incluídas). Um push aberto no navegador não pode voltar ao começo
+do fluxo por causa do nome de um parâmetro.
 
 ### O texto do consentimento foi **corrigido**, não copiado do protótipo
 
@@ -227,9 +260,11 @@ público (`athletePublicPartnersProvider`) continuam usando — o segundo roda c
 ## Adicionado ao app
 
 `registrationClosesAt` já existe no Firestore, nas Cloud Functions
-(`tournament-registration-guards.ts`) e no painel do organizador, mas **o app não lê**. Passa
-a ser lido e mostrado como "Inscrições até" nos passos 1, 3 e 5. Campo opcional — sem
-backfill.
+(`tournament-registration-guards.ts`) e no painel do organizador, mas **nem o app nem o portal
+liam**. Passa a ser lido e mostrado como "Inscrições até" nos passos 1, 3 e 5 das duas
+superfícies, e a ser APLICADO pelo status da categoria — antes o prazo era só texto e a recusa
+só vinha da callable, três telas adiante. Campo opcional — sem backfill, e `null` significa
+"sem prazo", nunca "encerrado".
 
 ## Trabalho separado — **não** fazer nesta entrega
 

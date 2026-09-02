@@ -1,0 +1,372 @@
+// Linguagem visual comum dos passos do wizard.
+//
+// Importado por CADA passo via `styleUrls` — o Angular compila uma cópia por componente e
+// escopa as classes ali, então não há vazamento entre telas nem ordem global a manter. Uma
+// folha só existe pelo motivo oposto ao da tela única: o desenho tem de ser o MESMO em seis
+// rotas, e copiá-lo seis vezes é como as telas divergem.
+
+:host {
+  display: block;
+}
+
+// ── cartão ────────────────────────────────────────────────────────────────
+.wz-card {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  padding: 18px;
+
+  @media (max-width: 640px) {
+    padding: 14px;
+  }
+}
+
+.wz-card-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--nx-text);
+  margin: 0 0 10px;
+}
+
+.wz-lead {
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.wz-eyebrow {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin: 0;
+}
+
+// ── aviso âmbar ───────────────────────────────────────────────────────────
+.wz-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: var(--nx-r-3);
+  background: rgba(244, 197, 67, 0.08);
+  border: 1px solid rgba(244, 197, 67, 0.35);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+
+  svg {
+    flex: none;
+    margin-top: 2px;
+    color: var(--nx-pending);
+  }
+
+  p {
+    margin: 0;
+  }
+
+  .wz-notice-eyebrow {
+    color: var(--nx-pending);
+    margin-bottom: 6px;
+  }
+
+  .wz-notice-title {
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 16px;
+    margin: 0 0 6px;
+    white-space: pre-line;
+  }
+}
+
+// ── linha rótulo → valor ──────────────────────────────────────────────────
+.wz-spec {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--nx-line);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  dt {
+    font-family: var(--nx-font-ui);
+    font-size: 14px;
+    color: var(--nx-text-mute);
+    margin: 0;
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--nx-text);
+    overflow-wrap: anywhere;
+  }
+
+  &.wz-spec--highlight dd {
+    color: var(--nx-pending);
+  }
+}
+
+// ── selo ──────────────────────────────────────────────────────────────────
+.wz-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: var(--nx-r-pill);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.4);
+  color: var(--nx-orange-500);
+}
+
+.wz-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: var(--nx-r-pill);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+
+  &.wz-pill--brand {
+    background: var(--nx-orange-tint);
+    border-color: rgba(255, 106, 26, 0.35);
+    color: var(--nx-orange-500);
+  }
+
+  &.wz-pill--warn {
+    background: rgba(244, 197, 67, 0.16);
+    border-color: rgba(244, 197, 67, 0.35);
+    color: var(--nx-pending);
+  }
+}
+
+// ── linha com ícone (garantias, direitos, dados compartilhados) ───────────
+.wz-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--nx-line);
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+.wz-row-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+
+  &.wz-row-icon--win {
+    color: var(--nx-win);
+  }
+
+  &.wz-row-icon--pending {
+    color: var(--nx-pending);
+  }
+}
+
+.wz-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  strong {
+    display: block;
+    font-family: var(--nx-font-display);
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--nx-text);
+  }
+
+  span {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--nx-font-ui);
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--nx-text-mute);
+  }
+}
+
+// ── tiles (vagas / nível) ─────────────────────────────────────────────────
+.wz-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.wz-tile {
+  // `min-width: auto` — sem isso um valor longo ("Intermediário 1 – Avançado 2") estoura a
+  // coluna `1fr` em vez de quebrar linha.
+  min-width: auto;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  padding: 14px;
+
+  dt {
+    font-family: var(--nx-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--nx-text-dim);
+    margin: 0;
+  }
+
+  dd {
+    margin: 6px 0 0;
+    font-family: var(--nx-font-display);
+    font-weight: 900;
+    font-size: 20px;
+    color: var(--nx-text);
+    overflow-wrap: anywhere;
+  }
+
+  &.wz-tile--emphasis dd {
+    color: var(--nx-orange-500);
+  }
+}
+
+// ── barra de ações ────────────────────────────────────────────────────────
+.wz-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+
+.wz-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+  transition: opacity var(--nx-d-fast) var(--nx-ease-out);
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.wz-cta-hint {
+  margin: 0;
+  text-align: center;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.wz-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.wz-link {
+  align-self: center;
+  border: 0;
+  background: none;
+  padding: 8px;
+  min-height: 40px;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &.wz-link--brand {
+    color: var(--nx-orange-500);
+  }
+}
+
+// ── estado vazio / erro dentro do corpo ───────────────────────────────────
+.wz-empty {
+  text-align: center;
+  padding: 28px 16px;
+
+  h2 {
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--nx-text);
+    margin: 0 0 8px;
+  }
+
+  p {
+    font-family: var(--nx-font-ui);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--nx-text-mute);
+    margin: 0 0 18px;
+  }
+}

@@ -4,6 +4,14 @@
 /// Puro de propósito — sem Flutter, sem Firestore, sem providers. É onde a
 /// regra mora e o que os testes exercitam; a rota só obedece.
 ///
+/// **Tem um gêmeo em TypeScript** desde 2026-09-02, quando o portal do atleta
+/// ganhou o mesmo wizard:
+/// `frontend/projects/athlete/src/app/tournaments/registration/wizard/registration-wizard-step.ts`.
+/// É duplicação deliberada (Flutter e Angular não compartilham runtime) e é o
+/// único ponto em que as duas superfícies TÊM de concordar — quem começa a
+/// inscrição no celular e volta pelo navegador não pode cair num passo
+/// diferente. Mexeu aqui, mexa lá, e nos dois testes.
+///
 /// O passo NÃO é estado de sessão. Guardá-lo em `setState` foi exatamente o
 /// beco sem saída da vaga solo pendente: quem reservava sem parceiro entrava
 /// sem o id na rota, caía no passo de categoria e não achava mais o convite.

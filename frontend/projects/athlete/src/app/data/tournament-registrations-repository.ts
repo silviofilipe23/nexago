@@ -298,46 +298,106 @@ export function watchMyPendingPartnerInvites(
   );
 }
 
+/** Desfecho do convite, como a CF o grava. `expired` também é DERIVADO no cliente: o
+ *  `expiresAt` é só um campo, e o doc costuma continuar `pending` até alguém tocá-lo. */
+export type PartnerInviteStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired' | 'stale';
+
+function inviteStatusOf(raw: unknown): PartnerInviteStatus {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  switch (value) {
+    case 'accepted':
+    case 'declined':
+    case 'cancelled':
+    case 'canceled':
+      return value === 'canceled' ? 'cancelled' : (value as PartnerInviteStatus);
+    case 'expired':
+      return 'expired';
+    case 'stale':
+      return 'stale';
+    default:
+      return 'pending';
+  }
+}
+
 export interface SentPartnerInvite {
   id: string;
   inviteeUid: string;
   inviteeName: string;
   expiresAt: Date | null;
+  createdAt: Date | null;
+  tournamentId: string;
+  categoryId: string;
+  status: PartnerInviteStatus;
+  /** Carimbado pela CF no ACEITE (`acceptTournamentPartnerInvite`). É por ele que a tela de
+   *  espera descobre a inscrição que acabou de nascer — sem um segundo listener, e sem
+   *  inventar um id. */
+  registrationId: string | null;
+  isTeamInvite: boolean;
+  teamName: string | null;
 }
 
-export function sentInvitesFromDocs(docs: readonly RawInviteDoc[], now = Date.now()): SentPartnerInvite[] {
-  return docs
-    .map(({ id, data }) => ({
-      id,
-      inviteeUid: typeof data['inviteeUid'] === 'string' ? data['inviteeUid'] : '',
-      inviteeName: optionalStr(data['inviteeName']) ?? 'Atleta',
-      expiresAt: toDate(data['expiresAt']),
-    }))
-    .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
+function sentInviteFromDoc({ id, data }: RawInviteDoc, now: number): SentPartnerInvite {
+  const expiresAt = toDate(data['expiresAt']);
+  const stored = inviteStatusOf(data['status']);
+  return {
+    id,
+    inviteeUid: typeof data['inviteeUid'] === 'string' ? data['inviteeUid'] : '',
+    inviteeName: optionalStr(data['inviteeName']) ?? 'Atleta',
+    expiresAt,
+    createdAt: toDate(data['createdAt']),
+    tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
+    categoryId: typeof data['categoryId'] === 'string' ? data['categoryId'] : '',
+    // Um convite ainda `pending` cujo prazo passou É expirado para quem olha — a CF só carimba
+    // `expired` quando alguém tenta usá-lo.
+    status: stored === 'pending' && expiresAt != null && expiresAt.getTime() <= now ? 'expired' : stored,
+    registrationId: optionalStr(data['registrationId']),
+    isTeamInvite: data['isTeamInvite'] === true,
+    teamName: optionalStr(data['teamName']),
+  };
 }
 
-/** Convites pendentes que EU enviei nesta categoria — pra mostrar "aguardando resposta"
- *  em vez de voltar pra busca vazia depois de convidar (ou ao recarregar a página). O
- *  atleta pode convidar mais de uma pessoa: o primeiro aceite marca os outros como stale
- *  (`markStaleInvitesAfterAccept` no backend), então listamos todos os pendentes. Ao vivo
- *  pelo mesmo motivo do lado recebido: a resposta do parceiro chega sem gesto meu. */
-export function watchMySentPendingInvites(
+/** TODOS os convites que eu enviei, com o desfecho preservado.
+ *
+ *  A tela de espera precisa do convite que saiu do ar — recusado, cancelado ou expirado — para
+ *  dizer O QUE aconteceu. Filtrar por status na query — como a versão anterior fazia, com
+ *  `status == 'pending'` — faria os três chegarem à tela como ausência, e o atleta veria a
+ *  espera pular para trás sem uma palavra: recusa de convite comum não gera notificação
+ *  nenhuma. Quem quer só os pendentes usa `sentPendingInvitesFor` sobre este resultado. */
+export function allSentInvitesFromDocs(docs: readonly RawInviteDoc[], now = Date.now()): SentPartnerInvite[] {
+  return docs.map((doc) => sentInviteFromDoc(doc, now));
+}
+
+/** Convites pendentes que eu enviei nesta categoria — espelha `sentPendingInvitesFor` do app. */
+export function sentPendingInvitesFor(
+  invites: readonly SentPartnerInvite[],
+  tournamentId: string,
+  categoryId: string,
+): SentPartnerInvite[] {
+  return invites.filter(
+    (invite) => invite.status === 'pending' && invite.tournamentId === tournamentId && invite.categoryId === categoryId,
+  );
+}
+
+/** TODOS os convites que eu enviei neste TORNEIO, ao vivo — pendentes, aceitos e recusados.
+ *
+ *  O wizard precisa dos três: o pendente decide entre "busque um parceiro" e "aguarde"; o
+ *  aceito traz o `registrationId` da inscrição que acabou de nascer; e o recusado/cancelado é
+ *  a única forma de contar ao atleta por que a espera acabou.
+ *
+ *  Sem filtro de `status` na query, e por TORNEIO em vez de por categoria, de propósito: o
+ *  wizard troca de categoria dentro do mesmo fluxo, e são duas igualdades — servíveis por
+ *  merge de índices de campo único, sem índice composto novo. O volume é de convites de um
+ *  atleta num torneio, não da coleção. */
+export function watchMySentInvites(
   db: Firestore,
   uid: string,
   tournamentId: string,
-  categoryId: string,
   onChange: (invites: SentPartnerInvite[]) => void,
   onError?: () => void,
 ): Unsubscribe {
   return onSnapshot(
-    query(
-      collection(db, INVITES_COLLECTION),
-      where('inviterUid', '==', uid),
-      where('tournamentId', '==', tournamentId),
-      where('categoryId', '==', categoryId),
-      where('status', '==', 'pending'),
-    ),
-    (snap) => onChange(sentInvitesFromDocs(rawDocsOf(snap))),
+    query(collection(db, INVITES_COLLECTION), where('inviterUid', '==', uid), where('tournamentId', '==', tournamentId)),
+    (snap) => onChange(allSentInvitesFromDocs(rawDocsOf(snap))),
     () => onError?.(),
   );
 }

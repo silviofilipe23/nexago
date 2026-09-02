@@ -190,6 +190,7 @@ import '../../features/tournaments/presentation/registration_wizard/registration
 import '../../features/tournaments/presentation/registration_wizard/registration_partner_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_terms_page.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_uniform_page.dart';
+import '../../features/tournaments/presentation/registration_wizard/registration_waiting_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_payment_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
@@ -1336,6 +1337,34 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ? registrationId
                 : null,
             lgpdAccepted: lgpdAccepted,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationWaiting,
+        name: AppRouteNames.tournamentRegistrationWaiting,
+        // Aguardando a dupla. Aqui a inscrição normalmente NÃO existe (o
+        // backend só a cria no aceite), então `registrationId` é opcional —
+        // ele só aparece quando há reserva solo com convite em voo.
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId =
+              state.uri.queryParameters['categoryId']?.trim() ?? '';
+          final registrationId = state.uri.queryParameters['registrationId']
+              ?.trim();
+          final inviteId = state.uri.queryParameters['inviteId']?.trim();
+          return RegistrationWaitingPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+            registrationId:
+                registrationId != null && registrationId.isNotEmpty
+                ? registrationId
+                : null,
+            inviteId: inviteId != null && inviteId.isNotEmpty
+                ? inviteId
+                : null,
+            lgpdAccepted: state.uri.queryParameters['lgpd'] == '1',
           );
         },
       ),

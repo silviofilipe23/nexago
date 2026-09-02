@@ -195,6 +195,8 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
         AppRouteNames.tournamentRegistrationTerms,
       RegistrationWizardStep.parceiro =>
         AppRouteNames.tournamentRegistrationPartner,
+      RegistrationWizardStep.aguardando =>
+        AppRouteNames.tournamentRegistrationWaiting,
       RegistrationWizardStep.uniforme =>
         AppRouteNames.tournamentRegistrationUniform,
       RegistrationWizardStep.pagamento =>

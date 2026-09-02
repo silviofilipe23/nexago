@@ -187,11 +187,13 @@ void main() {
   // rota. Sem esta regra ele refaria consentimento e condições com o convite
   // já enviado; era o que a tela única resolvia consultando os enviados.
   group('convite ENVIADO pendente, sem inscrição ainda', () {
-    test('abre o parceiro, onde mora a espera', () {
-      expect(
-        resolveRegistrationStep(input(hasSentInvitePending: true)),
-        RegistrationWizardStep.parceiro,
-      );
+    test('abre a tela de espera, não a busca de parceiro', () {
+      // Reabrir a busca logo depois de escolher alguém é o que a etapa
+      // `aguardando` existe para evitar.
+      final step = resolveRegistrationStep(input(hasSentInvitePending: true));
+
+      expect(step, RegistrationWizardStep.aguardando);
+      expect(step, isNot(RegistrationWizardStep.parceiro));
     });
 
     test('vence o consentimento quando não há aceite no parâmetro', () {
@@ -200,7 +202,7 @@ void main() {
         input(hasSentInvitePending: true, lgpdAccepted: false),
       );
 
-      expect(step, RegistrationWizardStep.parceiro);
+      expect(step, RegistrationWizardStep.aguardando);
       expect(step, isNot(RegistrationWizardStep.consentimento));
     });
 
@@ -209,7 +211,7 @@ void main() {
         input(hasSentInvitePending: true, lgpdAccepted: true),
       );
 
-      expect(step, RegistrationWizardStep.parceiro);
+      expect(step, RegistrationWizardStep.aguardando);
       expect(step, isNot(RegistrationWizardStep.condicoes));
     });
 
@@ -219,7 +221,7 @@ void main() {
       );
 
       expect(step, RegistrationWizardStep.categoria);
-      expect(step, isNot(RegistrationWizardStep.parceiro));
+      expect(step, isNot(RegistrationWizardStep.aguardando));
     });
 
     test('convite RECEBIDO vence o enviado: responder vem antes de esperar', () {
@@ -228,7 +230,7 @@ void main() {
       );
 
       expect(step, RegistrationWizardStep.condicoes);
-      expect(step, isNot(RegistrationWizardStep.parceiro));
+      expect(step, isNot(RegistrationWizardStep.aguardando));
     });
 
     test('com inscrição já criada, o convite enviado não muda o passo', () {
@@ -238,7 +240,7 @@ void main() {
       );
 
       expect(step, RegistrationWizardStep.pagamento);
-      expect(step, isNot(RegistrationWizardStep.parceiro));
+      expect(step, isNot(RegistrationWizardStep.aguardando));
     });
 
     test('step=payment pedido na rota NÃO fura o convite enviado', () {
@@ -249,8 +251,52 @@ void main() {
         ),
       );
 
-      expect(step, RegistrationWizardStep.parceiro);
+      expect(step, RegistrationWizardStep.aguardando);
       expect(step, isNot(RegistrationWizardStep.pagamento));
+    });
+  });
+
+  // A ordem do enum é contrato: `resolveRegistrationStep` compara `index`
+  // para decidir se um passo pedido já está liberado. `aguardando` entrou
+  // ENTRE parceiro e uniforme, e é isso que faz `?step=uniform` continuar
+  // valendo para quem já fechou a dupla e `?step=waiting` não furar o
+  // pagamento.
+  group('lugar de `aguardando` na ordem', () {
+    test('fica entre parceiro e uniforme', () {
+      expect(
+        RegistrationWizardStep.aguardando.index,
+        greaterThan(RegistrationWizardStep.parceiro.index),
+      );
+      expect(
+        RegistrationWizardStep.aguardando.index,
+        lessThan(RegistrationWizardStep.uniforme.index),
+      );
+    });
+
+    test('a ordem completa do fluxo é a do enum', () {
+      expect(RegistrationWizardStep.values, [
+        RegistrationWizardStep.categoria,
+        RegistrationWizardStep.consentimento,
+        RegistrationWizardStep.condicoes,
+        RegistrationWizardStep.parceiro,
+        RegistrationWizardStep.aguardando,
+        RegistrationWizardStep.uniforme,
+        RegistrationWizardStep.pagamento,
+        RegistrationWizardStep.sucesso,
+      ]);
+    });
+
+    test('pedido de espera é obedecido quando é a etapa natural', () {
+      expect(
+        resolveRegistrationStep(
+          input(
+            hasSentInvitePending: true,
+            requestedStep: RegistrationWizardStep.aguardando,
+            requestedStepWaitingOnly: true,
+          ),
+        ),
+        RegistrationWizardStep.aguardando,
+      );
     });
   });
 
@@ -319,13 +365,13 @@ void main() {
         input(
           hasRegistration: true,
           partnerPending: false,
-          requestedStep: RegistrationWizardStep.parceiro,
+          requestedStep: RegistrationWizardStep.aguardando,
           requestedStepWaitingOnly: true,
         ),
       );
 
       expect(step, RegistrationWizardStep.pagamento);
-      expect(step, isNot(RegistrationWizardStep.parceiro));
+      expect(step, isNot(RegistrationWizardStep.aguardando));
     });
 
     test('com inscrição, dupla formada e uniforme pendente, cai no uniforme', () {
@@ -334,39 +380,47 @@ void main() {
           hasRegistration: true,
           uniformRequired: true,
           uniformComplete: false,
-          requestedStep: RegistrationWizardStep.parceiro,
+          requestedStep: RegistrationWizardStep.aguardando,
           requestedStepWaitingOnly: true,
         ),
       );
 
       expect(step, RegistrationWizardStep.uniforme);
-      expect(step, isNot(RegistrationWizardStep.parceiro));
+      expect(step, isNot(RegistrationWizardStep.aguardando));
     });
 
-    test('com inscrição e parceiro ainda pendente, waiting vale', () {
-      expect(
-        resolveRegistrationStep(
+    test(
+      'com inscrição e parceiro ainda pendente, cai no parceiro — a espera '
+      'pedida não pula o passo que falta',
+      () {
+        // Reserva solo em aberto: o passo natural é o do parceiro (índice 3),
+        // ANTES de `aguardando` (4). Um pedido posterior nunca fura o passo
+        // pendente, então a tela de espera não rouba a vez da tela onde o
+        // atleta ainda pode convidar alguém ou garantir a vaga.
+        final step = resolveRegistrationStep(
           input(
             hasRegistration: true,
             partnerPending: true,
-            requestedStep: RegistrationWizardStep.parceiro,
+            requestedStep: RegistrationWizardStep.aguardando,
             requestedStepWaitingOnly: true,
           ),
-        ),
-        RegistrationWizardStep.parceiro,
-      );
-    });
+        );
+
+        expect(step, RegistrationWizardStep.parceiro);
+        expect(step, isNot(RegistrationWizardStep.aguardando));
+      },
+    );
 
     test('sem inscrição nenhuma, waiting vale', () {
       expect(
         resolveRegistrationStep(
           input(
             hasSentInvitePending: true,
-            requestedStep: RegistrationWizardStep.parceiro,
+            requestedStep: RegistrationWizardStep.aguardando,
             requestedStepWaitingOnly: true,
           ),
         ),
-        RegistrationWizardStep.parceiro,
+        RegistrationWizardStep.aguardando,
       );
     });
 
@@ -444,10 +498,22 @@ void main() {
   });
 
   group('registrationStepFromParam', () {
-    test('`waiting` vira parceiro E marca que caduca', () {
+    test('`waiting` vira a tela de ESPERA E marca que caduca', () {
+      // O nome do parâmetro sempre quis dizer "esperando o parceiro";
+      // apontá-lo para a busca de parceiro era só a falta da tela.
       final request = registrationStepFromParam('waiting');
 
-      expect(request?.step, RegistrationWizardStep.parceiro);
+      expect(request?.step, RegistrationWizardStep.aguardando);
+      expect(request?.step, isNot(RegistrationWizardStep.parceiro));
+      expect(request?.waitingOnly, isTrue);
+    });
+
+    test('`aguardando` é a mesma etapa e caduca igual', () {
+      // A caducidade acompanha a ETAPA, não a grafia: a escrita nova não pode
+      // escapar da regra que impede a espera de furar o pagamento.
+      final request = registrationStepFromParam('aguardando');
+
+      expect(request?.step, RegistrationWizardStep.aguardando);
       expect(request?.waitingOnly, isTrue);
     });
 

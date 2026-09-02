@@ -469,6 +469,10 @@ abstract final class AppRoutes {
   static const String tournamentRegistrationPartner =
       '/torneios/:tournamentId/inscricao/parceiro';
 
+  /// Aguardando a dupla: `/torneios/:tournamentId/inscricao/aguardando`
+  static const String tournamentRegistrationWaiting =
+      '/torneios/:tournamentId/inscricao/aguardando';
+
   /// Uniforme: `/torneios/:tournamentId/inscricao/uniforme`
   static const String tournamentRegistrationUniform =
       '/torneios/:tournamentId/inscricao/uniforme';
@@ -722,6 +726,8 @@ abstract final class AppRouteNames {
       'tournamentRegistrationTerms';
   static const String tournamentRegistrationPartner =
       'tournamentRegistrationPartner';
+  static const String tournamentRegistrationWaiting =
+      'tournamentRegistrationWaiting';
   static const String tournamentRegistrationUniform =
       'tournamentRegistrationUniform';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';

@@ -24,6 +24,12 @@ import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-a
 /** Rotas que o hub Competir agrupa — mantêm o item "Competir" aceso na bottom-nav mobile. */
 const COMPETIR_PREFIXES = ['/competir', '/torneios', '/ligas', '/ranking', '/equipes', '/atletas'];
 
+/** Wizard de inscrição: bottom-nav atrapalha o fluxo focado (CTA do passo + voltar). */
+function isRegistrationFlowUrl(url: string): boolean {
+  const path = url.split('?')[0] ?? '';
+  return /^\/torneios\/[^/]+\/inscricao(?:\/|$)/.test(path);
+}
+
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) {
@@ -109,6 +115,8 @@ export class AtPanelShellComponent {
     const current = this.url().split('?')[0] ?? '';
     return COMPETIR_PREFIXES.some((p) => current.startsWith(p));
   });
+
+  protected readonly hideBottomNav = computed(() => isRegistrationFlowUrl(this.url()));
 
   /** Banner de estado do sistema: enquanto não há rede, quase toda ação do
    *  portal (reservar, pagar, inscrever) falha no meio do caminho. Avisar antes

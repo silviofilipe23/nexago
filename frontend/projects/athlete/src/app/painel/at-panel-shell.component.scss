@@ -17,6 +17,12 @@
     height: 100dvh;
     padding-bottom: 64px; // espaço pra bottom nav fixa
   }
+
+  &.at-shell--no-bottom-nav {
+    @media (max-width: 900px) {
+      padding-bottom: 0;
+    }
+  }
 }
 
 .at-sidebar {

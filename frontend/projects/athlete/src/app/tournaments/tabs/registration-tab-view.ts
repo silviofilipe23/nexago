@@ -51,7 +51,7 @@ export function registrationTabHeroTitle(params: {
       : 'Dupla incompleta. Falta o parceiro.';
   }
   if (params.paymentState === 'paid') {
-    return `${params.teamLabel} completa. Vocês estão dentro.`;
+    return `Inscrição completa. Vocês estão dentro.`;
   }
   if (params.paymentState === 'share-paid') {
     return `Sua parte está paga. Falta a ${unit} fechar.`;
@@ -88,7 +88,6 @@ export function registrationTabHeroBody(params: {
     const unit = params.teamLabel.toLowerCase();
     const shareWord = size > 2 ? 'a própria cota' : 'sua metade';
     const body =
-      `${partner} aceitou e cada um pagou ${shareWord}: ${split}. ` +
       `A inscrição de ${totalLabel} está quitada e a ${unit} entra no sorteio da chave.`;
     return { title, body, highlights: [split, totalLabel] };
   }

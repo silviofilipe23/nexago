@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
@@ -81,5 +81,46 @@ describe('AtPanelShellComponent — item Mesa nas navegações', () => {
     await build(1);
     const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.at-bottom-nav .at-bottom-nav-item');
     expect(items.length).toBe(6);
+  });
+});
+
+describe('AtPanelShellComponent — bottom-nav no fluxo de inscrição', () => {
+  let fixture: ComponentFixture<AtPanelShellComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AtPanelShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([
+          { path: 'painel', component: AtPanelShellComponent },
+          { path: 'torneios/:id/inscricao/categoria', component: AtPanelShellComponent },
+        ]),
+        { provide: StaffTournamentsService, useValue: { count: signal(0) } },
+        { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => {} } },
+        { provide: AuthService, useValue: { user: signal(null) } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(AtPanelShellComponent);
+    await fixture.whenStable();
+  });
+
+  afterEach(() => fixture?.destroy());
+
+  it('esconde a bottom-nav em /torneios/:id/inscricao e nas etapas do wizard', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/torneios/abc/inscricao/categoria');
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.at-bottom-nav')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.at-shell--no-bottom-nav')).not.toBeNull();
+  });
+
+  it('mantém a bottom-nav fora do fluxo de inscrição', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/painel');
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.at-bottom-nav')).not.toBeNull();
   });
 });

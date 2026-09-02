@@ -70,7 +70,7 @@
                       <a
                         [routerLink]="categoryCtaLink(c)"
                         [queryParams]="{ categoria: c.id }"
-                        class="tdv-btn-primary"
+                        class="tdv-btn-primary tdv-btn-full"
                         [class.tdv-btn-primary--disabled]="categoryCta(c) === 'disabled' || categoryCta(c) === 'not-open'"
                         [attr.aria-disabled]="categoryCta(c) === 'disabled' || categoryCta(c) === 'not-open'"
                       >

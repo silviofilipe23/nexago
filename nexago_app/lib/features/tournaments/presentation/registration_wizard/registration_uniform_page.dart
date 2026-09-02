@@ -4,13 +4,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/profiles/app_user_profile.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
 import '../../../../core/ui/nexa_async_view.dart';
 import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../data/tournament_partner_invite_service.dart';
 import '../../data/tournament_registration_service.dart';
 import '../../domain/tournament_detail_model.dart';
@@ -281,6 +285,45 @@ class _RegistrationUniformPageState
     );
   }
 
+  _PartnerUniformRowData _partnerUniformRowData({
+    required TournamentRegistrationSnapshot snap,
+    required TournamentCategoryOffer category,
+    required String? myUid,
+    required Map<String, AppUserProfile> profiles,
+    required bool complete,
+  }) {
+    final others =
+        snap.participantUids.where((uid) => uid != myUid).toList(growable: false);
+    final isTeam = category.isTeamCategory;
+
+    if (isTeam) {
+      return _PartnerUniformRowData(
+        title: 'Uniforme do restante do elenco',
+        subtitle: complete
+            ? 'Todo o elenco já escolheu'
+            : 'Falta alguém do elenco completar',
+        initials: 'EQ',
+        complete: complete,
+        showGenericAvatar: true,
+      );
+    }
+
+    final partnerUid = others.length == 1 ? others.first : null;
+    final profile = partnerUid != null ? profiles[partnerUid] : null;
+    final displayName =
+        profile != null ? appUserDisplayName(profile) : 'Parceiro';
+
+    return _PartnerUniformRowData(
+      title: 'Uniforme do ${_firstName(displayName)}',
+      subtitle: complete
+          ? 'Tamanho e número já definidos'
+          : 'Ele preenche os dados dele ao aceitar o convite',
+      initials: profile != null ? appUserInitials(profile) : _initialsFor(displayName),
+      photoUrl: appUserProfilePhotoUrl(profile),
+      complete: complete,
+    );
+  }
+
   // ── build ────────────────────────────────────────────────────────────────
 
   @override
@@ -343,6 +386,23 @@ class _RegistrationUniformPageState
         final partnerComplete = snap != null
             ? _partnerUniformStatus(snap, category, myUid)
             : null;
+        final profiles =
+            snap != null
+                ? ref
+                      .watch(
+                        registrationRosterProfilesProvider(snap.participantUids),
+                      )
+                      .valueOrNull
+                : null;
+        final partnerRow = snap != null && partnerComplete != null
+            ? _partnerUniformRowData(
+                snap: snap,
+                category: category,
+                myUid: myUid,
+                profiles: profiles ?? const {},
+                complete: partnerComplete,
+              )
+            : null;
 
         return RegistrationWizardScaffold(
           title: 'Uniforme',
@@ -381,12 +441,9 @@ class _RegistrationUniformPageState
                   ? _uniformSaver.retry
                   : null,
             ),
-            if (partnerComplete != null) ...[
+            if (partnerRow != null) ...[
               const SizedBox(height: AppSpacing.lg),
-              _PartnerUniformRow(
-                complete: partnerComplete,
-                isTeamCategory: category.isTeamCategory,
-              ),
+              _PartnerUniformRow(data: partnerRow),
             ],
           ],
         );
@@ -405,48 +462,95 @@ Widget _wizardChrome(BuildContext context, Widget child) {
   );
 }
 
+/// Dados da linha de status do uniforme dos demais participantes.
+class _PartnerUniformRowData {
+  const _PartnerUniformRowData({
+    required this.title,
+    required this.subtitle,
+    required this.initials,
+    required this.complete,
+    this.photoUrl,
+    this.showGenericAvatar = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String initials;
+  final bool complete;
+  final String? photoUrl;
+  final bool showGenericAvatar;
+}
+
 /// Status do uniforme dos demais participantes da inscrição (parceiro ou
 /// elenco), derivado do snapshot — não há edição aqui, só o que falta para
 /// os outros fecharem a escolha deles.
 class _PartnerUniformRow extends StatelessWidget {
-  const _PartnerUniformRow({
-    required this.complete,
-    required this.isTeamCategory,
-  });
+  const _PartnerUniformRow({required this.data});
 
-  final bool complete;
+  final _PartnerUniformRowData data;
 
-  /// Em elenco trio+ "o parceiro" é impreciso: são vários, e a linha resume o
-  /// estado de TODOS os demais.
-  final bool isTeamCategory;
+  static const _avatarFallback = [Color(0xFFB86A2B), Color(0xFF8A4A1E)];
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
-        vertical: 12,
+        vertical: AppSpacing.md,
       ),
       decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
+        color: colors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(
-            child: Text(
-              isTeamCategory
-                  ? 'Uniforme do restante do elenco'
-                  : 'Uniforme do parceiro',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurface,
-                fontWeight: FontWeight.w600,
+          if (data.showGenericAvatar)
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: _avatarFallback,
+                ),
               ),
+              child: const Icon(
+                Icons.groups_outlined,
+                size: 22,
+                color: AppColors.white,
+              ),
+            )
+          else
+            AthleteProfileAvatar(
+              size: 44,
+              initials: data.initials,
+              imageUrl: data.photoUrl,
+            ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  data.title,
+                  style: AppTypography.titleS.copyWith(color: colors.onSurface),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  data.subtitle,
+                  style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: AppSpacing.sm),
           RegistrationWizardPill(
-            label: complete ? 'COMPLETO' : 'PENDENTE',
-            tone: complete
+            label: data.complete ? 'COMPLETO' : 'PENDENTE',
+            tone: data.complete
                 ? RegistrationWizardPillTone.brand
                 : RegistrationWizardPillTone.warn,
           ),
@@ -454,4 +558,21 @@ class _PartnerUniformRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _firstName(String fullName) {
+  final trimmed = fullName.trim();
+  if (trimmed.isEmpty) return 'Parceiro';
+  return trimmed.split(RegExp(r'\s+')).first;
+}
+
+String _initialsFor(String fullName) {
+  final parts =
+      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) {
+    final p = parts.first;
+    return p.length >= 2 ? p.substring(0, 2).toUpperCase() : p.toUpperCase();
+  }
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
 }

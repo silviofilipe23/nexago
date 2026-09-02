@@ -32,6 +32,7 @@ RegistrationTermsCopy registrationTermsCopy({
   required bool requireFormedPair,
   required bool hasReceivedInvite,
   String? inviterName,
+
   /// O convite RECEBIDO é de equipe (`TournamentPartnerInvite.isTeamInvite`).
   /// Checado ANTES de `category.teamSize` no ramo de convite porque é o
   /// convite — não a categoria — quem diz se é elenco: uma categoria sem
@@ -47,7 +48,8 @@ RegistrationTermsCopy registrationTermsCopy({
         title: who.isEmpty
             ? 'Você foi convidado para este elenco'
             : '$who te chamou para o elenco',
-        body: 'Ao aceitar, você entra no elenco e a vaga fica reservada — o '
+        body:
+            'Ao aceitar, você entra no elenco e a vaga fica reservada — o '
             'pagamento abre em seguida.',
         ctaLabel: 'Aceitar convite',
         allowsSolo: false,
@@ -58,7 +60,8 @@ RegistrationTermsCopy registrationTermsCopy({
       title: who.isEmpty
           ? 'Você foi convidado para esta categoria'
           : '$who quer jogar com você',
-      body: 'Ao aceitar, vocês ficam com a vaga reservada e o pagamento abre '
+      body:
+          'Ao aceitar, vocês ficam com a vaga reservada e o pagamento abre '
           'em seguida.',
       ctaLabel: 'Aceitar convite',
       allowsSolo: false,
@@ -70,7 +73,8 @@ RegistrationTermsCopy registrationTermsCopy({
     return RegistrationTermsCopy(
       eyebrow: 'EQUIPE',
       title: 'Esta categoria é disputada em equipe de $teamSize',
-      body: 'Você monta o elenco e convida os integrantes. A inscrição fecha '
+      body:
+          'Você monta o elenco e convida os integrantes. A inscrição fecha '
           'quando o elenco estiver completo.',
       ctaLabel: 'Montar meu elenco',
       allowsSolo: false,
@@ -80,8 +84,9 @@ RegistrationTermsCopy registrationTermsCopy({
   if (requireFormedPair) {
     return const RegistrationTermsCopy(
       eyebrow: 'DUPLA OBRIGATÓRIA',
-      title: 'Este torneio só aceita inscrição com dupla',
-      body: 'O organizador não abre vaga individual nesta categoria. Defina o '
+      title: 'Este torneio só aceita\ninscrição com dupla',
+      body:
+          'O organizador não abre vaga individual nesta categoria. Defina o '
           'parceiro para seguir com a inscrição.',
       ctaLabel: 'Definir meu parceiro',
       allowsSolo: false,
@@ -91,7 +96,8 @@ RegistrationTermsCopy registrationTermsCopy({
   return const RegistrationTermsCopy(
     eyebrow: 'DUPLA',
     title: 'Escolha com quem você joga',
-    body: 'Você pode convidar o parceiro agora ou guardar sua vaga e definir '
+    body:
+        'Você pode convidar o parceiro agora ou guardar sua vaga e definir '
         'depois, enquanto as inscrições estiverem abertas.',
     ctaLabel: 'Escolher meu parceiro',
     allowsSolo: true,

@@ -67,6 +67,7 @@ void main() {
   TournamentDetail torneio(
     List<TournamentCategoryOffer> categorias, {
     String name = 'Copa de Teste',
+    String? regulationsText,
   }) => TournamentDetail(
     id: 't1',
     name: name,
@@ -87,6 +88,7 @@ void main() {
     liveMatchesNow: 0,
     categoryOffers: categorias,
     sport: 'beachTennis',
+    regulationsText: regulationsText,
   );
 
   late List<String> rotasAbertas;
@@ -243,6 +245,37 @@ void main() {
     // O protótipo dizia CPF e cartão; nenhum dos dois chega ao organizador.
     expect(find.textContaining('CPF'), findsNothing);
     expect(find.textContaining('cartão'), findsNothing);
+  });
+
+  testWidgets('mostra direitos LGPD e links de leitura', (tester) async {
+    await abrirTela(
+      tester,
+      tournament: torneio(
+        [dupla()],
+        name: 'Copa Aparecida',
+        regulationsText: 'Regras gerais do torneio.',
+      ),
+    );
+
+    expect(find.text('Seus direitos'), findsOneWidget);
+    expect(
+      find.textContaining('Perfil > Privacidade'),
+      findsOneWidget,
+    );
+    expect(find.text('Guarda dos dados'), findsOneWidget);
+    expect(
+      find.textContaining('5 anos após o torneio'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('LER POLÍTICA DE PRIVACIDADE COMPLETA'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('LER REGULAMENTO DO COPA APARECIDA'),
+      findsOneWidget,
+    );
+    expect(find.text('Ler termo completo'), findsNothing);
   });
 
   testWidgets('concordar leva às condições carregando o aceite', (

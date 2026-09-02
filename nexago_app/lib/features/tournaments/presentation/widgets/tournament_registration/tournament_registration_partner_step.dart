@@ -230,7 +230,7 @@ class _TournamentRegistrationPartnerStepState
             child: Text(
               isFiltering
                   ? 'Nenhum atleta encontrado.'
-                  : 'Digite ao menos 3 letras do nome ou do @ para buscar.',
+                  : 'Digite ao menos 3 letras do nome para buscar.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: context.themeColors.onSurfaceMuted,

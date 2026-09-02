@@ -74,6 +74,7 @@ void main() {
   // aconteceu (ver achado 2 da revisão: um builder que descarta `state` não
   // pega regressão nenhuma no aceite LGPD).
   late Map<String, String>? parceiroQueryParams;
+
   /// Path params com que a rota DEDICADA do convite foi aberta — é lá que
   /// `acceptInvite`/`declineInvite` moram, e é o que o CTA "Aceitar convite"
   /// tem de abrir.
@@ -167,16 +168,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('mostra as três garantias e o preço por atleta', (
-    tester,
-  ) async {
+  testWidgets('mostra as três garantias e o preço por atleta', (tester) async {
     await abrirTela(
       tester,
       tournament: torneio([dupla(entryFee: 220)], requireFormedPair: true),
     );
 
     expect(
-      find.text('Este torneio só aceita inscrição com dupla'),
+      find.text('Este torneio só aceita\ninscrição com dupla'),
       findsOneWidget,
     );
     expect(find.text('Parceiro definido antes de pagar'), findsOneWidget);
@@ -220,35 +219,33 @@ void main() {
     },
   );
 
-  testWidgets(
-    'equipe trio+ também mostra "Ver outras categorias"',
-    (tester) async {
-      // Julgamento do fix: equipe é outra variante em que o atleta ainda não
-      // se comprometeu com nada — trocar de categoria faz o mesmo sentido
-      // que em dupla obrigatória/reserva solo.
-      await abrirTela(
-        tester,
-        tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
-      );
+  testWidgets('equipe trio+ também mostra "Ver outras categorias"', (
+    tester,
+  ) async {
+    // Julgamento do fix: equipe é outra variante em que o atleta ainda não
+    // se comprometeu com nada — trocar de categoria faz o mesmo sentido
+    // que em dupla obrigatória/reserva solo.
+    await abrirTela(
+      tester,
+      tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
+    );
 
-      expect(find.text('Ver outras categorias'), findsOneWidget);
-    },
-  );
+    expect(find.text('Ver outras categorias'), findsOneWidget);
+  });
 
-  testWidgets(
-    'convite recebido NÃO mostra "Ver outras categorias"',
-    (tester) async {
-      // Ali a decisão é aceitar ou recusar o convite, não trocar de
-      // categoria — explicitamente fora do escopo do achado 1.
-      await abrirTela(
-        tester,
-        tournament: torneio([dupla()], requireFormedPair: true),
-        pendingInvites: [_convite(inviterName: 'Bia Souza')],
-      );
+  testWidgets('convite recebido NÃO mostra "Ver outras categorias"', (
+    tester,
+  ) async {
+    // Ali a decisão é aceitar ou recusar o convite, não trocar de
+    // categoria — explicitamente fora do escopo do achado 1.
+    await abrirTela(
+      tester,
+      tournament: torneio([dupla()], requireFormedPair: true),
+      pendingInvites: [_convite(inviterName: 'Bia Souza')],
+    );
 
-      expect(find.text('Ver outras categorias'), findsNothing);
-    },
-  );
+    expect(find.text('Ver outras categorias'), findsNothing);
+  });
 
   testWidgets('CTA leva ao parceiro carregando o aceite adiante', (
     tester,
@@ -270,21 +267,20 @@ void main() {
     expect(parceiroQueryParams?['categoryId'], 'masc');
   });
 
-  testWidgets(
-    'CTA sem aceite LGPD não carrega lgpd=1 para o parceiro',
-    (tester) async {
-      await abrirTela(
-        tester,
-        tournament: torneio([dupla()], requireFormedPair: true),
-        lgpdAccepted: false,
-      );
+  testWidgets('CTA sem aceite LGPD não carrega lgpd=1 para o parceiro', (
+    tester,
+  ) async {
+    await abrirTela(
+      tester,
+      tournament: torneio([dupla()], requireFormedPair: true),
+      lgpdAccepted: false,
+    );
 
-      await tester.tap(find.text('Definir meu parceiro'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Definir meu parceiro'));
+    await tester.pumpAndSettle();
 
-      expect(parceiroQueryParams?.containsKey('lgpd'), isFalse);
-    },
-  );
+    expect(parceiroQueryParams?.containsKey('lgpd'), isFalse);
+  });
 
   testWidgets(
     'dupla com reserva solo mostra a ação de guardar a vaga sozinho',
@@ -300,25 +296,24 @@ void main() {
     },
   );
 
-  testWidgets(
-    'guardar a vaga sozinho dispara registerSolo com o aceite LGPD',
-    (tester) async {
-      await abrirTela(
-        tester,
-        tournament: torneio([dupla()], requireFormedPair: false),
-        lgpdAccepted: true,
-      );
+  testWidgets('guardar a vaga sozinho dispara registerSolo com o aceite LGPD', (
+    tester,
+  ) async {
+    await abrirTela(
+      tester,
+      tournament: torneio([dupla()], requireFormedPair: false),
+      lgpdAccepted: true,
+    );
 
-      await tester.tap(find.text('Guardar minha vaga sem parceiro'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Guardar minha vaga sem parceiro'));
+    await tester.pumpAndSettle();
 
-      expect(servico.soloCalls, hasLength(1));
-      expect(servico.soloCalls.single.tournamentId, 't1');
-      expect(servico.soloCalls.single.categoryId, 'masc');
-      expect(servico.soloCalls.single.lgpdAccepted, isTrue);
-      expect(rotasAbertas, contains('inscrição'));
-    },
-  );
+    expect(servico.soloCalls, hasLength(1));
+    expect(servico.soloCalls.single.tournamentId, 't1');
+    expect(servico.soloCalls.single.categoryId, 'masc');
+    expect(servico.soloCalls.single.lgpdAccepted, isTrue);
+    expect(rotasAbertas, contains('inscrição'));
+  });
 
   testWidgets('equipe trio+ mostra o CTA de montar elenco', (tester) async {
     await abrirTela(
@@ -391,24 +386,21 @@ void main() {
     },
   );
 
-  testWidgets(
-    'convite recebido de EQUIPE também abre a rota do convite',
-    (tester) async {
-      await abrirTela(
-        tester,
-        tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
-        pendingInvites: [
-          _convite(inviterName: 'Bia Souza', isTeamInvite: true),
-        ],
-      );
+  testWidgets('convite recebido de EQUIPE também abre a rota do convite', (
+    tester,
+  ) async {
+    await abrirTela(
+      tester,
+      tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
+      pendingInvites: [_convite(inviterName: 'Bia Souza', isTeamInvite: true)],
+    );
 
-      await tester.tap(find.text('Aceitar convite'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Aceitar convite'));
+    await tester.pumpAndSettle();
 
-      expect(rotasAbertas, contains('convite'));
-      expect(convitePathParams?['inviteId'], 'convite-1');
-    },
-  );
+    expect(rotasAbertas, contains('convite'));
+    expect(convitePathParams?['inviteId'], 'convite-1');
+  });
 
   testWidgets('sem registrationClosesAt a linha do prazo não aparece', (
     tester,

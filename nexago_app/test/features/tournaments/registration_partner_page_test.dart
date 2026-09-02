@@ -216,7 +216,8 @@ void main() {
       ProviderScope(
         overrides: [
           authProvider.overrideWith(
-            (ref) => Stream.value(MockUser(uid: meuUid, displayName: 'Eu Mesmo')),
+            (ref) =>
+                Stream.value(MockUser(uid: meuUid, displayName: 'Eu Mesmo')),
           ),
           athleteProfileProvider.overrideWith(
             (ref) => Stream.value(profile ?? perfil()),
@@ -256,7 +257,7 @@ void main() {
     await abrirTela(tester, tournament: torneio([dupla()]));
 
     expect(
-      find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
+      find.text('Digite ao menos 3 letras do nome para buscar.'),
       findsOneWidget,
     );
     expect(busca.chamadas, isEmpty);
@@ -286,30 +287,29 @@ void main() {
   // ── variante dupla ───────────────────────────────────────────────────────
 
   group('dupla', () {
-    testWidgets(
-      'escolher o parceiro destrava o CTA com o primeiro nome dele',
-      (tester) async {
-        await abrirTela(
-          tester,
-          tournament: torneio([dupla()]),
-          resultadosBusca: [
-            const AppUserProfile(
-              uid: 'parceiro-1',
-              fullName: 'Bruno Alves',
-              gender: 'Masculino',
-            ),
-          ],
-        );
+    testWidgets('escolher o parceiro destrava o CTA com o primeiro nome dele', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()]),
+        resultadosBusca: [
+          const AppUserProfile(
+            uid: 'parceiro-1',
+            fullName: 'Bruno Alves',
+            gender: 'Masculino',
+          ),
+        ],
+      );
 
-        await buscar(tester, 'bru');
-        await tester.tap(find.text('Bruno Alves'));
-        await tester.pumpAndSettle();
+      await buscar(tester, 'bru');
+      await tester.tap(find.text('Bruno Alves'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Convidar Bruno'), findsOneWidget);
-        final botao = tester.widget<FilledButton>(find.byType(FilledButton));
-        expect(botao.onPressed, isNotNull);
-      },
-    );
+      expect(find.text('Convidar Bruno'), findsOneWidget);
+      final botao = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(botao.onPressed, isNotNull);
+    });
 
     testWidgets(
       'confirmar dispara sendInvite com o aceite LGPD e sem registrationId '
@@ -320,7 +320,11 @@ void main() {
           tournament: torneio([dupla()]),
           lgpdAccepted: true,
           resultadosBusca: [
-            const AppUserProfile(uid: 'parceiro-1', fullName: 'Bruno Alves', gender: 'Masculino'),
+            const AppUserProfile(
+              uid: 'parceiro-1',
+              fullName: 'Bruno Alves',
+              gender: 'Masculino',
+            ),
           ],
         );
 
@@ -519,45 +523,43 @@ void main() {
       },
     );
 
-    testWidgets(
-      'torneio com dupla obrigatória NÃO mostra a reserva solo',
-      (tester) async {
-        await abrirTela(
-          tester,
-          tournament: torneio([dupla()], requireFormedPair: true),
-        );
+    testWidgets('torneio com dupla obrigatória NÃO mostra a reserva solo', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+      );
 
-        expect(find.text('Sem dupla aqui? Garanta sua vaga'), findsNothing);
-      },
-    );
+      expect(find.text('Sem dupla aqui? Garanta sua vaga'), findsNothing);
+    });
 
-    testWidgets(
-      'erro da callable mostra o feedback e NÃO navega',
-      (tester) async {
-        await abrirTela(
-          tester,
-          tournament: torneio([dupla()], requireFormedPair: false),
-        );
-        // Mensagem que casa com `isRegistrationConflict`
-        // (`TournamentPartnerInviteException`) — o erro vira página de
-        // ALERTA (`pushAlertFeedback`), não snackbar. As duas metades do
-        // nome do teste precisam de asserção: "mostra o feedback" é o
-        // título+descrição da página; "NÃO navega" é `rotasAbertas` vazio.
-        servico.erroSolo = TournamentPartnerInviteException(
-          'Você já possui inscrição nesta categoria.',
-        );
+    testWidgets('erro da callable mostra o feedback e NÃO navega', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: false),
+      );
+      // Mensagem que casa com `isRegistrationConflict`
+      // (`TournamentPartnerInviteException`) — o erro vira página de
+      // ALERTA (`pushAlertFeedback`), não snackbar. As duas metades do
+      // nome do teste precisam de asserção: "mostra o feedback" é o
+      // título+descrição da página; "NÃO navega" é `rotasAbertas` vazio.
+      servico.erroSolo = TournamentPartnerInviteException(
+        'Você já possui inscrição nesta categoria.',
+      );
 
-        await tester.tap(find.text('Sem dupla aqui? Garanta sua vaga'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Sem dupla aqui? Garanta sua vaga'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Inscrição indisponível'), findsOneWidget);
-        expect(
-          find.text('Você já possui inscrição nesta categoria.'),
-          findsOneWidget,
-        );
-        expect(rotasAbertas, isEmpty);
-      },
-    );
+      expect(find.text('Inscrição indisponível'), findsOneWidget);
+      expect(
+        find.text('Você já possui inscrição nesta categoria.'),
+        findsOneWidget,
+      );
+      expect(rotasAbertas, isEmpty);
+    });
   });
 
   // ── variante dupla COM reserva solo já criada ───────────────────────────
@@ -573,22 +575,21 @@ void main() {
           participantUids: const [meuUid],
         );
 
-    testWidgets(
-      'esconde a reserva solo — o servidor recusa por definição',
-      (tester) async {
-        // "Você já possui inscrição nesta categoria."
-        // (`tournament-partner-invite.ts`). Oferecer a ação era convidar o
-        // atleta a bater no erro.
-        await abrirTela(
-          tester,
-          tournament: torneio([dupla()], requireFormedPair: false),
-          registrationId: 'reg-solo-aberta',
-          snapshot: reservaSolo(),
-        );
+    testWidgets('esconde a reserva solo — o servidor recusa por definição', (
+      tester,
+    ) async {
+      // "Você já possui inscrição nesta categoria."
+      // (`tournament-partner-invite.ts`). Oferecer a ação era convidar o
+      // atleta a bater no erro.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: false),
+        registrationId: 'reg-solo-aberta',
+        snapshot: reservaSolo(),
+      );
 
-        expect(find.text('Sem dupla aqui? Garanta sua vaga'), findsNothing);
-      },
-    );
+      expect(find.text('Sem dupla aqui? Garanta sua vaga'), findsNothing);
+    });
 
     testWidgets(
       'oferece garantir a vaga pagando o integral, e leva ao pagamento com '
@@ -629,10 +630,7 @@ void main() {
         snapshot: reservaSolo(isPaid: true),
       );
 
-      expect(
-        find.text('Garantir vaga pagando o valor integral'),
-        findsNothing,
-      );
+      expect(find.text('Garantir vaga pagando o valor integral'), findsNothing);
     });
   });
 
@@ -650,59 +648,57 @@ void main() {
 
       expect(find.text('Nome da equipe'), findsOneWidget);
       expect(
-        find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
+        find.text('Digite ao menos 3 letras do nome para buscar.'),
         findsNothing,
       );
       expect(find.text('Criar equipe'), findsOneWidget);
     });
 
-    testWidgets('nome curto demais barra o envio com aviso, sem chamar a callable', (
-      tester,
-    ) async {
-      await abrirTela(
-        tester,
-        tournament: torneio([equipe()]),
-        categoryId: 'quarteto',
-      );
-
-      await tester.enterText(find.byType(TextField), 'AB');
-      await tester.tap(find.text('Criar equipe'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Dê um nome de 3 a 30 caracteres para criar a equipe.'),
-        findsOneWidget,
-      );
-      expect(servico.createTeamCalls, isEmpty);
-      expect(rotasAbertas, isEmpty);
-    });
-
     testWidgets(
-      'nome válido cria a equipe com o aceite LGPD e navega com o '
-      'registrationId devolvido pela callable',
+      'nome curto demais barra o envio com aviso, sem chamar a callable',
       (tester) async {
         await abrirTela(
           tester,
-          tournament: torneio([equipe(uniformType: 'full')]),
+          tournament: torneio([equipe()]),
           categoryId: 'quarteto',
-          lgpdAccepted: true,
         );
 
-        await tester.enterText(find.byType(TextField), 'Areia Fera');
+        await tester.enterText(find.byType(TextField), 'AB');
         await tester.tap(find.text('Criar equipe'));
         await tester.pumpAndSettle();
 
-        expect(servico.createTeamCalls, hasLength(1));
-        final chamada = servico.createTeamCalls.single;
-        expect(chamada.tournamentId, 't1');
-        expect(chamada.categoryId, 'quarteto');
-        expect(chamada.teamName, 'Areia Fera');
-        expect(chamada.lgpdAccepted, isTrue);
-
-        expect(rotasAbertas, contains('uniforme'));
-        expect(destinoQueryParams?['registrationId'], 'reg-equipe-nova');
+        expect(
+          find.text('Dê um nome de 3 a 30 caracteres para criar a equipe.'),
+          findsOneWidget,
+        );
+        expect(servico.createTeamCalls, isEmpty);
+        expect(rotasAbertas, isEmpty);
       },
     );
+
+    testWidgets('nome válido cria a equipe com o aceite LGPD e navega com o '
+        'registrationId devolvido pela callable', (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([equipe(uniformType: 'full')]),
+        categoryId: 'quarteto',
+        lgpdAccepted: true,
+      );
+
+      await tester.enterText(find.byType(TextField), 'Areia Fera');
+      await tester.tap(find.text('Criar equipe'));
+      await tester.pumpAndSettle();
+
+      expect(servico.createTeamCalls, hasLength(1));
+      final chamada = servico.createTeamCalls.single;
+      expect(chamada.tournamentId, 't1');
+      expect(chamada.categoryId, 'quarteto');
+      expect(chamada.teamName, 'Areia Fera');
+      expect(chamada.lgpdAccepted, isTrue);
+
+      expect(rotasAbertas, contains('uniforme'));
+      expect(destinoQueryParams?['registrationId'], 'reg-equipe-nova');
+    });
   });
 
   // ── variante equipe COM inscrição ───────────────────────────────────────
@@ -751,71 +747,67 @@ void main() {
       expect(botao.onPressed, isNull);
     });
 
-    testWidgets(
-      'elenco completo esconde o passo de busca e trava o CTA',
-      (tester) async {
-        await abrirTela(
-          tester,
-          tournament: torneio([equipe()]),
-          categoryId: 'quarteto',
-          registrationId: 'reg-equipe',
-          snapshot: snap(pendingSlotsFilled: 2),
-        );
+    testWidgets('elenco completo esconde o passo de busca e trava o CTA', (
+      tester,
+    ) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([equipe()]),
+        categoryId: 'quarteto',
+        registrationId: 'reg-equipe',
+        snapshot: snap(pendingSlotsFilled: 2),
+      );
 
-        expect(find.text('ELENCO COMPLETO'), findsOneWidget);
-        expect(
-          find.text('Elenco completo — não há mais vagas para convidar.'),
-          findsOneWidget,
-        );
-        expect(
-          find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
-          findsNothing,
-        );
-        // "trava o CTA": sem o passo de busca não há como selecionar
-        // ninguém, então o botão fica desabilitado — mesma asserção forte
-        // do teste "CTA fica travado..." acima, não só o texto do aviso.
-        final botao = tester.widget<FilledButton>(find.byType(FilledButton));
-        expect(botao.onPressed, isNull);
-      },
-    );
+      expect(find.text('ELENCO COMPLETO'), findsOneWidget);
+      expect(
+        find.text('Elenco completo — não há mais vagas para convidar.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Digite ao menos 3 letras do nome para buscar.'),
+        findsNothing,
+      );
+      // "trava o CTA": sem o passo de busca não há como selecionar
+      // ninguém, então o botão fica desabilitado — mesma asserção forte
+      // do teste "CTA fica travado..." acima, não só o texto do aviso.
+      final botao = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(botao.onPressed, isNull);
+    });
 
-    testWidgets(
-      'convidar mais um integrante anexa à inscrição do capitão (o '
-      'registrationId já conhecido, não um novo)',
-      (tester) async {
-        await abrirTela(
-          tester,
-          tournament: torneio([equipe()]),
-          categoryId: 'quarteto',
-          registrationId: 'reg-equipe',
-          snapshot: snap(),
-          resultadosBusca: [
-            const AppUserProfile(
-              uid: 'parceiro-3',
-              fullName: 'Dani Souza',
-              gender: 'Feminino',
-            ),
-          ],
-        );
+    testWidgets('convidar mais um integrante anexa à inscrição do capitão (o '
+        'registrationId já conhecido, não um novo)', (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([equipe()]),
+        categoryId: 'quarteto',
+        registrationId: 'reg-equipe',
+        snapshot: snap(),
+        resultadosBusca: [
+          const AppUserProfile(
+            uid: 'parceiro-3',
+            fullName: 'Dani Souza',
+            gender: 'Feminino',
+          ),
+        ],
+      );
 
-        await buscar(tester, 'dan');
-        await tester.tap(find.text('Dani Souza'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Convidar para a equipe'));
-        await tester.pumpAndSettle();
+      await buscar(tester, 'dan');
+      await tester.tap(find.text('Dani Souza'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Convidar para a equipe'));
+      await tester.pumpAndSettle();
 
-        expect(servico.sendInviteCalls, hasLength(1));
-        final chamada = servico.sendInviteCalls.single;
-        expect(chamada.categoryId, 'quarteto');
-        expect(chamada.inviteeUid, 'parceiro-3');
+      expect(servico.sendInviteCalls, hasLength(1));
+      final chamada = servico.sendInviteCalls.single;
+      expect(chamada.categoryId, 'quarteto');
+      expect(chamada.inviteeUid, 'parceiro-3');
 
-        // Ao contrário da dupla "no vácuo", aqui JÁ existe inscrição — o
-        // sucesso usa o id que a tela já tinha, não um vindo da callable
-        // (que nem devolve `registrationId`).
-        expect(rotasAbertas, contains('pagamento'));
-        expect(destinoQueryParams?['registrationId'], 'reg-equipe');
-      },
-    );
+      // Ao contrário da dupla "no vácuo", aqui JÁ existe inscrição — o
+      // sucesso usa o id que a tela já tinha, não um vindo da callable
+      // (que nem devolve `registrationId`).
+      expect(rotasAbertas, contains('pagamento'));
+      expect(destinoQueryParams?['registrationId'], 'reg-equipe');
+    });
 
     testWidgets(
       'integrante que NÃO é capitão não vê a busca nem o convite — vê a nota '
@@ -841,10 +833,12 @@ void main() {
           ),
         );
 
-        expect(find.text('Elenco 2/4. O capitão está montando o elenco.'),
-            findsOneWidget);
         expect(
-          find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
+          find.text('Elenco 2/4. O capitão está montando o elenco.'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Digite ao menos 3 letras do nome para buscar.'),
           findsNothing,
         );
         expect(find.text('Convidar para a equipe'), findsNothing);
@@ -881,7 +875,7 @@ void main() {
         );
 
         expect(
-          find.text('Digite ao menos 3 letras do nome ou do @ para buscar.'),
+          find.text('Digite ao menos 3 letras do nome para buscar.'),
           findsOneWidget,
         );
         expect(find.text('Convidar para a equipe'), findsOneWidget);

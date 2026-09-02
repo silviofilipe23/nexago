@@ -226,7 +226,11 @@ void main() {
     );
 
     expect(find.text('PENDENTE'), findsOneWidget);
-    expect(find.text('Uniforme do parceiro'), findsOneWidget);
+    expect(find.text('Uniforme do Parceiro'), findsOneWidget);
+    expect(
+      find.text('Ele preenche os dados dele ao aceitar o convite'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -254,7 +258,7 @@ void main() {
       );
 
       expect(find.text('Uniforme do restante do elenco'), findsOneWidget);
-      expect(find.text('Uniforme do parceiro'), findsNothing);
+      expect(find.text('Uniforme do Parceiro'), findsNothing);
     },
   );
 

@@ -118,7 +118,8 @@ class TournamentDetailPage extends ConsumerWidget {
             final waitlistAsync = ref.watch(
               tournamentUserWaitlistByCategoryProvider(tournamentId),
             );
-            final registrationsByCategory = registrationsAsync.valueOrNull ??
+            final registrationsByCategory =
+                registrationsAsync.valueOrNull ??
                 const <String, UserCategoryRegistration>{};
             final waitlistByCategory =
                 waitlistAsync.valueOrNull ?? const <String, bool>{};
@@ -194,7 +195,6 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
 
 class _TournamentDetailContentState
     extends ConsumerState<_TournamentDetailContent> {
-
   Future<void> _shareTournament(String name) async {
     await nexaShareText(context, 'Confira o torneio $name no NexaGO!');
   }
@@ -214,13 +214,15 @@ class _TournamentDetailContentState
   Widget build(BuildContext context) {
     // Os `watch` ficam aqui, no build do consumer: dentro do builder do
     // [RebuildAt] eles rodariam no ciclo de outro elemento.
-    final matches = ref
+    final matches =
+        ref
             .watch(tournamentMatchCardsProvider(widget.tournament.id))
             .valueOrNull
             ?.map((c) => c.match)
             .toList() ??
         const [];
-    final teamIdsByCategory = ref
+    final teamIdsByCategory =
+        ref
             .watch(
               tournamentUserTeamIdsByCategoryProvider(widget.tournament.id),
             )
@@ -260,18 +262,22 @@ class _TournamentDetailContentState
     // pagamento. Com uma inscrição já confirmada e paga, a barra some — o
     // acesso passa a ser pela tela "Minha inscrição".
     final hasConfirmedPaidRegistration = widget.registrationsByCategoryId.values
-        .any((registration) => registration.isPaid && !registration.partnerPending);
-    final showBottomBar = canRegister &&
+        .any(
+          (registration) => registration.isPaid && !registration.partnerPending,
+        );
+    final showBottomBar =
+        canRegister &&
         widget.registrationResolved &&
         !hasConfirmedPaidRegistration;
     final topInset = MediaQuery.paddingOf(context).top;
     final spotsSubtitle =
-        '${tournamentSpotsRemainingLabel(widget.stats)} · garante já';
+        '${tournamentSpotsRemainingLabel(widget.stats)} · garanta já';
 
     final isRegistered = isAthleteRegistered || athleteTeamIds.isNotEmpty;
     final live = liveTournamentMatches(matches);
     final isToday = tournamentIsEventToday(widget.tournament, now);
-    final hasMyMatchToday = myTournamentDayTimeline(
+    final hasMyMatchToday =
+        myTournamentDayTimeline(
           matches,
           athleteTeamIds,
           now,
@@ -307,16 +313,18 @@ class _TournamentDetailContentState
                           : widget.tournament.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.titleM
-                          .copyWith(color: context.themeColors.onSurface),
+                      style: AppTypography.titleM.copyWith(
+                        color: context.themeColors.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       tournamentDetailHeroMeta(widget.tournament, now),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.monoMeta
-                          .copyWith(color: context.themeColors.onSurfaceMuted),
+                      style: AppTypography.monoMeta.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -394,5 +402,4 @@ class _TournamentDetailContentState
       ],
     );
   }
-
 }

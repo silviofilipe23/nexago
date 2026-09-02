@@ -495,7 +495,9 @@ class _PriceOption extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+                style: AppTypography.bodyS.copyWith(
+                  color: colors.onSurfaceMuted,
+                ),
               ),
             ],
           ),

@@ -3,11 +3,11 @@ import 'package:nexago_app/features/tournaments/domain/registration_terms_copy.d
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 
 TournamentCategoryOffer categoria({int? teamSize}) => TournamentCategoryOffer(
-      id: 'c1',
-      name: 'Masc. Intermediário',
-      entryFee: 220,
-      teamSize: teamSize,
-    );
+  id: 'c1',
+  name: 'Masc. Intermediário',
+  entryFee: 220,
+  teamSize: teamSize,
+);
 
 void main() {
   test('dupla obrigatória: não oferece seguir sem parceiro', () {
@@ -18,7 +18,7 @@ void main() {
     );
 
     expect(copy.eyebrow, 'DUPLA OBRIGATÓRIA');
-    expect(copy.title, 'Este torneio só aceita inscrição com dupla');
+    expect(copy.title, 'Este torneio só aceita\ninscrição com dupla');
     expect(copy.ctaLabel, 'Definir meu parceiro');
     expect(copy.allowsSolo, isFalse);
   });

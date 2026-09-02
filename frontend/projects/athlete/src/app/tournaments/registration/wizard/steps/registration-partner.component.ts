@@ -122,6 +122,11 @@ export class RegistrationPartnerComponent {
   /** Último termo efetivamente buscado — evita mostrar "não achei" antes do debounce. */
   private readonly lastSearchedTerm = signal('');
 
+  /** Convites que esta tela viu PENDENTES. O aceite de um deles é a notícia que move o atleta.
+   *  Não é signal de propósito: é memória de leitura, não estado desenhado. */
+  private readonly invitesInFlight = new Set<string>();
+  private advancing = false;
+
   protected readonly loading = computed(() => !this.store.tournamentLoaded());
   protected readonly tournament = computed(() => this.store.tournament());
   protected readonly category = computed(() => this.store.categoryById(this.params().categoryId));
@@ -246,6 +251,39 @@ export class RegistrationPartnerComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.searchHandle));
+
+    // O aceite do parceiro acontece do outro lado e não dispara gesto nenhum aqui: sem este
+    // efeito, quem convidou e ficou nesta tela continuava vendo "aguarde a resposta" com a
+    // dupla já formada, até recarregar a página.
+    //
+    // O gatilho é um convite que estava EM VOO quando a tela abriu virar "aceito" — e não o
+    // estado da inscrição, que já podia estar fechado para quem voltou aqui só para rever a
+    // dupla (`?step=parceiro`). Em equipe, o elenco incompleto mantém `partnerPending` e o
+    // lugar do capitão continua sendo esta tela, para chamar o próximo.
+    effect(() => {
+      if (this.advancing) return;
+      for (const invite of this.pendingInvites()) this.invitesInFlight.add(invite.id);
+      if (this.invitesInFlight.size === 0) return;
+
+      const accepted = this.store
+        .sentInvites()
+        .find((invite) => invite.status === 'accepted' && this.invitesInFlight.has(invite.id));
+      if (!accepted) return;
+
+      const registration = this.store.registrationById(accepted.registrationId) ?? this.registration();
+      if (registration == null || registration.partnerPending) return;
+
+      this.advancing = true;
+      this.toasts.success('Dupla formada!', 'Seu parceiro aceitou o convite — vamos ao próximo passo.');
+      void this.router.navigate(['/torneios', this.params().tournamentId, 'inscricao'], {
+        queryParams: wizardQueryParams({
+          categoryId: this.params().categoryId,
+          registrationId: registration.id,
+          lgpdAccepted: this.params().lgpdAccepted,
+        }),
+        replaceUrl: true,
+      });
+    });
 
     // Marcador local "convite por link enviado" acompanha a categoria da rota.
     effect(() => {

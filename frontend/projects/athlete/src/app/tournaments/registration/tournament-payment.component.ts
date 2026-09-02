@@ -68,6 +68,12 @@ function formatBRL(value: number): string {
 /** Mesmo fallback do app (`tournamentRegistrationPixExpiryFallback`). */
 const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
 
+/** Quanto tempo a confirmação fica na tela antes de a navegação acontecer.
+ *
+ *  Mesmo motivo do reveal da tela de espera: sair no instante em que o pagamento cai esconderia
+ *  do atleta o único momento em que ele vê "inscrição confirmada". */
+const PAID_REVEAL_MS = 2000;
+
 /** Pagamento real: PIX via Asaas (`createTournamentRegistrationPixPayment`, exige CPF) quando
  *  `paymentMode==='appPixCard'`, ou reserva sem cobrança online quando
  *  `paymentMode==='directWithOrganizer'` (o acerto é direto com o organizador, mostrando só a
@@ -144,6 +150,10 @@ export class TournamentPaymentComponent {
   private watchedRegistrationId: string | null = null;
   private watchedSentInvitesKey: string | null = null;
   private holdExpiryRedirectHandled = false;
+
+  /** Uma saída só depois do pagamento confirmado — ver `goToMyRegistration`. */
+  private paidRedirectArmed = false;
+  private paidRedirectTimer: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly sentInvites = signal<readonly SentPartnerInvite[]>([]);
 
@@ -251,6 +261,7 @@ export class TournamentPaymentComponent {
 
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.expiryTimeout);
+      clearTimeout(this.paidRedirectTimer);
       this.unsubscribeRegistrationWatch?.();
       this.unsubscribeSentInvitesWatch?.();
     });
@@ -388,7 +399,8 @@ export class TournamentPaymentComponent {
 
   private onRegistrationUpdate(snap: AthleteTournamentRegistration | null): void {
     if (!snap) return;
-    const wasPaid = this.registration()?.isPaid === true;
+    const previous = this.registration();
+    const wasPaid = previous?.isPaid === true;
     this.registration.set(snap);
     if (snap.isPaid) {
       this.clearPixState();
@@ -412,6 +424,14 @@ export class TournamentPaymentComponent {
           this.toasts.success('Inscrição confirmada', 'Sua vaga está garantida. As chaves saem quando o organizador publicar.');
         }
       }
+      // Pagamento pode cair enquanto o atleta olha a tela (webhook do Pix) — o fluxo acabou
+      // aqui, e o lugar dele é a inscrição pronta. Sem isto a tela ficava parada num cartão de
+      // confirmação e a aba "Minha inscrição" só aparecia recarregando a página.
+      //
+      // Só a TRANSIÇÃO de uma inscrição que esta tela já conhecia em aberto: abrir o pagamento
+      // de uma inscrição já paga (link antigo, voltar do navegador) não é "confirmou agora", e
+      // sequestrar a navegação nesse caso tiraria o atleta de onde ele pediu para estar.
+      if (previous != null && !wasPaid && !snap.partnerPending) this.goToMyRegistration();
       return;
     }
     const uid = this.auth.user()?.uid;
@@ -419,6 +439,20 @@ export class TournamentPaymentComponent {
       this.clearPixState();
       this.toasts.success('Sua parte foi paga', 'A inscrição fecha assim que seu parceiro pagar a parte dele.');
     }
+  }
+
+  /** Fim do fluxo: a inscrição pronta é a aba "Minha inscrição" do torneio — o mesmo destino
+   *  que o porteiro do wizard dá ao passo `sucesso`.
+   *
+   *  Só depois do reveal, e uma vez só: o listener continua entregando snapshots depois do
+   *  pagamento (baixa do organizador, uniforme do parceiro) e cada um rearmaria a navegação. */
+  private goToMyRegistration(): void {
+    if (this.paidRedirectArmed) return;
+    this.paidRedirectArmed = true;
+    const tournamentId = this.tournamentId();
+    this.paidRedirectTimer = setTimeout(() => {
+      void this.router.navigate(['/torneios', tournamentId, 'minha-inscricao'], { replaceUrl: true });
+    }, PAID_REVEAL_MS);
   }
 
   private clearPixState(): void {
@@ -553,6 +587,9 @@ export class TournamentPaymentComponent {
       this.registration.update((r) => (r ? { ...r, isPaid: result.isPaid } : r));
       if (result.isPaid) {
         this.toasts.success('Inscrição confirmada', 'Sua vaga está garantida neste torneio.');
+        // A atualização otimista acima já marcou `isPaid`, então o snapshot seguinte chega ao
+        // listener como "já estava pago" e não dispara a saída — ela sai daqui.
+        if (!reg.partnerPending) this.goToMyRegistration();
       } else {
         this.toasts.success('Sua parte foi confirmada', 'A inscrição fecha quando seu parceiro confirmar a dele.');
       }

@@ -14,7 +14,6 @@ import {
 } from '../../../../data/tournament-registrations-repository';
 import { NxPageLoadingComponent } from '../../../../shared/loading/nx-page-loading.component';
 import { NxBlockingDialogComponent, NxToastService } from '../../../../shared/feedback';
-import { categoryRequiresUniform } from '../../../tournament-uniform';
 import { RegistrationWizardShellComponent } from '../registration-wizard-shell.component';
 import { RegistrationWizardStore } from '../registration-wizard.store';
 import { bindWizardParams, wizardQueryParams } from '../wizard-params';
@@ -24,6 +23,15 @@ import { bindWizardParams, wizardQueryParams } from '../wizard-params';
  *  Pular direto para o pagamento no instante do aceite esconde do atleta o único momento em que
  *  ele descobre que a dupla fechou. */
 const ACCEPTED_REVEAL_MS = 1500;
+
+/** Carência antes de declarar que não há convite nenhum nesta tela.
+ *
+ *  O convite nasce numa callable, no SERVIDOR: o doc só chega aqui pelo push do listener, que
+ *  pode perder a corrida para a navegação que a própria tela de parceiro acabou de fazer.
+ *  Desistir no primeiro build devolvia o atleta ao porteiro que — sem enxergar o convite —
+ *  o mandava para o consentimento ou de volta à BUSCA de parceiro. E nenhuma dessas duas telas
+ *  reagia ao aceite: quem convidou ficava lá até recarregar a página. */
+const MISSING_INVITE_GRACE_MS = 3000;
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -103,7 +111,17 @@ export class RegistrationWaitingComponent {
    *  do parceiro, que é o destino certo desse caso. */
   private leaving = false;
 
-  protected readonly loading = computed(() => !this.store.tournamentLoaded() || !this.store.sentInvitesLoaded());
+  /** Ligado quando a carência vence sem nenhum convite aparecer. */
+  private readonly inviteLooksMissing = signal(false);
+  private missingTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Enquanto o convite ainda pode estar a caminho, a tela ESPERA em vez de piscar vazia. */
+  protected readonly loading = computed(
+    () =>
+      !this.store.tournamentLoaded() ||
+      !this.store.sentInvitesLoaded() ||
+      (this.invite() == null && !this.inviteLooksMissing()),
+  );
   protected readonly tournament = computed(() => this.store.tournament());
   protected readonly category = computed(() => this.store.categoryById(this.params().categoryId));
   protected readonly registration = computed(
@@ -197,7 +215,10 @@ export class RegistrationWaitingComponent {
   });
 
   constructor() {
-    this.destroyRef.onDestroy(() => clearTimeout(this.advanceTimer));
+    this.destroyRef.onDestroy(() => {
+      clearTimeout(this.advanceTimer);
+      clearTimeout(this.missingTimer);
+    });
 
     effect((onCleanup) => {
       const uid = this.invite()?.inviteeUid?.trim() ?? '';
@@ -220,37 +241,46 @@ export class RegistrationWaitingComponent {
       if (this.leaving || !this.store.sentInvitesLoaded() || !this.store.tournamentLoaded()) return;
       const invite = this.invite();
 
-      // Nunca houve convite nesta tela (link direto, categoria errada, aceite que já virou
-      // inscrição): não há notícia a dar, e o porteiro sabe para onde ir.
       if (invite == null) {
+        // Pode ser um convite recém-criado que o listener ainda não entregou — a carência
+        // separa isso de "nunca houve convite aqui" (link direto, categoria errada).
+        if (!this.inviteLooksMissing()) {
+          this.armMissingTimer();
+          return;
+        }
+        // Sem notícia a dar; o porteiro sabe para onde ir.
         this.leaving = true;
         this.backToGate();
         return;
       }
+      // Zerar o campo, e não só o timer: `armMissingTimer` é idempotente pelo campo, e deixá-lo
+      // preso travaria a tela no loader se o convite sumisse de novo.
+      clearTimeout(this.missingTimer);
+      this.missingTimer = undefined;
 
       if (invite.status === 'accepted') this.armAdvance(invite);
     });
   }
 
-  /** Agenda a saída da tela depois da virada. Idempotente de propósito: roda a cada snapshot. */
+  private armMissingTimer(): void {
+    if (this.missingTimer != null) return;
+    this.missingTimer = setTimeout(() => this.inviteLooksMissing.set(true), MISSING_INVITE_GRACE_MS);
+  }
+
+  /** Agenda a saída da tela depois da virada. Idempotente de propósito: roda a cada snapshot.
+   *
+   *  O destino é o PORTEIRO com a inscrição recém-nascida na rota, não uma tela escolhida aqui:
+   *  ele deriva o passo do Firestore e cobre de graça o caso de quem já tinha pago o integral
+   *  na reserva solo — para esse, "o próximo passo" é a inscrição pronta, não o pagamento. */
   private armAdvance(invite: SentPartnerInvite): void {
     if (this.advanceArmed) return;
     this.advanceArmed = true;
     const registrationId = (invite.registrationId ?? this.registration()?.id ?? '').trim();
     this.advanceTimer = setTimeout(() => {
-      const p = this.params();
-      const category = this.category();
-      if (!registrationId || !category) {
-        // Aceite sem id conhecido: inventar um seria pior que perguntar ao porteiro, que deriva
-        // o passo do Firestore.
-        this.backToGate();
-        return;
-      }
-      const next = categoryRequiresUniform(category) ? 'uniforme' : 'pagamento';
-      void this.router.navigate(['/torneios', p.tournamentId, 'inscricao', next], {
-        queryParams: wizardQueryParams({ categoryId: p.categoryId, registrationId }),
-        replaceUrl: true,
-      });
+      // Aceite sem id conhecido: inventar um seria pior que perguntar ao porteiro sem ele, que
+      // ainda assim deriva o passo do Firestore.
+      this.leaving = true;
+      this.backToGate(registrationId || null);
     }, ACCEPTED_REVEAL_MS);
   }
 
@@ -269,10 +299,14 @@ export class RegistrationWaitingComponent {
    *
    *  O aceite LGPD tem de ATRAVESSAR — sem inscrição criada ele só existe como parâmetro de
    *  rota, e perdê-lo faria a callable seguinte gravar a inscrição sem o consentimento. */
-  private backToGate(): void {
+  private backToGate(registrationId: string | null = null): void {
     const p = this.params();
     void this.router.navigate(['/torneios', p.tournamentId, 'inscricao'], {
-      queryParams: wizardQueryParams({ categoryId: p.categoryId, lgpdAccepted: p.lgpdAccepted }),
+      queryParams: wizardQueryParams({
+        categoryId: p.categoryId,
+        registrationId,
+        lgpdAccepted: p.lgpdAccepted,
+      }),
       replaceUrl: true,
     });
   }

@@ -100,11 +100,26 @@ describe("computePixWindow", () => {
     return r.ok ? r.expiresAtMs : 0;
   };
 
-  it("com prazo de sobra, a cobrança leva o teto de 15 minutos", () => {
+  it("com prazo de vaga, a cobrança acompanha o prazo — não o teto de 15", () => {
+    // O atleta tem 4 horas para pagar: o QR vale as 4 horas (menos a margem),
+    // e não 15 minutos que reiniciam a cada "gerar".
+    const hold = NOW + 4 * 60 * MIN;
     assert.equal(
-      ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: NOW + 4 * 60 * MIN})),
-      NOW + 15 * MIN,
+      ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: hold})),
+      hold - PIX_HOLD_MARGIN_MS,
     );
+  });
+
+  it("gerar de novo no meio do prazo devolve o MESMO vencimento", () => {
+    // Voltar da tela e gerar outro código não reinicia o relógio: o vencimento
+    // é uma data absoluta, amarrada ao prazo da vaga, não a "agora".
+    const hold = NOW + 30 * MIN;
+    const first = ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: hold}));
+    const again = ok(
+      computePixWindow({nowMs: NOW + 12 * MIN, holdExpiresAtMs: hold}),
+    );
+    assert.equal(again, first);
+    assert.equal(first, hold - PIX_HOLD_MARGIN_MS);
   });
 
   it("prazo apertado encurta a cobrança para caber dentro dele", () => {

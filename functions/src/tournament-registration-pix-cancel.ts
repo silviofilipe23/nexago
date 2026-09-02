@@ -3,7 +3,7 @@
  *
  * Chamado quando a inscrição (ou a parcela de um atleta) passa a estar paga por
  * OUTRO caminho: o parceiro pagou o integral, ou o organizador deu baixa
- * manual. Sem isso o QR do atleta segue pagável até expirar (15 min) e o
+ * manual. Sem isso o QR do atleta segue pagável até expirar e o
  * pagamento entra sem crédito — vira estorno manual.
  */
 

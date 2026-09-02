@@ -47,8 +47,12 @@ class _BookingPixExpiryCardState extends State<BookingPixExpiryCard> {
     final remaining = widget.expiresAt.difference(DateTime.now());
     if (remaining.inSeconds <= 0) return const SizedBox.shrink();
 
-    final minutes = remaining.inMinutes.remainder(60).clamp(0, 99);
-    final seconds = remaining.inSeconds.remainder(60).clamp(0, 59);
+    // Minutos TOTAIS, sem dar a volta na hora: a cobrança de inscrição vence
+    // junto com o prazo da vaga, que pode ser de horas — 2h05 é "125:00", não
+    // "05:00". Mesmo formato do relógio da vaga (`RegistrationWizardNotice`).
+    final totalSeconds = remaining.inSeconds.clamp(0, 99 * 3600 + 59 * 60 + 59);
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
     final countdown =
         '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 

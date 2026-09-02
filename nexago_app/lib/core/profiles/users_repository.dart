@@ -423,3 +423,12 @@ class UsersRepository {
 final usersRepositoryProvider = Provider<UsersRepository>((ref) {
   return UsersRepository(ref.watch(firestoreProvider));
 });
+
+/// Perfil público de outro atleta (`public_profiles/{uid}`) — foto e nome para
+/// exibição quando `users/{uid}` não é legível fora do dono.
+final appUserPublicProfileProvider = FutureProvider.autoDispose
+    .family<AppUserProfile?, String>((ref, uid) async {
+  final id = uid.trim();
+  if (id.isEmpty) return null;
+  return ref.read(usersRepositoryProvider).getUserById(id);
+});

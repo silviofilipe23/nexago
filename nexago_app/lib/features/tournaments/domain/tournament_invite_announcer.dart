@@ -104,3 +104,59 @@ String inviteAnnouncementTitle(TournamentPartnerInvite invite) {
   if (team == null || team.isEmpty) return '$who te chamou pra equipe';
   return '$who te chamou pra equipe $team';
 }
+
+const _minute = Duration(minutes: 1);
+const _hour = Duration(hours: 1);
+const _day = Duration(days: 1);
+
+/// Iniciais do convidante — duas letras quando dá (`Silvio` → `SI`).
+String inviteInitials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return 'AT';
+  final first = parts.first;
+  final second = parts.length > 1
+      ? parts.last[0]
+      : (first.length > 1 ? first[1] : '');
+  return (first[0] + second).toUpperCase();
+}
+
+/// Idade do convite no canto do card: `AGORA`, `HÁ 12 MIN`, `HÁ 2 H`, `HÁ 3 D`.
+String? inviteAgeLabel(
+  DateTime? createdAt,
+  DateTime now, {
+  bool hasCreatedAt = true,
+}) {
+  if (createdAt == null || !hasCreatedAt) return null;
+  final elapsed = now.difference(createdAt);
+  if (elapsed < _minute) return 'AGORA';
+  if (elapsed < _hour) return 'HÁ ${elapsed.inMinutes} MIN';
+  if (elapsed < _day) return 'HÁ ${elapsed.inHours} H';
+  return 'HÁ ${elapsed.inDays} D';
+}
+
+/// Prazo compacto do rodapé do card na home: `VENCE EM 1 DIA E 4 H`.
+String? inviteExpiryHomeLabel(DateTime expiresAt, DateTime now) {
+  final remaining = expiresAt.difference(now);
+  if (remaining <= Duration.zero) return null;
+
+  final days = remaining.inDays;
+  final hours = remaining.inHours % 24;
+
+  if (days >= 1) {
+    if (hours > 0) {
+      final dayWord = days == 1 ? 'DIA' : 'DIAS';
+      return 'VENCE EM $days $dayWord E $hours H';
+    }
+    return days == 1 ? 'VENCE EM 1 DIA' : 'VENCE EM $days DIAS';
+  }
+  if (remaining.inHours >= 1) return 'VENCE EM ${remaining.inHours} H';
+  final minutes = remaining.inMinutes.clamp(1, 59);
+  return 'VENCE EM $minutes MIN';
+}
+
+/// Linha de apoio do card na home — espelha o protótipo do painel.
+String inviteHomeCardSubtitle(TournamentPartnerInvite invite) {
+  final closes =
+      invite.isTeamInvite ? 'equipe estar fechada' : 'dupla estar fechada';
+  return 'Ele já confirmou a parte dele. Falta só você pra $closes.';
+}

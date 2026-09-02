@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/pending_tournament_invitee_invites_section.dart';
@@ -13,11 +19,17 @@ import 'package:nexago_app/features/tournaments/presentation/widgets/pending_tou
 /// `pending_tournament_inviter_invites_section.dart` para o card irmão
 /// (convites ENVIADOS), que não é tocado por este arquivo.
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR');
+  });
+
   TournamentPartnerInvite invite({
     String id = 'inv1',
     String inviterName = 'Bia',
     bool isTeamInvite = false,
     String? teamName,
+    DateTime? createdAt,
+    DateTime? expiresAt,
   }) =>
       TournamentPartnerInvite(
         id: id,
@@ -28,10 +40,40 @@ void main() {
         inviteeUid: 'me',
         inviteeName: 'Léo',
         status: 'pending',
-        createdAt: DateTime(2026, 8, 20),
-        expiresAt: DateTime.now().add(const Duration(hours: 20)),
+        createdAt: createdAt ?? DateTime.now().subtract(const Duration(hours: 2)),
+        expiresAt: expiresAt ??
+            DateTime.now().add(const Duration(days: 1, hours: 4)),
         isTeamInvite: isTeamInvite,
         teamName: teamName,
+      );
+
+  TournamentDetail tournamentDetail() => TournamentDetail(
+        id: 't1',
+        name: 'Copa VH',
+        location: 'Arena CFC',
+        city: 'Aparecida',
+        dateLabel: '',
+        startDate: DateTime(2026, 6, 20),
+        endDate: null,
+        categories: const [],
+        categoryOffers: [
+          TournamentCategoryOffer(
+            id: 'c1',
+            name: 'Masculino',
+            entryFee: 180,
+            level: 'Intermediário',
+            genderType: 'male',
+          ),
+        ],
+        format: TournamentFormat.dupla,
+        priceLabel: r'R$ 180',
+        priceValue: 180,
+        spotsLeft: 8,
+        spotsTotal: 16,
+        status: TournamentListingStatus.open,
+        featured: false,
+        enrolledCount: 4,
+        liveMatchesNow: 0,
       );
 
   late List<String> openedInviteIds;
@@ -64,6 +106,15 @@ void main() {
       ProviderScope(
         overrides: [
           pendingTournamentPartnerInvitesProvider.overrideWith((ref) => pending),
+          tournamentDetailProvider('t1')
+              .overrideWith((ref) => Stream.value(tournamentDetail())),
+          appUserPublicProfileProvider('u1').overrideWith(
+            (ref) async => const AppUserProfile(
+              uid: 'u1',
+              fullName: 'Silvio Dionizio',
+              profilePhotoUrl: 'https://example.com/silvio.jpg',
+            ),
+          ),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
@@ -88,6 +139,10 @@ void main() {
 
     expect(find.text('Convites de dupla'), findsOneWidget);
     expect(find.text('Bia te chamou pra dupla'), findsOneWidget);
+    expect(find.text('CONVITE PENDENTE'), findsOneWidget);
+    expect(find.textContaining('Falta só você'), findsOneWidget);
+    expect(find.text('Toque para visualizar'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
   });
 
   testWidgets('convite de equipe mostra o nome da equipe', (tester) async {
@@ -97,6 +152,7 @@ void main() {
     );
 
     expect(find.text('Bia te chamou pra equipe Trovão'), findsOneWidget);
+    expect(find.textContaining('equipe estar fechada'), findsOneWidget);
   });
 
   testWidgets(
@@ -116,7 +172,7 @@ void main() {
       (tester) async {
     await pump(tester, [invite(id: 'inv-xyz')]);
 
-    await tester.tap(find.text('Bia te chamou pra dupla'));
+    await tester.tap(find.text('Toque para visualizar'));
     await tester.pumpAndSettle();
 
     expect(openedInviteIds, ['inv-xyz']);
@@ -133,8 +189,8 @@ void main() {
 
     expect(find.text('Bia te chamou pra dupla'), findsOneWidget);
     expect(find.text('Caio te chamou pra dupla'), findsOneWidget);
-    // Um card por convite — nenhum duplicado nem convite extra fantasma.
-    expect(find.byIcon(Icons.groups_rounded), findsNWidgets(2));
+    expect(find.text('CONVITE PENDENTE'), findsNWidgets(2));
+    expect(find.text('2'), findsOneWidget);
 
     final biaTop = tester.getTopLeft(find.text('Bia te chamou pra dupla')).dy;
     final caioTop =
@@ -146,6 +202,17 @@ void main() {
     );
   });
 
+  testWidgets('mostra idade, prazo e detalhes do torneio quando disponíveis',
+      (tester) async {
+    await pump(tester, [invite()]);
+
+    expect(find.text('HÁ 2 H'), findsOneWidget);
+    expect(find.textContaining('VENCE EM 1 DIA'), findsOneWidget);
+    expect(find.textContaining('Intermediário'), findsOneWidget);
+    expect(find.textContaining('jun'), findsOneWidget);
+    expect(find.text('LÉ'), findsOneWidget);
+  });
+
   testWidgets('quando o provider emite erro a seção não ocupa espaço',
       (tester) async {
     await pumpStream(
@@ -154,7 +221,7 @@ void main() {
     );
 
     expect(find.text('Convites de dupla'), findsNothing);
-    expect(find.byIcon(Icons.groups_rounded), findsNothing);
+    expect(find.text('CONVITE PENDENTE'), findsNothing);
   });
 
   testWidgets(
@@ -169,8 +236,6 @@ void main() {
     expect(find.text('Convites de dupla'), findsOneWidget);
     expect(find.text('Bia te chamou pra dupla'), findsOneWidget);
 
-    // Convite foi respondido (aceito/recusado) em outra tela — o listener
-    // do Firestore reemite sem o convite, e a seção precisa recolher.
     pending.add(const []);
     await tester.pumpAndSettle();
     expect(find.text('Convites de dupla'), findsNothing);

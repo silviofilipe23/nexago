@@ -94,6 +94,16 @@ void main() {
     });
   });
 
+  group('partnerInviteHomeCategoryParts', () {
+    test('uses short gender and level', () {
+      final parts = partnerInviteHomeCategoryParts(
+        _offer(level: 'Intermediário', genderType: 'male'),
+      );
+      expect(parts.genderShort, 'Masc.');
+      expect(parts.level, 'Intermediário');
+    });
+  });
+
   group('partnerInviteCompactDate', () {
     test('uses middle dot separator', () {
       final label = partnerInviteCompactDate(_detail());

@@ -310,4 +310,69 @@ void main() {
       expect(result.map((i) => i.id), ['b']);
     });
   });
+
+  group('inviteAgeLabel', () {
+    final now = DateTime.utc(2026, 8, 20, 12);
+
+    test('formata idade relativa em maiúsculas', () {
+      expect(
+        inviteAgeLabel(now.subtract(const Duration(seconds: 30)), now),
+        'AGORA',
+      );
+      expect(
+        inviteAgeLabel(now.subtract(const Duration(minutes: 12)), now),
+        'HÁ 12 MIN',
+      );
+      expect(
+        inviteAgeLabel(now.subtract(const Duration(hours: 2)), now),
+        'HÁ 2 H',
+      );
+      expect(
+        inviteAgeLabel(now.subtract(const Duration(days: 3)), now),
+        'HÁ 3 D',
+      );
+    });
+
+    test('sem createdAt retorna null', () {
+      expect(inviteAgeLabel(null, now), isNull);
+      expect(
+        inviteAgeLabel(now, now, hasCreatedAt: false),
+        isNull,
+      );
+    });
+  });
+
+  group('inviteExpiryHomeLabel', () {
+    final now = DateTime.utc(2026, 8, 20, 12);
+
+    test('formata prazo compacto do card', () {
+      expect(
+        inviteExpiryHomeLabel(now.add(const Duration(days: 1, hours: 4)), now),
+        'VENCE EM 1 DIA E 4 H',
+      );
+      expect(
+        inviteExpiryHomeLabel(now.add(const Duration(hours: 3)), now),
+        'VENCE EM 3 H',
+      );
+      expect(
+        inviteExpiryHomeLabel(now.add(const Duration(minutes: 20)), now),
+        'VENCE EM 20 MIN',
+      );
+    });
+
+    test('expirado retorna null', () {
+      expect(
+        inviteExpiryHomeLabel(now.subtract(const Duration(minutes: 1)), now),
+        isNull,
+      );
+    });
+  });
+
+  group('inviteInitials', () {
+    test('usa duas letras quando possível', () {
+      expect(inviteInitials('Silvio Dionizio'), 'SD');
+      expect(inviteInitials('Luquinhas'), 'LU');
+      expect(inviteInitials(''), 'AT');
+    });
+  });
 }

@@ -3,6 +3,22 @@ import 'tournament_detail_model.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_registration_logic.dart';
 
+/// Partes curtas da categoria no card da home (`Masc.` + `Intermediário`).
+({String genderShort, String level}) partnerInviteHomeCategoryParts(
+  TournamentCategoryOffer offer,
+) {
+  final gender = categoryGenderDisplayLabel(offer);
+  final genderShort = switch (gender) {
+    'Masculino' => 'Masc.',
+    'Feminino' => 'Fem.',
+    _ => gender,
+  };
+  final level = offer.level.trim().isNotEmpty
+      ? offer.level.trim()
+      : offer.name.trim();
+  return (genderShort: genderShort, level: level);
+}
+
 /// Badge da categoria no convite (ex.: `Masculino Intermediário`).
 String partnerInviteCategoryBadge(TournamentCategoryOffer offer) {
   final gender = categoryGenderDisplayLabel(offer);

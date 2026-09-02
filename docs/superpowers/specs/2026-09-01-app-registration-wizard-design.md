@@ -44,15 +44,26 @@ convite, home do atleta, "continuar inscrição", detalhe do torneio, aba "minha
 | # | Condição | Destino |
 |---|---|---|
 | 1 | categoria não resolvida | `categoria` |
-| 2 | convite recebido pendente | `condicoes` (modo "aceitar convite") |
-| 3 | sem inscrição e sem aceite LGPD | `consentimento` |
-| 4 | sem inscrição | `condicoes` |
-| 5 | sem inscrição, mas com convite ENVIADO pendente | `aguardando` |
-| 6 | parceiro/elenco pendente **com** convite enviado | `aguardando` |
-| 7 | parceiro/elenco pendente **sem** convite enviado | `parceiro` |
-| 8 | uniforme exigido e incompleto | `uniforme` |
-| 9 | não pago | `pagamento` |
-| 10 | pago e completo | `sucesso` |
+| 2 | convite RECEBIDO pendente **e sem inscrição** | `condicoes` (modo "aceitar convite") |
+| 3 | sem inscrição, com convite ENVIADO pendente | `aguardando` |
+| 4 | sem inscrição, com aceite LGPD | `condicoes` |
+| 5 | sem inscrição, sem aceite, folha de nível devida | `categoria` |
+| 6 | sem inscrição, sem aceite | `consentimento` |
+| 7 | parceiro/elenco pendente **com** convite enviado | `aguardando` |
+| 8 | parceiro/elenco pendente **sem** convite enviado | `parceiro` |
+| 9 | uniforme exigido e incompleto | `uniforme` |
+| 10 | não pago | `pagamento` |
+| 11 | pago e completo | `sucesso` |
+
+Duas precedências dentro dessa tabela não são arbitrárias e já custaram bug:
+
+- **A linha 2 exige `!hasRegistration`.** Sem esse qualificador, quem tem reserva
+  solo aberta e recebe convite fica preso em "condições" — sem pagar e sem recusar,
+  com o relógio da vaga correndo. A CF permite esse convite de propósito: o plano
+  dela é ANEXAR o convidado à inscrição existente.
+- **A linha 3 vem antes das linhas 4-6.** Quem já convidou alguém e volta pela
+  notificação não traz `lgpd` na rota; se o consentimento fosse checado primeiro,
+  ele refaria o começo do fluxo com um convite em voo.
 
 O cérebro dessa decisão já existe: `buildRegistrationProgress`
 (`domain/registration_progress_logic.dart`) sabe dizer qual passo está pendente numa

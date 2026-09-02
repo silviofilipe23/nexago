@@ -201,3 +201,93 @@ describe("expireOpenPixCharges", () => {
     assert.deepEqual(result, {expired: 0, failed: 0});
   });
 });
+
+/** Cobrança de cartão vencida no NOSSO relógio, mas que pode estar autorizada
+ *  no gateway — a janela entre o atleta pagar e o webhook chegar. */
+function expiredCard(id = "uid-card", asaasPaymentId = "pay_card"): ExpiringPixDoc {
+  return pixDoc(id, {
+    status: "pending",
+    billingType: "CREDIT_CARD",
+    asaasPaymentId,
+    paymentExpiresAt: Timestamp.fromMillis(NOW - 1 * MIN),
+  });
+}
+
+describe("expireOpenPixCharges: cartão em voo", () => {
+  it("não deleta cobrança de cartão já autorizada no gateway", async () => {
+    const cancelled: string[] = [];
+    const marked: string[] = [];
+
+    const result = await expireOpenPixCharges({
+      docs: [expiredCard()],
+      nowMs: NOW,
+      cancelCharge: async (id) => {
+        cancelled.push(id);
+      },
+      markCancelled: async (doc) => {
+        marked.push(doc.id);
+      },
+      resolveChargeStatus: async () => "CONFIRMED",
+    });
+
+    assert.deepEqual(cancelled, []);
+    assert.deepEqual(marked, []);
+    assert.equal(result.expired, 0);
+  });
+
+  it("deleta cobrança de cartão ainda pendente no gateway", async () => {
+    const cancelled: string[] = [];
+
+    await expireOpenPixCharges({
+      docs: [expiredCard()],
+      nowMs: NOW,
+      cancelCharge: async (id) => {
+        cancelled.push(id);
+      },
+      markCancelled: async () => {},
+      resolveChargeStatus: async () => "PENDING",
+    });
+
+    assert.deepEqual(cancelled, ["pay_card"]);
+  });
+
+  it("não consulta o gateway para cobrança de PIX", async () => {
+    let consultas = 0;
+    const cancelled: string[] = [];
+
+    await expireOpenPixCharges({
+      docs: [expiredPending()],
+      nowMs: NOW,
+      cancelCharge: async (id) => {
+        cancelled.push(id);
+      },
+      markCancelled: async () => {},
+      resolveChargeStatus: async () => {
+        consultas++;
+        return "PENDING";
+      },
+    });
+
+    assert.equal(consultas, 0);
+    assert.deepEqual(cancelled, ["pay_1"]);
+  });
+
+  it("falha na consulta do gateway não marca nada", async () => {
+    const marked: string[] = [];
+
+    const result = await expireOpenPixCharges({
+      docs: [expiredCard()],
+      nowMs: NOW,
+      cancelCharge: async () => {},
+      markCancelled: async (doc) => {
+        marked.push(doc.id);
+      },
+      resolveChargeStatus: async () => {
+        throw new Error("asaas fora do ar");
+      },
+    });
+
+    assert.deepEqual(marked, []);
+    assert.equal(result.failed, 1);
+  });
+});

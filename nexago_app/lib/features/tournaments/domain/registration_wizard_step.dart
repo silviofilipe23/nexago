@@ -16,6 +16,12 @@ enum RegistrationWizardStep {
   consentimento,
   condicoes,
   parceiro,
+  // "Aguardando a dupla": o convite saiu e o parceiro ainda não respondeu.
+  // Mora ENTRE parceiro e uniforme porque é o que vem depois de convidar e
+  // antes de configurar a inscrição — que nem existe ainda, já que o backend
+  // só a cria no aceite. Inserir no meio desloca os índices de `uniforme`,
+  // `pagamento` e `sucesso`; é esperado, eles são relativos.
+  aguardando,
   uniforme,
   pagamento,
   sucesso,
@@ -54,6 +60,9 @@ class RegistrationStepInput {
   /// aceita. Sem este sinal, o atleta que voltasse por push ou pela Home
   /// (sem `lgpd` na rota) cairia no consentimento e refaria o aceite e as
   /// condições com um convite já em voo.
+  ///
+  /// O mesmo sinal separa os dois destinos da reserva solo: com convite em
+  /// voo o destino é a espera, sem convite é a busca de parceiro.
   final bool hasSentInvitePending;
 
   final bool hasRegistration;
@@ -81,9 +90,9 @@ class RegistrationStepInput {
   /// O pedido veio de `?step=waiting`, que não é o mesmo que `partner`.
   ///
   /// `waiting` significa "esperando o parceiro" e só vale enquanto a dupla
-  /// não fechou. Obedecê-lo depois do aceite jogava na busca de parceiro
+  /// não fechou. Obedecê-lo depois do aceite prenderia na tela de espera
   /// justamente quem acabou de fechar a dupla e só devia o pagamento — e
-  /// `parceiro` (índice 3) vence qualquer passo natural posterior.
+  /// `aguardando` (índice 4) vence qualquer passo natural posterior.
   final bool requestedStepWaitingOnly;
 }
 
@@ -98,10 +107,10 @@ RegistrationWizardStep resolveRegistrationStep(RegistrationStepInput input) {
   final requested = input.requestedStep;
   if (requested == null) return natural;
 
-  // `waiting` caduca quando a dupla fecha. Ele aponta para `parceiro`
-  // (índice 3), que é MENOR que todo passo natural depois da inscrição —
-  // então, sem esta saída, ele venceria sempre e mandaria para a busca de
-  // parceiro quem acabou de aceitar o convite e só devia o pagamento.
+  // `waiting` caduca quando a dupla fecha. Ele aponta para `aguardando`
+  // (índice 4), que é MENOR que todo passo natural depois da inscrição —
+  // então, sem esta saída, ele venceria sempre e prenderia na tela de espera
+  // quem acabou de aceitar o convite e só devia o pagamento.
   if (input.requestedStepWaitingOnly &&
       input.hasRegistration &&
       !input.partnerPending) {
@@ -127,10 +136,11 @@ RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
   }
   if (!input.hasRegistration) {
     // Convite enviado e ainda sem resposta: a inscrição só nasce no aceite,
-    // então o estado de ESPERA mora na tela do parceiro. Vem antes do
-    // consentimento porque quem já convidou não pode ser mandado de volta ao
-    // começo do fluxo só por não trazer `lgpd` na rota.
-    if (input.hasSentInvitePending) return RegistrationWizardStep.parceiro;
+    // então o estado de ESPERA tem tela própria — mandar de volta à busca de
+    // parceiro reabria o campo de busca para quem acabou de escolher alguém.
+    // Vem antes do consentimento porque quem já convidou não pode ser mandado
+    // de volta ao começo do fluxo só por não trazer `lgpd` na rota.
+    if (input.hasSentInvitePending) return RegistrationWizardStep.aguardando;
     if (input.lgpdAccepted) return RegistrationWizardStep.condicoes;
     // A folha de nível abre na SAÍDA da tela 1 — quem começa do zero tem de
     // passar por lá antes do consentimento, senão o gate anti-sandbagging
@@ -139,7 +149,18 @@ RegistrationWizardStep _naturalStep(RegistrationStepInput input) {
         ? RegistrationWizardStep.categoria
         : RegistrationWizardStep.consentimento;
   }
-  if (input.partnerPending) return RegistrationWizardStep.parceiro;
+  if (input.partnerPending) {
+    // Reserva solo: os dois caminhos convergem aqui, e o que os separa é ter
+    // ou não convite em voo.
+    //
+    // Com convite enviado, a espera é a MESMA do convite "no vácuo" — o
+    // atleta acabou de escolher alguém, e reabrir a busca é justamente o que
+    // a etapa `aguardando` existe para evitar. Sem convite, quem reservou
+    // sozinho ainda PRECISA da busca: é lá que ele convida e reserva.
+    return input.hasSentInvitePending
+        ? RegistrationWizardStep.aguardando
+        : RegistrationWizardStep.parceiro;
+  }
   if (input.uniformRequired && !input.uniformComplete) {
     return RegistrationWizardStep.uniforme;
   }
@@ -158,7 +179,9 @@ typedef RegistrationStepRequest = ({
 ///
 /// `waiting` é aceito na leitura porque rotas antigas ainda o mandam (o app
 /// instalado na loja continua gerando esses links por um tempo): ele significa
-/// "esperando o parceiro", que no wizard é a tela do parceiro.
+/// "esperando o parceiro", que é exatamente a etapa `aguardando` — o nome do
+/// parâmetro sempre quis dizer isso, e apontá-lo para a busca de parceiro era
+/// só a falta da tela.
 ///
 /// Ele NÃO é sinônimo de `partner`: `partner` (o elenco, de
 /// `tournamentRegistrationRosterParams`) vale sempre que a etapa já estiver
@@ -169,7 +192,8 @@ const _stepNames = <String, RegistrationWizardStep>{
   'condicoes': RegistrationWizardStep.condicoes,
   'partner': RegistrationWizardStep.parceiro,
   'parceiro': RegistrationWizardStep.parceiro,
-  'waiting': RegistrationWizardStep.parceiro,
+  'waiting': RegistrationWizardStep.aguardando,
+  'aguardando': RegistrationWizardStep.aguardando,
   'uniform': RegistrationWizardStep.uniforme,
   'uniforme': RegistrationWizardStep.uniforme,
   'payment': RegistrationWizardStep.pagamento,
@@ -181,5 +205,12 @@ RegistrationStepRequest? registrationStepFromParam(String? raw) {
   if (value.isEmpty) return null;
   final step = _stepNames[value];
   if (step == null) return null;
-  return (step: step, waitingOnly: value == 'waiting');
+  // A caducidade acompanha a ETAPA, não a grafia: `waiting` e `aguardando`
+  // pedem a mesma tela de espera, e as duas têm de caducar quando a dupla
+  // fecha. Amarrar em `value == 'waiting'` deixava a grafia nova passar
+  // batido pela regra.
+  return (
+    step: step,
+    waitingOnly: step == RegistrationWizardStep.aguardando,
+  );
 }

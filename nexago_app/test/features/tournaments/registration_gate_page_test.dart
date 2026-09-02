@@ -212,6 +212,11 @@ void main() {
           'parceiro',
         ),
         alvo(
+          AppRoutes.tournamentRegistrationWaiting,
+          AppRouteNames.tournamentRegistrationWaiting,
+          'aguardando',
+        ),
+        alvo(
           AppRoutes.tournamentRegistrationUniform,
           AppRouteNames.tournamentRegistrationUniform,
           'uniforme',
@@ -483,10 +488,12 @@ void main() {
 
   group('convite ENVIADO pendente', () {
     testWidgets(
-      'sem inscrição e sem lgpd na rota cai no parceiro, não no consentimento',
+      'sem inscrição e sem lgpd na rota cai na ESPERA, não no consentimento '
+      'nem na busca de parceiro',
       (tester) async {
         // Atleta voltando por push/Home depois de convidar: a callable não
-        // cria inscrição, o backend só cria no aceite.
+        // cria inscrição, o backend só cria no aceite. Mandá-lo para a busca
+        // reabria o campo logo depois de ele ter escolhido alguém.
         await abrirPorteiro(
           tester,
           tournament: torneio([dupla()]),
@@ -495,11 +502,32 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(rotasAbertas, contains('parceiro'));
+        expect(rotasAbertas, contains('aguardando'));
+        expect(rotasAbertas, isNot(contains('parceiro')));
         expect(rotasAbertas, isNot(contains('consentimento')));
         expect(rotasAbertas, isNot(contains('condicoes')));
       },
     );
+
+    testWidgets('o aceite LGPD atravessa até a tela de espera', (
+      tester,
+    ) async {
+      // Sem inscrição criada, `lgpd=1` só existe como parâmetro de rota:
+      // perdê-lo aqui faria a callable do aceite gravar a inscrição SEM o
+      // consentimento — em silêncio, sem erro e sem log.
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        lgpdAccepted: true,
+        convitesEnviados: [conviteEnviado()],
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('aguardando'));
+      expect(destinoQueryParams?['lgpd'], '1');
+      expect(destinoQueryParams?['categoryId'], 'masc');
+    });
 
     testWidgets('convite enviado em OUTRA categoria não segura esta', (
       tester,
@@ -513,10 +541,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(rotasAbertas, contains('consentimento'));
-      expect(rotasAbertas, isNot(contains('parceiro')));
+      expect(rotasAbertas, isNot(contains('aguardando')));
     });
 
-    testWidgets('step=waiting da rota antiga também cai no parceiro', (
+    testWidgets('step=waiting da rota antiga cai na tela de espera', (
       tester,
     ) async {
       // `tournamentRegistrationWaitingParams` manda categoryId + inviteId +
@@ -532,9 +560,92 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(rotasAbertas, contains('parceiro'));
+      expect(rotasAbertas, contains('aguardando'));
+      expect(rotasAbertas, isNot(contains('parceiro')));
       expect(destinoQueryParams?['categoryId'], 'masc');
     });
+
+    testWidgets(
+      'reserva solo COM convite em voo abre a espera, levando o '
+      'registrationId',
+      (tester) async {
+        // Os dois caminhos convergem: quem reservou sozinho e depois convidou
+        // vê a mesma tela de quem convidou "no vácuo". O `registrationId` tem
+        // de viajar — é dele que a espera tira a ação "garantir a vaga".
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          convitesEnviados: [conviteEnviado()],
+          registrations: const {
+            'masc': UserCategoryRegistration(
+              registrationId: 'reg-solo',
+              isPaid: false,
+              partnerPending: true,
+            ),
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('aguardando'));
+        expect(rotasAbertas, isNot(contains('parceiro')));
+        expect(destinoQueryParams?['registrationId'], 'reg-solo');
+        expect(destinoQueryParams?['categoryId'], 'masc');
+      },
+    );
+
+    testWidgets(
+      'reserva solo SEM convite continua abrindo a busca de parceiro',
+      (tester) async {
+        // Quem reservou sozinho e ainda não chamou ninguém precisa da busca —
+        // é lá que ele convida.
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          registrations: const {
+            'masc': UserCategoryRegistration(
+              registrationId: 'reg-solo',
+              isPaid: false,
+              partnerPending: true,
+            ),
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('parceiro'));
+        expect(rotasAbertas, isNot(contains('aguardando')));
+        expect(destinoQueryParams?['registrationId'], 'reg-solo');
+      },
+    );
+
+    testWidgets(
+      'step=waiting NÃO segura quem já fechou a dupla: vai ao pagamento',
+      (tester) async {
+        // A caducidade de `waiting` continua valendo com a etapa nova: sem
+        // ela, `aguardando` (índice 4) venceria o pagamento (6) e prenderia
+        // na espera justamente quem acabou de fechar a dupla.
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          requestedStep: registrationStepFromParam('waiting')?.step,
+          requestedStepWaitingOnly: true,
+          registrations: const {
+            'masc': UserCategoryRegistration(
+              registrationId: 'reg-1',
+              isPaid: false,
+              partnerPending: false,
+            ),
+          },
+        );
+        await tester.pumpAndSettle();
+
+        expect(rotasAbertas, contains('pagamento'));
+        expect(rotasAbertas, isNot(contains('aguardando')));
+        expect(destinoQueryParams?['registrationId'], 'reg-1');
+      },
+    );
   });
 
   // ── resolução da categoria ───────────────────────────────────────────────

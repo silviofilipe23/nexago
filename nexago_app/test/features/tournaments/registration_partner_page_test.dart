@@ -343,6 +343,12 @@ void main() {
         // inventado — o teste falharia se o código chutasse um id qualquer.
         expect(destinoQueryParams?.containsKey('registrationId'), isFalse);
         expect(destinoQueryParams?['categoryId'], 'masc');
+        // O aceite tem de ATRAVESSAR o retorno ao porteiro: sem inscrição
+        // criada ele só existe como parâmetro de rota, e o porteiro devolve o
+        // atleta para o wizard (agora na etapa de espera). Perdê-lo aqui era o
+        // bug Critical desta branch — a callable seguinte gravaria a inscrição
+        // sem `lgpdAcceptedUids`, em silêncio.
+        expect(destinoQueryParams?['lgpd'], '1');
       },
     );
 

@@ -14,9 +14,12 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
     required this.athleteInitials,
     this.athleteAvatarUrl,
     this.onResendInvite,
+    this.onGuaranteeSpot,
+    this.guaranteeSpotLabel = 'Garantir vaga pagando o valor integral',
     this.onCancelRegistration,
     this.onContinueBrowsing,
     this.inviteAccepted = false,
+    this.cancelLabel = 'Cancelar inscrição',
     this.partnerPendingSubtitle = 'Pendente',
     this.reservationHoursLabel = '24 horas',
     this.isLoading = false,
@@ -27,9 +30,27 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
   final String athleteInitials;
   final String? athleteAvatarUrl;
   final VoidCallback? onResendInvite;
+
+  /// Ação secundária "garantir a vaga pagando o integral".
+  ///
+  /// Só faz sentido com reserva solo em aberto e ainda não paga; quem decide
+  /// é a tela, e `null` (o default) tira o botão. Ela mora aqui porque, sem
+  /// caminho nesta tela, o atleta que reservou sozinho e convidou alguém
+  /// ficaria sem nenhuma forma de garantir a vaga enquanto espera.
+  final VoidCallback? onGuaranteeSpot;
+  final String guaranteeSpotLabel;
+
   final VoidCallback? onCancelRegistration;
   final VoidCallback? onContinueBrowsing;
   final bool inviteAccepted;
+
+  /// Rótulo da ação destrutiva do rodapé.
+  ///
+  /// No wizard de inscrição ela cancela o CONVITE, não a inscrição — que nem
+  /// existe enquanto o parceiro não aceita. O default preserva o texto antigo
+  /// para qualquer uso em que haja mesmo uma inscrição a cancelar.
+  final String cancelLabel;
+
   final String partnerPendingSubtitle;
   final String reservationHoursLabel;
   final bool isLoading;
@@ -178,7 +199,9 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
-        if (!inviteAccepted) ...[
+        // Sem [onResendInvite] o botão sai da tela: um "Reenviar convite"
+        // permanentemente cinza é pior que não oferecer a ação.
+        if (!inviteAccepted && onResendInvite != null) ...[
           SizedBox(height: 10),
           OutlinedButton(
             onPressed: isLoading ? null : onResendInvite,
@@ -198,16 +221,41 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
             ),
           ),
         ],
-        TextButton(
-          onPressed: isLoading ? null : onCancelRegistration,
-          child: Text(
-            'Cancelar inscrição',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w500,
+        if (onGuaranteeSpot != null) ...[
+          SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: isLoading ? null : onGuaranteeSpot,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.themeColors.onSurface,
+              side: BorderSide(
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              guaranteeSpotLabel,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-        ),
+        ],
+        // Depois do aceite não há convite a cancelar, e a tela está de saída
+        // para o pagamento: manter o botão só abriria uma janela de clique
+        // sem efeito nenhum.
+        if (!inviteAccepted)
+          TextButton(
+            onPressed: isLoading ? null : onCancelRegistration,
+            child: Text(
+              cancelLabel,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -442,7 +490,7 @@ class _WaitingPulseOrbState extends State<_WaitingPulseOrb>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1800),
-  )..repeat(reverse: true);
+  );
 
   late final Animation<double> _outerScale = Tween<double>(
     begin: 0.96,
@@ -458,6 +506,22 @@ class _WaitingPulseOrbState extends State<_WaitingPulseOrb>
     begin: 0.985,
     end: 1.02,
   ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // "Reduzir movimento" do sistema desliga o pulso. Não basta ignorar o
+    // valor: um controller em `repeat()` agenda frames para sempre — é o que
+    // trava `pumpAndSettle` em qualquer teste que renderize esta tela.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      if (_controller.isAnimating) _controller.stop();
+      // Repouso do controller (0), não a ponta alta dos tweens (1): parar em
+      // 1 deixaria o orbe 5% maior para sempre.
+      _controller.value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
 
   @override
   void dispose() {

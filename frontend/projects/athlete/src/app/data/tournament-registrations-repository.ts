@@ -635,6 +635,31 @@ export async function createRegistrationPixPayment(functions: Functions, registr
   }
 }
 
+/** Cobrança de cartão: o pagamento acontece no checkout HOSPEDADO do Asaas
+ *  (`invoiceUrl`), fora do nosso domínio. Nenhum dado de cartão passa por aqui
+ *  — nem pelo navegador dentro do portal. */
+export interface CardPaymentResult {
+  paymentId: string;
+  invoiceUrl: string;
+  expiresAt: string;
+  amountReais: number;
+}
+
+export async function createRegistrationCardPayment(functions: Functions, registrationId: string, amountType: 'share' | 'full', cpfCnpj: string): Promise<CardPaymentResult> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, CardPaymentResult>(functions, 'createTournamentRegistrationCardPayment')({
+      registrationId,
+      amountType,
+      cpfCnpj,
+    });
+    return result.data;
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** Serve para as duas cobranças: o callable cancela o `pixPending` do atleta,
+ *  seja ele PIX ou cartão. */
 export async function cancelPendingRegistrationPix(functions: Functions, registrationId: string): Promise<void> {
   try {
     await httpsCallable(functions, 'cancelPendingTournamentRegistrationPix')({ registrationId });

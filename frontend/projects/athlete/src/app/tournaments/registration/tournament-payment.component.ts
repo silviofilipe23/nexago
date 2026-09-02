@@ -8,6 +8,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { cpfCnpjValidationMessage, formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '../../data/cpf-cnpj';
+import { canRegeneratePix } from './registration-hold';
 import { athleteFunctions } from '../../data/functions';
 import { buildPixBrCode, isLikelyValidPixKey } from '../../data/pix-brcode';
 import { pixQrSvgDataUrl, resolvePixQrSrc } from '../../data/pix-qr';
@@ -395,11 +396,20 @@ export class TournamentPaymentComponent {
     this.pixQrSrc.set(null);
     this.pixExpiresAtMs.set(null);
     this.pixExpired.set(true);
-    this.toasts.warning(
-      'O código Pix expirou',
-      'Nenhum valor foi cobrado e sua vaga segue reservada. Gere um novo código para pagar.',
-      { label: 'Gerar novo código', run: () => void this.generatePix() },
-    );
+    // Perto do fim do prazo o servidor recusa abrir outra cobrança: oferecer
+    // "gerar novo código" ali mandaria o atleta bater numa porta fechada.
+    if (canRegeneratePix({ holdExpiresAt: reg?.holdExpiresAt ?? null })) {
+      this.toasts.warning(
+        'O código Pix expirou',
+        'Nenhum valor foi cobrado e sua vaga segue reservada. Gere um novo código para pagar.',
+        { label: 'Gerar novo código', run: () => void this.generatePix() },
+      );
+    } else {
+      this.toasts.warning(
+        'O prazo da sua vaga acabou',
+        'Nenhum valor foi cobrado. Não há mais tempo para concluir o pagamento — a vaga volta para o público.',
+      );
+    }
     if (reg) {
       try {
         await cancelPendingRegistrationPix(athleteFunctions(), reg.id);

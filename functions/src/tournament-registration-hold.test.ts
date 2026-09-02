@@ -4,8 +4,9 @@ import {
   DEFAULT_REGISTRATION_HOLD_MINUTES,
   registrationOwnerUid,
   PIX_HOLD_MARGIN_MS,
+  PIX_MIN_WINDOW_MS,
+  computePixWindow,
   computeRegistrationHoldExpiryMs,
-  extendHoldForPixMs,
   registrationHoldImmunityReason,
   resolveRegistrationHoldMinutes,
   shouldTrackRegistrationHold,
@@ -93,23 +94,72 @@ describe("computeRegistrationHoldExpiryMs", () => {
   });
 });
 
-describe("extendHoldForPixMs", () => {
-  it("cobrança que vence depois do prazo empurra a vaga", () => {
-    const pix = NOW + 15 * MIN;
+describe("computePixWindow", () => {
+  const ok = (r: ReturnType<typeof computePixWindow>) => {
+    assert.equal(r.ok, true, `esperava janela, veio recusa: ${JSON.stringify(r)}`);
+    return r.ok ? r.expiresAtMs : 0;
+  };
+
+  it("com prazo de sobra, a cobrança leva o teto de 15 minutos", () => {
     assert.equal(
-      extendHoldForPixMs(NOW + 5 * MIN, pix),
-      pix + PIX_HOLD_MARGIN_MS,
+      ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: NOW + 4 * 60 * MIN})),
+      NOW + 15 * MIN,
     );
   });
 
-  it("nunca encurta um prazo maior que a cobrança", () => {
-    const hold = NOW + 40 * MIN;
-    assert.equal(extendHoldForPixMs(hold, NOW + 15 * MIN), hold);
+  it("prazo apertado encurta a cobrança para caber dentro dele", () => {
+    // Atleta gastou 5 dos 15 minutos: sobram 10, a cobrança fica com 8 e
+    // morre antes da varredura da vaga chegar.
+    const hold = NOW + 10 * MIN;
+    assert.equal(
+      ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: hold})),
+      hold - PIX_HOLD_MARGIN_MS,
+    );
   });
 
-  it("inscrição sem prazo ainda ganha o da cobrança", () => {
-    const pix = NOW + 15 * MIN;
-    assert.equal(extendHoldForPixMs(null, pix), pix + PIX_HOLD_MARGIN_MS);
+  it("o fim das inscrições também é teto, e sem margem", () => {
+    const closes = NOW + 5 * MIN;
+    assert.equal(
+      ok(computePixWindow({
+        nowMs: NOW,
+        holdExpiresAtMs: NOW + 4 * 60 * MIN,
+        registrationClosesAtMs: closes,
+      })),
+      closes,
+    );
+  });
+
+  it("inscrição sem prazo (imune, fila, prazo desligado) usa só o teto", () => {
+    assert.equal(
+      ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: null})),
+      NOW + 15 * MIN,
+    );
+  });
+
+  it("abaixo do piso, recusa apontando o prazo da vaga", () => {
+    // Sobram 4 min: 4 − 2 de margem = 2, menos que o piso.
+    const r = computePixWindow({nowMs: NOW, holdExpiresAtMs: NOW + 4 * MIN});
+    assert.deepEqual(r, {ok: false, reason: "holdEndingSoon"});
+  });
+
+  it("abaixo do piso, recusa apontando o fim das inscrições", () => {
+    const r = computePixWindow({
+      nowMs: NOW,
+      holdExpiresAtMs: NOW + 4 * 60 * MIN,
+      registrationClosesAtMs: NOW + 2 * MIN,
+    });
+    assert.deepEqual(r, {ok: false, reason: "registrationClosingSoon"});
+  });
+
+  it("prazo já vencido recusa, em vez de devolver janela negativa", () => {
+    const r = computePixWindow({nowMs: NOW, holdExpiresAtMs: NOW - 1 * MIN});
+    assert.deepEqual(r, {ok: false, reason: "holdEndingSoon"});
+  });
+
+  it("no piso exato ainda gera: o corte é abaixo dele", () => {
+    const hold = NOW + PIX_MIN_WINDOW_MS + PIX_HOLD_MARGIN_MS;
+    assert.equal(ok(computePixWindow({nowMs: NOW, holdExpiresAtMs: hold})),
+      NOW + PIX_MIN_WINDOW_MS);
   });
 });
 

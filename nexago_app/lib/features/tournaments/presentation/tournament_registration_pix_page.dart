@@ -138,9 +138,12 @@ class _TournamentRegistrationPixPageState
         .read(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
         .valueOrNull;
     final holdAt = _resolveHoldExpiresAt(snap);
-    if (holdAt != null && !holdAt.isAfter(DateTime.now())) {
+    // Sem janela mínima o servidor recusa: melhor dizer aqui do que gastar uma
+    // ida para voltar com o mesmo "não".
+    if (!canRegeneratePix(holdExpiresAt: holdAt)) {
       setState(() {
-        _pixError = 'O prazo da vaga encerrou. Volte à inscrição.';
+        _pixError = 'Não há mais tempo para concluir o pagamento. Volte à '
+            'inscrição.';
         _loadingPix = false;
       });
       return;
@@ -468,12 +471,15 @@ class _TournamentRegistrationPixPageState
         .read(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
         .valueOrNull;
     final holdAt = _resolveHoldExpiresAt(snap);
-    final holdExpired =
-        holdAt != null && !holdAt.isAfter(DateTime.now());
+    // Faltando menos que a janela mínima, um novo código seria recusado — a
+    // vaga acabou junto com a cobrança, mesmo que o relógio ainda não tenha
+    // zerado.
+    final outOfTime = !canRegeneratePix(holdExpiresAt: holdAt);
     return FeedbackPage.error(
-      title: holdExpired ? 'Prazo da vaga encerrado' : 'PIX expirado',
-      description: holdExpired
-          ? 'Sua vaga foi liberada. Volte à inscrição se ainda houver vagas.'
+      title: outOfTime ? 'Prazo da vaga encerrado' : 'PIX expirado',
+      description: outOfTime
+          ? 'Não há mais tempo para concluir o pagamento e sua vaga será '
+              'liberada. Volte à inscrição se ainda houver vagas.'
           : 'Gere um novo código na tela de inscrição.',
       primaryAction: FeedbackAction(
         label: 'Voltar à inscrição',

@@ -14,15 +14,25 @@
 
 import {organizerConfirmedShareUidsFromRegistration} from
   "./organizer-payment-share";
+import {TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES} from
+  "./arena-booking-payment-constants";
 
 export const DEFAULT_REGISTRATION_HOLD_MINUTES = 30;
 
 /**
- * Margem sobre o vencimento da cobrança PIX. Sem ela o sweeper mataria uma
- * cobrança viva na última volta do relógio, e um pagamento em trânsito cairia
- * como órfão no webhook.
+ * Folga entre o fim da cobrança PIX e o fim do prazo da vaga. Quando a
+ * varredura chega para liberar a vaga, a cobrança já morreu há dois minutos —
+ * assim ela nunca mata cobrança viva, e nenhum pagamento em trânsito cai como
+ * órfão no webhook.
  */
 export const PIX_HOLD_MARGIN_MS = 2 * 60 * 1000;
+
+/**
+ * Janela mínima de uma cobrança. Abaixo disso não se gera QR nenhum: o atleta
+ * ainda estaria abrindo o banco quando a cobrança morresse, e um PIX pago em
+ * cima da hora é dinheiro entrando sem vaga para creditar.
+ */
+export const PIX_MIN_WINDOW_MS = 3 * 60 * 1000;
 
 /**
  * Minutos de garantia do torneio, ou `null` quando o organizador desligou o
@@ -56,12 +66,58 @@ export function computeRegistrationHoldExpiryMs(params: {
   return base + params.holdMinutes * 60 * 1000;
 }
 
-/** Cobrança PIX aberta empurra o prazo; nunca o encurta. */
-export function extendHoldForPixMs(
-  currentHoldMs: number | null | undefined,
-  pixExpiresAtMs: number,
-): number {
-  return Math.max(currentHoldMs ?? 0, pixExpiresAtMs + PIX_HOLD_MARGIN_MS);
+/** Por que a cobrança não pode nascer. */
+export type PixWindowRefusal = "holdEndingSoon" | "registrationClosingSoon";
+
+export type PixWindowResult =
+  | {ok: true; expiresAtMs: number}
+  | {ok: false; reason: PixWindowRefusal};
+
+/**
+ * Quando a cobrança PIX vence — ela cabe DENTRO do prazo da vaga, nunca o
+ * estica.
+ *
+ * A regra já foi a inversa: a cobrança empurrava o `holdExpiresAt` para depois
+ * de si, para a varredura não matá-la viva. O efeito era o prazo virar
+ * elástico — quem demorasse na tela ganhava 15 minutos extras, e gerar o QR de
+ * novo esticava a vaga outra vez, sem teto. Agora quem manda é o prazo: a
+ * cobrança é recortada para caber nele, menos a margem.
+ *
+ * Três tetos, o menor vence:
+ * - o teto fixo da cobrança (15 min), que continua valendo quando sobra prazo;
+ * - o prazo da vaga menos a margem — ausente quando a inscrição é imune
+ *   (anterior à regra, criada pelo organizador, em fila, ou torneio com o
+ *   prazo desligado), e aí ele não limita nada;
+ * - o fim das inscrições do torneio, este SEM margem: ninguém varre vaga nesse
+ *   instante, então não há corrida da qual se proteger, e o QR simplesmente não
+ *   sobrevive ao fechamento.
+ */
+export function computePixWindow(params: {
+  nowMs: number;
+  holdExpiresAtMs?: number | null;
+  registrationClosesAtMs?: number | null;
+}): PixWindowResult {
+  const {nowMs} = params;
+  let expiresAtMs =
+    nowMs + TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES * 60 * 1000;
+  // Qual teto apertou: o atleta precisa saber se o que está acabando é o prazo
+  // dele ou as inscrições do torneio — são situações diferentes.
+  let reason: PixWindowRefusal = "holdEndingSoon";
+
+  const hold = params.holdExpiresAtMs;
+  if (hold != null) {
+    const holdCeiling = hold - PIX_HOLD_MARGIN_MS;
+    if (holdCeiling < expiresAtMs) expiresAtMs = holdCeiling;
+  }
+
+  const closes = params.registrationClosesAtMs;
+  if (closes != null && closes < expiresAtMs) {
+    expiresAtMs = closes;
+    reason = "registrationClosingSoon";
+  }
+
+  if (expiresAtMs - nowMs < PIX_MIN_WINDOW_MS) return {ok: false, reason};
+  return {ok: true, expiresAtMs};
 }
 
 /** Por que esta inscrição já comprou a vaga e não tem mais prazo. */

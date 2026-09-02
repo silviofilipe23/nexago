@@ -867,4 +867,54 @@ void main() {
       );
     });
   });
+
+  group('canRegeneratePix', () {
+    final now = DateTime(2026, 9, 1, 14, 13);
+
+    test('inscrição sem prazo pode gerar quantos códigos quiser', () {
+      expect(canRegeneratePix(holdExpiresAt: null, now: now), isTrue);
+    });
+
+    test('com prazo de sobra, pode gerar de novo', () {
+      expect(
+        canRegeneratePix(
+          holdExpiresAt: now.add(const Duration(minutes: 20)),
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('faltando menos que a janela mínima, não oferece novo código', () {
+      // O servidor recusaria: 4 min − 2 de margem = 2, abaixo do piso de 3.
+      expect(
+        canRegeneratePix(
+          holdExpiresAt: now.add(const Duration(minutes: 4)),
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('prazo vencido não gera nada', () {
+      expect(
+        canRegeneratePix(
+          holdExpiresAt: now.subtract(const Duration(minutes: 1)),
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('na borda exata ainda oferece', () {
+      expect(
+        canRegeneratePix(
+          holdExpiresAt: now.add(const Duration(minutes: 5)),
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+  });
 }
+

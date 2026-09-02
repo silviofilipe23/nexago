@@ -130,6 +130,9 @@ export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
 export {expirePendingTournamentRegistrations} from
   "./tournament-registration-hold-sweeper";
 
+export {expireOpenTournamentRegistrationPixCharges} from
+  "./tournament-registration-pix-expiry-sweeper";
+
 export {
   onTournamentStaffWrittenSyncMirror,
   onTournamentDeletedCleanupStaff,

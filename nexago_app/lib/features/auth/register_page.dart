@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/auth/auth_service.dart';
 import '../../core/observability/analytics_service.dart';
+import '../../core/observability/flow_error_log.dart';
 import '../../features/athlete/onboarding/domain/athlete_onboarding_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
@@ -358,18 +358,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
   }
 
-  /// Erros do fluxo de cadastro nunca somem em silêncio: em produção vão ao
-  /// Crashlytics como não-fatais (o guard cobre testes sem Firebase).
+  /// Erros do fluxo de cadastro vão ao Crashlytics como `register:<etapa>`.
   void _logRegisterFlowError(String stage, Object e, StackTrace st) {
-    debugPrint('cadastro: falha em $stage: $e');
-    try {
-      FirebaseCrashlytics.instance.recordError(
-        e,
-        st,
-        reason: 'register:$stage',
-        fatal: false,
-      );
-    } catch (_) {}
+    recordFlowError('register:$stage', e, st);
   }
 
   Future<void> _signInWithGoogle() async {

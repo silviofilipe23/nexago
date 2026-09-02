@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,19 @@ import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
+
+/// Limites de rede do "Concluir cadastro". Sem eles o atleta fica
+/// "processando" sem fim: o SDK do Storage insiste por até 10 min numa
+/// conexão que caiu, a callable espera 60 s e o Firestore enfileira a escrita
+/// offline para sempre. Quem estoura cai na tela com mensagem de rede e o
+/// atleta tenta de novo (sem subir a foto outra vez).
+const Duration kAvatarUploadTimeout = Duration(seconds: 60);
+
+/// A callable `grantAthleteRole` sofre cold start em quase todo cadastro
+/// (5–16 s medidos em campo); 25 s cobre isso com folga numa rede normal.
+const Duration kAthleteRoleGrantTimeout = Duration(seconds: 25);
+
+const Duration kProfileSaveTimeout = Duration(seconds: 20);
 
 class AthleteProfileRepository {
   AthleteProfileRepository(this._firestore, {FirebaseFunctions? functions})
@@ -33,7 +47,7 @@ class AthleteProfileRepository {
 
   Future<void> saveProfile(AthleteProfile profile) async {
     final docRef = _users.doc(profile.id);
-    final snap = await docRef.get();
+    final snap = await docRef.get().timeout(kProfileSaveTimeout);
     final exists = snap.exists;
 
     final stepsComplete = ProfileCompletionState.fromProfile(profile).allComplete;
@@ -98,7 +112,7 @@ class AthleteProfileRepository {
         ? existingRolesRaw.whereType<String>().toSet()
         : <String>{};
     if (!existingRoles.contains('athlete')) {
-      await _functions.httpsCallable('grantAthleteRole').call<void>();
+      await grantAthleteRole();
     }
     final effectiveRoles = <String>{...existingRoles, 'athlete'};
 
@@ -138,7 +152,7 @@ class AthleteProfileRepository {
       );
     }
 
-    await docRef.set(data, SetOptions(merge: true));
+    await docRef.set(data, SetOptions(merge: true)).timeout(kProfileSaveTimeout);
   }
 
   Future<void> saveNotificationPreferences({
@@ -208,22 +222,49 @@ class AthleteProfileRepository {
     await _users.doc(uid).collection('tokens').doc(tokenId).delete();
   }
 
+  /// Concede o papel de atleta (claim no token + `users.roles`) pela callable
+  /// `grantAthleteRole` — idempotente no servidor e nunca reduz acesso. `async`
+  /// de propósito: qualquer falha vira erro do Future, nunca lançamento
+  /// síncrono, para quem roda isto em paralelo com outra coisa.
+  Future<void> grantAthleteRole({Duration? timeout}) async {
+    await _functions
+        .httpsCallable(
+          'grantAthleteRole',
+          options: HttpsCallableOptions(
+            timeout: timeout ?? kAthleteRoleGrantTimeout,
+          ),
+        )
+        .call<void>();
+  }
+
   /// Upload em `profiles/{uid}/avatar.jpg` (regras do Storage) e retorna a URL.
+  ///
+  /// Estourado o [timeout], a tarefa é cancelada de verdade — senão o SDK
+  /// continua tentando por até 10 minutos por baixo e um novo upload da mesma
+  /// foto disputa o mesmo caminho.
   Future<String> uploadAvatar({
     required String uid,
     required Uint8List bytes,
     required String contentType,
+    Duration? timeout,
   }) async {
+    final limit = timeout ?? kAvatarUploadTimeout;
     final ref = FirebaseStorage.instance
         .ref()
         .child('profiles')
         .child(uid)
         .child('avatar.jpg');
-    await ref.putData(
+    final task = ref.putData(
       bytes,
       SettableMetadata(contentType: contentType),
     );
-    return ref.getDownloadURL();
+    try {
+      await task.timeout(limit);
+    } on TimeoutException {
+      unawaited(task.cancel());
+      rethrow;
+    }
+    return ref.getDownloadURL().timeout(limit);
   }
 
   /// Upload em `profiles/{uid}/cover.jpg` e retorna a URL de download.

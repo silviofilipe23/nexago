@@ -1,5 +1,6 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import '../../../../../core/deep_link/deep_link_providers.dart';
 import '../../../../../core/formatting/br_phone_format.dart';
 import '../../../../../core/media/profile_image_crop_config.dart';
 import '../../../../../core/media/profile_image_picker.dart';
+import '../../../../../core/observability/flow_error_log.dart';
 import '../../../../../core/router/app_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -27,6 +29,13 @@ import '../widgets/onboarding_progress_header.dart';
 import '../widgets/onboarding_scaffold.dart';
 import '../widgets/onboarding_step_header.dart';
 import '../../../../tournaments/domain/tournament_invite_links.dart';
+
+const String kOnboardingPhotoUploadFailedMessage =
+    'Não foi possível enviar sua foto. Verifique a conexão e tente de novo.';
+
+const String kOnboardingSaveNetworkFailedMessage =
+    'A conexão falhou ao salvar o perfil. Verifique a internet e toque em '
+    'Concluir de novo: a foto já foi enviada.';
 
 class AthleteOnboardingProfileStep extends ConsumerStatefulWidget {
   const AthleteOnboardingProfileStep({super.key});
@@ -48,6 +57,7 @@ class _AthleteOnboardingProfileStepState
   /// solto embaixo do bloco em vez de no campo que falta.
   final _locationFormKey = GlobalKey<FormState>();
   bool _submitting = false;
+  AthleteOnboardingSubmitStage? _stage;
   String? _nameError;
   String? _phoneError;
   String? _birthError;
@@ -124,37 +134,47 @@ class _AthleteOnboardingProfileStepState
       return;
     }
 
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _stage = null;
+    });
+    // Capturados antes dos awaits: a navegação para a home não pode depender
+    // deste State continuar vivo (o gate acima do router troca a árvore
+    // quando o perfil é invalidado).
+    final router = ref.read(goRouterProvider);
+    // Deep link pendente (ex.: convite de dupla que trouxe o atleta pro
+    // cadastro) é retomado no fim — concluir o onboarding e cair na home
+    // perderia o convite que motivou tudo.
+    final pendingDeepLink = ref.read(pendingDeepLinkPathProvider);
+    final stopwatch = Stopwatch()..start();
     try {
-      await ref.read(athleteOnboardingDraftProvider.notifier).submit();
-      if (!mounted) return;
-      // Deep link pendente (ex.: convite de dupla que trouxe o atleta pro
-      // cadastro) é retomado aqui — concluir o onboarding e cair na home
-      // perderia o convite que motivou tudo.
-      final pendingDeepLink = ref.read(pendingDeepLinkPathProvider);
-      ref.read(pendingDeepLinkPathProvider.notifier).state = null;
-      ref.read(goRouterProvider).go(
-            (pendingDeepLink == null || pendingDeepLink.isEmpty)
-                ? AppRoutes.discover
-                : pendingDeepLink,
-          );
-    } on AthleteOnboardingPhotoUploadException catch (e) {
-      if (kDebugMode) {
-        debugPrint('onboarding avatar upload: $e');
-      }
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        'Não foi possível enviar sua foto. Verifique a conexão e tente de novo.',
-        isError: true,
+      await ref.read(athleteOnboardingDraftProvider.notifier).submit(
+        onStage: (stage) {
+          if (mounted) setState(() => _stage = stage);
+        },
       );
-    } on FirebaseException catch (e) {
-      if (kDebugMode) {
-        debugPrint('onboarding profile submit FirebaseException: $e');
+      if (mounted) {
+        ref.read(pendingDeepLinkPathProvider.notifier).state = null;
       }
+      router.go(
+        (pendingDeepLink == null || pendingDeepLink.isEmpty)
+            ? AppRoutes.discover
+            : pendingDeepLink,
+      );
+    } on AthleteOnboardingSubmitException catch (e) {
+      recordFlowError(
+        'onboarding:${e.stage.name}',
+        e.cause,
+        e.stackTrace ?? StackTrace.current,
+        information: [
+          'elapsedMs=${stopwatch.elapsedMilliseconds}',
+          'network=${e.isNetwork}',
+        ],
+      );
       if (!mounted) return;
+      final cause = e.cause;
       showAppSnackBar(context, _submitErrorMessage(e), isError: true);
-      if (e.code == 'unauthenticated') {
+      if (cause is FirebaseException && cause.code == 'unauthenticated') {
         // Sessão sem conta por trás (token ainda válido, mas o usuário foi
         // apagado) — tentar de novo nunca vai funcionar. O GoRouter já manda
         // pro login sozinho assim que o auth zera (ver app_router.dart), daí
@@ -162,9 +182,12 @@ class _AthleteOnboardingProfileStepState
         await ref.read(appSignOutProvider)();
       }
     } catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('onboarding profile submit: $e\n$st');
-      }
+      recordFlowError(
+        'onboarding:submit',
+        e,
+        st,
+        information: ['elapsedMs=${stopwatch.elapsedMilliseconds}'],
+      );
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -172,19 +195,39 @@ class _AthleteOnboardingProfileStepState
         isError: true,
       );
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _stage = null;
+        });
+      }
     }
   }
 
-  String _submitErrorMessage(FirebaseException e) {
-    if (e.code == 'permission-denied') {
-      return 'Sem permissão para salvar o perfil. Entre novamente e tente outra vez.';
+  String _submitErrorMessage(AthleteOnboardingSubmitException e) {
+    if (e.stage == AthleteOnboardingSubmitStage.uploadAvatar) {
+      return kOnboardingPhotoUploadFailedMessage;
     }
-    if (e.code == 'unauthenticated') {
-      return 'Sua sessão expirou. Entre novamente para concluir o cadastro.';
+    final cause = e.cause;
+    if (cause is FirebaseException) {
+      if (cause.code == 'permission-denied') {
+        return 'Sem permissão para salvar o perfil. Entre novamente e tente outra vez.';
+      }
+      if (cause.code == 'unauthenticated') {
+        return 'Sua sessão expirou. Entre novamente para concluir o cadastro.';
+      }
     }
+    if (e.isNetwork) return kOnboardingSaveNetworkFailedMessage;
     return 'Não foi possível salvar o perfil. Tente novamente.';
   }
+
+  String? get _stageLabel => switch (_stage) {
+        null => null,
+        AthleteOnboardingSubmitStage.uploadAvatar => 'Enviando foto…',
+        AthleteOnboardingSubmitStage.grantAthleteRole =>
+          'Liberando seu perfil de atleta…',
+        AthleteOnboardingSubmitStage.saveProfile => 'Salvando perfil…',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -361,6 +404,7 @@ class _AthleteOnboardingProfileStepState
       ),
       primaryLabel: 'Concluir cadastro',
       primaryLoading: _submitting,
+      statusLabel: _submitting ? _stageLabel : null,
       onPrimary: _submit,
     );
   }

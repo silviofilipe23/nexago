@@ -15,6 +15,7 @@ class OnboardingScaffold extends StatelessWidget {
     this.primaryLoading = false,
     this.secondaryLabel,
     this.onSecondary,
+    this.statusLabel,
   });
 
   final Widget? topBar;
@@ -25,6 +26,10 @@ class OnboardingScaffold extends StatelessWidget {
   final bool primaryLoading;
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
+
+  /// Linha discreta sob o botão para dizer o que o "processando" está
+  /// fazendo (ex.: "Enviando foto…"). Só aparece quando não é null.
+  final String? statusLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +78,17 @@ class OnboardingScaffold extends StatelessWidget {
                                 ? onPrimary
                                 : null,
                           ),
+                          if (statusLabel != null) ...[
+                            SizedBox(height: 10),
+                            Text(
+                              statusLabel!,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: context.themeColors.onSurfaceMuted,
+                                  ),
+                            ),
+                          ],
                           if (secondaryLabel != null &&
                               onSecondary != null) ...[
                             SizedBox(height: 12),

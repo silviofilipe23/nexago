@@ -108,13 +108,15 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       final router = ref.read(goRouterProvider);
       void handleNotificationTap(Map<String, dynamic> data) {
         debugPrint('Notification tap payload: $data');
-        navigateFromNotificationData(data, router);
+        if (!mounted) return;
+        unawaited(navigateFromNotificationData(data, router, ref: ref));
       }
 
       await notifications.initialize(
         onOpenMessage: (message) {
           debugPrint('FCM open payload: ${message.data}');
-          navigateFromNotification(message, router);
+          if (!mounted) return;
+          unawaited(navigateFromNotification(message, router, ref: ref));
         },
         onForegroundMessage: (message) {
           debugPrint('FCM foreground payload: ${message.data}');

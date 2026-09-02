@@ -58,8 +58,11 @@ class NotificationService {
     NotificationMessageHandler? onForegroundMessage,
     NotificationDataHandler? onNotificationTap,
   }) async {
-    _onOpenMessage = onOpenMessage;
-    _onForegroundMessage = onForegroundMessage;
+    // Só substitui handler quando um novo é passado. A tela de Notificações
+    // chama `initialize()` sem argumentos ao ligar o push; sobrescrever com
+    // null desligava a navegação do toque em push pelo resto do processo.
+    _onOpenMessage = onOpenMessage ?? _onOpenMessage;
+    _onForegroundMessage = onForegroundMessage ?? _onForegroundMessage;
     if (_initialized) return;
 
     if (!_pluginAvailable) return;

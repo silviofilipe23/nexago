@@ -130,6 +130,34 @@
         </div>
       </div>
     } @else {
+
+
+    <div class="at-main-grid">
+      <div class="at-card">
+        <div class="at-card-head">
+          <div class="at-card-title">Meus torneios</div>
+          <a routerLink="/torneios" class="at-ghost-btn">Ver todos</a>
+        </div>
+        <div class="at-tournament-list">
+          @for (t of myTournaments(); track t.id) {
+            <a class="at-tournament-row" [routerLink]="['/torneios', t.id]">
+              <div class="at-tournament-icon">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
+              </div>
+              <div class="at-tournament-info">
+                <div class="at-tournament-name">{{ t.name }}</div>
+                <div class="at-tournament-meta">{{ t.meta }}</div>
+              </div>
+              <span class="at-pill" [class]="'at-pill--status-' + t.statusTone">{{ t.statusLabel }}</span>
+            </a>
+          } @empty {
+            <div class="at-empty">
+              <p>Nenhuma inscrição ainda.</p>
+              <p class="at-empty-sub">Suas inscrições em torneios e ligas aparecem aqui.</p>
+            </div>
+          }
+        </div>
+      </div>
     <div class="at-kpi-row">
       @for (kpi of kpis(); track kpi.label) {
         <div class="at-card at-kpi-card">
@@ -193,7 +221,6 @@
       />
     }
 
-    <div class="at-main-grid">
       <div class="at-col">
         @if (pendingInvites().length > 0) {
           <div class="at-card at-card--accent">
@@ -219,6 +246,8 @@
             </div>
           </div>
         }
+
+        
 
         <div class="at-card at-card--accent">
           @if (nextReservation(); as reservation) {
@@ -338,31 +367,7 @@
           </div>
         </div>
 
-        <div class="at-card">
-          <div class="at-card-head">
-            <div class="at-card-title">Meus torneios</div>
-            <a routerLink="/torneios" class="at-ghost-btn">Ver todos</a>
-          </div>
-          <div class="at-tournament-list">
-            @for (t of myTournaments(); track t.id) {
-              <a class="at-tournament-row" [routerLink]="['/torneios', t.id]">
-                <div class="at-tournament-icon">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
-                </div>
-                <div class="at-tournament-info">
-                  <div class="at-tournament-name">{{ t.name }}</div>
-                  <div class="at-tournament-meta">{{ t.meta }}</div>
-                </div>
-                <span class="at-pill" [class]="'at-pill--status-' + t.statusTone">{{ t.statusLabel }}</span>
-              </a>
-            } @empty {
-              <div class="at-empty">
-                <p>Nenhuma inscrição ainda.</p>
-                <p class="at-empty-sub">Suas inscrições em torneios e ligas aparecem aqui.</p>
-              </div>
-            }
-          </div>
-        </div>
+        
 
         <div class="at-card">
           <div class="at-card-head"><div class="at-card-title">Atalhos</div></div>

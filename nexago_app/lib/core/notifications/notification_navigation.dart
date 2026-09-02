@@ -1,27 +1,91 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../auth/auth_providers.dart';
+import '../deep_link/deep_link_providers.dart';
 import '../router/routes.dart';
 
-void navigateFromNotification(
-  RemoteMessage message,
-  GoRouter router,
-) {
-  navigateFromNotificationData(message.data, router);
+/// Tempo máximo esperando a sessão assentar antes de decidir o destino.
+const _sessionSettleTimeout = Duration(seconds: 8);
+
+/// Destino do toque em uma notificação, já confrontado com o estado da sessão.
+class NotificationTapDestination {
+  const NotificationTapDestination({
+    required this.path,
+    required this.requiresLogin,
+  });
+
+  /// Rota interna do app (ex.: `/torneios-convite/inv-1`).
+  final String path;
+
+  /// Sem sessão o destino não pode abrir agora: vira deep link pendente e o
+  /// router o consome ao sair do login.
+  final bool requiresLogin;
 }
 
-void navigateFromNotificationData(
-  Map<String, dynamic> data,
-  GoRouter router,
-) {
+/// Resolve o destino do toque considerando se já existe sessão.
+NotificationTapDestination? resolveNotificationTapDestination({
+  required Map<String, dynamic> data,
+  required bool hasSession,
+}) {
   final target = resolveNotificationRoute(data);
-  if (target == null || target.isEmpty) return;
+  if (target == null || target.isEmpty) return null;
+  return NotificationTapDestination(
+    path: target,
+    requiresLogin: !hasSession,
+  );
+}
+
+Future<void> navigateFromNotification(
+  RemoteMessage message,
+  GoRouter router, {
+  required WidgetRef ref,
+}) {
+  return navigateFromNotificationData(message.data, router, ref: ref);
+}
+
+Future<void> navigateFromNotificationData(
+  Map<String, dynamic> data,
+  GoRouter router, {
+  required WidgetRef ref,
+}) async {
+  // Cold start (toque com o app fechado): o payload chega antes do Firebase
+  // Auth restaurar a sessão. Navegar nesse instante mandava o atleta para o
+  // login e o destino se perdia — o convite nunca abria.
+  final hasSession = await _awaitSettledSession(ref);
+  final destination = resolveNotificationTapDestination(
+    data: data,
+    hasSession: hasSession,
+  );
+  if (destination == null) return;
+
+  if (destination.requiresLogin) {
+    // Mesmo mecanismo dos deep links: consumido em `leavingAuthRoute`.
+    ref.read(pendingDeepLinkPathProvider.notifier).state = destination.path;
+    router.go(AppRoutes.login);
+    return;
+  }
 
   // Garante navegação após estabilizar o frame atual.
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    router.go(target);
+    router.go(destination.path);
   });
+}
+
+/// Espera a primeira resolução do estado de auth (sessão restaurada ou não).
+Future<bool> _awaitSettledSession(WidgetRef ref) async {
+  final current = ref.read(authProvider);
+  if (!current.isLoading) return current.valueOrNull != null;
+  try {
+    final user = await ref
+        .read(authProvider.future)
+        .timeout(_sessionSettleTimeout);
+    return user != null;
+  } catch (_) {
+    return ref.read(authProvider).valueOrNull != null;
+  }
 }
 
 String? resolveNotificationRoute(Map<String, dynamic> data) {

@@ -1,0 +1,90 @@
+@if (loading()) {
+  <app-registration-wizard-shell title="Uniforme" [userName]="store.accountLabel()" (back)="exit()">
+    <app-nx-page-loading title="Carregando…" subtitle="Buscando o uniforme da categoria" />
+  </app-registration-wizard-shell>
+} @else if (tournament(); as t) {
+  @if (category(); as cat) {
+    <app-registration-wizard-shell
+      title="Uniforme"
+      [subtitle]="t.name"
+      [stepNumber]="6"
+      [userName]="store.accountLabel()"
+      (back)="exit()"
+    >
+      @if (closesLabel(); as closes) {
+        <div class="wz-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+          <p>
+            Tamanho, número e nome podem ser alterados até {{ closes }}. Depois disso a produção das camisas é
+            fechada.
+          </p>
+        </div>
+      }
+
+      <section class="wz-card">
+        <div class="uf-head">
+          <h2 class="wz-card-title">Seu uniforme</h2>
+          @if (saving()) {
+            <span class="uf-status">Salvando…</span>
+          } @else if (saved()) {
+            <span class="uf-status uf-status--ok">Salvo</span>
+          } @else if (!saveFailed()) {
+            <span class="uf-status">Pendente</span>
+          }
+        </div>
+
+        @if (saveFailed()) {
+          <app-nx-inline-message
+            class="uf-error"
+            heading="Não foi possível salvar o uniforme"
+            body="Sua escolha continua aqui na tela — só não chegou na inscrição."
+            actionLabel="Tentar novamente"
+            (action)="retrySave()"
+          />
+        }
+
+        @if (uniform(); as selection) {
+          <app-uniform-form [category]="cat" [value]="selection" (valueChange)="onUniformChange($event)" />
+        }
+      </section>
+
+      @if (partnerRow(); as row) {
+        <section class="wz-card">
+          <div class="wz-row">
+            <span class="wz-row-icon" [class.wz-row-icon--win]="row.complete">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+            </span>
+            <span class="wz-row-text">
+              <strong>{{ row.title }}</strong>
+              <span>{{ row.subtitle }}</span>
+            </span>
+            <span class="wz-pill" [class.wz-pill--brand]="row.complete" [class.wz-pill--warn]="!row.complete">
+              {{ row.complete ? 'Completo' : 'Pendente' }}
+            </span>
+          </div>
+        </section>
+      }
+
+      <div class="wz-bar" wizardActions>
+        <button type="button" class="wz-cta" [disabled]="!canContinue() || confirming()" (click)="confirm()">
+          {{ confirming() ? 'Salvando…' : 'Salvar e continuar' }}
+        </button>
+      </div>
+    </app-registration-wizard-shell>
+  } @else {
+    <app-registration-wizard-shell title="Uniforme" [subtitle]="t.name" [userName]="store.accountLabel()" (back)="exit()">
+      <div class="wz-empty">
+        <h2>Categoria não encontrada</h2>
+        <p>Ela pode ter sido removida ou o link está desatualizado.</p>
+        <a class="wz-cta" [routerLink]="['/torneios', t.id, 'categorias']">Ver categorias</a>
+      </div>
+    </app-registration-wizard-shell>
+  }
+} @else {
+  <app-registration-wizard-shell title="Uniforme" [userName]="store.accountLabel()" (back)="exit()">
+    <div class="wz-empty">
+      <h2>Torneio não encontrado</h2>
+      <p>Ele pode ter sido removido ou o link está desatualizado.</p>
+    </div>
+  </app-registration-wizard-shell>
+}

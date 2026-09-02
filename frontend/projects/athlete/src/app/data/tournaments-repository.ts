@@ -263,6 +263,11 @@ export interface TournamentSummary {
   /** Instante em que as inscrições abrem (`registrationOpensAt` no doc). Antes dele a CF
    *  recusa inscrição mesmo com o torneio publicado como `open`. */
   registrationOpensAt: Date | null;
+  /** Instante em que as inscrições FECHAM (`registrationClosesAt` no doc). Depois dele a CF
+   *  recusa qualquer inscrição (`assertTournamentAcceptsRegistration`), então o portal aplica
+   *  o prazo no passo 1 em vez de deixar a recusa aparecer três telas adiante. Campo opcional
+   *  — sem backfill, e `null` significa "sem prazo", nunca "encerrado". */
+  registrationClosesAt: Date | null;
   tournamentPrizes: TournamentPrize[];
   categories: TournamentCategoryOffer[];
 }
@@ -327,6 +332,7 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     waitlistEnabled: data['waitlistEnabled'] !== false,
     requireFormedPair: data['requireFormedPair'] === true,
     registrationOpensAt: toDate(data['registrationOpensAt']),
+    registrationClosesAt: toDate(data['registrationClosesAt']),
     tournamentPrizes: prizesOf(data['prizes']),
     categories,
   };
@@ -415,6 +421,17 @@ export function registrationOpensAt(
 export function registrationOpensLabel(d: Date): string {
   const two = (v: number) => String(v).padStart(2, '0');
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} às ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+const SHORT_WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const SHORT_MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** "qua, 08 jul · 23h59" — parede LOCAL do instante gravado em `registrationClosesAt`, mesmo
+ *  formato de `tournamentRegistrationClosesLabel` no app. Formatar o instante cru (UTC)
+ *  adiantaria 3h no Brasil. */
+export function registrationClosesLabel(d: Date): string {
+  const two = (v: number) => String(v).padStart(2, '0');
+  return `${SHORT_WEEKDAYS[d.getDay()]}, ${two(d.getDate())} ${SHORT_MONTHS[d.getMonth()]} · ${two(d.getHours())}h${two(d.getMinutes())}`;
 }
 
 /** O torneio já acabou pra quem opera: finalizado/concluído pelo organizador ou cancelado.

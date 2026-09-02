@@ -6,10 +6,12 @@ import 'tournament_listing_status.dart';
 /// Estado de uma categoria no passo 1 do wizard de inscrição.
 ///
 /// Nasceu como porte fiel de `categoryStatusOf` do shell do portal do atleta.
-/// **A paridade com a web está quebrada de propósito** desde que o app virou
-/// passo a passo (2026-09-01) e o portal seguiu em tela única — não "restaure"
-/// a paridade sem decisão nova. A ordem das checagens continua sendo contrato:
-/// já inscrito > encerrada > lotada > elegibilidade.
+/// A paridade com a web, quebrada quando o app virou passo a passo em
+/// 2026-09-01, foi **restaurada** em 2026-09-02: o portal ganhou o mesmo wizard
+/// e o gêmeo desta função vive em
+/// `frontend/projects/athlete/src/app/tournaments/registration/wizard/registration-category-status.ts`.
+/// Mexeu aqui, mexa lá. A ordem das checagens é contrato nas duas:
+/// já inscrito > prazo encerrado > em breve > encerrada > lotada > elegibilidade.
 ///
 /// "JÁ INSCRITO" é deliberadamente `blocked: false` — a vaga já é do atleta, e
 /// bloquear o toque foi exatamente o beco sem saída que a inscrição solo

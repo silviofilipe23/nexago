@@ -1,0 +1,100 @@
+@if (loading()) {
+  <app-registration-wizard-shell title="Aguardando a dupla" [userName]="store.accountLabel()" [closeIcon]="true" (back)="exit()">
+    <app-nx-page-loading title="Carregando…" subtitle="Acompanhando o convite" />
+  </app-registration-wizard-shell>
+} @else if (tournament(); as t) {
+  <app-registration-wizard-shell
+    title="Aguardando a dupla"
+    [subtitle]="t.name"
+    [stepNumber]="5"
+    [closeIcon]="true"
+    [userName]="store.accountLabel()"
+    (back)="exit()"
+  >
+    @if (gone()) {
+      <div class="wz-empty">
+        <h2>{{ goneCopy().title }}</h2>
+        <p>{{ goneCopy().body }}</p>
+        <button type="button" class="wz-cta" (click)="backToPartnerStep()">Escolher outro parceiro</button>
+      </div>
+    } @else if (invite()) {
+      <section class="wz-card wt-pair">
+        <div class="wt-slot">
+          <span class="wt-avatar" aria-hidden="true">{{ myInitials() }}</span>
+          <strong>Você</strong>
+          <span>Confirmado</span>
+        </div>
+        <span class="wt-link-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5" /></svg>
+        </span>
+        <div class="wt-slot" [class.wt-slot--accepted]="accepted()">
+          <span class="wt-avatar wt-avatar--partner" [class.wt-avatar--accepted]="accepted()" aria-hidden="true">
+            {{ partnerInitials() }}
+          </span>
+          <strong>{{ partnerName() }}</strong>
+          <span>{{ accepted() ? 'Aceitou!' : 'Convite enviado' }}</span>
+        </div>
+      </section>
+
+      @if (accepted()) {
+        <div class="wz-notice wt-accepted">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5" /></svg>
+          <p>Dupla formada! Levando você para o próximo passo…</p>
+        </div>
+      } @else {
+        <div class="wz-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 7v5l3 2" /></svg>
+          <p>
+            {{ partnerFirstName() }} tem {{ remainingLabel() }} para responder. Assim que aceitar, a vaga é criada e o
+            pagamento abre — você não precisa ficar nesta tela.
+          </p>
+        </div>
+      }
+
+      @if (canGuaranteeSpot()) {
+        <button type="button" class="wz-secondary" [disabled]="cancelling()" (click)="goToPayment()">
+          Garantir vaga pagando o valor integral
+        </button>
+      }
+
+    }
+
+    <!-- A barra fica FORA do `@else if` de propósito: um nó com seletor de projeção que mora na
+         raiz de um bloco `@if`/`@else` com irmãos não chega ao slot (NG8011) — a barra
+         simplesmente não apareceria. As condições moram dentro dela. -->
+    <div class="wz-bar" wizardActions>
+      @if (!gone() && invite()) {
+        <button type="button" class="wz-cta" (click)="exit()">Continuar navegando</button>
+        @if (!accepted()) {
+          <button type="button" class="wz-link" [disabled]="cancelling()" (click)="askCancel()">
+            {{ cancelling() ? 'Cancelando…' : 'Cancelar convite' }}
+          </button>
+        }
+      }
+    </div>
+  </app-registration-wizard-shell>
+
+  @if (confirmingCancel()) {
+    <app-nx-blocking-dialog
+      tone="warning"
+      role="dialog"
+      heading="Cancelar o convite?"
+      [body]="
+        'O convite para ' +
+        partnerFirstName() +
+        ' será cancelado e você volta para a escolha do parceiro. Sua inscrição ainda não foi criada, então nada é perdido.'
+      "
+      primaryLabel="Cancelar convite"
+      secondaryLabel="Voltar"
+      (primary)="cancelInvite()"
+      (secondary)="dismissCancel()"
+    />
+  }
+} @else {
+  <app-registration-wizard-shell title="Aguardando a dupla" [userName]="store.accountLabel()" [closeIcon]="true" (back)="exit()">
+    <div class="wz-empty">
+      <h2>Torneio não encontrado</h2>
+      <p>Ele pode ter sido removido ou o link está desatualizado.</p>
+    </div>
+  </app-registration-wizard-shell>
+}

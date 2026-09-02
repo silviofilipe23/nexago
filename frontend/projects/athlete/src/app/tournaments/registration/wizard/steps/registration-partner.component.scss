@@ -1,0 +1,128 @@
+.pt-field {
+  display: block;
+}
+
+.pt-label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.pt-input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 15px;
+
+  &::placeholder {
+    color: var(--nx-text-dim);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--nx-orange-500);
+  }
+}
+
+.pt-error {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-live);
+}
+
+.pt-searching {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.pt-results,
+.pt-roster {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pt-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-1);
+  cursor: pointer;
+
+  &.pt-result--on {
+    border-color: rgba(255, 106, 26, 0.5);
+    background: var(--nx-orange-tint);
+  }
+}
+
+.pt-roster-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+
+  &.pt-roster-item--pending {
+    opacity: 0.75;
+  }
+}
+
+.pt-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--nx-surface-2);
+  border: 1px solid var(--nx-line);
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nx-text-mute);
+
+  &.pt-avatar--pending {
+    border-style: dashed;
+  }
+}
+
+.pt-slots {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.pt-empty {
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.pt-link-invite {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding-left: 0;
+}

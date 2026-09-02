@@ -1,0 +1,208 @@
+@if (loading()) {
+  <app-registration-wizard-shell title="Parceiro" [userName]="store.accountLabel()" (back)="exit()">
+    <app-nx-page-loading title="Carregando…" subtitle="Preparando a busca de parceiro" />
+  </app-registration-wizard-shell>
+} @else if (tournament(); as t) {
+  @if (category(); as cat) {
+    <app-registration-wizard-shell
+      [title]="isTeam() ? 'Elenco' : 'Parceiro'"
+      [subtitle]="t.name"
+      [stepNumber]="4"
+      [userName]="store.accountLabel()"
+      (back)="exit()"
+    >
+      @if (isTeam() && registration() === null) {
+        <!-- Equipe ainda não existe: `sendPartnerInvite` convida para uma equipe que já existe,
+             não cria uma. O nome vem antes do primeiro convite. -->
+        <div class="wz-notice">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+          <p>Categoria de equipe de {{ teamSize() }}: crie a equipe com um nome e convide os atletas depois.</p>
+        </div>
+        <label class="pt-field">
+          <span class="pt-label">Nome da equipe</span>
+          <input
+            type="text"
+            class="pt-input"
+            maxlength="40"
+            placeholder="Ex.: Equipe Calango"
+            [value]="teamName()"
+            (input)="teamName.set($any($event.target).value)"
+          />
+          @if (teamNameError(); as err) {
+            <span class="pt-error">{{ err }}</span>
+          }
+        </label>
+      } @else {
+        @if (canGuaranteeSpot()) {
+          <div class="wz-notice">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+            <p>
+              Vaga reservada! Você pode garantir a vaga desde já pagando o valor integral — o parceiro que aceitar
+              depois entra sem taxa.
+            </p>
+          </div>
+          <button type="button" class="wz-secondary" [disabled]="submitting()" (click)="goToPayment()">
+            Garantir vaga pagando o valor integral
+          </button>
+        }
+
+        @if (isTeam() && registration(); as reg) {
+          <section class="wz-card">
+            <p class="wz-eyebrow">{{ reg.teamName ?? 'Elenco' }}</p>
+            <ul class="pt-roster">
+              @for (member of roster(); track member.uid) {
+                <li class="pt-roster-item">
+                  <span class="pt-avatar" aria-hidden="true">{{ initialsOf(member.name) }}</span>
+                  <span class="wz-row-text">
+                    <strong>{{ member.name }}</strong>
+                    @if (member.isCaptain) {
+                      <span>Capitão</span>
+                    }
+                  </span>
+                </li>
+              }
+              @for (invite of pendingInvites(); track invite.id) {
+                <li class="pt-roster-item pt-roster-item--pending">
+                  <span class="pt-avatar pt-avatar--pending" aria-hidden="true">{{ initialsOf(invite.inviteeName) }}</span>
+                  <span class="wz-row-text">
+                    <strong>{{ invite.inviteeName }}</strong>
+                    <span>Convite enviado — aguardando resposta</span>
+                  </span>
+                </li>
+              }
+            </ul>
+            <p class="wz-lead pt-slots">
+              {{ rosterCount() }} de {{ teamSize() }} no elenco · {{ remainingInviteSlots() }} vaga(s) para convidar
+            </p>
+          </section>
+        }
+
+        @if (!isCaptain()) {
+          <div class="wz-notice">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+            <p>O capitão está montando o elenco. Você pode seguir para o próximo passo da sua inscrição.</p>
+          </div>
+        } @else if (noInviteSlotsLeft()) {
+          <div class="wz-notice">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+            <p>
+              @if (isTeam()) {
+                Elenco completo — não há mais vagas para convidar.
+              } @else {
+                Você já tem um convite aguardando resposta. Para chamar outra pessoa, cancele o convite atual.
+              }
+            </p>
+          </div>
+          <a
+            class="wz-secondary"
+            [routerLink]="['/torneios', t.id, 'inscricao', 'aguardando']"
+            [queryParams]="{ categoria: cat.id }"
+            >Ver o convite enviado</a
+          >
+        } @else {
+          <section class="wz-card">
+            <label class="pt-field">
+              <span class="pt-label">{{ isTeam() ? 'Buscar atleta para o elenco' : 'Buscar seu parceiro' }}</span>
+              <input
+                type="search"
+                class="pt-input"
+                autocomplete="off"
+                placeholder="Digite pelo menos 3 letras do nome"
+                [value]="query()"
+                (input)="onQueryInput($any($event.target).value)"
+              />
+            </label>
+
+            @if (searching()) {
+              <div class="pt-searching"><app-nx-spinner /><span>Buscando atletas…</span></div>
+            } @else if (results().length > 0) {
+              <ul class="pt-results">
+                @for (candidate of results(); track candidate.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="pt-result"
+                      [class.pt-result--on]="selected()?.id === candidate.id"
+                      [attr.aria-pressed]="selected()?.id === candidate.id"
+                      (click)="select(candidate)"
+                    >
+                      <span class="pt-avatar" aria-hidden="true">{{ initialsOf(candidate.displayName) }}</span>
+                      <span class="wz-row-text">
+                        <strong>{{ candidate.displayName }}</strong>
+                        <span>
+                          {{ candidate.city ?? 'Atleta' }}
+                          @if (missingGender(candidate)) {
+                            · cadastro incompleto (precisa declarar o gênero para aceitar)
+                          }
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else if (searchCameUpEmpty()) {
+              <p class="wz-lead pt-empty">
+                Ninguém encontrado com esse nome. Se o parceiro ainda não tem conta na nexaGO, convide por link.
+              </p>
+            } @else {
+              <p class="wz-lead pt-empty">Digite pelo menos 3 letras para ver atletas.</p>
+            }
+
+            <button type="button" class="wz-link wz-link--brand pt-link-invite" (click)="openInviteDialog()">
+              Convidar alguém que ainda não tem conta
+            </button>
+            @if (linkInviteMarker(); as marker) {
+              <p class="wz-lead pt-empty">
+                Convite por link enviado{{ marker.partnerName ? ' para ' + marker.partnerName : '' }}. Assim que a conta
+                for criada, busque o nome aqui e mande o convite de dupla.
+              </p>
+            }
+          </section>
+        }
+      }
+
+      <div class="wz-bar" wizardActions>
+        <button type="button" class="wz-cta" [disabled]="!ctaEnabled()" (click)="primary()">
+          {{ submitting() ? 'Aguarde…' : ctaLabel() }}
+        </button>
+        @if (!isTeam() && !submitting()) {
+          <p class="wz-cta-hint">o pagamento abre quando ele aceitar</p>
+        }
+        @if (allowsSolo()) {
+          <button type="button" class="wz-link wz-link--brand" [disabled]="submitting()" (click)="reserveSolo()">
+            Guardar minha vaga sem parceiro
+          </button>
+        }
+      </div>
+    </app-registration-wizard-shell>
+
+    @if (showInviteDialog()) {
+      <app-invite-partner-dialog
+        [tournamentId]="t.id"
+        [tournamentName]="t.name"
+        [categoryId]="cat.id"
+        [categoryName]="cat.categoryName"
+        [inviterName]="store.accountLabel()"
+        [referralCode]="store.myUid() ?? ''"
+        [teamName]="registration()?.teamName ?? null"
+        (closed)="closeInviteDialog()"
+        (shared)="onExternalInviteShared($event)"
+      />
+    }
+  } @else {
+    <app-registration-wizard-shell title="Parceiro" [subtitle]="t.name" [userName]="store.accountLabel()" (back)="exit()">
+      <div class="wz-empty">
+        <h2>Categoria não encontrada</h2>
+        <p>Ela pode ter sido removida ou o link está desatualizado.</p>
+        <a class="wz-cta" [routerLink]="['/torneios', t.id, 'categorias']">Ver categorias</a>
+      </div>
+    </app-registration-wizard-shell>
+  }
+} @else {
+  <app-registration-wizard-shell title="Parceiro" [userName]="store.accountLabel()" (back)="exit()">
+    <div class="wz-empty">
+      <h2>Torneio não encontrado</h2>
+      <p>Ele pode ter sido removido ou o link está desatualizado.</p>
+    </div>
+  </app-registration-wizard-shell>
+}

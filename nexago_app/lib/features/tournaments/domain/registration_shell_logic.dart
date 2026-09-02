@@ -282,6 +282,22 @@ DateTime? registrationEffectivePaymentDeadline({
   return holdExpiresAt.isBefore(pixExpiresAt) ? holdExpiresAt : pixExpiresAt;
 }
 
+/// Janela mínima que o servidor exige para abrir uma cobrança: o piso do PIX
+/// (3 min) mais a margem que separa a cobrança do fim do prazo da vaga (2 min).
+/// Espelha `PIX_MIN_WINDOW_MS + PIX_HOLD_MARGIN_MS` das Functions.
+const Duration kPixRegenerationFloor = Duration(minutes: 5);
+
+/// Ainda dá tempo de gerar outro código?
+///
+/// A cobrança cabe dentro do prazo da vaga, então perto do fim o servidor
+/// recusa gerar — e oferecer "gere um novo código" ali manda o atleta bater
+/// numa porta fechada. Inscrição sem prazo nunca esbarra nisso.
+bool canRegeneratePix({required DateTime? holdExpiresAt, DateTime? now}) {
+  if (holdExpiresAt == null) return true;
+  final reference = now ?? DateTime.now();
+  return holdExpiresAt.difference(reference) >= kPixRegenerationFloor;
+}
+
 /// Janela total do countdown de pagamento — vem do torneio, não do tempo
 /// restante no mount (senão voltar à tela reinicia barra e rótulo).
 Duration registrationHoldCountdownTotalWindow({required int holdMinutes}) {

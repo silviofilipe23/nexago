@@ -16,14 +16,9 @@ import {
   createAsaasPixCharge,
   deleteAsaasPaymentIfOpen,
 } from "./asaas-booking-payment";
-import {
-  extendRegistrationHoldForPix,
-  refreshRegistrationHold,
-  registrationHoldClearedFields,
-} from "./tournament-registration-hold-ops";
-import {
-  TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES,
-} from "./arena-booking-payment-constants";
+import {registrationHoldClearedFields} from
+  "./tournament-registration-hold-ops";
+import {computePixWindow} from "./tournament-registration-hold";
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
@@ -92,6 +87,11 @@ async function loadTournamentEntryFee(
   const entryFee = resolveCategoryEntryFee(tournament, categoryId);
   const tournamentName = (tournament.name as string) || "Torneio";
   return {entryFee, tournamentName};
+}
+
+/** Milissegundos de um campo de data do Firestore, ou `null` se não houver. */
+function timestampMs(value: unknown): number | null {
+  return value instanceof Timestamp ? value.toMillis() : null;
 }
 
 function pixPendingRef(
@@ -282,6 +282,28 @@ export const createTournamentRegistrationPixPayment = onCall({
       ? resolveTournamentChargeReais(entryFee, "full")
       : shareAmount;
 
+  // A cobrança cabe no prazo da vaga; nunca o estica. Inscrição que acabou de
+  // ir para a fila perdeu o prazo ali em cima — e fila não tem prazo nenhum.
+  const pixWindow = computePixWindow({
+    nowMs: Date.now(),
+    holdExpiresAtMs: shouldWaitlist ?
+      null :
+      timestampMs(registration.holdExpiresAt),
+    registrationClosesAtMs: timestampMs(tournamentData.registrationClosesAt),
+  });
+  // Decidido ANTES de matar a cobrança anterior: sem tempo para uma nova, o QR
+  // que o atleta já tem na mão continua sendo a melhor chance dele.
+  if (!pixWindow.ok) {
+    throw new HttpsError(
+      "failed-precondition",
+      pixWindow.reason === "registrationClosingSoon" ?
+        "As inscrições deste torneio estão encerrando — não há tempo para " +
+          "concluir o pagamento." :
+        "O prazo para garantir sua vaga está acabando. Faça a inscrição de " +
+          "novo para ter tempo de pagar.",
+    );
+  }
+
   await cancelExistingPixPending(db, projectId, registrationId, callerUid);
 
   let payerEmail = "pagamento@nexago.app";
@@ -334,9 +356,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     throw new HttpsError("internal", "Não foi possível preparar o pagamento.");
   }
 
-  const expiresAtDate = new Date(
-    Date.now() + TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES * 60 * 1000,
-  );
+  const expiresAtDate = new Date(pixWindow.expiresAtMs);
   const description =
     `Inscrição ${tournamentName} — ${categoryId} ` +
     (amountType === "full"
@@ -400,14 +420,6 @@ export const createTournamentRegistrationPixPayment = onCall({
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // A vaga não pode cair com uma cobrança viva na mão do atleta.
-  await extendRegistrationHoldForPix(
-    db,
-    projectId,
-    registrationId,
-    expiresAtDate,
-  );
-
   return {
     paymentId: charge.paymentId,
     qrCode: charge.qrCode,
@@ -463,8 +475,13 @@ export const cancelPendingTournamentRegistrationPix = onCall({
   }
 
   await cancelExistingPixPending(db, projectId, registrationId, callerUid);
-  // Sem cobrança viva, o prazo volta ao que o estado do elenco manda.
-  await refreshRegistrationHold(db, projectId, registrationId);
+  // O prazo da vaga NÃO é recalculado aqui. Ele era, enquanto a cobrança o
+  // esticava: sem cobrança viva, "voltar ao que o elenco manda" desfazia a
+  // esticada. Agora a cobrança nasce dentro do prazo e nunca o move — e um
+  // recálculo aqui daria `agora + minutos`, um prazo NOVO em cheio. As duas
+  // telas chamam esta função sozinhas quando o QR expira, então isso tornava o
+  // prazo infinito justamente para quem deixou o tempo passar: expirava,
+  // renovava, expirava de novo.
   return {registrationId, status: "cancelled"};
 });
 

@@ -28,7 +28,6 @@ import {inviteMatchesCancelledRegistration} from
 import {loadTournamentData} from "./tournament-registration-guards";
 import {
   computeRegistrationHoldExpiryMs,
-  extendHoldForPixMs,
   registrationOwnerUid,
   resolveRegistrationHoldMinutes,
   shouldTrackRegistrationHold,
@@ -203,40 +202,4 @@ async function latestLiveInviteExpiryMs(params: {
     if (expiry != null && (latest == null || expiry > latest)) latest = expiry;
   }
   return latest;
-}
-
-/**
- * Empurra o prazo para cobrir uma cobrança PIX recém-criada: o sweeper nunca
- * mata cobrança viva.
- */
-export async function extendRegistrationHoldForPix(
-  db: Firestore,
-  projectId: string,
-  registrationId: string,
-  pixExpiresAt: Date,
-): Promise<void> {
-  const id = registrationId.trim();
-  if (!id) return;
-  try {
-    const regRef = db
-      .collection(artifactsInscriptionsPath(projectId))
-      .doc(id);
-    const regSnap = await regRef.get();
-    if (!regSnap.exists) return;
-    const current = regSnap.data()?.holdExpiresAt as Timestamp | undefined;
-    // Sem prazo a inscrição é imune (antiga, do organizador ou fila): a
-    // cobrança não pode criar um prazo onde não havia.
-    if (!current || typeof current.toMillis !== "function") return;
-    const next = extendHoldForPixMs(current.toMillis(), pixExpiresAt.getTime());
-    if (next <= current.toMillis()) return;
-    await regRef.set(
-      {holdExpiresAt: Timestamp.fromMillis(next)},
-      {merge: true},
-    );
-  } catch (e) {
-    logger.warn("Falha ao esticar prazo da inscrição pelo PIX", {
-      registrationId: id,
-      error: e,
-    });
-  }
 }

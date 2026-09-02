@@ -1,4 +1,4 @@
-import { registrationHoldNotice } from './registration-hold';
+import { canRegeneratePix, registrationHoldNotice } from './registration-hold';
 
 const NOW = new Date(2026, 8, 1, 14, 13); // 01/09/2026 14:13, hora local
 
@@ -84,5 +84,38 @@ describe('registrationHoldNotice', () => {
         now: NOW,
       }),
     ).toBe('Vaga garantida até 16:13 · faltam 2 horas');
+  });
+});
+
+describe('canRegeneratePix', () => {
+  const MIN = 60_000;
+
+  it('inscrição sem prazo pode gerar quantos códigos quiser', () => {
+    expect(canRegeneratePix({ holdExpiresAt: null, now: NOW })).toBe(true);
+  });
+
+  it('com prazo de sobra, pode gerar de novo', () => {
+    expect(
+      canRegeneratePix({ holdExpiresAt: new Date(NOW.getTime() + 20 * MIN), now: NOW }),
+    ).toBe(true);
+  });
+
+  it('faltando menos que a janela mínima, não adianta oferecer novo código', () => {
+    // O servidor recusaria: 4 min − 2 de margem = 2, abaixo do piso de 3.
+    expect(
+      canRegeneratePix({ holdExpiresAt: new Date(NOW.getTime() + 4 * MIN), now: NOW }),
+    ).toBe(false);
+  });
+
+  it('prazo vencido não gera nada', () => {
+    expect(
+      canRegeneratePix({ holdExpiresAt: new Date(NOW.getTime() - MIN), now: NOW }),
+    ).toBe(false);
+  });
+
+  it('na borda exata ainda oferece', () => {
+    expect(
+      canRegeneratePix({ holdExpiresAt: new Date(NOW.getTime() + 5 * MIN), now: NOW }),
+    ).toBe(true);
   });
 });

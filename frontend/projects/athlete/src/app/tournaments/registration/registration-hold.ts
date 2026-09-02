@@ -23,6 +23,26 @@ export function registrationHoldNotice(params: {
   return `Vaga garantida até ${clockLabel(holdExpiresAt, now)} · ${remainingLabel(remainingMs)}`;
 }
 
+/** Janela mínima que o servidor exige para abrir uma cobrança: o piso do PIX
+ *  (3 min) mais a margem que separa a cobrança do fim do prazo da vaga (2 min).
+ *  Espelha `PIX_MIN_WINDOW_MS + PIX_HOLD_MARGIN_MS` das Functions. */
+const PIX_REGENERATION_FLOOR_MS = 5 * 60_000;
+
+/** Ainda dá tempo de gerar outro código?
+ *
+ *  A cobrança cabe dentro do prazo da vaga, então perto do fim o servidor
+ *  recusa gerar — e oferecer "gerar novo código" ali manda o atleta bater numa
+ *  porta fechada. Inscrição sem prazo nunca esbarra nisso. */
+export function canRegeneratePix(params: {
+  holdExpiresAt: Date | null;
+  now?: Date;
+}): boolean {
+  const { holdExpiresAt } = params;
+  if (!holdExpiresAt) return true;
+  const now = params.now ?? new Date();
+  return holdExpiresAt.getTime() - now.getTime() >= PIX_REGENERATION_FLOOR_MS;
+}
+
 function pad(value: number): string {
   return String(value).padStart(2, '0');
 }

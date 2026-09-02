@@ -226,7 +226,37 @@ void main() {
     );
 
     expect(find.text('PENDENTE'), findsOneWidget);
+    expect(find.text('Uniforme do parceiro'), findsOneWidget);
   });
+
+  testWidgets(
+    'em elenco trio+ a linha fala do ELENCO, não de "o parceiro"',
+    (tester) async {
+      // "Uniforme do parceiro" é impreciso quando são vários: a linha resume
+      // o estado de TODOS os demais integrantes.
+      await abrirTela(
+        tester,
+        tournament: torneio([
+          TournamentCategoryOffer(
+            id: 'quarteto',
+            name: 'Quarteto Livre',
+            genderType: '',
+            entryFee: 400,
+            maxTeams: 8,
+            spotsTotal: 8,
+            spotsLeft: 8,
+            teamSize: 4,
+            uniformType: 'top_only',
+          ),
+        ]),
+        categoryId: 'quarteto',
+        snap: snapshot(partnerPending: true),
+      );
+
+      expect(find.text('Uniforme do restante do elenco'), findsOneWidget);
+      expect(find.text('Uniforme do parceiro'), findsNothing);
+    },
+  );
 
   // ── prazo ausente ────────────────────────────────────────────────────────
 

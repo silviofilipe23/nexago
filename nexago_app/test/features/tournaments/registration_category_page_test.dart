@@ -157,11 +157,15 @@ void main() {
   }
 
   testWidgets('mostra vagas, nível e o prazo de inscrição', (tester) async {
+    // Prazo no FUTURO de propósito: desde que o status passou a aplicar
+    // `registrationClosesAt`, uma data no passado deixaria a categoria
+    // ENCERRADA e este teste passaria a exercitar, sem dizer, o caminho
+    // bloqueado. 07/07/2027 é uma quarta-feira (daí o "qua").
     await abrirTela(
       tester,
       tournament: torneio(
         [dupla(entryFee: 220, maxTeams: 16)],
-        registrationClosesAt: DateTime(2026, 7, 8, 23, 59),
+        registrationClosesAt: DateTime(2027, 7, 7, 23, 59),
       ),
       inscritosPorCategoria: const {'masc': 11},
     );
@@ -169,8 +173,34 @@ void main() {
     expect(find.text('VAGAS'), findsOneWidget);
     expect(find.text('5 de 16'), findsOneWidget);
     expect(find.text('Inscrições até'), findsOneWidget);
-    expect(find.text('qua, 08 jul · 23h59'), findsOneWidget);
+    expect(find.text('qua, 07 jul · 23h59'), findsOneWidget);
+    // Prazo aberto: o CTA continua livre.
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNotNull,
+    );
   });
+
+  testWidgets(
+    'prazo de inscrição vencido bloqueia o CTA com ENCERRADA',
+    (tester) async {
+      // O prazo era só exibido. O atleta percorria consentimento, condições e
+      // parceiro para a callable recusar com "Prazo de inscrição encerrado."
+      await abrirTela(
+        tester,
+        tournament: torneio(
+          [dupla()],
+          registrationClosesAt: DateTime(2026, 7, 8, 23, 59),
+        ),
+      );
+
+      expect(find.text('ENCERRADA'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull,
+      );
+    },
+  );
 
   testWidgets('sem registrationClosesAt a linha do prazo não aparece', (
     tester,

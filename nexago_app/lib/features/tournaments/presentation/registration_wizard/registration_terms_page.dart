@@ -16,6 +16,7 @@ import '../../domain/tournament_discovery_labels.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_invite_announcer.dart';
+import '../../domain/tournament_partner_invite.dart';
 import '../../domain/tournament_partner_invite_providers.dart';
 import '../../domain/tournament_registration_logic.dart';
 import '../widgets/registration_wizard/registration_wizard_notice.dart';
@@ -33,6 +34,10 @@ import '../../domain/registration_terms_copy.dart';
 /// (resolvido por [receivedInviteForCategory] a partir dos convites
 /// pendentes do atleta — não há corte de sessão aqui, diferente do anúncio
 /// automático: o atleta já está olhando esta categoria).
+///
+/// Na variante de convite recebido o CTA NÃO avança o wizard: ele abre a rota
+/// dedicada do convite ([AppRouteNames.tournamentPartnerInvite]), que é onde
+/// `acceptInvite`/`declineInvite` moram. O wizard não duplica o aceite.
 ///
 /// O aceite LGPD chegou pela URL (`?lgpd=1`) na tela anterior e SEGUE
 /// adiante daqui: viaja de novo na URL do próximo passo (parceiro/elenco) e é
@@ -82,6 +87,21 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
         'categoryId': widget.categoryId,
         if (widget.lgpdAccepted) 'lgpd': '1',
       },
+    );
+  }
+
+  /// Variante "convite recebido": o CTA diz "Aceitar convite" e precisa mesmo
+  /// ACEITAR.
+  ///
+  /// O wizard não tem tela de aceite — a ação (`acceptInvite`/`declineInvite`)
+  /// mora na rota dedicada do convite, que é a mesma que o push e o link
+  /// abrem. Mandar para a busca de parceiro era a regressão: prometia aceitar
+  /// e levava a "convide alguém", sem caminho para recusar.
+  void _openReceivedInvite(TournamentPartnerInvite invite) {
+    if (_processing) return;
+    context.pushNamed(
+      AppRouteNames.tournamentPartnerInvite,
+      pathParameters: {'inviteId': invite.id},
     );
   }
 
@@ -213,7 +233,9 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
             ctaLabel: copy.ctaLabel,
             secondaryLabel: copy.secondaryLabel,
             submitting: _processing,
-            onConfirm: () => _advance(copy),
+            onConfirm: receivedInvite != null
+                ? () => _openReceivedInvite(receivedInvite)
+                : () => _advance(copy),
             onSecondary: copy.secondaryLabel == null ? null : _reserveSolo,
             onOtherCategories:
                 showOtherCategories ? _goToTournamentDetail : null,

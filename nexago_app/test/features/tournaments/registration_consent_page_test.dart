@@ -90,6 +90,9 @@ void main() {
   );
 
   late List<String> rotasAbertas;
+  /// Query params com que a rota de condições foi aberta — é onde `lgpd=1`
+  /// aparece (ou não).
+  late Map<String, String>? condicoesQueryParams;
 
   Future<void> abrirTela(
     WidgetTester tester, {
@@ -104,6 +107,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     rotasAbertas = <String>[];
+    condicoesQueryParams = null;
 
     final router = GoRouter(
       initialLocation: '/inscricao',
@@ -118,8 +122,9 @@ void main() {
         GoRoute(
           path: '/torneios/:tournamentId/inscricao/condicoes',
           name: AppRouteNames.tournamentRegistrationTerms,
-          builder: (_, __) {
+          builder: (_, state) {
             rotasAbertas.add('condicoes');
+            condicoesQueryParams = Map.of(state.uri.queryParameters);
             return const Scaffold(body: Text('condições'));
           },
         ),
@@ -154,27 +159,68 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('as duas obrigatórias vêm marcadas e o CTA já libera', (
-    tester,
-  ) async {
+  /// Dá o ato afirmativo nas duas caixas obrigatórias — é o que destrava o CTA
+  /// desde que o pré-marcado saiu.
+  Future<void> marcarObrigatorias(WidgetTester tester) async {
+    await tester.tap(
+      find.text('Autorizo o uso dos meus dados para esta inscrição'),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Autorizo o uso da minha imagem nos jogos'));
+    await tester.pump();
+  }
+
+  testWidgets(
+    'as duas obrigatórias vêm DESMARCADAS e o CTA nasce travado',
+    (tester) async {
+      // Consentimento pré-marcado é o exemplo clássico de consentimento
+      // inválido sob a LGPD (art. 8): o aceite tem de ser ato afirmativo. A
+      // tela aposentada já exigia isso (`_lgpdAccepted = false`).
+      await abrirTela(tester, tournament: torneio([dupla()]));
+
+      expect(
+        find.text('Autorizo o uso dos meus dados para esta inscrição'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Autorizo o uso da minha imagem nos jogos'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Quero receber avisos de novos torneios'),
+        findsOneWidget,
+      );
+
+      final botao = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(botao.onPressed, isNull);
+    },
+  );
+
+  testWidgets('marcar as duas obrigatórias libera o CTA', (tester) async {
     await abrirTela(tester, tournament: torneio([dupla()]));
 
-    expect(
+    await tester.tap(
       find.text('Autorizo o uso dos meus dados para esta inscrição'),
-      findsOneWidget,
     );
+    await tester.pump();
+    // Uma só não basta: as duas caixas são as duas METADES do mesmo termo.
     expect(
-      find.text('Autorizo o uso da minha imagem nos jogos'),
-      findsOneWidget,
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
     );
-    expect(find.text('Quero receber avisos de novos torneios'), findsOneWidget);
 
-    final botao = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(botao.onPressed, isNotNull);
+    await tester.tap(find.text('Autorizo o uso da minha imagem nos jogos'));
+    await tester.pump();
+
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNotNull,
+    );
   });
 
-  testWidgets('desmarcar uma obrigatória trava o CTA', (tester) async {
+  testWidgets('desmarcar uma obrigatória trava o CTA de novo', (tester) async {
     await abrirTela(tester, tournament: torneio([dupla()]));
+    await marcarObrigatorias(tester);
 
     await tester.tap(find.text('Autorizo o uso da minha imagem nos jogos'));
     await tester.pump();
@@ -203,10 +249,16 @@ void main() {
     tester,
   ) async {
     await abrirTela(tester, tournament: torneio([dupla()]));
+    await marcarObrigatorias(tester);
 
     await tester.tap(find.text('Concordar e continuar'));
     await tester.pumpAndSettle();
 
     expect(rotasAbertas, contains('condicoes'));
+    // "carregando o aceite" é a METADE que importa: sem `lgpd=1` na URL o
+    // aceite não atravessa até a callable, e ela não grava `lgpdAcceptedUids`
+    // — em silêncio, sem erro. Checar só o nome da rota deixava isso passar.
+    expect(condicoesQueryParams?['lgpd'], '1');
+    expect(condicoesQueryParams?['categoryId'], 'masc');
   });
 }

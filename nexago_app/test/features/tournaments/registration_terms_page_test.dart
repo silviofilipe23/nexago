@@ -74,6 +74,10 @@ void main() {
   // aconteceu (ver achado 2 da revisão: um builder que descarta `state` não
   // pega regressão nenhuma no aceite LGPD).
   late Map<String, String>? parceiroQueryParams;
+  /// Path params com que a rota DEDICADA do convite foi aberta — é lá que
+  /// `acceptInvite`/`declineInvite` moram, e é o que o CTA "Aceitar convite"
+  /// tem de abrir.
+  late Map<String, String>? convitePathParams;
 
   Future<void> abrirTela(
     WidgetTester tester, {
@@ -90,6 +94,7 @@ void main() {
     rotasAbertas = <String>[];
     servico = _FakeInviteService();
     parceiroQueryParams = null;
+    convitePathParams = null;
 
     final router = GoRouter(
       initialLocation: '/inscricao',
@@ -117,6 +122,15 @@ void main() {
           builder: (_, __) {
             rotasAbertas.add('inscrição');
             return const Scaffold(body: Text('inscrição'));
+          },
+        ),
+        GoRoute(
+          path: '/torneios-convite/:inviteId',
+          name: AppRouteNames.tournamentPartnerInvite,
+          builder: (_, state) {
+            rotasAbertas.add('convite');
+            convitePathParams = Map.of(state.pathParameters);
+            return const Scaffold(body: Text('convite'));
           },
         ),
         GoRoute(
@@ -351,6 +365,48 @@ void main() {
       expect(find.text('Bia Souza te chamou para o elenco'), findsOneWidget);
       expect(find.text('Bia Souza quer jogar com você'), findsNothing);
       expect(find.text('Aceitar convite'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'tocar "Aceitar convite" abre a rota DEDICADA do convite, não a busca '
+    'de parceiro',
+    (tester) async {
+      // O CTA prometia aceitar e chamava `_advance`, que empurrava para
+      // "convide um parceiro". Nenhuma tela do wizard chama `acceptInvite` —
+      // a ação mora na rota do convite, que é a mesma do push e do link.
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla()], requireFormedPair: true),
+        pendingInvites: [_convite(inviterName: 'Bia Souza')],
+      );
+
+      await tester.tap(find.text('Aceitar convite'));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('convite'));
+      expect(rotasAbertas, isNot(contains('parceiro')));
+      // O id tem de ser o do convite REAL, não um placeholder.
+      expect(convitePathParams?['inviteId'], 'convite-1');
+    },
+  );
+
+  testWidgets(
+    'convite recebido de EQUIPE também abre a rota do convite',
+    (tester) async {
+      await abrirTela(
+        tester,
+        tournament: torneio([dupla(teamSize: 4, entryFee: 400)]),
+        pendingInvites: [
+          _convite(inviterName: 'Bia Souza', isTeamInvite: true),
+        ],
+      );
+
+      await tester.tap(find.text('Aceitar convite'));
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('convite'));
+      expect(convitePathParams?['inviteId'], 'convite-1');
     },
   );
 

@@ -15,6 +15,7 @@ import '../../../athlete/domain/profile_access.dart'
     show formatMissingProfileStepsForAccess;
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../data/tournament_partner_invite_service.dart';
+import '../../data/tournament_registration_service.dart';
 import '../../domain/registration_shell_logic.dart';
 import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_models.dart';
@@ -122,7 +123,16 @@ class _RegistrationPartnerPageState
       context.pushNamed(
         AppRouteNames.tournamentRegistration,
         pathParameters: {'tournamentId': widget.tournamentId},
-        queryParameters: {'categoryId': widget.categoryId},
+        queryParameters: {
+          'categoryId': widget.categoryId,
+          // O aceite tem de ATRAVESSAR: sem inscrição criada (convite de dupla
+          // "no vácuo") ele só existe como parâmetro de rota. O porteiro manda
+          // de volta para cá pelo ramo `hasSentInvitePending`, e sem `lgpd`
+          // aqui a volta chegaria com `lgpdAccepted: false` — as callables
+          // continuariam disponíveis e criariam a inscrição SEM o aceite, que
+          // a CF simplesmente não grava (sem erro e sem log).
+          if (widget.lgpdAccepted) 'lgpd': '1',
+        },
       );
       return;
     }
@@ -141,9 +151,32 @@ class _RegistrationPartnerPageState
 
   // ── ações ────────────────────────────────────────────────────────────────
 
+  /// Cinto e suspensório do aceite LGPD.
+  ///
+  /// As três ações desta tela CRIAM inscrição (o convite de dupla cria no
+  /// aceite do convidado). A callable só carimba `lgpdAcceptedUids` quando o
+  /// flag chega `true` — em silêncio, sem erro, quando chega `false`. E não há
+  /// segunda chance: daí em diante o porteiro trata inscrição existente como
+  /// consentida. Então, sem aceite e sem inscrição, o caminho é o passo do
+  /// consentimento, não a callable.
+  ///
+  /// Com inscrição já existente o aceite ou já foi carimbado ou é assunto de
+  /// outra tela — aqui não se recolhe de novo.
+  bool _consentMissing() {
+    if (widget.lgpdAccepted) return false;
+    if ((widget.registrationId?.trim() ?? '').isNotEmpty) return false;
+    context.pushReplacementNamed(
+      AppRouteNames.tournamentRegistrationConsent,
+      pathParameters: {'tournamentId': widget.tournamentId},
+      queryParameters: {'categoryId': widget.categoryId},
+    );
+    return true;
+  }
+
   Future<void> _sendInvite(TournamentCategoryOffer category) async {
     final candidate = _selected;
     if (candidate == null || _submitting) return;
+    if (_consentMissing()) return;
     setState(() => _submitting = true);
     try {
       final profile = ref.read(athleteProfileProvider).valueOrNull;
@@ -195,6 +228,7 @@ class _RegistrationPartnerPageState
 
   Future<void> _registerSolo(TournamentCategoryOffer category) async {
     if (_submitting) return;
+    if (_consentMissing()) return;
     setState(() => _submitting = true);
     try {
       final registrationId = await ref
@@ -227,6 +261,7 @@ class _RegistrationPartnerPageState
 
   Future<void> _createTeam(TournamentCategoryOffer category) async {
     if (_submitting) return;
+    if (_consentMissing()) return;
     final teamName = _teamNameController.text
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -394,7 +429,7 @@ class _RegistrationPartnerPageState
               : _buildDuplaStickyBar(category),
           children: isTeam
               ? _buildTeamBody(tournament, category, registrationId)
-              : [_buildDuplaBody(tournament, category)],
+              : _buildDuplaBody(tournament, category, registrationId),
         );
       },
     );
@@ -402,23 +437,95 @@ class _RegistrationPartnerPageState
 
   // ── variante dupla ──────────────────────────────────────────────────────
 
-  Widget _buildDuplaBody(
+  List<Widget> _buildDuplaBody(
     TournamentDetail tournament,
     TournamentCategoryOffer category,
+    String registrationId,
   ) {
     final myGender = ref.watch(athleteProfileProvider).valueOrNull?.gender;
-    final allowsSolo = !tournament.requireFormedPair;
-    return TournamentRegistrationPartnerStep(
-      category: category,
-      selectedUserId: _selected?.userId,
-      onSelected: (candidate) => setState(() => _selected = candidate),
-      onInviteByLink: _submitting
-          ? () {}
-          : () => _shareByLink(tournament, category),
-      onRegisterSolo: allowsSolo
-          ? (_submitting ? null : () => _registerSolo(category))
-          : null,
-      currentGenders: [myGender],
+    final hasRegistration = registrationId.isNotEmpty;
+
+    // Com inscrição já criada, o servidor recusa `registerSolo` por definição
+    // ("Você já possui inscrição nesta categoria.",
+    // `tournament-partner-invite.ts`). Oferecer o cartão de reserva ali é
+    // convidar o atleta a bater num erro — o lugar dele é justamente onde
+    // entra "garantir a vaga pagando o integral" (abaixo).
+    final allowsSolo = !tournament.requireFormedPair && !hasRegistration;
+
+    // Reserva solo em aberto e ainda não paga: pagar o valor INTEGRAL garante
+    // a vaga desde já, e o parceiro que aceitar depois entra sem taxa. A ação
+    // existia no cartão de elenco da tela única e ficou sem caminho no wizard
+    // — o porteiro nunca honra `step=payment` com parceiro pendente, porque
+    // pagamento (5) é posterior a parceiro (3). A tela de pagamento já trata
+    // este estado (`registrationAwaitingSoloPartner` pré-seleciona 'full').
+    final snap = hasRegistration
+        ? ref
+              .watch(tournamentRegistrationSnapshotProvider(registrationId))
+              .valueOrNull
+        : null;
+    final canGuaranteeSpot =
+        category.entryFee > 0 &&
+        registrationAwaitingSoloPartner(
+          snap: snap,
+          isFullyPaid: snap?.isPaid ?? false,
+        );
+
+    return [
+      if (canGuaranteeSpot) ...[
+        RegistrationWizardNotice(
+          child: Text(
+            registrationRosterNote(
+              isTeamCategory: false,
+              rosterCount: snap!.participantUids.length,
+              teamSize: category.rosterSize,
+              isCaptain: true,
+              isPaid: false,
+              hasPendingInvite: sentPendingInvitesFor(
+                invites:
+                    ref
+                        .watch(inviterTournamentPartnerInvitesProvider)
+                        .valueOrNull ??
+                    const [],
+                tournamentId: widget.tournamentId,
+                categoryId: widget.categoryId,
+              ).isNotEmpty,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        OutlinedButton(
+          onPressed: _submitting
+              ? null
+              : () => _goToPayment(registrationId),
+          child: const Text('Garantir vaga pagando o valor integral'),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+      ],
+      TournamentRegistrationPartnerStep(
+        category: category,
+        selectedUserId: _selected?.userId,
+        onSelected: (candidate) => setState(() => _selected = candidate),
+        onInviteByLink: _submitting
+            ? () {}
+            : () => _shareByLink(tournament, category),
+        onRegisterSolo: allowsSolo
+            ? (_submitting ? null : () => _registerSolo(category))
+            : null,
+        currentGenders: [myGender],
+      ),
+    ];
+  }
+
+  /// Abre o pagamento de uma inscrição que JÁ existe. Mesma rota e mesmos
+  /// parâmetros que `_advanceAfterSuccess` usa — nenhum estado novo.
+  void _goToPayment(String registrationId) {
+    context.pushNamed(
+      AppRouteNames.tournamentRegistrationPayment,
+      pathParameters: {'tournamentId': widget.tournamentId},
+      queryParameters: {
+        'categoryId': widget.categoryId,
+        'registrationId': registrationId,
+      },
     );
   }
 
@@ -497,6 +604,7 @@ class _RegistrationPartnerPageState
       pendingInviteCount: sentInvites.length,
     );
     final myGender = ref.watch(athleteProfileProvider).valueOrNull?.gender;
+    final isCaptain = _isTeamCaptain(snap, myUid);
 
     return [
       TournamentRegistrationRosterCard(
@@ -516,7 +624,26 @@ class _RegistrationPartnerPageState
         ),
         remainingSlots: remainingSlots,
       ),
-      if (remainingSlots > 0) ...[
+      // Só o capitão convida: o servidor recusa qualquer outro integrante
+      // ("Apenas o capitão convida atletas para a equipe.",
+      // `tournament-partner-invite.ts`). A tela única fazia essa distinção com
+      // `registrationRosterNote(isCaptain: …)`; sem ela, o integrante comum via
+      // a busca inteira só para levar um erro no fim.
+      if (!isCaptain) ...[
+        const SizedBox(height: AppSpacing.lg),
+        RegistrationWizardNotice(
+          child: Text(
+            registrationRosterNote(
+              isTeamCategory: true,
+              rosterCount: snap.participantUids.length,
+              teamSize: category.rosterSize,
+              isCaptain: false,
+              isPaid: snap.isPaid,
+              hasPendingInvite: sentInvites.isNotEmpty,
+            ),
+          ),
+        ),
+      ] else if (remainingSlots > 0) ...[
         const SizedBox(height: AppSpacing.lg),
         TournamentRegistrationPartnerStep(
           category: category,
@@ -547,6 +674,19 @@ class _RegistrationPartnerPageState
     ];
   }
 
+  /// Sou o capitão desta equipe?
+  ///
+  /// Doc antigo pode não trazer `captainUid` — aí quem criou é o `player1Id`,
+  /// mesma cadeia de `buildTeamRoster` e da tela única.
+  bool _isTeamCaptain(TournamentRegistrationSnapshot snap, String? myUid) {
+    final captain = snap.captainUid ?? snap.player1Id;
+    // Sem capitão identificável não dá para acusar ninguém de não ser: manter
+    // o convite disponível deixa o servidor decidir, que é o comportamento de
+    // hoje. O contrário esconderia a ação do capitão de verdade.
+    if (captain == null || captain.isEmpty) return true;
+    return captain == myUid;
+  }
+
   Widget _buildTeamStickyBar(
     TournamentCategoryOffer category,
     String registrationId,
@@ -559,6 +699,23 @@ class _RegistrationPartnerPageState
         onConfirm: () => _createTeam(category),
       );
     }
+
+    final snap = ref
+        .watch(tournamentRegistrationSnapshotProvider(registrationId))
+        .valueOrNull;
+    final myUid = ref.watch(athleteProfileProvider).valueOrNull?.id;
+    // Integrante comum não convida (o servidor recusa) — mas também não pode
+    // ficar preso: o passo dele é seguir para uniforme/pagamento, que é para
+    // onde `_advanceAfterSuccess` leva com o id já conhecido.
+    if (snap != null && !_isTeamCaptain(snap, myUid)) {
+      return TournamentRegistrationStickyBar(
+        enabled: !_submitting,
+        submitting: _submitting,
+        ctaLabel: 'Continuar',
+        onConfirm: () => _advanceAfterSuccess(category, registrationId),
+      );
+    }
+
     final candidate = _selected;
     return TournamentRegistrationStickyBar(
       enabled: candidate != null && !_submitting,

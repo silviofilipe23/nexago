@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -58,6 +60,39 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
   /// Uma decisão só por entrada. Sem esta guarda, cada snapshot novo do
   /// Firestore reempurraria a rota por cima da tela que o atleta está usando.
   bool _navigated = false;
+
+  /// Carência antes de declarar morto o `registrationId` que a rota afirma.
+  ///
+  /// `watchRegistration` mapeia `!snap.exists` para `null`, e um doc que ainda
+  /// não está no cache local emite exatamente isso ANTES da resposta do
+  /// servidor — o caso normal logo depois do aceite de convite, que acabou de
+  /// criar a inscrição. Sem a carência, o caminho mais comum piscaria
+  /// "Inscrição não encontrada" antes de seguir.
+  static const _deadRegistrationGrace = Duration(seconds: 3);
+
+  /// Ligado quando a carência acima vence sem o snapshot aparecer.
+  bool _registrationLooksDead = false;
+  Timer? _deadRegistrationTimer;
+
+  /// Arma (uma vez) a carência do id afirmado pela rota.
+  void _armDeadRegistrationTimer() {
+    if (_registrationLooksDead || _deadRegistrationTimer != null) return;
+    _deadRegistrationTimer = Timer(_deadRegistrationGrace, () {
+      if (!mounted) return;
+      setState(() => _registrationLooksDead = true);
+    });
+  }
+
+  void _disarmDeadRegistrationTimer() {
+    _deadRegistrationTimer?.cancel();
+    _deadRegistrationTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _disarmDeadRegistrationTimer();
+    super.dispose();
+  }
 
   /// Categoria a considerar, em ordem de prioridade: a da rota; a da inscrição
   /// indicada; a de um convite recebido; a de um convite que EU enviei; a
@@ -338,6 +373,37 @@ class _RegistrationGatePageState extends ConsumerState<RegistrationGatePage> {
       }
       if (!snapAsync.hasValue) return loader;
       snap = snapAsync.value;
+
+      // A rota AFIRMOU uma inscrição que o snapshot resolveu como ausente:
+      // link antigo, push de uma inscrição cancelada, id de outra conta. Sem
+      // esta saída o porteiro seguia em frente com o id morto e o atleta caía
+      // numa tela de pagamento que não paga, sem entender por quê.
+      //
+      // Só vale para o id AFIRMADO pela rota: quando ele veio do mapa por
+      // categoria a inscrição existe, e um snapshot nulo ali é só atraso.
+      //
+      // A carência separa "não existe" de "ainda não chegou do servidor" — os
+      // dois chegam aqui como `null`, e sem ela o aceite de convite (que cria
+      // a inscrição no instante anterior) piscaria o erro. `_navigated` segue
+      // aberto: um snapshot que chegue depois ainda navega.
+      if (assertedByRoute && snap == null) {
+        if (!_registrationLooksDead) {
+          _armDeadRegistrationTimer();
+          return loader;
+        }
+        return _chrome(
+          AppEmptyView(
+            icon: Icons.link_off_rounded,
+            title: 'Inscrição não encontrada',
+            subtitle:
+                'Ela pode ter sido cancelada, ou o link está desatualizado. '
+                'Volte e entre pelo torneio para recomeçar.',
+            actionLabel: 'Voltar',
+            onAction: _leave,
+          ),
+        );
+      }
+      _disarmDeadRegistrationTimer();
     }
 
     final myUid = authAsync.valueOrNull?.uid.trim() ?? '';

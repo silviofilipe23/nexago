@@ -17,6 +17,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
 import 'package:nexago_app/features/tournaments/presentation/registration_wizard/registration_gate_page.dart';
 
@@ -145,6 +146,9 @@ void main() {
     List<TournamentPartnerInvite> convitesEnviados = const [],
     Stream<List<TournamentPartnerInvite>>? convitesEnviadosStream,
     TournamentRegistrationSnapshot? snapshot,
+    /// Stream do snapshot, para exercitar a CHEGADA tardia do doc — o dublê
+    /// de serviço só sabe devolver um valor fixo.
+    Stream<TournamentRegistrationSnapshot?>? snapshotStream,
   }) async {
     rotasAbertas = <String>[];
     destinoQueryParams = null;
@@ -253,6 +257,10 @@ void main() {
           tournamentRegistrationServiceProvider.overrideWithValue(
             _FakeRegistrationService(snapshot),
           ),
+          if (snapshotStream != null && registrationId != null)
+            tournamentRegistrationSnapshotProvider(
+              registrationId,
+            ).overrideWith((ref) => snapshotStream),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
@@ -288,6 +296,36 @@ void main() {
     expect(rotasAbertas, contains('condicoes'));
     expect(rotasAbertas, isNot(contains('consentimento')));
   });
+
+  testWidgets(
+    'convite recebido COM inscrição existente NÃO trava nas condições — vai '
+    'para o passo pendente',
+    (tester) async {
+      // Caso normal, não hipotético: a CF permite convidar quem tem reserva
+      // solo aberta (`partnerPending`), porque ela ANEXA o convidado à
+      // inscrição que já existe. Sem o `&& !hasRegistration` da regra
+      // pré-existente esse atleta caía sempre em "condições" — sem pagar, sem
+      // recusar, com o relógio da vaga correndo.
+      await abrirPorteiro(
+        tester,
+        tournament: torneio([dupla()]),
+        categoryId: 'masc',
+        convitesRecebidos: [convite()],
+        registrations: const {
+          'masc': UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+            partnerPending: false,
+          ),
+        },
+      );
+      await tester.pumpAndSettle();
+
+      expect(rotasAbertas, contains('pagamento'));
+      expect(rotasAbertas, isNot(contains('condicoes')));
+      expect(destinoQueryParams?['registrationId'], 'reg-1');
+    },
+  );
 
   testWidgets('inscrição com parceiro pendente ignora step=payment', (
     tester,
@@ -836,7 +874,8 @@ void main() {
     );
 
     testWidgets(
-      'sem nem o snapshot no cache, ainda assim não volta ao consentimento',
+      'sem o snapshot ainda, ESPERA a carência em vez de voltar ao '
+      'consentimento ou seguir com o id',
       (tester) async {
         await abrirPorteiro(
           tester,
@@ -845,10 +884,62 @@ void main() {
           registrationId: 'reg-1',
           registrations: const {},
         );
+        // Sem `pumpAndSettle`: o objetivo é olhar ANTES de a carência vencer,
+        // que é onde mora o caso normal do aceite de convite (a inscrição
+        // acabou de nascer e o cache local ainda não a tem).
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(rotasAbertas, isEmpty);
+        expect(find.text('Inscrição não encontrada'), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+        // Estourada a carência, o id é declarado morto: mensagem, não uma
+        // tela de pagamento que não paga. O `pumpAndSettle` fecha a animação
+        // de entrada do `AppEmptyView` (`FadeSlideIn` agenda um Timer).
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Inscrição não encontrada'), findsOneWidget);
+        expect(rotasAbertas, isEmpty);
+        expect(rotasAbertas, isNot(contains('consentimento')));
+      },
+    );
+
+    testWidgets(
+      'snapshot que chega DENTRO da carência ainda navega normalmente',
+      (tester) async {
+        // A carência não pode virar um beco: o portão segue aberto
+        // (`_navigated` intocado) enquanto ela corre.
+        final controller =
+            StreamController<TournamentRegistrationSnapshot?>.broadcast();
+        addTearDown(controller.close);
+
+        await abrirPorteiro(
+          tester,
+          tournament: torneio([dupla()]),
+          categoryId: 'masc',
+          registrationId: 'reg-1',
+          registrations: const {},
+          snapshotStream: controller.stream,
+        );
+        await tester.pump();
+        controller.add(null);
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(rotasAbertas, isEmpty);
+
+        controller.add(
+          const TournamentRegistrationSnapshot(
+            registrationId: 'reg-1',
+            isPaid: false,
+            paidAmount: 0,
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(rotasAbertas, contains('pagamento'));
-        expect(rotasAbertas, isNot(contains('consentimento')));
+        expect(destinoQueryParams?['registrationId'], 'reg-1');
       },
     );
 

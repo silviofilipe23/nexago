@@ -58,6 +58,35 @@ void main() {
       );
     });
 
+    test(
+      'convite recebido COM inscrição existente resolve para o passo '
+      'pendente, não para as condições',
+      () {
+        // A CF permite convidar quem tem reserva solo aberta — o plano dela é
+        // ANEXAR o convidado à inscrição que já existe. Sem o qualificador
+        // `&& !hasRegistration` (que a regra pré-existente do projeto tem, em
+        // `registrationCardState`) esse atleta ficava preso em "condições":
+        // sem pagar, sem recusar, com o relógio da vaga correndo.
+        expect(
+          resolveRegistrationStep(
+            input(
+              hasReceivedInvite: true,
+              hasRegistration: true,
+              partnerPending: true,
+            ),
+          ),
+          RegistrationWizardStep.parceiro,
+        );
+        // E, com a dupla já fechada, chega ao pagamento.
+        expect(
+          resolveRegistrationStep(
+            input(hasReceivedInvite: true, hasRegistration: true),
+          ),
+          RegistrationWizardStep.pagamento,
+        );
+      },
+    );
+
     test('sem inscrição e sem aceite abre o consentimento', () {
       expect(
         resolveRegistrationStep(input()),

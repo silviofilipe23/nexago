@@ -1,7 +1,12 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
+import { environment } from '../../../../../environments/environment';
+import { AuthService } from '../../../../auth/auth.service';
 import { athleteFunctions } from '../../../../data/functions';
+import { fetchPublicProfilesByIds } from '../../../../data/public-profiles-repository';
 import {
   cancelSentPartnerInvite,
   TournamentRegistrationError,
@@ -19,6 +24,13 @@ import { bindWizardParams, wizardQueryParams } from '../wizard-params';
  *  Pular direto para o pagamento no instante do aceite esconde do atleta o único momento em que
  *  ele descobre que a dupla fechou. */
 const ACCEPTED_REVEAL_MS = 1500;
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
 
 function firstNameOf(name: string): string {
   const trimmed = name.trim();
@@ -70,13 +82,16 @@ export function inviteRemainingLabel(expiresAt: Date | null, now = new Date()): 
 })
 export class RegistrationWaitingComponent {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
   private readonly toasts = inject(NxToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
   protected readonly store = inject(RegistrationWizardStore);
   protected readonly params = bindWizardParams(this.store);
 
   protected readonly cancelling = signal(false);
   protected readonly confirmingCancel = signal(false);
+  protected readonly partnerPhotoUrl = signal<string | null>(null);
 
   /** Uma passagem só. Sem esta guarda, cada snapshot novo rearmaria o timer e a navegação nunca
    *  chegaria a acontecer. */
@@ -139,6 +154,12 @@ export class RegistrationWaitingComponent {
     return initialsOf(profile?.nickname ?? profile?.fullName ?? this.store.accountLabel());
   });
 
+  protected readonly myPhotoUrl = computed(() => {
+    const profile = this.store.profile();
+    if (profile?.profilePhotoUrl?.trim()) return profile.profilePhotoUrl.trim();
+    return this.auth.user()?.photoURL ?? null;
+  });
+
   protected readonly goneCopy = computed<{ title: string; body: string }>(() => {
     const invite = this.invite();
     const who = firstNameOf(invite?.inviteeName ?? '');
@@ -177,6 +198,23 @@ export class RegistrationWaitingComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.advanceTimer));
+
+    effect((onCleanup) => {
+      const uid = this.invite()?.inviteeUid?.trim() ?? '';
+      const db = this.firestore;
+      if (!uid || !db) {
+        this.partnerPhotoUrl.set(null);
+        return;
+      }
+      let cancelled = false;
+      void fetchPublicProfilesByIds(db, [uid]).then((profiles) => {
+        if (cancelled) return;
+        this.partnerPhotoUrl.set(profiles.get(uid)?.avatarUrl ?? null);
+      });
+      onCleanup(() => {
+        cancelled = true;
+      });
+    });
 
     effect(() => {
       if (this.leaving || !this.store.sentInvitesLoaded() || !this.store.tournamentLoaded()) return;

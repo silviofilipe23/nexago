@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { interval } from 'rxjs';
@@ -18,21 +18,25 @@ import {
   createRegistrationPixPayment,
   fetchMyRegistrationForCategory,
   reserveDirectOrganizerRegistration,
+  sentPendingInvitesFor,
   TournamentRegistrationError,
+  watchMySentInvites,
   watchRegistration,
   type AthleteTournamentRegistration,
   type PixPaymentResult,
+  type SentPartnerInvite,
 } from '../../data/tournament-registrations-repository';
 import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {
-  NxBannerComponent,
   NxBlockingDialogComponent,
   NxFieldErrorComponent,
   NxToastService,
 } from '../../shared/feedback';
 import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
+import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
+import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -78,8 +82,8 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
     NxPageLoadingComponent,
     NxSpinnerComponent,
     NxFieldErrorComponent,
-    NxBannerComponent,
     NxBlockingDialogComponent,
+    RegistrationHoldNoticeComponent,
   ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
@@ -87,6 +91,7 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
 })
 export class TournamentPaymentComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
@@ -135,7 +140,12 @@ export class TournamentPaymentComponent {
   private readonly pixExpiresAtMs = signal<number | null>(null);
   private expiryTimeout: ReturnType<typeof setTimeout> | undefined;
   private unsubscribeRegistrationWatch: (() => void) | undefined;
+  private unsubscribeSentInvitesWatch: (() => void) | undefined;
   private watchedRegistrationId: string | null = null;
+  private watchedSentInvitesKey: string | null = null;
+  private holdExpiryRedirectHandled = false;
+
+  protected readonly sentInvites = signal<readonly SentPartnerInvite[]>([]);
 
   protected readonly totalPriceReais = computed(() => this.selectedCategory()?.entryFee ?? 0);
   /** Elenco da inscrição (equipe trio+ = 3–5; dupla = 2) — divide a taxa por atleta. */
@@ -219,6 +229,21 @@ export class TournamentPaymentComponent {
     return `${m}:${String(s).padStart(2, '0')}`;
   });
 
+  protected readonly hasLivePartnerInvite = computed(() => {
+    const tournamentId = this.tournamentId();
+    const categoryId = this.categoryIdParam();
+    if (!tournamentId || !categoryId) return false;
+    return sentPendingInvitesFor(this.sentInvites(), tournamentId, categoryId).length > 0;
+  });
+
+  protected readonly showHoldCountdown = computed(() =>
+    shouldShowRegistrationHoldCountdown({
+      holdExpiresAt: this.registration()?.holdExpiresAt ?? null,
+      isPaid: this.registration()?.isPaid === true,
+      hasLivePartnerInvite: this.hasLivePartnerInvite(),
+    }),
+  );
+
   constructor() {
     interval(1000)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -227,6 +252,7 @@ export class TournamentPaymentComponent {
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.expiryTimeout);
       this.unsubscribeRegistrationWatch?.();
+      this.unsubscribeSentInvitesWatch?.();
     });
 
     effect(() => {
@@ -248,6 +274,46 @@ export class TournamentPaymentComponent {
         if (!cancelled) this.organizerQrSrc.set(src);
       });
     });
+
+    effect(() => {
+      if (this.loading() || this.holdExpiryRedirectHandled) return;
+      const reg = this.registration();
+      const tournamentId = this.tournamentId();
+      if (!reg || !tournamentId || reg.isPaid) return;
+      if (
+        !shouldShowRegistrationHoldCountdown({
+          holdExpiresAt: reg.holdExpiresAt,
+          isPaid: false,
+          hasLivePartnerInvite: this.hasLivePartnerInvite(),
+        })
+      ) {
+        return;
+      }
+      const view = registrationHoldCountdownView({
+        holdExpiresAt: reg.holdExpiresAt!,
+        holdMinutes: this.listing()?.registrationHoldMinutes ?? 30,
+        now: new Date(this.nowMs()),
+      });
+      if (!view.expired) return;
+      this.holdExpiryRedirectHandled = true;
+      void this.onHoldExpired(tournamentId, reg.id);
+    });
+  }
+
+  private async onHoldExpired(tournamentId: string, registrationId: string): Promise<void> {
+    this.clearPixState();
+    if (this.pixResult()) {
+      try {
+        await cancelPendingRegistrationPix(athleteFunctions(), registrationId);
+      } catch {
+        // Mesmo comportamento do Pix expirado: a vaga já caiu, não vira erro na tela.
+      }
+    }
+    this.toasts.warning(
+      'Prazo da vaga encerrado',
+      'Sua vaga foi liberada. Volte ao torneio se ainda quiser se inscrever.',
+    );
+    await this.router.navigate(['/torneios', tournamentId]);
   }
 
   private async loadData(id: string): Promise<void> {
@@ -279,6 +345,7 @@ export class TournamentPaymentComponent {
           this.amountType.set('full');
         }
         this.startRegistrationWatch(reg?.id ?? null);
+        this.startSentInvitesWatch(id, uid);
       }
     } finally {
       this.loading.set(false);
@@ -296,6 +363,27 @@ export class TournamentPaymentComponent {
     const projectId = environment.firebase.projectId;
     if (!db || !projectId || !registrationId) return;
     this.unsubscribeRegistrationWatch = watchRegistration(db, projectId, registrationId, (snap) => this.onRegistrationUpdate(snap));
+  }
+
+  /** Convites pendentes escondem o relógio da vaga — a contagem acompanha o convite. */
+  private startSentInvitesWatch(tournamentId: string, uid: string): void {
+    const key = `${tournamentId}:${uid}`;
+    if (this.watchedSentInvitesKey === key) return;
+    this.unsubscribeSentInvitesWatch?.();
+    this.unsubscribeSentInvitesWatch = undefined;
+    this.watchedSentInvitesKey = key;
+    const db = this.firestore;
+    if (!db) {
+      this.sentInvites.set([]);
+      return;
+    }
+    this.unsubscribeSentInvitesWatch = watchMySentInvites(
+      db,
+      uid,
+      tournamentId,
+      (invites) => this.sentInvites.set(invites),
+      () => this.sentInvites.set([]),
+    );
   }
 
   private onRegistrationUpdate(snap: AthleteTournamentRegistration | null): void {

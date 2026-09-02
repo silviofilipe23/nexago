@@ -1,0 +1,27 @@
+@if (view(); as countdown) {
+  <div class="rh-notice" [class.rh-notice--expired]="countdown.expired">
+    <svg
+      class="rh-notice-icon"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+    <div class="rh-notice-body">
+      <div class="rh-notice-row">
+        <span class="rh-notice-headline">{{ countdown.headline }}</span>
+        <span class="rh-notice-clock">{{ countdown.clockLabel }}</span>
+      </div>
+      <div class="rh-notice-track" aria-hidden="true">
+        <span class="rh-notice-fill" [style.width.%]="countdown.progress * 100"></span>
+      </div>
+    </div>
+  </div>
+}

@@ -526,12 +526,3 @@
   color: var(--nx-text);
   margin: 0;
 }
-
-// Faixa da contagem regressiva: gruda no topo do conteúdo rolável, como o
-// banner de estado do shell — o prazo continua correndo enquanto a pagina rola.
-.tp-hold-banner {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  --nx-banner-base: var(--nx-bg);
-}

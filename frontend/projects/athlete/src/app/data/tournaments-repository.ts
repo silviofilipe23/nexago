@@ -1,5 +1,7 @@
 import { collection, doc, documentId, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
 
+import { resolveRegistrationHoldMinutes } from '../tournaments/registration/registration-hold';
+
 /** `tournaments/{id}` (top-level, leitura pública) — espelha `TournamentDocumentMapper`
  *  (Flutter). Sem paginação: a coleção inteira é lida e filtrada/ordenada em memória (mesma
  *  escolha do app — "bounded query", não é uma tabela grande). */
@@ -260,6 +262,8 @@ export interface TournamentSummary {
    *  aceita o convite. A trava real é da CF `registerSoloTournament`; aqui o portal só deixa de
    *  oferecer o caminho da reserva solo. */
   requireFormedPair: boolean;
+  /** Minutos de garantia da vaga após o elenco fechar — default 30 quando ausente. */
+  registrationHoldMinutes: number;
   /** Instante em que as inscrições abrem (`registrationOpensAt` no doc). Antes dele a CF
    *  recusa inscrição mesmo com o torneio publicado como `open`. */
   registrationOpensAt: Date | null;
@@ -331,6 +335,7 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     organizerPix: organizerPixOf(data['organizerPix']),
     waitlistEnabled: data['waitlistEnabled'] !== false,
     requireFormedPair: data['requireFormedPair'] === true,
+    registrationHoldMinutes: resolveRegistrationHoldMinutes(data),
     registrationOpensAt: toDate(data['registrationOpensAt']),
     registrationClosesAt: toDate(data['registrationClosesAt']),
     tournamentPrizes: prizesOf(data['prizes']),

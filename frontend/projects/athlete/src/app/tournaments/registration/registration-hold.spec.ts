@@ -1,6 +1,72 @@
-import { canRegeneratePix, registrationHoldNotice } from './registration-hold';
+import {
+  canRegeneratePix,
+  registrationHoldCountdownView,
+  registrationHoldNotice,
+  shouldShowRegistrationHoldCountdown,
+} from './registration-hold';
 
 const NOW = new Date(2026, 8, 1, 14, 13); // 01/09/2026 14:13, hora local
+
+describe('registrationHoldCountdownView', () => {
+  const NOW = new Date(2026, 8, 1, 14, 0, 0);
+
+  it('usa janela fixa do torneio no rótulo, não o tempo restante', () => {
+    const view = registrationHoldCountdownView({
+      holdExpiresAt: new Date(NOW.getTime() + 20 * 60_000),
+      holdMinutes: 30,
+      now: NOW,
+    });
+    expect(view.headline).toBe('PAGUE EM 30 MIN');
+    expect(view.clockLabel).toBe('20:00');
+    expect(view.progress).toBeCloseTo(20 / 30, 2);
+    expect(view.expired).toBe(false);
+  });
+
+  it('marca expirado quando o prazo passou', () => {
+    const view = registrationHoldCountdownView({
+      holdExpiresAt: new Date(NOW.getTime() - 1000),
+      holdMinutes: 30,
+      now: NOW,
+    });
+    expect(view.headline).toBe('PRAZO ENCERRADO');
+    expect(view.clockLabel).toBe('00:00');
+    expect(view.progress).toBe(0);
+    expect(view.expired).toBe(true);
+  });
+});
+
+describe('shouldShowRegistrationHoldCountdown', () => {
+  it('some com convite vivo, inscrição paga ou sem hold', () => {
+    expect(
+      shouldShowRegistrationHoldCountdown({
+        holdExpiresAt: new Date(),
+        isPaid: false,
+        hasLivePartnerInvite: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowRegistrationHoldCountdown({
+        holdExpiresAt: new Date(),
+        isPaid: true,
+        hasLivePartnerInvite: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowRegistrationHoldCountdown({
+        holdExpiresAt: null,
+        isPaid: false,
+        hasLivePartnerInvite: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowRegistrationHoldCountdown({
+        holdExpiresAt: new Date(),
+        isPaid: false,
+        hasLivePartnerInvite: false,
+      }),
+    ).toBe(true);
+  });
+});
 
 describe('registrationHoldNotice', () => {
   it('inscrição sem prazo (antiga, do organizador ou em fila) não mostra nada', () => {

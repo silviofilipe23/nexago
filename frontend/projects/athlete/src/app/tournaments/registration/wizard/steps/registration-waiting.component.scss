@@ -7,7 +7,11 @@
 }
 
 .wt-slot {
-  min-width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
 
   strong {
     display: block;
@@ -35,18 +39,16 @@
 }
 
 .wt-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
   width: 64px;
   height: 64px;
   border-radius: 999px;
+  overflow: hidden;
   background: var(--nx-surface-1);
   border: 2px solid var(--nx-line-strong);
-  font-family: var(--nx-font-mono);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--nx-text-mute);
 
   &.wt-avatar--partner {
     border-style: dashed;
@@ -55,8 +57,26 @@
   &.wt-avatar--accepted {
     border-style: solid;
     border-color: var(--nx-win);
+  }
+}
+
+.wt-avatar-fallback {
+  font-family: var(--nx-font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--nx-text-mute);
+
+  .wt-avatar--accepted & {
     color: var(--nx-win);
   }
+}
+
+.wt-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .wt-link-icon {

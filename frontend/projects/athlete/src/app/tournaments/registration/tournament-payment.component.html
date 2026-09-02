@@ -4,13 +4,6 @@
       <app-nx-page-loading title="Carregando pagamento…" subtitle="Buscando sua inscrição" />
     </div>
   } @else if (listing(); as t) {
-    @if (pixCountdownLabel(); as countdown) {
-      <app-nx-banner class="tp-hold-banner" tone="warning">
-        Sua vaga em {{ t.name }} está reservada por
-        <span class="nx-feedback-num">{{ countdown }}</span>
-      </app-nx-banner>
-    }
-
     <div class="tp-body">
       <div class="tp-header">
         <div>
@@ -23,6 +16,12 @@
         </a>
       </div>
 
+      @if (showHoldCountdown() && registration()?.holdExpiresAt; as holdExpiresAt) {
+        <app-registration-hold-notice
+          [holdExpiresAt]="holdExpiresAt"
+          [holdMinutes]="t.registrationHoldMinutes"
+        />
+      }
 
       <div class="tp-main-grid">
         <div class="tp-col">

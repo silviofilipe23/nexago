@@ -99,6 +99,7 @@ function makeTournament(overrides: Partial<TournamentSummary> = {}): TournamentS
     organizerPix: null,
     waitlistEnabled: false,
     requireFormedPair: false,
+    registrationHoldMinutes: 30,
     registrationOpensAt: null,
     registrationClosesAt: null,
     tournamentPrizes: [],

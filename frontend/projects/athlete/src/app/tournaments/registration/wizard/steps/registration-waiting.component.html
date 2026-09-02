@@ -20,7 +20,12 @@
     } @else if (invite()) {
       <section class="wz-card wt-pair">
         <div class="wt-slot">
-          <span class="wt-avatar" aria-hidden="true">{{ myInitials() }}</span>
+          <span class="wt-avatar" aria-hidden="true">
+            <span class="wt-avatar-fallback">{{ myInitials() }}</span>
+            @if (myPhotoUrl(); as photo) {
+              <img class="wt-avatar-img" [src]="photo" alt="" loading="lazy" />
+            }
+          </span>
           <strong>Você</strong>
           <span>Confirmado</span>
         </div>
@@ -29,7 +34,10 @@
         </span>
         <div class="wt-slot" [class.wt-slot--accepted]="accepted()">
           <span class="wt-avatar wt-avatar--partner" [class.wt-avatar--accepted]="accepted()" aria-hidden="true">
-            {{ partnerInitials() }}
+            <span class="wt-avatar-fallback">{{ partnerInitials() }}</span>
+            @if (partnerPhotoUrl(); as photo) {
+              <img class="wt-avatar-img" [src]="photo" alt="" loading="lazy" />
+            }
           </span>
           <strong>{{ partnerName() }}</strong>
           <span>{{ accepted() ? 'Aceitou!' : 'Convite enviado' }}</span>

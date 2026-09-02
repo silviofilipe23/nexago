@@ -52,7 +52,12 @@
             <ul class="pt-roster">
               @for (member of roster(); track member.uid) {
                 <li class="pt-roster-item">
-                  <span class="pt-avatar" aria-hidden="true">{{ initialsOf(member.name) }}</span>
+                  <span class="pt-avatar" aria-hidden="true">
+                    <span class="pt-avatar-fallback">{{ initialsOf(member.name) }}</span>
+                    @if (member.photoUrl; as photo) {
+                      <img class="pt-avatar-img" [src]="photo" alt="" loading="lazy" />
+                    }
+                  </span>
                   <span class="wz-row-text">
                     <strong>{{ member.name }}</strong>
                     @if (member.isCaptain) {
@@ -126,7 +131,12 @@
                       [attr.aria-pressed]="selected()?.id === candidate.id"
                       (click)="select(candidate)"
                     >
-                      <span class="pt-avatar" aria-hidden="true">{{ initialsOf(candidate.displayName) }}</span>
+                      <span class="pt-avatar" aria-hidden="true">
+                        <span class="pt-avatar-fallback">{{ initialsOf(candidate.displayName) }}</span>
+                        @if (candidate.avatarUrl; as photo) {
+                          <img class="pt-avatar-img" [src]="photo" alt="" loading="lazy" />
+                        }
+                      </span>
                       <span class="wz-row-text">
                         <strong>{{ candidate.displayName }}</strong>
                         <span>

@@ -9,7 +9,10 @@ import 'tournament_registration_dashed_border.dart';
 /// conta. O convite sai por link (WhatsApp/copiar) e o convite de verdade nasce
 /// quando ele termina o cadastro.
 class TournamentRegistrationPartnerPhoneCard extends StatelessWidget {
-  const TournamentRegistrationPartnerPhoneCard({super.key, required this.onTap});
+  const TournamentRegistrationPartnerPhoneCard({
+    super.key,
+    required this.onTap,
+  });
 
   final VoidCallback onTap;
 

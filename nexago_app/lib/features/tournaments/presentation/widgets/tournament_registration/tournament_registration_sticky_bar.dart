@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class TournamentRegistrationStickyBar extends StatelessWidget {
@@ -49,7 +50,7 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
                     disabledBackgroundColor: context.themeColors.surfaceRaised,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: AppRadii.lgAll,
                     ),
                   ),
                   child: submitting

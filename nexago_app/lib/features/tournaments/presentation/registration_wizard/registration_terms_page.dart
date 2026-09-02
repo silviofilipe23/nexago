@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
+import '../../../../core/theme/app_borders.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
 import '../../../../core/ui/nexa_async_view.dart';
+import '../../../../core/ui/nexa_card.dart';
 import '../../data/tournament_partner_invite_service.dart';
 import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_labels.dart';
@@ -194,9 +197,8 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
           (c) => c.id == widget.categoryId,
         );
 
-        final pendingInvites = ref
-                .watch(pendingTournamentPartnerInvitesProvider)
-                .valueOrNull ??
+        final pendingInvites =
+            ref.watch(pendingTournamentPartnerInvitesProvider).valueOrNull ??
             const [];
         final receivedInvite = receivedInviteForCategory(
           pending: pendingInvites,
@@ -237,8 +239,9 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
                 ? () => _openReceivedInvite(receivedInvite)
                 : () => _advance(copy),
             onSecondary: copy.secondaryLabel == null ? null : _reserveSolo,
-            onOtherCategories:
-                showOtherCategories ? _goToTournamentDetail : null,
+            onOtherCategories: showOtherCategories
+                ? _goToTournamentDetail
+                : null,
           ),
           children: [
             RegistrationWizardNotice(
@@ -269,24 +272,47 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            _GuaranteeRow(
-              icon: Icons.groups_outlined,
-              title: 'Parceiro definido antes de pagar',
-              subtitle:
-                  'Nenhum valor é cobrado enquanto a dupla não estiver '
-                  'formada',
-            ),
-            if (closesAt != null)
-              _GuaranteeRow(
-                icon: Icons.schedule_outlined,
-                title:
-                    'Inscrições até ${tournamentRegistrationClosesLabel(closesAt)}',
-                subtitle: 'Depois desse prazo a chave é sorteada',
+            NexaCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _GuaranteeRow(
+                    icon: Icons.person_outline_rounded,
+                    iconColor: AppColors.win,
+                    title: 'Parceiro definido antes de pagar',
+                    subtitle:
+                        'Nenhum valor é cobrado enquanto a dupla não estiver '
+                        'formada',
+                  ),
+                  if (closesAt != null) ...[
+                    Divider(
+                      height: AppSpacing.xl,
+                      color: context.themeColors.onSurfaceMuted.withValues(
+                        alpha: 0.12,
+                      ),
+                    ),
+                    _GuaranteeRow(
+                      icon: Icons.calendar_today_rounded,
+                      iconColor: AppColors.pending,
+                      title:
+                          'Inscrições até ${tournamentRegistrationClosesLabel(closesAt)}',
+                      subtitle: 'Depois desse prazo a chave é sorteada',
+                    ),
+                  ],
+                  Divider(
+                    height: AppSpacing.xl,
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.12,
+                    ),
+                  ),
+                  _GuaranteeRow(
+                    icon: Icons.emoji_events_outlined,
+                    iconColor: context.themeColors.onSurfaceMuted,
+                    title: 'Os dois precisam caber na categoria',
+                    subtitle: 'Nível compatível com ${category.name}',
+                  ),
+                ],
               ),
-            _GuaranteeRow(
-              icon: Icons.verified_outlined,
-              title: 'Os dois precisam caber na categoria',
-              subtitle: 'Nível compatível com ${category.name}',
             ),
             const SizedBox(height: AppSpacing.lg),
             _PriceCard(category: category),
@@ -307,62 +333,65 @@ Widget _wizardChrome(BuildContext context, Widget child) {
   );
 }
 
-/// Uma das três garantias, com ícone + título + subtítulo.
+/// Uma das garantias, com ícone em quadrado + título + subtítulo.
 class _GuaranteeRow extends StatelessWidget {
   const _GuaranteeRow({
     required this.icon,
+    required this.iconColor,
     required this.title,
     required this.subtitle,
   });
 
   final IconData icon;
+  final Color iconColor;
   final String title;
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: AppColors.brand),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceMuted,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: colors.surfaceRaised,
+            borderRadius: AppRadii.mdAll,
+            border: Border.fromBorderSide(AppBorders.subtleSide(colors)),
           ),
-        ],
-      ),
+          child: Icon(icon, size: 18, color: iconColor),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTypography.titleS.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: AppTypography.bodyS.copyWith(
+                  color: colors.onSurfaceMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// Cartão de preço: as duas formas de fechar a vaga.
-///
-/// O total (`category.entryFee`) só aparece UMA vez na tela, na linha "Ou
-/// tudo por você" — não existe um cabeçalho repetindo o mesmo valor por
-/// cima, senão "R$ 220" apareceria duas vezes para uma categoria de R$ 220.
+/// Cartão de preço: cabeçalho com o total da inscrição e as duas formas de
+/// fechar a vaga (cota por atleta vs. integral).
 ///
 /// Em categoria de EQUIPE (trio+), o valor "por atleta" divide pelo elenco
 /// inteiro (`teamSize`), não por 2 — mesma regra de negócio, denominador
@@ -377,40 +406,56 @@ class _PriceCard extends StatelessWidget {
     final colors = context.themeColors;
     final teamSize = category.teamSize;
     final isTeam = teamSize != null && teamSize > 2;
-    final splitBy = isTeam ? teamSize : 2;
+    final splitBy = isTeam ? teamSize ?? 2 : 2;
     final perAthlete = category.entryFee / splitBy;
+    final perAthleteLabel = formatRegistrationMoney(perAthlete);
+    final totalLabel = formatRegistrationMoney(category.entryFee);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(14),
-      ),
+    return NexaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'VALOR DA INSCRIÇÃO',
-            style: AppTypography.mono(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: colors.onSurfaceMuted,
-              letterSpacing: 1.2,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  isTeam ? 'INSCRIÇÃO DA EQUIPE' : 'INSCRIÇÃO DA DUPLA',
+                  style: AppTypography.eyebrow.copyWith(
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
+              ),
+              Text(
+                totalLabel,
+                style: AppTypography.titleM.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.lg),
           _PriceOption(
-            // "Metade e metade" só é verdade para dupla — em equipe de N o
-            // valor divide pelo elenco inteiro, não em duas partes.
             label: isTeam ? 'Dividido pelo elenco' : 'Metade e metade',
-            value: formatRegistrationMoney(perAthlete),
+            subtitle: isTeam
+                ? 'cada atleta paga $perAthleteLabel no app'
+                : 'cada um paga $perAthleteLabel no app',
+            value: perAthleteLabel,
             badge: 'POR ATLETA',
+            badgeColor: AppColors.brand,
           ),
-          const SizedBox(height: AppSpacing.sm),
+          Divider(
+            height: AppSpacing.xl,
+            color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
           _PriceOption(
             label: 'Ou tudo por você',
-            value: formatRegistrationMoney(category.entryFee),
+            subtitle: isTeam
+                ? 'o restante vocês acertam direto'
+                : 'a metade dele vocês acertam direto',
+            value: totalLabel,
             badge: 'INTEGRAL',
+            badgeColor: colors.onSurfaceMuted,
           ),
         ],
       ),
@@ -421,60 +466,62 @@ class _PriceCard extends StatelessWidget {
 class _PriceOption extends StatelessWidget {
   const _PriceOption({
     required this.label,
+    required this.subtitle,
     required this.value,
     required this.badge,
+    required this.badgeColor,
   });
 
   final String label;
+  final String subtitle;
   final String value;
   final String badge;
+  final Color badgeColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurface,
-                ),
+                style: AppTypography.titleS.copyWith(color: colors.onSurface),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.brand.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: AppColors.brand.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Text(
-                  badge,
-                  style: AppTypography.mono(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.brand,
-                    letterSpacing: 1.0,
-                  ),
-                ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
               ),
             ],
           ),
         ),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: colors.onSurface,
-            fontWeight: FontWeight.w800,
-          ),
+        const SizedBox(width: AppSpacing.md),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: AppTypography.titleS.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              badge,
+              style: AppTypography.mono(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: badgeColor,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
         ),
       ],
     );

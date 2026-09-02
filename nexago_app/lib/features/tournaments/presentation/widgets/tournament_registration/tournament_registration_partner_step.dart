@@ -69,7 +69,9 @@ class _TournamentRegistrationPartnerStepState
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() => setState(() => _focused = _focusNode.hasFocus));
+    _focusNode.addListener(
+      () => setState(() => _focused = _focusNode.hasFocus),
+    );
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -83,7 +85,10 @@ class _TournamentRegistrationPartnerStepState
 
   void _onSearchChanged() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 350), _runPartnerSearch);
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 350),
+      _runPartnerSearch,
+    );
     setState(() {});
   }
 
@@ -121,9 +126,7 @@ class _TournamentRegistrationPartnerStepState
   }
 
   void _selectProfile(AppUserProfile profile, {String? tagLabel}) {
-    widget.onSelected(
-      partnerCandidateFromProfile(profile, tagLabel: tagLabel),
-    );
+    widget.onSelected(partnerCandidateFromProfile(profile, tagLabel: tagLabel));
   }
 
   @override
@@ -157,7 +160,7 @@ class _TournamentRegistrationPartnerStepState
       children: [
         if (!widget.compact) ...[
           Text(
-            'Quem joga\ncom você?',
+            'Quem joga com você?',
             style: AppTypography.soraRegular(
               fontSize: 26,
               fontWeight: FontWeight.w800,
@@ -177,7 +180,7 @@ class _TournamentRegistrationPartnerStepState
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
-            hintText: 'Buscar atleta por nome ou @',
+            hintText: 'Buscar atleta por nome',
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.6),
             ),
@@ -235,28 +238,24 @@ class _TournamentRegistrationPartnerStepState
             ),
           )
         else
-          ...displayProfiles.map(
-            (profile) {
-              final candidate = partnerCandidateFromProfile(
-                profile,
-                tagLabel: partnerGenderPendencyLabel(profile, requiredGender),
-              );
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: TournamentRegistrationPartnerCandidateTile(
-                  candidate: candidate,
-                  sending: widget.invitingUserId == profile.uid,
-                  selected: widget.selectedUserId == profile.uid,
-                  onTap: () => _selectProfile(
-                    profile,
-                    tagLabel: candidate.tagLabel,
-                  ),
-                ),
-              );
-            },
-          ),
+          ...displayProfiles.map((profile) {
+            final candidate = partnerCandidateFromProfile(
+              profile,
+              tagLabel: partnerGenderPendencyLabel(profile, requiredGender),
+            );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TournamentRegistrationPartnerCandidateTile(
+                candidate: candidate,
+                sending: widget.invitingUserId == profile.uid,
+                selected: widget.selectedUserId == profile.uid,
+                onTap: () =>
+                    _selectProfile(profile, tagLabel: candidate.tagLabel),
+              ),
+            );
+          }),
         SizedBox(height: 8),
-        TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByLink),
+        // TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByLink),
         if (widget.onRegisterSolo != null) ...[
           const SizedBox(height: 16),
           TournamentRegistrationSoloCard(onTap: widget.onRegisterSolo!),

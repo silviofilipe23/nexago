@@ -183,7 +183,7 @@ void main() {
     // `formatRegistrationMoney` é a formatação canônica do wizard (a mesma
     // que a tela 1 usa no spec row de preço) — inclui centavos ("R$ 220,00"),
     // então a asserção usa a própria função em vez de um literal sem vírgula.
-    expect(find.text(formatRegistrationMoney(220)), findsOneWidget);
+    expect(find.text(formatRegistrationMoney(220)), findsNWidgets(2));
     expect(find.text(formatRegistrationMoney(110)), findsOneWidget);
   });
 

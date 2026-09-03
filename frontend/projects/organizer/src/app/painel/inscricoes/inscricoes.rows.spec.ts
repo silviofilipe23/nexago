@@ -132,4 +132,20 @@ describe('buildInscricaoRows', () => {
       buildInscricaoRows([parcial], tournament({ paymentMode: 'directWithOrganizer' }), new Map())[0]?.payNote,
     ).toBe('1 de 4 declararam');
   });
+
+  it('mostra a hora da inscrição, junto da data por extenso na gaveta', () => {
+    const row = buildInscricaoRows(
+      [inscription({ createdAt: new Date('2026-08-12T14:32:00-03:00') })],
+      tournament(),
+      new Map(),
+    )[0];
+    expect(row?.time).toBe('14:32');
+    expect(row?.dateLong).toBe('12 de agosto de 2026 às 14:32');
+  });
+
+  it('hora e data por extenso caem no fallback sem `createdAt`', () => {
+    const row = buildInscricaoRows([inscription()], tournament(), new Map())[0];
+    expect(row?.time).toBe('—');
+    expect(row?.dateLong).toBe('Data não registrada');
+  });
 });

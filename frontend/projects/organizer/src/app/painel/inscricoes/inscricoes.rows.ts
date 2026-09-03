@@ -3,7 +3,8 @@ import type { OrganizerTournament } from '../data/tournament.model';
 import { normalizeSearch, type InscricaoRow, type LgpdStatus, type PayStatus } from './inscricoes.model';
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
-const LONG_DATE = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' });
+const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const LONG_DATE_TIME = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' });
 
 /** Linhas da tela a partir das inscrições cruas — função pura de propósito: com a lista viva,
  *  as três entradas (inscrições, torneio, telefones) chegam em momentos diferentes, e cada uma
@@ -92,7 +93,8 @@ export function buildInscricaoRows(
       lgpd,
       lgpdMissing: missing.map((p) => p.name),
       date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
-      dateLong: insc.createdAt ? LONG_DATE.format(insc.createdAt) : 'Data não registrada',
+      time: insc.createdAt ? TIME.format(insc.createdAt) : '—',
+      dateLong: insc.createdAt ? LONG_DATE_TIME.format(insc.createdAt) : 'Data não registrada',
       createdAt: insc.createdAt,
       search: normalizeSearch([insc.teamName, ...insc.participants.map((p) => p.name), categoria].join(' ')),
     };

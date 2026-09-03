@@ -101,11 +101,15 @@ interface PhoneLinks {
                   <span class="og-insc-inline-meta">
                     <span class="m-cat">{{ r.categoria }}</span>
                     <span class="m-date">{{ r.date }}</span>
+                    <span class="m-time">{{ r.time }}</span>
                   </span>
                 </span>
 
                 <span class="og-insc-cat col-cat" [title]="r.categoria">{{ r.categoria }}</span>
-                <span class="og-insc-date col-date">{{ r.date }}</span>
+                <span class="og-insc-date col-date" [title]="r.dateLong">
+                  {{ r.date }}
+                  <span class="og-insc-time">{{ r.time }}</span>
+                </span>
 
                 <span class="og-insc-pay" [title]="r.payTitle">
                   <og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill>
@@ -505,9 +509,15 @@ interface PhoneLinks {
       color: var(--nx-text-dim);
     }
 
-    .og-insc-inline-meta .m-date {
+    .og-insc-inline-meta .m-date,
+    .og-insc-inline-meta .m-time {
       font-family: var(--nx-font-mono);
       font-variant-numeric: tabular-nums;
+      color: var(--nx-text-dim);
+    }
+
+    .og-insc-inline-meta .m-time::before {
+      content: ' · ';
       color: var(--nx-text-dim);
     }
 
@@ -521,10 +531,18 @@ interface PhoneLinks {
     }
 
     .og-insc-date {
+      display: flex;
+      flex-direction: column;
       font-family: var(--nx-font-mono);
       font-size: 11.5px;
       font-variant-numeric: tabular-nums;
       color: var(--nx-text-dim);
+    }
+
+    /* Hora empilhada sob a data — a coluna é estreita demais pra caber as duas na mesma linha. */
+    .og-insc-time {
+      font-size: 10px;
+      color: var(--nx-text-mute);
     }
 
     .og-insc-pay {

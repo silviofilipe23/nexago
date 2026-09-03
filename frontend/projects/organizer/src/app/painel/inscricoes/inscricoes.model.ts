@@ -95,7 +95,9 @@ export interface InscricaoRow {
   /** Nomes de quem ainda não aceitou o termo — usado no aviso da linha. */
   lgpdMissing: string[];
   date: string;
-  /** Data por extenso para a gaveta ("12 de agosto de 2026"). */
+  /** Hora da inscrição ("14:32"); "—" sem `createdAt`. Mostrada junto da data na lista. */
+  time: string;
+  /** Data e hora por extenso para a gaveta ("12 de agosto de 2026 às 14:32"). */
   dateLong: string;
   createdAt: Date | null;
   /** Texto normalizado (sem acento, minúsculo) que a busca varre: dupla + atletas + categoria. */

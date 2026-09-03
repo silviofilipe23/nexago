@@ -20,13 +20,26 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
 import {asaasArenaSecrets} from "./asaas-client";
-import {deleteAsaasPaymentOrThrow} from "./asaas-booking-payment";
+import {deleteAsaasPaymentOrThrow, getAsaasPayment} from "./asaas-booking-payment";
+import {parseRegistrationBillingType} from "./registration-payment-phases";
 
 /** Teto por volta: a cadência de 1 minuto dá vazão de sobra para o pico. */
 const SWEEP_BATCH_SIZE = 100;
 
 /** Marca de quem morreu de velho, e não por pagamento ou cancelamento. */
 export const PIX_CANCELLED_EXPIRED = "expired";
+
+/**
+ * Cartão que já saiu do "aberto" no gateway: deletar aqui destruiria pagamento
+ * em voo — o atleta digitou o cartão e o webhook ainda não chegou. O webhook
+ * resolve em minutos; a varredura só precisa não atrapalhar.
+ */
+const CARD_IN_FLIGHT_STATUSES = new Set([
+  "CONFIRMED",
+  "RECEIVED",
+  "RECEIVED_IN_CASH",
+  "AWAITING_RISK_ANALYSIS",
+]);
 
 /** O mínimo de um `pixPending` para a varredura decidir. */
 export interface ExpiringPixDoc {
@@ -54,6 +67,8 @@ export async function expireOpenPixCharges<T extends ExpiringPixDoc>(params: {
   nowMs: number;
   cancelCharge: (asaasPaymentId: string) => Promise<void>;
   markCancelled: (doc: T) => Promise<void>;
+  /** Status atual da cobrança no gateway. Consultado SÓ para cartão. */
+  resolveChargeStatus?: (asaasPaymentId: string) => Promise<string>;
 }): Promise<{expired: number; failed: number}> {
   let expired = 0;
   let failed = 0;
@@ -69,6 +84,32 @@ export async function expireOpenPixCharges<T extends ExpiringPixDoc>(params: {
     const asaasPaymentId =
       (data.asaasPaymentId as string | undefined)?.trim() ?? "";
     if (asaasPaymentId) {
+      if (
+        parseRegistrationBillingType(data.billingType) === "CREDIT_CARD" &&
+        params.resolveChargeStatus
+      ) {
+        let gatewayStatus: string;
+        try {
+          gatewayStatus =
+            (await params.resolveChargeStatus(asaasPaymentId)).toUpperCase();
+        } catch (e) {
+          logger.error("Falha ao consultar cobrança de cartão vencida", {
+            payerUid: doc.id,
+            asaasPaymentId,
+            error: e,
+          });
+          failed++;
+          continue;
+        }
+        if (CARD_IN_FLIGHT_STATUSES.has(gatewayStatus)) {
+          logger.info(
+            "Cobrança de cartão vencida no relógio, mas em voo no gateway",
+            {payerUid: doc.id, asaasPaymentId, gatewayStatus},
+          );
+          continue;
+        }
+      }
+
       try {
         await params.cancelCharge(asaasPaymentId);
       } catch (e) {
@@ -107,6 +148,7 @@ export const expireOpenTournamentRegistrationPixCharges = onSchedule({
     docs: snap.docs,
     nowMs: now.toMillis(),
     cancelCharge: deleteAsaasPaymentOrThrow,
+    resolveChargeStatus: async (id) => (await getAsaasPayment(id)).status ?? "",
     markCancelled: async (doc) => {
       await doc.ref.set({
         status: "cancelled",

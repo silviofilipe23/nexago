@@ -13,6 +13,7 @@ import {
   resolveAthleteCpfCnpj,
 } from "./asaas-customer";
 import {
+  createAsaasCardCharge,
   createAsaasPixCharge,
   deleteAsaasPaymentIfOpen,
 } from "./asaas-booking-payment";
@@ -123,20 +124,40 @@ async function cancelExistingPixPending(
   await pendingRef.delete();
 }
 
-export const createTournamentRegistrationPixPayment = onCall({
-  secrets: pixPaymentSecrets,
-}, async (request): Promise<PixPaymentResponse> => {
-  const callerUid = request.auth?.uid;
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Faça login para pagar.");
-  }
+/** Entrada das callables de cobrança (PIX e cartão têm a mesma). */
+type RegistrationChargeRequest = {
+  registrationId?: string;
+  cpf?: string;
+  cpfCnpj?: string;
+  amountType?: string;
+};
 
-  const data = (request.data ?? {}) as {
-    registrationId?: string;
-    cpf?: string;
-    cpfCnpj?: string;
-    amountType?: string;
-  };
+/** Tudo que uma cobrança precisa, já validado e resolvido no gateway. */
+interface PreparedRegistrationCharge {
+  db: Firestore;
+  projectId: string;
+  registrationId: string;
+  amountType: "share" | "full";
+  chargeAmount: number;
+  customerId: string;
+  description: string;
+  externalReference: string;
+  expiresAtDate: Date;
+}
+
+/**
+ * Tudo que vem ANTES de existir uma cobrança: autenticação, elegibilidade,
+ * prazo da vaga, valor da cota e cliente no gateway. É idêntico para PIX e
+ * cartão — o que muda é só o `billingType` na hora de criar a cobrança.
+ *
+ * `methodLabel` entra nas mensagens voltadas ao atleta ("Informe seu CPF para
+ * pagar com PIX" / "com cartão").
+ */
+async function prepareRegistrationCharge(
+  callerUid: string,
+  data: RegistrationChargeRequest,
+  methodLabel: string,
+): Promise<PreparedRegistrationCharge> {
   const amountType: "share" | "full" =
     data.amountType === "full" ? "full" : "share";
   const registrationId =
@@ -324,7 +345,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     if (msg === "ASAAS_CUSTOMER_CPF_REQUIRED") {
       throw new HttpsError(
         "failed-precondition",
-        "Informe seu CPF para pagar com PIX.",
+        `Informe seu CPF para pagar com ${methodLabel}.`,
       );
     }
     throw e;
@@ -349,10 +370,10 @@ export const createTournamentRegistrationPixPayment = onCall({
     if (msg === "ASAAS_CUSTOMER_CPF_REQUIRED") {
       throw new HttpsError(
         "failed-precondition",
-        "Informe seu CPF para pagar com PIX.",
+        `Informe seu CPF para pagar com ${methodLabel}.`,
       );
     }
-    logger.error("createTournamentRegistrationPixPayment customer failed", e);
+    logger.error("prepareRegistrationCharge customer failed", e);
     throw new HttpsError("internal", "Não foi possível preparar o pagamento.");
   }
 
@@ -368,6 +389,36 @@ export const createTournamentRegistrationPixPayment = onCall({
   const externalReference = buildTournamentRegistrationExternalReference(
     registrationId,
     callerUid,
+  );
+
+  return {
+    db,
+    projectId,
+    registrationId,
+    amountType,
+    chargeAmount,
+    customerId,
+    description,
+    externalReference,
+    expiresAtDate,
+  };
+}
+
+export const createTournamentRegistrationPixPayment = onCall({
+  secrets: pixPaymentSecrets,
+}, async (request): Promise<PixPaymentResponse> => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para pagar.");
+  }
+
+  const {
+    db, projectId, registrationId, amountType, chargeAmount,
+    customerId, description, externalReference, expiresAtDate,
+  } = await prepareRegistrationCharge(
+    callerUid,
+    (request.data ?? {}) as RegistrationChargeRequest,
+    "PIX",
   );
 
   let charge;
@@ -414,6 +465,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     asaasPaymentId: charge.paymentId,
     amountReais: chargeAmount,
     amountType,
+    billingType: "PIX",
     status: "pending",
     payerUid: callerUid,
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
@@ -424,6 +476,97 @@ export const createTournamentRegistrationPixPayment = onCall({
     paymentId: charge.paymentId,
     qrCode: charge.qrCode,
     qrCodeBase64: charge.qrCodeBase64,
+    expiresAt: expiresAtDate.toISOString(),
+    amountReais: chargeAmount,
+  };
+});
+
+type CardPaymentResponse = {
+  paymentId: string;
+  /** Checkout hospedado do Asaas — o atleta digita o cartão lá, não aqui. */
+  invoiceUrl: string;
+  expiresAt: string;
+  amountReais: number;
+};
+
+/**
+ * Cobrança de inscrição por cartão de crédito.
+ *
+ * Devolve o checkout HOSPEDADO do Asaas: nenhum dado de cartão passa por esta
+ * função, pelo portal ou pelo Firestore. A vaga é confirmada pelo webhook na
+ * autorização (`CONFIRMED`) — ver `registration-payment-phases.ts`.
+ */
+export const createTournamentRegistrationCardPayment = onCall({
+  secrets: pixPaymentSecrets,
+}, async (request): Promise<CardPaymentResponse> => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para pagar.");
+  }
+
+  const {
+    db, projectId, registrationId, amountType, chargeAmount,
+    customerId, description, externalReference, expiresAtDate,
+  } = await prepareRegistrationCharge(
+    callerUid,
+    (request.data ?? {}) as RegistrationChargeRequest,
+    "cartão",
+  );
+
+  let charge;
+  try {
+    charge = await createAsaasCardCharge({
+      customerId,
+      valueReais: chargeAmount,
+      dueDate: expiresAtDate,
+      description,
+      externalReference,
+      idempotencyKey: `tournament-reg-card-${registrationId}-${callerUid}`,
+    });
+  } catch (e) {
+    if (e instanceof AsaasApiError) {
+      logger.error(
+        "createTournamentRegistrationCardPayment Asaas failed:",
+        e.httpStatus,
+        e.body,
+      );
+      const hint = e.message.toLowerCase();
+      if (hint.includes("cpf") || hint.includes("cnpj")) {
+        throw new HttpsError("failed-precondition", e.message);
+      }
+      throw new HttpsError(
+        "internal",
+        "Não foi possível abrir o checkout. Tente novamente.",
+      );
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "ASAAS_API_KEY_MISSING") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Pagamento online temporariamente indisponível.",
+      );
+    }
+    logger.error("createTournamentRegistrationCardPayment charge failed", e);
+    throw new HttpsError(
+      "internal",
+      "Não foi possível abrir o checkout. Tente novamente.",
+    );
+  }
+
+  await pixPendingRef(db, projectId, registrationId, callerUid).set({
+    asaasPaymentId: charge.paymentId,
+    amountReais: chargeAmount,
+    amountType,
+    billingType: "CREDIT_CARD",
+    status: "pending",
+    payerUid: callerUid,
+    paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    paymentId: charge.paymentId,
+    invoiceUrl: charge.invoiceUrl,
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
   };

@@ -26,9 +26,18 @@ export async function creditOrganizerWalletFromRegistration(
     paymentId: string;
     grossReais: number;
     platformFeeReais: number;
+    /**
+     * Taxa do gateway repassada ao organizador (decisão do dono, 02/09): no
+     * cartão ele recebe bruto − taxa da plataforma − taxa do cartão. No PIX é
+     * 0 — ali a plataforma continua absorvendo o custo do gateway.
+     */
+    gatewayFeeReais?: number;
   },
 ): Promise<void> {
-  const netReais = roundMoney(Math.max(0, params.grossReais - params.platformFeeReais));
+  const gatewayFeeReais = roundMoney(Math.max(0, params.gatewayFeeReais ?? 0));
+  const netReais = roundMoney(
+    Math.max(0, params.grossReais - params.platformFeeReais - gatewayFeeReais),
+  );
   const walletRef = organizerWalletRef(db, organizerId);
   const ledgerRef = walletRef.collection("ledger").doc();
 
@@ -55,6 +64,7 @@ export async function creditOrganizerWalletFromRegistration(
       asaasPaymentId: params.paymentId,
       grossReais: roundMoney(params.grossReais),
       platformFeeReais: roundMoney(params.platformFeeReais),
+      gatewayFeeReais,
       netReais,
       createdAt: FieldValue.serverTimestamp(),
     });

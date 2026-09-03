@@ -15,6 +15,7 @@ import { pixQrSvgDataUrl, resolvePixQrSrc } from '../../data/pix-qr';
 import {
   cancelPendingRegistrationPix,
   confirmFreeRegistration,
+  createRegistrationCardPayment,
   createRegistrationPixPayment,
   fetchMyRegistrationForCategory,
   reserveDirectOrganizerRegistration,
@@ -23,6 +24,7 @@ import {
   watchMySentInvites,
   watchRegistration,
   type AthleteTournamentRegistration,
+  type CardPaymentResult,
   type PixPaymentResult,
   type SentPartnerInvite,
 } from '../../data/tournament-registrations-repository';
@@ -39,6 +41,16 @@ import { RegistrationHoldNoticeComponent } from './registration-hold-notice.comp
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 
 export type PaymentAmountType = 'share' | 'full';
+
+export type PaymentMethod = 'pix' | 'card';
+
+/** Modo de pagamento do torneio → meios oferecidos ao atleta. Modo ausente é
+ *  cobrança pelo app: é o padrão de todo torneio do acervo. */
+export function resolvePaymentMethods(
+  paymentMode: string | null | undefined,
+): ReadonlyArray<PaymentMethod> {
+  return paymentMode === 'directWithOrganizer' ? [] : ['pix', 'card'];
+}
 
 function titleCase(input: string): string {
   return input
@@ -74,11 +86,13 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
  *  do atleta o único momento em que ele vê "inscrição confirmada". */
 const PAID_REVEAL_MS = 2000;
 
-/** Pagamento real: PIX via Asaas (`createTournamentRegistrationPixPayment`, exige CPF) quando
- *  `paymentMode==='appPixCard'`, ou reserva sem cobrança online quando
- *  `paymentMode==='directWithOrganizer'` (o acerto é direto com o organizador, mostrando só a
- *  chave Pix dele). **Não existe pagamento por cartão de crédito em lugar nenhum do fluxo real**
- *  — a opção "cartão" do mock foi removida, não é um corte de escopo, é reflexo do que existe. */
+/** Pagamento real quando `paymentMode==='appPixCard'`: PIX via Asaas
+ *  (`createTournamentRegistrationPixPayment`) ou cartão de crédito
+ *  (`createTournamentRegistrationCardPayment`), os dois exigindo CPF. O cartão devolve o
+ *  `invoiceUrl` do checkout HOSPEDADO do Asaas — nenhum dado de cartão passa por esta tela.
+ *
+ *  Com `paymentMode==='directWithOrganizer'` não há cobrança online: o acerto é direto com o
+ *  organizador e a tela mostra só a chave Pix dele. */
 @Component({
   selector: 'app-tournament-payment',
   standalone: true,
@@ -136,6 +150,12 @@ export class TournamentPaymentComponent {
   protected readonly documentError = signal<string | null>(null);
   protected readonly processing = signal(false);
   protected readonly pixResult = signal<PixPaymentResult | null>(null);
+  /** Cobrança de cartão viva — o pagamento em si acontece no checkout do Asaas. */
+  protected readonly cardResult = signal<CardPaymentResult | null>(null);
+  protected readonly method = signal<PaymentMethod>('pix');
+  protected readonly methods = computed(() => resolvePaymentMethods(this.listing()?.paymentMode));
+  /** Uma cobrança viva por vez, seja qual for o meio. */
+  protected readonly hasLiveCharge = computed(() => !!this.pixResult() || !!this.cardResult());
   /** Data-URL do QR (Asaas ou gerado no cliente a partir do código copia-e-cola). */
   protected readonly pixQrSrc = signal<string | null>(null);
   /** QR do Pix estático do organizador (`directWithOrganizer`). */
@@ -459,6 +479,7 @@ export class TournamentPaymentComponent {
     clearTimeout(this.expiryTimeout);
     this.pixResult.set(null);
     this.pixQrSrc.set(null);
+    this.cardResult.set(null);
     this.pixExpiresAtMs.set(null);
     this.pixExpired.set(false);
   }
@@ -501,6 +522,45 @@ export class TournamentPaymentComponent {
     }
   }
 
+  protected setMethod(method: PaymentMethod): void {
+    if (this.hasLiveCharge()) return;
+    this.method.set(method);
+    this.documentError.set(null);
+  }
+
+  /** Abre a cobrança de cartão. O atleta paga no checkout HOSPEDADO do Asaas —
+   *  daqui sai só um link. A confirmação chega pelo webhook, no mesmo listener
+   *  que já vira a tela no Pix. */
+  protected async generateCardCheckout(): Promise<void> {
+    const reg = this.registration();
+    if (!reg || this.processing()) return;
+    if (!isValidCpfCnpj(this.cpfCnpj())) {
+      this.documentError.set(
+        cpfCnpjValidationMessage(this.cpfCnpj()) ?? 'Informe um CPF ou CNPJ válido para pagar com cartão.',
+      );
+      return;
+    }
+    this.processing.set(true);
+    try {
+      const result = await createRegistrationCardPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
+      // Uma cobrança viva por vez: duas seriam duas chances de pagar a mesma cota.
+      this.pixResult.set(null);
+      this.pixQrSrc.set(null);
+      this.cardResult.set(result);
+      this.pixExpired.set(false);
+      this.documentError.set(null);
+      this.schedulePixExpiry(result.expiresAt);
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível abrir o checkout',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
+        { label: 'Tentar novamente', run: () => void this.generateCardCheckout() },
+      );
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
   /** `expiresAt` do backend (fallback 15 min, como o app); ao expirar, cancela a cobrança
    *  pendente e volta pro formulário com o aviso de expirado. */
   private schedulePixExpiry(expiresAtIso: string): void {
@@ -513,18 +573,22 @@ export class TournamentPaymentComponent {
 
   private async onPixExpired(): Promise<void> {
     const reg = this.registration();
-    if (!this.pixResult()) return;
+    const wasCard = !!this.cardResult();
+    if (!this.pixResult() && !wasCard) return;
     this.pixResult.set(null);
     this.pixQrSrc.set(null);
+    this.cardResult.set(null);
     this.pixExpiresAtMs.set(null);
     this.pixExpired.set(true);
     // Perto do fim do prazo o servidor recusa abrir outra cobrança: oferecer
     // "gerar novo código" ali mandaria o atleta bater numa porta fechada.
     if (canRegeneratePix({ holdExpiresAt: reg?.holdExpiresAt ?? null })) {
       this.toasts.warning(
-        'O código Pix expirou',
-        'Nenhum valor foi cobrado e sua vaga segue reservada. Gere um novo código para pagar.',
-        { label: 'Gerar novo código', run: () => void this.generatePix() },
+        wasCard ? 'O checkout expirou' : 'O código Pix expirou',
+        'Nenhum valor foi cobrado e sua vaga segue reservada. Gere uma nova cobrança para pagar.',
+        wasCard
+          ? { label: 'Abrir novo checkout', run: () => void this.generateCardCheckout() }
+          : { label: 'Gerar novo código', run: () => void this.generatePix() },
       );
     } else {
       this.toasts.warning(

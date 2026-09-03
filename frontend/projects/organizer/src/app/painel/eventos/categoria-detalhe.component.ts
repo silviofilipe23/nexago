@@ -1,16 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { LEVEL_OPTIONS, tournamentSportToLevelSportCode, type LevelOption } from '@nexago/levels';
-import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+import { LEVEL_OPTIONS, tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { MIN_TEAMS_FOR_BRACKET, countBracketEligible } from '../data/bracket-eligibility';
 import { promotableLevelOptions } from '../data/athlete-level-promotion';
+import { OgAthleteLevelDialogComponent, type AthleteLevelTarget } from './athlete-level-dialog.component';
 import { buildCategoryAthletesExport } from '../data/category-athletes-export';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import { fetchAthleteRatings } from '../data/athlete-ratings-repository';
 import { promoteAthleteLevel } from '../data/organizer-ops.service';
-import { levelCodeFor, teamLevelScore, teamLevelsSummary, teamScoreLabel, type AthleteRatingLite, type TeamLevelScore } from '../data/team-level-score';
+import { levelCodeFor, shortLevelLabel, teamLevelScore, teamLevelsSummary, teamScoreLabel, type AthleteRatingLite, type TeamLevelScore } from '../data/team-level-score';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -20,6 +20,12 @@ import { OgPillComponent } from '../ui/pill.component';
 
 type Tone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
 
+/** Linha de atleta da gaveta: é o alvo do diálogo (`AthleteLevelTarget`) mais o rótulo curto do
+ *  nível atual, que só a lista mostra — assim abrir o diálogo é passar o objeto adiante. */
+interface PromotableAthlete extends AthleteLevelTarget {
+  currentLabel: string;
+}
+
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
 /** Duplas da categoria — porta de entrada do nível 3 da cascata: roster com status de
@@ -28,7 +34,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 @Component({
   selector: 'og-categoria-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, OgAthleteLevelDialogComponent],
   host: {
     /** Largura do slot = maior elenco da lista (1–5); nomes ficam alinhados sem reservar 5 à toa. */
     '[style.--cat-avatar-n]': 'maxAvatarStack()',
@@ -148,16 +154,15 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                         @for (p of promotable; track p.uid) {
                           <span class="og-categoria-promote-item">
                             <span class="og-categoria-promote-name">{{ p.name }}</span>
-                            <select #lvl class="og-categoria-promote-select" [attr.aria-label]="'Nível para promover ' + p.name">
-                              @for (opt of p.options; track opt.code) {
-                                <option [value]="opt.code">{{ opt.label }}</option>
-                              }
-                            </select>
-                            <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="promote(p.uid, p.name, lvl.value)">
-                              @if (busyKey() === 'promote:' + p.uid) {
-                                <app-nx-spinner [size]="12" />
-                              }
-                              {{ busyKey() === 'promote:' + p.uid ? 'Promovendo…' : 'Promover nível' }}
+                            <og-pill tone="dim">{{ p.currentLabel || 'Sem nível' }}</og-pill>
+                            <button
+                              type="button"
+                              class="og-mini-btn"
+                              [disabled]="busy()"
+                              [attr.aria-label]="'Promover nível de ' + p.name"
+                              (click)="openPromote(p)"
+                            >
+                              Promover nível
                             </button>
                           </span>
                         }
@@ -175,6 +180,17 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
         </div>
       }
     </div>
+
+    @if (promoteTarget(); as target) {
+      <og-athlete-level-dialog
+        [target]="target"
+        [sportLabel]="sportLabel()"
+        [busy]="busy()"
+        [error]="promoteError()"
+        (confirmed)="confirmPromote($event)"
+        (cancelled)="closePromote()"
+      />
+    }
   `,
   styles: `
     :host {
@@ -284,36 +300,31 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
     }
     .og-categoria-promote {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 8px;
       padding: 0 0 12px 44px;
     }
     .og-categoria-promote-item {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
+      gap: 10px;
+      padding: 8px 10px;
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-2);
       background: var(--nx-surface-1);
     }
+    /* O nome empurra a ação pra direita; num tablet estreito ele cede a linha inteira e o
+       botão desce, em vez de espremer os dois. */
     .og-categoria-promote-name {
-      font-family: var(--nx-font-ui);
-      font-size: 11.5px;
-      color: var(--nx-text-dim);
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
-    }
-    .og-categoria-promote-select {
-      height: 28px;
-      padding: 0 6px;
-      border: 1px solid var(--nx-line);
-      border-radius: var(--nx-r-1);
-      background: var(--nx-surface-0);
-      color: var(--nx-text);
       font-family: var(--nx-font-ui);
-      font-size: 11.5px;
-      cursor: pointer;
+      font-size: 12.5px;
+      color: var(--nx-text);
     }
     .og-categoria-toggle {
       width: 34px;
@@ -375,11 +386,15 @@ export class CategoriaDetalheComponent {
   /** Rating técnico por uid — vazio nos esportes sem engine de rating. */
   private readonly ratings = signal<Map<string, AthleteRatingLite>>(new Map());
 
-  /** Estado da ação "Promover nível" — `busyKey` é `'promote:' + uid`, então duas duplas nunca
-   *  disputam o mesmo spinner. */
+  /** Estado da ação "Promover nível" — o progresso mora no diálogo, então uma flag basta. */
   protected readonly busy = signal(false);
-  protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+
+  /** Atleta com o diálogo de promoção aberto; `null` = fechado. */
+  protected readonly promoteTarget = signal<AthleteLevelTarget | null>(null);
+  /** Erro da promoção — fica DENTRO do diálogo, e não no banner da página: no banner o
+   *  organizador perde de vista de quem era a promoção que falhou. */
+  protected readonly promoteError = signal<string | null>(null);
 
   /** Gaveta de ações aberta (id da inscrição) — só uma por vez, mesmo padrão da tela de
    *  Inscrições (`actionsFor`/`toggleActions`). */
@@ -405,6 +420,8 @@ export class CategoriaDetalheComponent {
       ]),
     );
   });
+
+  protected readonly sportLabel = computed(() => this.tournament()?.sportLabel ?? '');
 
   protected readonly pagasCount = computed(() => this.inscriptions().filter((i) => i.paid).length);
   protected readonly pendentesCount = computed(() => this.inscriptions().filter((i) => !i.paid).length);
@@ -590,37 +607,63 @@ export class CategoriaDetalheComponent {
    *  categoria estar concluída/chave fechada: o backend (dono do torneio + inscrição ativa + só
    *  sobe) já é o gate real, e travar aqui bloquearia a promoção de fim de dia sem ganhar
    *  segurança. */
-  protected promotableFor(i: TournamentInscription): { uid: string; name: string; options: readonly LevelOption[] }[] {
+  protected promotableFor(i: TournamentInscription): PromotableAthlete[] {
     const sportCode = this.sportCode();
-    // Guarda simétrica à de `promote()`: sem sportCode mapeado, `setAthleteLevel` nunca
+    // Guarda simétrica à de `confirmPromote()`: sem sportCode mapeado, `setAthleteLevel` nunca
     // autoriza o organizador (o backend também exige tournamentSportCode não nulo, igual ao
     // requestSportCode) — mostrar o botão aqui seria oferecer um clique que nunca funciona.
     if (!sportCode) return [];
     return i.participants
-      .map((p) => ({ uid: p.uid, name: p.name, options: promotableLevelOptions(levelCodeFor(p, sportCode)) }))
+      .map((p) => {
+        const currentLevel = levelCodeFor(p, sportCode);
+        return {
+          uid: p.uid,
+          name: p.name,
+          photoUrl: p.photoUrl,
+          currentLevel,
+          currentLabel: shortLevelLabel(currentLevel),
+          options: promotableLevelOptions(currentLevel),
+        };
+      })
       .filter((p) => p.options.length > 0);
   }
 
-  protected promote(uid: string, name: string, levelCode: string): void {
-    const sportCode = this.sportCode();
-    const t = this.tournament();
-    if (!levelCode || !sportCode || !t || this.busy()) return;
-    const label = LEVEL_OPTIONS.find((o) => o.code === levelCode)?.label ?? levelCode;
-    if (!confirm(`Promover ${name} para ${label}? O nível de um atleta nunca desce.`)) return;
-    void this.run(
-      `promote:${uid}`,
-      () => promoteAthleteLevel({ uid, sportCode, level: levelCode, tournamentId: t.id }),
-      `${name} promovido para ${label}.`,
-    );
+  protected openPromote(athlete: PromotableAthlete): void {
+    if (this.busy()) return;
+    this.promoteError.set(null);
+    this.promoteTarget.set(athlete);
   }
 
-  private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
+  protected closePromote(): void {
+    if (this.busy()) return;
+    this.promoteTarget.set(null);
+    this.promoteError.set(null);
+  }
+
+  protected confirmPromote(levelCode: string): void {
+    const target = this.promoteTarget();
+    const sportCode = this.sportCode();
+    const t = this.tournament();
+    if (!target || !levelCode || !sportCode || !t || this.busy()) return;
+    void this.runPromote(target, sportCode, t.id, levelCode);
+  }
+
+  /** Sucesso fecha o diálogo e vai pro banner da página (que sobrevive ao reload); falha mantém
+   *  o diálogo aberto com o erro, pra corrigir a escolha sem reabrir tudo. */
+  private async runPromote(
+    target: AthleteLevelTarget,
+    sportCode: string,
+    tournamentId: string,
+    levelCode: string,
+  ): Promise<void> {
+    const label = LEVEL_OPTIONS.find((o) => o.code === levelCode)?.label ?? levelCode;
     this.busy.set(true);
-    this.busyKey.set(key);
     this.feedback.set(null);
+    this.promoteError.set(null);
     try {
-      await action();
-      this.feedback.set({ ok: true, message: okMessage });
+      await promoteAthleteLevel({ uid: target.uid, sportCode, level: levelCode, tournamentId });
+      this.promoteTarget.set(null);
+      this.feedback.set({ ok: true, message: `${target.name} promovido para ${label}.` });
       const tid = this.id();
       const cid = this.catId();
       if (tid && cid) {
@@ -628,10 +671,9 @@ export class CategoriaDetalheComponent {
         await this.load(tid, cid);
       }
     } catch (e) {
-      this.feedback.set({ ok: false, message: (e as Error).message || 'Não foi possível promover o nível.' });
+      this.promoteError.set((e as Error).message || 'Não foi possível promover o nível.');
     } finally {
       this.busy.set(false);
-      this.busyKey.set(null);
     }
   }
 }

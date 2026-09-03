@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection, type WritableSignal } from '@angular/co
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { CategoriaDetalheComponent } from './categoria-detalhe.component';
-import { EMPTY_INSCRIPTION_UNIFORM, type TournamentInscription } from '../data/inscriptions-repository';
+import { EMPTY_INSCRIPTION_UNIFORM, type InscriptionParticipant, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
 
@@ -157,5 +157,77 @@ describe('CategoriaDetalheComponent — exportar lista de atletas', () => {
     const el = await mount([]);
 
     expect(el.querySelector('button.og-export-btn')).toBeNull();
+  });
+});
+
+describe('CategoriaDetalheComponent — promover nível', () => {
+  let fixture: ComponentFixture<CategoriaDetalheComponent>;
+
+  function participant(over: Partial<InscriptionParticipant> = {}): InscriptionParticipant {
+    return {
+      uid: 'a1',
+      name: 'Ana Paula',
+      photoUrl: null,
+      levelsBySport: { BEACH_TENNIS: 'intermediario_1' },
+      legacyLevel: null,
+      ...over,
+    };
+  }
+
+  async function mount(inscriptions: TournamentInscription[]): Promise<HTMLElement> {
+    await TestBed.configureTestingModule({
+      imports: [CategoriaDetalheComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    fixture = TestBed.createComponent(CategoriaDetalheComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.tournament.set(tournament());
+    internals.inscriptions.set(inscriptions);
+    await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  async function openDrawer(el: HTMLElement): Promise<void> {
+    (el.querySelector('.og-categoria-toggle') as HTMLButtonElement).click();
+    await fixture.whenStable();
+  }
+
+  it('a gaveta mostra o nível atual e o botão abre o diálogo', async () => {
+    const el = await mount([inscription({ participants: [participant()] })]);
+    await openDrawer(el);
+
+    const row = el.querySelector('.og-categoria-promote-item') as HTMLElement;
+    expect(row.textContent).toContain('Ana Paula');
+    expect(row.textContent).toContain('Interm. 1');
+    expect(el.querySelector('og-athlete-level-dialog')).toBeNull();
+
+    (row.querySelector('button.og-mini-btn') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    const dialog = el.querySelector('og-athlete-level-dialog');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.querySelector('.lvl-who-name')?.textContent).toContain('Ana Paula');
+  });
+
+  /** Sem nível declarado o organizador SEMEIA o primeiro degrau — mesmo caminho do backend —,
+   *  então a linha continua aparecendo, só que sem nível pra mostrar. */
+  it('atleta sem nível no esporte aparece como "Sem nível"', async () => {
+    const el = await mount([inscription({ participants: [participant({ levelsBySport: {} })] })]);
+    await openDrawer(el);
+
+    expect((el.querySelector('.og-categoria-promote-item') as HTMLElement).textContent).toContain('Sem nível');
+  });
+
+  /** Quem já está no topo some da lista (`promotableLevelOptions` devolve `[]`). */
+  it('atleta em Open não oferece promoção', async () => {
+    const el = await mount([
+      inscription({ participants: [participant({ levelsBySport: { BEACH_TENNIS: 'open' } })] }),
+    ]);
+    await openDrawer(el);
+
+    expect(el.querySelector('.og-categoria-promote-item')).toBeNull();
+    expect(el.querySelector('.og-categoria-empty-actions')?.textContent).toContain('Nenhuma ação');
   });
 });

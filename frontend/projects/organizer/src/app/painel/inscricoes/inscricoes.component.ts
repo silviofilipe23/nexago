@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { fetchAthletePhones } from '../data/athlete-contacts-repository';
-import { listInscriptions } from '../data/inscriptions-repository';
+import { watchInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { formatPhoneBR } from '../data/phone-contact';
 import {
   confirmRegistrationPayment,
@@ -27,12 +27,23 @@ import {
   type InscricaoAction,
   type InscricaoRow,
   type InscricaoTab,
-  type LgpdStatus,
-  type PayStatus,
 } from './inscricoes.model';
+import { buildInscricaoRows } from './inscricoes.rows';
 
-const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
-const LONG_DATE = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' });
+/** Janela pra juntar inscrições que entram em rajada numa única busca de contatos. */
+const PHONES_COALESCE_MS = 10_000;
+
+/** Quanto esperar pra buscar os contatos de novo: `null` = ninguém novo na lista (não gasta
+ *  invocação de Cloud Function), `0` = a lista acabou de chegar e a tela ainda não tem telefone
+ *  nenhum, `coalesceMs` = entrou atleta novo e a busca espera a rajada assentar. */
+export function phonesRefreshDelay(
+  uids: readonly string[],
+  asked: ReadonlySet<string>,
+  coalesceMs: number,
+): number | null {
+  if (uids.every((uid) => asked.has(uid))) return null;
+  return asked.size === 0 ? 0 : coalesceMs;
+}
 
 /** Ação que apaga inscrição ou libera vaga pede confirmação — as outras são reversíveis. */
 interface PendingConfirm {
@@ -279,7 +290,20 @@ export class InscricoesComponent {
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
-  protected readonly rows = signal<InscricaoRow[]>([]);
+  /** Inscrições cruas do listener. As linhas da tela saem daqui + torneio + telefones, que
+   *  chegam em momentos diferentes: quem chegar depois só remonta as linhas, sem nova ida à rede. */
+  private readonly inscriptions = signal<TournamentInscription[]>([]);
+  private readonly phones = signal<ReadonlyMap<string, string>>(new Map());
+  protected readonly rows = computed<InscricaoRow[]>(() =>
+    buildInscricaoRows(this.inscriptions(), this.tournament(), this.phones()),
+  );
+
+  /** Uids que a última busca de contatos já cobriu — ver `schedulePhonesRefresh`. */
+  private readonly knownPhoneUids = new Set<string>();
+  private phonesTimer: ReturnType<typeof setTimeout> | null = null;
+  /** O deep link abre a gaveta UMA vez: reabrir a cada inscrição que entra roubaria o clique
+   *  do organizador no meio da operação. */
+  private deepLinkOpened = false;
 
   protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
 
@@ -328,10 +352,15 @@ export class InscricoesComponent {
   });
 
   constructor() {
-    effect(() => {
+    // Um efeito por torneio: encerra o listener anterior no `onCleanup` (listener aberto
+    // continua recebendo mudanças — e cobrando por elas).
+    effect((onCleanup) => {
       const tid = this.id();
       this.tournament.set(null);
-      this.rows.set([]);
+      this.inscriptions.set([]);
+      this.phones.set(new Map());
+      this.knownPhoneUids.clear();
+      this.deepLinkOpened = false;
       this.categoryFilter.set(null);
       this.query.set('');
       this.tab.set('todos');
@@ -340,117 +369,84 @@ export class InscricoesComponent {
         return;
       }
       this.loading.set(true);
-      void this.load(tid);
+      void this.loadTournament(tid);
+      const stop = watchInscriptions(
+        tid,
+        (inscriptions) => this.onInscriptions(tid, inscriptions),
+        (error) => this.onLoadError(error),
+      );
+      onCleanup(() => {
+        stop();
+        this.cancelPhonesRefresh();
+      });
     });
   }
 
-  private async load(tid: string): Promise<void> {
+  /** O doc do torneio não muda enquanto as inscrições entram (categorias, modo de pagamento):
+   *  uma leitura na abertura basta, e a lista não espera por ela pra aparecer. */
+  private async loadTournament(tid: string): Promise<void> {
     try {
-      // O telefone vem de um callable à parte (`users` é fechado, `public_profiles` é sem PII) e
-      // é acessório: entra na MESMA rodada de rede das inscrições e, se falhar, volta vazio —
-      // a lista carrega igual, só sem o contato.
-      const [tournament, inscriptions, phones] = await Promise.all([
-        getTournament(tid),
-        listInscriptions(tid),
-        fetchAthletePhones(tid),
-      ]);
-      this.tournament.set(tournament);
-      const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
-      // No modo direto o atleta DECLARA que pagou; no modo app o dinheiro entrou de verdade.
-      // A legenda da linha não pode dizer a mesma coisa nos dois casos.
-      const direct = tournament?.paymentMode === 'directWithOrganizer';
-      const rows: InscricaoRow[] = inscriptions.map((insc) => {
-        const accepted = new Set(insc.lgpdAcceptedUids);
-        const sharePaid = new Set(insc.sharePaidUids);
-        const organizerConfirmedShare = new Set(insc.organizerConfirmedShareUids);
-        const athletes =
-          insc.participants.length > 0
-            ? insc.participants.map((p) => ({
-                uid: p.uid,
-                name: p.name,
-                photoUrl: p.photoUrl,
-                lgpdAccepted: accepted.has(p.uid),
-                phone: phones.get(p.uid) ?? '',
-                sharePaid: sharePaid.has(p.uid),
-                organizerConfirmedShare: organizerConfirmedShare.has(p.uid),
-              }))
-            : [
-                {
-                  uid: '',
-                  name: insc.teamName,
-                  photoUrl: null,
-                  lgpdAccepted: false,
-                  phone: '',
-                  sharePaid: false,
-                  organizerConfirmedShare: false,
-                },
-              ];
-        const missing = insc.participants.filter((p) => !accepted.has(p.uid));
-        const lgpd: LgpdStatus =
-          insc.participants.length > 0 && missing.length === 0
-            ? 'aceito'
-            : missing.length < insc.participants.length
-              ? 'parcial'
-              : 'pendente';
-        const pay: PayStatus = insc.needsVerification
-          ? 'conferir'
-          : insc.paid
-            ? 'pago'
-            : insc.paymentStatus === 'waitlist'
-              ? 'espera'
-              : 'pendente';
-        // Em categoria de equipe a conta é sobre o elenco COMPLETO (teamSize), não sobre quem
-        // já entrou — "1 de 4 pagaram" com 2 confirmados no elenco conta a história certa.
-        const total = insc.teamSize ?? insc.participants.length;
-        const partial = pay !== 'conferir' && total > 1 && insc.sharePaidCount > 0 && insc.sharePaidCount < total;
-        const categoria = (insc.categoryId && categoryNames.get(insc.categoryId)) || '—';
-        return {
-          id: insc.id,
-          name: insc.teamName,
-          athletes: athletes.slice(0, 5),
-          categoriaId: insc.categoryId,
-          categoria,
-          pay,
-          // Só a baixa que o organizador lançou é reversível — e só faz sentido oferecer
-          // desfazer o que está valendo como "Pago" agora.
-          canRevertPayment: pay === 'pago' && insc.paidByOrganizer,
-          partialPayment: partial,
-          payTitle:
-            pay === 'conferir'
-              ? 'Os atletas declararam ter pago o Pix do organizador. Confira o recebimento e confirme.'
-              : '',
-          payNote: partial
-            ? `${insc.sharePaidCount} de ${total} ${direct ? 'declararam' : 'pagaram'}`
-            : pay === 'conferir'
-              ? 'Declarado pelos atletas'
-              : null,
-          roster:
-            insc.teamSize != null && insc.partnerPending
-              ? `Elenco ${insc.participants.length}/${insc.teamSize}`
-              : null,
-          cancelPending: insc.cancellationRequest?.status === 'pending',
-          cancelReason: insc.cancellationRequest?.reason ?? '',
-          lgpd,
-          lgpdMissing: missing.map((p) => p.name),
-          date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
-          dateLong: insc.createdAt ? LONG_DATE.format(insc.createdAt) : 'Data não registrada',
-          createdAt: insc.createdAt,
-          search: normalizeSearch([insc.teamName, ...insc.participants.map((p) => p.name), categoria].join(' ')),
-        };
-      });
-      rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
-      this.rows.set(rows);
-      this.openFromDeepLink(rows);
-    } finally {
-      this.loading.set(false);
+      const tournament = await getTournament(tid);
+      if (this.id() === tid) this.tournament.set(tournament);
+    } catch (error) {
+      this.onLoadError(error);
     }
+  }
+
+  /** Cada emissão do listener: a primeira fecha o esqueleto, e as seguintes chegam sozinhas —
+   *  inscrição nova, pagamento confirmado e pedido de cancelamento aparecem sem recarregar. */
+  private onInscriptions(tid: string, inscriptions: TournamentInscription[]): void {
+    this.inscriptions.set(inscriptions);
+    this.loading.set(false);
+    this.openFromDeepLink();
+    this.schedulePhonesRefresh(tid, inscriptionUids(inscriptions));
+  }
+
+  private onLoadError(error: unknown): void {
+    this.loading.set(false);
+    this.feedback.set({
+      ok: false,
+      message: (error as Error)?.message || 'Não foi possível carregar as inscrições.',
+    });
+  }
+
+  /** Contato vem de um callable à parte (`users` é fechado, `public_profiles` é sem PII), então
+   *  fica FORA do listener: é buscado quando a lista chega e, depois, só quando aparece atleta
+   *  que a última busca não cobria — a rajada de inscrições que entra junta vira uma chamada só.
+   *  Sem esse recorte, cada inscrição nova custaria uma invocação de Cloud Function. */
+  private schedulePhonesRefresh(tid: string, uids: readonly string[]): void {
+    if (this.phonesTimer != null) return;
+    const delay = phonesRefreshDelay(uids, this.knownPhoneUids, PHONES_COALESCE_MS);
+    if (delay == null) return;
+    this.phonesTimer = setTimeout(() => {
+      this.phonesTimer = null;
+      void this.loadPhones(tid);
+    }, delay);
+  }
+
+  private async loadPhones(tid: string): Promise<void> {
+    // A cobertura é marcada no DISPARO: o callable devolve os contatos das inscrições que
+    // existiam no servidor naquele instante, e quem entrar depois segue "não perguntado".
+    const asked = inscriptionUids(this.inscriptions());
+    const phones = await fetchAthletePhones(tid);
+    if (this.id() !== tid) return;
+    for (const uid of asked) this.knownPhoneUids.add(uid);
+    // Mescla em vez de substituir: o callable engole o próprio erro e volta vazio, e uma falha
+    // na atualização não pode apagar os telefones que já estavam na tela.
+    this.phones.set(new Map([...this.phones(), ...phones]));
+  }
+
+  private cancelPhonesRefresh(): void {
+    if (this.phonesTimer != null) clearTimeout(this.phonesTimer);
+    this.phonesTimer = null;
   }
 
   /** Notificação de nova inscrição/pagamento/cancelamento leva direto pra dupla — expande a
    *  gaveta de ações e rola até ela, sem depender de o organizador achá-la na lista. */
-  private openFromDeepLink(rows: InscricaoRow[]): void {
+  private openFromDeepLink(): void {
     const target = this.registrationId();
-    if (!target || !rows.some((r) => r.id === target)) return;
+    if (this.deepLinkOpened || !target || !this.rows().some((r) => r.id === target)) return;
+    this.deepLinkOpened = true;
     this.actionsFor.set(target);
     afterNextRender(
       () => document.getElementById(`insc-drawer-${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
@@ -663,12 +659,9 @@ export class InscricoesComponent {
         ok: true,
         message: typeof okMessage === 'function' ? okMessage(result) : okMessage,
       });
+      // Sem recarga manual: o que a ação gravou volta pelo listener — e a lista para de piscar
+      // o esqueleto inteiro a cada pagamento confirmado.
       this.actionsFor.set(null);
-      const tid = this.id();
-      if (tid) {
-        this.loading.set(true);
-        await this.load(tid);
-      }
     } catch (e) {
       this.pendingConfirm.set(null);
       this.feedback.set({ ok: false, message: (e as Error).message || 'Operação falhou.' });
@@ -717,6 +710,13 @@ function revertedMessage(name: string, outcome: string | undefined): string {
     default:
       return `${base} A inscrição voltou para “Pendente”.`;
   }
+}
+
+/** Uids de todo mundo que está inscrito — a lista que a busca de contatos precisa cobrir. */
+function inscriptionUids(inscriptions: readonly TournamentInscription[]): string[] {
+  const uids = new Set<string>();
+  for (const insc of inscriptions) for (const p of insc.participants) if (p.uid) uids.add(p.uid);
+  return [...uids];
 }
 
 function csvCell(value: string): string {

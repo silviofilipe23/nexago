@@ -1,7 +1,17 @@
-import { collection, documentId, getCountFromServer, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import {
+  collection,
+  documentId,
+  getCountFromServer,
+  getDocs,
+  onSnapshot,
+  query,
+  where,
+  type Firestore,
+  type Unsubscribe,
+} from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
-import { chunkIds, fetchTeamsByIds, teamNamesFrom } from './teams-repository';
+import { chunkIds, fetchTeamsByIds, teamNamesFrom, type OrganizerTeamPlayers } from './teams-repository';
 
 /** `artifacts/{projectId}/public/data/inscriptions` (mesma coleção que o athlete lê em
  *  `tournament-registrations-repository.ts`) — o doc real só guarda `participantUids`/`teamId`
@@ -110,7 +120,7 @@ function toDate(v: unknown): Date | null {
   return typeof t?.toDate === 'function' ? t.toDate() : null;
 }
 
-interface RawInscription {
+export interface RawInscription {
   id: string;
   tournamentId: string;
   categoryId: string | null;
@@ -154,7 +164,7 @@ function cancellationRequestFromDoc(v: unknown): InscriptionCancellationRequest 
   };
 }
 
-interface ProfileDisplay {
+export interface InscriptionProfileDisplay {
   /** `null` = perfil sem nenhum nome preenchido. O fallback ('Atleta') é de quem exibe: o
    *  rótulo da dupla precisa distinguir "sem nome" pra não virar "Atleta / Atleta". */
   name: string | null;
@@ -249,8 +259,8 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
   };
 }
 
-async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Promise<Map<string, ProfileDisplay>> {
-  const result = new Map<string, ProfileDisplay>();
+async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Promise<Map<string, InscriptionProfileDisplay>> {
+  const result = new Map<string, InscriptionProfileDisplay>();
   const chunks = chunkIds(uids);
   if (chunks.length === 0) return result;
   const snaps = await Promise.all(
@@ -276,7 +286,7 @@ async function fetchDisplayProfiles(db: Firestore, uids: readonly string[]): Pro
 }
 
 /** Só quem tem nome — mesmo contrato que `teamNamesFrom` espera (uid ausente = sem nome). */
-function profileNamesFrom(profiles: ReadonlyMap<string, ProfileDisplay>): Map<string, string> {
+function profileNamesFrom(profiles: ReadonlyMap<string, InscriptionProfileDisplay>): Map<string, string> {
   const names = new Map<string, string>();
   for (const [uid, profile] of profiles) if (profile.name) names.set(uid, profile.name);
   return names;
@@ -300,49 +310,72 @@ function resolveParticipantUids(
   return [teamPlayers.player1Id, teamPlayers.player2Id].filter((id) => id.length > 0);
 }
 
-/** Só o total de inscrições do torneio — agregação server-side, sem baixar os docs nem fazer
- *  os joins de nome que o `listInscriptions` faz. Usado onde a tela só mostra o número
- *  (ex.: lista de etapas da liga). */
-export async function countInscriptions(tournamentId: string): Promise<number> {
-  const db = organizerFirestore();
-  const projectId = environment.firebase.projectId;
-  if (!projectId) return 0;
-
-  const snap = await getCountFromServer(
-    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)),
-  );
-  return snap.data().count;
+/** Uma mudança entregue pelo listener, já reduzida ao que o cache precisa. O `type` é o mesmo
+ *  do `DocumentChange` do Firestore — quem chama traduz o snapshot, e as funções abaixo ficam
+ *  testáveis sem subir Firestore. */
+export interface InscriptionDocChange {
+  type: 'added' | 'modified' | 'removed';
+  id: string;
+  data: Record<string, unknown>;
 }
 
-export async function listInscriptions(tournamentId: string): Promise<TournamentInscription[]> {
-  const db = organizerFirestore();
-  const projectId = environment.firebase.projectId;
-  if (!projectId) return [];
+/** Aplica as mudanças no cache de inscrições cruas, no lugar (e devolve o mesmo mapa). É o que
+ *  separa o listener da carga única: só o doc que mudou é reparseado — o resto do torneio
+ *  continua como estava. */
+export function applyInscriptionChanges(
+  cache: Map<string, RawInscription>,
+  changes: readonly InscriptionDocChange[],
+): Map<string, RawInscription> {
+  for (const change of changes) {
+    if (change.type === 'removed') cache.delete(change.id);
+    else cache.set(change.id, rawFromDoc(change.id, change.data));
+  }
+  return cache;
+}
 
-  const snap = await getDocs(
-    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)),
-  );
-  const rows = snap.docs.map((d) => rawFromDoc(d.id, d.data() as Record<string, unknown>));
+/** Times referenciados pelas inscrições — a primeira metade do join. */
+export function inscriptionTeamIds(raws: Iterable<RawInscription>): string[] {
+  const ids = new Set<string>();
+  for (const r of raws) if (r.teamId) ids.add(r.teamId);
+  return [...ids];
+}
 
-  const teamIds = rows.map((r) => r.teamId).filter((id): id is string => id != null);
-  const teams = await fetchTeamsByIds(db, projectId, teamIds);
-
-  const allUids = new Set<string>();
-  for (const r of rows) {
-    for (const uid of resolveParticipantUids(r, r.teamId ? teams.get(r.teamId) ?? null : null)) {
-      allUids.add(uid);
+/** Uids que o join de perfis precisa, DADOS os times já carregados: os participantes da
+ *  inscrição mais os jogadores do time — o rótulo da dupla sem `teamName` sai desses nomes, e
+ *  inscrição antiga (sem `participantUids`) só revela o elenco pelo doc do time. */
+export function inscriptionProfileUids(
+  raws: Iterable<RawInscription>,
+  teams: ReadonlyMap<string, OrganizerTeamPlayers>,
+): string[] {
+  const uids = new Set<string>();
+  for (const r of raws) {
+    const team = r.teamId ? teams.get(r.teamId) ?? null : null;
+    for (const uid of resolveParticipantUids(r, team)) uids.add(uid);
+    if (team) {
+      if (team.player1Id) uids.add(team.player1Id);
+      if (team.player2Id) uids.add(team.player2Id);
     }
   }
-  // Os jogadores do time entram na MESMA busca de perfis: o rótulo da dupla sai desses mesmos
-  // nomes, e pedi-los à parte custava uma segunda varredura inteira de `public_profiles`.
-  for (const team of teams.values()) {
-    if (team.player1Id) allUids.add(team.player1Id);
-    if (team.player2Id) allUids.add(team.player2Id);
-  }
-  const profiles = await fetchDisplayProfiles(db, [...allUids]);
+  return [...uids];
+}
+
+/** O que ainda falta buscar. Um id que o servidor não devolveu (perfil sem espelho, time
+ *  apagado) continua "faltando" e será pedido de novo na próxima mudança: são pouquíssimos
+ *  documentos, e cachear a ausência congelaria pra sempre o doc que aparecer depois. */
+export function idsMissingFrom(ids: readonly string[], cache: ReadonlyMap<string, unknown>): string[] {
+  return ids.filter((id) => !cache.has(id));
+}
+
+/** Monta as inscrições de exibição a partir dos docs crus e dos joins JÁ carregados — sem I/O,
+ *  para o listener remontar a lista a cada mudança sem tocar na rede. */
+export function buildInscriptions(
+  raws: Iterable<RawInscription>,
+  teams: ReadonlyMap<string, OrganizerTeamPlayers>,
+  profiles: ReadonlyMap<string, InscriptionProfileDisplay>,
+): TournamentInscription[] {
   const teamNames = teamNamesFrom(teams, profileNamesFrom(profiles));
 
-  return rows.map((r) => {
+  return [...raws].map((r) => {
     const team = r.teamId ? teams.get(r.teamId) ?? null : null;
     const uids = resolveParticipantUids(r, team);
     const participants: InscriptionParticipant[] = uids.map((uid) => {
@@ -392,4 +425,102 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       createdAt: r.createdAt,
     };
   });
+}
+
+/** Só o total de inscrições do torneio — agregação server-side, sem baixar os docs nem fazer
+ *  os joins de nome que o `listInscriptions` faz. Usado onde a tela só mostra o número
+ *  (ex.: lista de etapas da liga). */
+export async function countInscriptions(tournamentId: string): Promise<number> {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) return 0;
+
+  const snap = await getCountFromServer(
+    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)),
+  );
+  return snap.data().count;
+}
+
+export async function listInscriptions(tournamentId: string): Promise<TournamentInscription[]> {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) return [];
+
+  const snap = await getDocs(
+    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)),
+  );
+  const rows = snap.docs.map((d) => rawFromDoc(d.id, d.data() as Record<string, unknown>));
+
+  const teams = await fetchTeamsByIds(db, projectId, inscriptionTeamIds(rows));
+  // Os jogadores do time entram na MESMA busca de perfis: o rótulo da dupla sai desses mesmos
+  // nomes, e pedi-los à parte custava uma segunda varredura inteira de `public_profiles`.
+  const profiles = await fetchDisplayProfiles(db, inscriptionProfileUids(rows, teams));
+
+  return buildInscriptions(rows, teams, profiles);
+}
+
+/** Inscrições do torneio AO VIVO. Cada snapshot cobra 1 leitura por documento entregue — na
+ *  abertura, o torneio inteiro (o mesmo que `listInscriptions` já custava); depois, só o doc que
+ *  mudou. Os joins (`teams`, `public_profiles`) ficam em cache aqui e só são pedidos para ids
+ *  novos, senão cada inscrição que entrasse pagaria de novo a varredura inteira de nomes —
+ *  a diferença entre ~4 leituras por inscrição nova e umas 450.
+ *
+ *  Devolve a função que encerra o listener; chamá-la é obrigatório (a tela desmonta, o torneio
+ *  troca) — listener aberto continua recebendo e cobrando.
+ */
+export function watchInscriptions(
+  tournamentId: string,
+  onRows: (rows: TournamentInscription[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const db = organizerFirestore();
+  const projectId = environment.firebase.projectId;
+  if (!projectId) {
+    onRows([]);
+    return () => {};
+  }
+
+  const raws = new Map<string, RawInscription>();
+  const teams = new Map<string, OrganizerTeamPlayers>();
+  const profiles = new Map<string, InscriptionProfileDisplay>();
+  let stopped = false;
+  // Os joins são assíncronos e uma segunda mudança pode chegar no meio deles. Como `raws` é
+  // compartilhado, a rodada mais nova já contém a anterior: a antiga é descartada em vez de
+  // emitir uma lista mais velha por cima da atual.
+  let generation = 0;
+
+  const unsubscribe = onSnapshot(
+    query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)),
+    (snap) => {
+      applyInscriptionChanges(
+        raws,
+        snap.docChanges().map((c) => ({ type: c.type, id: c.doc.id, data: c.doc.data() as Record<string, unknown> })),
+      );
+      const round = ++generation;
+      void (async () => {
+        try {
+          const missingTeams = idsMissingFrom(inscriptionTeamIds(raws.values()), teams);
+          if (missingTeams.length > 0) {
+            for (const [id, team] of await fetchTeamsByIds(db, projectId, missingTeams)) teams.set(id, team);
+          }
+          const missingProfiles = idsMissingFrom(inscriptionProfileUids(raws.values(), teams), profiles);
+          if (missingProfiles.length > 0) {
+            for (const [uid, profile] of await fetchDisplayProfiles(db, missingProfiles)) profiles.set(uid, profile);
+          }
+          if (stopped || round !== generation) return;
+          onRows(buildInscriptions(raws.values(), teams, profiles));
+        } catch (error) {
+          if (!stopped) onError?.(error);
+        }
+      })();
+    },
+    (error) => {
+      if (!stopped) onError?.(error);
+    },
+  );
+
+  return () => {
+    stopped = true;
+    unsubscribe();
+  };
 }

@@ -438,8 +438,8 @@ export function defaultCategoryViewOf(views: readonly CategoryViewId[]): Categor
   return views[0] ?? 'chave';
 }
 
-/** Aba de entrada: sempre a visão geral — quem tem jogo hoje é levado ao Modo Focus, não a
- *  uma aba destas. */
-export function defaultTabOf(): TournamentTabId {
-  return 'visao-geral';
+/** Aba de entrada: inscrito abre em "Minha inscrição"; quem só está olhando cai na visão geral.
+ *  Quem tem jogo hoje é levado ao Modo Focus por outro caminho, não por estas abas. */
+export function defaultTabOf(isRegistered: boolean): TournamentTabId {
+  return isRegistered ? 'minha-inscricao' : 'visao-geral';
 }

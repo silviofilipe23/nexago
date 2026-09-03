@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
@@ -7,7 +7,7 @@ import { buildGroupStandings, distinctPoolIds, fetchMatchesForTournament, watchM
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamsByIds, type ArenaTeam } from '../data/teams-repository';
 import { fetchTournamentAnnouncements, type TournamentAnnouncement } from '../data/tournament-announcements-repository';
-import { fetchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
+import { watchMyRegistrations, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
 import {
   duoAvatarsOf,
@@ -150,7 +150,7 @@ export class TournamentLiveStore {
     }),
   );
 
-  readonly defaultTab = computed(() => defaultTabOf());
+  readonly defaultTab = computed(() => defaultTabOf(this.isRegistered()));
 
   /** Ligado quando o atleta pede a lista de categorias ("Todas as categorias"). Enquanto for
    *  falso, quem está inscrito é levado direto para a própria categoria — sem o sinal, o atalho
@@ -183,6 +183,28 @@ export class TournamentLiveStore {
       this.unsubscribeMatches = null;
       clearInterval(this.tickHandle);
     });
+
+    // Inscrições ao vivo: sem isto a aba "Minha inscrição" só aparece após refresh — o wizard
+    // cria o doc no Firestore e este store antes só lia uma vez no `load()`.
+    effect((onCleanup) => {
+      const tournamentId = this.tournamentId();
+      const uid = this.auth.user()?.uid;
+      const db = this.db;
+      const projectId = this.projectId;
+      if (!db || !projectId || !uid || !tournamentId) {
+        this.myRegistrations.set([]);
+        return;
+      }
+      onCleanup(
+        watchMyRegistrations(
+          db,
+          projectId,
+          uid,
+          (all) => this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId)),
+          () => this.myRegistrations.set([]),
+        ),
+      );
+    });
   }
 
   /** Carrega tudo que as abas precisam. Idempotente por id: chamar de novo com o mesmo torneio
@@ -196,19 +218,17 @@ export class TournamentLiveStore {
       return;
     }
 
-    const token = ++this.loadToken;
-    this.loading.set(true);
-    try {
-      const uid = this.auth.user()?.uid ?? null;
-      // Cada leitura degrada por conta própria. O doc do torneio é público, mas partidas,
-      // inscrições e avisos dependem de permissão (e o índice dos avisos pode não existir
-      // ainda) — uma recusa isolada não pode apagar a página inteira.
-      const [tournament, matches, enrolled, announcements, registrations] = await Promise.all([
+      const token = ++this.loadToken;
+      this.loading.set(true);
+      try {
+        // Cada leitura degrada por conta própria. O doc do torneio é público, mas partidas e
+      // avisos dependem de permissão (e o índice dos avisos pode não existir ainda) — uma
+      // recusa isolada não pode apagar a página inteira. Inscrições vêm do listener ao vivo.
+      const [tournament, matches, enrolled, announcements] = await Promise.all([
         fetchTournament(db, tournamentId).catch(() => null),
         fetchMatchesForTournament(db, this.projectId, tournamentId).catch(() => []),
         fetchCategoryEnrolledCounts(db, this.projectId, tournamentId).catch(() => new Map<string, number>()),
         fetchTournamentAnnouncements(db, tournamentId).catch(() => []),
-        uid ? fetchMyRegistrations(db, this.projectId, uid).catch(() => []) : Promise.resolve([]),
       ]);
       if (token !== this.loadToken) return;
 
@@ -216,7 +236,6 @@ export class TournamentLiveStore {
       this.matches.set(matches);
       this.enrolledByCategory.set(enrolled);
       this.announcements.set(announcements);
-      this.myRegistrations.set(registrations.filter((r) => r.tournamentId === tournamentId));
 
       await this.hydrateNames(matches);
       if (this.liveSubscribers > 0) this.openLiveListener();

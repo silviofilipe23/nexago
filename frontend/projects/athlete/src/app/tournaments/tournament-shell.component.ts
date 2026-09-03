@@ -111,9 +111,9 @@ export class TournamentShellComponent {
       if (id) void this.store.load(id);
     });
 
-    // Rota canônica: `/torneios/:id` sem aba resolve para "Visão geral" assim que os dados
-    // chegam — quem tem jogo hoje é levado ao Modo Focus por outro caminho, não por aqui.
-    // `replaceUrl` mantém o back funcionando.
+    // Rota canônica: `/torneios/:id` sem aba resolve para a aba padrão assim que os dados
+    // chegam — inscrito em "Minha inscrição", resto em "Visão geral". Quem tem jogo hoje é
+    // levado ao Modo Focus por outro caminho, não por aqui. `replaceUrl` mantém o back.
     effect(() => {
       if (this.store.loading()) return;
       if (this.currentSegment() !== null) return;

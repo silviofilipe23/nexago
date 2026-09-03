@@ -37,7 +37,7 @@
             @switch (directState()) {
               @case ('confirmed') {
                 <section class="tp-card">
-                  <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
+                  <h2 class="tp-card-title">Inscrição confirmada </h2>
                   @if (partnerPending()) {
                     <p class="tp-defer-note">
                       O organizador confirmou o recebimento — sua vaga está garantida. Agora convide seu parceiro na tela de inscrição: ele entra sem taxa.
@@ -190,11 +190,11 @@
           } @else if (registration()!.isPaid) {
             <section class="tp-card">
               @if (paidAwaitingPartner()) {
-                <h2 class="tp-card-title">Vaga garantida 🎾</h2>
+                <h2 class="tp-card-title">Vaga garantida</h2>
                 <p class="tp-defer-note">Você pagou o valor integral — sua vaga está garantida. Agora convide seu parceiro na tela de inscrição: ele entra sem taxa.</p>
                 <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Convidar parceiro</a>
               } @else {
-                <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
+                <h2 class="tp-card-title">Inscrição confirmada</h2>
                 <p class="tp-defer-note">Pagamento confirmado — {{ isTeamRegistration() ? 'sua equipe está garantida na categoria' : 'sua dupla está garantida na categoria' }}. Nos vemos na quadra!</p>
                 <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
               }

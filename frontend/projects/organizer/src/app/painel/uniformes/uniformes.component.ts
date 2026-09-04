@@ -60,7 +60,8 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
           [disabled]="rows().length === 0"
           (click)="exportCsv()"
         >
-          <og-icon name="download" [size]="14" />Exportar p/ fornecedor
+          <og-icon name="download" [size]="14" />
+          <span class="og-uniformes-export-label">Exportar p/ fornecedor</span>
         </button>
       }
     </og-page-header>
@@ -85,20 +86,20 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
           </div>
         </og-card>
       } @else {
-        <div class="og-kpi-row">
-          <og-card pad="sm" flex="1">
+        <div class="og-kpi-row og-uniformes-kpis">
+          <og-card pad="sm" class="og-uniformes-kpi">
             <div class="og-kpi-label">Uniformes cadastrados</div>
             <div class="og-kpi-value sm">{{ summary().confirmed }} / {{ summary().total }}</div>
             <div class="og-kpi-sub">{{ summary().confirmedPercent }}% da lista</div>
           </og-card>
-          <og-card pad="sm" flex="1">
+          <og-card pad="sm" class="og-uniformes-kpi">
             <div class="og-kpi-label">Pendentes de cadastro</div>
-            <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ summary().pending }}</div>
+            <div class="og-kpi-value sm og-uniformes-kpi-pend">{{ summary().pending }}</div>
             <button type="button" class="og-uniformes-kpi-btn" [class.active]="tab() === 'pendente'" (click)="togglePending()">
               {{ tab() === 'pendente' ? 'filtro ativo ×' : 'ver só pendentes' }}
             </button>
           </og-card>
-          <og-card pad="sm" flex="1.9">
+          <og-card pad="sm" class="og-uniformes-kpi og-uniformes-kpi-grade">
             <div class="og-uniformes-grade-head">
               <div class="og-kpi-label">Grade de tamanhos</div>
               @if (sizeFilter()) {
@@ -124,7 +125,7 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
         </div>
 
         @if (chips().length > 1) {
-          <div class="og-filter-bar">
+          <div class="og-filter-bar og-uniformes-chips">
             <button type="button" class="og-chip" [class.active]="categoryFilter() === null" (click)="selectCategory(null)">
               Todas ({{ rows().length }})
             </button>
@@ -139,17 +140,17 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
         <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
 
         <og-card pad="0" flex="1">
-          <div class="og-table-head">
-            <span style="flex:1.6">Atleta</span>
-            <span style="flex:1">Categoria</span>
-            <span style="width:112px">Tamanho</span>
-            <span style="width:150px">Nome / Nº</span>
-            <span style="width:118px">Modelo</span>
-            <span style="width:104px">Status</span>
+          <div class="og-table-head og-uniformes-head">
+            <span class="og-uniformes-col-athlete">Atleta</span>
+            <span class="og-uniformes-col-cat">Categoria</span>
+            <span class="og-uniformes-col-size">Tamanho</span>
+            <span class="og-uniformes-col-jersey">Nome / Nº</span>
+            <span class="og-uniformes-col-model">Modelo</span>
+            <span class="og-uniformes-col-status">Status</span>
           </div>
           <div class="og-table-body">
             @for (r of filtered(); track r.key) {
-              <div class="og-row">
+              <div class="og-row og-uniformes-row">
                 <og-avatar
                   zoomable
                   [initials]="initialsOf(r.athleteName)"
@@ -158,12 +159,18 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
                   [photoUrl]="r.photoUrl"
                   [size]="40"
                 />
-                <span style="flex:1.6;min-width:0">
+                <div class="og-uniformes-col-athlete og-uniformes-athlete-cell">
                   <div class="og-uniformes-name" [title]="r.athleteName">{{ truncate(r.athleteName, 26) }}</div>
                   <div class="og-uniformes-partner">{{ r.partnerLabel }}</div>
-                </span>
-                <span style="flex:1" class="og-uniformes-cat">{{ r.categoryLabel }}</span>
-                <span style="width:112px" class="og-uniformes-sizes">
+                  <div class="og-uniformes-meta-mobile">
+                    <span>{{ r.categoryLabel }}</span>
+                    @if (r.modelLabel) {
+                      <span>· {{ r.modelLabel }}</span>
+                    }
+                  </div>
+                </div>
+                <span class="og-uniformes-col-cat og-uniformes-cat">{{ r.categoryLabel }}</span>
+                <span class="og-uniformes-col-size og-uniformes-sizes">
                   @if (r.sizeTop) {
                     <span class="og-uniformes-size">{{ r.sizeTop }}</span>
                     @if (r.requiresShorts) {
@@ -173,7 +180,7 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
                     <span class="og-uniformes-dash">—</span>
                   }
                 </span>
-                <span style="width:150px" class="og-uniformes-jersey">
+                <span class="og-uniformes-col-jersey og-uniformes-jersey">
                   @if (!r.nameOnShirt && !r.numberOnShirt) {
                     <span class="og-uniformes-dash">sem personalização</span>
                   } @else {
@@ -189,8 +196,8 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
                     }
                   }
                 </span>
-                <span style="width:118px" class="og-uniformes-cat">{{ r.modelLabel }}</span>
-                <span style="width:104px"><og-pill [tone]="statusTone[r.status]">{{ statusLabel[r.status] }}</og-pill></span>
+                <span class="og-uniformes-col-model og-uniformes-cat">{{ r.modelLabel }}</span>
+                <span class="og-uniformes-col-status"><og-pill [tone]="statusTone[r.status]">{{ statusLabel[r.status] }}</og-pill></span>
               </div>
             } @empty {
               <p class="og-empty">{{ rows().length === 0 ? 'Nenhum atleta inscrito nas categorias com uniforme.' : 'Nenhum atleta neste filtro.' }}</p>
@@ -203,6 +210,7 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
   styles: `
     .og-uniformes-search {
       width: 250px;
+      max-width: 100%;
       height: 38px;
       padding: 0 12px;
       border-radius: var(--nx-r-2);
@@ -215,6 +223,19 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
     .og-uniformes-search:focus-visible {
       outline: none;
       border-color: var(--nx-line-strong);
+    }
+    .og-uniformes-kpis {
+      flex-wrap: wrap;
+    }
+    .og-uniformes-kpi {
+      flex: 1;
+      min-width: 0;
+    }
+    .og-uniformes-kpi-grade {
+      flex: 1.9;
+    }
+    .og-uniformes-kpi-pend {
+      color: var(--nx-pending);
     }
     .og-uniformes-kpi-btn {
       align-self: flex-start;
@@ -289,11 +310,56 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
       color: var(--nx-text);
       margin-left: 3px;
     }
+    .og-uniformes-chips {
+      flex-wrap: wrap;
+    }
+    .og-uniformes-col-athlete {
+      flex: 1.6;
+      min-width: 0;
+    }
+    .og-uniformes-col-cat {
+      flex: 1;
+      min-width: 0;
+    }
+    .og-uniformes-col-size {
+      width: 112px;
+      flex: none;
+    }
+    .og-uniformes-col-jersey {
+      width: 150px;
+      flex: none;
+    }
+    .og-uniformes-col-model {
+      width: 118px;
+      flex: none;
+    }
+    .og-uniformes-col-status {
+      width: 104px;
+      flex: none;
+    }
+    .og-uniformes-row {
+      flex-wrap: wrap;
+    }
+    .og-uniformes-athlete-cell {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .og-uniformes-meta-mobile {
+      display: none;
+      margin-top: 3px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+    }
     .og-uniformes-name {
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 13.5px;
       color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .og-uniformes-partner {
       font-family: var(--nx-font-ui);
@@ -306,11 +372,15 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
       font-size: 12.5px;
       color: var(--nx-text-mute);
       min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .og-uniformes-sizes {
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .og-uniformes-size {
       min-width: 34px;
@@ -414,6 +484,83 @@ const STATUS_LABEL: Record<UniformStatus, string> = { confirmado: 'Confirmado', 
       }
       to {
         transform: translateX(100%);
+      }
+    }
+
+    /* Tablet: grade de tamanhos em linha própria; some Categoria/Modelo da tabela
+       (vão pro subtítulo do atleta); busca encolhe no header. */
+    @media (max-width: 1100px) {
+      .og-uniformes-search {
+        width: 180px;
+      }
+      .og-uniformes-kpis > .og-uniformes-kpi {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 160px;
+      }
+      .og-uniformes-kpis > .og-uniformes-kpi-grade {
+        flex: 1 1 100%;
+      }
+      .og-uniformes-col-cat,
+      .og-uniformes-col-model {
+        display: none;
+      }
+      .og-uniformes-meta-mobile {
+        display: block;
+      }
+      .og-uniformes-col-jersey {
+        width: 120px;
+      }
+      .og-uniformes-head,
+      .og-table-body {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+
+    /* Telefone: busca full-width no header; KPIs empilhados; tabela vira cartão. */
+    @media (max-width: 640px) {
+      .og-uniformes-search {
+        width: 100%;
+        flex: 1 1 100%;
+      }
+      .og-uniformes-export-label {
+        display: none;
+      }
+      .og-uniformes-kpis > .og-uniformes-kpi,
+      .og-uniformes-kpis > .og-uniformes-kpi-grade {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+      .og-uniformes-grade {
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .og-uniformes-bar {
+        flex: 0 0 44px;
+      }
+      .og-uniformes-head {
+        display: none;
+      }
+      .og-uniformes-row {
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .og-uniformes-col-athlete {
+        flex: 1 1 calc(100% - 54px);
+      }
+      .og-uniformes-col-size,
+      .og-uniformes-col-jersey,
+      .og-uniformes-col-status {
+        width: auto;
+        flex: 1 1 auto;
+      }
+      .og-uniformes-col-status {
+        margin-left: auto;
+      }
+      .og-uniformes-jersey {
+        flex: 1 1 100%;
+        order: 5;
       }
     }
   `,

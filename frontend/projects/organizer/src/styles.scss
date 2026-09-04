@@ -1302,6 +1302,15 @@ button {
   padding: 20px 32px;
   border-bottom: 1px solid var(--nx-line);
   flex: none;
+  /* Sem isto, título longo + vários botões estouram a página na horizontal
+     (torneio com 4 ações, uniformes com busca). */
+  min-width: 0;
+}
+
+/* Bloco título: cede espaço antes de empurrar as ações pra fora. */
+.og-page-header-text {
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 .og-page-header-title {
@@ -1312,6 +1321,8 @@ button {
   color: var(--nx-text);
   margin: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Cascata: breadcrumb dos níveis acima (Meus torneios › Torneio ›). */
@@ -1326,6 +1337,8 @@ button {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .og-page-header-crumbs a {
@@ -1334,6 +1347,7 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
+  flex: none;
 }
 
 .og-page-header-crumbs a:hover {
@@ -1342,6 +1356,7 @@ button {
 
 .og-page-header-crumbs .sep {
   color: var(--nx-text-dim);
+  flex: none;
 }
 
 .og-page-header-subtitle {
@@ -1352,17 +1367,38 @@ button {
   text-transform: uppercase;
   color: var(--nx-text-dim);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .og-page-header-spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .og-page-header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Tablet largo (sidebar ainda aberta): já permite quebra — 4 botões do torneio
+   não cabem numa linha com o título. */
+@media (max-width: 1100px) {
+  .og-page-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .og-page-header-title {
+    white-space: normal;
+  }
 }
 
 /* ── Painel: densidade em tela estreita ───────────────────────
@@ -1381,6 +1417,7 @@ button {
     gap: 12px;
     flex-wrap: wrap;
     row-gap: 10px;
+    align-items: flex-start;
   }
 
   /* Sai porque é repetição: "Copa Verão · categoria Feminino B" é exatamente o que a
@@ -1395,17 +1432,45 @@ button {
 
   /* As migalhas ficam (são o atalho pros níveis acima, que a topbar não dá — ela só
      volta um), mas encolhem em vez de empurrar. */
-  .og-page-header-crumbs {
-    min-width: 0;
-    overflow: hidden;
-  }
-
   .og-page-header-crumbs a {
     max-width: 130px;
   }
 
+  /* Spacer some: as ações ocupam a segunda linha inteira em vez de ficarem
+     coladas à direita com um vão morto no meio. */
+  .og-page-header-spacer {
+    display: none;
+  }
+
+  .og-page-header-text {
+    flex: 1 1 auto;
+  }
+
   .og-page-header-actions {
-    flex-wrap: wrap;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Telefone: título um pouco menor; busca/inputs projetados esticam. */
+@media (max-width: 640px) {
+  .og-page-header-title {
+    font-size: 18px;
+  }
+
+  .og-page-header-crumbs a {
+    max-width: 96px;
+  }
+
+  .og-page-header-actions {
+    gap: 8px;
+  }
+
+  .og-page-header-actions > input,
+  .og-page-header-actions > [type='search'] {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
   }
 }
 

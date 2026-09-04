@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { resolveCourtNames } from '../data/matches-repository';
 import { formatCourtLabel, spTimeLabel } from '../data/schedule-format';
 import { shareQrSvgDataUrl } from '../data/share-qr';
@@ -32,6 +33,10 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showPublicQr', title: 'QR de acompanhamento', desc: 'O público aponta a câmera e vê os jogos ao vivo no celular' },
 ];
 
+/** Largura em que a prévia deixa de ser coluna e vira modal — abaixo disso a grade
+ *  380px + 16:9 não cabe sem esmagar o stage. */
+const NARROW_QUERY = '(max-width: 1100px)';
+
 /** `eventos/:id/telao` — configuração do telão do torneio: quadras, o que aparece e a
  *  pré-visualização ao vivo (a MESMA arte da TV, escalada). Config gravada em
  *  `tournaments/{id}.bigScreen`; a TV reage sem recarregar. */
@@ -40,8 +45,15 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TelaoDataService],
   imports: [OgCardComponent, OgIconComponent, OgPageHeaderComponent, TelaoScreenComponent, TelaoStageComponent],
+  host: { '(document:keydown.escape)': 'onEscape()' },
   template: `
     <og-page-header title="Telão ao vivo" subtitle="Exiba os jogos das quadras num painel na arena — placar em tempo real e chamada dos próximos jogos">
+      @if (narrow()) {
+        <button type="button" class="og-mini-btn" (click)="openPreview()">
+          <og-icon name="tv" [size]="14" />
+          Pré-visualizar
+        </button>
+      }
       <button type="button" class="og-ghost-btn" (click)="copyLink()">
         {{ copied() ? 'Link copiado ✓' : 'Copiar link' }}
       </button>
@@ -51,7 +63,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
     </og-page-header>
 
     <div class="og-content">
-      <div class="og-telao-cfg">
+      <div class="og-telao-cfg" [class.narrow]="narrow()">
         <aside class="og-telao-cfg-side">
           <og-card kicker="Fonte dos jogos" title="Quadras no telão">
             @if (courtRows().length > 0) {
@@ -115,13 +127,30 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
           </og-card>
         </aside>
 
-        <section class="og-telao-cfg-preview">
+        @if (narrow() && previewOpen()) {
+          <button type="button" class="og-telao-preview-backdrop" aria-label="Fechar pré-visualização" (click)="closePreview()"></button>
+        }
+
+        <section
+          class="og-telao-cfg-preview"
+          [class.as-modal]="narrow()"
+          [class.open]="!narrow() || previewOpen()"
+          [attr.role]="narrow() ? 'dialog' : null"
+          [attr.aria-modal]="narrow() && previewOpen() ? 'true' : null"
+          [attr.aria-label]="narrow() ? 'Pré-visualização do telão' : null"
+          [attr.aria-hidden]="narrow() && !previewOpen() ? 'true' : null"
+        >
           <header class="og-telao-cfg-preview-head">
             <span class="og-telao-cfg-preview-kicker">Pré-visualização · 1920×1080</span>
             <span class="og-telao-cfg-preview-title">Telão ao vivo</span>
             <span class="og-telao-cfg-preview-spacer"></span>
             @if (transmitting()) {
               <span class="og-pill og-pill-green"><span class="og-dot og-dot-pulse"></span>Transmitindo</span>
+            }
+            @if (narrow()) {
+              <button type="button" class="og-telao-preview-close" aria-label="Fechar" (click)="closePreview()">
+                <og-icon name="close" [size]="16" />
+              </button>
             }
           </header>
           <og-telao-stage class="og-telao-cfg-stage">
@@ -137,6 +166,9 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
       grid-template-columns: 380px minmax(0, 1fr);
       gap: 22px;
       align-items: start;
+    }
+    .og-telao-cfg.narrow {
+      grid-template-columns: 1fr;
     }
     .og-telao-cfg-side {
       display: flex;
@@ -213,6 +245,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
       font-weight: 600;
       font-size: 13.5px;
       flex: 1;
+      min-width: 0;
     }
     .og-telao-cfg-court-status {
       font-family: var(--nx-font-mono);
@@ -220,6 +253,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+      flex: none;
     }
     .og-telao-cfg-court-status.live {
       color: var(--nx-live);
@@ -232,8 +266,9 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
     }
     .og-telao-cfg-preview-head {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
     .og-telao-cfg-preview-kicker {
       font-family: var(--nx-font-mono);
@@ -249,6 +284,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
     }
     .og-telao-cfg-preview-spacer {
       flex: 1;
+      min-width: 0;
     }
     .og-telao-cfg-preview-head .og-dot {
       background: var(--nx-win);
@@ -260,10 +296,73 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
       border-radius: var(--nx-r-4);
       background: var(--nx-bg);
     }
+
+    /* Tablet/mobile: a prévia some do fluxo e só aparece como modal (um único
+       og-telao-screen no DOM — o stage continua montado, só some da vista). */
+    .og-telao-cfg-preview.as-modal {
+      display: none;
+    }
+    .og-telao-cfg-preview.as-modal.open {
+      display: flex;
+      position: fixed;
+      z-index: 40;
+      inset: 12px;
+      inset: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px))
+        max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+      padding: 14px;
+      border-radius: var(--nx-r-4);
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-0);
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55);
+    }
+    .og-telao-preview-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 39;
+      border: none;
+      padding: 0;
+      background: rgba(7, 7, 8, 0.65);
+      backdrop-filter: blur(2px);
+      cursor: pointer;
+    }
+    .og-telao-preview-close {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      flex: none;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      color: var(--nx-text-mute);
+      cursor: pointer;
+    }
+    .og-telao-preview-close:hover {
+      color: var(--nx-text);
+    }
+    .og-telao-cfg-preview.as-modal.open .og-telao-cfg-stage {
+      flex: 1;
+      min-height: 0;
+      aspect-ratio: auto;
+    }
+
+    @media (max-width: 640px) {
+      .og-telao-cfg-preview.as-modal.open {
+        inset: 0;
+        border-radius: 0;
+        border: none;
+        padding: 12px;
+        padding-top: max(12px, env(safe-area-inset-top, 0px));
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      }
+    }
   `,
 })
 export class TelaoConfigComponent {
   protected readonly svc = inject(TelaoDataService);
+  private readonly doc = inject(DOCUMENT);
 
   /** Preenchido pelo router (`withComponentInputBinding`) a partir de `eventos/:id/telao`. */
   readonly id = input.required<string>();
@@ -279,6 +378,10 @@ export class TelaoConfigComponent {
 
   /** Relógio de baixa frequência só pro status das quadras (AO VIVO / próximo horário). */
   private readonly now = signal(Date.now());
+
+  /** `true` quando a prévia vira modal (tablet/mobile). */
+  protected readonly narrow = signal(false);
+  protected readonly previewOpen = signal(false);
 
   /** Config efetiva vinda do doc AO VIVO (o preview e a TV veem a mesma coisa). */
   protected readonly cfg = computed<TelaoConfig | null>(() => {
@@ -321,13 +424,40 @@ export class TelaoConfigComponent {
       });
     });
 
+    const mq = window.matchMedia(NARROW_QUERY);
+    this.narrow.set(mq.matches);
+    const onNarrowChange = (e: MediaQueryListEvent) => {
+      this.narrow.set(e.matches);
+      if (!e.matches) this.previewOpen.set(false);
+    };
+    mq.addEventListener('change', onNarrowChange);
+
     const statusTimer = setInterval(() => this.now.set(Date.now()), 30_000);
     const destroyRef = inject(DestroyRef);
     destroyRef.onDestroy(() => {
+      mq.removeEventListener('change', onNarrowChange);
       clearInterval(statusTimer);
       if (this.copiedTimer) clearTimeout(this.copiedTimer);
       if (this.copiedPublicTimer) clearTimeout(this.copiedPublicTimer);
+      this.doc.body.style.overflow = '';
     });
+
+    effect(() => {
+      this.doc.body.style.overflow = this.narrow() && this.previewOpen() ? 'hidden' : '';
+    });
+  }
+
+  protected openPreview(): void {
+    this.previewOpen.set(true);
+  }
+
+  protected closePreview(): void {
+    this.previewOpen.set(false);
+  }
+
+  /** Esc fecha só o modal da prévia — no desktop a coluna não é modal. */
+  protected onEscape(): void {
+    if (this.narrow() && this.previewOpen()) this.closePreview();
   }
 
   protected toggleCourt(courtId: string): void {

@@ -17,8 +17,8 @@ const LEVELS = [
   {code: "open", label: "Open"},
 ];
 const GENDERS = [
-  {label: "Masculino", short: "m"},
-  {label: "Feminino", short: "f"},
+  {type: "male", label: "Masculino", short: "m"},
+  {type: "female", label: "Feminino", short: "f"},
 ];
 
 const SPORT_LABEL = "Vôlei de praia";
@@ -41,6 +41,12 @@ function generateKeywords(sources) {
     }
   }
   return [...set].sort().slice(0, 200);
+}
+
+/** Lista de recorte -> Set; ausente ou vazia vira `null` (sem recorte). */
+function toFilterSet(values) {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  return new Set(values);
 }
 
 function birthDateForLevel(idx) {
@@ -77,6 +83,12 @@ async function ensureAuthUser(auth, email, displayName, password) {
 /**
  * Cria/atualiza `count` atletas por (nível × gênero). Idempotente: se o
  * e-mail já existe no Auth, reaproveita o uid e só atualiza o perfil.
+ *
+ * `levels` (códigos de `LEVELS`) e `genders` (tipos de `GENDERS`) recortam
+ * quais combinações são criadas; ausentes, valem todas — o comportamento
+ * original. O telefone passou a sair da POSIÇÃO da combinação na ordem
+ * `LEVELS × GENDERS` em vez de um contador do laço: assim o mesmo e-mail
+ * conserva, sob recorte, o telefone que teria numa rodada completa.
  */
 async function seedAthletes({
   db,
@@ -86,16 +98,22 @@ async function seedAthletes({
   city = "Goiânia",
   state = "GO",
   log = console.log,
+  levels,
+  genders,
 }) {
+  const levelFilter = toFilterSet(levels);
+  const genderFilter = toFilterSet(genders);
   let total = 0;
-  let seq = 1;
-  for (const level of LEVELS) {
-    for (const gender of GENDERS) {
+  for (const [levelIdx, level] of LEVELS.entries()) {
+    if (levelFilter && !levelFilter.has(level.code)) continue;
+    for (const [genderIdx, gender] of GENDERS.entries()) {
+      if (genderFilter && !genderFilter.has(gender.type)) continue;
+      const baseSeq = (levelIdx * GENDERS.length + genderIdx) * count;
       for (let n = 1; n <= count; n++) {
         const nn = String(n).padStart(2, "0");
         const fullName = `Atleta ${level.label} ${gender.label} ${nn}`;
         const email = `seed-${level.code}-${gender.short}-${nn}@nexago.test`;
-        const phone = phoneFor(seq);
+        const phone = phoneFor(baseSeq + n);
         const birthDate = birthDateForLevel(n);
 
         const uid = await ensureAuthUser(auth, email, fullName, password);
@@ -135,7 +153,6 @@ async function seedAthletes({
 
         await db.doc(`users/${uid}`).set(profile, {merge: true});
         total += 1;
-        seq += 1;
         if (total % 20 === 0) log(`  ... ${total} atletas`);
       }
     }

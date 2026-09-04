@@ -126,6 +126,12 @@ function defaultCourts(count) {
   }));
 }
 
+/** Lista de recorte -> Set; ausente ou vazia vira `null` (sem recorte). */
+function toFilterSet(values) {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  return new Set(values);
+}
+
 /**
  * Categorias do torneio seed, na ordem `LEVELS` × `GENDERS`.
  *
@@ -135,15 +141,30 @@ function defaultCourts(count) {
  * @param {number} [options.maxTeamsPerCategory=16] Vagas por categoria. É
  *   também o teto de duplas inscritas: `buildPairPlans` lê `maxTeams` do
  *   próprio doc da categoria para dimensionar o pool de atletas.
+ * @param {string[]} [options.levels] Recorta por código de nível
+ *   (`LEVELS[].code`); ausente, valem todos. Existe porque `maxCategories`
+ *   só sabe cortar as PRIMEIRAS da ordem: um torneio só de Open era
+ *   inalcançável sem também criar as oito categorias abaixo dele.
+ * @param {string[]} [options.genders] Recorta por gênero (`GENDERS[].type`,
+ *   `male`/`female`); ausente, valem todos.
  */
-function buildCategories({maxCategories, maxTeamsPerCategory} = {}) {
+function buildCategories({
+  maxCategories,
+  maxTeamsPerCategory,
+  levels,
+  genders,
+} = {}) {
   const maxTeams =
     Number.isInteger(maxTeamsPerCategory) && maxTeamsPerCategory > 0 ?
       maxTeamsPerCategory :
       MAX_TEAMS_PER_CATEGORY;
+  const levelFilter = toFilterSet(levels);
+  const genderFilter = toFilterSet(genders);
   const categories = [];
   for (const level of LEVELS) {
+    if (levelFilter && !levelFilter.has(level.code)) continue;
     for (const gender of GENDERS) {
+      if (genderFilter && !genderFilter.has(gender.type)) continue;
       const id = `${level.code}-${gender.suffix}`;
       categories.push({
         id,

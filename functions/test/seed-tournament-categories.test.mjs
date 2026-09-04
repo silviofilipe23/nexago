@@ -50,6 +50,54 @@ describe("seed de torneio: limites de categoria", () => {
     assert.equal(buildCategories({maxCategories: 99}).length, TOTAL_CATEGORIES);
   });
 
+  it("levels/genders escolhem QUAIS categorias, não as primeiras da ordem", () => {
+    // O caso que `maxCategories` não alcança: Open é a última do nível, então
+    // um torneio só de Open masculino exigiria `maxCategories: 9`.
+    assert.deepEqual(
+      buildCategories({levels: ["open"], genders: ["male"]}).map((c) => c.id),
+      ["open-masc"],
+    );
+    assert.deepEqual(
+      buildCategories({levels: ["open"], genders: ["male"]}).map(
+        (c) => c.categoryName,
+      ),
+      ["Open Masculino"],
+    );
+  });
+
+  it("cada recorte vale sozinho; o outro eixo continua inteiro", () => {
+    assert.deepEqual(
+      buildCategories({genders: ["female"]}).map((c) => c.id),
+      [
+        "iniciante_1-fem",
+        "iniciante_2-fem",
+        "intermediario_1-fem",
+        "intermediario_2-fem",
+        "open-fem",
+      ],
+    );
+    assert.deepEqual(
+      buildCategories({levels: ["iniciante_2", "open"]}).map((c) => c.id),
+      ["iniciante_2-masc", "iniciante_2-fem", "open-masc", "open-fem"],
+    );
+  });
+
+  it("maxCategories corta DEPOIS do recorte, não antes", () => {
+    assert.deepEqual(
+      buildCategories({levels: ["open"], maxCategories: 1}).map((c) => c.id),
+      ["open-masc"],
+    );
+  });
+
+  it("recorte não mexe nas capacidades da categoria", () => {
+    const [open] = buildCategories({
+      levels: ["open"],
+      genders: ["male"],
+      maxTeamsPerCategory: 10,
+    });
+    assert.deepEqual(capacities(open), [10, 10, 10]);
+  });
+
   it("valores inválidos caem no default em vez de zerar o torneio", () => {
     for (const invalid of [0, -1, 2.5, "5", null]) {
       assert.equal(
@@ -64,6 +112,16 @@ describe("seed de torneio: limites de categoria", () => {
         maxTeams,
         MAX_TEAMS_PER_CATEGORY,
         `maxTeamsPerCategory=${invalid} deveria manter o default`,
+      );
+    }
+  });
+
+  it("recorte ausente ou vazio mantém as 10 — nunca zera o torneio", () => {
+    for (const empty of [undefined, [], null, "open"]) {
+      assert.equal(
+        buildCategories({levels: empty, genders: empty}).length,
+        TOTAL_CATEGORIES,
+        `levels/genders=${JSON.stringify(empty)} deveria manter todas`,
       );
     }
   });

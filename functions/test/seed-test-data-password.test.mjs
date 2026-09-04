@@ -73,9 +73,20 @@ async function runSeedScript({seedPasswordEnv}) {
     [
       "./seed-tournament-enrollments-lib",
       {
+        // O orquestrador lê `LEVELS`/`GENDERS` já em `parseArgs` (valores
+        // aceitos por `--levels`/`--genders`): o dublê tem de expor as duas.
+        LEVELS: [
+          {code: "iniciante_1"},
+          {code: "iniciante_2"},
+          {code: "intermediario_1"},
+          {code: "intermediario_2"},
+          {code: "open"},
+        ],
+        GENDERS: [{type: "male"}, {type: "female"}],
         TOTAL_CATEGORIES: 10,
         MAX_TEAMS_PER_CATEGORY: 16,
         assertReusableSeedTournament: async () => {},
+        buildCategories: () => [],
         buildTournamentDocFuture: () => ({}),
         buildTournamentDocToday: () => ({}),
         runTournamentEnrollmentSeed: async () => {},

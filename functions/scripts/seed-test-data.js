@@ -13,6 +13,14 @@
  * `--categories 5 --teams-per-category 12` → 5 categorias × 12 duplas). O
  * corte vale só na CRIAÇÃO do torneio: num torneio reutilizado valem as
  * categorias já gravadas nele.
+ *
+ * `--categories` só sabe cortar as PRIMEIRAS da ordem nível×gênero, então
+ * quem escolhe QUAIS categorias são `--levels <códigos>` e `--genders
+ * <male|female>` (listas separadas por vírgula). Ex.: um torneio só de Open
+ * masculino com 10 duplas:
+ *   --levels open --genders male --teams-per-category 10 --count 20
+ * O recorte vale também para os atletas: sem ele, `--count 20` criaria 200
+ * contas para usar 20.
  * O torneio nasce `open`, SEM chave gerada — gerar a chave pelo painel é o
  * fluxo que se quer testar.
  *
@@ -39,9 +47,12 @@ const fs = require("fs");
 const admin = require("firebase-admin");
 const {generateKeywords, seedAthletes} = require("./seed-athletes-lib");
 const {
+  LEVELS,
+  GENDERS,
   TOTAL_CATEGORIES,
   MAX_TEAMS_PER_CATEGORY,
   assertReusableSeedTournament,
+  buildCategories,
   buildTournamentDocFuture,
   buildTournamentDocToday,
   runTournamentEnrollmentSeed,
@@ -70,6 +81,30 @@ function optionalIntArg(flag, min, max) {
     process.exit(1);
   }
   return value;
+}
+
+/**
+ * Lista separada por vírgula, validada contra `allowed`; ausente vira
+ * `undefined` (mantém o default). Valor fora da lista aborta: um typo que
+ * virasse "recorte vazio" produziria um torneio sem categoria nenhuma.
+ */
+function optionalListArg(flag, allowed) {
+  const raw = argValue(flag);
+  if (raw === undefined) return undefined;
+  const values = [
+    ...new Set(
+      raw.split(",").map((v) => v.trim().toLowerCase()).filter(Boolean),
+    ),
+  ];
+  const invalid = values.filter((v) => !allowed.includes(v));
+  if (!values.length || invalid.length) {
+    const problem = values.length ?
+      `valor inválido (${invalid.join(", ")})` :
+      "precisa de ao menos um valor";
+    console.error(`${flag}: ${problem}. Aceitos: ${allowed.join(", ")}.`);
+    process.exit(1);
+  }
+  return values;
 }
 
 function parseArgs() {
@@ -103,6 +138,8 @@ function parseArgs() {
   // `categoryOptions` quando informadas, para nenhum comando existente mudar.
   const categories = optionalIntArg("--categories", 1, TOTAL_CATEGORIES);
   const teamsPerCategory = optionalIntArg("--teams-per-category", 1, 64);
+  const levels = optionalListArg("--levels", LEVELS.map((l) => l.code));
+  const genders = optionalListArg("--genders", GENDERS.map((g) => g.type));
 
   const credentialsPath = (
     argValue("--credentials") ||
@@ -134,6 +171,8 @@ function parseArgs() {
     password,
     categories,
     teamsPerCategory,
+    levels,
+    genders,
   };
 }
 
@@ -200,27 +239,47 @@ async function run() {
     password,
     categories,
     teamsPerCategory,
+    levels,
+    genders,
   } = parseArgs();
   const db = admin.firestore();
   const auth = admin.auth();
 
   const categoryOptions =
-    categories === undefined && teamsPerCategory === undefined ?
+    categories === undefined &&
+    teamsPerCategory === undefined &&
+    levels === undefined &&
+    genders === undefined ?
       undefined :
-      {maxCategories: categories, maxTeamsPerCategory: teamsPerCategory};
+      {
+        maxCategories: categories,
+        maxTeamsPerCategory: teamsPerCategory,
+        levels,
+        genders,
+      };
+
+  // Os atletas nascem por (nível × gênero): o mesmo recorte que escolhe as
+  // categorias encolhe o total de contas criadas.
+  const athleteTotal =
+    count *
+    (levels ? levels.length : LEVELS.length) *
+    (genders ? genders.length : GENDERS.length);
 
   console.log(`Projeto: ${projectId}`);
   console.log(`Modo: ${APPLY ? "APLICAR (--yes)" : "DRY-RUN"}`);
-  console.log(`Atletas por nível×gênero: ${count} (total ${count * 10})`);
+  console.log(`Atletas por nível×gênero: ${count} (total ${athleteTotal})`);
   console.log(`Torneio: "${tournamentName}" (${TODAY ? "hoje" : "em 14 dias"})`);
   if (categoryOptions) {
-    const catLabel = categories === undefined ?
-      `${TOTAL_CATEGORIES} (padrão)` :
-      `${categories} de ${TOTAL_CATEGORIES} (as primeiras da ordem nível×gênero)`;
+    // Lista as categorias REAIS em vez de descrever o corte: com
+    // `--levels`/`--genders` "as N primeiras da ordem" deixaria de ser verdade.
+    const planned = buildCategories(categoryOptions);
     const teamsLabel = teamsPerCategory === undefined ?
       `${MAX_TEAMS_PER_CATEGORY} (padrão)` :
       String(teamsPerCategory);
-    console.log(`Categorias: ${catLabel}`);
+    console.log(
+      `Categorias: ${planned.length} de ${TOTAL_CATEGORIES} — ` +
+      planned.map((c) => c.categoryName).join(", "),
+    );
     console.log(`Duplas por categoria: ${teamsLabel}`);
     // O pool de atletas é por nível×gênero; duplas exigem 2 por vaga. Com
     // `--count` abaixo disso o seed grava menos duplas do que o pedido e não
@@ -253,7 +312,7 @@ async function run() {
 
   // ── 2. Atletas ────────────────────────────────────────────────────────────
   if (!APPLY) {
-    console.log(`\nAtletas: seriam criados/atualizados ${count * 10}.`);
+    console.log(`\nAtletas: seriam criados/atualizados ${athleteTotal}.`);
   } else {
     console.log("\nCriando atletas...");
     // `password` precisa ser repassado: sem ele os atletas nasceriam com o
@@ -266,6 +325,8 @@ async function run() {
       password,
       city: CITY,
       state: STATE,
+      levels,
+      genders,
     });
     console.log(`Atletas criados/atualizados: ${total}`);
   }

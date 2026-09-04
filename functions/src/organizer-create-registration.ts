@@ -11,11 +11,20 @@
  * O que o organizador PODE furar: prazo e vitrine fechada. O que ele NÃO fura: torneio
  * cancelado/rascunho, categoria concluída, nível (anti-sandbagging), idade, unicidade e
  * composição de gênero.
+ *
+ * Categoria LOTADA não é furada, é aumentada: com `allowCapacityExpansion` (o organizador
+ * marcou "abrir uma vaga extra", caso do atleta convidado), o teto da categoria sobe em 1 na
+ * MESMA transação que cria a inscrição. A categoria passa a ter de fato uma vaga a mais, então
+ * nenhum contador do painel, do app ou do site precisa aprender uma exceção.
  */
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
-import type {Firestore} from "firebase-admin/firestore";
+import type {
+  DocumentReference,
+  Firestore,
+  Transaction,
+} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 import {assertCanManageTournament} from "./tournament-acl";
@@ -34,10 +43,16 @@ import {
 } from "./notification-delivery";
 import {
   assertTournamentAcceptsRegistration,
+  categoryCapacityFullOf,
   findCategory,
   resolveCategoryEntryFee,
   resolveCategoryMatchKeys,
+  resolveTournamentDocRef,
 } from "./tournament-registration-guards";
+import {
+  planCategoryCapacityExpansion,
+  type CategoryCapacityExpansion,
+} from "./tournament-category-capacity";
 import {
   loadCategoryRegistrationsTx,
   registrationConflictMessage,
@@ -79,6 +94,62 @@ import {
   parseCreateTeamRegistrationInput,
   resolveJoiningUid,
 } from "./organizer-create-registration-core";
+
+/**
+ * Vaga extra na categoria lotada, para o organizador inscrever atleta CONVIDADO.
+ *
+ * Em DUAS metades de propósito: o Firestore exige todas as leituras antes de qualquer escrita
+ * numa transação, e a transação da inscrição lê muita coisa. Então `readCapacityExpansionPlan`
+ * entra junto das outras leituras e `applyCapacityExpansion` junto das outras escritas — o
+ * teto sobe na MESMA transação que cria a inscrição. Ou entra a equipe com a vaga, ou nada:
+ * nem vaga fantasma se a criação falhar, nem categoria estourada se o teto não subir.
+ */
+async function readCapacityExpansionPlan(params: {
+  tx: Transaction;
+  tournamentRef: DocumentReference | null;
+  categoryId: string;
+  /** Ocupação medida pelo guard; a fila de espera não conta. */
+  occupied: number;
+}): Promise<CategoryCapacityExpansion | null> {
+  const {tx, tournamentRef, categoryId, occupied} = params;
+  if (!tournamentRef) return null;
+
+  const snap = await tx.get(tournamentRef);
+  return planCategoryCapacityExpansion({
+    categories: snap.data()?.categories as unknown[] | undefined,
+    categoryKey: categoryId,
+    occupied,
+  });
+}
+
+/**
+ * Grava o teto novo. `plan` nulo é desfecho normal: entre o guard e a transação alguém pode ter
+ * cancelado uma inscrição ou já ter aberto a vaga — aí a equipe ocupa a vaga que existe.
+ */
+function applyCapacityExpansion(
+  tx: Transaction,
+  tournamentRef: DocumentReference | null,
+  plan: CategoryCapacityExpansion | null,
+): void {
+  if (!tournamentRef || !plan) return;
+  tx.update(tournamentRef, {categories: plan.categories});
+}
+
+/** Só o "de → para" vai pro log: o array `categories` inteiro não cabe numa linha de log. */
+function capacityLogFields(
+  plan: CategoryCapacityExpansion | null,
+): Record<string, unknown> {
+  if (!plan) return {};
+  return {capacityExpandedFrom: plan.from, capacityExpandedTo: plan.to};
+}
+
+/** Resposta da callable no que diz respeito à vaga extra. */
+function capacityResult(
+  plan: CategoryCapacityExpansion | null,
+): Record<string, unknown> {
+  if (!plan) return {capacityExpanded: false};
+  return {capacityExpanded: true, capacityFrom: plan.from, capacityTo: plan.to};
+}
 
 /** Confere que todos os atletas existem antes de escrever qualquer coisa. */
 async function assertAthletesExist(
@@ -217,6 +288,7 @@ export const organizerCreateTeamRegistration = onCall({
     markAsPaid,
     uniforms,
     teamName: teamNameInput,
+    allowCapacityExpansion,
   } = parseCreateTeamRegistrationInput(request.data);
 
   const db = getFirestore();
@@ -229,9 +301,24 @@ export const organizerCreateTeamRegistration = onCall({
     projectId,
     tournamentId,
     categoryId,
-    {allowClosedRegistration: true},
+    {allowClosedRegistration: true, allowCapacityExpansion},
   );
   const shouldWaitlist = tournament.__shouldWaitlist === true;
+
+  // Categoria lotada COM a permissão do organizador: a vaga extra é aberta na transação da
+  // inscrição. Sem a permissão, o guard já resolveu sozinho (fila ou "Categoria lotada").
+  const capacityFull = categoryCapacityFullOf(tournament);
+  const tournamentRef = capacityFull ?
+    await resolveTournamentDocRef(db, projectId, tournamentId) :
+    null;
+  if (capacityFull && !tournamentRef) {
+    // Sem onde gravar o teto novo, criar a inscrição estouraria a categoria em silêncio.
+    throw new HttpsError(
+      "not-found",
+      "Não foi possível abrir a vaga extra: torneio não encontrado.",
+    );
+  }
+
   const category = findCategory(tournament, categoryId);
   const teamSize = resolveCategoryTeamSize(category);
   assertAthleteUidsMatchCategorySize(athleteUids, teamSize);
@@ -303,6 +390,15 @@ export const organizerCreateTeamRegistration = onCall({
     });
 
     const result = await db.runTransaction(async (tx) => {
+      const capacityPlan = capacityFull ?
+        await readCapacityExpansionPlan({
+          tx,
+          tournamentRef,
+          categoryId,
+          occupied: capacityFull.occupied,
+        }) :
+        null;
+
       // Releitura estreita: evita duas equipes iguais se o organizador clicar duas vezes.
       for (const uid of athleteUids) {
         const mine = await tx.get(
@@ -367,6 +463,7 @@ export const organizerCreateTeamRegistration = onCall({
       }
 
       tx.set(regRef, registrationDoc);
+      applyCapacityExpansion(tx, tournamentRef, capacityPlan);
 
       return {
         registrationId: regRef.id,
@@ -375,15 +472,18 @@ export const organizerCreateTeamRegistration = onCall({
         isPaid: payment?.isPaid === true,
         waitlist: registrationDoc.waitlist === true,
         isTeam: true as const,
+        capacity: capacityPlan,
       };
     });
 
+    const {capacity: teamCapacity, ...teamLogFields} = result;
     logger.info("Organizer created named team registration", {
       organizerUid,
       tournamentId,
       categoryId,
       teamSize,
-      ...result,
+      ...teamLogFields,
+      ...capacityLogFields(teamCapacity),
     });
 
     if (result.isPaid) {
@@ -424,6 +524,7 @@ export const organizerCreateTeamRegistration = onCall({
       teamId: result.teamId,
       merged: result.merged,
       waitlist: result.waitlist,
+      ...capacityResult(teamCapacity),
     };
   }
 
@@ -558,8 +659,21 @@ export const organizerCreateTeamRegistration = onCall({
             (r) => r.registrationId === plan.releaseRegistrationId,
           )?.ownerUid ?? "" :
           "",
+        // Fechar a dupla sobre uma reserva que já existe NÃO consome vaga nova: nenhum
+        // documento de inscrição nasce aqui (e quando os dois tinham reserva, um até morre).
+        // Subir o teto neste caminho inventaria uma vaga que ninguém pediu.
+        capacity: null as CategoryCapacityExpansion | null,
       };
     }
+
+    const capacityPlan = capacityFull ?
+      await readCapacityExpansionPlan({
+        tx,
+        tournamentRef,
+        categoryId,
+        occupied: capacityFull.occupied,
+      }) :
+      null;
 
     const teamRef = teamsRef.doc();
     const regRef = inscriptionsRef.doc();
@@ -593,6 +707,7 @@ export const organizerCreateTeamRegistration = onCall({
       Object.assign(registrationDoc, registrationUniformForSlot(uniforms[uidB], "Player2"));
     }
     tx.set(regRef, registrationDoc);
+    applyCapacityExpansion(tx, tournamentRef, capacityPlan);
 
     return {
       registrationId: regRef.id,
@@ -603,14 +718,17 @@ export const organizerCreateTeamRegistration = onCall({
       ownerUid: uidA,
       releasedRegistrationId: "",
       releasedOwnerUid: "",
+      capacity: capacityPlan,
     };
   });
 
+  const {capacity: pairCapacity, ...pairLogFields} = result;
   logger.info("Organizer created team registration", {
     organizerUid,
     tournamentId,
     categoryId,
-    ...result,
+    ...pairLogFields,
+    ...capacityLogFields(pairCapacity),
   });
 
   // Efeitos best-effort: a inscrição já está gravada, nenhum deles pode derrubar a resposta.
@@ -710,5 +828,6 @@ export const organizerCreateTeamRegistration = onCall({
     teamId: result.teamId,
     merged: result.merged,
     waitlist: result.waitlist,
+    ...capacityResult(pairCapacity),
   };
 });

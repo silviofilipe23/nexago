@@ -59,6 +59,7 @@ function tournament(): OrganizerTournament {
     location: null,
     categories: [],
     capacity: null,
+    waitlistEnabled: true,
     leagueId: null,
     courts: [],
     courtsCount: 0,
@@ -82,6 +83,8 @@ interface Internals {
   tournament: WritableSignal<OrganizerTournament | null>;
   inscriptions: WritableSignal<TournamentInscription[]>;
   phones: WritableSignal<ReadonlyMap<string, string>>;
+  occupancyByCategory: () => Record<string, number>;
+  waitlistEnabled: () => boolean;
 }
 
 describe('phonesRefreshDelay', () => {
@@ -143,5 +146,36 @@ describe('InscricoesComponent — lista remontada por peça que chega', () => {
     internals.tournament.set(tournament());
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Circuito Verão 2026 · 2 inscrições');
+  });
+
+  /** A ocupação alimenta o aviso de "categoria lotada" do formulário. Ela tem de contar do
+   *  mesmo jeito que o servidor conta, senão a tela oferece vaga extra onde ainda cabe alguém
+   *  (ou esconde a oferta justamente onde ela é a única saída). */
+  describe('ocupação por categoria', () => {
+    it('conta 1 por inscrição e ignora a fila de espera', async () => {
+      const fixture = await mount();
+      const internals = fixture.componentInstance as unknown as Internals;
+
+      internals.tournament.set(tournament());
+      internals.inscriptions.set([
+        inscription({ id: 'i1' }),
+        inscription({ id: 'i2' }),
+        inscription({ id: 'i3', categoryId: 'mascA' }),
+        inscription({ id: 'i4', paymentStatus: 'waitlist' }),
+      ]);
+      fixture.detectChanges();
+
+      expect(internals.occupancyByCategory()).toEqual({ femB: 2, mascA: 1 });
+    });
+
+    it('torneio sem o campo `waitlistEnabled` conta como fila ligada', async () => {
+      const fixture = await mount();
+      const internals = fixture.componentInstance as unknown as Internals;
+
+      expect(internals.waitlistEnabled()).toBeTrue();
+      internals.tournament.set({ ...tournament(), waitlistEnabled: false });
+      fixture.detectChanges();
+      expect(internals.waitlistEnabled()).toBeFalse();
+    });
   });
 });

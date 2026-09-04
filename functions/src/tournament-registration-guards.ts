@@ -1,7 +1,13 @@
 import {HttpsError} from "firebase-functions/v2/https";
-import type {Firestore} from "firebase-admin/firestore";
+import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {Timestamp} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath} from "./firebase-paths";
+import {
+  findCategoryIndex,
+  resolveCategoryCapacity,
+} from "./tournament-category-capacity";
+
+export {resolveCategoryCapacity};
 
 export type TournamentData = Record<string, unknown>;
 
@@ -18,6 +24,25 @@ export async function loadTournamentData(
   }
   if (!snap.exists) return null;
   return snap.data() ?? null;
+}
+
+/**
+ * O documento de onde `loadTournamentData` leu este torneio.
+ *
+ * Os dois caminhos não são espelhados — cada torneio mora em UM deles —, então quem for
+ * ESCREVER no torneio precisa da mesma cascata da leitura, ou grava num doc que ninguém lê.
+ */
+export async function resolveTournamentDocRef(
+  db: Firestore,
+  projectId: string,
+  tournamentId: string,
+): Promise<DocumentReference | null> {
+  const top = db.doc(`tournaments/${tournamentId}`);
+  if ((await top.get()).exists) return top;
+  const legacy = db.doc(
+    `artifacts/${projectId}/public/data/tournaments/${tournamentId}`,
+  );
+  return (await legacy.get()).exists ? legacy : null;
 }
 
 function normalizeListingStatus(raw: unknown): string {
@@ -40,14 +65,8 @@ export function findCategory(
   const categories = (tournament.categories || []) as Array<
     Record<string, unknown>
   >;
-  const id = categoryId.trim();
-  return (
-    categories.find((c) => {
-      const name = String(c.categoryName ?? c.name ?? "").trim();
-      const cid = String(c.id ?? c.categoryId ?? "").trim();
-      return name === id || cid === id;
-    }) ?? null
-  );
+  const index = findCategoryIndex(categories, categoryId);
+  return index < 0 ? null : categories[index];
 }
 
 /** Copy única do bloqueio da reserva solo em torneio de dupla já formada. */
@@ -107,12 +126,23 @@ export function resolveCategoryMatchKeys(
  * `allowClosedRegistration` existe para o organizador inscrever uma dupla depois do prazo
  * (`organizerCreateTeamRegistration`): pula SÓ as travas de calendário/vitrine — listagem
  * fechada, `registrationClosesAt` vencido, `registrationOpensAt` futuro e
- * `category.registrationClosed`. Torneio em rascunho/programado/cancelado, categoria concluída
- * e categoria lotada continuam barrando: essas não são "o atleta perdeu o prazo", são estados
- * em que uma inscrição nova corrompe a competição.
+ * `category.registrationClosed`. Torneio em rascunho/programado/cancelado e categoria concluída
+ * continuam barrando: essas não são "o atleta perdeu o prazo", são estados em que uma inscrição
+ * nova corrompe a competição. Categoria lotada continua barrando também, a menos que o chamador
+ * peça `allowCapacityExpansion` — aí o desfecho é dele.
  */
 export interface RegistrationGuardOptions {
   allowClosedRegistration?: boolean;
+
+  /**
+   * O chamador sabe abrir uma vaga a mais e quer decidir sozinho o que fazer com a categoria
+   * lotada (`organizerCreateTeamRegistration`, inscrevendo atleta convidado).
+   *
+   * Com isto ligado, lotação deixa de ser um desfecho aqui dentro: o guard não manda para a
+   * fila nem lança "Categoria lotada" — só ANOTA o estado em `__capacityFull` e deixa passar.
+   * Quem recebe é que resolve subir o teto ou recusar; sem a opção, nada muda.
+   */
+  allowCapacityExpansion?: boolean;
 
   /**
    * Inscrição que JÁ ocupa uma vaga e não deve contar contra si mesma.
@@ -125,27 +155,21 @@ export interface RegistrationGuardOptions {
   occupancyExcludesRegistrationId?: string;
 }
 
-/**
- * Teto da categoria em EQUIPES (duplas/trios/…), ou `null` quando ela não
- * declara teto — e aí não há o que lotar.
- *
- * `spotsLeft` entra por último e só como fallback de doc legado: ele nasce
- * igual à capacidade e nenhum writer o decrementa, então serve como "quanto
- * cabe", nunca como "quanto sobra". O primeiro valor POSITIVO vence — assim
- * `maxTeams: 0` (sem teto declarado) cai para o próximo campo em vez de ser
- * lido como categoria lotada.
- */
-export function resolveCategoryCapacity(
-  category: Record<string, unknown> | null | undefined,
-): number | null {
-  if (!category) return null;
-  for (const field of ["maxTeams", "spotsTotal", "spots", "spotsLeft"]) {
-    const raw = category[field];
-    const n =
-      typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
-    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
-  }
-  return null;
+/** Retrato da categoria lotada, anotado pelo guard sob `allowCapacityExpansion`. */
+export interface CategoryCapacityFull {
+  capacity: number;
+  occupied: number;
+}
+
+/** Lê o `__capacityFull` anotado pelo guard; `null` quando ainda cabia alguém. */
+export function categoryCapacityFullOf(
+  tournament: TournamentData,
+): CategoryCapacityFull | null {
+  const raw = tournament.__capacityFull;
+  if (!raw || typeof raw !== "object") return null;
+  const {capacity, occupied} = raw as Record<string, unknown>;
+  if (typeof capacity !== "number" || typeof occupied !== "number") return null;
+  return {capacity, occupied};
 }
 
 /**
@@ -278,7 +302,10 @@ export async function assertTournamentAcceptsRegistration(
         options?.occupancyExcludesRegistrationId?.trim() ?? "",
       );
       if (occupied >= capacity) {
-        if (tournament.waitlistEnabled !== false) {
+        if (options?.allowCapacityExpansion === true) {
+          // Quem pediu a opção decide o desfecho — aqui só fica o retrato do que se viu.
+          (tournament as TournamentData).__capacityFull = {capacity, occupied};
+        } else if (tournament.waitlistEnabled !== false) {
           (tournament as TournamentData).__shouldWaitlist = true;
         } else {
           throw new HttpsError(

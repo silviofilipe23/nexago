@@ -39,6 +39,7 @@ describe('effectiveTelaoConfig · showPublicQr', () => {
       location: null,
       categories: [],
       capacity: null,
+      waitlistEnabled: true,
       leagueId: null,
       courts: [{ id: 'q1', name: '1', order: 0 }],
       courtsCount: 1,

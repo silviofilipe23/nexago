@@ -178,6 +178,8 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     location: optionalStr(data['locationName']) ?? optionalStr(data['location']),
     categories,
     capacity: numberOf(data['capacity']) ?? (capacityFallback > 0 ? capacityFallback : null),
+    // Ausente = fila ligada, exatamente como o servidor lê (`waitlistEnabled !== false`).
+    waitlistEnabled: data['waitlistEnabled'] !== false,
     leagueId: optionalStr(data['leagueId']),
     courts: courtsFromRaw(data['courts'], courtsCount),
     courtsCount,

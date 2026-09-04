@@ -48,6 +48,14 @@ export interface CreateTeamRegistrationInput {
    * organizador não manda nome, a CF gera um a partir dos atletas.
    */
   teamName: string | null;
+  /**
+   * O organizador autorizou abrir uma vaga a mais se a categoria estiver lotada — é o caso do
+   * atleta CONVIDADO, que precisa entrar mesmo com a categoria cheia.
+   *
+   * É PERMISSÃO, não ordem: se o servidor achar que ainda cabe alguém, a inscrição ocupa a
+   * vaga que existe e o teto não muda.
+   */
+  allowCapacityExpansion: boolean;
 }
 
 function requiredText(value: unknown, field: string): string {
@@ -104,6 +112,7 @@ export function parseCreateTeamRegistrationInput(
     markAsPaid: raw.markAsPaid === true,
     uniforms,
     teamName: teamNameRaw.length > 0 ? teamNameRaw : null,
+    allowCapacityExpansion: raw.allowCapacityExpansion === true,
   };
 }
 

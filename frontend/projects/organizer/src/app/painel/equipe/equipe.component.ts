@@ -79,7 +79,7 @@ export function staffCandidateExclusions(params: {
     </og-page-header>
 
     <div class="og-content">
-      <div class="og-kpi-row">
+      <div class="og-kpi-row og-equipe-kpis">
         <og-card pad="sm" flex="1">
           <div class="og-kpi-label">Membros da equipe</div>
           <div class="og-kpi-value sm">{{ members().length }}</div>
@@ -141,7 +141,7 @@ export function staffCandidateExclusions(params: {
                   [photoUrl]="sel.photoUrl"
                   [size]="30"
                 />
-                <span>{{ nameOf(sel) }}</span>
+                <span class="og-equipe-role-pick-name">{{ nameOf(sel) }}</span>
                 <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="selectedCandidate.set(null)">Trocar</button>
               </div>
               <div class="og-filter-bar">
@@ -162,15 +162,15 @@ export function staffCandidateExclusions(params: {
         </og-card>
       }
 
-      <div style="display:flex;gap:16px;flex:1;min-height:0">
-        <div style="flex:1.7;display:flex;flex-direction:column;gap:12px;min-height:0">
+      <div class="og-equipe-layout">
+        <div class="og-equipe-main">
           <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($event)" />
           <og-card pad="0" flex="1">
-            <div class="og-table-head">
-              <span style="flex:1.3">Membro</span>
-              <span style="width:100px">Papel</span>
-              <span style="width:90px">Desde</span>
-              <span style="width:170px"></span>
+            <div class="og-table-head og-equipe-head">
+              <span class="og-equipe-col-member">Membro</span>
+              <span class="og-equipe-col-role">Papel</span>
+              <span class="og-equipe-col-since">Desde</span>
+              <span class="og-equipe-col-actions"></span>
             </div>
             <div class="og-table-body">
               @if (loading()) {
@@ -179,7 +179,7 @@ export function staffCandidateExclusions(params: {
                 }
               } @else {
                 @for (m of filtered(); track m.uid) {
-                  <div class="og-row" style="flex-wrap:wrap">
+                  <div class="og-row og-equipe-row">
                     <og-avatar
                       zoomable
                       [initials]="initialsOf(nameOf(m))"
@@ -189,11 +189,16 @@ export function staffCandidateExclusions(params: {
                       [photoUrl]="m.photoUrl"
                       [size]="34"
                     />
-                    <span style="flex:1.3;min-width:0" class="og-equipe-name" [title]="nameOf(m)">{{ nameOf(m) }}</span>
-                    <span style="width:100px"><og-pill [tone]="roleTone[m.role]">{{ roleLabel[m.role] }}</og-pill></span>
-                    <span style="width:90px" class="og-equipe-since">{{ sinceOf(m) }}</span>
+                    <div class="og-equipe-col-member og-equipe-member-cell">
+                      <span class="og-equipe-name" [title]="nameOf(m)">{{ nameOf(m) }}</span>
+                      <span class="og-equipe-since-mobile">Desde {{ sinceOf(m) }}</span>
+                    </div>
+                    <span class="og-equipe-col-role"><og-pill [tone]="roleTone[m.role]">{{ roleLabel[m.role] }}</og-pill></span>
+                    <span class="og-equipe-col-since og-equipe-since">{{ sinceOf(m) }}</span>
                     @if (canManage()) {
-                      <button type="button" class="og-ghost-btn" (click)="toggleActions(m.uid)">{{ actionsFor() === m.uid ? 'Fechar' : 'Ações' }}</button>
+                      <button type="button" class="og-ghost-btn og-equipe-col-actions" (click)="toggleActions(m.uid)">
+                        {{ actionsFor() === m.uid ? 'Fechar' : 'Ações' }}
+                      </button>
                       @if (actionsFor() === m.uid) {
                         <div class="og-equipe-actions">
                           <span class="og-equipe-actions-label">Papel:</span>
@@ -217,7 +222,7 @@ export function staffCandidateExclusions(params: {
           </og-card>
         </div>
 
-        <div style="flex:1;display:flex;flex-direction:column;gap:16px;min-height:0">
+        <div class="og-equipe-side">
           <og-card title="Papéis & permissões" kicker="Referência" pad="lg">
             @for (r of roleRefs; track r.role; let last = $last) {
               <div class="og-equipe-role-ref" [class.last]="last">
@@ -253,16 +258,73 @@ export function staffCandidateExclusions(params: {
     }
   `,
   styles: `
+    .og-equipe-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+      align-items: start;
+    }
+    .og-equipe-main,
+    .og-equipe-side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+      min-height: 0;
+    }
+    .og-equipe-side {
+      gap: 16px;
+    }
+    .og-equipe-kpis {
+      flex-wrap: wrap;
+    }
+    .og-equipe-kpis > * {
+      min-width: 140px;
+    }
+    .og-equipe-col-member {
+      flex: 1.3;
+      min-width: 0;
+    }
+    .og-equipe-col-role {
+      width: 100px;
+      flex: none;
+    }
+    .og-equipe-col-since {
+      width: 90px;
+      flex: none;
+    }
+    .og-equipe-col-actions {
+      width: 170px;
+      flex: none;
+    }
+    .og-equipe-row {
+      flex-wrap: wrap;
+    }
+    .og-equipe-member-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
     .og-equipe-name {
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 13.5px;
       color: var(--nx-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .og-equipe-since {
+    .og-equipe-since,
+    .og-equipe-since-mobile {
       font-family: var(--nx-font-mono);
       font-size: 11px;
       color: var(--nx-text-dim);
+    }
+    .og-equipe-since-mobile {
+      display: none;
     }
     .og-equipe-actions {
       width: 100%;
@@ -366,15 +428,88 @@ export function staffCandidateExclusions(params: {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 13px;
       color: var(--nx-text);
     }
+    .og-equipe-role-pick-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .og-equipe-role-pick-actions {
       display: flex;
       justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 10px;
+    }
+
+    /* Tablet (iPad Mini/Air/Pro + notebooks estreitos com sidebar). Empilha lista e
+       referência; a coluna "Desde" some e a data vai pro subtítulo do nome. 1100px
+       (não 1024) porque com a sidebar ainda aberta a coluna útil já aperta antes. */
+    @media (max-width: 1100px) {
+      .og-equipe-layout {
+        grid-template-columns: 1fr;
+        flex: none;
+      }
+      .og-equipe-main > og-card.og-card-pad-0 {
+        flex: none;
+      }
+      .og-equipe-col-since {
+        display: none;
+      }
+      .og-equipe-since-mobile {
+        display: block;
+      }
+      .og-equipe-col-actions {
+        width: auto;
+        margin-left: auto;
+      }
+      .og-equipe-actions {
+        padding-left: 0;
+      }
+      .og-equipe-head,
+      .og-table-body {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+
+    /* Telefone estreito: KPIs em coluna, cabeçalho de tabela some, linha vira cartão. */
+    @media (max-width: 640px) {
+      .og-equipe-kpis > * {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+      .og-equipe-head {
+        display: none;
+      }
+      .og-equipe-row {
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .og-equipe-col-member {
+        flex: 1 1 calc(100% - 48px);
+      }
+      .og-equipe-col-role {
+        width: auto;
+        order: 3;
+      }
+      .og-equipe-col-actions {
+        width: 100%;
+        margin-left: 0;
+        order: 4;
+      }
+      .og-equipe-role-pick-actions {
+        justify-content: stretch;
+      }
+      .og-equipe-role-pick-actions > * {
+        flex: 1;
+      }
     }
   `,
 })

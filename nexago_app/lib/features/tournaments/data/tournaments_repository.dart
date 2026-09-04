@@ -21,10 +21,7 @@ class TournamentsRepository {
     return _root.snapshots().map((snap) {
       final items = <DiscoveryTournament>[];
       for (final doc in snap.docs) {
-        final data = doc.data();
-        final raw =
-            (data['listingStatus'] as String?) ?? (data['status'] as String?);
-        if (!isPubliclyListedTournament(raw)) continue;
+        if (!isPubliclyListedTournamentDoc(doc.data())) continue;
         final item = TournamentDocumentMapper.fromSnapshot(doc);
         if (item != null) items.add(item);
       }
@@ -81,10 +78,7 @@ class TournamentsRepository {
       try {
         final snap = await query.limit(max).get();
         for (final doc in snap.docs) {
-          final data = doc.data();
-          final raw =
-              (data['listingStatus'] as String?) ?? (data['status'] as String?);
-          if (!isPubliclyListedTournament(raw)) continue;
+          if (!isPubliclyListedTournamentDoc(doc.data())) continue;
           final item = TournamentDocumentMapper.fromSnapshot(doc);
           if (item != null) byId[item.id] = item;
         }

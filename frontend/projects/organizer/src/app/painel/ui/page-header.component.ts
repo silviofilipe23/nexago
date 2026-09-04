@@ -10,19 +10,22 @@ import { PanelContextService } from '../shell/panel-context.service';
  *  É também onde o sino de notificações vive no desktop: esta é a faixa do topo de toda
  *  tela do painel, e a sidebar não é lugar de aviso (fica fora do caminho do olho).
  *  Abaixo de 1024px ele sai daqui — a linha já divide o espaço com o botão de ação — e
- *  quem assume é a topbar do shell, que só existe nessa faixa. */
+ *  quem assume é a topbar do shell, que só existe nessa faixa.
+ *
+ *  Layout responsivo (padding/wrap/ellipsis) mora em `styles.scss` junto das outras
+ *  regras `.og-page-header*` — aqui fica só a visibilidade do sino e o esqueleto. */
 @Component({
   selector: 'og-page-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, OgBellComponent],
   host: { class: 'og-page-header' },
   template: `
-    <div class="og-card-head-text">
+    <div class="og-card-head-text og-page-header-text">
       @if (ctx.crumbs().length > 0) {
         <div class="og-page-header-crumbs">
           @for (c of ctx.crumbs(); track c.link) {
             <a [routerLink]="c.link">{{ c.label }}</a>
-            <span class="sep">›</span>
+            <span class="sep" aria-hidden="true">›</span>
           }
         </div>
       }
@@ -31,7 +34,7 @@ import { PanelContextService } from '../shell/panel-context.service';
         <div class="og-page-header-subtitle">{{ subtitle() }}</div>
       }
     </div>
-    <div class="og-page-header-spacer"></div>
+    <div class="og-page-header-spacer" aria-hidden="true"></div>
     <div class="og-page-header-actions">
       <ng-content />
     </div>

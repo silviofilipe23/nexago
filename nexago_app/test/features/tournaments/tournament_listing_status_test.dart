@@ -274,6 +274,53 @@ void main() {
     expect(isPubliclyListedTournament(''), isFalse);
   });
 
+  group('isPubliclyListedTournamentDoc', () {
+    test('esconde do catálogo o torneio publicado "por link"', () {
+      expect(
+        isPubliclyListedTournamentDoc({
+          'listingStatus': 'open',
+          'visibility': 'linkOnly',
+        }),
+        isFalse,
+      );
+    });
+
+    test('mantém no catálogo o torneio público', () {
+      expect(
+        isPubliclyListedTournamentDoc({
+          'listingStatus': 'open',
+          'visibility': 'publicListing',
+        }),
+        isTrue,
+      );
+    });
+
+    test('mantém o torneio antigo, criado antes do seletor de visibilidade', () {
+      expect(isPubliclyListedTournamentDoc({'listingStatus': 'open'}), isTrue);
+    });
+
+    test('status ainda manda: rascunho público não aparece', () {
+      expect(
+        isPubliclyListedTournamentDoc({
+          'listingStatus': 'draft',
+          'visibility': 'publicListing',
+        }),
+        isFalse,
+      );
+    });
+
+    test('cai para `status` quando o doc não tem `listingStatus`', () {
+      expect(
+        isPubliclyListedTournamentDoc({
+          'status': 'open',
+          'visibility': 'linkOnly',
+        }),
+        isFalse,
+      );
+      expect(isPubliclyListedTournamentDoc({'status': 'open'}), isTrue);
+    });
+  });
+
   test('isPubliclyListedLeague hides closed and cancelled circuits', () {
     expect(isPubliclyListedLeague('open'), isTrue);
     expect(isPubliclyListedLeague('live'), isTrue);

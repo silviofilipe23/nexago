@@ -112,21 +112,21 @@ interface CategoriaRow {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
         }
         <div class="og-kpi-row og-torneio-kpis" [class.over-hero]="tournament()!.coverUrl && !coverFailed()">
-          <div class="og-card og-card-pad-sm" style="flex:1">
+          <div class="og-card og-card-pad-sm og-torneio-kpi">
             <div class="og-kpi-label">Inscritos</div>
             <div class="og-kpi-value sm">{{ inscritosCount() }}</div>
           </div>
-          <div class="og-card og-card-pad-sm" style="flex:1">
+          <div class="og-card og-card-pad-sm og-torneio-kpi">
             <div class="og-kpi-label">Pendentes</div>
-            <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ pendentesCount() }}</div>
+            <div class="og-kpi-value sm og-torneio-kpi-pend">{{ pendentesCount() }}</div>
           </div>
-          <div class="og-card og-card-pad-sm" style="flex:1">
+          <div class="og-card og-card-pad-sm og-torneio-kpi">
             <div class="og-kpi-label">Categorias</div>
             <div class="og-kpi-value sm">{{ categoriasCount() }}</div>
           </div>
-          <div class="og-card og-card-pad-sm" style="flex:1">
+          <div class="og-card og-card-pad-sm og-torneio-kpi">
             <div class="og-kpi-label">Arrecadado</div>
-            <div class="og-kpi-value sm" style="color:var(--nx-win)">{{ money(collected().totalCents) }}</div>
+            <div class="og-kpi-value sm og-torneio-kpi-win">{{ money(collected().totalCents) }}</div>
             @if (collectedSplit(); as split) {
               <div class="og-torneio-kpi-split">{{ split }}</div>
             }
@@ -220,11 +220,24 @@ interface CategoriaRow {
     }
   `,
   styles: `
+    .og-torneio-kpi {
+      flex: 1;
+      min-width: 0;
+    }
+    .og-torneio-kpi-pend {
+      color: var(--nx-pending);
+    }
+    .og-torneio-kpi-win {
+      color: var(--nx-win);
+    }
     .og-torneio-kpi-split {
       font-family: var(--nx-font-ui);
       font-size: 11px;
       color: var(--nx-text-dim);
       margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     /* ── Hero de capa — background full-bleed que desvanece no fundo da página ──
        Margens negativas cancelam o padding do .og-content (22px 32px) e puxam a
@@ -297,6 +310,7 @@ interface CategoriaRow {
     .og-torneio-kpis {
       position: relative;
       z-index: 2;
+      flex-wrap: wrap;
     }
     .og-torneio-kpis.over-hero .og-card {
       box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
@@ -310,6 +324,7 @@ interface CategoriaRow {
       align-items: center;
       gap: 10px;
       flex: none;
+      flex-wrap: wrap;
     }
     .og-torneio-cats-kicker {
       font-family: var(--nx-font-mono);
@@ -339,6 +354,7 @@ interface CategoriaRow {
       border: 1px solid var(--nx-line);
       display: flex;
       flex-direction: column;
+      min-width: 0;
       transition: border-color 140ms var(--nx-ease-out);
     }
     .og-torneio-cat:hover {
@@ -366,6 +382,8 @@ interface CategoriaRow {
       font-weight: 700;
       font-size: 16px;
       color: var(--nx-text);
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .og-torneio-cat-progress {
       margin-top: 14px;
@@ -373,6 +391,7 @@ interface CategoriaRow {
     .og-torneio-cat-progress .row {
       display: flex;
       justify-content: space-between;
+      gap: 8px;
       margin-bottom: 6px;
     }
     .og-torneio-cat-progress .frac {
@@ -380,6 +399,7 @@ interface CategoriaRow {
       font-weight: 700;
       font-size: 13.5px;
       color: var(--nx-text);
+      min-width: 0;
     }
     .og-torneio-cat-progress .frac em {
       font-style: normal;
@@ -389,6 +409,7 @@ interface CategoriaRow {
       font-family: var(--nx-font-mono);
       font-size: 10.5px;
       font-weight: 700;
+      flex: none;
     }
     .og-torneio-cat-footer {
       margin-top: 14px;
@@ -397,6 +418,7 @@ interface CategoriaRow {
       display: flex;
       align-items: center;
       gap: 16px;
+      flex-wrap: wrap;
       font-family: var(--nx-font-mono);
       font-size: 11.5px;
       font-weight: 700;
@@ -413,6 +435,7 @@ interface CategoriaRow {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
     .og-torneio-cat.highlight .og-torneio-cat-cta {
       border-top-color: rgba(255, 106, 26, 0.2);
@@ -440,6 +463,62 @@ interface CategoriaRow {
     }
     .og-torneio-danger {
       color: var(--nx-live);
+    }
+
+    /* Tablet largo (sidebar ainda aberta): KPIs em 2×2 pra não esmagar rótulos. */
+    @media (max-width: 1100px) {
+      .og-torneio-kpi {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 140px;
+      }
+      .og-torneio-cats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+    }
+
+    /* Gaveta do painel: padding do .og-content vira 16/20 — o hero precisa
+       espelhar senão sobra faixa lateral e os KPIs não pousam na foto. */
+    @media (max-width: 1023.98px) {
+      .og-torneio-hero {
+        height: 200px;
+        margin: -16px -20px -64px;
+      }
+    }
+
+    /* Telefone: hero mais baixo, KPIs empilhados, grade de categorias em 1 coluna,
+       CTA "Gerar chave" em linha própria. */
+    @media (max-width: 640px) {
+      .og-torneio-hero {
+        height: 160px;
+        margin: -16px -20px -52px;
+      }
+      .og-torneio-kpi {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+      .og-torneio-kpi-split {
+        white-space: normal;
+      }
+      .og-torneio-cats-head {
+        align-items: flex-start;
+      }
+      .og-torneio-cats-head > .og-page-header-spacer {
+        display: none;
+      }
+      .og-torneio-cats-head > .og-ghost-btn {
+        width: 100%;
+        justify-content: center;
+      }
+      .og-torneio-cats-grid {
+        grid-template-columns: 1fr;
+      }
+      .og-torneio-cat-cta > .og-page-header-spacer {
+        display: none;
+      }
+      .og-torneio-cat-cta > .og-mini-btn {
+        width: 100%;
+        justify-content: center;
+      }
     }
   `,
 })

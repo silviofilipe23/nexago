@@ -99,6 +99,28 @@ bool isPubliclyListedTournament(String? listingStatusRaw) {
   return true;
 }
 
+/// Torneio "por link" (`visibility: 'linkOnly'`): fica fora do catálogo público,
+/// mas continua abrindo — e aceitando inscrição — para quem recebe o link do
+/// organizador.
+///
+/// Doc **sem** o campo é anterior ao seletor de visibilidade (jun/2026) e segue
+/// público. O site é estrito e trata a ausência como link-only; aqui a mesma
+/// regra sumiria com todo o histórico do Competir.
+bool isLinkOnlyTournament(Object? visibilityRaw) {
+  return visibilityRaw is String && visibilityRaw.trim() == 'linkOnly';
+}
+
+/// Torneio visível no catálogo público (Competir) a partir do documento cru:
+/// status de listagem **e** visibilidade.
+bool isPubliclyListedTournamentDoc(Map<String, dynamic> data) {
+  final listing = data['listingStatus'];
+  final status = data['status'];
+  final raw = (listing is String ? listing : null) ??
+      (status is String ? status : null);
+  if (!isPubliclyListedTournament(raw)) return false;
+  return !isLinkOnlyTournament(data['visibility']);
+}
+
 /// Liga visível no Competir — mais restritivo que torneio avulso.
 bool isPubliclyListedLeague(String? listingStatusRaw) {
   final raw = listingStatusRaw?.trim();

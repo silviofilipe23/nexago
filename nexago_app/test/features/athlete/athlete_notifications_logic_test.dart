@@ -89,6 +89,53 @@ void main() {
   });
 
   group('notificationPresentation', () {
+    // Aviso da aba Comunicação do organizador: caía no default (sino cinza,
+    // sem rota), então tocar na notificação não levava a lugar nenhum.
+    test('tournament_communication routes to the tournament', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Mensagem do organizador',
+        body: 'Cheguem 30min antes',
+        type: 'tournament_communication',
+        data: const {'tournamentId': 't1', 'categoryId': 'catA'},
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.routePath, '/torneios/t1');
+      expect(p.icon, Icons.campaign_rounded);
+      expect(p.actions.single.label, 'Ver torneio');
+    });
+
+    test('tournament_communication prefers the url from the payload', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Mensagem do organizador',
+        body: 'Cheguem 30min antes',
+        type: 'tournament_communication',
+        data: const {'tournamentId': 't1', 'url': '/torneios/t1/hoje'},
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      expect(notificationPresentation(n).routePath, '/torneios/t1/hoje');
+    });
+
+    test('tournament_communication without ids has no route', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Mensagem do organizador',
+        body: 'Cheguem 30min antes',
+        type: 'tournament_communication',
+        data: const {},
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      expect(notificationPresentation(n).routePath, isNull);
+    });
+
     test('tournament invite has accept actions and route', () {
       final n = AthleteInboxNotification(
         id: 'x',

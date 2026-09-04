@@ -1046,15 +1046,21 @@ export async function sendCategoryCommunicationCore(
     if (audience === "paid" && !confirmed) continue;
     if (audience === "pending" && confirmed) continue;
 
-    const teamId = (inscription.teamId as string)?.trim();
-    if (!teamId) continue;
+    const teamId = (inscription.teamId as string)?.trim() ?? "";
 
-    const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
-    if (!teamSnap.exists) continue;
-    const team = teamSnap.data()!;
-    const playerIds = [team.player1Id, team.player2Id].filter(
-      (id): id is string => typeof id === "string" && id.trim().length > 0,
-    );
+    // Elenco inteiro da inscrição: com equipe, `memberUids` cobre
+    // trio/quarteto/quinteto (a dupla legada cai em player1/2); sem equipe
+    // (reserva solo esperando dupla) o destinatário é o próprio inscrito.
+    let team: Record<string, unknown> | null = null;
+    if (teamId) {
+      const teamSnap = await db
+        .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
+        .get();
+      if (!teamSnap.exists) continue;
+      team = teamSnap.data()!;
+    }
+    const playerIds = registrationAthleteUids(inscription, team);
+    if (playerIds.length === 0) continue;
 
     const links: string[] = [];
     for (const playerId of playerIds) {
@@ -1066,21 +1072,26 @@ export async function sendCategoryCommunicationCore(
           `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`,
         );
       }
-      if (sendPush) {
-        const result = await deliverNotificationToUser({
-          userId: playerId,
-          title: "Mensagem do organizador",
-          body: message.slice(0, 180),
-          type: "tournament_communication",
-          data: {tournamentId, categoryId},
-          requireInteraction: false,
-        });
-        if (result.sent > 0) pushSent++;
-        else if (result.failed > 0) pushFailed++;
-        else pushNoChannel++;
-      }
+      // O inbox in-app é gravado mesmo com o push desligado (`skipPush`):
+      // sem isso o aviso não deixava rastro nenhum pro atleta, só o link de
+      // WhatsApp na mão do organizador.
+      const result = await deliverNotificationToUser({
+        userId: playerId,
+        title: "Mensagem do organizador",
+        body: message.slice(0, 180),
+        type: "tournament_communication",
+        data: {tournamentId, categoryId, url: `/torneios/${tournamentId}`},
+        requireInteraction: false,
+        skipPush: !sendPush,
+      });
+      if (!sendPush) continue;
+      if (result.sent > 0) pushSent++;
+      else if (result.failed > 0) pushFailed++;
+      else pushNoChannel++;
     }
-    whatsappLinks.push({teamId, links});
+    // Sem equipe a chave do destinatário é a própria inscrição — chave vazia
+    // repetiria entre reservas solo e quebraria o `@for` do painel.
+    whatsappLinks.push({teamId: teamId || doc.id, links});
   }
 
   try {

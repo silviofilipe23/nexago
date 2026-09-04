@@ -34,6 +34,15 @@ void main() {
       expect(route, '/torneios/t1/chave?categoryId=Masc%20A');
     });
 
+    test('tournament_communication falls back to tournament detail', () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_communication',
+        'tournamentId': 't1',
+        'categoryId': 'catA',
+      });
+      expect(route, '/torneios/t1');
+    });
+
     test('tournament_cancelled falls back to tournament detail', () {
       final route = resolveNotificationRoute({
         'type': 'tournament_cancelled',

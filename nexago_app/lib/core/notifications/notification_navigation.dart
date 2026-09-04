@@ -169,8 +169,11 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return AppRoutes.friendlyMatchDetail.replaceAll(':matchId', matchId);
   }
 
+  // `tournament_communication` é o aviso em broadcast do organizador: sem
+  // destino próprio, abre o torneio de onde o aviso partiu.
   if (type == 'tournament_bracket_published' ||
       type == 'tournament_cancelled' ||
+      type == 'tournament_communication' ||
       type == 'tournament_registration_cancelled') {
     final bracketUrl = (data['url'] as String?)?.trim();
     if (bracketUrl != null && bracketUrl.startsWith('/')) return bracketUrl;

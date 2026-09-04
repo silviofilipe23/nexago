@@ -292,17 +292,6 @@ export function organizerPixOf(raw: unknown): TournamentSummary['organizerPix'] 
   };
 }
 
-/** Status bruto do doc (`listingStatus`, com `status` como fallback), minúsculo. */
-function rawStatusStringOf(data: Record<string, unknown>): string {
-  return (optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '').toLowerCase();
-}
-
-/** Rascunho ou cancelado. `cancelled`/`canceled`/`cancelado`/`cancelada` — todo o vocabulário
- *  aceito pelo backend (`tournament-registration-guards`) contém "cancel". */
-function isDraftOrCancelledStatus(statusRaw: string): boolean {
-  return statusRaw.includes('draft') || statusRaw.includes('programado') || statusRaw.includes('cancel');
-}
-
 function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSummary {
   const rootUniform: RootUniformFlags = {
     required: data['uniformRequired'] === true,
@@ -313,7 +302,9 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     ? data['categories'].map((c) => categoryOfferFromRaw(c, rootUniform)).filter((c): c is TournamentCategoryOffer => c != null)
     : [];
   const capacity = numberOf(data['capacity']) || categories.reduce((sum, c) => sum + c.maxTeams, 0);
-  const statusRaw = rawStatusStringOf(data);
+  const statusRaw = (optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '').toLowerCase();
+  // `cancelled`/`canceled`/`cancelado`/`cancelada` — todo o vocabulário aceito pelo backend
+  // (`tournament-registration-guards`) contém "cancel".
   const isCancelled = statusRaw.includes('cancel');
   return {
     id,
@@ -331,7 +322,7 @@ function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSu
     liveMatchesNow: numberOf(data['liveMatchesNow']) ?? 0,
     rawStatus: rawStatusFromString(statusRaw),
     isCancelled,
-    isDraftOrCancelled: isDraftOrCancelledStatus(statusRaw),
+    isDraftOrCancelled: statusRaw.includes('draft') || statusRaw.includes('programado') || isCancelled,
     leagueId: optionalStr(data['leagueId']),
     leagueStageId: optionalStr(data['leagueStageId']),
     leagueStageOrder: numberOf(data['leagueStageOrder']),
@@ -455,26 +446,14 @@ export function tournamentIsFinishedOrCancelled(t: Pick<TournamentSummary, 'rawS
   return t.isCancelled || t.rawStatus === 'completed' || t.rawStatus === 'ended';
 }
 
-/**
- * Torneio visível na listagem pública do portal (busca/Competir): nem rascunho/cancelado, nem
- * publicado "por link".
- *
- * `visibility: 'linkOnly'` some da listagem mas continua abrindo pelo link direto e aceitando
- * inscrição — a visibilidade nunca foi uma trava de inscrição, só de vitrine. Doc **sem** o
- * campo é anterior ao seletor de visibilidade (jun/2026) e segue listado: o site é estrito e
- * trata a ausência como link-only, mas aqui a mesma regra sumiria com todo o histórico.
- */
-export function isPubliclyListedTournamentDoc(data: Record<string, unknown>): boolean {
-  if (isDraftOrCancelledStatus(rawStatusStringOf(data))) return false;
-  return data['visibility'] !== 'linkOnly';
+/** Torneios ocultos da listagem pública — rascunho/cancelado (`isPubliclyListedTournament`). */
+function isPubliclyListed(t: Pick<TournamentSummary, 'isDraftOrCancelled'>): boolean {
+  return !t.isDraftOrCancelled;
 }
 
 export async function fetchAllTournaments(db: Firestore): Promise<TournamentSummary[]> {
   const snap = await getDocs(collection(db, 'tournaments'));
-  return snap.docs
-    .map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }))
-    .filter(({ data }) => isPubliclyListedTournamentDoc(data))
-    .map(({ id, data }) => summaryFromDoc(id, data));
+  return snap.docs.map((d) => summaryFromDoc(d.id, d.data() as Record<string, unknown>)).filter((t) => isPubliclyListed(t));
 }
 
 export async function fetchTournament(db: Firestore, id: string): Promise<TournamentSummary | null> {

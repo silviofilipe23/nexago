@@ -1,6 +1,5 @@
 import {
   categoryAcceptsRegistration,
-  isPubliclyListedTournamentDoc,
   organizerPixOf,
   registrationOpensAt,
   registrationOpensLabel,
@@ -129,29 +128,5 @@ describe('tournamentIsFinishedOrCancelled', () => {
     for (const rawStatus of ['scheduled', 'open', 'bracketsReady', 'almostFull', 'live', null] as const) {
       expect(tournamentIsFinishedOrCancelled({ rawStatus, isCancelled: false })).toBe(false);
     }
-  });
-});
-
-describe('isPubliclyListedTournamentDoc', () => {
-  it('esconde do catálogo o torneio publicado "por link"', () => {
-    expect(isPubliclyListedTournamentDoc({ listingStatus: 'open', visibility: 'linkOnly' })).toBe(false);
-  });
-
-  it('mantém no catálogo o torneio público', () => {
-    expect(isPubliclyListedTournamentDoc({ listingStatus: 'open', visibility: 'publicListing' })).toBe(true);
-  });
-
-  it('mantém o torneio antigo, criado antes do seletor de visibilidade', () => {
-    expect(isPubliclyListedTournamentDoc({ listingStatus: 'open' })).toBe(true);
-  });
-
-  it('rascunho e cancelado seguem fora, mesmo marcados como públicos', () => {
-    expect(isPubliclyListedTournamentDoc({ listingStatus: 'draft', visibility: 'publicListing' })).toBe(false);
-    expect(isPubliclyListedTournamentDoc({ listingStatus: 'cancelled', visibility: 'publicListing' })).toBe(false);
-  });
-
-  it('cai para `status` quando o doc não tem `listingStatus`', () => {
-    expect(isPubliclyListedTournamentDoc({ status: 'open', visibility: 'linkOnly' })).toBe(false);
-    expect(isPubliclyListedTournamentDoc({ status: 'open' })).toBe(true);
   });
 });

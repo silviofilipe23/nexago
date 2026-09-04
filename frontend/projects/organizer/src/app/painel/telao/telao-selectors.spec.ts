@@ -25,6 +25,7 @@ function match(overrides: Partial<TournamentMatch>): TournamentMatch {
     sets: [],
     courtId: 'Q1',
     scheduleEndAt: null,
+    dayKey: '',
     bestOf: 3,
     matchType: 'group',
     roundNumber: 1,

@@ -1,10 +1,14 @@
 import {
   formatHHMM,
+  gridEndMin,
+  matchBelongsToDay,
   minutesFromDayStart,
   parseHHMM,
   previewBlocksByCourt,
+  spDayKey,
   spWallToDate,
   startTimeOptions,
+  wallClockLabel,
 } from './auto-schedule-preview';
 
 const DAY = '2026-10-24';
@@ -88,5 +92,74 @@ describe('previewBlocksByCourt', () => {
   it('mantém depois da meia-noite o que transborda a jornada', () => {
     const blocks = previewBlocksByCourt([slot('m1', 'Q1', 1440)], { dayKey: DAY, fallbackDurMin: 30 });
     expect(blocks['Q1'][0].startMin).toBe(1440);
+  });
+});
+
+describe('spDayKey', () => {
+  it('usa o dia da parede SP, não o UTC', () => {
+    // 23:30 SP = 02:30 UTC do dia seguinte — o dia da jornada é o de cá.
+    expect(spDayKey(new Date(`${DAY}T23:30:00-03:00`))).toBe(DAY);
+  });
+});
+
+describe('matchBelongsToDay', () => {
+  const pastMidnight = new Date(`2026-10-25T00:30:00-03:00`);
+
+  it('o dayKey gravado manda, mesmo com o horário na madrugada seguinte', () => {
+    const match = { dayKey: DAY, scheduledAt: pastMidnight };
+    expect(matchBelongsToDay(match, DAY)).toBeTrue();
+    expect(matchBelongsToDay(match, '2026-10-25')).toBeFalse();
+  });
+
+  it('sem dayKey gravado, cai no dia do próprio horário', () => {
+    const match = { dayKey: '', scheduledAt: pastMidnight };
+    expect(matchBelongsToDay(match, DAY)).toBeFalse();
+    expect(matchBelongsToDay(match, '2026-10-25')).toBeTrue();
+  });
+
+  it('sem dayKey e sem horário não pertence a dia nenhum', () => {
+    expect(matchBelongsToDay({ dayKey: '', scheduledAt: null }, DAY)).toBeFalse();
+  });
+});
+
+describe('wallClockLabel', () => {
+  it('vira o relógio na meia-noite em vez de seguir pra 24:00', () => {
+    expect(wallClockLabel(1380)).toBe('23:00');
+    expect(wallClockLabel(1410)).toBe('23:30');
+    expect(wallClockLabel(1440)).toBe('00:00');
+    expect(wallClockLabel(1470)).toBe('00:30');
+    expect(wallClockLabel(1500)).toBe('01:00');
+  });
+
+  it('não mexe no que está dentro do dia', () => {
+    expect(wallClockLabel(420)).toBe('07:00');
+  });
+});
+
+describe('gridEndMin', () => {
+  const base = { dayStartMin: 420, dayEndMin: 1440, extraMin: 0, slotMin: 30 };
+
+  it('para no fim da jornada quando nada transborda', () => {
+    expect(gridEndMin({ ...base, lastBlockEndMin: 1200 })).toBe(1440);
+  });
+
+  it('estica pra caber o que passou da meia-noite', () => {
+    expect(gridEndMin({ ...base, lastBlockEndMin: 1500 })).toBe(1500);
+  });
+
+  it('arredonda pro fim do slot', () => {
+    expect(gridEndMin({ ...base, lastBlockEndMin: 1490 })).toBe(1500);
+  });
+
+  it('soma a extensão manual do organizador', () => {
+    expect(gridEndMin({ ...base, lastBlockEndMin: 0, extraMin: 60 })).toBe(1500);
+  });
+
+  it('não passa de 24h contadas da abertura', () => {
+    expect(gridEndMin({ ...base, lastBlockEndMin: 0, extraMin: 600 })).toBe(1860);
+  });
+
+  it('sobrevive a uma jornada degenerada', () => {
+    expect(gridEndMin({ ...base, dayEndMin: 300, lastBlockEndMin: 0 })).toBe(450);
   });
 });

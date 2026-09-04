@@ -1,4 +1,5 @@
 import { httpsCallable } from 'firebase/functions';
+import { spDayKey } from './auto-schedule-preview';
 import { organizerFunctions } from './functions';
 
 /** Write-paths do organizador — mesmos Cloud Functions onCall que o app Flutter chama
@@ -346,5 +347,5 @@ export function cancelTournament(tournamentId: string, opts?: { force?: boolean 
 /** Fuso canônico dos eventos (America/Sao_Paulo) — espelha `dayKeyFromEventDate`
  *  (`functions/src/event-timezone.ts`): YYYY-MM-DD na parede SP. */
 export function dayKeyFromDate(date: Date): string {
-  return date.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  return spDayKey(date);
 }

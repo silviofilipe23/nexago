@@ -46,6 +46,59 @@ export function minutesFromDayStart(date: Date, dayKey: string): number {
   return Math.round((date.getTime() - spWallToDate(dayKey, 0).getTime()) / 60000);
 }
 
+/** Instante UTC → dayKey (YYYY-MM-DD) do dia de calendário na parede SP. Fonte única
+ *  do `dayKeyFromDate` de `organizer-ops.service` (que só delega, pra este módulo
+ *  seguir sem depender do Firebase e continuar testável sozinho). */
+export function spDayKey(date: Date): string {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+/** A partida pertence à JORNADA de `dayKey` — que não é o mesmo que o dia de calendário
+ *  do horário dela. O servidor grava em `dayKey` o dia pedido no agendamento, inclusive
+ *  quando a grade transborda a meia-noite (`scheduleMatch`/`autoScheduleTournamentDay`),
+ *  e o reagendamento dinâmico se apoia nesse campo. Por isso o campo gravado manda: só
+ *  doc antigo, sem ele, cai no dia do próprio horário. Mesma regra do app
+ *  (`MatchOpsLogic._matchBelongsToDay`). */
+export function matchBelongsToDay(
+  match: { dayKey: string; scheduledAt: Date | null },
+  dayKey: string,
+): boolean {
+  const stored = match.dayKey.trim();
+  if (stored) return stored === dayKey;
+  return match.scheduledAt != null && spDayKey(match.scheduledAt) === dayKey;
+}
+
+/** Minutos do dia → "HH:mm" de relógio de parede: passada a meia-noite o relógio vira
+ *  (1440 → `00:00`), em vez de seguir pra `24:00` como o `formatHHMM`. Este é o rótulo
+ *  da TELA; `formatHHMM` continua sendo o formato do fio (o `dayStart` mandado pra Cloud
+ *  Function) e o do fim nominal da jornada, onde `24:00` é o que significa. */
+export function wallClockLabel(min: number): string {
+  const wrapped = ((Math.round(min) % 1440) + 1440) % 1440;
+  return formatHHMM(wrapped);
+}
+
+/** Teto do eixo: a grade cobre UMA jornada, contada da abertura. */
+export const GRID_MAX_SPAN_MIN = 1440;
+
+/** Fim do eixo da grade, em minutos do dia. Cresce além do fim da jornada pra caber o que
+ *  transbordou pra madrugada (o auto-agendamento não consulta `matchOps.dayEnd`) e pra
+ *  cobrir o que o organizador esticou à mão. Teto de 24h a partir da abertura: a grade é
+ *  de UMA jornada, e além disso ela colidiria com o dia seguinte. */
+export function gridEndMin(opts: {
+  dayStartMin: number;
+  dayEndMin: number;
+  lastBlockEndMin: number;
+  extraMin: number;
+  slotMin: number;
+}): number {
+  const slot = Math.max(1, opts.slotMin);
+  const content = Math.ceil(Math.max(opts.dayEndMin, opts.lastBlockEndMin) / slot) * slot;
+  return Math.min(
+    opts.dayStartMin + GRID_MAX_SPAN_MIN,
+    Math.max(opts.dayStartMin + slot, content + Math.max(0, opts.extraMin)),
+  );
+}
+
 /** Horários oferecidos em "começar a partir das": passo de `slotMin` da abertura
  *  até o último slot que ainda cabe antes do fim da jornada. */
 export function startTimeOptions(dayStartMin: number, dayEndMin: number, slotMin: number): number[] {

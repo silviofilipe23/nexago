@@ -2,7 +2,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { LEVEL_OPTIONS } from '@nexago/levels';
 import { promotableLevelOptions } from '../data/athlete-level-promotion';
-import { OgAthleteLevelDialogComponent, type AthleteLevelTarget } from './athlete-level-dialog.component';
+import { OgAthleteLevelDialogComponent, type AthleteLevelPromotion, type AthleteLevelTarget } from './athlete-level-dialog.component';
 
 function target(over: Partial<AthleteLevelTarget> = {}): AthleteLevelTarget {
   const currentLevel = 'currentLevel' in over ? (over.currentLevel ?? null) : 'intermediario_1';
@@ -45,6 +45,20 @@ describe('OgAthleteLevelDialogComponent', () => {
     return el.querySelector('.og-mini-btn-primary') as HTMLButtonElement;
   }
 
+  function reasonField(el: HTMLElement): HTMLTextAreaElement | null {
+    return el.querySelector('textarea.lvl-reason');
+  }
+
+  /** Escolhe um degrau e escreve um motivo válido — o caminho feliz inteiro. */
+  async function pick(el: HTMLElement, index: number, reason = 'joga muito acima do nível declarado'): Promise<void> {
+    (el.querySelectorAll('input.lvl-radio')[index] as HTMLInputElement).click();
+    await fixture.whenStable();
+    const field = reasonField(el)!;
+    field.value = reason;
+    field.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+  }
+
   it('mostra a escada inteira com o degrau atual marcado e os de baixo travados', async () => {
     const el = await mount(target({ currentLevel: 'intermediario_1' }));
 
@@ -65,24 +79,63 @@ describe('OgAthleteLevelDialogComponent', () => {
     expect(el.querySelectorAll('.lvl-radio:checked').length).toBe(0);
     expect(confirmButton(el).disabled).toBe(true);
     expect(confirmButton(el).textContent).toContain('Escolha o nível');
+    expect(reasonField(el)).toBeNull();
   });
 
-  it('escolher um degrau nomeia o botão e emite o código canônico', async () => {
+  it('escolher um degrau nomeia o botão e emite o código canônico com o motivo', async () => {
     const el = await mount(target({ currentLevel: 'intermediario_1' }));
-    const emitted: string[] = [];
-    fixture.componentInstance.confirmed.subscribe((code) => emitted.push(code));
+    const emitted: AthleteLevelPromotion[] = [];
+    fixture.componentInstance.confirmed.subscribe((p) => emitted.push(p));
 
     // Avançado 1 — quarto degrau escolhível a partir de Intermediário 1.
-    const radio = el.querySelectorAll('input.lvl-radio')[4] as HTMLInputElement;
-    radio.click();
-    await fixture.whenStable();
+    await pick(el, 4, '  ganhou a B com folga nas duas etapas  ');
 
     expect(confirmButton(el).disabled).toBe(false);
     expect(confirmButton(el).textContent).toContain('Promover para Avançado 1');
 
     confirmButton(el).click();
     await fixture.whenStable();
-    expect(emitted).toEqual(['avancado_1']);
+    expect(emitted).toEqual([{ level: 'avancado_1', reason: 'ganhou a B com folga nas duas etapas' }]);
+  });
+
+  /** Divulgação progressiva: sem degrau escolhido não há o que justificar. */
+  it('o campo de motivo só aparece depois do degrau escolhido', async () => {
+    const el = await mount(target({ currentLevel: 'intermediario_1' }));
+    expect(reasonField(el)).toBeNull();
+
+    (el.querySelectorAll('input.lvl-radio')[4] as HTMLInputElement).click();
+    await fixture.whenStable();
+
+    expect(reasonField(el)).not.toBeNull();
+    const hint = el.querySelector('.lvl-reason-hint')!;
+    expect(hint.textContent).toContain('Obrigatório');
+    // Campo vazio ainda não é erro — o amarelo só entra depois que ele começa a escrever.
+    expect(hint.classList.contains('short')).toBe(false);
+  });
+
+  /** O motivo é obrigatório por decisão do portal — a callable aceita vazio do organizador. */
+  it('motivo curto trava o confirmar e diz quanto falta', async () => {
+    const el = await mount(target({ currentLevel: 'intermediario_1' }));
+    await pick(el, 4, 'jogou bem');
+
+    expect(confirmButton(el).disabled).toBe(true);
+    const hint = el.querySelector('.lvl-reason-hint')!;
+    expect(hint.textContent?.trim()).toBe('Falta 1 caractere.');
+    expect(hint.classList.contains('short')).toBe(true);
+  });
+
+  it('plural do que falta acompanha o número', async () => {
+    const el = await mount(target({ currentLevel: 'intermediario_1' }));
+    await pick(el, 4, 'jogou');
+
+    expect(el.querySelector('.lvl-reason-hint')?.textContent?.trim()).toBe('Faltam 5 caracteres.');
+  });
+
+  it('espaço em branco não conta como motivo', async () => {
+    const el = await mount(target({ currentLevel: 'intermediario_1' }));
+    await pick(el, 4, '              ');
+
+    expect(confirmButton(el).disabled).toBe(true);
   });
 
   /** `promotableLevelOptions` devolve os 7 degraus quando não há nível declarado — semear o

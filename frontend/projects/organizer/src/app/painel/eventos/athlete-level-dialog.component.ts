@@ -18,6 +18,19 @@ export interface AthleteLevelTarget {
   options: readonly LevelOption[];
 }
 
+/** O que o diálogo devolve quando o organizador confirma. */
+export interface AthleteLevelPromotion {
+  level: string;
+  reason: string;
+}
+
+/** Limites do motivo. NÃO vêm da callable: pro organizador o `setAthleteLevel` aceita motivo
+ *  vazio (só o caminho admin valida tamanho). São decisão deste portal — a promoção do
+ *  organizador é a única fonte de nível que não passa por revisão, então o histórico precisa
+ *  dizer POR QUE. Espelham os do backoffice de propósito, pra auditoria ficar homogênea. */
+const REASON_MIN = 10;
+const REASON_MAX = 500;
+
 /**
  * Modal "Promover nível" da tela de Equipes da categoria.
  *
@@ -95,6 +108,21 @@ export interface AthleteLevelTarget {
         }
       </div>
 
+      @if (selected()) {
+        <label class="lvl-reason-label" for="og-level-reason">Por que este nível?</label>
+        <textarea
+          id="og-level-reason"
+          class="lvl-reason"
+          rows="2"
+          [attr.maxlength]="reasonMax"
+          placeholder="Ex.: ganhou a categoria B com folga nas duas últimas etapas"
+          [value]="reason()"
+          [disabled]="busy()"
+          (input)="onReason($event)"
+        ></textarea>
+        <p class="lvl-reason-hint" [class.short]="reasonTooShort()">{{ reasonHint() }}</p>
+      }
+
       <p class="og-dialog-text">
         O nível só sobe: depois de aplicar, nem você nem o atleta conseguem desfazer. Vale na
         hora para decidir em quais categorias ele pode se inscrever.
@@ -109,7 +137,7 @@ export interface AthleteLevelTarget {
         <button
           type="button"
           class="og-mini-btn og-mini-btn-primary"
-          [disabled]="busy() || !selected()"
+          [disabled]="busy() || !canConfirm()"
           (click)="confirm()"
         >
           @if (busy()) {
@@ -319,6 +347,45 @@ export interface AthleteLevelTarget {
       line-height: 1.4;
       color: var(--nx-text-dim);
     }
+    .lvl-reason-label {
+      flex: none;
+      margin: 16px 0 6px;
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--nx-text);
+    }
+    .lvl-reason {
+      box-sizing: border-box;
+      flex: none;
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--nx-line);
+      border-radius: 8px;
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .lvl-reason:focus {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
+      border-color: transparent;
+    }
+    .lvl-reason-hint {
+      flex: none;
+      margin: 6px 0 0;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+    }
+    /* O que falta pra liberar o botão vive AQUI, colado no campo — o rótulo do botão continua
+       nomeando o degrau escolhido em vez de virar uma segunda mensagem de erro. */
+    .lvl-reason-hint.short {
+      color: var(--nx-pending);
+    }
     .lvl-check {
       flex: none;
       color: var(--nx-orange-500);
@@ -330,18 +397,21 @@ export interface AthleteLevelTarget {
   `,
 })
 export class OgAthleteLevelDialogComponent {
+  protected readonly reasonMax = REASON_MAX;
+
   readonly target = input.required<AthleteLevelTarget>();
   /** Esporte do torneio, em PT — o nível é por esporte, e o organizador precisa ler qual. */
   readonly sportLabel = input('');
   readonly busy = input(false);
   readonly error = input<string | null>(null);
 
-  readonly confirmed = output<string>();
+  readonly confirmed = output<AthleteLevelPromotion>();
   readonly cancelled = output<void>();
 
   private readonly dialog = viewChild<ElementRef<HTMLElement>>('dialog');
 
   protected readonly selected = signal<string | null>(null);
+  protected readonly reason = signal('');
 
   constructor() {
     // Teclado entra no diálogo, e não continua no fundo: o Escape do host só chega aqui com o
@@ -377,6 +447,34 @@ export class OgAthleteLevelDialogComponent {
     return label ? 'Promover para ' + label : 'Escolha o nível';
   });
 
+  private readonly reasonLength = computed(() => this.reason().trim().length);
+
+  protected readonly reasonValid = computed(
+    () => this.reasonLength() >= REASON_MIN && this.reasonLength() <= REASON_MAX,
+  );
+
+  /** Campo vazio ainda não é erro: o aviso só acende depois que o organizador começa a
+   *  escrever (validação antes da hora acusa quem nem tentou). */
+  protected readonly reasonTooShort = computed(
+    () => this.reasonLength() > 0 && this.reasonLength() < REASON_MIN,
+  );
+
+  protected readonly reasonHint = computed(() => {
+    const length = this.reasonLength();
+    if (length === 0) return 'Obrigatório. Fica no histórico do atleta, que não é notificado.';
+    if (length < REASON_MIN) {
+      const missing = REASON_MIN - length;
+      return missing === 1 ? 'Falta 1 caractere.' : 'Faltam ' + missing + ' caracteres.';
+    }
+    return length + '/' + REASON_MAX + ' caracteres.';
+  });
+
+  protected readonly canConfirm = computed(() => this.selected() != null && this.reasonValid());
+
+  protected onReason(event: Event): void {
+    this.reason.set((event.target as HTMLTextAreaElement).value);
+  }
+
   /** Fechar no meio da chamada deixaria o organizador sem saber se promoveu. */
   protected dismiss(): void {
     if (this.busy()) return;
@@ -385,7 +483,7 @@ export class OgAthleteLevelDialogComponent {
 
   protected confirm(): void {
     const code = this.selected();
-    if (!code || this.busy()) return;
-    this.confirmed.emit(code);
+    if (!code || !this.canConfirm() || this.busy()) return;
+    this.confirmed.emit({ level: code, reason: this.reason().trim() });
   }
 }

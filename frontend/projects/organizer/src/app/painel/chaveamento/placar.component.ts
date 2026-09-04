@@ -7,6 +7,7 @@ import { declareMatchWalkover, scheduleMatch, submitMatchResult, validateMatchRe
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
@@ -29,7 +30,7 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 @Component({
   selector: 'og-placar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgPillComponent, OgFormFieldComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgPillComponent, OgFormFieldComponent, NxPageLoadingComponent, NxSpinnerComponent, OgConfirmDialogComponent],
   template: `
     <og-page-header title="Placar" [subtitle]="headerSubtitle()">
       <button type="button" class="og-ghost-btn" (click)="cancel()">Voltar</button>
@@ -140,13 +141,13 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
             <og-card kicker="Ocorrência" title="W.O. (walkover)">
               <p class="og-placar-hint">Declara vitória sem jogo — a dupla ausente é eliminada e a chave avança.</p>
               <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
-                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team1Label" (click)="walkover(match()!.teamAId)">
+                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team1Label" (click)="askWalkover(match()!.teamAId, match()!.team1Label)">
                   @if (busyKey() === 'wo:' + match()!.teamAId) {
                     <app-nx-spinner [size]="12" />
                   }
                   Vitória de {{ truncate(match()!.team1Label, 20) }}
                 </button>
-                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team2Label" (click)="walkover(match()!.teamBId)">
+                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team2Label" (click)="askWalkover(match()!.teamBId, match()!.team2Label)">
                   @if (busyKey() === 'wo:' + match()!.teamBId) {
                     <app-nx-spinner [size]="12" />
                   }
@@ -210,6 +211,23 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
         }
       </div>
     </div>
+
+    @if (woPending(); as wo) {
+      <og-confirm-dialog
+        title="Declarar W.O.?"
+        [message]="
+          'A partida encerra sem jogo: ' +
+          wo.label +
+          ' vence, a outra dupla é eliminada e a chave avança na hora.'
+        "
+        confirmLabel="Declarar W.O."
+        [destructive]="true"
+        [busy]="saving()"
+        [error]="woError()"
+        (confirmed)="walkover(wo.teamId)"
+        (cancelled)="dismissWalkover()"
+      />
+    }
   `,
   styles: `
     .og-placar-header {
@@ -388,6 +406,10 @@ export class PlacarComponent {
   /** Qual ação está em andamento (`'save' | 'validate' | 'wo:<teamId>'`) — o botão certo mostra o spinner. */
   protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+
+  /** W.O. aguardando confirmação — guarda o rótulo junto do id pra mensagem dizer quem passa. */
+  protected readonly woPending = signal<{ teamId: string; label: string } | null>(null);
+  protected readonly woError = signal<string | null>(null);
   /** Feedback da troca de quadra — sinal próprio pra aparecer no card "Registro da partida",
    *  junto dos chips, e não lá no card de sets onde `feedback` é renderizado. */
   protected readonly courtFeedback = signal<{ ok: boolean; message: string } | null>(null);
@@ -537,20 +559,32 @@ export class PlacarComponent {
     }
   }
 
+  protected askWalkover(winnerTeamId: string, label: string): void {
+    if (this.saving() || !winnerTeamId) return;
+    this.woError.set(null);
+    this.woPending.set({ teamId: winnerTeamId, label });
+  }
+
+  protected dismissWalkover(): void {
+    if (this.saving()) return;
+    this.woPending.set(null);
+    this.woError.set(null);
+  }
+
   protected async walkover(winnerTeamId: string): Promise<void> {
     const m = this.match();
-    if (!m || !winnerTeamId) return;
-    if (!confirm('Declarar W.O.? A partida encerra sem jogo e a chave avança.')) return;
+    if (!m || !winnerTeamId || this.saving()) return;
     this.saving.set(true);
     this.busyKey.set(`wo:${winnerTeamId}`);
     this.feedback.set(null);
     try {
       await declareMatchWalkover({ matchId: m.id, winnerTeamId });
+      this.woPending.set(null);
       this.feedback.set({ ok: true, message: 'W.O. registrado — a chave avança automaticamente.' });
       this.hydratedMatchId = null;
       await this.ctx.reloadMatches();
     } catch (e) {
-      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao registrar W.O.' });
+      this.woError.set((e as Error).message || 'Falha ao registrar W.O.');
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);

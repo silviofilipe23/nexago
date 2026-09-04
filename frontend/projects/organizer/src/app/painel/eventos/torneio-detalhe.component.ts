@@ -4,9 +4,11 @@ import { environment } from '../../../environments/environment';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches } from '../data/matches-repository';
 import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
+import { isPaidRegistrationsRejection } from '../data/tournament-cancel-escalation';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
 import { EMPTY_TOURNAMENT_COLLECTED, formatCentsShort } from '../data/tournament-collected';
 import { getTournament } from '../data/tournaments-repository';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
@@ -18,6 +20,30 @@ const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   andamento: 'Em andamento',
   concluido: 'Concluído',
   cancelado: 'Cancelado',
+};
+
+/** Ações do torneio que passam pelo diálogo de confirmação. `cancelPaid` não é um botão: é o
+ *  segundo degrau do cancelamento, quando o servidor recusa por haver inscrições pagas. */
+type PendingAction = 'close' | 'cancel' | 'cancelPaid';
+
+const CONFIRM_COPY: Record<PendingAction, { title: string; message: string; confirmLabel: string }> = {
+  close: {
+    title: 'Encerrar inscrições?',
+    message:
+      'As inscrições de TODAS as categorias deste torneio fecham. Quem já se inscreveu continua na lista; ninguém novo entra.',
+    confirmLabel: 'Encerrar inscrições',
+  },
+  cancel: {
+    title: 'Cancelar torneio?',
+    message: 'Os atletas inscritos serão notificados e o torneio sai do catálogo público.',
+    confirmLabel: 'Cancelar torneio',
+  },
+  cancelPaid: {
+    title: 'Há inscrições pagas',
+    message:
+      'Este torneio já tem inscrições pagas. Cancelar mesmo assim é possível, mas a plataforma não estorna — a devolução fica por sua conta, combinada fora dela.',
+    confirmLabel: 'Cancelar mesmo assim',
+  },
 };
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
@@ -42,7 +68,7 @@ interface CategoriaRow {
 @Component({
   selector: 'og-torneio-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, NxSpinnerComponent, OgCompartilharTorneioDialogComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, NxSpinnerComponent, OgCompartilharTorneioDialogComponent, OgConfirmDialogComponent],
   template: `
     <og-page-header [title]="tournament()?.name ?? 'Torneio'" [subtitle]="headerSubtitle()">
       @if (tournament(); as t) {
@@ -52,7 +78,7 @@ interface CategoriaRow {
           </button>
         }
         @if (t.status === 'inscricoes') {
-          <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="closeRegistrations()">
+          <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="ask('close')">
             @if (actingKind() === 'close') {
               <app-nx-spinner [size]="12" />
             }
@@ -60,7 +86,7 @@ interface CategoriaRow {
           </button>
         }
         @if (t.status !== 'cancelado' && t.status !== 'concluido') {
-          <button type="button" class="og-ghost-btn og-torneio-danger" [disabled]="acting()" (click)="cancel()">
+          <button type="button" class="og-ghost-btn og-torneio-danger" [disabled]="acting()" (click)="ask('cancel')">
             @if (actingKind() === 'cancel') {
               <app-nx-spinner [size]="12" />
             }
@@ -167,6 +193,19 @@ interface CategoriaRow {
         </div>
       }
     </div>
+
+    @if (pending(); as action) {
+      <og-confirm-dialog
+        [title]="confirmCopy(action).title"
+        [message]="confirmCopy(action).message"
+        [confirmLabel]="confirmCopy(action).confirmLabel"
+        [destructive]="action !== 'close'"
+        [busy]="acting()"
+        [error]="actionError()"
+        (confirmed)="confirmPending(action)"
+        (cancelled)="dismissPending()"
+      />
+    }
 
     @if (shareOpen()) {
       @if (tournament(); as t) {
@@ -412,6 +451,11 @@ export class TorneioDetalheComponent {
   /** Qual ação de header está em andamento — o botão certo mostra spinner/rótulo. */
   protected readonly actingKind = signal<'close' | 'cancel' | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+
+  /** Ação aguardando confirmação no diálogo; `null` = nenhum diálogo aberto. */
+  protected readonly pending = signal<PendingAction | null>(null);
+  /** Erro da ação — fica DENTRO do diálogo, com ele aberto, e não no banner da página. */
+  protected readonly actionError = signal<string | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly inscriptions = signal<TournamentInscription[]>([]);
   /** Ids das categorias que já têm jogos gerados — controlam a oferta de "Gerar chave". */
@@ -521,52 +565,70 @@ export class TorneioDetalheComponent {
     }
   }
 
-  protected async closeRegistrations(): Promise<void> {
+  protected ask(action: PendingAction): void {
+    if (this.acting()) return;
+    this.actionError.set(null);
+    this.pending.set(action);
+  }
+
+  protected dismissPending(): void {
+    if (this.acting()) return;
+    this.pending.set(null);
+    this.actionError.set(null);
+  }
+
+  protected confirmCopy(action: PendingAction): { title: string; message: string; confirmLabel: string } {
+    return CONFIRM_COPY[action];
+  }
+
+  protected confirmPending(action: PendingAction): void {
+    if (action === 'close') {
+      void this.closeRegistrations();
+      return;
+    }
+    void this.cancel(action === 'cancelPaid');
+  }
+
+  private async closeRegistrations(): Promise<void> {
     const t = this.tournament();
     if (!t || this.acting()) return;
-    if (!confirm('Encerrar as inscrições de todas as categorias deste torneio?')) return;
     this.acting.set(true);
     this.actingKind.set('close');
     this.feedback.set(null);
     try {
       await closeTournamentRegistrations(t.id);
+      this.pending.set(null);
       this.feedback.set({ ok: true, message: 'Inscrições encerradas.' });
       await this.load(t.id);
     } catch (e) {
-      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao encerrar inscrições.' });
+      this.actionError.set((e as Error).message || 'Falha ao encerrar inscrições.');
     } finally {
       this.acting.set(false);
       this.actingKind.set(null);
     }
   }
 
-  protected async cancel(): Promise<void> {
+  /** `force` = segunda passada, depois que o servidor recusou por haver inscrições pagas. */
+  private async cancel(force: boolean): Promise<void> {
     const t = this.tournament();
     if (!t || this.acting()) return;
-    if (!confirm(`Cancelar "${t.name}"? Os atletas inscritos serão notificados.`)) return;
     this.acting.set(true);
     this.actingKind.set('cancel');
     this.feedback.set(null);
     try {
-      await cancelTournament(t.id);
+      await cancelTournament(t.id, force ? { force: true } : undefined);
+      this.pending.set(null);
       this.feedback.set({ ok: true, message: 'Torneio cancelado.' });
       await this.load(t.id);
     } catch (e) {
       const err = e as { message?: string; details?: { reason?: string } };
-      // Espelha o app: com inscrições pagas o servidor pede confirmação extra (force).
-      if (err.details?.reason === 'has_paid_registrations' || /pagas|paid/i.test(err.message ?? '')) {
-        const proceed = confirm('Há inscrições pagas neste torneio. Cancelar mesmo assim? (estornos ficam por sua conta)');
-        if (proceed) {
-          try {
-            await cancelTournament(t.id, { force: true });
-            this.feedback.set({ ok: true, message: 'Torneio cancelado.' });
-            await this.load(t.id);
-          } catch (e2) {
-            this.feedback.set({ ok: false, message: (e2 as Error).message || 'Falha ao cancelar.' });
-          }
-        }
+      // Espelha o app: com inscrições pagas o servidor pede confirmação extra (force). Em vez do
+      // segundo confirm() nativo que abria em cima do primeiro, o próprio diálogo troca de
+      // mensagem — o organizador continua no mesmo lugar, lendo por que subiu a aposta.
+      if (!force && isPaidRegistrationsRejection(err)) {
+        this.pending.set('cancelPaid');
       } else {
-        this.feedback.set({ ok: false, message: err.message || 'Falha ao cancelar.' });
+        this.actionError.set(err.message || 'Falha ao cancelar.');
       }
     } finally {
       this.acting.set(false);

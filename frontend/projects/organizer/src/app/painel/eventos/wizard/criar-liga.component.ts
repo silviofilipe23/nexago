@@ -49,6 +49,7 @@ import { OgAddTileComponent } from '../../ui/add-tile.component';
 import { OgCardComponent } from '../../ui/card.component';
 import { OgCategoryCardComponent } from '../../ui/category-card.component';
 import { OgFormFieldComponent } from '../../ui/form-field.component';
+import { OgConfirmDialogComponent } from '../../ui/confirm-dialog.component';
 import { OgIconComponent } from '../../ui/icon.component';
 import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgSelectChipsComponent } from '../../ui/select-chips.component';
@@ -92,6 +93,13 @@ function inputToDate(v: string): Date | null {
  *  e publica igual ao `publishLeague` do Flutter: doc `leagues/{id}` + um torneio por etapa
  *  DEFINIDA (com local + data), tudo num batch (ver `league-create.model.ts`). Etapas só
  *  planejadas (sem local/data) ficam `pending` e viram torneio depois em "Nova etapa". */
+/** Alvo do diálogo de remoção do wizard — categoria ou etapa do rascunho da liga. */
+interface RemoveTarget {
+  kind: 'categoria' | 'etapa';
+  id: string;
+  label: string;
+}
+
 @Component({
   selector: 'og-criar-liga',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -107,6 +115,7 @@ function inputToDate(v: string): Date | null {
     OgAddTileComponent,
     OgReviewRowComponent,
     OgIconComponent,
+    OgConfirmDialogComponent,
   ],
   template: `
     @if (publishedId(); as pubId) {
@@ -393,6 +402,21 @@ function inputToDate(v: string): Date | null {
         }
       </og-wizard-shell>
     }
+
+    @if (removePending(); as target) {
+      <og-confirm-dialog
+        [title]="target.kind === 'categoria' ? 'Remover categoria?' : 'Remover etapa?'"
+        [message]="
+          target.kind === 'categoria'
+            ? 'A categoria ' + target.label + ' sai do rascunho da liga com tudo que foi configurado nela.'
+            : 'A etapa ' + target.label + ' sai do rascunho e as seguintes são renumeradas.'
+        "
+        confirmLabel="Remover"
+        [destructive]="true"
+        (confirmed)="confirmRemove(target)"
+        (cancelled)="removePending.set(null)"
+      />
+    }
   `,
   styles: `
     .og-liga-stage {
@@ -671,9 +695,25 @@ export class CriarLigaComponent {
     this.subView.set('categoria');
   }
 
+  /** Categoria ou etapa aguardando confirmação de remoção; `null` = diálogo fechado. O rótulo
+   *  vai junto porque, depois de remover, não há mais de onde tirá-lo. */
+  protected readonly removePending = signal<RemoveTarget | null>(null);
+
   protected removeCategory(id: string): void {
-    if (!confirm('Remover esta categoria da liga?')) return;
-    this.draft.update((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== id) }));
+    const label = this.draft().categories.find((c) => c.id === id)?.name || 'sem nome';
+    this.removePending.set({ kind: 'categoria', id, label });
+  }
+
+  protected confirmRemove(target: RemoveTarget): void {
+    if (target.kind === 'categoria') {
+      this.draft.update((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== target.id) }));
+    } else {
+      this.draft.update((d) => ({
+        ...d,
+        stages: d.stages.filter((s) => s.id !== target.id).map((s, i) => ({ ...s, order: i + 1 })),
+      }));
+    }
+    this.removePending.set(null);
   }
 
   // ── Etapas ──
@@ -691,11 +731,10 @@ export class CriarLigaComponent {
   }
 
   protected removeStage(id: string): void {
-    if (!confirm('Remover esta etapa?')) return;
-    this.draft.update((d) => ({
-      ...d,
-      stages: d.stages.filter((s) => s.id !== id).map((s, i) => ({ ...s, order: i + 1 })),
-    }));
+    const stage = this.draft().stages.find((s) => s.id === id);
+    if (!stage) return;
+    const label = stage.name.trim() || (stage.isGrandFinal ? 'Grande Final' : 'Etapa ' + stage.order);
+    this.removePending.set({ kind: 'etapa', id, label });
   }
 
   protected stageIsDefined(s: LeagueStageDraft): boolean {

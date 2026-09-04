@@ -93,6 +93,9 @@ export interface OrganizerTournament {
   location: string | null;
   categories: OrganizerTournamentCategory[];
   capacity: number | null;
+  /** Categoria lotada joga a inscrição nova na fila em vez de recusá-la. Ausente no doc = `true`
+   *  (mesma leitura do servidor: só `waitlistEnabled: false` desliga a fila). */
+  waitlistEnabled: boolean;
   leagueId: string | null;
   courts: OrganizerTournamentCourt[];
   courtsCount: number;

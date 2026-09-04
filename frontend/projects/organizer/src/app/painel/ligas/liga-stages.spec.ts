@@ -23,6 +23,7 @@ describe('liga-stages', () => {
       location: null,
       categories: [],
       capacity: null,
+      waitlistEnabled: true,
       leagueId: 'liga-1',
       courts: [],
       courtsCount: 4,

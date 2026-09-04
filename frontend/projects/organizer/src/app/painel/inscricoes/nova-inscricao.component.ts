@@ -39,6 +39,8 @@ export interface NovaInscricaoSubmit {
   uniforms: Record<string, NovaInscricaoUniform>;
   /** Obrigatório em trio+; `null` na dupla. */
   teamName: string | null;
+  /** O organizador autorizou abrir uma vaga a mais numa categoria lotada (atleta convidado). */
+  allowCapacityExpansion: boolean;
 }
 
 /** Nome canônico da equipe (espaços colapsados) — mesma regra do servidor. */
@@ -105,6 +107,23 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
               </button>
             }
           </div>
+        </div>
+      }
+
+      <!-- Categoria lotada é decisão do organizador, não efeito colateral: subir o teto muda o
+           torneio (o atleta e o site passam a ver uma vaga a mais), então ele escolhe antes. -->
+      @if (isCategoryFull()) {
+        <div class="og-banner og-ni-alert" role="status">
+          <strong>Categoria lotada</strong> · {{ occupancy() }}/{{ capacity() }}
+          {{ unitLabel().toLowerCase() }}s.
+        </div>
+        <div class="og-ni-toggle">
+          <og-toggle-row
+            title="Abrir uma vaga extra"
+            [desc]="expandDesc()"
+            [on]="expandCapacity()"
+            (toggled)="expandCapacity.set($event)"
+          />
         </div>
       }
 
@@ -219,6 +238,13 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
             (toggled)="markAsPaid.set($event)"
           />
         </div>
+      }
+
+      @if (capacityBlocked()) {
+        <p class="og-ni-status og-ni-error">
+          Este torneio não tem lista de espera: sem abrir uma vaga extra, não dá pra inscrever
+          nesta categoria.
+        </p>
       }
 
       <div class="og-ni-actions">
@@ -351,6 +377,9 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
     .og-ni-toggle {
       margin-top: 14px;
     }
+    .og-ni-alert {
+      margin-top: 14px;
+    }
     .og-ni-actions {
       display: flex;
       justify-content: flex-end;
@@ -368,6 +397,11 @@ export class OgNovaInscricaoComponent {
   readonly uniformConfigs = input<readonly UniformCategoryConfig[]>([]);
   /** Categoria que a tela já está filtrando — poupa um clique no caso comum. */
   readonly categoriaInicial = input<string | null>(null);
+  /** Inscrições que já ocupam vaga, por categoria (fila de espera não conta) — a mesma conta
+   *  que o servidor faz. Só serve pra ANTECIPAR a lotação na tela; quem decide é a CF. */
+  readonly occupancyByCategory = input<Readonly<Record<string, number>>>({});
+  /** Torneio com fila de espera. Desligada, categoria lotada sem vaga extra não tem saída. */
+  readonly waitlistEnabled = input(true);
   readonly busy = input(false);
 
   readonly submitted = output<NovaInscricaoSubmit>();
@@ -380,6 +414,7 @@ export class OgNovaInscricaoComponent {
   protected readonly categoryId = signal('');
   protected readonly athletes = signal<AthleteSearchResult[]>([]);
   protected readonly markAsPaid = signal(false);
+  protected readonly expandCapacity = signal(false);
   protected readonly uniformByUid = signal<Record<string, InscriptionUniformSlot>>({});
   protected readonly teamName = signal('');
 
@@ -424,6 +459,33 @@ export class OgNovaInscricaoComponent {
 
   protected readonly isRosterComplete = computed(() => this.athletes().length >= this.rosterSize());
 
+  /** Teto da categoria escolhida; `null` = categoria sem teto (nunca lota). */
+  protected readonly capacity = computed(() => this.selectedCategory()?.maxTeams ?? null);
+
+  protected readonly occupancy = computed(
+    () => this.occupancyByCategory()[this.categoryId()] ?? 0,
+  );
+
+  protected readonly isCategoryFull = computed(() => {
+    const max = this.capacity();
+    return max != null && max > 0 && this.occupancy() >= max;
+  });
+
+  /** O que acontece se ele NÃO abrir a vaga — é a metade da escolha que costuma faltar. */
+  protected readonly expandDesc = computed(() => {
+    const from = this.capacity() ?? 0;
+    const head = `A categoria passa de ${from} para ${from + 1} vagas.`;
+    return this.waitlistEnabled()
+      ? `${head} Sem marcar, a inscrição entra na lista de espera.`
+      : `${head} Sem marcar, esta inscrição não pode ser criada.`;
+  });
+
+  /** Lotada, sem fila e sem vaga extra: não existe desfecho. Travar o botão com o motivo escrito
+   *  é melhor do que deixar o organizador preencher tudo pra colidir com o erro do servidor. */
+  protected readonly capacityBlocked = computed(
+    () => this.isCategoryFull() && !this.waitlistEnabled() && !this.expandCapacity(),
+  );
+
   protected readonly isPaidCategory = computed(() => {
     const id = this.categoryId();
     return (this.categorias().find((c) => c.id === id)?.entryFee ?? 0) > 0;
@@ -457,7 +519,8 @@ export class OgNovaInscricaoComponent {
       this.categoryId() !== '' &&
       this.isRosterComplete() &&
       this.isUniformComplete() &&
-      this.isTeamNameValid(),
+      this.isTeamNameValid() &&
+      !this.capacityBlocked(),
   );
 
   constructor() {
@@ -492,6 +555,9 @@ export class OgNovaInscricaoComponent {
 
   protected pickCategory(id: string): void {
     this.categoryId.set(id);
+    // A autorização é para AQUELA categoria: trocar de chip não pode carregar junto o
+    // consentimento de subir o teto de outra.
+    this.expandCapacity.set(false);
   }
 
   protected onTeamNameInput(event: Event): void {
@@ -567,6 +633,9 @@ export class OgNovaInscricaoComponent {
         ? Object.fromEntries(chosen.map((a) => [a.uid, uniformPayload(this.uniformOf(a.uid))]))
         : {},
       teamName: this.isNamedTeam() ? normalizeTeamName(this.teamName()) : null,
+      // Só vai quando a tela viu a categoria lotada: com vaga livre a permissão seria ruído, e
+      // o servidor a ignoraria de todo jeito.
+      allowCapacityExpansion: this.isCategoryFull() && this.expandCapacity(),
     });
   }
 }

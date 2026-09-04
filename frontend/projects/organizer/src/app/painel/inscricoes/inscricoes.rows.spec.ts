@@ -75,6 +75,7 @@ function tournament(over: Partial<OrganizerTournament> = {}): OrganizerTournamen
     location: null,
     categories: [category()],
     capacity: null,
+    waitlistEnabled: true,
     leagueId: null,
     courts: [],
     courtsCount: 0,

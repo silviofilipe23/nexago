@@ -62,10 +62,13 @@ describe('OgNovaInscricaoComponent', () => {
     categorias: OrganizerTournamentCategory[],
     categoriaInicial: string | null = null,
     uniformConfigs: UniformCategoryConfig[] = [],
+    capacity: { occupancy?: Record<string, number>; waitlistEnabled?: boolean } = {},
   ): Promise<HTMLElement> {
     fixture.componentRef.setInput('categorias', categorias);
     fixture.componentRef.setInput('categoriaInicial', categoriaInicial);
     fixture.componentRef.setInput('uniformConfigs', uniformConfigs);
+    fixture.componentRef.setInput('occupancyByCategory', capacity.occupancy ?? {});
+    fixture.componentRef.setInput('waitlistEnabled', capacity.waitlistEnabled ?? true);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
   }
@@ -165,6 +168,99 @@ describe('OgNovaInscricaoComponent', () => {
       markAsPaid: true,
       uniforms: {},
       teamName: null,
+      allowCapacityExpansion: false,
+    });
+  });
+
+  /** A vaga extra é a saída para o atleta CONVIDADO: a categoria já lotou, mas o organizador
+   *  precisa colocar a equipe. Subir o teto muda o torneio (o atleta e o site passam a ver uma
+   *  vaga a mais), então é escolha explícita — nunca efeito colateral do botão Inscrever. */
+  describe('categoria lotada', () => {
+    const lotada = () => category({ maxTeams: 16 });
+    const cheia = { occupancy: { c1: 16 } };
+
+    function expandToggle(el: HTMLElement): HTMLElement | null {
+      return [...el.querySelectorAll<HTMLElement>('og-toggle-row')].find((row) =>
+        row.textContent?.includes('Abrir uma vaga extra'),
+      ) ?? null;
+    }
+
+    it('categoria com vaga não fala em lotação', async () => {
+      const el = await render([lotada()], null, [], { occupancy: { c1: 15 } });
+      expect(el.textContent).not.toContain('Categoria lotada');
+      expect(expandToggle(el)).toBeNull();
+    });
+
+    it('categoria sem teto nunca lota', async () => {
+      const el = await render([category()], null, [], { occupancy: { c1: 99 } });
+      expect(expandToggle(el)).toBeNull();
+    });
+
+    it('avisa a lotação e oferece a vaga extra, desligada por padrão', async () => {
+      const el = await render([lotada()], null, [], cheia);
+      expect(el.querySelector('.og-ni-alert')?.textContent).toContain('16/16');
+      const toggle = expandToggle(el)!;
+      expect(toggle.textContent).toContain('passa de 16 para 17 vagas');
+      expect(toggle.textContent).toContain('entra na lista de espera');
+      expect(toggle.querySelector('.og-toggle.on')).toBeNull();
+    });
+
+    it('sem a vaga extra, a inscrição segue pra fila — e o botão continua liberado', async () => {
+      const el = await render([lotada()], null, [], cheia);
+      const emitted: NovaInscricaoSubmit[] = [];
+      fixture.componentInstance.submitted.subscribe((e) => emitted.push(e));
+
+      await pickPair();
+      expect(submitButton(el).disabled).toBeFalse();
+      submitButton(el).click();
+
+      expect(emitted[0].allowCapacityExpansion).toBeFalse();
+    });
+
+    it('marcar a vaga extra manda a autorização', async () => {
+      const el = await render([lotada()], null, [], cheia);
+      const emitted: NovaInscricaoSubmit[] = [];
+      fixture.componentInstance.submitted.subscribe((e) => emitted.push(e));
+
+      await pickPair();
+      expandToggle(el)!.click();
+      await fixture.whenStable();
+      submitButton(el).click();
+
+      expect(emitted[0].allowCapacityExpansion).toBeTrue();
+    });
+
+    it('sem lista de espera, a vaga extra é a única saída: o botão trava com o motivo', async () => {
+      const el = await render([lotada()], null, [], { ...cheia, waitlistEnabled: false });
+      await pickPair();
+
+      expect(expandToggle(el)!.textContent).toContain('não pode ser criada');
+      expect(el.textContent).toContain('Este torneio não tem lista de espera');
+      expect(submitButton(el).disabled).toBeTrue();
+
+      expandToggle(el)!.click();
+      await fixture.whenStable();
+      expect(submitButton(el).disabled).toBeFalse();
+    });
+
+    it('trocar de categoria não carrega junto a autorização da anterior', async () => {
+      const el = await render(
+        [lotada(), category({ id: 'c2', name: 'Masculina A', maxTeams: 16 })],
+        'c1',
+        [],
+        { occupancy: { c1: 16, c2: 16 } },
+      );
+      expandToggle(el)!.click();
+      await fixture.whenStable();
+      expect(expandToggle(el)!.querySelector('.og-toggle.on')).not.toBeNull();
+
+      const chipC2 = [...el.querySelectorAll<HTMLButtonElement>('.og-chip')].find(
+        (c) => c.textContent?.trim() === 'Masculina A',
+      )!;
+      chipC2.click();
+      await fixture.whenStable();
+
+      expect(expandToggle(el)!.querySelector('.og-toggle.on')).toBeNull();
     });
   });
 

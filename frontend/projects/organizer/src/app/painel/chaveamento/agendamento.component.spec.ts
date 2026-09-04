@@ -44,6 +44,7 @@ function tournamentFixture(overrides: Partial<OrganizerTournament> = {}): Organi
       },
     ],
     capacity: null,
+    waitlistEnabled: true,
     leagueId: null,
     courts: [
       { id: 'Q1', name: 'Quadra 1', order: 1 },

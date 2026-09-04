@@ -82,6 +82,11 @@ export interface CreateTeamRegistrationResult {
   /** A dupla fechou sobre uma reserva que um dos atletas já tinha, em vez de nascer do zero. */
   merged: boolean;
   waitlist: boolean;
+  /** O teto da categoria subiu para caber esta inscrição (atleta convidado). */
+  capacityExpanded?: boolean;
+  /** Teto antes e depois — só quando `capacityExpanded`. */
+  capacityFrom?: number;
+  capacityTo?: number;
 }
 
 /** Inscreve uma dupla que não conseguiu se inscrever sozinha (prazo estourado, convite nunca
@@ -96,6 +101,9 @@ export function createTeamRegistration(params: {
   uniforms?: Record<string, TeamRegistrationUniform>;
   /** Nome da equipe (trio+). Omitido na dupla. */
   teamName?: string | null;
+  /** Autoriza abrir uma vaga a mais se a categoria estiver lotada (atleta convidado). É
+   *  permissão, não ordem: com vaga livre, o teto não muda. */
+  allowCapacityExpansion?: boolean;
 }): Promise<CreateTeamRegistrationResult> {
   const teamName = params.teamName?.trim() ?? '';
   return call<CreateTeamRegistrationResult>('organizerCreateTeamRegistration', {
@@ -104,6 +112,7 @@ export function createTeamRegistration(params: {
     athleteUids: params.athleteUids.map((uid) => uid.trim()).filter((uid) => uid.length > 0),
     markAsPaid: params.markAsPaid,
     uniforms: params.uniforms ?? {},
+    allowCapacityExpansion: params.allowCapacityExpansion === true,
     ...(teamName ? { teamName } : {}),
   });
 }

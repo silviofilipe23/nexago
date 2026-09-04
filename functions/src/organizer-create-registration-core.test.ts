@@ -40,6 +40,7 @@ describe("parseCreateTeamRegistrationInput", () => {
       markAsPaid: true,
       uniforms: {},
       teamName: null,
+      allowCapacityExpansion: false,
     });
   });
 
@@ -90,6 +91,24 @@ describe("parseCreateTeamRegistrationInput", () => {
     assert.equal(
       parseCreateTeamRegistrationInput({...base, markAsPaid: "true"}).markAsPaid,
       false,
+    );
+  });
+
+  it("allowCapacityExpansion só é verdadeiro no booleano true", () => {
+    const base = {tournamentId: "t1", categoryId: "c", athleteUids: ["a", "b"]};
+    assert.equal(
+      parseCreateTeamRegistrationInput(base).allowCapacityExpansion,
+      false,
+    );
+    assert.equal(
+      parseCreateTeamRegistrationInput({...base, allowCapacityExpansion: "true"})
+        .allowCapacityExpansion,
+      false,
+    );
+    assert.equal(
+      parseCreateTeamRegistrationInput({...base, allowCapacityExpansion: true})
+        .allowCapacityExpansion,
+      true,
     );
   });
 

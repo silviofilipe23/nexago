@@ -71,6 +71,7 @@ function tournament(): OrganizerTournament {
       },
     ],
     capacity: null,
+    waitlistEnabled: true,
     leagueId: null,
     courts: [],
     courtsCount: 0,

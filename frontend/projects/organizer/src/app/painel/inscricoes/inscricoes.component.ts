@@ -114,6 +114,8 @@ interface PendingConfirm {
           [categorias]="categorias()"
           [uniformConfigs]="uniformConfigs()"
           [categoriaInicial]="categoryFilter()"
+          [occupancyByCategory]="occupancyByCategory()"
+          [waitlistEnabled]="waitlistEnabled()"
           [busy]="busy()"
           (submitted)="onCreate($event)"
           (cancelled)="toggleNova()"
@@ -310,6 +312,19 @@ export class InscricoesComponent {
   /** Exigência de uniforme por categoria — mesma fonte da tela de Uniformes, com a herança
    *  das flags da raiz resolvida. */
   protected readonly uniformConfigs = computed(() => uniformCategoryConfigs(this.tournament()));
+
+  protected readonly waitlistEnabled = computed(() => this.tournament()?.waitlistEnabled ?? true);
+
+  /** Vagas ocupadas por categoria, pela MESMA regra do servidor: 1 inscrição = 1 vaga, e a fila
+   *  de espera não ocupa nada. Serve só pra tela antecipar a lotação — a decisão é da CF. */
+  protected readonly occupancyByCategory = computed<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const row of this.rows()) {
+      if (row.categoriaId == null || row.pay === 'espera') continue;
+      counts[row.categoriaId] = (counts[row.categoriaId] ?? 0) + 1;
+    }
+    return counts;
+  });
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -519,14 +534,21 @@ export class InscricoesComponent {
           markAsPaid: form.markAsPaid,
           uniforms: form.uniforms,
           teamName: form.teamName,
+          allowCapacityExpansion: form.allowCapacityExpansion,
         });
         this.creating.set(false);
+        // O teto vive no doc do torneio, que é lido uma vez na abertura da tela: sem recarregar,
+        // a categoria continuaria "lotada" no formulário depois de a vaga já ter sido aberta.
+        if (result.capacityExpanded) await this.loadTournament(this.id());
         return result;
       },
       (result) => {
         const base = result.merged
           ? `${unit} fechada em ${categoriaNome} sobre a inscrição que o atleta já tinha.`
           : `${unit} inscrita em ${categoriaNome}.`;
+        if (result.capacityExpanded) {
+          return `${base} A categoria passou de ${result.capacityFrom} para ${result.capacityTo} vagas.`;
+        }
         return result.waitlist ? `${base} A categoria está lotada: entrou na lista de espera.` : base;
       },
     );

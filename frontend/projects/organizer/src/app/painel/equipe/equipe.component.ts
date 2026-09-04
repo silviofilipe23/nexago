@@ -21,6 +21,7 @@ import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgChartTabsComponent } from '../ui/chart-tabs.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
@@ -66,7 +67,7 @@ export function staffCandidateExclusions(params: {
 @Component({
   selector: 'og-equipe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent, NxSkeletonComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent, NxSkeletonComponent, OgConfirmDialogComponent],
   template: `
     <og-page-header title="Equipe" [subtitle]="headerSubtitle()">
       @if (canManage()) {
@@ -234,6 +235,22 @@ export function staffCandidateExclusions(params: {
         </div>
       </div>
     </div>
+
+    @if (removePending(); as member) {
+      <og-confirm-dialog
+        title="Remover da equipe?"
+        [message]="
+          nameOf(member) +
+          ' perde o acesso à operação deste torneio na hora. Dá pra adicionar de novo depois, com o papel que quiser.'
+        "
+        confirmLabel="Remover"
+        [destructive]="true"
+        [busy]="busy()"
+        [error]="removeError()"
+        (confirmed)="confirmRemove(member)"
+        (cancelled)="dismissRemove()"
+      />
+    }
   `,
   styles: `
     .og-equipe-name {
@@ -380,6 +397,10 @@ export class EquipeComponent {
   protected readonly busyKey = signal<string | null>(null);
   protected readonly actionsFor = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+
+  /** Membro aguardando confirmação de remoção; `null` = diálogo fechado. */
+  protected readonly removePending = signal<TournamentStaffMember | null>(null);
+  protected readonly removeError = signal<string | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly members = signal<TournamentStaffMember[]>([]);
 
@@ -519,12 +540,18 @@ export class EquipeComponent {
     }
   }
 
-  private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
+  private async run(
+    key: string,
+    action: () => Promise<unknown>,
+    okMessage: string,
+    hooks?: { onSuccess?: () => void; onError?: (message: string) => void },
+  ): Promise<void> {
     this.busy.set(true);
     this.busyKey.set(key);
     this.feedback.set(null);
     try {
       await action();
+      hooks?.onSuccess?.();
       this.feedback.set({ ok: true, message: okMessage });
       this.actionsFor.set(null);
       const tid = this.id();
@@ -533,7 +560,9 @@ export class EquipeComponent {
         await this.load(tid);
       }
     } catch (e) {
-      this.feedback.set({ ok: false, message: (e as Error).message || 'Operação falhou.' });
+      const message = (e as Error).message || 'Operação falhou.';
+      if (hooks?.onError) hooks.onError(message);
+      else this.feedback.set({ ok: false, message });
     } finally {
       this.busy.set(false);
       this.busyKey.set(null);
@@ -546,7 +575,22 @@ export class EquipeComponent {
   }
 
   protected remove(m: TournamentStaffMember): void {
-    if (!confirm(`Remover ${this.nameOf(m)} da equipe? A pessoa perde o acesso à operação deste torneio.`)) return;
-    void this.run(`remove:${m.uid}`, () => removeTournamentStaff(this.id(), m.uid), `${this.nameOf(m)} removido(a) da equipe.`);
+    if (this.busy()) return;
+    this.removeError.set(null);
+    this.removePending.set(m);
+  }
+
+  protected dismissRemove(): void {
+    if (this.busy()) return;
+    this.removePending.set(null);
+    this.removeError.set(null);
+  }
+
+  protected confirmRemove(m: TournamentStaffMember): void {
+    if (this.busy()) return;
+    void this.run(`remove:${m.uid}`, () => removeTournamentStaff(this.id(), m.uid), `${this.nameOf(m)} removido(a) da equipe.`, {
+      onSuccess: () => this.removePending.set(null),
+      onError: (message) => this.removeError.set(message),
+    });
   }
 }

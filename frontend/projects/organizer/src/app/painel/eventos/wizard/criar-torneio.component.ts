@@ -57,6 +57,7 @@ import {
 import { OgCardComponent } from '../../ui/card.component';
 import { OgCategoryCardComponent } from '../../ui/category-card.component';
 import { OgFormFieldComponent } from '../../ui/form-field.component';
+import { OgConfirmDialogComponent } from '../../ui/confirm-dialog.component';
 import { OgIconComponent } from '../../ui/icon.component';
 import { OgAddTileComponent } from '../../ui/add-tile.component';
 import { OgRadioRowComponent } from '../../ui/radio-row.component';
@@ -148,6 +149,7 @@ function inputToDatetime(v: string): Date | null {
     OgAddTileComponent,
     OgReviewRowComponent,
     OgIconComponent,
+    OgConfirmDialogComponent,
   ],
   template: `
     @if (publishedId(); as pubId) {
@@ -553,6 +555,21 @@ function inputToDatetime(v: string): Date | null {
         }
         }
       </og-wizard-shell>
+    }
+
+    @if (removeCatPending(); as id) {
+      <og-confirm-dialog
+        title="Remover categoria?"
+        [message]="
+          'A categoria ' +
+          categoryNameOf(id) +
+          ' sai do rascunho com tudo que foi configurado nela — formato, vagas e valor.'
+        "
+        confirmLabel="Remover"
+        [destructive]="true"
+        (confirmed)="confirmRemoveCategory(id)"
+        (cancelled)="removeCatPending.set(null)"
+      />
     }
   `,
   styles: `
@@ -1046,9 +1063,20 @@ export class CriarTorneioComponent {
     this.subView.set('categoria');
   }
 
+  /** Id da categoria aguardando confirmação de remoção; `null` = diálogo fechado. */
+  protected readonly removeCatPending = signal<string | null>(null);
+
   protected removeCategory(id: string): void {
-    if (!confirm('Remover esta categoria?')) return;
+    this.removeCatPending.set(id);
+  }
+
+  protected categoryNameOf(id: string): string {
+    return this.draft().categories.find((c) => c.id === id)?.name || 'sem nome';
+  }
+
+  protected confirmRemoveCategory(id: string): void {
     this.draft.update((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== id) }));
+    this.removeCatPending.set(null);
   }
 
   private saveCategoryFromBuilder(): void {

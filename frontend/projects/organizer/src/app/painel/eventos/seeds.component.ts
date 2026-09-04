@@ -19,6 +19,7 @@ import { getTournament } from '../data/tournaments-repository';
 import { ChaveamentoContextService } from '../chaveamento/chaveamento-context.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
+import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
@@ -63,7 +64,7 @@ function shuffled<T>(items: readonly T[]): T[] {
 @Component({
   selector: 'og-seeds',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxProcessingOverlayComponent, NxSpinnerComponent, OgConfirmDialogComponent],
   template: `
     <og-page-header title="Gerar chave" [subtitle]="headerSubtitle()">
       <button type="button" class="og-ghost-btn" (click)="cancel()">Cancelar</button>
@@ -189,6 +190,17 @@ function shuffled<T>(items: readonly T[]): T[] {
     </div>
     @if (publishing()) {
       <app-nx-processing-overlay title="Sorteando a chave…" description="Distribuindo as cabeças de chave e sorteando as demais duplas nos grupos." />
+    }
+
+    @if (regenPending()) {
+      <og-confirm-dialog
+        title="A chave já tem resultados"
+        message="Esta categoria já tem partidas em andamento ou concluídas. Regerar a chave APAGA os placares e a classificação que saíram delas — não há como recuperar."
+        confirmLabel="Regerar e apagar"
+        [destructive]="true"
+        (confirmed)="confirmRegen()"
+        (cancelled)="regenPending.set(false)"
+      />
     }
   `,
   styles: `
@@ -345,6 +357,8 @@ export class SeedsComponent {
 
   protected readonly loading = signal(true);
   protected readonly publishing = signal(false);
+  /** Confirmação extra de regerar chave por cima de resultados já lançados. */
+  protected readonly regenPending = signal(false);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly eligible = signal<TournamentInscription[]>([]);
   protected readonly format = signal<BracketFormat>('groups_knockout');
@@ -577,16 +591,23 @@ export class SeedsComponent {
       setTimeout(() => void this.router.navigate(['/painel/eventos', tid, 'categorias', cat.id, 'chave']), 900);
     } catch (e) {
       const err = e as { message?: string; details?: { reason?: string } };
+      // O servidor recusa a regeração quando já há resultados; a confirmação extra passa pelo
+      // diálogo do painel (o overlay de "Sorteando…" já saiu de cena aqui, então não se
+      // sobrepõem) e o "sim" refaz a chamada com force.
       if (err.details?.reason === 'bracket_has_results' && !force) {
         this.publishing.set(false);
-        const proceed = confirm('A chave já tem partidas em andamento ou concluídas. Regerar vai APAGAR os resultados atuais. Continuar?');
-        if (proceed) await this.publish(true);
+        this.regenPending.set(true);
         return;
       }
       this.feedback.set({ ok: false, message: err.message || 'Falha ao publicar a chave.' });
     } finally {
       this.publishing.set(false);
     }
+  }
+
+  protected confirmRegen(): void {
+    this.regenPending.set(false);
+    void this.publish(true);
   }
 
   protected cancel(): void {

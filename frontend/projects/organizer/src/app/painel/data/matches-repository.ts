@@ -48,6 +48,10 @@ export interface TournamentMatch {
   sets: Array<{ a: number; b: number }>;
   courtId: string;
   scheduleEndAt: Date | null;
+  /** Dia da JORNADA a que a partida pertence, como o servidor gravou — não é o dia de
+   *  calendário de `scheduledAt`: uma grade cheia transborda a meia-noite e a partida
+   *  continua sendo do dia anterior. Vazio em doc antigo. Ver `matchBelongsToDay`. */
+  dayKey: string;
   /** 1 (set único) ou 3 (MD3) — mesmo parse tolerante do app (`_bestOf`). */
   bestOf: 1 | 3;
   /** Campos crus (Task O6) usados só pra reconstruir a árvore de mata-mata — ver
@@ -196,6 +200,7 @@ interface RawMatch {
   sets: RawSet[];
   courtId: string;
   scheduleEndAt: Date | null;
+  dayKey: string;
   bestOf: 1 | 3;
   liveScore: MatchLiveScore | null;
   currentSetIndex: number | null;
@@ -239,6 +244,7 @@ function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawMatch {
     sets,
     courtId: optionalStr(data['courtId']) ?? '',
     scheduleEndAt: toDate(data['scheduleEndTime']),
+    dayKey: optionalStr(data['dayKey']) ?? '',
     bestOf: data['bestOf'] === 1 ? 1 : 3,
     liveScore: liveScoreFromRaw(data['liveScore']),
     currentSetIndex: intOf(data['currentSetIndex']),
@@ -439,6 +445,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     sets: r.sets,
     courtId: r.courtId,
     scheduleEndAt: r.scheduleEndAt,
+    dayKey: r.dayKey,
     bestOf: r.bestOf,
     liveScore: r.liveScore,
     currentSetIndex: r.currentSetIndex,

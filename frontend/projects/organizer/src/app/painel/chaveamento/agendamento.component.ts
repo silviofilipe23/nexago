@@ -2,12 +2,16 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { truncateName } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
 import {
+  GRID_MAX_SPAN_MIN,
   formatHHMM,
+  gridEndMin,
+  matchBelongsToDay,
   minutesFromDayStart,
   parseHHMM,
   previewBlocksByCourt,
   spWallToDate,
   startTimeOptions,
+  wallClockLabel,
 } from '../data/auto-schedule-preview';
 import type { AutoScheduleSkip, AutoScheduleSlot } from '../data/organizer-ops.service';
 import {
@@ -108,9 +112,14 @@ interface AgendaBloco {
                 @for (i of rowIndexes(); track i) {
                   <div class="og-agenda-hour-row" [style.top.px]="i * rowH">
                     @if ((startMin() + i * slotMin) % 60 === 0) {
-                      <div class="og-agenda-hour-label">{{ fmt(startMin() + i * slotMin) }}</div>
+                      <div class="og-agenda-hour-label">{{ wall(startMin() + i * slotMin) }}</div>
                     }
                     <div class="og-agenda-hour-line" [class.solid]="(startMin() + i * slotMin) % 60 === 0"></div>
+                  </div>
+                }
+                @if (showMidnightMark()) {
+                  <div class="og-agenda-midnight" [style.top.px]="minToY(1440)">
+                    <span>{{ nextDayLabel() }}</span>
                   </div>
                 }
                 <div class="og-agenda-columns">
@@ -125,7 +134,7 @@ interface AgendaBloco {
                           [style.height.px]="rowH"
                           [disabled]="busy() || autoOpen() || bulkMode() || selectedMatchId() == null"
                           (click)="scheduleAt(c.id, startMin() + i * slotMin)"
-                          [attr.aria-label]="'Agendar às ' + fmt(startMin() + i * slotMin) + ' na ' + c.name"
+                          [attr.aria-label]="'Agendar às ' + wall(startMin() + i * slotMin) + ' na ' + c.name"
                         ></button>
                       }
                       @for (b of blocks()[c.id]; track b.match.id) {
@@ -151,7 +160,7 @@ interface AgendaBloco {
                               <span>· {{ score }}</span>
                             }
                           </div>
-                          <div class="hora">{{ fmt(b.startMin) }}–{{ fmt(b.startMin + b.durMin) }}</div>
+                          <div class="hora">{{ wall(b.startMin) }}–{{ wall(b.startMin + b.durMin) }}</div>
                         </div>
                       }
                       @for (p of previewBlocks()[c.id]; track p.matchId) {
@@ -162,13 +171,16 @@ interface AgendaBloco {
                         >
                           <div class="partida">{{ previewLabel(p.matchId) }}</div>
                           <div class="meta">{{ previewMeta(p.matchId) }}</div>
-                          <div class="hora">{{ fmt(p.startMin) }}–{{ fmt(p.startMin + p.durMin) }}</div>
+                          <div class="hora">{{ wall(p.startMin) }}–{{ wall(p.startMin + p.durMin) }}</div>
                         </div>
                       }
                     </div>
                   }
                 </div>
               </div>
+              @if (canExtendGrid()) {
+                <button type="button" class="og-agenda-extend" (click)="extendGrid()">+1 hora</button>
+              }
             </div>
             @if (autoOpen()) {
               <div class="og-agenda-legend">
@@ -315,7 +327,7 @@ interface AgendaBloco {
                   <div class="meta">
                     #{{ m.matchNumber || '—' }}
                     @if (m.scheduledAt) {
-                      · {{ timeLabel(m.scheduledAt) }} ({{ dayLabel(dayKeyOf(m.scheduledAt)) }})
+                      · {{ timeLabel(m.scheduledAt) }} ({{ matchDayLabel(m) }})
                     }
                   </div>
                 </div>
@@ -358,7 +370,7 @@ interface AgendaBloco {
                     · {{ m.round }}
                   }
                   @if (m.scheduledAt) {
-                    · {{ timeLabel(m.scheduledAt) }} ({{ dayLabel(dayKeyOf(m.scheduledAt)) }})
+                    · {{ timeLabel(m.scheduledAt) }} ({{ matchDayLabel(m) }})
                   }
                 </div>
               </button>
@@ -485,6 +497,53 @@ interface AgendaBloco {
     }
     .og-agenda-hour-line.solid {
       border-top-style: solid;
+    }
+
+    /* Virada do dia. Sem essa marca o 00:00 no meio do eixo passa por um horário do
+       próprio dia — a grade é de UMA jornada, que atravessa a meia-noite.
+       Sem crase aqui: dentro do styles: inline ela fecha o template literal. */
+    .og-agenda-midnight {
+      position: absolute;
+      left: 52px;
+      right: 0;
+      z-index: 3;
+      border-top: 1px solid var(--nx-line-strong);
+      pointer-events: none;
+    }
+    /* A data mora na canaleta das horas, logo abaixo do 00:00 — sobre a coluna
+       ela cairia em cima dos cards. */
+    .og-agenda-midnight span {
+      position: absolute;
+      top: 12px;
+      left: -52px;
+      width: 42px;
+      text-align: right;
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--nx-text-mute);
+    }
+
+    /* Estende o eixo pra madrugada uma hora por vez. Fica no pé da rolagem, onde
+       o organizador já está quando a jornada encheu. */
+    .og-agenda-extend {
+      display: block;
+      width: 100%;
+      margin-top: 4px;
+      padding: 9px 0;
+      background: transparent;
+      border: 1px dashed var(--nx-line-strong);
+      border-radius: var(--nx-r-2);
+      color: var(--nx-text-dim);
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color var(--nx-d-fast) var(--nx-ease-out), border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .og-agenda-extend:hover {
+      color: var(--nx-text);
+      border-color: var(--nx-orange-500);
     }
     .og-agenda-columns {
       position: absolute;
@@ -968,9 +1027,9 @@ export class AgendamentoComponent {
   protected readonly durationMin = computed(() => this.ctx.tournament()?.matchOps.defaultMatchDurationMin ?? 30);
 
   protected readonly startMin = computed(() => parseHHMM(this.ctx.tournament()?.matchOps.dayStart ?? '07:00'));
+  /** Fim NOMINAL da jornada (`matchOps.dayEnd`) — é o que conta como "dentro da janela"
+   *  no resumo do auto-agendamento. O eixo DESENHADO pode passar dele: ver `gridEnd`. */
   protected readonly endMin = computed(() => parseHHMM(this.ctx.tournament()?.matchOps.dayEnd ?? '24:00'));
-  protected readonly rows = computed(() => Math.max(1, Math.floor((this.endMin() - this.startMin()) / SLOT_MIN)));
-  protected readonly rowIndexes = computed(() => Array.from({ length: this.rows() }, (_, i) => i));
 
   /** Dias do torneio (startAt..endAt na parede SP, máx. 14) + hoje como fallback. */
   protected readonly dayKeys = computed<string[]>(() => {
@@ -1015,6 +1074,7 @@ export class AgendamentoComponent {
       this.selectedDayKey.set(keys.includes(today) ? today : (keys[0] ?? today));
       this.selectedMatchId.set(null);
       this.feedback.set(null);
+      this.extraGridMin.set(0);
       this.autoDynamicReschedule.set(t.matchOps.dynamicRescheduleEnabled);
       this.closeAuto();
       this.exitBulkMode();
@@ -1030,13 +1090,16 @@ export class AgendamentoComponent {
     return match && !this.isFinished(match) ? match : null;
   });
 
-  /** Jogos com quadra + horário no dia selecionado (parede SP). Com o painel de
-   *  auto-agendamento aberto entram os de TODAS as categorias: eles ocupam quadra
-   *  de verdade e o servidor conta com essa ocupação, então esconder os de fora da
-   *  categoria faria a prévia parecer cair em slot livre que não está livre. */
+  /** Jogos com quadra + horário na JORNADA selecionada — que não é o mesmo que o dia de
+   *  calendário do horário: a grade cheia transborda a meia-noite e o jogo das 00:30
+   *  continua sendo da jornada anterior (é assim que o servidor grava o `dayKey`, e é
+   *  nele que o reagendamento dinâmico se apoia). Com o painel de auto-agendamento aberto
+   *  entram os de TODAS as categorias: eles ocupam quadra de verdade e o servidor conta com
+   *  essa ocupação, então esconder os de fora da categoria faria a prévia parecer cair em
+   *  slot livre que não está livre. */
   private readonly scheduledOnDay = computed(() =>
     (this.autoOpen() ? this.ctx.matches() : this.ctx.matchesFiltered()).filter(
-      (m) => m.courtId && m.scheduledAt && dayKeyFromDate(m.scheduledAt) === this.selectedDayKey(),
+      (m) => m.courtId && m.scheduledAt && matchBelongsToDay(m, this.selectedDayKey()),
     ),
   );
 
@@ -1069,6 +1132,55 @@ export class AgendamentoComponent {
       ? previewBlocksByCourt(this.autoSlots(), { dayKey: this.selectedDayKey(), fallbackDurMin: this.durationMin() })
       : {},
   );
+
+  // ── Eixo da grade ───────────────────────────────────────────────────────────
+
+  /** Quanto o organizador esticou o eixo à mão ("+1 hora"). Zera na troca de dia e de
+   *  torneio: é uma escolha sobre AQUELA jornada, não uma preferência da tela. */
+  protected readonly extraGridMin = signal(0);
+
+  /** Minuto em que termina o último bloco desenhado — agendado ou prévia. Passa de 1440
+   *  quando a jornada atravessa a meia-noite. */
+  private readonly lastBlockEndMin = computed(() => {
+    let last = 0;
+    for (const list of Object.values(this.blocks())) {
+      for (const b of list) last = Math.max(last, b.startMin + b.durMin);
+    }
+    for (const list of Object.values(this.previewBlocks())) {
+      for (const b of list) last = Math.max(last, b.startMin + b.durMin);
+    }
+    return last;
+  });
+
+  /** Fim do eixo desenhado: cresce além da jornada pra caber a madrugada. */
+  protected readonly gridEnd = computed(() =>
+    gridEndMin({
+      dayStartMin: this.startMin(),
+      dayEndMin: this.endMin(),
+      lastBlockEndMin: this.lastBlockEndMin(),
+      extraMin: this.extraGridMin(),
+      slotMin: SLOT_MIN,
+    }),
+  );
+
+  protected readonly rows = computed(() => Math.max(1, Math.floor((this.gridEnd() - this.startMin()) / SLOT_MIN)));
+  protected readonly rowIndexes = computed(() => Array.from({ length: this.rows() }, (_, i) => i));
+
+  /** O "+1 hora" para ao completar 24h da abertura — dali em diante é o dia seguinte,
+   *  que tem chip próprio. Some também sob o painel de auto-agendamento e na seleção em
+   *  massa, onde não há agendamento manual pra fazer nos slots novos. */
+  protected readonly canExtendGrid = computed(
+    () => !this.autoOpen() && !this.bulkMode() && this.gridEnd() < this.startMin() + GRID_MAX_SPAN_MIN,
+  );
+
+  protected readonly showMidnightMark = computed(() => this.startMin() < 1440 && this.gridEnd() > 1440);
+
+  /** Data do dia seguinte, na marca da virada. */
+  protected readonly nextDayLabel = computed(() => this.dayLabel(dayKeyFromDate(spWallToDate(this.selectedDayKey(), 1440))));
+
+  protected extendGrid(): void {
+    this.extraGridMin.update((min) => min + 60);
+  }
 
   /** Slots que o servidor jogou pra depois do fim da jornada: o auto-agendamento
    *  não consulta `matchOps.dayEnd`, então uma grade cheia transborda o dia. */
@@ -1170,6 +1282,7 @@ export class AgendamentoComponent {
   protected selectDay(dayKey: string): void {
     if (this.selectedDayKey() === dayKey) return;
     this.selectedDayKey.set(dayKey);
+    this.extraGridMin.set(0);
     this.queueAutoPreview();
   }
 
@@ -1361,7 +1474,7 @@ export class AgendamentoComponent {
       const warnings = result.warnings ?? [];
       this.feedback.set({
         ok: true,
-        message: warnings.length > 0 ? `Agendado com aviso: ${warnings.map((w) => w.message).join(' ')}` : `Partida agendada às ${this.fmt(startMinOfDay)}.`,
+        message: warnings.length > 0 ? `Agendado com aviso: ${warnings.map((w) => w.message).join(' ')}` : `Partida agendada às ${this.wall(startMinOfDay)}.`,
       });
       this.selectedMatchId.set(null);
       await this.ctx.reloadMatches();
@@ -1465,12 +1578,22 @@ export class AgendamentoComponent {
     return ((min - this.startMin()) / SLOT_MIN) * ROW_H;
   }
 
+  /** Contagem da jornada — `24:00` é o fim do dia, não meia-noite. Fica pro que é
+   *  contagem mesmo (o fim nominal no resumo); rótulo de horário na tela usa `wall`. */
   protected fmt(min: number): string {
     return formatHHMM(min);
   }
 
-  protected dayKeyOf(date: Date): string {
-    return dayKeyFromDate(date);
+  /** Rótulo de horário na tela: o relógio vira na meia-noite (1440 → `00:00`). */
+  protected wall(min: number): string {
+    return wallClockLabel(min);
+  }
+
+  /** Dia da JORNADA da partida — o gravado, não o de calendário do horário. É o dia
+   *  cujo chip a mostra na grade, então é o que a fila precisa dizer. */
+  protected matchDayLabel(match: TournamentMatch): string {
+    const dayKey = match.dayKey.trim() || (match.scheduledAt ? dayKeyFromDate(match.scheduledAt) : '');
+    return this.dayLabel(dayKey);
   }
 
   protected dayLabel(dayKey: string): string {
@@ -1480,6 +1603,6 @@ export class AgendamentoComponent {
   }
 
   protected timeLabel(date: Date): string {
-    return this.fmt(minutesFromDayStart(date, dayKeyFromDate(date)));
+    return this.wall(minutesFromDayStart(date, dayKeyFromDate(date)));
   }
 }

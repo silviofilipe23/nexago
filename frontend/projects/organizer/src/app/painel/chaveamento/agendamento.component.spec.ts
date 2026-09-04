@@ -77,6 +77,7 @@ function matchFixture(overrides: Partial<TournamentMatch> = {}): TournamentMatch
     teamBId: 'b',
     sets: [],
     courtId: '',
+    dayKey: '',
     scheduleEndAt: null,
     bestOf: 3,
     matchType: 'group',
@@ -430,6 +431,93 @@ describe('AgendamentoComponent — painel de auto-agendamento', () => {
     openPanel();
     const blocks = host().querySelectorAll('.og-agenda-block.foreign');
     expect(blocks.length).toBe(1);
+  });
+
+  describe('jornada que passa da meia-noite', () => {
+    /** Agendada pelo servidor no dia DAY (é o `dayKey` que ele grava), mas com o
+     *  horário já na madrugada seguinte — grade cheia transborda. */
+    const madrugada = matchFixture({
+      id: 'm5',
+      matchNumber: 5,
+      courtId: 'Q1',
+      dayKey: DAY,
+      scheduledAt: new Date('2026-10-25T00:30:00-03:00'),
+      scheduleEndAt: new Date('2026-10-25T01:00:00-03:00'),
+    });
+
+    beforeEach(() => {
+      ctx.matches.set([madrugada]);
+      ctx.matchesFiltered.set([madrugada]);
+      fixture.detectChanges();
+    });
+
+    it('segue na grade do dia em vez de cair na fila', () => {
+      expect(host().querySelectorAll('.og-agenda-block').length).toBe(1);
+      expect(host().textContent).toContain('Nenhuma partida aguardando horário');
+    });
+
+    it('rotula o bloco no relógio de parede, não em 24:30', () => {
+      expect(host().querySelector('.og-agenda-block .hora')!.textContent!.trim()).toBe('00:30–01:00');
+    });
+
+    it('estica o eixo de horas pra cobrir a madrugada', () => {
+      const labels = texts('.og-agenda-hour-label');
+      expect(labels).toContain('23:00');
+      expect(labels).toContain('00:00');
+      expect(labels).not.toContain('24:00');
+    });
+
+    it('doc antigo sem dayKey continua caindo no dia do próprio horário', () => {
+      const legado = matchFixture({
+        id: 'm6',
+        matchNumber: 6,
+        courtId: 'Q2',
+        dayKey: '',
+        scheduledAt: new Date(`${DAY}T08:00:00-03:00`),
+        scheduleEndAt: new Date(`${DAY}T08:30:00-03:00`),
+      });
+      ctx.matches.set([legado]);
+      ctx.matchesFiltered.set([legado]);
+      fixture.detectChanges();
+
+      expect(host().querySelectorAll('.og-agenda-block').length).toBe(1);
+    });
+  });
+
+  describe('estender a grade à mão (+1 hora)', () => {
+    function slotCount(): number {
+      return host().querySelectorAll('.og-agenda-slot').length;
+    }
+
+    it('abre uma hora de slots livres depois do fim da jornada', () => {
+      // Jornada 08:00–10:00 em 2 quadras: 4 linhas × 2 = 8 slots.
+      expect(slotCount()).toBe(8);
+      expect(texts('.og-agenda-hour-label')).not.toContain('10:00');
+
+      clickButton('+1 hora');
+
+      expect(slotCount()).toBe(12);
+      expect(texts('.og-agenda-hour-label')).toContain('10:00');
+    });
+
+    it('some ao chegar em 24h contadas da abertura', () => {
+      (fixture.componentInstance as unknown as { extraGridMin: WritableSignal<number> }).extraGridMin.set(24 * 60);
+      fixture.detectChanges();
+
+      expect(Array.from(host().querySelectorAll('button')).some((b) => (b.textContent ?? '').trim() === '+1 hora')).toBeFalse();
+    });
+
+    it('trocar de dia devolve a grade ao tamanho da jornada', () => {
+      ctx.tournament.set(tournamentFixture({ endAt: new Date('2026-10-25T22:00:00-03:00') }));
+      fixture.detectChanges();
+      clickButton('+1 hora');
+      expect(slotCount()).toBe(12);
+
+      (fixture.componentInstance as unknown as { selectDay(d: string): void }).selectDay('2026-10-25');
+      fixture.detectChanges();
+
+      expect(slotCount()).toBe(8);
+    });
   });
 
   describe('seleção em massa para remover horário', () => {

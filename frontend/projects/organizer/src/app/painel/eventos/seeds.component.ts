@@ -43,6 +43,15 @@ interface GroupPreview {
   teamIds: string[];
 }
 
+/** Um rosto do stack de avatares da inscrição. As iniciais vêm prontas porque o separador
+ *  muda: nome de atleta quebra por espaço ("Ana Paula" → AP), rótulo de dupla por " / "
+ *  ("Ana Paula / Beatriz" → AB). */
+interface SeedAthlete {
+  name: string;
+  initials: string;
+  photoUrl: string | null;
+}
+
 /** Fisher–Yates — sorteio uniforme (o antigo `sort(() => Math.random() - 0.5)`
  *  é enviesado: depende da implementação do sort e não dá chance igual a todas
  *  as permutações). */
@@ -149,7 +158,19 @@ function shuffled<T>(items: readonly T[]): T[] {
               @for (t of eligible(); track t.teamId; let i = $index; let last = $last) {
                 <div class="og-seed-row" [class.top]="useSeeds() && i < headCount()">
                   <span class="og-seed-pos" [class.top]="useSeeds() && i < headCount()">{{ i + 1 }}</span>
-                  <og-avatar [initials]="initialsOf(t.teamName, ' / ')" [size]="32" />
+                  <span class="og-seed-avatars">
+                    @for (p of athletesOf(t); track $index; let ai = $index; let n = $count) {
+                      <og-avatar
+                        zoomable
+                        [initials]="p.initials"
+                        [personName]="p.name"
+                        [meta]="athleteMeta(t)"
+                        [photoUrl]="p.photoUrl"
+                        [size]="36"
+                        [style.z-index]="n - ai"
+                      />
+                    }
+                  </span>
                   <span style="flex:1;min-width:0">
                     <div class="og-seed-name" [title]="t.teamName">{{ truncate(t.teamName, 32) }}</div>
                     <div class="og-seed-levels">{{ levelsOf(t) }}</div>
@@ -174,7 +195,24 @@ function shuffled<T>(items: readonly T[]): T[] {
                   <div class="og-seeds-group">
                     <div class="og-seeds-group-title">Grupo {{ g.id }}</div>
                     @for (teamId of g.teamIds; track teamId) {
-                      <div class="og-seeds-group-team">{{ teamNameOf(teamId) }}</div>
+                      <div class="og-seeds-group-team">
+                        @if (teamOf(teamId); as t) {
+                          <span class="og-seed-avatars sm">
+                            @for (p of athletesOf(t); track $index; let ai = $index; let n = $count) {
+                              <og-avatar
+                                zoomable
+                                [initials]="p.initials"
+                                [personName]="p.name"
+                                [meta]="athleteMeta(t)"
+                                [photoUrl]="p.photoUrl"
+                                [size]="24"
+                                [style.z-index]="n - ai"
+                              />
+                            }
+                          </span>
+                        }
+                        <span class="og-seeds-group-team-name" [title]="teamNameOf(teamId)">{{ teamNameOf(teamId) }}</span>
+                      </div>
                     }
                   </div>
                 }
@@ -237,6 +275,23 @@ function shuffled<T>(items: readonly T[]): T[] {
     .og-seed-pos.top {
       background: var(--nx-orange-500);
       color: #0a0a0a;
+    }
+    /* Avatares da dupla/equipe sobrepostos, como na listagem de duplas da categoria. O anel é
+       da cor do fundo da linha (surface-0) pra separar um rosto do outro na pilha. */
+    .og-seed-avatars {
+      display: flex;
+      align-items: center;
+      flex: none;
+    }
+    .og-seed-avatars .og-avatar {
+      flex-shrink: 0;
+      box-shadow: 0 0 0 2px var(--nx-surface-0);
+    }
+    .og-seed-avatars .og-avatar + .og-avatar {
+      margin-left: -12px;
+    }
+    .og-seed-avatars.sm .og-avatar + .og-avatar {
+      margin-left: -9px;
     }
     .og-seed-name {
       font-family: var(--nx-font-display);
@@ -328,12 +383,24 @@ function shuffled<T>(items: readonly T[]): T[] {
       margin-bottom: 8px;
     }
     .og-seeds-group-team {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-family: var(--nx-font-display);
       font-weight: 500;
       font-size: 12.5px;
       color: var(--nx-text);
-      padding: 4px 0;
+      padding: 5px 0;
       border-bottom: 1px solid var(--nx-line);
+    }
+    /* min-width zerado porque o item flex tem min-width auto por padrão — sem isso um nome
+       longo estoura o card do grupo em vez de truncar. */
+    .og-seeds-group-team-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .og-seeds-group-team:last-child {
       border-bottom: none;
@@ -347,7 +414,6 @@ export class SeedsComponent {
   private readonly router = inject(Router);
   private readonly ctx = inject(ChaveamentoContextService);
 
-  protected readonly initialsOf = initialsOf;
   protected readonly truncate = truncateName;
   protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination'];
   protected readonly formatLabel = FORMAT_LABEL;
@@ -490,6 +556,25 @@ export class SeedsComponent {
 
   protected bumpQualifiers(delta: number): void {
     this.qualifiersPerGroup.update((v) => Math.min(Math.max(v + delta, 1), Math.max(this.teamsPerGroup() - 1, 1)));
+  }
+
+  /** Rostos da inscrição — todos os atletas do elenco (dupla = 2, equipe = até 5), igual à
+   *  listagem de duplas da categoria. Inscrição cujo elenco ainda não resolveu perfil cai no
+   *  rótulo da equipe com iniciais, sem foto: era exatamente o que a tela mostrava antes. */
+  protected athletesOf(t: TournamentInscription): SeedAthlete[] {
+    if (t.participants.length > 0) {
+      return t.participants.slice(0, 5).map((p) => ({ name: p.name, initials: initialsOf(p.name), photoUrl: p.photoUrl }));
+    }
+    return [{ name: t.teamName, initials: initialsOf(t.teamName, ' / '), photoUrl: null }];
+  }
+
+  /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */
+  protected athleteMeta(t: TournamentInscription): string {
+    return [this.category()?.name, t.teamName].filter(Boolean).join(' · ');
+  }
+
+  protected teamOf(teamId: string): TournamentInscription | null {
+    return this.eligible().find((t) => t.teamId === teamId) ?? null;
   }
 
   protected scoreLabel(t: TournamentInscription): string {

@@ -4,7 +4,7 @@ import { LEVEL_OPTIONS, tournamentSportToLevelSportCode } from '@nexago/levels';
 import { initialsOf, truncateName } from '../data/mock-data';
 import { MIN_TEAMS_FOR_BRACKET, countBracketEligible } from '../data/bracket-eligibility';
 import { promotableLevelOptions } from '../data/athlete-level-promotion';
-import { OgAthleteLevelDialogComponent, type AthleteLevelTarget } from './athlete-level-dialog.component';
+import { OgAthleteLevelDialogComponent, type AthleteLevelPromotion, type AthleteLevelTarget } from './athlete-level-dialog.component';
 import { buildCategoryAthletesExport } from '../data/category-athletes-export';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
@@ -640,12 +640,12 @@ export class CategoriaDetalheComponent {
     this.promoteError.set(null);
   }
 
-  protected confirmPromote(levelCode: string): void {
+  protected confirmPromote(promotion: AthleteLevelPromotion): void {
     const target = this.promoteTarget();
     const sportCode = this.sportCode();
     const t = this.tournament();
-    if (!target || !levelCode || !sportCode || !t || this.busy()) return;
-    void this.runPromote(target, sportCode, t.id, levelCode);
+    if (!target || !promotion.level || !sportCode || !t || this.busy()) return;
+    void this.runPromote(target, sportCode, t.id, promotion);
   }
 
   /** Sucesso fecha o diálogo e vai pro banner da página (que sobrevive ao reload); falha mantém
@@ -654,14 +654,20 @@ export class CategoriaDetalheComponent {
     target: AthleteLevelTarget,
     sportCode: string,
     tournamentId: string,
-    levelCode: string,
+    promotion: AthleteLevelPromotion,
   ): Promise<void> {
-    const label = LEVEL_OPTIONS.find((o) => o.code === levelCode)?.label ?? levelCode;
+    const label = LEVEL_OPTIONS.find((o) => o.code === promotion.level)?.label ?? promotion.level;
     this.busy.set(true);
     this.feedback.set(null);
     this.promoteError.set(null);
     try {
-      await promoteAthleteLevel({ uid: target.uid, sportCode, level: levelCode, tournamentId });
+      await promoteAthleteLevel({
+        uid: target.uid,
+        sportCode,
+        level: promotion.level,
+        tournamentId,
+        reason: promotion.reason,
+      });
       this.promoteTarget.set(null);
       this.feedback.set({ ok: true, message: `${target.name} promovido para ${label}.` });
       const tid = this.id();

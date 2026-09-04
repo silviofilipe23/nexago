@@ -127,12 +127,21 @@ export function resendRegistrationPayment(registrationId: string): Promise<unkno
  *  DESSE torneio (o servidor rejeita divergência) e o atleta precisa ter inscrição ativa nele.
  *  O servidor também garante a direção (só sobe) — a UI só evita oferecer o que já sabe que
  *  vai falhar. */
-export function promoteAthleteLevel(params: { uid: string; sportCode: string; level: string; tournamentId: string }): Promise<unknown> {
+export function promoteAthleteLevel(params: {
+  uid: string;
+  sportCode: string;
+  level: string;
+  tournamentId: string;
+  /** Justificativa do organizador — vira `note` no `levelHistory`. O servidor só EXIGE motivo
+   *  no caminho admin; aqui ele é obrigatório por decisão do portal, não pela callable. */
+  reason: string;
+}): Promise<unknown> {
   return call('setAthleteLevel', {
     uid: params.uid.trim(),
     sportCode: params.sportCode.trim(),
     level: params.level.trim(),
     tournamentId: params.tournamentId.trim(),
+    reason: params.reason.trim(),
   });
 }
 

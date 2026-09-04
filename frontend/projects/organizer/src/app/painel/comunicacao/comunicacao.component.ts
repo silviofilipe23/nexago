@@ -32,8 +32,9 @@ interface SentResult {
 const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 /** Comunicação real com os atletas — espelha `organizer_category_communicate_page.dart`
- *  (Flutter): broadcast por categoria via `sendCategoryCommunication` (push pros dois atletas
- *  de cada dupla + links de WhatsApp prontos, que o servidor monta a partir dos telefones).
+ *  (Flutter): broadcast por categoria via `sendCategoryCommunication` (push pro elenco
+ *  inteiro de cada inscrição — inclusive trio/quarteto e a reserva solo sem dupla — mais os
+ *  links de WhatsApp prontos, que o servidor monta a partir dos telefones).
  *  Na cascata o torneio vem da rota (`/painel/eventos/:id/comunicacao`); no nível categoria
  *  (`…/categorias/:catId/comunicacao`) a categoria também vem travada da rota. O histórico de
  *  avisos é persistido pela function em `tournaments/{id}/categoryCommunications` e lido
@@ -123,7 +124,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
               <div class="og-comm-links">
                 @for (team of result.whatsappLinks; track team.teamId; let i = $index) {
                   @for (link of team.links; track link; let j = $index) {
-                    <a class="og-mini-btn" [href]="link" target="_blank" rel="noopener">Dupla {{ i + 1 }} · atleta {{ j + 1 }}</a>
+                    <a class="og-mini-btn" [href]="link" target="_blank" rel="noopener">Inscrição {{ i + 1 }} · atleta {{ j + 1 }}</a>
                   }
                 }
               </div>
@@ -409,7 +410,7 @@ export class ComunicacaoComponent {
       const missedNote = missed > 0 ? ` · ${missed} sem notificação (avise por WhatsApp)` : '';
       this.feedback.set({
         ok: true,
-        message: `Aviso enviado — ${pushCount} push entregue${pushCount === 1 ? '' : 's'}${missedNote}${links.length ? ` · ${links.length} duplas com WhatsApp` : ''}.`,
+        message: `Aviso enviado — ${pushCount} push entregue${pushCount === 1 ? '' : 's'}${missedNote}${links.length ? ` · ${links.length} inscriç${links.length === 1 ? 'ão' : 'ões'} com WhatsApp` : ''}.`,
       });
       this.sentLog.update((log) => [
         {

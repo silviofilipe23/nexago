@@ -302,6 +302,28 @@ AthleteNotificationPresentation notificationPresentation(
                 ? '/torneios/$cancelTournamentId'
                 : null,
       );
+    case 'tournament_communication':
+      final commUrl = data['url'] ?? '';
+      final commTournamentId = data['tournamentId'] ?? '';
+      final commRoutePath = commUrl.startsWith('/')
+          ? commUrl
+          : commTournamentId.isNotEmpty
+              ? '/torneios/$commTournamentId'
+              : null;
+      return AthleteNotificationPresentation(
+        icon: Icons.campaign_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        actions: commRoutePath == null
+            ? const []
+            : const [
+                AthleteNotificationAction(
+                  label: 'Ver torneio',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ],
+        routePath: commRoutePath,
+      );
     case 'tournament_payment_reminder':
       final tournamentId = data['tournamentId'] ?? '';
       final registrationId = data['registrationId'] ?? '';

@@ -28,8 +28,23 @@ import 'widgets/edit_profile/edit_profile_dropdown_field.dart';
 import 'widgets/edit_profile/edit_profile_field_decorations.dart';
 import 'widgets/edit_profile/edit_profile_highlights_section.dart';
 import 'widgets/edit_profile/edit_profile_media_header.dart';
+import 'widgets/edit_profile/edit_profile_save_bar.dart';
 import 'widgets/edit_profile/edit_profile_section_header.dart';
 import 'widgets/edit_profile/edit_profile_text_field.dart';
+
+/// Assinatura dos uploads de imagem de perfil do repositório
+/// (`uploadAvatar` / `uploadCoverPhoto`).
+typedef _ProfileImageUpload =
+    Future<String> Function({
+      required String uid,
+      required Uint8List bytes,
+      required String contentType,
+    });
+
+/// Assinatura das gravações de URL de imagem no perfil
+/// (`saveAvatarPhotoUrl` / `saveCoverPhotoUrl`).
+typedef _ProfileImageSave =
+    Future<void> Function({required String uid, required String photoUrl});
 
 /// Edição do perfil do atleta (Firestore `athletes` + Storage para avatar).
 class AthleteEditProfilePage extends ConsumerStatefulWidget {
@@ -71,10 +86,26 @@ class _AthleteEditProfilePageState
   String? _pickedContentType;
   String? _existingAvatarUrl;
 
+  /// Foto de perfil já enviada e gravada em `users/{uid}` pelo salvamento
+  /// separado (ver [_persistAvatar]). [_pickedBytes] continua em tela como
+  /// preview local — sem isso o avatar piscaria com as iniciais enquanto a
+  /// nova URL baixa —, mas "Salvar alterações" não deve subir os bytes de novo.
+  bool _avatarPersisted = false;
+
+  /// Upload da foto de perfil em andamento.
+  bool _savingAvatar = false;
+
   Uint8List? _pickedCoverBytes;
   String? _pickedCoverContentType;
   String? _existingCoverPhotoUrl;
   bool _removeCoverRequested = false;
+
+  /// Capa já enviada e gravada pelo salvamento separado — mesmo papel de
+  /// [_avatarPersisted].
+  bool _coverPersisted = false;
+
+  /// Upload da capa em andamento.
+  bool _savingCover = false;
 
   List<String> _highlightUrls = const [];
   final List<ProfilePickedImage> _pendingHighlights = [];
@@ -113,6 +144,7 @@ class _AthleteEditProfilePageState
     _removeCoverRequested = false;
     _pickedCoverBytes = null;
     _pickedCoverContentType = null;
+    _coverPersisted = false;
     _highlightUrls = List<String>.from(p.highlightPhotoUrls);
     _pendingHighlights.clear();
     _sport = _matchOrFirst(AthleteProfileOptions.sports, p.sport);
@@ -145,7 +177,114 @@ class _AthleteEditProfilePageState
     setState(() {
       _pickedBytes = result.bytes;
       _pickedContentType = result.contentType;
+      _avatarPersisted = false;
     });
+    await _persistAvatar();
+  }
+
+  /// Salva a foto de perfil sozinha, assim que o atleta a troca.
+  Future<void> _persistAvatar() async {
+    final repo = ref.read(athleteProfileRepositoryProvider);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final saved = await _persistPickedImage(
+      bytes: _pickedBytes,
+      contentType: _pickedContentType,
+      upload: repo.uploadAvatar,
+      save: repo.saveAvatarPhotoUrl,
+      onSaving: (saving) => _savingAvatar = saving,
+      onSaved: (url) {
+        _existingAvatarUrl = url;
+        _avatarPersisted = true;
+      },
+      successMessage: 'Foto de perfil atualizada.',
+      errorPrefix: 'Erro ao salvar a foto',
+    );
+    if (!saved || uid == null || !mounted) return;
+
+    // XP do passo "foto de perfil" (a capa não é passo de completar perfil):
+    // sem isto, quem só troca a foto e sai da tela ficaria sem a recompensa.
+    try {
+      await ref
+          .read(gamificationServiceProvider)
+          .syncProfileCompletionRewards(userId: uid);
+    } catch (_) {
+      // Foto já salva; gamificação é best-effort (CF pode estar indisponível).
+    }
+    if (!mounted) return;
+    ref.invalidate(gamificationSummaryProvider);
+  }
+
+  /// Salva a capa sozinha, assim que o atleta a troca.
+  Future<void> _persistCoverPhoto() async {
+    final repo = ref.read(athleteProfileRepositoryProvider);
+    await _persistPickedImage(
+      bytes: _pickedCoverBytes,
+      contentType: _pickedCoverContentType,
+      upload: repo.uploadCoverPhoto,
+      save: repo.saveCoverPhotoUrl,
+      onSaving: (saving) => _savingCover = saving,
+      onSaved: (url) {
+        _existingCoverPhotoUrl = url;
+        _coverPersisted = true;
+      },
+      successMessage: 'Foto de capa atualizada.',
+      errorPrefix: 'Erro ao salvar a capa',
+    );
+  }
+
+  /// Sobe e grava UMA imagem do perfil (foto ou capa) sozinha, assim que o
+  /// atleta a troca.
+  ///
+  /// Trocar uma imagem é uma ação isolada: o atleta não deveria ter que
+  /// preencher (nem reenviar) o resto do formulário para ela valer. O que
+  /// continua pendente do "Salvar alterações" são só os campos de texto.
+  ///
+  /// Devolve `true` quando a URL nova chegou ao Firestore. Em qualquer falha
+  /// os bytes escolhidos seguem pendentes na tela: o save do formulário ainda
+  /// tenta subir a imagem, então nada se perde.
+  Future<bool> _persistPickedImage({
+    required Uint8List? bytes,
+    required String? contentType,
+    required _ProfileImageUpload upload,
+    required _ProfileImageSave save,
+    required void Function(bool saving) onSaving,
+    required void Function(String url) onSaved,
+    required String successMessage,
+    required String errorPrefix,
+  }) async {
+    if (bytes == null || contentType == null) return false;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    // Documento inexistente (perfil ainda em rascunho): a criação de
+    // `users/{uid}` exige o payload completo com `roles` — deixa para o save
+    // do formulário, que passa por `saveProfile`.
+    if (ref.read(athleteProfileProvider).valueOrNull == null) return false;
+
+    setState(() => onSaving(true));
+    try {
+      final url = await upload(
+        uid: user.uid,
+        bytes: bytes,
+        contentType: contentType,
+      );
+      await save(uid: user.uid, photoUrl: url);
+      if (!mounted) return true;
+      setState(() => onSaved(url));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$errorPrefix: $e')));
+      return false;
+    } finally {
+      if (mounted) setState(() => onSaving(false));
+    }
   }
 
   Future<void> _pickCoverPhoto() async {
@@ -158,7 +297,9 @@ class _AthleteEditProfilePageState
       _pickedCoverBytes = result.bytes;
       _pickedCoverContentType = result.contentType;
       _removeCoverRequested = false;
+      _coverPersisted = false;
     });
+    await _persistCoverPhoto();
   }
 
   Future<void> _addHighlightPhoto() async {
@@ -218,19 +359,28 @@ class _AthleteEditProfilePageState
       final repo = ref.read(athleteProfileRepositoryProvider);
       String? avatarUrl = _existingAvatarUrl;
 
-      if (_pickedBytes != null && _pickedContentType != null) {
+      // `_avatarPersisted`: a foto já subiu e foi gravada em [_persistAvatar];
+      // reenviar os mesmos bytes só gastaria rede do atleta.
+      if (!_avatarPersisted &&
+          _pickedBytes != null &&
+          _pickedContentType != null) {
         avatarUrl = await repo.uploadAvatar(
           uid: user.uid,
           bytes: _pickedBytes!,
           contentType: _pickedContentType!,
         );
         _existingAvatarUrl = avatarUrl;
+        _avatarPersisted = true;
       }
 
       String? coverPhotoUrl = _removeCoverRequested
           ? null
           : _existingCoverPhotoUrl;
-      if (_pickedCoverBytes != null && _pickedCoverContentType != null) {
+      // `_coverPersisted`: a capa já subiu e foi gravada em
+      // [_persistCoverPhoto] — `_existingCoverPhotoUrl` acima já é a URL nova.
+      if (!_coverPersisted &&
+          _pickedCoverBytes != null &&
+          _pickedCoverContentType != null) {
         coverPhotoUrl = await repo.uploadCoverPhoto(
           uid: user.uid,
           bytes: _pickedCoverBytes!,
@@ -240,6 +390,7 @@ class _AthleteEditProfilePageState
         _pickedCoverBytes = null;
         _pickedCoverContentType = null;
         _removeCoverRequested = false;
+        _coverPersisted = true;
       }
 
       for (final pending in _pendingHighlights) {
@@ -359,6 +510,15 @@ class _AthleteEditProfilePageState
       backgroundColor: context.themeColors.canvas,
       appBar: _editProfileAppBar(theme),
       body: _buildBody(context, theme, user, profileAsync),
+      // Só depois de carregado: sem formulário em tela não há o que salvar.
+      bottomNavigationBar: _initialized
+          ? EditProfileSaveBar(
+              // Bloqueado durante o upload de uma imagem: um save concorrente
+              // reenviaria os mesmos bytes para o mesmo caminho do Storage.
+              saving: _saving || _savingAvatar || _savingCover,
+              onSave: _save,
+            )
+          : null,
     );
   }
 
@@ -406,7 +566,7 @@ class _AthleteEditProfilePageState
     return AbsorbPointer(
       absorbing: _saving,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
@@ -426,11 +586,13 @@ class _AthleteEditProfilePageState
                           : null,
                       pickedCoverBytes: _pickedCoverBytes,
                       onEditCover: _pickCoverPhoto,
+                      coverSaving: _savingCover,
                       existingAvatarUrl: _pickedBytes == null
                           ? _existingAvatarUrl
                           : null,
                       pickedAvatarBytes: _pickedBytes,
                       onEditAvatar: _pickAvatar,
+                      avatarSaving: _savingAvatar,
                     ),
                   ),
                   SizedBox(height: 52),
@@ -592,42 +754,6 @@ class _AthleteEditProfilePageState
                     email: _emailCtrl.text.trim().isEmpty
                         ? user.email
                         : _emailCtrl.text.trim(),
-                  ),
-                  SizedBox(height: 28),
-                  FilledButton(
-                    onPressed: _saving ? null : _save,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: context.themeColors.canvas,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_saving)
-                          SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: context.themeColors.canvas,
-                            ),
-                          )
-                        else
-                          Icon(Icons.check_rounded),
-                        SizedBox(width: 10),
-                        Text(
-                          _saving ? 'Salvando…' : 'Salvar alterações',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),

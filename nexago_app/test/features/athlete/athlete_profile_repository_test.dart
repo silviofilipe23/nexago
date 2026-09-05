@@ -336,6 +336,99 @@ void main() {
       expect(written!['highlightPhotoUrls'], ['https://x/1.jpg']);
     });
   });
+
+  // Trocar a foto de perfil salva sozinha, sem esperar o "Salvar alterações"
+  // do formulário. A escrita precisa ser MÍNIMA: o resto do formulário ainda
+  // é rascunho (nome/cidade/bio em edição) e `roles` é proibido pelas rules
+  // de update em `users`.
+  group('AthleteProfileRepository.saveAvatarPhotoUrl', () {
+    test('grava só profilePhotoUrl e updatedAt', () async {
+      final firestore = _FakeFirestore(
+        existingUsers: {
+          'u1': {
+            'fullName': 'Ana Souza',
+            'roles': ['athlete'],
+            'city': 'Goiânia',
+          },
+        },
+      );
+      final repo = AthleteProfileRepository(
+        firestore,
+        functions: _FakeFirebaseFunctions(),
+      );
+
+      await repo.saveAvatarPhotoUrl(
+        uid: 'u1',
+        photoUrl: 'https://x/avatar.jpg',
+      );
+
+      final payload = firestore.lastRawPayload('u1')!;
+      expect(payload.keys, unorderedEquals(['profilePhotoUrl', 'updatedAt']));
+      expect(payload['profilePhotoUrl'], 'https://x/avatar.jpg');
+    });
+
+    test('merge preserva o resto do documento (nada de rascunho vaza)', () async {
+      final firestore = _FakeFirestore(
+        existingUsers: {
+          'u1': {
+            'fullName': 'Ana Souza',
+            'roles': ['athlete'],
+            'city': 'Goiânia',
+          },
+        },
+      );
+      final repo = AthleteProfileRepository(
+        firestore,
+        functions: _FakeFirebaseFunctions(),
+      );
+
+      await repo.saveAvatarPhotoUrl(
+        uid: 'u1',
+        photoUrl: 'https://x/avatar.jpg',
+      );
+
+      final written = firestore.lastWrite('u1')!;
+      expect(written['fullName'], 'Ana Souza');
+      expect(written['city'], 'Goiânia');
+      expect(written['profilePhotoUrl'], 'https://x/avatar.jpg');
+    });
+
+    test('nunca envia roles nem chama grantAthleteRole', () async {
+      // As rules só aceitam `roles` idêntico ao salvo, e a foto não muda
+      // papel nenhum: a callable seria custo puro (cold start) a cada troca.
+      final firestore = _FakeFirestore(
+        existingUsers: {
+          'u1': {'fullName': 'Ana Souza'},
+        },
+      );
+      final functions = _FakeFirebaseFunctions();
+      final repo = AthleteProfileRepository(firestore, functions: functions);
+
+      await repo.saveAvatarPhotoUrl(
+        uid: 'u1',
+        photoUrl: 'https://x/avatar.jpg',
+      );
+
+      expect(firestore.lastRawPayload('u1')!.containsKey('roles'), isFalse);
+      expect(functions.calledFunctionNames, isEmpty);
+    });
+
+    test('URL vazia não gera escrita', () async {
+      final firestore = _FakeFirestore(
+        existingUsers: {
+          'u1': {'fullName': 'Ana Souza'},
+        },
+      );
+      final repo = AthleteProfileRepository(
+        firestore,
+        functions: _FakeFirebaseFunctions(),
+      );
+
+      await repo.saveAvatarPhotoUrl(uid: 'u1', photoUrl: '   ');
+
+      expect(firestore.lastRawPayload('u1'), isNull);
+    });
+  });
 }
 
 /// Fake mínimo de [FirebaseFunctions]: registra o nome de toda callable

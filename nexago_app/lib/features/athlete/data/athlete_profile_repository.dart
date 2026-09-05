@@ -155,6 +155,39 @@ class AthleteProfileRepository {
     await docRef.set(data, SetOptions(merge: true)).timeout(kProfileSaveTimeout);
   }
 
+  /// Grava SOMENTE a foto de perfil em `users/{uid}`.
+  ///
+  /// A troca de foto acontece no meio da edição, com o resto do formulário
+  /// ainda em rascunho — por isso a escrita é mínima e não passa por
+  /// [saveProfile] (que publicaria nome, cidade, bio e afins ainda em edição,
+  /// além de mexer em papéis/keywords/níveis, nada disso afetado pela foto).
+  ///
+  /// `profilePhotoUrl` é o campo canônico lido por
+  /// `AthleteProfile.fromFirestore` (`avatarUrl`/`photoURL` são fallbacks
+  /// legados) e está na whitelist do espelho `public_profiles`, então a nova
+  /// foto chega ao perfil público pelo gatilho de sincronia normal.
+  ///
+  /// Só use quando o documento do atleta JÁ existe: as rules de `create` em
+  /// `users` exigem `roles: ['athlete']` no payload, que esta escrita
+  /// deliberadamente não envia (é proibido pelo `update`).
+  Future<void> saveAvatarPhotoUrl({
+    required String uid,
+    required String photoUrl,
+  }) async {
+    final url = photoUrl.trim();
+    if (url.isEmpty) return;
+    await _users
+        .doc(uid)
+        .set(
+          <String, dynamic>{
+            'profilePhotoUrl': url,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        )
+        .timeout(kProfileSaveTimeout);
+  }
+
   Future<void> saveNotificationPreferences({
     required String uid,
     required AthleteNotificationPreferences preferences,

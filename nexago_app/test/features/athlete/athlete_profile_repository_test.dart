@@ -337,97 +337,104 @@ void main() {
     });
   });
 
-  // Trocar a foto de perfil salva sozinha, sem esperar o "Salvar alterações"
-  // do formulário. A escrita precisa ser MÍNIMA: o resto do formulário ainda
-  // é rascunho (nome/cidade/bio em edição) e `roles` é proibido pelas rules
-  // de update em `users`.
-  group('AthleteProfileRepository.saveAvatarPhotoUrl', () {
-    test('grava só profilePhotoUrl e updatedAt', () async {
-      final firestore = _FakeFirestore(
-        existingUsers: {
-          'u1': {
-            'fullName': 'Ana Souza',
-            'roles': ['athlete'],
-            'city': 'Goiânia',
+  // Trocar a foto de perfil (ou a capa) salva sozinha, sem esperar o "Salvar
+  // alterações" do formulário. A escrita precisa ser MÍNIMA: o resto do
+  // formulário ainda é rascunho (nome/cidade/bio em edição) e `roles` é
+  // proibido pelas rules de update em `users`.
+  group('AthleteProfileRepository — salvamento separado das imagens', () {
+    final cases = <
+      String,
+      ({
+        String field,
+        Future<void> Function(AthleteProfileRepository repo, String url) save,
+      })
+    >{
+      'foto de perfil': (
+        field: 'profilePhotoUrl',
+        save: (repo, url) => repo.saveAvatarPhotoUrl(uid: 'u1', photoUrl: url),
+      ),
+      'capa': (
+        field: 'coverPhotoUrl',
+        save: (repo, url) => repo.saveCoverPhotoUrl(uid: 'u1', photoUrl: url),
+      ),
+    };
+
+    _FakeFirestore existingAthlete() => _FakeFirestore(
+      existingUsers: {
+        'u1': {
+          'fullName': 'Ana Souza',
+          'roles': ['athlete'],
+          'city': 'Goiânia',
+        },
+      },
+    );
+
+    for (final entry in cases.entries) {
+      final label = entry.key;
+      final field = entry.value.field;
+      final save = entry.value.save;
+
+      test('$label: grava só $field e updatedAt', () async {
+        final firestore = existingAthlete();
+        final repo = AthleteProfileRepository(
+          firestore,
+          functions: _FakeFirebaseFunctions(),
+        );
+
+        await save(repo, 'https://x/img.jpg');
+
+        final payload = firestore.lastRawPayload('u1')!;
+        expect(payload.keys, unorderedEquals([field, 'updatedAt']));
+        expect(payload[field], 'https://x/img.jpg');
+      });
+
+      test('$label: merge preserva o resto do doc (rascunho não vaza)', () async {
+        final firestore = existingAthlete();
+        final repo = AthleteProfileRepository(
+          firestore,
+          functions: _FakeFirebaseFunctions(),
+        );
+
+        await save(repo, 'https://x/img.jpg');
+
+        final written = firestore.lastWrite('u1')!;
+        expect(written['fullName'], 'Ana Souza');
+        expect(written['city'], 'Goiânia');
+        expect(written[field], 'https://x/img.jpg');
+      });
+
+      test('$label: nunca envia roles nem chama grantAthleteRole', () async {
+        // As rules só aceitam `roles` idêntico ao salvo, e trocar a imagem não
+        // muda papel nenhum: a callable seria custo puro (cold start) a cada
+        // troca.
+        final firestore = _FakeFirestore(
+          existingUsers: {
+            'u1': {'fullName': 'Ana Souza'},
           },
-        },
-      );
-      final repo = AthleteProfileRepository(
-        firestore,
-        functions: _FakeFirebaseFunctions(),
-      );
+        );
+        final functions = _FakeFirebaseFunctions();
+        final repo = AthleteProfileRepository(firestore, functions: functions);
 
-      await repo.saveAvatarPhotoUrl(
-        uid: 'u1',
-        photoUrl: 'https://x/avatar.jpg',
-      );
+        await save(repo, 'https://x/img.jpg');
 
-      final payload = firestore.lastRawPayload('u1')!;
-      expect(payload.keys, unorderedEquals(['profilePhotoUrl', 'updatedAt']));
-      expect(payload['profilePhotoUrl'], 'https://x/avatar.jpg');
-    });
+        expect(firestore.lastRawPayload('u1')!.containsKey('roles'), isFalse);
+        expect(functions.calledFunctionNames, isEmpty);
+      });
 
-    test('merge preserva o resto do documento (nada de rascunho vaza)', () async {
-      final firestore = _FakeFirestore(
-        existingUsers: {
-          'u1': {
-            'fullName': 'Ana Souza',
-            'roles': ['athlete'],
-            'city': 'Goiânia',
-          },
-        },
-      );
-      final repo = AthleteProfileRepository(
-        firestore,
-        functions: _FakeFirebaseFunctions(),
-      );
+      test('$label: URL vazia não gera escrita', () async {
+        // Apagar a imagem não é este caminho — quem remove é o
+        // `FieldValue.delete()` do saveProfile.
+        final firestore = existingAthlete();
+        final repo = AthleteProfileRepository(
+          firestore,
+          functions: _FakeFirebaseFunctions(),
+        );
 
-      await repo.saveAvatarPhotoUrl(
-        uid: 'u1',
-        photoUrl: 'https://x/avatar.jpg',
-      );
+        await save(repo, '   ');
 
-      final written = firestore.lastWrite('u1')!;
-      expect(written['fullName'], 'Ana Souza');
-      expect(written['city'], 'Goiânia');
-      expect(written['profilePhotoUrl'], 'https://x/avatar.jpg');
-    });
-
-    test('nunca envia roles nem chama grantAthleteRole', () async {
-      // As rules só aceitam `roles` idêntico ao salvo, e a foto não muda
-      // papel nenhum: a callable seria custo puro (cold start) a cada troca.
-      final firestore = _FakeFirestore(
-        existingUsers: {
-          'u1': {'fullName': 'Ana Souza'},
-        },
-      );
-      final functions = _FakeFirebaseFunctions();
-      final repo = AthleteProfileRepository(firestore, functions: functions);
-
-      await repo.saveAvatarPhotoUrl(
-        uid: 'u1',
-        photoUrl: 'https://x/avatar.jpg',
-      );
-
-      expect(firestore.lastRawPayload('u1')!.containsKey('roles'), isFalse);
-      expect(functions.calledFunctionNames, isEmpty);
-    });
-
-    test('URL vazia não gera escrita', () async {
-      final firestore = _FakeFirestore(
-        existingUsers: {
-          'u1': {'fullName': 'Ana Souza'},
-        },
-      );
-      final repo = AthleteProfileRepository(
-        firestore,
-        functions: _FakeFirebaseFunctions(),
-      );
-
-      await repo.saveAvatarPhotoUrl(uid: 'u1', photoUrl: '   ');
-
-      expect(firestore.lastRawPayload('u1'), isNull);
-    });
+        expect(firestore.lastRawPayload('u1'), isNull);
+      });
+    }
   });
 }
 

@@ -20,6 +20,7 @@ class EditProfileMediaHeader extends StatelessWidget {
     required this.pickedAvatarBytes,
     required this.onEditAvatar,
     this.avatarSaving = false,
+    this.coverSaving = false,
   });
 
   final String name;
@@ -35,6 +36,9 @@ class EditProfileMediaHeader extends StatelessWidget {
   /// mostra progresso sobre o avatar e bloqueia uma nova troca no meio do
   /// upload.
   final bool avatarSaving;
+
+  /// Idem para a capa.
+  final bool coverSaving;
 
   static const _coverHeight = 148.0;
   static const _avatarSize = 88.0;
@@ -52,6 +56,7 @@ class EditProfileMediaHeader extends StatelessWidget {
             existingUrl: existingCoverUrl,
             pickedBytes: pickedCoverBytes,
             onEditCover: onEditCover,
+            saving: coverSaving,
           ),
           Positioned(
             left: 16,
@@ -78,6 +83,7 @@ class _CoverArea extends StatelessWidget {
     required this.existingUrl,
     required this.pickedBytes,
     required this.onEditCover,
+    required this.saving,
   });
 
   final double height;
@@ -85,6 +91,7 @@ class _CoverArea extends StatelessWidget {
   final String? existingUrl;
   final Uint8List? pickedBytes;
   final VoidCallback onEditCover;
+  final bool saving;
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +126,7 @@ class _CoverArea extends StatelessWidget {
                 color: Colors.black.withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(10),
                 child: InkWell(
-                  onTap: onEditCover,
+                  onTap: saving ? null : onEditCover,
                   borderRadius: BorderRadius.circular(10),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -153,9 +160,23 @@ class _CoverArea extends StatelessWidget {
             Positioned.fill(
               child: Material(
                 color: Colors.transparent,
-                child: InkWell(onTap: onEditCover),
+                child: InkWell(onTap: saving ? null : onEditCover),
               ),
             ),
+            if (saving)
+              ColoredBox(
+                color: Colors.black.withValues(alpha: 0.5),
+                child: const Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.brand,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

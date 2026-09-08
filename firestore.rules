@@ -2301,6 +2301,26 @@ service cloud.firestore {
       );
     }
 
+    // Passe de vaga: permissão nominal para o atleta convidado se inscrever numa
+    // categoria lotada. Quem lê é o próprio convidado (a tela mostra "VAGA
+    // LIBERADA" no lugar de "LOTADO") e quem gerencia o torneio (a lista do
+    // painel). Escrita só pelas Cloud Functions: é a queima transacional junto
+    // com a inscrição que mantém o teto honesto.
+    //
+    // A ordem do OR é ORÇAMENTO, não gosto: os dois primeiros ramos não fazem
+    // `get()` nenhum, e uma LISTAGEM avalia a regra documento a documento com um
+    // teto de acessos para a consulta inteira. Quem libera é quase sempre quem
+    // depois olha a lista, então o caminho comum sai de graça;
+    // `canManageTournament` fica de reserva para co-gestor e staff.
+    match /tournamentSpotPasses/{passId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteUid == request.auth.uid ||
+        resource.data.grantedByUid == request.auth.uid ||
+        canManageTournament(resource.data.tournamentId)
+      );
+      allow create, update, delete: if false;
+    }
+
     // Convites de parceiro para inscrição em torneio (escrita via Cloud Functions)
     match /tournamentRegistrationInvites/{inviteId} {
       allow read: if request.auth != null && (

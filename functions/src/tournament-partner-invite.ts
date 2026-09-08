@@ -28,6 +28,12 @@ import {
 } from "./notification-delivery";
 import {tournamentManagerUids} from "./tournament-acl";
 import {
+  prepareSpotPassClaim,
+  readSpotPassClaimTx,
+  spotPassRegistrationFields,
+  writeSpotPassClaimTx,
+} from "./tournament-spot-pass-claim";
+import {
   assertTournamentAcceptsRegistration,
   FORMED_PAIR_REQUIRED_MESSAGE,
   findCategory,
@@ -883,6 +889,10 @@ export async function sendPartnerInviteFor(
     projectId,
     tournamentId,
     categoryId,
+    // Este portão só ABRE a porta — nenhuma inscrição nasce aqui, e por isso nada é queimado.
+    // Sem o passe, porém, o dono da vaga liberada não conseguiria nem chamar o parceiro numa
+    // categoria lotada: em torneio de dupla já formada, convidar é o primeiro passo.
+    {claimantUids: [uid, inviteeUid]},
   );
   const category = asTournamentCategory(findCategory(tournament, categoryId));
   if (!category) {
@@ -1120,9 +1130,18 @@ export const registerSoloTournament = onCall(async (request) => {
     projectId,
     tournamentId,
     categoryId,
+    {claimantUids: [uid]},
   );
   const shouldWaitlist =
     (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
+  // Categoria lotada com passe de vaga para este atleta: o teto sobe e o passe queima na
+  // transação lá embaixo, junto com a reserva.
+  const spotPassClaim = await prepareSpotPassClaim({
+    db,
+    projectId,
+    tournamentId,
+    tournament: tournamentData,
+  });
   const category = asTournamentCategory(findCategory(tournament, categoryId));
   if (!category) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
@@ -1202,6 +1221,7 @@ export const registerSoloTournament = onCall(async (request) => {
     paidAmount: 0,
     createdAt: FieldValue.serverTimestamp(),
     ...(shouldWaitlist ? {waitlist: true} : {}),
+    ...spotPassRegistrationFields(spotPassClaim),
     // Reserva recém-criada não tem convite ligado — os avulsos do atleta
     // morrem logo abaixo em markStaleCreateInvitesAfterSolo —, então o prazo
     // de pagamento já conta de agora.
@@ -1231,6 +1251,7 @@ export const registerSoloTournament = onCall(async (request) => {
         .where("tournamentId", "==", tournamentId)
         .where("participantUids", "array-contains", uid),
     );
+    const spotPassReads = await readSpotPassClaimTx(tx, db, spotPassClaim);
     const alreadyInCategory = mine.docs.some((doc) =>
       categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
     );
@@ -1241,6 +1262,7 @@ export const registerSoloTournament = onCall(async (request) => {
       );
     }
     tx.set(regRef, regData);
+    writeSpotPassClaimTx(tx, spotPassClaim, spotPassReads, regRef.id);
   });
 
   await markStaleCreateInvitesAfterSolo(db, tournamentId, categoryId, uid);
@@ -1497,9 +1519,23 @@ export const acceptTournamentPartnerInvite = onCall({
     projectId,
     previewTournamentId,
     previewCategoryId,
+    {
+      // O passe pode ser do CONVIDANTE: em torneio que exige dupla já formada a inscrição
+      // nasce aqui, no aceite, e quem chama esta callable é o convidado.
+      claimantUids: [
+        String(invitePreviewData.inviterUid ?? "").trim(),
+        uid,
+      ],
+    },
   );
   const shouldWaitlist =
     (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
+  const spotPassClaim = await prepareSpotPassClaim({
+    db,
+    projectId,
+    tournamentId: previewTournamentId,
+    tournament: tournamentData,
+  });
   const previewCategory = asTournamentCategory(
     findCategory(previewTournament, previewCategoryId),
   );
@@ -1883,6 +1919,11 @@ export const acceptTournamentPartnerInvite = onCall({
       };
     }
 
+    // Só o caminho que CRIA inscrição consome vaga — o `attach` acima fecha a dupla sobre uma
+    // reserva que já ocupa a sua, e queimar o passe ali inventaria uma vaga que ninguém pediu.
+    // Leitura antes de qualquer escrita desta transação (exigência do Firestore).
+    const spotPassReads = await readSpotPassClaimTx(tx, db, spotPassClaim);
+
     const teamRef = teamsRef.doc();
     const regRef = inscriptionsRef.doc();
 
@@ -1901,6 +1942,7 @@ export const acceptTournamentPartnerInvite = onCall({
       paidAmount: 0,
       createdAt: FieldValue.serverTimestamp(),
       ...(shouldWaitlist ? {waitlist: true} : {}),
+      ...spotPassRegistrationFields(spotPassClaim),
       ...registrationUniformFromInvite(invite),
     };
     if (inviteeUniform) {
@@ -1928,6 +1970,7 @@ export const acceptTournamentPartnerInvite = onCall({
       registrationData.lgpdTermVersion = LGPD_TERM_VERSION;
     }
     tx.set(regRef, registrationData);
+    writeSpotPassClaimTx(tx, spotPassClaim, spotPassReads, regRef.id);
 
     tx.update(inviteRef, {
       status: "accepted",

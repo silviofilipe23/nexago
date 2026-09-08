@@ -20,6 +20,12 @@ import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
+  prepareSpotPassClaim,
+  readSpotPassClaimTx,
+  spotPassRegistrationFields,
+  writeSpotPassClaimTx,
+} from "./tournament-spot-pass-claim";
+import {
   assertTournamentAcceptsRegistration,
   findCategory,
   loadTournamentData,
@@ -119,9 +125,18 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
     projectId,
     tournamentId,
     categoryId,
+    {claimantUids: [uid]},
   );
   const shouldWaitlist =
     (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
+  // Categoria lotada com passe de vaga para este atleta: o teto sobe e o passe queima na
+  // transação lá embaixo, junto com a inscrição.
+  const spotPassClaim = await prepareSpotPassClaim({
+    db,
+    projectId,
+    tournamentId,
+    tournament: tournamentData,
+  });
   const category = asTournamentCategory(findCategory(tournament, categoryId));
   if (!category) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
@@ -233,6 +248,7 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
     paidAmount: 0,
     createdAt: FieldValue.serverTimestamp(),
     ...(shouldWaitlist ? {waitlist: true} : {}),
+    ...spotPassRegistrationFields(spotPassClaim),
     // Elenco recém-criado não tem convite ligado: o prazo conta de agora e será
     // recalculado a cada convite enviado.
     ...registrationHoldFieldsOnCreate({
@@ -260,6 +276,7 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
         .where("tournamentId", "==", tournamentId)
         .where("participantUids", "array-contains", uid),
     );
+    const spotPassReads = await readSpotPassClaimTx(tx, db, spotPassClaim);
     const alreadyInCategory = mine.docs.some((doc) =>
       categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
     );
@@ -271,6 +288,7 @@ export const createTournamentTeamRegistration = onCall(async (request) => {
     }
     tx.set(teamRef, teamData);
     tx.set(regRef, registrationData);
+    writeSpotPassClaimTx(tx, spotPassClaim, spotPassReads, regRef.id);
   });
 
   logger.info("Tournament team registration created", {

@@ -1,6 +1,11 @@
 import type { TournamentCategoryOffer } from '../../../data/tournaments-repository';
 import type { MyAthleteProfile } from '../../../data/my-athlete-profile-repository';
-import { REGISTERED_BADGE, categoryLevelRangeLabel, registrationCategoryStatus } from './registration-category-status';
+import {
+  REGISTERED_BADGE,
+  SPOT_PASS_BADGE,
+  categoryLevelRangeLabel,
+  registrationCategoryStatus,
+} from './registration-category-status';
 
 function offer(overrides: Partial<TournamentCategoryOffer> = {}): TournamentCategoryOffer {
   return {
@@ -50,6 +55,43 @@ function status(overrides: Parameters<typeof registrationCategoryStatus>[0] exte
     ...overrides,
   });
 }
+
+describe('registrationCategoryStatus — passe de vaga', () => {
+  it('sem passe, categoria lotada bloqueia', () => {
+    const result = status({ spotsLeft: 0 });
+    expect(result.badge).toBe('LOTADO');
+    expect(result.blocked).toBeTrue();
+  });
+
+  it('com passe, a lotação deixa de bloquear e o selo muda', () => {
+    const result = status({ spotsLeft: 0, hasSpotPass: true });
+    expect(result.badge).toBe(SPOT_PASS_BADGE);
+    expect(result.blocked).toBeFalse();
+  });
+
+  // O passe fura a LOTAÇÃO e só ela: anunciar "VAGA LIBERADA" para quem o servidor vai recusar
+  // por prazo seria mentir na cara do atleta.
+  it('passe não fura prazo encerrado', () => {
+    const result = status({
+      spotsLeft: 0,
+      hasSpotPass: true,
+      registrationClosesAt: new Date('2026-09-01T23:59:00Z'),
+    });
+    expect(result.badge).toBe('ENCERRADA');
+    expect(result.blocked).toBeTrue();
+  });
+
+  it('já inscrito continua ganhando do passe', () => {
+    const result = status({ spotsLeft: 0, hasSpotPass: true, alreadyRegistered: true });
+    expect(result.badge).toBe(REGISTERED_BADGE);
+  });
+
+  it('categoria com vaga livre não ganha selo de passe à toa', () => {
+    const result = status({ spotsLeft: 4 });
+    expect(result.badge).toBeNull();
+    expect(result.blocked).toBeFalse();
+  });
+});
 
 describe('registrationCategoryStatus', () => {
   // A vaga já é do atleta: bloquear o CTA foi exatamente o beco sem saída que a inscrição solo

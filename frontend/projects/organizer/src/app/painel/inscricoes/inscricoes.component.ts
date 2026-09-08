@@ -5,12 +5,15 @@ import { formatPhoneBR } from '../data/phone-contact';
 import {
   confirmRegistrationPayment,
   createTeamRegistration,
+  grantTournamentSpotPass,
   moveToWaitlist,
   removeFromCategory,
   resendRegistrationPayment,
   respondCancellationRequest,
   revertRegistrationPayment,
+  revokeTournamentSpotPass,
 } from '../data/organizer-ops.service';
+import { watchTournamentSpotPasses, type TournamentSpotPass } from '../data/spot-passes-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { uniformCategoryConfigs } from '../data/uniforms';
@@ -18,6 +21,7 @@ import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dial
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
+import { OgLiberarVagaComponent, type LiberarVagaSubmit } from './liberar-vaga.component';
 import { OgNovaInscricaoComponent, type NovaInscricaoSubmit } from './nova-inscricao.component';
 import {
   INSCRICAO_TABS,
@@ -79,6 +83,7 @@ interface PendingConfirm {
     OgIconComponent,
     OgInscricoesListComponent,
     OgNovaInscricaoComponent,
+    OgLiberarVagaComponent,
     OgConfirmDialogComponent,
   ],
   template: `
@@ -97,6 +102,10 @@ interface PendingConfirm {
         <og-icon name="download" [size]="14" />Exportar
       </button>
       @if (categorias().length > 0) {
+        <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="toggleLiberar()">
+          <og-icon [name]="releasing() ? 'close' : 'users'" [size]="14" />
+          {{ releasing() ? 'Fechar' : 'Liberar vaga' }}
+        </button>
         <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="busy()" (click)="toggleNova()">
           <og-icon [name]="creating() ? 'close' : 'plus'" [size]="14" />
           {{ creating() ? 'Fechar' : 'Nova inscrição' }}
@@ -119,6 +128,19 @@ interface PendingConfirm {
           [busy]="busy()"
           (submitted)="onCreate($event)"
           (cancelled)="toggleNova()"
+        />
+      }
+
+      @if (releasing()) {
+        <og-liberar-vaga
+          [categorias]="categorias()"
+          [categoriaInicial]="categoryFilter()"
+          [occupancyByCategory]="occupancyByCategory()"
+          [passes]="spotPasses()"
+          [busy]="busy()"
+          (submitted)="onGrantSpotPass($event)"
+          (revoked)="onRevokeSpotPass($event)"
+          (cancelled)="toggleLiberar()"
         />
       }
 
@@ -289,6 +311,8 @@ export class InscricoesComponent {
   protected readonly actionsFor = signal<string | null>(null);
   /** Formulário de inscrição criada pelo organizador aberto. */
   protected readonly creating = signal(false);
+  /** Painel de liberar vaga aberto. */
+  protected readonly releasing = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
@@ -314,6 +338,10 @@ export class InscricoesComponent {
   protected readonly uniformConfigs = computed(() => uniformCategoryConfigs(this.tournament()));
 
   protected readonly waitlistEnabled = computed(() => this.tournament()?.waitlistEnabled ?? true);
+
+  /** Passes de vaga do torneio, ao vivo: o atleta usa o dele do outro lado, e a lista precisa
+   *  dizer "inscrição feita" sem o organizador recarregar a tela. */
+  protected readonly spotPasses = signal<readonly TournamentSpotPass[]>([]);
 
   /** Vagas ocupadas por categoria, pela MESMA regra do servidor: 1 inscrição = 1 vaga, e a fila
    *  de espera não ocupa nada. Serve só pra tela antecipar a lotação — a decisão é da CF. */
@@ -390,8 +418,15 @@ export class InscricoesComponent {
         (inscriptions) => this.onInscriptions(tid, inscriptions),
         (error) => this.onLoadError(error),
       );
+      const stopPasses = watchTournamentSpotPasses(
+        tid,
+        (passes) => this.spotPasses.set(passes),
+        // Passe é acessório da tela: sem ele a lista de inscrições segue inteira.
+        () => this.spotPasses.set([]),
+      );
       onCleanup(() => {
         stop();
+        stopPasses();
         this.cancelPhonesRefresh();
       });
     });
@@ -515,6 +550,35 @@ export class InscricoesComponent {
   protected toggleNova(): void {
     this.creating.update((cur) => !cur);
     this.feedback.set(null);
+  }
+
+  protected toggleLiberar(): void {
+    this.releasing.update((cur) => !cur);
+    this.feedback.set(null);
+  }
+
+  /** Libera a vaga nominal. Nada é inscrito aqui: o teto da categoria só sobe quando o atleta
+   *  se inscrever, então a tela não recarrega o torneio como o "Nova inscrição" faz. */
+  protected onGrantSpotPass(form: LiberarVagaSubmit): void {
+    const categoriaNome = this.categorias().find((c) => c.id === form.categoryId)?.name ?? 'categoria';
+    void this.run(
+      'grant-pass',
+      () =>
+        grantTournamentSpotPass({
+          tournamentId: this.id(),
+          categoryId: form.categoryId,
+          athleteUid: form.athleteUid,
+        }),
+      (result) =>
+        result.alreadyGranted
+          ? `${form.athleteName} já tinha vaga liberada em ${categoriaNome}.`
+          : `Vaga liberada para ${form.athleteName} em ${categoriaNome}. ` +
+            'Ele foi avisado e se inscreve pelo app.',
+    );
+  }
+
+  protected onRevokeSpotPass(passId: string): void {
+    void this.run('revoke-pass', () => revokeTournamentSpotPass(passId), 'Vaga liberada revogada.');
   }
 
   /** A inscrição pode nascer de dois jeitos, e o organizador precisa saber qual aconteceu:

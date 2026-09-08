@@ -34,6 +34,7 @@ import {
   resolveCategoryEntryFee,
   resolveCategoryLabel,
 } from "./tournament-registration-guards";
+import {expireSpotPassesForCategory} from "./tournament-spot-pass";
 import {
   canCancelTournament,
   countPaidRegistrations,
@@ -348,6 +349,21 @@ export const generateCategoryBracket = onCall(async (request) => {
   );
 
   await batch.commit();
+
+  // Passes de vaga vivos morrem com a publicação da chave. A trava de verdade é calculada a
+  // cada uso (`categoryBracketPublished`); isto só deixa a lista do organizador honesta.
+  try {
+    const expired = await expireSpotPassesForCategory(db, tournamentId, categoryId);
+    if (expired > 0) {
+      logger.info("generateCategoryBracket: passes de vaga expirados", {
+        tournamentId, categoryId, expired,
+      });
+    }
+  } catch (e) {
+    logger.warn("generateCategoryBracket: falha ao expirar passes de vaga", {
+      tournamentId, categoryId, e,
+    });
+  }
 
   // Convites de substituição pendentes morrem com a publicação da chave.
   try {

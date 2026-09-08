@@ -6,6 +6,7 @@
  * troca qualquer vaga; equipe (trio+): só o capitão, e nunca a própria vaga.
  * Efeitos (Firestore, Asaas, notificações) ficam em tournament-substitution.ts.
  */
+import {categoryBracketPublished} from "./tournament-category-bracket-status";
 import {MIN_TEAM_CATEGORY_SIZE} from "./tournament-team-category";
 
 export type SubstitutionBlockReason =
@@ -45,18 +46,8 @@ export function substitutionBlockReason(
   }
   if (category?.isCompleted === true) return "category_completed";
 
-  const ops = tournament.categoryOps;
-  if (ops && typeof ops === "object") {
-    for (const key of categoryKeys) {
-      const entry = (ops as Record<string, unknown>)[key];
-      if (!entry || typeof entry !== "object") continue;
-      const bracketStatus = String(
-        (entry as Record<string, unknown>).bracketStatus ?? "",
-      ).trim();
-      if (bracketStatus === "published" || bracketStatus === "completed") {
-        return "bracket_published";
-      }
-    }
+  if (categoryBracketPublished(tournament, categoryKeys)) {
+    return "bracket_published";
   }
   return null;
 }

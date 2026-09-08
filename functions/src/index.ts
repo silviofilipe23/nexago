@@ -76,6 +76,10 @@ import {
   organizerCreateTeamRegistration,
 } from "./organizer-create-registration";
 import {
+  organizerGrantTournamentSpotPass,
+  organizerRevokeTournamentSpotPass,
+} from "./tournament-spot-pass-ops";
+import {
   scheduleMatch,
   rescheduleMatch,
   unscheduleMatch,
@@ -217,6 +221,8 @@ export {
   organizerConfirmRegistrationPayment,
   organizerRevertRegistrationPayment,
   organizerCreateTeamRegistration,
+  organizerGrantTournamentSpotPass,
+  organizerRevokeTournamentSpotPass,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,
   sendCategoryCommunication,

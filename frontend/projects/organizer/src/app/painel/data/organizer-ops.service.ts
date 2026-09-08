@@ -13,6 +13,34 @@ function call<T = Record<string, unknown>>(name: string, payload: Record<string,
   return callable(payload).then((r) => (r.data ?? {}) as T);
 }
 
+// ── Passe de vaga (tournament-spot-pass-ops.ts) ───────────────────────────────
+
+/** Libera uma vaga NOMINAL numa categoria para um atleta.
+ *
+ *  Não cria inscrição nenhuma: quem se inscreve, convida o parceiro, aceita a LGPD, escolhe o
+ *  uniforme e paga é o atleta, pelo fluxo normal. O teto da categoria só sobe no instante em
+ *  que ele se inscreve — até lá a categoria segue lotada para todo mundo.
+ *
+ *  `alreadyGranted` volta `true` quando o atleta já tinha passe vivo ali: a callable é
+ *  idempotente porque dois passes abririam duas vagas para a mesma pessoa. */
+export function grantTournamentSpotPass(params: {
+  tournamentId: string;
+  categoryId: string;
+  athleteUid: string;
+}): Promise<{ passId: string; alreadyGranted: boolean }> {
+  return call('organizerGrantTournamentSpotPass', {
+    tournamentId: params.tournamentId.trim(),
+    categoryId: params.categoryId.trim(),
+    athleteUid: params.athleteUid.trim(),
+  });
+}
+
+/** Revoga um passe ainda não usado. Passe já queimado não volta — a inscrição existe, e o
+ *  caminho para desfazê-la é remover da categoria. */
+export function revokeTournamentSpotPass(passId: string): Promise<void> {
+  return call('organizerRevokeTournamentSpotPass', { passId: passId.trim() }).then(() => undefined);
+}
+
 // ── Chave / categoria (organizer-category-ops.ts) ─────────────────────────────
 
 export interface GenerateBracketParams {

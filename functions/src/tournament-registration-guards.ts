@@ -6,6 +6,7 @@ import {
   findCategoryIndex,
   resolveCategoryCapacity,
 } from "./tournament-category-capacity";
+import {annotateSpotPass, findClaimableSpotPass} from "./tournament-spot-pass";
 
 export {resolveCategoryCapacity};
 
@@ -149,7 +150,8 @@ export function resolveCategoryMatchKeys(
  * `category.registrationClosed`. Torneio em rascunho/programado/cancelado e categoria concluída
  * continuam barrando: essas não são "o atleta perdeu o prazo", são estados em que uma inscrição
  * nova corrompe a competição. Categoria lotada continua barrando também, a menos que o chamador
- * peça `allowCapacityExpansion` — aí o desfecho é dele.
+ * peça `allowCapacityExpansion` — aí o desfecho é dele — ou que um dos `claimantUids` tenha
+ * passe de vaga vivo, caso em que a lotação é aberta para aquela pessoa e só para ela.
  */
 export interface RegistrationGuardOptions {
   allowClosedRegistration?: boolean;
@@ -173,6 +175,16 @@ export interface RegistrationGuardOptions {
    * gratuita, reserva direta com o organizador).
    */
   occupancyExcludesRegistrationId?: string;
+
+  /**
+   * Atletas que vão ficar NA inscrição — é entre eles que se procura um passe de vaga
+   * ([[tournament-spot-pass]]) quando a categoria está lotada.
+   *
+   * Plural porque o dono do passe nem sempre é quem chama a callable: em torneio que exige
+   * dupla já formada a inscrição nasce no ACEITE do convite, e quem chama ali é o parceiro.
+   * Vazio ou ausente = ninguém tem passe, e lotação segue resolvendo como sempre resolveu.
+   */
+  claimantUids?: string[];
 }
 
 /** Retrato da categoria lotada, anotado pelo guard sob `allowCapacityExpansion`. */
@@ -314,16 +326,36 @@ export async function assertTournamentAcceptsRegistration(
     // usando o campo interno `__shouldWaitlist` retornado aqui.)
     const capacity = resolveCategoryCapacity(category);
     if (capacity != null) {
+      const categoryKeys = resolveCategoryMatchKeys(tournament, categoryKey);
       const occupied = await countCategoryOccupancy(
         db,
         projectId,
         tournamentId,
-        resolveCategoryMatchKeys(tournament, categoryKey),
+        categoryKeys,
         options?.occupancyExcludesRegistrationId?.trim() ?? "",
       );
       if (occupied >= capacity) {
+        // Ordem dos desfechos da lotação: o organizador (que decide sozinho), o passe nominal
+        // do convidado, a fila de espera e, por fim, a recusa.
+        const pass =
+          options?.allowCapacityExpansion === true ?
+            null :
+            await findClaimableSpotPass({
+              db,
+              tournament,
+              tournamentId,
+              categoryKeys,
+              claimantUids: options?.claimantUids ?? [],
+            });
+
         if (options?.allowCapacityExpansion === true) {
           // Quem pediu a opção decide o desfecho — aqui só fica o retrato do que se viu.
+          (tournament as TournamentData).__capacityFull = {capacity, occupied};
+        } else if (pass) {
+          // Vaga liberada nominalmente: não vai para a fila nem é recusada. Quem persistir a
+          // inscrição sobe o teto (é para isso que `__capacityFull` também fica aqui) e queima
+          // o passe na MESMA transação.
+          annotateSpotPass(tournament as TournamentData, pass);
           (tournament as TournamentData).__capacityFull = {capacity, occupied};
         } else if (tournament.waitlistEnabled !== false) {
           (tournament as TournamentData).__shouldWaitlist = true;

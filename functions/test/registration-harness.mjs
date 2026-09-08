@@ -29,6 +29,7 @@ export const INSCRIPTIONS = `artifacts/${PROJECT_ID}/public/data/inscriptions`;
 export const TEAMS = `artifacts/${PROJECT_ID}/public/data/teams`;
 export const INVITES = 'tournamentRegistrationInvites';
 export const EXTERNAL_INVITES = 'tournamentExternalPartnerInvites';
+export const SPOT_PASSES = 'tournamentSpotPasses';
 
 // ── callables ───────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ const teamRegistration = await import('../lib/tournament-team-registration.js');
 const externalInvite = await import('../lib/tournament-external-invite.js');
 const registrationPix = await import('../lib/tournament-registration-pix.js');
 const substitution = await import('../lib/tournament-substitution.js');
+const spotPass = await import('../lib/tournament-spot-pass-ops.js');
 
 export const callables = {
   registerSolo: partnerInvite.registerSoloTournament,
@@ -51,6 +53,8 @@ export const callables = {
   claimExternalInvite: externalInvite.claimExternalPartnerInvite,
   confirmFree: registrationPix.confirmFreeTournamentRegistration,
   reserveDirect: registrationPix.reserveDirectOrganizerRegistration,
+  grantSpotPass: spotPass.organizerGrantTournamentSpotPass,
+  revokeSpotPass: spotPass.organizerRevokeTournamentSpotPass,
   sendSubstitution: substitution.sendTournamentSubstitutionInvite,
   markViewed: substitution.markSubstitutionInviteViewed,
   resendSubstitution: substitution.resendSubstitutionInvite,

@@ -13,6 +13,9 @@ import 'tournament_listing_status.dart';
 /// Mexeu aqui, mexa lá. A ordem das checagens é contrato nas duas:
 /// já inscrito > prazo encerrado > em breve > encerrada > lotada > elegibilidade.
 ///
+/// [hasSpotPass] é a única exceção à lotação: com passe de vaga o atleta atravessa o "LOTADO"
+/// (e SÓ ele) e recebe o selo "VAGA LIBERADA" no fim, depois de a elegibilidade ter falado.
+///
 /// "JÁ INSCRITO" é deliberadamente `blocked: false` — a vaga já é do atleta, e
 /// bloquear o toque foi exatamente o beco sem saída que a inscrição solo
 /// pendente sofria: quem reservou sem parceiro não tinha como voltar ao
@@ -36,6 +39,9 @@ class RegistrationCategoryStatus {
   bool get isRegistered => badge == kRegisteredBadge;
 
   static const kRegisteredBadge = 'JÁ INSCRITO';
+
+  /// Categoria lotada em que o organizador abriu uma vaga NOMINAL para este atleta.
+  static const kSpotPassBadge = 'VAGA LIBERADA';
 }
 
 /// Elegibilidade já avaliada pela tela (nível/idade/gênero), para manter esta
@@ -66,6 +72,7 @@ RegistrationCategoryStatus registrationCategoryStatus({
   DateTime? registrationOpensAt,
   DateTime? registrationClosesAt,
   DateTime? now,
+  bool hasSpotPass = false,
 }) {
   if (alreadyRegistered) {
     return const RegistrationCategoryStatus(
@@ -103,7 +110,10 @@ RegistrationCategoryStatus registrationCategoryStatus({
       message: 'As inscrições desta categoria estão encerradas.',
     );
   }
-  if (spotsLeft != null && spotsLeft <= 0) {
+  // Passe de vaga: a lotação deixa de barrar ESTE atleta — e só ele. O selo próprio sai lá
+  // embaixo, depois da elegibilidade: a vaga liberada fura a lotação, não o nível nem a idade,
+  // e anunciar "VAGA LIBERADA" com o CTA que o servidor vai recusar seria mentir na cara dele.
+  if (spotsLeft != null && spotsLeft <= 0 && !hasSpotPass) {
     return const RegistrationCategoryStatus(
       badge: 'LOTADO',
       blocked: true,
@@ -140,6 +150,12 @@ RegistrationCategoryStatus registrationCategoryStatus({
       blocked: true,
       message: 'Seu nível é acima desta categoria. Escolha uma categoria igual '
           'ou acima do seu nível.',
+    );
+  }
+  if (hasSpotPass) {
+    return const RegistrationCategoryStatus(
+      badge: RegistrationCategoryStatus.kSpotPassBadge,
+      message: 'O organizador abriu uma vaga para você nesta categoria.',
     );
   }
   return const RegistrationCategoryStatus();

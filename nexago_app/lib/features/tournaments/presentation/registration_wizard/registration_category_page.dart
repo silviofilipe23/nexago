@@ -14,6 +14,7 @@ import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../../athlete/domain/tournament_access_providers.dart';
 import '../../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../data/tournament_inscriptions_repository.dart';
+import '../../data/tournament_spot_pass_repository.dart';
 import '../../domain/category_age_eligibility.dart';
 import '../../domain/category_gender_eligibility.dart';
 import '../../domain/category_level_eligibility.dart';
@@ -223,10 +224,18 @@ class _RegistrationCategoryPageState
           profile,
           tournamentSport: tournament.sport,
         );
+        // Vaga liberada nominalmente pelo organizador: é o que faz a categoria lotada
+        // continuar clicável para ESTE atleta, e só para ele.
+        final spotPassCategoryIds = ref
+                .watch(tournamentSpotPassCategoryIdsProvider(widget.tournamentId))
+                .valueOrNull ??
+            const <String>{};
+
         final status = registrationCategoryStatus(
           offer: category,
           alreadyRegistered: registration != null,
           spotsLeft: spotsLeft,
+          hasSpotPass: spotPassCategoryIds.contains(category.id),
           registrationOpensAt: tournament.registrationOpensAt,
           // A linha "Inscrições até …" abaixo só INFORMA o prazo; quem o
           // APLICA é o status — sem ele o CTA seguia "Inscrever-se" depois do

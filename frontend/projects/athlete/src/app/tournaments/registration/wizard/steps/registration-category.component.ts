@@ -78,6 +78,9 @@ export class RegistrationCategoryComponent {
       // ele o CTA seguia "Inscrever-se" depois do prazo e a recusa só vinha da callable, três
       // telas adiante.
       registrationClosesAt: tournament.registrationClosesAt,
+      // Vaga liberada nominalmente pelo organizador: é o que faz a categoria lotada continuar
+      // clicável para ESTE atleta, e só para ele.
+      hasSpotPass: this.store.hasSpotPass(this.params().categoryId),
     });
   });
 

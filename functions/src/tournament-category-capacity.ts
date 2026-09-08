@@ -115,19 +115,61 @@ export function planCategoryCapacityExpansion(params: {
   if (occupied < capacity) return null;
 
   const to = Math.max(capacity, Math.trunc(occupied)) + 1;
+  writeCapacity(category, to);
 
+  return {index, categories: list, from: capacity, to};
+}
+
+/**
+ * Plano para DEVOLVER a vaga que um passe tinha aberto, ou `null` quando não há o que devolver.
+ *
+ * Existe porque a vaga liberada nominalmente não pode virar vaga de todo mundo: quando a
+ * inscrição do convidado morre sem pagar, o teto que subiu para recebê-la precisa descer junto
+ * — senão a categoria fica com uma vaga a mais, aberta a quem chegar primeiro, que é
+ * exatamente o oposto do pedido.
+ *
+ * O teto novo é `max(ocupação, teto - 1)`: nunca abaixo de quem já está dentro. Se outra dupla
+ * entrou na vaga nesse meio-tempo, a conta simplesmente não desce e ninguém é expulso.
+ */
+export function planCategoryCapacityShrink(params: {
+  categories: readonly unknown[] | null | undefined;
+  categoryKey: string;
+  /** Inscrições que ocupam vaga DEPOIS da liberação (fila de espera não conta). */
+  occupied: number;
+}): CategoryCapacityExpansion | null {
+  const {categories, categoryKey, occupied} = params;
+
+  const index = findCategoryIndex(categories, categoryKey);
+  if (index < 0) return null;
+
+  const list = (categories as readonly unknown[]).map(
+    (entry) => ({...(entry as Record<string, unknown>)}),
+  );
+  const category = list[index];
+
+  const capacity = resolveCategoryCapacity(category);
+  if (capacity == null) return null;
+
+  const to = Math.max(Math.trunc(occupied), capacity - 1);
+  if (to >= capacity) return null;
+
+  writeCapacity(category, to);
+
+  return {index, categories: list, from: capacity, to};
+}
+
+/** Grava o teto novo nos campos que o documento declara — a mesma escolha na subida e na descida. */
+function writeCapacity(category: Record<string, unknown>, to: number): void {
   const declared = CAPACITY_FIELDS_TO_BUMP.filter((field) => {
     const n = numberOf(category[field]);
     return n != null && n > 0;
   });
-  // Doc legado que só tem `spotsLeft`: sobe ele mesmo, senão o teto não mudaria.
+  // Doc legado que só tem `spotsLeft`: mexe nele mesmo, senão o teto não mudaria.
   const targets = declared.length > 0 ? declared : [resolvedCapacityField(category)];
 
   for (const field of targets) {
     if (field) category[field] = to;
   }
-
-  return {index, categories: list, from: capacity, to};
 }
 
 /** Qual campo respondeu pelo teto — usado só no fallback do doc legado. */

@@ -11,7 +11,6 @@ import type { TournamentSpotPass } from '../data/spot-passes-repository';
 import type { OrganizerTournamentCategory } from '../data/tournament.model';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
-import { OgIconComponent } from '../ui/icon.component';
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -40,7 +39,7 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
 @Component({
   selector: 'og-liberar-vaga',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgCardComponent, OgIconComponent, OgAvatarComponent, NxSpinnerComponent],
+  imports: [OgCardComponent, OgAvatarComponent, NxSpinnerComponent],
   template: `
     <og-card>
       <div class="og-lv">
@@ -95,7 +94,7 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
         @if (termTooShort()) {
           <p class="og-lv-hint">Digite ao menos {{ minTerm }} letras.</p>
         } @else if (searching()) {
-          <nx-spinner />
+          <app-nx-spinner [size]="13" />
         } @else if (searched() && candidates().length === 0) {
           <p class="og-lv-hint">Nenhum atleta encontrado.</p>
         } @else if (candidates().length > 0) {

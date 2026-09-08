@@ -8,6 +8,7 @@ import { athleteFunctions } from '../../../data/functions';
 import { fetchMyAthleteProfile, type MyAthleteProfile } from '../../../data/my-athlete-profile-repository';
 import { PartnerInvitesService } from '../../../data/partner-invites.service';
 import { fetchPublicProfilesByIds } from '../../../data/public-profiles-repository';
+import { watchMySpotPassCategoryIds } from '../../../data/spot-passes-repository';
 import {
   sentPendingInvitesFor,
   watchMyRegistrations,
@@ -106,6 +107,10 @@ export class RegistrationWizardStore {
   readonly sentInvites = signal<readonly SentPartnerInvite[]>([]);
   readonly sentInvitesLoaded = signal(false);
 
+  /** Categorias deste torneio em que o organizador liberou uma vaga nominal para mim. */
+  readonly spotPassCategoryIds = signal<ReadonlySet<string>>(new Set());
+  readonly spotPassesLoaded = signal(false);
+
   /** Convites que EU recebi, do store global ao vivo (o convite nasce de um gesto do outro
    *  atleta e pode chegar com a tela já aberta). */
   readonly receivedInvites = computed<TournamentPartnerInvite[]>(() =>
@@ -116,8 +121,21 @@ export class RegistrationWizardStore {
 
   /** Todas as leituras que o porteiro precisa já resolveram. */
   readonly ready = computed(
-    () => this.tournamentLoaded() && this.profileLoaded() && this.registrationsLoaded() && this.sentInvitesLoaded(),
+    () =>
+      this.tournamentLoaded() &&
+      this.profileLoaded() &&
+      this.registrationsLoaded() &&
+      this.sentInvitesLoaded() &&
+      // O passe entra no porteiro de propósito: sem ele a categoria lotada apareceria
+      // BLOQUEADA por um instante para quem tem vaga liberada, e um toque em "ver outras
+      // categorias" nesse instante tira o atleta da tela em que ele deveria ficar.
+      this.spotPassesLoaded(),
   );
+
+  /** Tenho vaga liberada nesta categoria? */
+  hasSpotPass(categoryId: string): boolean {
+    return this.spotPassCategoryIds().has(categoryId.trim());
+  }
 
   constructor() {
     // Torneio + contagem de inscritos: uma busca por entrada no fluxo.
@@ -157,6 +175,36 @@ export class RegistrationWizardStore {
           () => {
             this.myRegistrations.set([]);
             this.registrationsLoaded.set(true);
+          },
+        ),
+      );
+    });
+
+    // Vagas liberadas para mim neste torneio, AO VIVO: o organizador libera do outro lado, e a
+    // categoria precisa destravar sem o atleta recarregar a página.
+    effect((onCleanup) => {
+      const tournamentId = this.tournamentId();
+      const uid = this.myUid();
+      const db = this.firestore;
+      if (!db || !uid || !tournamentId) {
+        this.spotPassCategoryIds.set(new Set());
+        this.spotPassesLoaded.set(true);
+        return;
+      }
+      onCleanup(
+        watchMySpotPassCategoryIds(
+          db,
+          uid,
+          tournamentId,
+          (ids) => {
+            this.spotPassCategoryIds.set(ids);
+            this.spotPassesLoaded.set(true);
+          },
+          () => {
+            // Erro de leitura vira "sem passe": a categoria segue lotada, que é o estado
+            // conservador. Inventar passe aqui deixaria o atleta bater na callable.
+            this.spotPassCategoryIds.set(new Set());
+            this.spotPassesLoaded.set(true);
           },
         ),
       );

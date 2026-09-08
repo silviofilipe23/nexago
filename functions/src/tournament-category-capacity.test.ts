@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   findCategoryIndex,
   planCategoryCapacityExpansion,
+  planCategoryCapacityShrink,
   resolveCategoryCapacity,
 } from "./tournament-category-capacity";
 
@@ -151,5 +152,72 @@ describe("planCategoryCapacityExpansion", () => {
       }),
       null,
     );
+  });
+});
+
+describe("planCategoryCapacityShrink", () => {
+  it("devolve a vaga: teto desce 1 e os campos declarados descem juntos", () => {
+    const categories = [{id: "cat-a", maxTeams: 17, spotsTotal: 17}];
+    const plan = planCategoryCapacityShrink({
+      categories,
+      categoryKey: "cat-a",
+      occupied: 16,
+    });
+    assert.equal(plan?.from, 17);
+    assert.equal(plan?.to, 16);
+    assert.equal(plan?.categories[0].maxTeams, 16);
+    assert.equal(plan?.categories[0].spotsTotal, 16);
+  });
+
+  it("nunca desce abaixo de quem já está dentro", () => {
+    const categories = [{id: "cat-a", maxTeams: 17}];
+    // Outra dupla entrou na vaga antes de a devolução rodar: não desce, ninguém é expulso.
+    assert.equal(
+      planCategoryCapacityShrink({categories, categoryKey: "cat-a", occupied: 17}),
+      null,
+    );
+  });
+
+  it("não mexe no array original", () => {
+    const categories = [{id: "cat-a", maxTeams: 17}];
+    planCategoryCapacityShrink({categories, categoryKey: "cat-a", occupied: 10});
+    assert.equal(categories[0].maxTeams, 17);
+  });
+
+  it("categoria sem teto ou inexistente não tem o que devolver", () => {
+    assert.equal(
+      planCategoryCapacityShrink({
+        categories: [{id: "cat-a"}],
+        categoryKey: "cat-a",
+        occupied: 3,
+      }),
+      null,
+    );
+    assert.equal(
+      planCategoryCapacityShrink({
+        categories: [{id: "cat-a", maxTeams: 8}],
+        categoryKey: "cat-z",
+        occupied: 3,
+      }),
+      null,
+    );
+  });
+
+  it("subir e descer devolve a categoria ao teto original", () => {
+    const categories = [{id: "cat-a", maxTeams: 16, spotsTotal: 16}];
+    const up = planCategoryCapacityExpansion({
+      categories,
+      categoryKey: "cat-a",
+      occupied: 16,
+    });
+    assert.equal(up?.to, 17);
+    const down = planCategoryCapacityShrink({
+      categories: up!.categories,
+      categoryKey: "cat-a",
+      occupied: 16,
+    });
+    assert.equal(down?.to, 16);
+    assert.equal(down?.categories[0].maxTeams, 16);
+    assert.equal(down?.categories[0].spotsTotal, 16);
   });
 });

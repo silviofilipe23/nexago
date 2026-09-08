@@ -19,6 +19,82 @@ TournamentCategoryOffer offer({
 }
 
 void main() {
+  group('registrationCategoryStatus — passe de vaga', () {
+    test('sem passe, categoria lotada bloqueia', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+      );
+
+      expect(status.badge, 'LOTADO');
+      expect(status.blocked, isTrue);
+    });
+
+    test('com passe, a lotação deixa de bloquear e o selo muda', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        hasSpotPass: true,
+      );
+
+      expect(status.badge, 'VAGA LIBERADA');
+      expect(status.blocked, isFalse);
+    });
+
+    // O passe fura a LOTAÇÃO e só ela: anunciar "VAGA LIBERADA" para quem o
+    // servidor vai recusar por nível seria mentir na cara do atleta.
+    test('passe não fura nível', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        hasSpotPass: true,
+        eligibility: const RegistrationEligibilityInput(levelBlocked: true),
+      );
+
+      expect(status.badge, 'NÍVEL');
+      expect(status.blocked, isTrue);
+    });
+
+    test('passe não fura prazo encerrado', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 0,
+        hasSpotPass: true,
+        registrationClosesAt: DateTime(2020, 1, 1),
+        now: DateTime(2026, 1, 1),
+      );
+
+      expect(status.badge, 'ENCERRADA');
+      expect(status.blocked, isTrue);
+    });
+
+    test('já inscrito continua ganhando do passe', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: true,
+        spotsLeft: 0,
+        hasSpotPass: true,
+      );
+
+      expect(status.badge, 'JÁ INSCRITO');
+    });
+
+    test('categoria com vaga livre não ganha selo de passe à toa', () {
+      final status = registrationCategoryStatus(
+        offer: offer(),
+        alreadyRegistered: false,
+        spotsLeft: 3,
+      );
+
+      expect(status.badge, isNull);
+      expect(status.blocked, isFalse);
+    });
+  });
+
   group('registrationCategoryStatus — ordem das checagens', () {
     // A ordem é contrato, copiada do shell da web. Estes casos existem porque
     // trocar duas linhas de lugar muda o que o atleta vê sem quebrar nada.

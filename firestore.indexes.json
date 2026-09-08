@@ -1333,6 +1333,38 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "tournamentSpotPasses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "tournamentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "athleteUid",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tournamentSpotPasses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "athleteUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tournamentId",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

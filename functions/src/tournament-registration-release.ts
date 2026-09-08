@@ -22,6 +22,7 @@ import {
   inviteMatchesCancelledRegistration,
   shouldDeleteTeamOnCancellation,
 } from "./tournament-registration-cancellation";
+import {restoreSpotPassSpot} from "./tournament-spot-pass-claim";
 
 export const REGISTRATION_CANCELLATIONS_COLLECTION =
   "tournamentRegistrationCancellations";
@@ -121,6 +122,35 @@ export async function releaseRegistration(params: {
   batch.delete(regRef);
   await batch.commit();
 
+  // Inscrição que nasceu de um passe de vaga: o teto que subiu para recebê-la desce junto e o
+  // passe volta a valer. Best-effort de propósito — a vaga já foi liberada, e falhar aqui só
+  // deixa o teto alto; derrubar a liberação inteira por causa disso seria pior.
+  let spotPassRestored = false;
+  try {
+    const restored = await restoreSpotPassSpot({
+      db,
+      projectId,
+      registrationId,
+      registration,
+    });
+    spotPassRestored = restored.passRestored;
+    if (restored.shrunk) {
+      logger.info("Vaga de passe devolvida à categoria", {
+        registrationId,
+        tournamentId,
+        categoryId,
+        passRestored: restored.passRestored,
+      });
+    }
+  } catch (restoreError) {
+    logger.error("Falha ao devolver a vaga do passe", {
+      registrationId,
+      tournamentId,
+      categoryId,
+      restoreError,
+    });
+  }
+
   logger.info("Vaga de inscrição liberada", {
     registrationId,
     tournamentId,
@@ -130,6 +160,7 @@ export async function releaseRegistration(params: {
     cancelledInvites,
     deletedTeam: deleteTeam,
     cancelledPixCharges: pixPendingSnap.size,
+    spotPassRestored,
   });
 
   return {

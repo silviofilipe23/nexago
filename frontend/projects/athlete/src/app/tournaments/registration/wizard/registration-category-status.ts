@@ -9,7 +9,9 @@ import type { MyAthleteProfile } from '../../../data/my-athlete-profile-reposito
 /** Estado de uma categoria no passo 1 do wizard.
  *
  *  A ordem das checagens é contrato: já inscrito > prazo encerrado > ainda não abriu >
- *  categoria encerrada > lotada > elegibilidade. Espelha o guard do servidor
+ *  categoria encerrada > lotada > elegibilidade. `hasSpotPass` é a única exceção à lotação:
+ *  com passe de vaga o atleta atravessa o "LOTADO" (e SÓ ele) e recebe o selo "VAGA LIBERADA"
+ *  no fim, depois de a elegibilidade ter falado. Espelha o guard do servidor
  *  (`assertTournamentAcceptsRegistration`): o calendário do TORNEIO vem antes das travas de
  *  categoria, e o PRAZO vem antes da abertura.
  *
@@ -27,6 +29,9 @@ export interface RegistrationCategoryStatus {
 
 export const REGISTERED_BADGE = 'JÁ INSCRITO';
 
+/** Categoria lotada em que o organizador abriu uma vaga NOMINAL para este atleta. */
+export const SPOT_PASS_BADGE = 'VAGA LIBERADA';
+
 export interface RegistrationCategoryStatusInput {
   readonly category: TournamentCategoryOffer;
   readonly alreadyRegistered: boolean;
@@ -38,6 +43,8 @@ export interface RegistrationCategoryStatusInput {
   readonly tournamentStart: Date | null;
   readonly registrationOpensAt: Date | null;
   readonly registrationClosesAt: Date | null;
+  /** Passe de vaga vivo deste atleta nesta categoria: atravessa o "LOTADO", e só ele. */
+  readonly hasSpotPass?: boolean;
   readonly now?: Date;
 }
 
@@ -65,7 +72,10 @@ export function registrationCategoryStatus(input: RegistrationCategoryStatusInpu
   if (input.category.registrationClosed || input.category.isCompleted) {
     return { badge: 'ENCERRADA', blocked: true, message: 'As inscrições desta categoria estão encerradas.' };
   }
-  if (input.spotsLeft != null && input.spotsLeft <= 0) {
+  // Passe de vaga: a lotação deixa de barrar ESTE atleta — e só ele. O selo próprio sai depois
+  // da elegibilidade: a vaga liberada fura a lotação, não o nível nem a idade, e anunciar
+  // "VAGA LIBERADA" com um CTA que o servidor vai recusar seria mentir na cara dele.
+  if (input.spotsLeft != null && input.spotsLeft <= 0 && input.hasSpotPass !== true) {
     return { badge: 'LOTADO', blocked: true, message: 'Esta categoria está lotada.' };
   }
   const eligibility = evaluateCategoryEligibility(input.category, input.profile, {
@@ -73,6 +83,13 @@ export function registrationCategoryStatus(input: RegistrationCategoryStatusInpu
     tournamentStart: input.tournamentStart,
     now,
   });
+  if (eligibility.status === 'eligible' && input.hasSpotPass === true) {
+    return {
+      badge: SPOT_PASS_BADGE,
+      blocked: false,
+      message: 'O organizador abriu uma vaga para você nesta categoria.',
+    };
+  }
   return {
     badge: eligibility.badge,
     blocked: eligibility.status !== 'eligible',

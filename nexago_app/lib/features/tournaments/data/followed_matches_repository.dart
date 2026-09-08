@@ -44,11 +44,6 @@ String matchTopicName(String matchId, {required bool ios}) {
   return ios ? 'match-$id-ios' : 'match-$id-android';
 }
 
-/// Partidas que o atleta escolheu acompanhar.
-///
-/// Duas metades: o doc em `users/{uid}/followedMatches/{matchId}` alimenta a
-/// UI e o re-sync; a assinatura do tópico FCM é o que faz o push chegar. Ver
-/// `docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md`.
 /// Tópicos que ESTE aparelho assinou, guardados localmente.
 ///
 /// A assinatura de tópico vive no token FCM do aparelho, não na conta. Sem esta
@@ -58,6 +53,11 @@ String matchTopicName(String matchId, {required bool ios}) {
 /// logasse depois.
 const _subscribedTopicsKey = 'followedMatches.subscribedTopics';
 
+/// Partidas que o atleta escolheu acompanhar.
+///
+/// Duas metades: o doc em `users/{uid}/followedMatches/{matchId}` alimenta a
+/// UI e o re-sync; a assinatura do tópico FCM é o que faz o push chegar. Ver
+/// `docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md`.
 class FollowedMatchesRepository {
   FollowedMatchesRepository(this._firestore, this._messaging);
 

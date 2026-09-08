@@ -39,7 +39,11 @@
     currentSetIndex: number | null; bestOf: number | null;
   }
   export interface NotifySidecar { lastPushAt: number | null; lastSignature: string | null }
-  export interface LiveUpdateDecision { push: boolean; kind: LiveUpdateKind | null; signature: string; reason: string }
+  export interface PointAlert { side: 'A' | 'B'; closesMatch: boolean }
+  export interface LiveUpdateDecision {
+    push: boolean; kind: LiveUpdateKind | null; signature: string;
+    reason: string; pointAlert: PointAlert | null;
+  }
   export const SCORE_THROTTLE_MS = 20_000;
   export function liveScoreSignature(m: LiveMatchSnapshot): string;
   export function resolveLiveUpdate(
@@ -48,11 +52,12 @@
   ): LiveUpdateDecision;
   ```
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
 
   Cobrir a tabela inteira da spec, um `test()` por linha, mais as bordas:
   - `Scheduled` → `In Progress` ⇒ `kind: 'start'`, `push: true`.
-  - contagem de sets sobe (via `liveScore.setsA` e, em teste separado, via `sets.length`) ⇒ `'set'`.
+  - contagem de sets **vencidos** sobe ⇒ `'set'`, em dois testes: pelo `liveScore.setsA/B` (mesa web) e pelo `sets[]` (mesa do app). **Não use `sets.length`**: `applyPoint` (`match_scoring_logic.dart:159`) só cria o set seguinte no primeiro ponto dele, então quando um set fecha o array não muda de tamanho. Quem detecta é `setsWon()`.
+  - **alerta só na ENTRADA em set/match point**: 20x15 → 20x16 continua sendo match point e não pode alertar de novo, senão a notificação vibra a cada ponto do adversário até o set fechar.
   - set point e match point ⇒ `'matchPoint'`, em `bestOf: 1` e `bestOf: 3`, set normal (alvo 21) e decisivo (alvo 15) — use `targetPointsForSet`, não constante literal.
   - → `Completed` ⇒ `'end'`. → `Canceled` ⇒ `'dismiss'`. `In Progress` → `Scheduled` ⇒ `'dismiss'`.
   - ponto comum com `lastPushAt` a 5s ⇒ `push: false`; a 25s ⇒ `push: true, kind: 'score'`.
@@ -60,19 +65,20 @@
   - **assinatura igual ⇒ nunca empurra**, mesmo para `kind` imediato (protege contra reentrega do gatilho): `before` e `after` com mesmo placar mas `updatedAt` diferente ⇒ `push: false`.
   - `liveScore: null` nos dois lados e status inalterado ⇒ `push: false`.
 
-- [ ] **Step 2: Rodar e confirmar que falha** — `npm test` (falha de compilação conta como falha esperada aqui).
+- [x] **Step 2: Rodar e confirmar que falha** — `npm test` (falha de compilação conta como falha esperada aqui).
 
-- [ ] **Step 3: Implementar `resolveLiveUpdate` e `liveScoreSignature`**
+- [x] **Step 3: Implementar `resolveLiveUpdate` e `liveScoreSignature`**
 
   Ordem de decisão: `dismiss` → `end` → `start` → `set` → `matchPoint` → `score` (throttled). A checagem de assinatura vem ANTES de tudo e curto-circuita.
 
-  `liveScoreSignature` serializa só o que é placar (`status|setsA|setsB|gamesA|gamesB|setsLen|currentSetIndex`) — nunca `updatedAt`.
+  `liveScoreSignature` serializa só o que é placar, já normalizado
+  (`status|setsVencidosA|setsVencidosB|pontosA|pontosB|currentSetIndex`) — nunca `updatedAt`.
 
   Set/match point: com `targetPointsForSet(currentSetIndex, bestOf)` e `MIN_ADVANTAGE`, é match point quando o time que está a 1 ponto do alvo (com vantagem) fecharia também a partida em `bestOf`.
 
-- [ ] **Step 4: Rodar e confirmar que passa** — `npm test`, contagem acima de 1749, 0 falhas.
+- [x] **Step 4: Rodar e confirmar que passa** — `npm test`, contagem acima de 1749, 0 falhas.
 
-- [ ] **Step 5: Commit** — `feat(functions): resolveLiveUpdate decide o push do placar ao vivo`
+- [x] **Step 5: Commit** — `feat(functions): resolveLiveUpdate decide o push do placar ao vivo`
 
 ---
 

@@ -759,7 +759,7 @@ describe("buildSingleEliminationMatches", () => {
 });
 
 describe("group standings", () => {
-  it("ranks teams by wins then set difference", () => {
+  it("ranks teams by wins then point difference", () => {
     const standings = computePoolStandings(
       "A",
       ["t1", "t2", "t3"],
@@ -800,69 +800,54 @@ describe("group standings", () => {
     assert.deepEqual(standings, ["t1", "t3", "t2"]);
   });
 
-  it("usa confronto direto entre empatadas, mesmo com pior saldo de sets", () => {
-    // 4 duplas: t1 e t2 empatam em 2 vitórias; t3 e t4 em 1. t2 tem saldo de
-    // sets MELHOR no geral, mas t1 venceu o confronto direto → t1 fica à frente.
-    const g = (
+  it("saldo de pontos manda antes do confronto direto", () => {
+    // Ciclo: cada um com 1 vitória. t1 venceu t2 no H2H, mas t2 tem SP bem maior.
+    const win = (
       teamAId: string,
       teamBId: string,
       winnerId: string,
-      a: number,
-      b: number,
-    ): {
-      poolId: string;
-      teamAId: string;
-      teamBId: string;
-      winnerId: string;
-      status: string;
-      isGroupMatch: boolean;
-      resultA: string;
-      resultB: string;
-    } => ({
+      sets: Array<{a: number; b: number}>,
+    ) => ({
       poolId: "A",
       teamAId,
       teamBId,
       winnerId,
       status: "Completed",
       isGroupMatch: true,
-      resultA: `${a}`,
-      resultB: `${b}`,
+      resultA: String(sets.filter((s) => s.a > s.b).length),
+      resultB: String(sets.filter((s) => s.b > s.a).length),
+      sets,
     });
 
     const standings = computePoolStandings(
       "A",
-      ["t1", "t2", "t3", "t4"],
+      ["t1", "t2", "t3"],
       [
-        g("t1", "t2", "t1", 2, 1), // confronto direto: t1 vence t2
-        g("t1", "t3", "t1", 2, 1),
-        g("t4", "t1", "t4", 2, 0),
-        g("t2", "t3", "t2", 2, 0),
-        g("t2", "t4", "t2", 2, 0),
-        g("t3", "t4", "t3", 2, 0),
+        win("t1", "t2", "t1", [
+          {a: 21, b: 19},
+          {a: 21, b: 19},
+        ]), // t1 +4 no H2H
+        win("t2", "t3", "t2", [
+          {a: 21, b: 5},
+          {a: 21, b: 5},
+        ]), // t2 +32
+        win("t3", "t1", "t3", [
+          {a: 21, b: 19},
+          {a: 21, b: 19},
+        ]), // t3 +4; t1 -4
       ],
     );
-    // t2 tem saldo de sets +3 (melhor que t1, 0), mas perdeu para t1 no direto.
-    assert.deepEqual(standings, ["t1", "t2", "t3", "t4"]);
+    // t1 SP = +4-4 = 0; t2 SP = -4+32 = +28 → t2 na frente apesar de perder o H2H.
+    assert.deepEqual(standings, ["t2", "t1", "t3"]);
   });
 
-  it("desempata por saldo de games quando sets empatam", () => {
-    // t1 e t2 vencem t3 por 2-0; mesmo saldo de sets. t1 vence por mais games.
+  it("desempata por saldo de pontos (games)", () => {
     const win20 = (
       teamAId: string,
       teamBId: string,
       g1: [number, number],
       g2: [number, number],
-    ): {
-      poolId: string;
-      teamAId: string;
-      teamBId: string;
-      winnerId: string;
-      status: string;
-      isGroupMatch: boolean;
-      resultA: string;
-      resultB: string;
-      sets: Array<{a: number; b: number}>;
-    } => ({
+    ) => ({
       poolId: "A",
       teamAId,
       teamBId,
@@ -888,6 +873,40 @@ describe("group standings", () => {
     assert.deepEqual(standings, ["t1", "t2", "t3"]);
   });
 
+  it("confronto direto separa empatadas em vitórias e SP", () => {
+    const win = (
+      teamAId: string,
+      teamBId: string,
+      winnerId: string,
+      g1: [number, number],
+      g2: [number, number],
+    ) => ({
+      poolId: "A",
+      teamAId,
+      teamBId,
+      winnerId,
+      status: "Completed",
+      isGroupMatch: true,
+      resultA: "2",
+      resultB: "0",
+      sets: [
+        {a: g1[0], b: g1[1]},
+        {a: g2[0], b: g2[1]},
+      ],
+    });
+
+    // Ciclo 1V cada; t1 e t2 empatam em SP (+6); H2H: t1 venceu t2; t3 atrás em SP.
+    const standings = computePoolStandings(
+      "A",
+      ["t1", "t2", "t3"],
+      [
+        win("t1", "t2", "t1", [21, 15], [21, 15]), // +12
+        win("t2", "t3", "t2", [21, 12], [21, 12]), // +18
+        win("t3", "t1", "t3", [21, 18], [21, 18]), // +6
+      ],
+    );
+    assert.deepEqual(standings, ["t1", "t2", "t3"]);
+  });
   it("detects completed pool round robin", () => {
     const complete = isPoolRoundRobinComplete(
       "A",

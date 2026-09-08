@@ -15,11 +15,10 @@ interface GrupoReal {
 }
 
 /** Fase de grupos — jogos reais agrupados por pool + CLASSIFICAÇÃO ao vivo (V/D, saldo de
- *  sets, pontos), a mesma conta do athlete/app (`buildGroupStandings`, que espelha
- *  `tournament_group_standings_logic.dart`: vitórias → saldo de sets → saldo de games, 2 pts
- *  por vitória; sem head-to-head, que é regra do servidor no fechamento). Os N primeiros
- *  (qualifiersPerGroup da categoria) ganham destaque de classificação — consistente com o
- *  crossover que a geração de chave usa. "Sortear grupos & gerar chave" leva ao fluxo real. */
+ *  sets, pontos feitos/tomados, saldo de pontos e pontos de classificação). Ordenação igual
+ *  ao servidor (`group-standings.ts`): vitórias → saldo de pontos → confronto direto
+ *  (só entre empatados em V e SP). Os N primeiros (qualifiersPerGroup) ganham destaque —
+ *  consistente com o crossover da geração de chave. */
 @Component({
   selector: 'og-grupos',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,8 +44,11 @@ interface GrupoReal {
                 <span style="flex:1">Dupla</span>
                 <span class="num">V</span>
                 <span class="num">D</span>
-                <span class="num wide">Sets</span>
-                <span class="num">Pts</span>
+                <span class="num wide" title="Sets ganhos – sets perdidos">Sets</span>
+                <span class="num" title="Pontos feitos">PF</span>
+                <span class="num" title="Pontos tomados">PT</span>
+                <span class="num wide" title="Saldo de pontos (feitos − tomados)">SP</span>
+                <span class="num" title="Pontos de classificação (2 por vitória)">Pts</span>
               </div>
               @for (s of g.standings; track s.teamId; let i = $index) {
                 <div class="og-grupos-row" [class.classified]="i < qualifiersPerGroup()">
@@ -55,6 +57,9 @@ interface GrupoReal {
                   <span class="og-grupos-cell num">{{ s.wins }}</span>
                   <span class="og-grupos-cell num dim">{{ s.losses }}</span>
                   <span class="og-grupos-cell num wide dim">{{ s.setsWon }}-{{ s.setsLost }}</span>
+                  <span class="og-grupos-cell num">{{ s.gamesWon }}</span>
+                  <span class="og-grupos-cell num dim">{{ s.gamesLost }}</span>
+                  <span class="og-grupos-cell num wide" [class.pos]="pointDiff(s) > 0" [class.neg]="pointDiff(s) < 0">{{ pointDiffLabel(s) }}</span>
                   <span class="og-grupos-cell num strong">{{ s.points }}</span>
                 </div>
               }
@@ -88,13 +93,11 @@ interface GrupoReal {
     </div>
   `,
   styles: `
-    /* auto-fit em vez de duas colunas com media query: a régua passa a ser a largura
-       disponível de verdade, que aqui muda por dois motivos independentes (a janela e a
-       sidebar que vira gaveta abaixo de 1024px). Com o breakpoint de janela, um tablet em
-       retrato de 1000px — sem sidebar, 1000px livres — cairia pra coluna única à toa. */
+    /* Uma coluna: cada grupo ocupa a largura útil inteira — lado a lado espremia PF/PT
+       e nomes longos; em operação de mesa o organizador lê um grupo por vez. */
     .og-grupos-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      grid-template-columns: 2fr 2fr;
       gap: 16px;
       align-items: start;
     }
@@ -194,6 +197,14 @@ interface GrupoReal {
     .og-grupos-cell.strong {
       font-weight: 700;
     }
+    .og-grupos-cell.pos {
+      color: var(--nx-win);
+      font-weight: 700;
+    }
+    .og-grupos-cell.neg {
+      color: var(--nx-live);
+      font-weight: 700;
+    }
     .og-grupos-when {
       flex: none;
       display: flex;
@@ -220,6 +231,17 @@ export class GruposComponent {
   protected readonly timeLabel = spTimeLabel;
   protected readonly dayLabel = spDayLabel;
   protected readonly truncate = truncateName;
+
+  /** Saldo de pontos (gamesWon − gamesLost) — 2º critério da classificação (após vitórias). */
+  protected pointDiff(s: GroupStanding): number {
+    return s.gamesWon - s.gamesLost;
+  }
+
+  protected pointDiffLabel(s: GroupStanding): string {
+    const d = this.pointDiff(s);
+    if (d > 0) return `+${d}`;
+    return `${d}`;
+  }
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.ctx.tournament();

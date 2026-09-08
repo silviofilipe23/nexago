@@ -367,21 +367,42 @@ export interface GroupStanding {
   points: number;
 }
 
-/** Classificação round-robin — espelha `tournament_group_standings_logic.dart` via a porta do
- *  athlete: desempate por vitórias → saldo de sets → saldo de games (sem head-to-head, que é
- *  regra do servidor). Só conta partida concluída com vencedor. */
+interface StandingMutable extends GroupStanding {
+  /** Confronto direto contra empatados em vitórias (preenchido depois). */
+  h2hWins: number;
+  h2hSetDiff: number;
+  h2hGameDiff: number;
+}
+
+/** Classificação round-robin — mesma cascata de `functions/src/group-standings.ts`:
+ *  vitórias → saldo de pontos (game) → confronto direto (só entre empatados em V e SP).
+ *  Sem seed aqui (a lista do painel não carrega a ordem de entrada do pool).
+ *  Só conta partida concluída com vencedor. */
 export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): GroupStanding[] {
   const done = groupMatches.filter((m) => m.status === 'completed' && m.winnerSide != null && m.teamAId && m.teamBId);
-  const byTeam = new Map<string, GroupStanding>();
+  const byTeam = new Map<string, StandingMutable>();
   const labelOf = new Map<string, string>();
   for (const m of groupMatches) {
     if (m.teamAId) labelOf.set(m.teamAId, m.team1Label);
     if (m.teamBId) labelOf.set(m.teamBId, m.team2Label);
   }
-  const ensure = (id: string): GroupStanding =>
+  const ensure = (id: string): StandingMutable =>
     byTeam.get(id) ??
     byTeam
-      .set(id, { teamId: id, teamLabel: labelOf.get(id) ?? id, wins: 0, losses: 0, setsWon: 0, setsLost: 0, gamesWon: 0, gamesLost: 0, points: 0 })
+      .set(id, {
+        teamId: id,
+        teamLabel: labelOf.get(id) ?? id,
+        wins: 0,
+        losses: 0,
+        setsWon: 0,
+        setsLost: 0,
+        gamesWon: 0,
+        gamesLost: 0,
+        points: 0,
+        h2hWins: 0,
+        h2hSetDiff: 0,
+        h2hGameDiff: 0,
+      })
       .get(id)!;
 
   // Garante linha até pra quem ainda não jogou (aparece zerado, como no app).
@@ -390,9 +411,13 @@ export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): G
     if (m.teamBId) ensure(m.teamBId);
   }
 
+  type Played = { winnerId: string; teamAId: string; teamBId: string; setDiff: number; gameDiff: number };
+  const played: Played[] = [];
+
   for (const m of done) {
     const a = ensure(m.teamAId);
     const b = ensure(m.teamBId);
+    const winnerId = m.winnerSide === 1 ? m.teamAId : m.teamBId;
     if (m.winnerSide === 1) {
       a.wins++;
       b.losses++;
@@ -400,25 +425,51 @@ export function buildGroupStandings(groupMatches: readonly TournamentMatch[]): G
       b.wins++;
       a.losses++;
     }
+    let setDiff = 0;
+    let gameDiff = 0;
     for (const s of m.sets) {
       if (s.a > s.b) {
         a.setsWon++;
         b.setsLost++;
+        setDiff++;
       } else if (s.b > s.a) {
         b.setsWon++;
         a.setsLost++;
+        setDiff--;
       }
       a.gamesWon += s.a;
       a.gamesLost += s.b;
       b.gamesWon += s.b;
       b.gamesLost += s.a;
+      gameDiff += s.a - s.b;
     }
+    played.push({ winnerId, teamAId: m.teamAId, teamBId: m.teamBId, setDiff, gameDiff });
+  }
+
+  // Confronto direto: só jogos entre duplas empatadas em vitórias e em saldo de pontos.
+  const winsOf = (id: string): number => byTeam.get(id)?.wins ?? 0;
+  const pointDiffOf = (id: string): number => {
+    const s = byTeam.get(id);
+    return s ? s.gamesWon - s.gamesLost : 0;
+  };
+  for (const game of played) {
+    if (winsOf(game.teamAId) !== winsOf(game.teamBId)) continue;
+    if (pointDiffOf(game.teamAId) !== pointDiffOf(game.teamBId)) continue;
+    const a = ensure(game.teamAId);
+    const b = ensure(game.teamBId);
+    if (game.winnerId === game.teamAId) a.h2hWins++;
+    else b.h2hWins++;
   }
 
   const rows = [...byTeam.values()];
   for (const r of rows) r.points = r.wins * 2;
-  rows.sort((x, y) => y.wins - x.wins || y.setsWon - y.setsLost - (x.setsWon - x.setsLost) || y.gamesWon - y.gamesLost - (x.gamesWon - x.gamesLost));
-  return rows;
+  rows.sort((x, y) => {
+    if (y.wins !== x.wins) return y.wins - x.wins;
+    const gameDiff = y.gamesWon - y.gamesLost - (x.gamesWon - x.gamesLost);
+    if (gameDiff !== 0) return gameDiff;
+    return y.h2hWins - x.h2hWins;
+  });
+  return rows.map(({ h2hWins: _w, h2hSetDiff: _s, h2hGameDiff: _g, ...pub }) => pub);
 }
 
 function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: string | null) => string): TournamentMatch {

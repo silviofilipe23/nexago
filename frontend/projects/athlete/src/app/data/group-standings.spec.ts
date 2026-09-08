@@ -95,14 +95,37 @@ describe('buildGroupStandings', () => {
     expect(loser).toEqual(jasmine.objectContaining({ wins: 0, losses: 1, setsWon: 0, setsLost: 2 }));
   });
 
-  it('ordena por vitórias, depois saldo de sets, depois saldo de games', () => {
+  it('ordena por vitórias, depois saldo de pontos', () => {
     const matches = [
       completed('A', 't1', 't2', [{ a: 21, b: 10 }, { a: 21, b: 10 }], 't1'),
       completed('A', 't3', 't2', [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 15, b: 13 }], 't3'),
     ];
 
-    // t1 e t3 têm 1 vitória; t1 fecha em 2 sets (saldo +2) e t3 em 3 (saldo +1).
+    // t1 e t3 têm 1 vitória; t1 SP maior (+22 vs +2) → t1 na frente.
     expect(buildGroupStandings(matches, 'c', 'A').map((r) => r.teamId)).toEqual(['t1', 't3', 't2']);
+  });
+
+  it('saldo de pontos manda antes do confronto direto', () => {
+    // Ciclo: 1V cada. t1 venceu t2 no H2H, mas t2 tem SP maior.
+    const matches = [
+      completed('A', 't1', 't2', [{ a: 21, b: 19 }, { a: 21, b: 19 }], 't1'),
+      completed('A', 't2', 't3', [{ a: 21, b: 5 }, { a: 21, b: 5 }], 't2'),
+      completed('A', 't3', 't1', [{ a: 21, b: 19 }, { a: 21, b: 19 }], 't3'),
+    ];
+
+    // t1 SP 0; t2 SP +28 → t2 na frente apesar de perder o H2H.
+    expect(buildGroupStandings(matches, 'c', 'A').map((r) => r.teamId)).toEqual(['t2', 't1', 't3']);
+  });
+
+  it('usa confronto direto entre empatadas em vitórias e SP', () => {
+    // Ciclo 1V cada; t1 e t2 empatam em SP (+6); H2H: t1 venceu t2.
+    const matches = [
+      completed('A', 't1', 't2', [{ a: 21, b: 15 }, { a: 21, b: 15 }], 't1'),
+      completed('A', 't2', 't3', [{ a: 21, b: 12 }, { a: 21, b: 12 }], 't2'),
+      completed('A', 't3', 't1', [{ a: 21, b: 18 }, { a: 21, b: 18 }], 't3'),
+    ];
+
+    expect(buildGroupStandings(matches, 'c', 'A').map((r) => r.teamId)).toEqual(['t1', 't2', 't3']);
   });
 
   it('aproveita o placar legado gravado em resultA/resultB', () => {

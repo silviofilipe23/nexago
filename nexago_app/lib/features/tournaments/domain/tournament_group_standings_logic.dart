@@ -94,8 +94,6 @@ class _TeamStatsMutable {
   int gamesWon = 0;
   int gamesLost = 0;
   int h2hWins = 0;
-  int h2hSetDiff = 0;
-  int h2hGameDiff = 0;
 }
 
 class _PlayedMatch {
@@ -249,9 +247,14 @@ List<String> computePoolStandings(
   }
 
   int winsOf(String id) => stats[id]?.wins ?? 0;
+  int pointDiffOf(String id) {
+    final s = stats[id];
+    return s == null ? 0 : s.gamesWon - s.gamesLost;
+  }
 
   for (final game in played) {
     if (winsOf(game.teamAId) != winsOf(game.teamBId)) continue;
+    if (pointDiffOf(game.teamAId) != pointDiffOf(game.teamBId)) continue;
     final aStats = stats[game.teamAId]!;
     final bStats = stats[game.teamBId]!;
     if (game.winnerId == game.teamAId) {
@@ -259,31 +262,15 @@ List<String> computePoolStandings(
     } else {
       bStats.h2hWins++;
     }
-    final setDiff = game.score.setsA - game.score.setsB;
-    final gameDiff = game.score.gamesA - game.score.gamesB;
-    aStats.h2hSetDiff += setDiff;
-    bStats.h2hSetDiff -= setDiff;
-    aStats.h2hGameDiff += gameDiff;
-    bStats.h2hGameDiff -= gameDiff;
   }
 
   final entries = stats.values.toList()
     ..sort((a, b) {
       if (b.wins != a.wins) return b.wins.compareTo(a.wins);
-      if (b.h2hWins != a.h2hWins) return b.h2hWins.compareTo(a.h2hWins);
-      if (b.h2hSetDiff != a.h2hSetDiff) {
-        return b.h2hSetDiff.compareTo(a.h2hSetDiff);
-      }
-      if (b.h2hGameDiff != a.h2hGameDiff) {
-        return b.h2hGameDiff.compareTo(a.h2hGameDiff);
-      }
-      final setDiffA = a.setsWon - a.setsLost;
-      final setDiffB = b.setsWon - b.setsLost;
-      if (setDiffB != setDiffA) return setDiffB.compareTo(setDiffA);
       final gameDiffA = a.gamesWon - a.gamesLost;
       final gameDiffB = b.gamesWon - b.gamesLost;
       if (gameDiffB != gameDiffA) return gameDiffB.compareTo(gameDiffA);
-      if (b.setsWon != a.setsWon) return b.setsWon.compareTo(a.setsWon);
+      if (b.h2hWins != a.h2hWins) return b.h2hWins.compareTo(a.h2hWins);
       return (seedIndex[a.teamId] ?? 0).compareTo(seedIndex[b.teamId] ?? 0);
     });
 

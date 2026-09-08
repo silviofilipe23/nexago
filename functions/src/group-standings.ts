@@ -28,7 +28,7 @@ interface TeamStats {
   setsLost: number;
   gamesWon: number;
   gamesLost: number;
-  /** Confronto direto contra empatados em vitórias (preenchido depois). */
+  /** Confronto direto contra empatados em vitórias e SP (preenchido depois). */
   h2hWins: number;
   h2hSetDiff: number;
   h2hGameDiff: number;
@@ -123,16 +123,11 @@ export function isPoolRoundRobinComplete(
 /**
  * Classifica as duplas de um grupo aplicando, em ordem:
  *   1. vitórias;
- *   2. confronto direto entre as EMPATADAS (vitórias → saldo de sets → saldo de
- *      games só nos jogos entre elas);
- *   3. saldo de sets geral;
- *   4. saldo de games geral;
- *   5. sets vencidos no total;
- *   6. ordem de entrada (seed) — desempate determinístico final.
+ *   2. saldo de pontos (games feitos − games tomados);
+ *   3. confronto direto entre as EMPATADAS (vitórias nos jogos entre elas).
  *
- * O confronto direto só é calculado DENTRO de cada grupo de empatadas em
- * vitórias (onde ele faz sentido) — assim 2 duplas empatadas são separadas por
- * quem venceu o jogo entre elas, e empates triplos caem para saldos.
+ * O confronto direto só conta jogos entre duplas empatadas em vitórias E em
+ * saldo de pontos. Seed fica só como âncora determinística se as 3 empatam.
  */
 export function computePoolStandings(
   poolId: string,
@@ -199,35 +194,28 @@ export function computePoolStandings(
     played.push({winnerId, loserId, teamAId, teamBId, score});
   }
 
-  // Confronto direto: só conta jogos entre duplas com o MESMO nº de vitórias.
+  // Confronto direto: só entre duplas empatadas em vitórias e em saldo de pontos.
   const winsOf = (id: string): number => stats.get(id)?.wins ?? 0;
+  const pointDiffOf = (id: string): number => {
+    const s = stats.get(id);
+    return s ? s.gamesWon - s.gamesLost : 0;
+  };
   for (const game of played) {
     if (winsOf(game.teamAId) !== winsOf(game.teamBId)) continue;
+    if (pointDiffOf(game.teamAId) !== pointDiffOf(game.teamBId)) continue;
     const aStats = stats.get(game.teamAId)!;
     const bStats = stats.get(game.teamBId)!;
     if (game.winnerId === game.teamAId) aStats.h2hWins++;
     else bStats.h2hWins++;
-    const setDiff = game.score.setsA - game.score.setsB;
-    const gameDiff = game.score.gamesA - game.score.gamesB;
-    aStats.h2hSetDiff += setDiff;
-    bStats.h2hSetDiff -= setDiff;
-    aStats.h2hGameDiff += gameDiff;
-    bStats.h2hGameDiff -= gameDiff;
   }
 
   return [...stats.values()]
     .sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.h2hWins !== a.h2hWins) return b.h2hWins - a.h2hWins;
-      if (b.h2hSetDiff !== a.h2hSetDiff) return b.h2hSetDiff - a.h2hSetDiff;
-      if (b.h2hGameDiff !== a.h2hGameDiff) return b.h2hGameDiff - a.h2hGameDiff;
-      const setDiffA = a.setsWon - a.setsLost;
-      const setDiffB = b.setsWon - b.setsLost;
-      if (setDiffB !== setDiffA) return setDiffB - setDiffA;
       const gameDiffA = a.gamesWon - a.gamesLost;
       const gameDiffB = b.gamesWon - b.gamesLost;
       if (gameDiffB !== gameDiffA) return gameDiffB - gameDiffA;
-      if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;
+      if (b.h2hWins !== a.h2hWins) return b.h2hWins - a.h2hWins;
       return (seedIndex.get(a.teamId) ?? 0) - (seedIndex.get(b.teamId) ?? 0);
     })
     .map((entry) => entry.teamId);

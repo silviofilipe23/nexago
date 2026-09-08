@@ -41,7 +41,7 @@ TournamentMatch _groupMatch({
 
 void main() {
   group('computePoolStandings', () {
-    test('ranks teams by wins then set difference', () {
+    test('ranks teams by wins then point difference', () {
       final standings = computePoolStandings(
         'A',
         ['t1', 't2', 't3'],
@@ -82,13 +82,12 @@ void main() {
       expect(standings, ['t1', 't3', 't2']);
     });
 
-    test('uses head-to-head between tied teams even with worse set diff', () {
-      TournamentMatch g(
+    test('point difference beats head-to-head', () {
+      TournamentMatch win(
         String teamAId,
         String teamBId,
         String winnerId,
-        int a,
-        int b,
+        List<List<int>> sets,
         int matchNumber,
       ) {
         return _groupMatch(
@@ -97,32 +96,43 @@ void main() {
           teamAId: teamAId,
           teamBId: teamBId,
           winnerId: winnerId,
-          resultA: '$a',
-          resultB: '$b',
+          resultA: '${sets.where((s) => s[0] > s[1]).length}',
+          resultB: '${sets.where((s) => s[1] > s[0]).length}',
           matchNumber: matchNumber,
+          sets: [
+            for (final s in sets) TournamentMatchSet(a: s[0], b: s[1]),
+          ],
         );
       }
 
+      // Ciclo: 1V cada. t1 venceu t2 no H2H, mas t2 tem SP maior.
       final standings = computePoolStandings(
         'A',
-        ['t1', 't2', 't3', 't4'],
+        ['t1', 't2', 't3'],
         [
-          g('t1', 't2', 't1', 2, 1, 1),
-          g('t1', 't3', 't1', 2, 1, 2),
-          g('t4', 't1', 't4', 2, 0, 3),
-          g('t2', 't3', 't2', 2, 0, 4),
-          g('t2', 't4', 't2', 2, 0, 5),
-          g('t3', 't4', 't3', 2, 0, 6),
+          win('t1', 't2', 't1', [
+            [21, 19],
+            [21, 19],
+          ], 1),
+          win('t2', 't3', 't2', [
+            [21, 5],
+            [21, 5],
+          ], 2),
+          win('t3', 't1', 't3', [
+            [21, 19],
+            [21, 19],
+          ], 3),
         ],
       );
 
-      expect(standings, ['t1', 't2', 't3', 't4']);
+      expect(standings, ['t2', 't1', 't3']);
     });
 
-    test('breaks ties by game difference when sets tie', () {
+    test('breaks ties by game difference then head-to-head', () {
       TournamentMatch win20(
         String teamAId,
         String teamBId,
+        String winnerId,
         List<int> g1,
         List<int> g2,
         int matchNumber,
@@ -132,7 +142,7 @@ void main() {
           poolId: 'A',
           teamAId: teamAId,
           teamBId: teamBId,
-          winnerId: teamAId,
+          winnerId: winnerId,
           resultA: '2',
           resultB: '0',
           matchNumber: matchNumber,
@@ -143,16 +153,27 @@ void main() {
         );
       }
 
-      final standings = computePoolStandings(
+      final byPointDiff = computePoolStandings(
         'A',
         ['t1', 't2', 't3'],
         [
-          win20('t1', 't3', [21, 10], [21, 12], 1),
-          win20('t2', 't3', [21, 18], [21, 19], 2),
+          win20('t1', 't3', 't1', [21, 10], [21, 12], 1),
+          win20('t2', 't3', 't2', [21, 18], [21, 19], 2),
         ],
       );
+      expect(byPointDiff, ['t1', 't2', 't3']);
 
-      expect(standings, ['t1', 't2', 't3']);
+      // Mesmas vitórias e SP (+6); H2H decide (ciclo com t3 atrás em SP).
+      final byH2h = computePoolStandings(
+        'A',
+        ['t1', 't2', 't3'],
+        [
+          win20('t1', 't2', 't1', [21, 15], [21, 15], 1),
+          win20('t2', 't3', 't2', [21, 12], [21, 12], 2),
+          win20('t3', 't1', 't3', [21, 18], [21, 18], 3),
+        ],
+      );
+      expect(byH2h, ['t1', 't2', 't3']);
     });
   });
 

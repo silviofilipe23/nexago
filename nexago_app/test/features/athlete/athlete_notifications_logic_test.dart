@@ -230,6 +230,46 @@ void main() {
       );
     });
 
+    test('vaga liberada oferece Inscrever-se e usa o url da CF', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Vaga liberada',
+        body: 'Body',
+        type: 'tournament_spot_pass_granted',
+        data: const {
+          'tournamentId': 't1',
+          'categoryId': 'catA',
+          'url': '/torneios/t1/inscricao?categoryId=catA',
+        },
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.actions.single.label, 'Inscrever-se');
+      expect(p.icon, Icons.confirmation_number_outlined);
+      expect(p.routePath, '/torneios/t1/inscricao?categoryId=catA');
+    });
+
+    // Sem o `url` (push antigo, ou entrega que perdeu o campo) o destino ainda
+    // é montado dos ids — a vaga liberada é o tipo que mais dói cair no vazio.
+    test('vaga liberada sem url monta a rota pelos ids', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Vaga liberada',
+        body: 'Body',
+        type: 'tournament_spot_pass_granted',
+        data: const {'tournamentId': 't1', 'categoryId': 'catA'},
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      expect(
+        notificationPresentation(n).routePath,
+        '/torneios/t1/inscricao?categoryId=catA',
+      );
+    });
+
     test('tournament payment reminder routes to payment', () {
       final n = AthleteInboxNotification(
         id: 'x',

@@ -324,6 +324,31 @@ AthleteNotificationPresentation notificationPresentation(
               ],
         routePath: commRoutePath,
       );
+    // Vaga liberada nominalmente pelo organizador numa categoria LOTADA. Sem um caso próprio
+    // isto caía no `default`: sino genérico e sem botão — a notificação que mais pede ação
+    // (a vaga é dele até a chave sair) era a única que não oferecia nenhuma.
+    case 'tournament_spot_pass_granted':
+      final tournamentId = data['tournamentId'] ?? '';
+      final categoryId = data['categoryId'] ?? '';
+      final spotPassUrl = data['url'] ?? '';
+      final spotPassRoutePath = spotPassUrl.startsWith('/')
+          ? spotPassUrl
+          : tournamentId.isNotEmpty
+              ? '/torneios/$tournamentId/inscricao'
+                  '${categoryId.isNotEmpty ? '?categoryId=$categoryId' : ''}'
+              : null;
+      return AthleteNotificationPresentation(
+        icon: Icons.confirmation_number_outlined,
+        iconColor: AppColors.win,
+        iconBackground: AppColors.win.withValues(alpha: 0.15),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Inscrever-se',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: spotPassRoutePath,
+      );
     case 'tournament_payment_reminder':
       final tournamentId = data['tournamentId'] ?? '';
       final registrationId = data['registrationId'] ?? '';

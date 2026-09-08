@@ -9,6 +9,7 @@ import '../../organizer/presentation/match_ops/organizer_match_navigation.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'focus/widgets/focus_match_card.dart';
+import 'widgets/follow_match_button.dart';
 
 /// J2 — Transmissão pública (read-only).
 ///
@@ -42,10 +43,15 @@ class PublicMatchLivePage extends ConsumerWidget {
     final tournament =
         ref.watch(tournamentDetailProvider(tournamentId)).valueOrNull;
 
+    // A partida vem do mesmo stream do corpo; enquanto ela não chega, o botão
+    // de seguir simplesmente não aparece na barra.
+    final match = cardsAsync.valueOrNull?[matchId]?.match;
+
     return Scaffold(
       appBar: NexaAppBar(
         title: Text(tournament?.name ?? 'Ao vivo'),
         actions: [
+          if (match != null) FollowMatchButton(match: match, compact: true),
           IconButton(
             icon: const Icon(Icons.share_rounded),
             onPressed: () => nexaShareText(

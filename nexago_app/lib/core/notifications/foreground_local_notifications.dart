@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'match_live_notification.dart';
+
 typedef LocalNotificationTapHandler = void Function(Map<String, dynamic> data);
 
 /// Exibe notificações locais quando o FCM chega com o app em foreground.
@@ -60,6 +62,10 @@ class ForegroundLocalNotifications {
           ),
         );
       }
+
+      // Canais do placar ao vivo junto dos demais: o isolate principal também
+      // exibe a notificação fixa quando o push chega com o app aberto.
+      await MatchLiveNotification.ensureChannels();
 
       final launchDetails = await _plugin.getNotificationAppLaunchDetails();
       final response = launchDetails?.notificationResponse;

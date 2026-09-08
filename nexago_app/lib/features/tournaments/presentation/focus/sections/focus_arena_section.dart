@@ -15,6 +15,7 @@ import '../../../domain/tournament_match_card_view_model.dart';
 import '../focus_bottom_clearance.dart';
 import '../focus_section_header.dart';
 import '../widgets/focus_match_card.dart';
+import '../../widgets/follow_match_button.dart';
 
 /// Seção "Arena": o que está acontecendo no torneio INTEIRO, não só na
 /// categoria do atleta.
@@ -176,6 +177,10 @@ class _FocusArenaSectionState extends ConsumerState<FocusArenaSection> {
                     // distingue um "#14" do outro.
                     categoryName: _categoryNameOf(match.categoryId),
                     onTap: () => _openMatch(match.id),
+                    followAction: FollowMatchButton(
+                      match: byId[match.id]!.match,
+                      compact: true,
+                    ),
                   ),
                 ),
         ],

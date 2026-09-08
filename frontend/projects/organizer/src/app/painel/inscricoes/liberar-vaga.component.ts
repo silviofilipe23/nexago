@@ -101,7 +101,13 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
           <ul class="og-lv-results">
             @for (a of candidates(); track a.uid) {
               <li>
-                <og-avatar [initials]="initialsOf(nameOf(a))" [photoUrl]="a.photoUrl" [size]="28" />
+                <og-avatar
+                  zoomable
+                  [initials]="initialsOf(nameOf(a))"
+                  [photoUrl]="a.photoUrl"
+                  [personName]="nameOf(a)"
+                  [size]="28"
+                />
                 <span class="og-lv-name">{{ nameOf(a) }}</span>
                 <button
                   type="button"

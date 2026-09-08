@@ -13,7 +13,10 @@
 ## Global Constraints
 
 - **Comandos das functions rodam de `functions/`.** `npm ci` primeiro (o container onde este plano foi escrito não tinha `node_modules`). Baseline medida em 2026-09-08: **`npm test` → 1749 pass, 0 fail, 340 suites**. Se a contagem não subir a cada task de backend, você está rodando a árvore errada.
-- **Comandos do app rodam de `nexago_app/`:** `flutter test`. **Baseline não medida** — não havia Flutter no container. Rode `flutter test` ANTES da Task 6 e anote o número; é ele que precisa subir depois.
+- **Comandos do app rodam de `nexago_app/`:** `flutter test` e `flutter analyze`. **Baseline não
+  medida e tasks de Flutter escritas SEM execução** — não havia Flutter no container. Todo passo
+  de execução das Tasks 6-11 está marcado `[~]` (escrito, não rodado). Rode a suíte antes de
+  confiar em qualquer uma delas.
 - `npm test` compila para `lib/` antes de rodar (`npm run build && node --test lib/*.test.js`). Todo `src/*.test.ts` novo é coletado sozinho — não precisa mexer no script.
 - Rules test é separado, sob emulador, e **não** entra no `npm test`. Padrão:
   `firebase emulators:exec --only firestore --project <id> "node --test test/<arquivo>.rules.test.mjs"`.
@@ -234,7 +237,8 @@ Núcleo puro, sem plugin — é o que dá para testar de verdade. O plugin entra
 
 **Interfaces:**
 ```dart
-enum MatchLiveAction { start, set, matchPoint, score, end, dismiss }
+// `set` e `end` viraram `setEnded`/`ended`: o valor de fio continua 'set'/'end'.
+enum MatchLiveAction { start, setEnded, matchPoint, score, ended, dismiss }
 class MatchLiveNotificationContent {
   final String title, body, matchId, url;
   final MatchLiveAction action;
@@ -246,7 +250,7 @@ MatchLiveNotificationContent? matchLiveNotificationContentFrom(
 String freshnessSuffix(DateTime updatedAt, DateTime now);
 ```
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
   - `type` diferente de `match_live_score` ⇒ `null` (não sequestra outras notificações).
   - payload sem `matchId` ⇒ `null`.
   - `notificationId` é estável para o mesmo `matchId` e diferente entre ids distintos; sempre positivo (`hashCode & 0x7fffffff`).
@@ -254,10 +258,12 @@ String freshnessSuffix(DateTime updatedAt, DateTime now);
   - **Frescor:** `updatedAt` a 20s ⇒ sufixo vazio; a 90s ⇒ `"há 1min"`; a 5s ⇒ vazio. Fronteira exata em 60s.
   - Corpo traz linha de placar e linha de sets vindas do `data`, sem recalcular nada.
 
-- [ ] **Step 2: Rodar e confirmar que falha** — `flutter test test/core/notifications/match_live_notification_content_test.dart`
-- [ ] **Step 3: Implementar**
-- [ ] **Step 4: Rodar a suíte inteira** — `flutter test`, acima da baseline anotada, 0 falhas.
-- [ ] **Step 5: Commit** — `feat(app): conteudo da notificacao de placar ao vivo`
+- [~] **Step 2: Rodar e confirmar que falha** — NÃO EXECUTADO: sem Flutter no container em que
+  esta task foi escrita. Rode `flutter test test/core/notifications/match_live_notification_content_test.dart`.
+- [x] **Step 3: Implementar**
+- [~] **Step 4: Rodar a suíte inteira** — NÃO EXECUTADO pelo mesmo motivo. `flutter test` +
+  `flutter analyze`. São 26 testes novos neste arquivo.
+- [x] **Step 5: Commit** — `feat(app): conteudo da notificacao de placar ao vivo`
 
 ---
 

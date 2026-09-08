@@ -406,6 +406,11 @@ export function buildMatchLiveMessages(
       statusLabel: ctx.statusLabel,
       updatedAt: String(ctx.updatedAtMs),
       url: `/torneios/${ctx.tournamentId}/ao-vivo/${ctx.matchId}`,
+      // O Android compõe o próprio texto (o data-only não traz `notification`),
+      // então precisa dos MESMOS dados que o corpo do iOS usa — sem isso lá o
+      // match point vira "set point" genérico.
+      pointAlertSide: ctx.pointAlert?.side ?? "",
+      pointAlertClosesMatch: ctx.pointAlert?.closesMatch ? "true" : "false",
     },
     "match_live_score",
     false,

@@ -611,3 +611,20 @@ test("partida que nem foi lida não é apagada por engano", () => {
   // Leitura falhou ou o lote não a trouxe: na dúvida, mantém.
   assert.deepEqual(staleFollowPaths([candidate], new Map(), NOW), []);
 });
+
+test("data leva o pointAlert para o Android compor o próprio texto", () => {
+  const [android] = buildMatchLiveMessages(
+    "matchPoint",
+    ctx({pointAlert: {side: "B", closesMatch: true}}),
+  );
+
+  assert.equal(android.data?.pointAlertSide, "B");
+  assert.equal(android.data?.pointAlertClosesMatch, "true");
+});
+
+test("sem pointAlert os campos vão vazios, nunca undefined", () => {
+  const [android] = buildMatchLiveMessages("score", ctx());
+
+  assert.equal(android.data?.pointAlertSide, "");
+  assert.equal(android.data?.pointAlertClosesMatch, "false");
+});

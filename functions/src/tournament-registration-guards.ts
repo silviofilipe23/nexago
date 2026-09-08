@@ -103,6 +103,26 @@ export function resolveCategoryEntryFee(
   return 0;
 }
 
+/**
+ * Rótulo visível da categoria (`label`, senão o nome), ou a própria chave.
+ *
+ * A chave que chega das telas é o `categories[].id`, então casar só por
+ * `categoryName` não acha nada e o texto sai com o id cru na cara do atleta —
+ * era o que acontecia no push de "chave publicada". `findCategory` aceita as
+ * quatro chaves, o que mantém de pé o torneio legado cuja categoria não tem
+ * `id` e é referenciada pelo próprio nome.
+ */
+export function resolveCategoryLabel(
+  tournament: TournamentData,
+  categoryKey: string,
+): string {
+  const category = findCategory(tournament, categoryKey);
+  const label = String(
+    category?.label ?? category?.categoryName ?? category?.name ?? categoryKey,
+  ).trim();
+  return label || categoryKey.trim();
+}
+
 /** Chaves equivalentes da categoria (`id`, `categoryId`, `categoryName`) para inscrições legadas. */
 export function resolveCategoryMatchKeys(
   tournament: TournamentData,

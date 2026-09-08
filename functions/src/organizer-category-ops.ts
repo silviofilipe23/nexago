@@ -32,6 +32,7 @@ import {
   findCategory,
   loadTournamentData,
   resolveCategoryEntryFee,
+  resolveCategoryLabel,
 } from "./tournament-registration-guards";
 import {
   canCancelTournament,
@@ -112,11 +113,10 @@ export const generateCategoryBracket = onCall(async (request) => {
 
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   const tournamentData = tournamentSnap.data() ?? {};
-  const categories =
-    (tournamentData.categories as Array<Record<string, unknown>> | undefined) ?? [];
-  const categoryMeta = categories.find(
-    (entry) => String(entry.categoryName ?? "").trim() === categoryId,
-  );
+  // `categoryId` aqui é o `categories[].id` (o portal manda `cat.id`), então a
+  // busca tem de ser a regra única do projeto — casar só por `categoryName`
+  // devolvia sempre `undefined`.
+  const categoryMeta = findCategory(tournamentData, categoryId);
   const qualifiersPerGroup =
     (bracketConfig?.qualifiersPerGroup as number | undefined) ??
     (categoryMeta?.qualifiersPerGroup as number | undefined) ??
@@ -360,15 +360,13 @@ export const generateCategoryBracket = onCall(async (request) => {
   }
 
   try {
-    const categoryLabel = String(
-      categoryMeta?.label ?? categoryMeta?.categoryName ?? categoryId,
-    ).trim();
+    const categoryLabel = resolveCategoryLabel(tournamentData, categoryId);
     await notifyBracketPublishedAthletes({
       db,
       projectId,
       tournamentId,
       categoryId,
-      categoryLabel: categoryLabel || categoryId,
+      categoryLabel,
       format,
       teamIds,
       teamsPath: (teamId) => `${artifactsTeamsPath(projectId)}/${teamId}`,

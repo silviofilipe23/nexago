@@ -38,6 +38,7 @@ import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
 import 'widgets/athlete_home/athlete_home_evolution_chart.dart';
 import 'widgets/athlete_home/athlete_home_focus_button.dart';
+import 'widgets/athlete_home/athlete_home_following_matches_section.dart';
 import 'widgets/athlete_home/athlete_home_header.dart';
 import 'widgets/athlete_home/athlete_home_kpi_grid.dart';
 import 'widgets/athlete_home/athlete_home_next_reservation_card.dart';
@@ -185,6 +186,7 @@ class AthleteHomePage extends ConsumerWidget {
                         child: MyTournamentsHomeSection(),
                       ),
                       const AthleteHomeFocusButton(),
+                      const AthleteHomeFollowingMatchesSection(),
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,

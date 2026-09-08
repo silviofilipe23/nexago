@@ -397,11 +397,20 @@ String matchTopicName(String matchId, {required bool ios});  // espelha matchLiv
 ### Task 11: Seção "Acompanhando"
 
 **Files:**
-- Create: `nexago_app/lib/features/tournaments/presentation/widgets/following_matches_section.dart`
-- Modify: a home do atleta
+- Create: `nexago_app/lib/features/athlete/presentation/widgets/athlete_home/athlete_home_following_matches_section.dart`
+  (em `athlete_home/`, NÃO em `tournaments/` como o plano dizia: a home do atleta já importa de
+  `tournaments`, e o contrário inverteria a direção de dependência entre as features)
+- Modify: `nexago_app/lib/features/athlete/presentation/athlete_home_page.dart`
+- Test: `nexago_app/test/features/athlete/athlete_home_following_matches_section_test.dart`
 
-- [ ] **Step 1: Implementar** — alimentada por `watch(uid)`, reusando `FocusMatchCard`. Some quando a lista está vazia. É também onde se desfaz o follow sem caçar a partida.
-- [ ] **Step 2: Rodar a suíte, commit** — `feat(app): secao acompanhando na home do atleta`
+- [x] **Step 1: Implementar** — alimentada por `followedMatchesProvider`, reusando
+  `FocusMatchCard`. Some quando a lista está vazia. É também onde se desfaz o follow sem caçar
+  a partida — e ali o botão é SEMPRE `UnfollowMatchButton`, nunca `FollowMatchButton`: tudo na
+  seção já está seguido, e o `FollowMatchButton` se esconde em partida encerrada, que é
+  justamente quando o atleta mais quer tirar da lista.
+  O agrupamento por torneio saiu para `groupFollowedByTournament`, função pura com teste: os
+  cards vêm de um provider POR TORNEIO, então agrupar é o que evita um listener por partida.
+- [~] **Step 2: Rodar a suíte** — NÃO EXECUTADO (sem Flutter no container). Commit — `feat(app): secao acompanhando na home do atleta`
 
 ---
 

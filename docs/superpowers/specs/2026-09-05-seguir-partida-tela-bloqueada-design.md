@@ -254,15 +254,52 @@ e `'dismiss'` cancelam a fixa.
 **Limites honestos, para não prometer o que o Android não dá:**
 
 - `POST_NOTIFICATIONS` já está no manifesto
-  (`nexago_app/android/app/src/main/AndroidManifest.xml:9`) — nada a pedir a mais.
+  (`nexago_app/android/app/src/main/AndroidManifest.xml:9`) — nada a pedir para a Fase 1.
 - No Android 14+ o usuário pode dispensar notificação `ongoing` que não seja de foreground service.
   Isso é desejável, não bug.
 - OEM agressivo (Xiaomi, Samsung com otimização pesada) pode segurar data message com o app
   force-stopped. Mensagem `high priority` é o máximo que o FCM oferece; um foreground service
   resolveria e custa `FOREGROUND_SERVICE_SPECIAL_USE` + justificativa na Play Store. **Fora de
-  escopo.**
-- Android 16 trouxe Live Updates (`ProgressStyle` + `FLAG_PROMOTED_ONGOING`, chip na barra de
-  status). Upgrade natural depois, mesmo payload.
+  escopo** — Uber e iFood conseguem foreground service porque têm tipo legítimo (`location`);
+  placar de partida não tem.
+- **Frescor visível.** O throttle de 20s deixa o placar defasado por projeto. A notificação carrega
+  `updatedAt` e o corpo diz "há Xs" quando passa de 60s, em vez de exibir um número velho como se
+  fosse atual. É o `staleDate` do ActivityKit feito à mão — a mesma ideia, um nível abaixo.
+
+### Android 16: Live Updates e o portão de elegibilidade
+
+O Android 16 trouxe **Live Updates** — `FLAG_PROMOTED_ONGOING` promove a notificação a chip na
+barra de status e a destaque na tela bloqueada
+([docs](https://developer.android.com/develop/ui/views/notifications/live-update)). É o upgrade
+natural desta entrega, **mas não é automático**: o Google filtra por critério de uso, e a
+documentação diz explicitamente que **placar esportivo não qualifica** — é informação ambiente, não
+iniciada pelo usuário.
+
+A exceção, também explícita na doc: **qualifica quando o usuário optou por monitorar aquele jogo**,
+com uma ação de desafixar.
+
+**Consequência de projeto, não detalhe:** o botão manual "Seguir" é o que nos torna elegíveis.
+Auto-seguir minhas partidas transformaria isso em informação ambiente e o Android deixaria de
+promover. A decisão de UX da Parte 1 é também a decisão técnica — e é por isso que auto-seguir, se
+um dia entrar, precisa continuar sendo uma **preferência que o atleta liga**, nunca um padrão.
+
+Requisitos para a promoção, quando formos buscá-la:
+
+- `POST_PROMOTED_NOTIFICATIONS` no manifesto (permissão nova, além da que já temos).
+- `setRequestPromotedOngoing(true)` + `setOngoing(true)` + `contentTitle` preenchido.
+- Estilo entre os permitidos: Standard, `BigTextStyle`, `CallStyle`, `ProgressStyle`, `MetricStyle`.
+  **`MetricStyle` é o candidato certo para placar** — `ProgressStyle` foi desenhado para jornada com
+  etapas (corrida, entrega), que não é a nossa forma.
+- Desqualificam: `RemoteViews` customizado, `setGroupSummary(true)`, `setColorized(true)`, canal
+  com `IMPORTANCE_MIN`.
+
+Duas dessas travas já estão respeitadas de graça pelo desenho da Fase 1: usamos
+`BigTextStyleInformation` (permitido) e canal `Importance.low` (só `MIN` desqualifica). **Não
+introduzir `RemoteViews` customizado** na Fase 1 é o que mantém a porta aberta — fica registrado
+aqui porque é a tentação óbvia de quem for desenhar um placar bonito.
+
+Verificação em runtime: `Notification.hasPromotableCharacteristics()` e
+`NotificationManager.canPostPromotedNotifications()`.
 
 ## Parte 4 — O iOS na Fase 1
 
@@ -286,28 +323,51 @@ onde o atleta desfaz o follow sem caçar a partida.
 Registrado agora para que a Fase 1 não feche nenhuma porta. O backend da Fase 1 é reaproveitado
 inteiro: mesmo gatilho, mesmo `resolveLiveUpdate`, mesmo throttle — muda só o transporte.
 
+**O erro a não cometer: copiar o Uber.** Uber, iFood e 99 são **1:1** — uma corrida, uma activity,
+um device; o backend guarda um push token e manda um push por evento, sem fan-out nenhum. Nós somos
+**1:N**: uma partida, N seguidores. É o problema de ESPN e FotMob, não o do Uber. Seguir o padrão
+deles nos levaria a guardar um token por seguidor e mandar N pushes por ponto.
+
+**Transporte: broadcast channels, não push por token.** A resposta da Apple para 1:N são os
+*channels* ([WWDC24](https://developer.apple.com/videos/play/wwdc2024/10069/)): publica-se **uma vez**
+num canal e o APNs distribui para todos os inscritos. Zero token armazenado. Um canal por partida —
+o mesmo modelo mental do tópico FCM da Fase 1, o que torna as duas fases simétricas. A opção **"No
+Message Storage" tem orçamento de publicação maior**, pensada exatamente para placar esportivo; é a
+que queremos. Push por token de activity fica como fallback para iOS abaixo da versão que suporta
+canais.
+
 - **Target novo** `NexagoLiveActivity` (Widget Extension), deployment target **16.2**, App Group
   `group.br.com.nexago.liveactivity`. O app principal fica em iOS 15
   (`nexago_app/ios/Podfile:3`, travado pelo `recaptcha_enterprise_flutter`) — a extension pode ter
   alvo mais alto e simplesmente não instala em iOS 15, com `if #available` na ponte.
-- `NSSupportsLiveActivities: true` no `Info.plist` do Runner.
+- `NSSupportsLiveActivities: true` no `Info.plist` do Runner, mais
+  `NSSupportsLiveActivitiesFrequentUpdates` para pedir orçamento maior de atualização (o sistema
+  ainda pode estrangular).
 - `ActivityAttributes` estático (matchId, nomes, categoria, quadra) + `ContentState` (sets, games,
   set atual, saque, status).
+- **`staleDate` é obrigatório, não enfeite.** É como esses apps sobrevivem a push perdido: declara-se
+  quando o dado apodrece e o widget renderiza sozinho um estado "desatualizado" em vez de exibir um
+  placar velho como se fosse atual. Com a janela de 20s do throttle, `staleDate = updatedAt + 90s`.
+- **Reconciliação no foreground.** Push é best-effort. Ao voltar para o primeiro plano, o app relê a
+  partida e chama `activity.update()` com a verdade do Firestore, sem esperar o próximo push.
+- **Limite duro da plataforma:** 8h de atualizações ativas, até 12h na tela bloqueada. Irrelevante
+  para uma partida; relevante no dia em que alguém seguir uma etapa inteira.
 - **Primeira ponte nativa do app:** `MethodChannel('br.com.nexago/live_activity')` com
-  `isSupported/start/update/end`, mais um `EventChannel` para o push token da activity.
-- Token por activity em `users/{uid}/liveActivities/{activityId}`.
+  `isSupported/start/update/end`, mais um `EventChannel` para o push token. Pacotes de prateleira
+  (`live_activities`, `flutter_activity_kit`) resolvem **a ponte**, não o design — a Widget
+  Extension em Swift continua sendo trabalho nosso.
 - **O FCM não entrega ActivityKit.** A function precisa falar APNs direto: HTTP/2, JWT de chave
   `.p8` no Secret Manager, `apns-push-type: liveactivity`,
   `apns-topic: br.com.nexago.nexagoApp.push-type.liveactivity`.
 - iOS 17.2+: push-to-start — a partida entra ao vivo e a activity nasce sem o app aberto (casa com
   a chamada pra quadra).
-- iOS 18+: **broadcast channels** — um push por partida em vez de um por seguidor. Se a audiência
-  crescer, é aqui que o custo de fan-out volta a ser O(1) também no iOS.
 
 ## Fora de escopo
 
 - Auto-seguir (minhas partidas, dupla, atletas que sigo) e seguir o torneio inteiro — o botão
-  manual primeiro; o modelo `followedMatches` já comporta os outros via `source`.
+  manual primeiro; o modelo `followedMatches` já comporta os outros via `source`. **Se um dia
+  entrar, tem que ser opção que o atleta liga, não padrão** — ver o portão de elegibilidade do
+  Android 16 acima.
 - Amistosos (`features/friendly_match/`): não têm placar ao vivo ponto a ponto, seguir não teria o
   que mostrar.
 - Foreground service no Android.
@@ -329,6 +389,7 @@ Espinha dorsal em núcleos puros, como o resto do repo faz:
 
 **Flutter (`flutter-test-engineer`):**
 - Construção do payload → conteúdo da notificação (linha de placar, sets, labels).
+- Rótulo de frescor: até 60s sem sufixo; acima disso, "há Xs"/"há Xmin" a partir de `updatedAt`.
 - Id estável por `matchId`: dois pushes da mesma partida, uma notificação só.
 - `FollowMatchButton`: alterna estado, esconde em partida encerrada, manda pro login sem sessão.
 - Re-sync no boot: N docs em `followedMatches` → N `subscribeToTopic`, idempotente.

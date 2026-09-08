@@ -378,10 +378,19 @@ String matchTopicName(String matchId, {required bool ios});  // espelha matchLiv
 ### Task 10: Re-sync dos tópicos no boot
 
 **Files:**
-- Modify: `nexago_app/lib/core/notifications/notification_service.dart`
+- Modify: `nexago_app/lib/main.dart` (NÃO `notification_service.dart`, ver Step 1)
+- Modify: `nexago_app/lib/features/tournaments/data/followed_matches_repository.dart`
 
-- [ ] **Step 1: Implementar** — depois de a sessão assentar em `initialize`, chamar `resyncTopics(uid)`. Idempotente; é o que cobre troca de aparelho, reinstalação e rotação de token. `try/catch` — falha de rede aqui nunca pode derrubar o boot das notificações.
-- [ ] **Step 2: Rodar a suíte, commit** — `feat(app): reassina topicos das partidas seguidas no boot`
+- [x] **Step 1: Implementar** — o gancho ficou em `main.dart`, e NÃO em `NotificationService`
+  como o plano dizia: `core/` não pode importar `features/`, e `main.dart` é o único lugar que
+  já conhece os dois lados. Reassinar é idempotente e cobre troca de aparelho, reinstalação e
+  rotação de token. `try/catch` — falha de rede aqui nunca pode derrubar o boot das notificações.
+  **Adição fora do plano — vazamento entre contas:** a assinatura de tópico vive no token FCM do
+  APARELHO, não na conta, e no logout `followedMatches` do dono antigo deixa de ser legível. Sem
+  desassinar, quem logasse depois no mesmo celular veria o placar das partidas do anterior na
+  própria tela bloqueada. Resolvido com uma lista local dos tópicos assinados
+  (`SharedPreferences`, já dependência do app) + `unsubscribeAll()` na troca de sessão.
+- [~] **Step 2: Rodar a suíte** — NÃO EXECUTADO (sem Flutter no container). Commit — `feat(app): reassina topicos das partidas seguidas no boot`
 
 ---
 

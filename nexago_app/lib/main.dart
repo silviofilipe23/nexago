@@ -30,6 +30,7 @@ import 'core/theme/theme_preferences_repository.dart';
 import 'core/auth/role_preferences_repository.dart';
 import 'core/auth/active_role_providers.dart';
 import 'features/tournaments/data/tournament_registration_success_preferences_repository.dart';
+import 'features/tournaments/domain/followed_matches_providers.dart';
 import 'features/tournaments/domain/tournament_registration_success_preferences_providers.dart';
 import 'firebase_options.dart';
 import 'shared/constants/app_strings.dart';
@@ -125,6 +126,10 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       );
 
       await notifications.syncUserToken(ref.read(authProvider).valueOrNull?.uid);
+      await _syncFollowedMatchTopics(
+        previousUid: '',
+        nextUid: ref.read(authProvider).valueOrNull?.uid.trim() ?? '',
+      );
 
       // Deep links: link inicial (app aberto via link)
       final appLinks = AppLinks();
@@ -141,8 +146,38 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
         final notifications = ref.read(notificationServiceProvider);
         final nextUid = next.valueOrNull?.uid.trim();
         await notifications.syncUserToken(nextUid);
+        await _syncFollowedMatchTopics(
+          previousUid: previous?.valueOrNull?.uid.trim() ?? '',
+          nextUid: nextUid ?? '',
+        );
       },
     );
+  }
+
+  /// Assinaturas de tópico do placar ao vivo acompanhando a sessão.
+  ///
+  /// A assinatura vive no token FCM do APARELHO, não na conta: sem desassinar
+  /// na saída, quem logasse depois no mesmo celular veria na tela bloqueada o
+  /// placar das partidas do dono anterior.
+  ///
+  /// Reassinar é idempotente e é o que cobre reinstalação, troca de aparelho e
+  /// rotação de token — casos em que o doc em `followedMatches` sobrevive mas a
+  /// assinatura não.
+  Future<void> _syncFollowedMatchTopics({
+    required String previousUid,
+    required String nextUid,
+  }) async {
+    if (previousUid == nextUid) return;
+
+    final repository = ref.read(followedMatchesRepositoryProvider);
+    try {
+      if (previousUid.isNotEmpty) await repository.unsubscribeAll();
+      if (nextUid.isNotEmpty) await repository.resyncTopics(nextUid);
+    } catch (e) {
+      // Nunca derruba o boot das notificações: sem isto, uma falha de rede aqui
+      // levaria junto o push do app inteiro.
+      debugPrint('followedMatches: sync de tópicos falhou: $e');
+    }
   }
 
   void _handleDeepLink(Uri uri) {

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/followed_match.dart';
 import '../domain/tournament_match.dart';
@@ -48,6 +49,15 @@ String matchTopicName(String matchId, {required bool ios}) {
 /// Duas metades: o doc em `users/{uid}/followedMatches/{matchId}` alimenta a
 /// UI e o re-sync; a assinatura do tópico FCM é o que faz o push chegar. Ver
 /// `docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md`.
+/// Tópicos que ESTE aparelho assinou, guardados localmente.
+///
+/// A assinatura de tópico vive no token FCM do aparelho, não na conta. Sem esta
+/// lista, no logout não haveria como desassinar: `followedMatches` do dono
+/// antigo deixa de ser legível no instante em que a sessão cai, e o aparelho
+/// continuaria recebendo o placar das partidas dele — na tela bloqueada de quem
+/// logasse depois.
+const _subscribedTopicsKey = 'followedMatches.subscribedTopics';
+
 class FollowedMatchesRepository {
   FollowedMatchesRepository(this._firestore, this._messaging);
 
@@ -124,10 +134,47 @@ class FollowedMatchesRepository {
 
   bool get _isIos => defaultTargetPlatform == TargetPlatform.iOS;
 
+  /// Desassina TUDO que este aparelho assinou. Chamado na troca de sessão.
+  ///
+  /// Não depende do Firestore de propósito: no logout as rules já barram a
+  /// leitura de `followedMatches` do dono antigo.
+  Future<void> unsubscribeAll() async {
+    if (!_topicsSupported) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final topics = prefs.getStringList(_subscribedTopicsKey) ?? const [];
+    for (final topic in topics) {
+      try {
+        await _messaging.unsubscribeFromTopic(topic);
+      } catch (e) {
+        debugPrint('followedMatches: unsubscribe de $topic falhou: $e');
+      }
+    }
+    await prefs.remove(_subscribedTopicsKey);
+  }
+
+  Future<void> _rememberTopic(String topic, {required bool subscribed}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final topics = prefs.getStringList(_subscribedTopicsKey)?.toList() ?? [];
+      if (subscribed) {
+        if (topics.contains(topic)) return;
+        topics.add(topic);
+      } else if (!topics.remove(topic)) {
+        return;
+      }
+      await prefs.setStringList(_subscribedTopicsKey, topics);
+    } catch (e) {
+      debugPrint('followedMatches: cache de tópicos falhou: $e');
+    }
+  }
+
   Future<void> _subscribe(String matchId) async {
     if (!_topicsSupported) return;
+    final topic = matchTopicName(matchId, ios: _isIos);
     try {
-      await _messaging.subscribeToTopic(matchTopicName(matchId, ios: _isIos));
+      await _messaging.subscribeToTopic(topic);
+      await _rememberTopic(topic, subscribed: true);
     } catch (e) {
       // Falha de rede aqui não pode derrubar o "Seguir": o doc já está gravado
       // e o re-sync do próximo boot reassina.
@@ -137,9 +184,10 @@ class FollowedMatchesRepository {
 
   Future<void> _unsubscribe(String matchId) async {
     if (!_topicsSupported) return;
+    final topic = matchTopicName(matchId, ios: _isIos);
     try {
-      final topic = matchTopicName(matchId, ios: _isIos);
       await _messaging.unsubscribeFromTopic(topic);
+      await _rememberTopic(topic, subscribed: false);
     } catch (e) {
       debugPrint('followedMatches: unsubscribe falhou em $matchId: $e');
     }

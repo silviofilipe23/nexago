@@ -2,8 +2,10 @@ import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed
 import { fetchAthletePhones } from '../data/athlete-contacts-repository';
 import { watchInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { formatPhoneBR } from '../data/phone-contact';
+import { environment } from '../../../environments/environment';
 import {
   confirmRegistrationPayment,
+  createSpotPassLink,
   createTeamRegistration,
   grantTournamentSpotPass,
   moveToWaitlist,
@@ -11,9 +13,15 @@ import {
   resendRegistrationPayment,
   respondCancellationRequest,
   revertRegistrationPayment,
+  revokeSpotPassLink,
   revokeTournamentSpotPass,
 } from '../data/organizer-ops.service';
-import { watchTournamentSpotPasses, type TournamentSpotPass } from '../data/spot-passes-repository';
+import {
+  watchTournamentSpotPassLinks,
+  watchTournamentSpotPasses,
+  type TournamentSpotPass,
+  type TournamentSpotPassLink,
+} from '../data/spot-passes-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { uniformCategoryConfigs } from '../data/uniforms';
@@ -21,7 +29,11 @@ import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dial
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
-import { OgLiberarVagaComponent, type LiberarVagaSubmit } from './liberar-vaga.component';
+import {
+  OgLiberarVagaComponent,
+  type LiberarVagaLinkSubmit,
+  type LiberarVagaSubmit,
+} from './liberar-vaga.component';
 import { OgNovaInscricaoComponent, type NovaInscricaoSubmit } from './nova-inscricao.component';
 import {
   INSCRICAO_TABS,
@@ -137,9 +149,14 @@ interface PendingConfirm {
           [categoriaInicial]="categoryFilter()"
           [occupancyByCategory]="occupancyByCategory()"
           [passes]="spotPasses()"
+          [links]="spotPassLinks()"
+          [tournamentId]="id()"
+          [athleteBaseUrl]="athleteBaseUrl"
           [busy]="busy()"
           (submitted)="onGrantSpotPass($event)"
           (revoked)="onRevokeSpotPass($event)"
+          (linkRequested)="onCreateSpotPassLink($event)"
+          (linkRevoked)="onRevokeSpotPassLink($event)"
         />
       }
 
@@ -342,6 +359,12 @@ export class InscricoesComponent {
    *  dizer "inscrição feita" sem o organizador recarregar a tela. */
   protected readonly spotPasses = signal<readonly TournamentSpotPass[]>([]);
 
+  /** Links de vaga ao portador, ao vivo: o contador cai do outro lado, quando alguém resgata. */
+  protected readonly spotPassLinks = signal<readonly TournamentSpotPassLink[]>([]);
+
+  /** O link é para o atleta abrir — vai para o portal dele, não para o painel. */
+  protected readonly athleteBaseUrl = environment.athleteAppUrl;
+
   /** Vagas ocupadas por categoria, pela MESMA regra do servidor: 1 inscrição = 1 vaga, e a fila
    *  de espera não ocupa nada. Serve só pra tela antecipar a lotação — a decisão é da CF. */
   protected readonly occupancyByCategory = computed<Record<string, number>>(() => {
@@ -423,9 +446,15 @@ export class InscricoesComponent {
         // Passe é acessório da tela: sem ele a lista de inscrições segue inteira.
         () => this.spotPasses.set([]),
       );
+      const stopLinks = watchTournamentSpotPassLinks(
+        tid,
+        (links) => this.spotPassLinks.set(links),
+        () => this.spotPassLinks.set([]),
+      );
       onCleanup(() => {
         stop();
         stopPasses();
+        stopLinks();
         this.cancelPhonesRefresh();
       });
     });
@@ -578,6 +607,32 @@ export class InscricoesComponent {
 
   protected onRevokeSpotPass(passId: string): void {
     void this.run('revoke-pass', () => revokeTournamentSpotPass(passId), 'Vaga liberada revogada.');
+  }
+
+  /** O link nasce sem dono: quem resgatar vira dono de uma vaga nominal. */
+  protected onCreateSpotPassLink(form: LiberarVagaLinkSubmit): void {
+    const nome = this.categorias().find((c) => c.id === form.categoryId)?.name ?? 'categoria';
+    void this.run(
+      'create-link',
+      () =>
+        createSpotPassLink({
+          tournamentId: this.id(),
+          categoryId: form.categoryId,
+          spots: form.spots,
+          expiresInHours: form.expiresInHours,
+        }),
+      (result) =>
+        `Link criado com ${result.spots} ${result.spots === 1 ? 'vaga' : 'vagas'} em ` +
+        `${nome}. Copie e mande no grupo.`,
+    );
+  }
+
+  protected onRevokeSpotPassLink(linkId: string): void {
+    void this.run(
+      'revoke-link',
+      () => revokeSpotPassLink(linkId),
+      'Link fechado. As vagas já resgatadas continuam de pé.',
+    );
   }
 
   /** A inscrição pode nascer de dois jeitos, e o organizador precisa saber qual aconteceu:

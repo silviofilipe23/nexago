@@ -41,6 +41,26 @@ export function revokeTournamentSpotPass(passId: string): Promise<void> {
   return call('organizerRevokeTournamentSpotPass', { passId: passId.trim() }).then(() => undefined);
 }
 
+/** Gera o link do grupo: N vagas, com prazo em horas. */
+export function createSpotPassLink(params: {
+  tournamentId: string;
+  categoryId: string;
+  spots: number;
+  expiresInHours: number;
+}): Promise<{ linkId: string; spots: number; expiresInHours: number }> {
+  return call('organizerCreateSpotPassLink', {
+    tournamentId: params.tournamentId.trim(),
+    categoryId: params.categoryId.trim(),
+    spots: params.spots,
+    expiresInHours: params.expiresInHours,
+  });
+}
+
+/** Fecha o link. As vagas já resgatadas continuam de pé — viraram passes nominais. */
+export function revokeSpotPassLink(linkId: string): Promise<void> {
+  return call('organizerRevokeSpotPassLink', { linkId: linkId.trim() }).then(() => undefined);
+}
+
 // ── Chave / categoria (organizer-category-ops.ts) ─────────────────────────────
 
 export interface GenerateBracketParams {

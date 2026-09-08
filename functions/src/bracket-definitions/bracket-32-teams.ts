@@ -23,22 +23,22 @@ import {MatchDefinition} from "./bracket-definitions";
  */
 export const BRACKET_32_TEAMS: MatchDefinition[] = [
   // WB R1 — 32 duplas
-  {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 2}},
-  {matchNumber: 2, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 3}, teamB: {type: "SEED", seed: 4}},
+  {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 31}},
+  {matchNumber: 2, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 17}, teamB: {type: "SEED", seed: 15}},
   {matchNumber: 3, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 5}, teamB: {type: "SEED", seed: 6}},
   {matchNumber: 4, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 7}, teamB: {type: "SEED", seed: 8}},
   {matchNumber: 5, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 9}, teamB: {type: "SEED", seed: 10}},
   {matchNumber: 6, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 11}, teamB: {type: "SEED", seed: 12}},
   {matchNumber: 7, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 13}, teamB: {type: "SEED", seed: 14}},
-  {matchNumber: 8, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 15}, teamB: {type: "SEED", seed: 16}},
-  {matchNumber: 9, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 17}, teamB: {type: "SEED", seed: 18}},
+  {matchNumber: 8, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 4}, teamB: {type: "SEED", seed: 16}},
+  {matchNumber: 9, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 3}, teamB: {type: "SEED", seed: 18}},
   {matchNumber: 10, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 19}, teamB: {type: "SEED", seed: 20}},
   {matchNumber: 11, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 21}, teamB: {type: "SEED", seed: 22}},
   {matchNumber: 12, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 23}, teamB: {type: "SEED", seed: 24}},
   {matchNumber: 13, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 25}, teamB: {type: "SEED", seed: 26}},
   {matchNumber: 14, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 27}, teamB: {type: "SEED", seed: 28}},
   {matchNumber: 15, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 29}, teamB: {type: "SEED", seed: 30}},
-  {matchNumber: 16, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 31}, teamB: {type: "SEED", seed: 32}},
+  {matchNumber: 16, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 2}, teamB: {type: "SEED", seed: 32}},
 
   // WB R2
   {matchNumber: 17, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 1}, teamB: {type: "WINNER", matchNumber: 2}},

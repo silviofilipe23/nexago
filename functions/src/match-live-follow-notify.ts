@@ -8,6 +8,10 @@
  * `docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md`.
  */
 
+import {createHash} from "node:crypto";
+
+import {TopicMessage} from "firebase-admin/messaging";
+
 import {
   DEFAULT_BEST_OF,
   ScoreSet,
@@ -15,6 +19,7 @@ import {
   setsWon,
   targetPointsForSet,
 } from "./match-scoring";
+import {coerceNotificationData} from "./notification-delivery";
 import {
   isMatchCanceled,
   isMatchCompleted,
@@ -241,4 +246,192 @@ export function resolveLiveUpdate(
   }
 
   return decision(true, "score", signature, "ponto comum");
+}
+
+// --- Tópicos ----------------------------------------------------------------
+
+/** Alfabeto aceito pelo FCM em nome de tópico. */
+const TOPIC_SAFE = /^[a-zA-Z0-9\-_.~%]+$/;
+const TOPIC_UNSAFE = /[^a-zA-Z0-9\-_.~%]/g;
+
+/**
+ * Torna o id seguro para nome de tópico SEM permitir colisão.
+ *
+ * Substituição cega mandaria `a/b` e `a b` para o mesmo `a_b`, e um seguidor
+ * passaria a receber o placar de outra partida. Quando algo é trocado, o hash
+ * do id original entra como sufixo e desempata.
+ */
+function safeTopicSegment(matchId: string): string {
+  const id = matchId.trim();
+  if (!id) throw new Error("matchId obrigatório para montar o tópico");
+  if (TOPIC_SAFE.test(id)) return id;
+
+  const digest = createHash("sha1").update(id).digest("hex").slice(0, 10);
+  return `${id.replace(TOPIC_UNSAFE, "_")}.${digest}`;
+}
+
+/**
+ * Um tópico por plataforma: Android precisa de mensagem data-only e iOS de
+ * alerta, e uma mensagem só não consegue ser as duas coisas. Continua sendo
+ * O(1) por atualização — dois `send()`, não um por seguidor.
+ */
+export function matchLiveTopics(matchId: string): {android: string; ios: string} {
+  const id = safeTopicSegment(matchId);
+  return {android: `match-${id}-android`, ios: `match-${id}-ios`};
+}
+
+// --- Contexto da mensagem ---------------------------------------------------
+
+export interface MatchLiveContext {
+  matchId: string;
+  tournamentId: string;
+  teamALabel: string;
+  teamBLabel: string;
+  courtName: string;
+  /** Pontos do set em jogo, já formatados: `20 x 15`. */
+  scoreLine: string;
+  /** Sets vencidos, já formatados: `1 x 0`. */
+  setsLine: string;
+  /** `Set 2`, `Encerrada`, `Cancelada`. */
+  statusLabel: string;
+  updatedAtMs: number;
+  pointAlert: PointAlert | null;
+}
+
+function statusLabelFor(kind: LiveUpdateKind | null, setIndex: number): string {
+  if (kind === "end") return "Encerrada";
+  if (kind === "dismiss") return "Cancelada";
+  return `Set ${setIndex + 1}`;
+}
+
+/**
+ * Monta o contexto a partir do que o gatilho tem em mãos.
+ *
+ * Mora aqui, e não no gatilho, para a formatação ficar sob teste: o gatilho é
+ * a única parte não coberta por unitário.
+ */
+export function buildMatchLiveContext(params: {
+  matchId: string;
+  tournamentId: string;
+  teamALabel: string;
+  teamBLabel: string;
+  courtName: string;
+  snapshot: LiveMatchSnapshot;
+  decision: LiveUpdateDecision;
+  updatedAtMs: number;
+}): MatchLiveContext {
+  const score = normalize(params.snapshot);
+  return {
+    matchId: params.matchId,
+    tournamentId: params.tournamentId,
+    teamALabel: params.teamALabel,
+    teamBLabel: params.teamBLabel,
+    courtName: params.courtName,
+    scoreLine: `${score.currentA} x ${score.currentB}`,
+    setsLine: `${score.wonA} x ${score.wonB}`,
+    statusLabel: statusLabelFor(params.decision.kind, score.setIndex),
+    updatedAtMs: params.updatedAtMs,
+    pointAlert: params.decision.pointAlert,
+  };
+}
+
+// --- Payloads ---------------------------------------------------------------
+
+/** Momento-chave toca e sobe a prioridade; ponto comum é mudo. */
+function isRoutine(kind: LiveUpdateKind): boolean {
+  return kind === "score";
+}
+
+function alertBodyFor(kind: LiveUpdateKind, ctx: MatchLiveContext): string {
+  const withCourt = (text: string) =>
+    ctx.courtName.trim() ? `${text} · ${ctx.courtName.trim()}` : text;
+
+  switch (kind) {
+  case "start":
+    return withCourt("Começou");
+  case "set":
+    return `Fim do set · Sets ${ctx.setsLine}`;
+  case "matchPoint": {
+    const alert = ctx.pointAlert;
+    if (!alert) return `${ctx.statusLabel}: ${ctx.scoreLine}`;
+    const team = alert.side === "A" ? ctx.teamALabel : ctx.teamBLabel;
+    const label = alert.closesMatch ? "Match point" : "Set point";
+    return `${label} para ${team} · ${ctx.scoreLine}`;
+  }
+  case "end":
+    return `Encerrada · Sets ${ctx.setsLine}`;
+  case "dismiss":
+    return "Partida cancelada";
+  default:
+    return `${ctx.statusLabel}: ${ctx.scoreLine} · Sets ${ctx.setsLine}`;
+  }
+}
+
+/**
+ * As duas mensagens da atualização, na ordem `[android, ios]`.
+ *
+ * Android vai SEM bloco `notification`: com ele o sistema desenha a notificação
+ * sozinho e o isolate de background do Dart não roda de forma confiável — e é
+ * justamente o isolate que atualiza a notificação fixa do placar.
+ *
+ * iOS vai com alerta e `apns-collapse-id` fixo por partida, que é o que faz a
+ * atualização SUBSTITUIR a anterior em vez de empilhar.
+ */
+export function buildMatchLiveMessages(
+  kind: LiveUpdateKind,
+  ctx: MatchLiveContext,
+): [TopicMessage, TopicMessage] {
+  const topics = matchLiveTopics(ctx.matchId);
+  const routine = isRoutine(kind);
+
+  const data = coerceNotificationData(
+    {
+      action: kind,
+      matchId: ctx.matchId,
+      tournamentId: ctx.tournamentId,
+      teamA: ctx.teamALabel,
+      teamB: ctx.teamBLabel,
+      courtName: ctx.courtName,
+      scoreLine: ctx.scoreLine,
+      setsLine: ctx.setsLine,
+      statusLabel: ctx.statusLabel,
+      updatedAt: String(ctx.updatedAtMs),
+      url: `/torneios/${ctx.tournamentId}/ao-vivo/${ctx.matchId}`,
+    },
+    "match_live_score",
+    false,
+  );
+
+  const android: TopicMessage = {
+    topic: topics.android,
+    data,
+    android: {priority: "high"},
+    fcmOptions: {analyticsLabel: "match_live_score"},
+  };
+
+  const title = `${ctx.teamALabel} x ${ctx.teamBLabel}`;
+  const body = alertBodyFor(kind, ctx);
+
+  const ios: TopicMessage = {
+    topic: topics.ios,
+    data,
+    notification: {title, body},
+    apns: {
+      headers: {
+        "apns-collapse-id": `match-${ctx.matchId}`,
+        "apns-priority": routine ? "5" : "10",
+        "apns-push-type": "alert",
+      },
+      payload: {
+        aps: {
+          alert: {title, body},
+          "interruption-level": routine ? "passive" : "active",
+          ...(routine ? {} : {sound: "default"}),
+        },
+      },
+    },
+    fcmOptions: {analyticsLabel: "match_live_score"},
+  };
+
+  return [android, ios];
 }

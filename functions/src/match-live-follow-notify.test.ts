@@ -4,9 +4,13 @@ import {test} from "node:test";
 import {MatchStatus} from "./match-status";
 import {
   LiveMatchSnapshot,
+  MatchLiveContext,
   NotifySidecar,
   SCORE_THROTTLE_MS,
+  buildMatchLiveContext,
+  buildMatchLiveMessages,
   liveScoreSignature,
+  matchLiveTopics,
   resolveLiveUpdate,
 } from "./match-live-follow-notify";
 
@@ -283,4 +287,171 @@ test("sets fechados no array valem tanto quanto o liveScore para a assinatura", 
     liveScoreSignature(snap({sets: [{a: 21, b: 15}], currentSetIndex: 1})),
     liveScoreSignature(snap({sets: [{a: 21, b: 15}, {a: 3, b: 1}], currentSetIndex: 1})),
   );
+});
+
+// --- Tópicos, contexto e payloads -------------------------------------------
+
+function ctx(over: Partial<MatchLiveContext> = {}): MatchLiveContext {
+  return {
+    matchId: "m1",
+    tournamentId: "t1",
+    teamALabel: "Ana / Bia",
+    teamBLabel: "Carla / Dani",
+    courtName: "Quadra 3",
+    scoreLine: "20 x 15",
+    setsLine: "1 x 0",
+    statusLabel: "Set 2",
+    updatedAtMs: NOW,
+    pointAlert: null,
+    ...over,
+  };
+}
+
+test("matchLiveTopics nomeia um tópico por plataforma", () => {
+  assert.deepEqual(matchLiveTopics("abc123"), {
+    android: "match-abc123-android",
+    ios: "match-abc123-ios",
+  });
+});
+
+test("matchLiveTopics sanitiza caractere fora do alfabeto do FCM", () => {
+  const topics = matchLiveTopics("a/b");
+
+  assert.match(topics.android, /^[a-zA-Z0-9\-_.~%]+$/);
+  assert.match(topics.ios, /^[a-zA-Z0-9\-_.~%]+$/);
+});
+
+test("ids que só diferem no caractere inválido NÃO colidem", () => {
+  // Substituição cega mandaria "a/b" e "a b" para o mesmo tópico, e um
+  // seguidor receberia o placar da partida errada.
+  assert.notEqual(matchLiveTopics("a/b").android, matchLiveTopics("a b").android);
+});
+
+test("matchLiveTopics recusa matchId vazio", () => {
+  assert.throws(() => matchLiveTopics("   "));
+});
+
+test("mensagem Android é data-only: bloco notification quebraria o isolate", () => {
+  const [android] = buildMatchLiveMessages("score", ctx());
+
+  assert.equal("notification" in android, false);
+  assert.equal(android.android?.priority, "high");
+});
+
+test("data do Android leva tipo, ação, ids e rota, tudo em string", () => {
+  const [android] = buildMatchLiveMessages("set", ctx());
+  const data = android.data ?? {};
+
+  assert.equal(data.type, "match_live_score");
+  assert.equal(data.action, "set");
+  assert.equal(data.matchId, "m1");
+  assert.equal(data.url, "/torneios/t1/ao-vivo/m1");
+  assert.equal(data.updatedAt, String(NOW));
+  for (const [key, value] of Object.entries(data)) {
+    assert.equal(typeof value, "string", `${key} deveria ser string`);
+  }
+});
+
+test("iOS colapsa sempre no mesmo id: uma linha por partida", () => {
+  for (const kind of ["start", "set", "matchPoint", "score", "end"] as const) {
+    const [, ios] = buildMatchLiveMessages(kind, ctx());
+    assert.equal(ios.apns?.headers?.["apns-collapse-id"], "match-m1");
+  }
+});
+
+test("ponto comum no iOS é mudo e de baixa prioridade", () => {
+  const [, ios] = buildMatchLiveMessages("score", ctx());
+  const aps = ios.apns?.payload?.aps as Record<string, unknown>;
+
+  assert.equal(ios.apns?.headers?.["apns-priority"], "5");
+  assert.equal(aps["interruption-level"], "passive");
+  assert.equal("sound" in aps, false);
+});
+
+test("momento-chave no iOS toca e é de alta prioridade", () => {
+  for (const kind of ["start", "set", "matchPoint", "end"] as const) {
+    const [, ios] = buildMatchLiveMessages(kind, ctx());
+    const aps = ios.apns?.payload?.aps as Record<string, unknown>;
+
+    assert.equal(ios.apns?.headers?.["apns-priority"], "10", kind);
+    assert.equal(aps["interruption-level"], "active", kind);
+    assert.equal(aps.sound, "default", kind);
+  }
+});
+
+test("dismiss leva a ação de derrubar a notificação", () => {
+  const [android] = buildMatchLiveMessages("dismiss", ctx());
+
+  assert.equal(android.data?.action, "dismiss");
+});
+
+test("iOS traz alerta com as duas duplas no título", () => {
+  const [, ios] = buildMatchLiveMessages("score", ctx());
+
+  assert.equal(ios.notification?.title, "Ana / Bia x Carla / Dani");
+  assert.match(ios.notification?.body ?? "", /20 x 15/);
+});
+
+test("match point nomeia a dupla e distingue de set point", () => {
+  const [, matchPoint] = buildMatchLiveMessages(
+    "matchPoint",
+    ctx({pointAlert: {side: "A", closesMatch: true}}),
+  );
+  const [, setPoint] = buildMatchLiveMessages(
+    "matchPoint",
+    ctx({pointAlert: {side: "B", closesMatch: false}}),
+  );
+
+  assert.match(matchPoint.notification?.body ?? "", /Match point.*Ana \/ Bia/);
+  assert.match(setPoint.notification?.body ?? "", /Set point.*Carla \/ Dani/);
+});
+
+test("buildMatchLiveContext formata placar, sets e set em jogo", () => {
+  const snapshot = snap({liveScore: live(1, 0, 20, 15), currentSetIndex: 1});
+  const decision = resolveLiveUpdate(
+    snap({liveScore: live(1, 0, 19, 15), currentSetIndex: 1}),
+    snapshot,
+    sidecar(),
+    NOW,
+  );
+
+  const built = buildMatchLiveContext({
+    matchId: "m1",
+    tournamentId: "t1",
+    teamALabel: "Ana / Bia",
+    teamBLabel: "Carla / Dani",
+    courtName: "Quadra 3",
+    snapshot,
+    decision,
+    updatedAtMs: NOW,
+  });
+
+  assert.equal(built.scoreLine, "20 x 15");
+  assert.equal(built.setsLine, "1 x 0");
+  assert.equal(built.statusLabel, "Set 2");
+  assert.deepEqual(built.pointAlert, {side: "A", closesMatch: true});
+});
+
+test("contexto de partida encerrada não anuncia set em jogo", () => {
+  const snapshot = snap({status: MatchStatus.completed, liveScore: live(2, 0, 0, 0)});
+  const decision = resolveLiveUpdate(
+    snap({liveScore: live(1, 0, 20, 15)}),
+    snapshot,
+    sidecar(),
+    NOW,
+  );
+
+  const built = buildMatchLiveContext({
+    matchId: "m1",
+    tournamentId: "t1",
+    teamALabel: "Ana / Bia",
+    teamBLabel: "Carla / Dani",
+    courtName: "",
+    snapshot,
+    decision,
+    updatedAtMs: NOW,
+  });
+
+  assert.equal(built.statusLabel, "Encerrada");
+  assert.equal(built.setsLine, "2 x 0");
 });

@@ -96,11 +96,19 @@
     matchId: string; tournamentId: string;
     teamALabel: string; teamBLabel: string; courtName: string;
     scoreLine: string; setsLine: string; statusLabel: string; updatedAtMs: number;
+    pointAlert: PointAlert | null;   // distingue set point de match point no texto
   }
-  export function buildMatchLiveMessages(kind: LiveUpdateKind, ctx: MatchLiveContext): [AndroidMsg, IosMsg];
+  export function buildMatchLiveMessages(
+    kind: LiveUpdateKind, ctx: MatchLiveContext,
+  ): [TopicMessage, TopicMessage];
+  // Formatacao saiu do gatilho para ca, onde ha teste:
+  export function buildMatchLiveContext(params: {
+    matchId; tournamentId; teamALabel; teamBLabel; courtName;
+    snapshot: LiveMatchSnapshot; decision: LiveUpdateDecision; updatedAtMs: number;
+  }): MatchLiveContext;
   ```
 
-- [ ] **Step 1: Escrever o teste que falha**
+- [x] **Step 1: Escrever o teste que falha**
 
   - `matchLiveTopics` **sanitiza** o id para o alfabeto de tópico do FCM (`[a-zA-Z0-9-_.~%]`): id com caractere fora da faixa vira `_`. Ids diferentes nunca colidem depois de sanitizados (inclua um caso com dois ids que só diferem no caractere inválido — devem gerar tópicos distintos, então sanitize com sufixo de hash, não substituição cega).
   - Mensagem Android **não tem** bloco `notification` (é o que faz o isolate Dart rodar) e tem `android.priority: 'high'`.
@@ -108,13 +116,13 @@
   - iOS: `apns-collapse-id === 'match-{matchId}'` sempre; `apns-priority === '5'` e `interruption-level: 'passive'` e **sem `sound`** quando `kind === 'score'`; `'10'`/`active`/`sound: 'default'` nos demais.
   - `kind: 'dismiss'` e `'end'` levam `action` correspondente no `data`.
 
-- [ ] **Step 2: Rodar e confirmar que falha**
+- [x] **Step 2: Rodar e confirmar que falha**
 
-- [ ] **Step 3: Implementar** — reusando `coerceNotificationData` (`functions/src/notification-delivery.ts:66`) em vez de reescrever a coerção.
+- [x] **Step 3: Implementar** — reusando `coerceNotificationData` (`functions/src/notification-delivery.ts:66`) em vez de reescrever a coerção.
 
-- [ ] **Step 4: Rodar e confirmar que passa**
+- [x] **Step 4: Rodar e confirmar que passa**
 
-- [ ] **Step 5: Commit** — `feat(functions): payloads FCM do placar ao vivo por plataforma`
+- [x] **Step 5: Commit** — `feat(functions): payloads FCM do placar ao vivo por plataforma`
 
 ---
 
@@ -131,7 +139,8 @@
 
 - [ ] **Step 1: Implementar o gatilho**
 
-  1. Lê `before`/`after`, monta os `LiveMatchSnapshot`.
+  1. Lê `before`/`after`, monta os `LiveMatchSnapshot`. Toda formatação já está em
+     `buildMatchLiveContext` (Task 2) — o gatilho não monta texto.
   2. Lê `matchLiveNotify/{matchId}`.
   3. `resolveLiveUpdate(...)`. Se `push: false`, **grava só a assinatura** e retorna.
   4. Resolve rótulos das duplas: se o sidecar já tem `teamALabel`/`teamBLabel`, usa; senão faz o join `teams/{teamId}` → `player1Id`/`player2Id` → `public_profiles` (fallback `teamName`, depois `teamADescription`/`teamBDescription`, depois `'Dupla A'`/`'Dupla B'`) e **grava no sidecar**. O join acontece uma vez por partida, não por ponto.

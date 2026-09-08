@@ -1710,6 +1710,14 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Partidas que o atleta escolheu acompanhar ("Seguir partida"), origem da
+    // seção Acompanhando e do re-sync dos tópicos FCM no boot. Mesma forma de
+    // `favorites`: lista privada do dono, sem leitura por terceiros.
+    // Ver docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md
+    match /users/{userId}/followedMatches/{matchId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     match /users/{userId}/followers/{followerId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null &&
@@ -2529,6 +2537,17 @@ service cloud.firestore {
     match /arenaSiteSlugs/{slug} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Estado interno do fan-out do placar ao vivo (throttle e rótulos das
+    // duplas, escritos por `onMatchLiveScoreChanged`). Só o Admin SDK entra
+    // aqui, e ele ignora rules — para o cliente é fechado dos dois lados.
+    // Leitura aberta entregaria quando o servidor notificou; escrita aberta
+    // deixaria silenciar o placar de uma partida gravando `lastPushAt` no
+    // futuro. Redundante com o catch-all abaixo de propósito: a regra explícita
+    // sobrevive a qualquer afrouxamento dele.
+    match /matchLiveNotify/{matchId} {
+      allow read, write: if false;
     }
 
     // NEGAÇÃO padrão para caminhos não mapeados.

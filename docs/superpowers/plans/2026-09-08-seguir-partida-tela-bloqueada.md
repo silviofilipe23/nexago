@@ -15,7 +15,10 @@
 - **Comandos das functions rodam de `functions/`.** `npm ci` primeiro (o container onde este plano foi escrito não tinha `node_modules`). Baseline medida em 2026-09-08: **`npm test` → 1749 pass, 0 fail, 340 suites**. Se a contagem não subir a cada task de backend, você está rodando a árvore errada.
 - **Comandos do app rodam de `nexago_app/`:** `flutter test`. **Baseline não medida** — não havia Flutter no container. Rode `flutter test` ANTES da Task 6 e anote o número; é ele que precisa subir depois.
 - `npm test` compila para `lib/` antes de rodar (`npm run build && node --test lib/*.test.js`). Todo `src/*.test.ts` novo é coletado sozinho — não precisa mexer no script.
-- Rules test é separado, sob emulador, e **não** entra no `npm test`. Padrão: `firebase emulators:exec --only firestore --project <id> "node --test test/<arquivo>.rules.test.mjs"`.
+- Rules test é separado, sob emulador, e **não** entra no `npm test`. Padrão:
+  `firebase emulators:exec --only firestore --project <id> "node --test test/<arquivo>.rules.test.mjs"`.
+  **`firebase-tools` não é dependência do repo** — instale (`npm i --no-save firebase-tools`) ou
+  use o global. Baseline de 2026-09-08: as 10 suítes de rules existentes somam 108 testes, 0 falhas.
 - **UI em português, código em inglês** (convenção do repo).
 - `flutter-test-engineer` deve ser acionado nas tasks de Flutter (`CLAUDE.md`).
 - **Não introduzir `RemoteViews` customizado no Android** — desqualifica a promoção a Live Update do Android 16 (ver spec, "portão de elegibilidade").
@@ -176,19 +179,26 @@
 - `users/{userId}/followedMatches/{matchId}` — dono lê e escreve.
 - `matchLiveNotify/{matchId}` — **ninguém** pelo cliente (só Admin SDK).
 
-- [ ] **Step 1: Escrever o teste que falha** — no padrão de `functions/test/mesa-scorer-point.rules.test.mjs`:
+- [x] **Step 1: Escrever o teste que falha** — no padrão de `functions/test/mesa-scorer-point.rules.test.mjs`:
   - dono cria/lê/apaga o próprio `followedMatches` ⇒ `assertSucceeds`.
   - outro uid lê ou escreve o `followedMatches` alheio ⇒ `assertFails`.
   - não autenticado ⇒ `assertFails`.
   - qualquer cliente, autenticado ou não, lendo ou escrevendo `matchLiveNotify/{id}` ⇒ `assertFails`.
 
-- [ ] **Step 2: Rodar e confirmar que falha** — `firebase emulators:exec --only firestore --project nexago-followed-matches-test "node --test test/followed-matches.rules.test.mjs"`
+- [x] **Step 2: Rodar e confirmar que falha** — `firebase emulators:exec --only firestore --project nexago-followed-matches-test "node --test test/followed-matches.rules.test.mjs"`
 
-- [ ] **Step 3: Implementar as rules** — `followedMatches` copia o formato de `users/{userId}/favorites/{arenaId}` (`firestore.rules:1709`), que é exatamente o mesmo caso. `matchLiveNotify` recebe `allow read, write: if false;` — o Admin SDK ignora rules.
+- [x] **Step 3: Implementar as rules** — `followedMatches` copia o formato de
+  `users/{userId}/favorites/{arenaId}` (`firestore.rules:1709`), que é exatamente o mesmo caso.
+  `matchLiveNotify` recebe `allow read, write: if false;` — o Admin SDK ignora rules.
+  **Os 3 testes de `matchLiveNotify` já passam antes desta regra**, porque o catch-all do fim
+  do arquivo nega tudo que não está mapeado. A regra explícita entra assim mesmo: documenta a
+  decisão e sobrevive a qualquer afrouxamento do catch-all.
 
-- [ ] **Step 4: Rodar e confirmar que passa**
+- [x] **Step 4: Rodar e confirmar que passa** — e rodar TAMBÉM as outras 10 suítes
+  `test/*.rules.test.mjs`: `firestore.rules` é um arquivo só e um `match` novo pode alterar o
+  OR de `allow` de caminhos vizinhos.
 
-- [ ] **Step 5: Commit** — `feat(rules): followedMatches do atleta e matchLiveNotify fechado`
+- [x] **Step 5: Commit** — `feat(rules): followedMatches do atleta e matchLiveNotify fechado`
 
 ---
 

@@ -140,7 +140,6 @@ interface PendingConfirm {
           [busy]="busy()"
           (submitted)="onGrantSpotPass($event)"
           (revoked)="onRevokeSpotPass($event)"
-          (cancelled)="toggleLiberar()"
         />
       }
 

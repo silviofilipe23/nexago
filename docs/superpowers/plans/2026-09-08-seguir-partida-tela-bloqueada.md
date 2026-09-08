@@ -354,15 +354,24 @@ String matchTopicName(String matchId, {required bool ios});  // espelha matchLiv
 - Modify: `nexago_app/lib/features/tournaments/presentation/widgets/bracket/bracket_match_node.dart`
 - Test: `nexago_app/test/features/tournaments/follow_match_button_test.dart`
 
-- [ ] **Step 1: Escrever o teste de widget que falha**
+- [x] **Step 1: Escrever o teste de widget que falha**
   - partida `Completed`/`Canceled` ⇒ botão **não** renderiza.
   - sem sessão, toque grava `pendingDeepLinkPathProvider` e navega para o login.
   - com sessão, toque alterna `Seguir` ⇄ `Seguindo`.
-- [ ] **Step 2: Rodar e confirmar que falha**
-- [ ] **Step 3: Implementar o widget** — estado "Seguindo" reusa `TournamentMatchCardLiveDot` (`.../widgets/tournament_match_live_badge.dart`), não desenha outro ponto pulsante.
-- [ ] **Step 4: Plugar nas três superfícies** — na `NexaAppBar` da página pública ao lado do share; ícone compacto no `FocusMatchCard`; no sheet de detalhe do `BracketMatchNode`, não no nó.
-- [ ] **Step 5: Rodar a suíte** — `flutter test`
-- [ ] **Step 6: Commit** — `feat(app): botao seguir partida nas telas de jogo`
+- [~] **Step 2: Rodar e confirmar que falha** — NÃO EXECUTADO (sem Flutter no container).
+- [x] **Step 3: Implementar o widget** — estado "Seguindo" reusa `TournamentMatchCardLiveDot` (`.../widgets/tournament_match_live_badge.dart`), não desenha outro ponto pulsante.
+- [x] **Step 4: Plugar nas superfícies — DUAS, não três.** `NexaAppBar` da página pública ao
+  lado do share, e `FocusMatchCard` via parâmetro novo `followAction` (opcional, então o card
+  segue `StatelessWidget` e nenhum chamador existente quebra), passado pelas seções Agora e
+  Arena do Focus.
+  **`BracketMatchNode` ficou de fora, de propósito:** o "sheet de detalhe" que este plano
+  supunha NÃO EXISTE — o nó só expõe `onTap`, e quem abre algo é
+  `double_elimination_bracket_canvas.dart`. Enfiar um botão dentro do nó significaria mexer no
+  layout apertado de um canvas com pan/zoom, sem compilador para verificar. E o toque do nó já
+  leva a uma tela que TEM o botão, então a superfície está coberta por caminho indireto.
+  Se ainda quiser o botão lá, é uma task própria, com o app rodando.
+- [~] **Step 5: Rodar a suíte** — NÃO EXECUTADO. `flutter test` + `flutter analyze`
+- [x] **Step 6: Commit** — `feat(app): botao seguir partida nas telas de jogo`
 
 ---
 

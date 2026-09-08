@@ -32,6 +32,7 @@ import '../widgets/focus_match_card.dart';
 import '../widgets/focus_now_hero.dart';
 import '../widgets/focus_share_match_sheet.dart';
 import '../widgets/focus_timeline.dart';
+import '../../widgets/follow_match_button.dart';
 
 /// Seção "Agora": o que o atleta precisa saber nos próximos minutos, seguido da
 /// ordem do dia, dos avisos do organizador e do que está em quadra na categoria
@@ -276,6 +277,10 @@ class FocusAgoraSection extends ConsumerWidget {
                   // Sem categoria: a lista já está recortada pela categoria em
                   // foco, e repeti-la em todo card só roubaria espaço do grupo.
                   onTap: () => _openMatch(context, m.id),
+                  followAction: FollowMatchButton(
+                    match: byId[m.id]!.match,
+                    compact: true,
+                  ),
                 ),
               ),
         ],

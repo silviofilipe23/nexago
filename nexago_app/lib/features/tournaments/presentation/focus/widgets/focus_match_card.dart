@@ -29,6 +29,7 @@ class FocusMatchCard extends StatelessWidget {
     this.athleteTeamIds = const {},
     this.categoryName = '',
     this.onTap,
+    this.followAction,
   });
 
   final TournamentMatchCardViewModel viewModel;
@@ -41,6 +42,11 @@ class FocusMatchCard extends StatelessWidget {
   final String categoryName;
 
   final VoidCallback? onTap;
+
+  /// Ação opcional no rodapé do card (hoje o "Seguir partida"). Fica como
+  /// parâmetro em vez de embutido para o card seguir sendo `StatelessWidget` e
+  /// cada chamador decidir se quer o botão ali.
+  final Widget? followAction;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +88,11 @@ class FocusMatchCard extends StatelessWidget {
               Expanded(child: MatchCardSide(side: row.sideB)),
             ],
           ),
+          if (followAction != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: followAction!,
+            ),
         ],
       ),
     );

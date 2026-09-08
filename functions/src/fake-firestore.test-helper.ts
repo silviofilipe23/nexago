@@ -4,7 +4,8 @@ import {Timestamp} from "firebase-admin/firestore";
  * Firestore fake em memória para testes de unidade — implementa apenas o que
  * os módulos de rating/ranking usam: doc get/set (merge profundo), collection
  * add/doc, queries `where` (igualdade e array-contains) + `orderBy` +
- * `startAfter`/`limit`, `batch()` (aplicado no commit) e transações sequenciais.
+ * `startAfter`/`limit`, `getAll` em lote, `batch()` (aplicado no commit) e
+ * transações sequenciais.
  *
  * O sufixo `.test-helper.ts` fica fora do glob `lib/**​/*.test.js` do harness.
  */
@@ -98,6 +99,11 @@ export class FakeFirestore {
       },
       collection: (subPath: string) => self.collection(`${path}/${subPath}`),
     };
+  }
+
+  /** `getAll` do Admin SDK: lote de refs -> snapshots, na mesma ordem pedida. */
+  async getAll(...refs: Array<{path: string}>) {
+    return refs.map((ref) => this.snapshotOf(ref.path));
   }
 
   private snapshotOf(path: string) {

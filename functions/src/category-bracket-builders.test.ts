@@ -196,9 +196,9 @@ describe("buildDoubleEliminationMatches", () => {
     assert.equal(feedsThird.length, 2);
   });
 
-  // Cobertura forte: toda chave estática registrada (4–27 equipes) deve ser
-  // 100% jogável — sem slot preenchido 2x, sem avanço órfão, sem deadlock e
-  // com exatamente uma final — para QUALQUER combinação de resultados.
+  // Cobertura forte: toda chave estática registrada (4–27 e 32 equipes) deve
+  // ser 100% jogável — sem slot preenchido 2x, sem avanço órfão, sem deadlock
+  // e com exatamente uma final — para QUALQUER combinação de resultados.
   describe("chaves estáticas registradas são 100% jogáveis", () => {
     const sizes = Object.keys(BRACKET_DEFINITIONS)
       .map(Number)

@@ -34,9 +34,29 @@ const FORMAT_LABEL: Record<BracketFormat, string> = {
   double_elimination: 'Dupla eliminatória',
 };
 
-/** Faixa suportada pelas plantas estáticas de dupla eliminação (BRACKET_DEFINITIONS 4–27). */
-const DE_MIN = 4;
-const DE_MAX = 27;
+/**
+ * Tamanhos suportados pelas plantas estáticas de dupla eliminação
+ * (`functions/src/bracket-definitions`). O conjunto TEM buraco — 4 a 27 e 32,
+ * sem 28 a 31 — então uma faixa min-a-max liberaria aqui contagens que a CF
+ * `generateCategoryBracket` recusa (`de_unsupported_team_count`).
+ */
+const DE_TEAM_COUNTS: readonly number[] = [
+  4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+  25, 26, 27, 32,
+];
+
+/** "4 a 27 ou 32" — faixas contíguas agrupadas, para a mensagem não mentir. */
+function describeTeamCounts(counts: readonly number[]): string {
+  const ranges: string[] = [];
+  for (let i = 0; i < counts.length; ) {
+    let end = i;
+    while (end + 1 < counts.length && counts[end + 1] === counts[end] + 1) end++;
+    ranges.push(end === i ? `${counts[i]}` : `${counts[i]} a ${counts[end]}`);
+    i = end + 1;
+  }
+  if (ranges.length <= 1) return ranges[0] ?? '';
+  return `${ranges.slice(0, -1).join(', ')} ou ${ranges[ranges.length - 1]}`;
+}
 
 interface GroupPreview {
   id: string;
@@ -101,7 +121,7 @@ function shuffled<T>(items: readonly T[]): T[] {
               }
             </div>
             @if (format() === 'double_elimination' && !deCountOk()) {
-              <p class="og-seeds-error">Dupla eliminação está disponível para {{ deMin }} a {{ deMax }} duplas (há {{ eligible().length }}).</p>
+              <p class="og-seeds-error">Dupla eliminação está disponível para {{ deCounts }} duplas (há {{ eligible().length }}).</p>
             }
             @if (format() === 'groups_knockout') {
               <div class="og-field-grid" style="margin-top:14px">
@@ -417,8 +437,7 @@ export class SeedsComponent {
   protected readonly truncate = truncateName;
   protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination'];
   protected readonly formatLabel = FORMAT_LABEL;
-  protected readonly deMin = DE_MIN;
-  protected readonly deMax = DE_MAX;
+  protected readonly deCounts = describeTeamCounts(DE_TEAM_COUNTS);
   protected readonly minTeams = MIN_TEAMS_FOR_BRACKET;
 
   protected readonly loading = signal(true);
@@ -490,7 +509,7 @@ export class SeedsComponent {
     return total >= 2 && (total & (total - 1)) === 0;
   });
 
-  protected readonly deCountOk = computed(() => this.eligible().length >= DE_MIN && this.eligible().length <= DE_MAX);
+  protected readonly deCountOk = computed(() => DE_TEAM_COUNTS.includes(this.eligible().length));
 
   protected readonly canPublish = computed(() => {
     if (this.eligible().length < MIN_TEAMS_FOR_BRACKET) return false;

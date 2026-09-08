@@ -13,7 +13,11 @@ import {
   buildSingleEliminationMatches,
   isBalancedQualifierTotal,
 } from "./category-bracket-builders";
-import {BRACKET_DEFINITIONS} from "./bracket-definitions/bracket-definitions";
+import {
+  BRACKET_DEFINITIONS,
+  SUPPORTED_DE_TEAM_COUNTS,
+  describeTeamCounts,
+} from "./bracket-definitions/bracket-definitions";
 import {assertCanManageTournament} from "./tournament-acl";
 import {
   ORGANIZER_DIRECT_PAYMENT_METHOD,
@@ -169,19 +173,18 @@ export const generateCategoryBracket = onCall(async (request) => {
     );
   }
 
-  // Dupla eliminação usa plantas de chave validadas (4–27 duplas). Fora dessa
-  // faixa não há chave garantida, então bloqueia em vez de publicar uma chave
-  // quebrada (o gerador algorítmico não resolve byes fora de potências de 2).
+  // Dupla eliminação usa plantas de chave validadas, e o conjunto TEM buracos
+  // (4–27 e 32, sem 28–31). Fora delas não há chave garantida, então bloqueia
+  // em vez de publicar uma chave quebrada (o gerador algorítmico não resolve
+  // byes fora de potências de 2).
   if (format === "double_elimination" && !BRACKET_DEFINITIONS[teamIds.length]) {
-    const supported = Object.keys(BRACKET_DEFINITIONS)
-      .map(Number)
-      .sort((a, b) => a - b);
+    const supported = SUPPORTED_DE_TEAM_COUNTS;
     const min = supported[0];
     const max = supported[supported.length - 1];
     throw new HttpsError(
       "failed-precondition",
-      `Dupla eliminação está disponível para ${min} a ${max} duplas ` +
-        `(há ${teamIds.length}). Use grupos + mata-mata ou eliminatória ` +
+      `Dupla eliminação está disponível para ${describeTeamCounts(supported)} ` +
+        `duplas (há ${teamIds.length}). Use grupos + mata-mata ou eliminatória ` +
         "simples para esta quantidade.",
       {reason: "de_unsupported_team_count", teamCount: teamIds.length, min, max},
     );

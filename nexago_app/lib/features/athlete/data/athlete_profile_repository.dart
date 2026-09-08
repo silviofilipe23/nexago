@@ -20,6 +20,8 @@ import '../domain/profile_completion_models.dart';
 /// conexão que caiu, a callable espera 60 s e o Firestore enfileira a escrita
 /// offline para sempre. Quem estoura cai na tela com mensagem de rede e o
 /// atleta tenta de novo (sem subir a foto outra vez).
+///
+/// Vale para toda imagem de perfil (avatar e capa) — o nome é histórico.
 const Duration kAvatarUploadTimeout = Duration(seconds: 60);
 
 /// A callable `grantAthleteRole` sofre cold start em quase todo cadastro
@@ -155,6 +157,65 @@ class AthleteProfileRepository {
     await docRef.set(data, SetOptions(merge: true)).timeout(kProfileSaveTimeout);
   }
 
+  /// Grava SOMENTE a foto de perfil em `users/{uid}`.
+  ///
+  /// A troca de foto acontece no meio da edição, com o resto do formulário
+  /// ainda em rascunho — por isso a escrita é mínima e não passa por
+  /// [saveProfile] (que publicaria nome, cidade, bio e afins ainda em edição,
+  /// além de mexer em papéis/keywords/níveis, nada disso afetado pela foto).
+  ///
+  /// `profilePhotoUrl` é o campo canônico lido por
+  /// `AthleteProfile.fromFirestore` (`avatarUrl`/`photoURL` são fallbacks
+  /// legados) e está na whitelist do espelho `public_profiles`, então a nova
+  /// foto chega ao perfil público pelo gatilho de sincronia normal.
+  ///
+  /// Só use quando o documento do atleta JÁ existe: as rules de `create` em
+  /// `users` exigem `roles: ['athlete']` no payload, que esta escrita
+  /// deliberadamente não envia (é proibido pelo `update`).
+  Future<void> saveAvatarPhotoUrl({
+    required String uid,
+    required String photoUrl,
+  }) async {
+    final url = photoUrl.trim();
+    if (url.isEmpty) return;
+    await _users
+        .doc(uid)
+        .set(
+          <String, dynamic>{
+            'profilePhotoUrl': url,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        )
+        .timeout(kProfileSaveTimeout);
+  }
+
+  /// Grava SOMENTE a foto de capa em `users/{uid}`.
+  ///
+  /// Mesmo raciocínio do [saveAvatarPhotoUrl] (escrita mínima, fora do
+  /// [saveProfile], só para documento já existente). `coverPhotoUrl` também
+  /// está na whitelist do espelho `public_profiles`.
+  ///
+  /// Não apaga a capa: remover é o `FieldValue.delete()` do [saveProfile],
+  /// que sabe distinguir "sem capa" de "campo ausente no payload".
+  Future<void> saveCoverPhotoUrl({
+    required String uid,
+    required String photoUrl,
+  }) async {
+    final url = photoUrl.trim();
+    if (url.isEmpty) return;
+    await _users
+        .doc(uid)
+        .set(
+          <String, dynamic>{
+            'coverPhotoUrl': url,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        )
+        .timeout(kProfileSaveTimeout);
+  }
+
   Future<void> saveNotificationPreferences({
     required String uid,
     required AthleteNotificationPreferences preferences,
@@ -268,21 +329,34 @@ class AthleteProfileRepository {
   }
 
   /// Upload em `profiles/{uid}/cover.jpg` e retorna a URL de download.
+  ///
+  /// Mesmo teto de tempo (e mesmo cancelamento de verdade) do [uploadAvatar]:
+  /// agora que a capa sobe sozinha ao ser trocada, o atleta fica olhando um
+  /// spinner enquanto isso — sem o limite, uma conexão caída deixaria esse
+  /// spinner girando por até 10 minutos.
   Future<String> uploadCoverPhoto({
     required String uid,
     required Uint8List bytes,
     required String contentType,
+    Duration? timeout,
   }) async {
+    final limit = timeout ?? kAvatarUploadTimeout;
     final ref = FirebaseStorage.instance
         .ref()
         .child('profiles')
         .child(uid)
         .child('cover.jpg');
-    await ref.putData(
+    final task = ref.putData(
       bytes,
       SettableMetadata(contentType: contentType),
     );
-    return ref.getDownloadURL();
+    try {
+      await task.timeout(limit);
+    } on TimeoutException {
+      unawaited(task.cancel());
+      rethrow;
+    }
+    return ref.getDownloadURL().timeout(limit);
   }
 
   /// Upload de uma foto de destaque em

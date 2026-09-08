@@ -62,6 +62,16 @@ Manual e explícito. Sem auto-seguir nesta entrega — nem as minhas partidas, n
 
 Vive em três superfícies, sempre o mesmo widget `FollowMatchButton`:
 
+0. **`TournamentMatchCard`** (`.../tournaments/presentation/widgets/tournament_match_card.dart`)
+   — a superfície pública: aba de chave, visão de grupo e visão de categoria. **É a mais
+   importante das três**, e quase ficou de fora.
+
+   O Modo Focus **some para quem não está jogando**: `athleteFocusHomeTargetProvider` devolve
+   `null` fora do dia do evento e para atleta eliminado no mata-mata, e a entrada em
+   `tournament_detail_page.dart` é gateada por `hasMyMatchToday`. Deixar o botão só lá entregaria
+   a funcionalidade a quem menos precisa dela — o atleta que está em quadra — e negaria
+   justamente ao espectador, que é o público natural de "acompanhar o placar".
+
 1. `PublicMatchLivePage` (`.../tournaments/presentation/public_match_live_page.dart`) — na
    `NexaAppBar`, ao lado do compartilhar que já está lá.
 2. `FocusMatchCard` (`.../tournaments/presentation/focus/widgets/focus_match_card.dart`) — ícone

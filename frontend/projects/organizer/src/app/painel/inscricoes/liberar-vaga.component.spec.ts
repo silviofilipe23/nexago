@@ -114,14 +114,44 @@ describe('OgLiberarVagaComponent', () => {
     expect(emitted.length).toBe(0);
   });
 
-  it('avisa quando a categoria ainda tem vaga livre', async () => {
-    const el = await render([category({ maxTeams: 16 })], { occupancy: { c1: 10 } });
-    expect(el.textContent).toContain('ainda tem vaga livre');
+  // A régua é o assunto do painel: liberar não é "mais uma inscrição", é criar a vaga seguinte.
+  it('lotada: mostra a ocupação e qual vaga o clique cria', async () => {
+    const el = await render([category({ maxTeams: 16 })], { occupancy: { c1: 16 } });
+    expect(el.textContent).toContain('16/16');
+    expect(el.textContent).toContain('Liberar cria a 17ª vaga');
   });
 
-  it('categoria lotada não mostra o aviso de vaga livre', async () => {
-    const el = await render([category({ maxTeams: 16 })], { occupancy: { c1: 16 } });
-    expect(el.textContent).not.toContain('ainda tem vaga livre');
+  // Teto já estourado por caminho antigo: a próxima vaga conta a partir da OCUPAÇÃO real,
+  // senão a tela prometeria uma vaga que já existe.
+  it('ocupação acima do teto conta a próxima vaga pela ocupação', async () => {
+    const el = await render([category({ maxTeams: 16 })], { occupancy: { c1: 18 } });
+    expect(el.textContent).toContain('Liberar cria a 19ª vaga');
+  });
+
+  it('com folga: diz que ninguém precisa de passe, em vez de um aviso separado', async () => {
+    const el = await render([category({ maxTeams: 16 })], { occupancy: { c1: 10 } });
+    expect(el.textContent).toContain('6 vagas livres');
+    expect(el.textContent).toContain('ninguém precisa de passe');
+  });
+
+  it('uma vaga livre fica no singular', async () => {
+    const el = await render([category({ maxTeams: 16 })], { occupancy: { c1: 15 } });
+    expect(el.textContent).toContain('1 vaga livre');
+  });
+
+  it('categoria de equipe conta equipes, não duplas', async () => {
+    const el = await render([category({ maxTeams: 8, teamSize: 4 })], { occupancy: { c1: 8 } });
+    expect(el.textContent).toContain('equipes inscritas');
+  });
+
+  it('sem teto declarado, não há lotação a liberar', async () => {
+    const el = await render([category({ maxTeams: null })]);
+    expect(el.textContent).toContain('não declara teto');
+  });
+
+  it('sem passes, o lugar deles convida em vez de ficar vazio', async () => {
+    const el = await render([category()]);
+    expect(el.textContent).toContain('Nenhuma vaga liberada nesta categoria.');
   });
 
   it('lista só os passes da categoria em foco, com o estado de cada um', async () => {

@@ -45,14 +45,11 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
     <og-card>
       <div class="og-lv">
         <header class="og-lv-head">
-          <div>
-            <h3>Liberar vaga</h3>
-            <p>
-              O atleta escolhido consegue se inscrever nesta categoria mesmo lotada, e paga
-              normalmente pelo app. A vaga é dele até a chave ser publicada.
-            </p>
-          </div>
-          <button type="button" class="og-mini-btn" (click)="cancelled.emit()">Fechar</button>
+          <h3>Liberar vaga</h3>
+          <p>
+            Só o atleta escolhido consegue se inscrever, mesmo com a categoria lotada. Ele
+            paga normalmente pelo app, e a vaga é dele até a chave ser publicada.
+          </p>
         </header>
 
         @if (categorias().length > 1) {
@@ -66,34 +63,34 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
                 (click)="categoryId.set(c.id)"
               >
                 {{ c.name }}
-                @if (occupancyLabel(c); as label) {
-                  <span class="og-lv-occ">{{ label }}</span>
-                }
               </button>
             }
           </div>
         }
 
-        @if (!isCategoryFull() && categoryId() !== '') {
-          <!-- Liberar vaga em categoria com lugar sobrando é inofensivo (o servidor ignora o
-               passe enquanto couber alguém), mas quase sempre é engano de clique. -->
-          <div class="og-banner" role="status">
-            Esta categoria ainda tem vaga livre — qualquer atleta consegue se inscrever sem
-            passe.
-          </div>
+        <!-- A régua da decisão: liberar não é "mais uma inscrição", é criar a vaga seguinte.
+             Com vaga sobrando ela mesma diz que o passe não é necessário — um aviso separado
+             repetiria o que o número já conta. -->
+        @if (occupancyLabel(); as occupancy) {
+          <p class="og-lv-gauge" [class.free]="!isCategoryFull()">
+            <strong>{{ occupancy }}</strong>
+            <span class="og-lv-gauge-unit">{{ unitLabelPlural() }} inscritas</span>
+            <span class="og-lv-gauge-next">{{ nextSpotLabel() }}</span>
+          </p>
+        } @else if (categoryId() !== '') {
+          <p class="og-lv-note">
+            Esta categoria não declara teto de vagas — não há lotação para liberar.
+          </p>
         }
 
-        <label class="og-lv-field">
-          <span>Atleta</span>
-          <input
-            type="search"
-            class="og-lv-search"
-            placeholder="Buscar por nome ou apelido"
-            aria-label="Buscar atleta para liberar a vaga"
-            [value]="searchTerm()"
-            (input)="onSearchInput($event)"
-          />
-        </label>
+        <input
+          type="search"
+          class="og-lv-search"
+          placeholder="Buscar atleta por nome ou apelido"
+          aria-label="Buscar atleta para liberar a vaga"
+          [value]="searchTerm()"
+          (input)="onSearchInput($event)"
+        />
 
         @if (termTooShort()) {
           <p class="og-lv-hint">Digite ao menos {{ minTerm }} letras.</p>
@@ -101,16 +98,17 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
           <nx-spinner />
         } @else if (searched() && candidates().length === 0) {
           <p class="og-lv-hint">Nenhum atleta encontrado.</p>
-        } @else {
+        } @else if (candidates().length > 0) {
           <ul class="og-lv-results">
             @for (a of candidates(); track a.uid) {
               <li>
-                <og-avatar [initials]="initialsOf(nameOf(a))" [photoUrl]="a.photoUrl" [size]="30" />
+                <og-avatar [initials]="initialsOf(nameOf(a))" [photoUrl]="a.photoUrl" [size]="28" />
                 <span class="og-lv-name">{{ nameOf(a) }}</span>
                 <button
                   type="button"
                   class="og-mini-btn og-mini-btn-primary"
                   [disabled]="busy() || categoryId() === ''"
+                  [attr.aria-label]="'Liberar vaga para ' + nameOf(a)"
                   (click)="grant(a)"
                 >
                   Liberar
@@ -120,15 +118,29 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
           </ul>
         }
 
-        @if (passesForCategory().length > 0) {
-          <h4 class="og-lv-sub">Vagas liberadas nesta categoria</h4>
+        <div class="og-lv-sec">
+          <h4>Vagas liberadas</h4>
+          @if (passesForCategory().length > 0) {
+            <span class="og-lv-count">{{ passesForCategory().length }}</span>
+          }
+        </div>
+        @if (passesForCategory().length === 0) {
+          <p class="og-lv-empty">Nenhuma vaga liberada nesta categoria.</p>
+        } @else {
           <ul class="og-lv-passes">
             @for (p of passesForCategory(); track p.id) {
               <li>
+                <span class="og-lv-dot" [class]="statusTone(p)" aria-hidden="true"></span>
                 <span class="og-lv-name">{{ p.athleteName }}</span>
-                <span class="og-lv-status" [class.win]="p.status === 'used'">{{ statusLabel(p) }}</span>
+                <span class="og-lv-state">{{ statusLabel(p) }}</span>
                 @if (p.status === 'active') {
-                  <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="revoked.emit(p.id)">
+                  <button
+                    type="button"
+                    class="og-mini-btn"
+                    [disabled]="busy()"
+                    [attr.aria-label]="'Revogar a vaga de ' + p.athleteName"
+                    (click)="revoked.emit(p.id)"
+                  >
                     Revogar
                   </button>
                 }
@@ -139,97 +151,175 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
       </div>
     </og-card>
   `,
-  styles: [
-    `
-      .og-lv {
-        display: grid;
-        gap: 12px;
-      }
-      .og-lv-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-      }
-      .og-lv-head h3 {
-        margin: 0 0 2px;
-        font-size: 15px;
-      }
-      .og-lv-head p {
-        margin: 0;
-        max-width: 62ch;
-        color: var(--og-text-dim);
-        font-size: 12px;
-        line-height: 1.45;
-      }
-      .og-lv-cats {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-      .og-lv-occ {
-        margin-left: 6px;
-        opacity: 0.7;
-      }
-      .og-lv-field {
-        display: grid;
-        gap: 4px;
-        font-size: 12px;
-      }
-      .og-lv-search {
-        width: min(340px, 100%);
-        padding: 8px 10px;
-        border: 1px solid var(--og-border);
-        border-radius: 8px;
-        background: var(--og-surface);
-        color: inherit;
-      }
-      .og-lv-hint {
-        margin: 0;
-        color: var(--og-text-dim);
-        font-size: 12px;
-      }
-      .og-lv-results,
-      .og-lv-passes {
-        display: grid;
-        gap: 6px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-      .og-lv-results li,
-      .og-lv-passes li {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 8px;
-        border: 1px solid var(--og-border);
-        border-radius: 8px;
-      }
-      .og-lv-name {
-        flex: 1 1 auto;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: 13px;
-      }
-      .og-lv-status {
-        color: var(--og-text-dim);
-        font-size: 11px;
-      }
-      .og-lv-status.win {
-        color: var(--og-success, #17a34a);
-      }
-      .og-lv-sub {
-        margin: 6px 0 0;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: var(--og-text-dim);
-      }
-    `,
-  ],
+  styles: `
+    .og-lv {
+      display: grid;
+      gap: 12px;
+    }
+    .og-lv-head h3 {
+      margin: 0 0 3px;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--nx-text);
+    }
+    .og-lv-head p {
+      margin: 0;
+      max-width: 58ch;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--nx-text-mute);
+    }
+    .og-lv-cats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .og-lv-gauge {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      margin: 0;
+      padding: 12px 14px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+    }
+    .og-lv-gauge strong {
+      font-family: var(--nx-font-mono);
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+      color: var(--nx-text);
+    }
+    .og-lv-gauge-unit {
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+    .og-lv-gauge-next {
+      margin-left: auto;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--nx-orange-500);
+    }
+    .og-lv-gauge.free .og-lv-gauge-next {
+      font-weight: 500;
+      color: var(--nx-text-dim);
+    }
+    .og-lv-note,
+    .og-lv-hint {
+      margin: 0;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+    }
+    .og-lv-search {
+      width: 100%;
+      box-sizing: border-box;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+    }
+    .og-lv-search:focus {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 0;
+    }
+    .og-lv-results,
+    .og-lv-passes {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    /* Quatro linhas INTEIRAS: a lista de busca não pode empurrar as vagas já liberadas para
+       fora da tela, e meia linha cortada lê como defeito, não como "tem mais abaixo". */
+    .og-lv-results {
+      max-height: 202px;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .og-lv-results li,
+    .og-lv-passes li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+    }
+    .og-lv-results li {
+      background: var(--nx-surface-0);
+    }
+    .og-lv-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--nx-text);
+    }
+    .og-lv-sec {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .og-lv-sec h4 {
+      margin: 0;
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-lv-count {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+    }
+    .og-lv-dot {
+      width: 7px;
+      height: 7px;
+      flex: none;
+      border-radius: 50%;
+      background: var(--nx-text-dim);
+    }
+    .og-lv-dot.waiting {
+      background: var(--nx-pending);
+    }
+    .og-lv-dot.done {
+      background: var(--nx-win);
+    }
+    .og-lv-state {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-mute);
+    }
+    .og-lv-empty {
+      margin: 0;
+      padding: 14px;
+      border: 1px dashed var(--nx-line-strong);
+      border-radius: var(--nx-r-2);
+      text-align: center;
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+    }
+  `,
 })
 export class OgLiberarVagaComponent {
   readonly categorias = input.required<readonly OrganizerTournamentCategory[]>();
@@ -240,7 +330,6 @@ export class OgLiberarVagaComponent {
 
   readonly submitted = output<LiberarVagaSubmit>();
   readonly revoked = output<string>();
-  readonly cancelled = output<void>();
 
   protected readonly minTerm = ATHLETE_SEARCH_MIN_TERM;
   protected readonly nameOf = athleteDisplayName;
@@ -275,6 +364,36 @@ export class OgLiberarVagaComponent {
     this.passes().filter((p) => p.categoryId === this.categoryId()),
   );
 
+  /** `16/16`, ou `null` quando a categoria não declara teto — aí não há lotação a mostrar. */
+  protected readonly occupancyLabel = computed(() => {
+    const max = this.capacity();
+    if (max == null || max <= 0) return null;
+    return `${this.occupancy()}/${max}`;
+  });
+
+  /** "duplas" / "equipes": o teto conta EQUIPES, e chamar trio de dupla mente na tela. */
+  protected readonly unitLabelPlural = computed(() => {
+    const size = this.categorias().find((c) => c.id === this.categoryId())?.teamSize ?? 2;
+    return size >= 3 ? 'equipes' : 'duplas';
+  });
+
+  /**
+   * A consequência do clique, em uma frase.
+   *
+   * Lotada, diz qual vaga nasce — liberar não é "mais uma inscrição", é criar a próxima vaga.
+   * Com folga, diz que o passe não é necessário, no lugar de um aviso separado repetindo o
+   * número que está logo ao lado.
+   */
+  protected readonly nextSpotLabel = computed(() => {
+    const max = this.capacity();
+    if (max == null || max <= 0) return '';
+    if (this.isCategoryFull()) {
+      return `Liberar cria a ${Math.max(max, this.occupancy()) + 1}ª vaga`;
+    }
+    const left = max - this.occupancy();
+    return `${left} ${left === 1 ? 'vaga livre' : 'vagas livres'} — ninguém precisa de passe`;
+  });
+
   constructor() {
     // Categoria única ou já filtrada na tela: escolhe sozinho em vez de exigir um clique óbvio.
     effect(() => {
@@ -290,14 +409,14 @@ export class OgLiberarVagaComponent {
     });
   }
 
-  protected occupancyLabel(category: OrganizerTournamentCategory): string | null {
-    const max = category.maxTeams;
-    if (max == null || max <= 0) return null;
-    return `${this.occupancyByCategory()[category.id] ?? 0}/${max}`;
-  }
-
   protected statusLabel(pass: TournamentSpotPass): string {
     return STATUS_LABEL[pass.status];
+  }
+
+  /** Estado do passe vira cor: esperando (âmbar), usado (verde), morto (apagado). */
+  protected statusTone(pass: TournamentSpotPass): string {
+    if (pass.status === 'active') return 'waiting';
+    return pass.status === 'used' ? 'done' : '';
   }
 
   protected onSearchInput(event: Event): void {

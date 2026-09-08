@@ -889,6 +889,10 @@ export async function sendPartnerInviteFor(
     projectId,
     tournamentId,
     categoryId,
+    // Este portão só ABRE a porta — nenhuma inscrição nasce aqui, e por isso nada é queimado.
+    // Sem o passe, porém, o dono da vaga liberada não conseguiria nem chamar o parceiro numa
+    // categoria lotada: em torneio de dupla já formada, convidar é o primeiro passo.
+    {claimantUids: [uid, inviteeUid]},
   );
   const category = asTournamentCategory(findCategory(tournament, categoryId));
   if (!category) {

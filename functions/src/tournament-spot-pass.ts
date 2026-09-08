@@ -162,17 +162,26 @@ export async function getActiveSpotPassRefTx(
   return snap.data()?.status === "active" ? ref : null;
 }
 
-/** Queima o passe na mesma transação que cria a inscrição. */
+/**
+ * Queima o passe na mesma transação que cria a inscrição.
+ *
+ * `capacityExpanded` registra se ESTE passe chegou a subir o teto. Sem essa marca a devolução
+ * da vaga não teria como distinguir os dois desfechos possíveis da queima — subiu o teto, ou
+ * ocupou uma vaga que tinha acabado de vagar — e desceria o teto nos dois casos, tirando da
+ * categoria uma vaga que ninguém tinha acrescentado.
+ */
 export function markSpotPassUsedTx(
   tx: Transaction,
   ref: DocumentReference | null,
   registrationId: string,
+  capacityExpanded: boolean,
 ): void {
   if (!ref) return;
   tx.update(ref, {
     status: "used" satisfies SpotPassStatus,
     usedAt: FieldValue.serverTimestamp(),
     usedRegistrationId: registrationId,
+    capacityExpanded,
     updatedAt: FieldValue.serverTimestamp(),
   });
 }

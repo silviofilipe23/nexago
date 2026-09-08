@@ -99,6 +99,9 @@ export const createExternalPartnerInvite = onCall(async (request) => {
     projectId,
     tournamentId,
     categoryId,
+    // Mesma razão do convite comum: quem tem vaga liberada precisa conseguir chamar o parceiro
+    // — aqui, um que ainda nem tem conta. Nada nasce neste caminho, então nada é queimado.
+    {claimantUids: [uid]},
   );
   if (!findCategory(tournament, categoryId)) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");

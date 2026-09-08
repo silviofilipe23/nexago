@@ -26,7 +26,6 @@ import {
   type CategoryCapacityExpansion,
 } from "./tournament-category-capacity";
 import {
-  categoryCapacityFullOf,
   resolveCategoryMatchKeys,
   resolveTournamentDocRef,
   type TournamentData,
@@ -45,8 +44,10 @@ import {
 export interface SpotPassClaim {
   annotation: SpotPassAnnotation;
   tournamentRef: DocumentReference;
-  /** Ocupação medida pelo portão; a fila de espera não conta. */
-  occupied: number;
+  /** Chaves equivalentes da categoria, para recontar a ocupação dentro da transação. */
+  categoryKeys: string[];
+  projectId: string;
+  tournamentId: string;
 }
 
 /** Metade das leituras: o passe ainda vivo e o teto novo da categoria. */
@@ -75,21 +76,30 @@ export async function prepareSpotPassClaim(params: {
   const annotation = spotPassAnnotationOf(tournament);
   if (!annotation) return null;
 
-  const full = categoryCapacityFullOf(tournament);
   const tournamentRef = await resolveTournamentDocRef(db, projectId, tournamentId);
-  if (!tournamentRef || !full) {
+  if (!tournamentRef) {
     throw new HttpsError(
       "not-found",
       "Não foi possível abrir a vaga liberada: torneio não encontrado.",
     );
   }
 
-  return {annotation, tournamentRef, occupied: full.occupied};
+  const categoryKeys = [...resolveCategoryMatchKeys(tournament, annotation.categoryId)]
+    .filter((key) => key.length > 0)
+    .slice(0, 10);
+
+  return {annotation, tournamentRef, categoryKeys, projectId, tournamentId};
 }
 
 /**
  * Leituras da transação. Recusa quando o passe morreu entre o portão e a transação — outra
  * inscrição o queimou, ou o organizador revogou.
+ *
+ * A ocupação é RECONTADA aqui, e não herdada da medição do portão. Dois convidados se
+ * inscrevendo ao mesmo tempo medem o mesmo "16/16" no portão; a transação do segundo relê o
+ * torneio já com o teto 17 que o primeiro subiu, e com o número velho concluiria que ainda cabe
+ * alguém — deixando a categoria com 18 inscrições num teto de 17. Com a contagem fresca, o
+ * segundo vê 17/17 e sobe para 18, que é o que um passe promete: uma vaga a mais, por passe.
  *
  * `capacityPlan` nulo é desfecho normal: alguém pode ter cancelado uma inscrição nesse meio e
  * aberto uma vaga de verdade; aí o convidado ocupa a vaga que existe e o teto fica onde está.
@@ -107,13 +117,43 @@ export async function readSpotPassClaimTx(
   }
 
   const snap = await tx.get(claim.tournamentRef);
+  const occupied = await countCategoryOccupancyTx(tx, db, claim, "");
   const capacityPlan = planCategoryCapacityExpansion({
     categories: snap.data()?.categories as unknown[] | undefined,
     categoryKey: claim.annotation.categoryId,
-    occupied: claim.occupied,
+    occupied,
   });
 
   return {passRef, capacityPlan};
+}
+
+/**
+ * Vagas ocupadas na categoria, contadas DENTRO da transação — mesma regra do portão: 1
+ * documento de inscrição = 1 vaga, e a fila de espera não ocupa nada.
+ *
+ * `excludeRegistrationId` existe para a devolução: numa corrida com o delete, a inscrição que
+ * acabou de ser liberada ainda pode aparecer na consulta.
+ */
+async function countCategoryOccupancyTx(
+  tx: Transaction,
+  db: Firestore,
+  claim: Pick<SpotPassClaim, "categoryKeys" | "projectId" | "tournamentId">,
+  excludeRegistrationId: string,
+): Promise<number> {
+  if (claim.categoryKeys.length === 0) return 0;
+  const snap = await tx.get(
+    db
+      .collection(artifactsInscriptionsPath(claim.projectId))
+      .where("tournamentId", "==", claim.tournamentId)
+      .where("categoryId", "in", claim.categoryKeys),
+  );
+  let occupied = 0;
+  for (const doc of snap.docs) {
+    if (doc.id === excludeRegistrationId) continue;
+    if (doc.data()?.waitlist === true) continue;
+    occupied++;
+  }
+  return occupied;
 }
 
 /** Escritas da transação: teto novo no torneio, passe queimado. */
@@ -127,7 +167,7 @@ export function writeSpotPassClaimTx(
   if (reads.capacityPlan) {
     tx.update(claim.tournamentRef, {categories: reads.capacityPlan.categories});
   }
-  markSpotPassUsedTx(tx, reads.passRef, registrationId);
+  markSpotPassUsedTx(tx, reads.passRef, registrationId, reads.capacityPlan != null);
 }
 
 /**
@@ -177,26 +217,22 @@ export async function restoreSpotPassSpot(params: {
   if (!tournamentRef) return {shrunk: false, passRestored: false};
 
   const passRef = db.collection(SPOT_PASSES_COLLECTION).doc(passId);
-  const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
 
   return db.runTransaction(async (tx) => {
     const tournamentSnap = await tx.get(tournamentRef);
     const tournament = (tournamentSnap.data() ?? {}) as TournamentData;
-    const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
-    const keys = [...categoryKeys].filter((k) => k.length > 0).slice(0, 10);
-    if (keys.length === 0) return {shrunk: false, passRestored: false};
+    const categoryKeys = [...resolveCategoryMatchKeys(tournament, categoryId)]
+      .filter((k) => k.length > 0)
+      .slice(0, 10);
+    if (categoryKeys.length === 0) return {shrunk: false, passRestored: false};
 
-    const occupancySnap = await tx.get(
-      inscriptionsRef
-        .where("tournamentId", "==", tournamentId)
-        .where("categoryId", "in", keys),
+    const occupied = await countCategoryOccupancyTx(
+      tx,
+      db,
+      {categoryKeys, projectId, tournamentId},
+      // Numa corrida com o delete, a inscrição liberada ainda pode aparecer na consulta.
+      registrationId,
     );
-    let occupied = 0;
-    for (const doc of occupancySnap.docs) {
-      if (doc.id === registrationId) continue; // ainda visível numa corrida com o delete
-      if (doc.data()?.waitlist === true) continue;
-      occupied++;
-    }
 
     const passSnap = await tx.get(passRef);
     const passData = passSnap.data() ?? {};
@@ -205,11 +241,16 @@ export async function restoreSpotPassSpot(params: {
       passData.status === "used" &&
       String(passData.usedRegistrationId ?? "").trim() === registrationId;
 
-    const plan = planCategoryCapacityShrink({
-      categories: tournament.categories as unknown[] | undefined,
-      categoryKey: categoryId,
-      occupied,
-    });
+    // Só desce o teto que ESTE passe subiu. Quando a queima pegou uma vaga que tinha acabado de
+    // vagar, nada foi acrescentado — descer aqui tiraria da categoria uma vaga que já era dela.
+    const plan =
+      passBelongsHere && passData.capacityExpanded === true ?
+        planCategoryCapacityShrink({
+          categories: tournament.categories as unknown[] | undefined,
+          categoryKey: categoryId,
+          occupied,
+        }) :
+        null;
 
     if (plan) {
       tx.update(tournamentRef, {categories: plan.categories});
@@ -224,6 +265,7 @@ export async function restoreSpotPassSpot(params: {
         status: "active" satisfies SpotPassStatus,
         usedAt: FieldValue.delete(),
         usedRegistrationId: FieldValue.delete(),
+        capacityExpanded: FieldValue.delete(),
         restoredAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });

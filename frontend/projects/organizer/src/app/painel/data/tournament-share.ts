@@ -104,3 +104,29 @@ export function whatsAppShareUrl(text: string): string {
 export function tournamentQrFileName(name: string, id: string): string {
   return `torneio-${toTournamentSlugId(name, id)}-qr.png`;
 }
+
+/**
+ * Link da vaga NOMINAL: é a própria inscrição da categoria.
+ *
+ * Não carrega token nenhum de propósito — o passe já está preso ao uid do atleta, então quem
+ * mais abrir o link esbarra na categoria lotada. O link é só um canal de entrega, para quando o
+ * push não basta (app desinstalado, notificação desligada).
+ */
+export function spotPassRegistrationLink(
+  athleteBaseUrl: string,
+  tournamentId: string,
+  categoryId: string,
+): string {
+  const query = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
+  return `${trimBase(athleteBaseUrl)}/torneios/${tournamentId}/inscricao${query}`;
+}
+
+/**
+ * Link da vaga AO PORTADOR: a tela de resgate no portal do atleta.
+ *
+ * O id do link É o token (aleatório, não adivinhável). Quem abre e resgata vira dono de uma
+ * vaga nominal — e aí passa a valer tudo que vale para o passe.
+ */
+export function spotPassClaimLink(athleteBaseUrl: string, linkId: string): string {
+  return `${trimBase(athleteBaseUrl)}/vaga/${linkId}`;
+}

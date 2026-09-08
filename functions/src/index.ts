@@ -80,6 +80,11 @@ import {
   organizerRevokeTournamentSpotPass,
 } from "./tournament-spot-pass-ops";
 import {
+  claimSpotPassLink,
+  organizerCreateSpotPassLink,
+  organizerRevokeSpotPassLink,
+} from "./tournament-spot-pass-link";
+import {
   scheduleMatch,
   rescheduleMatch,
   unscheduleMatch,
@@ -223,6 +228,9 @@ export {
   organizerCreateTeamRegistration,
   organizerGrantTournamentSpotPass,
   organizerRevokeTournamentSpotPass,
+  organizerCreateSpotPassLink,
+  organizerRevokeSpotPassLink,
+  claimSpotPassLink,
   organizerMoveToWaitlist,
   organizerRemoveFromCategory,
   sendCategoryCommunication,

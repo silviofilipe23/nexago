@@ -2313,6 +2313,20 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Link de vaga ao portador. O id do doc É o token (aleatório, não adivinhável), então
+    // qualquer autenticado que tenha o link consegue LER — é o que a tela de resgate mostra
+    // antes de o atleta decidir ("o organizador abriu uma vaga na Feminina B"). Varrer a
+    // coleção, não: a listagem é de quem gerencia o torneio, e a ordem do OR é orçamento de
+    // acessos (o primeiro ramo não faz `get()` nenhum).
+    match /tournamentSpotPassLinks/{linkId} {
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && (
+        resource.data.createdByUid == request.auth.uid ||
+        canManageTournament(resource.data.tournamentId)
+      );
+      allow create, update, delete: if false;
+    }
+
     // Convites de parceiro para inscrição em torneio (escrita via Cloud Functions)
     match /tournamentRegistrationInvites/{inviteId} {
       allow read: if request.auth != null && (

@@ -79,6 +79,16 @@ export const routes: Routes = [
       ),
   },
   {
+    // Resgate de vaga liberada por link. O id É o token; quem abre precisa estar logado, e o
+    // `authGuard` traz de volta para cá depois do login.
+    path: 'vaga/:linkId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./tournaments/spot-pass/spot-pass-claim.component').then(
+        (m) => m.SpotPassClaimComponent,
+      ),
+  },
+  {
     path: 'painel',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

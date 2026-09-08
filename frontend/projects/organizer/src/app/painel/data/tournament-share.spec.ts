@@ -1,5 +1,7 @@
 import {
   slugifyTournamentName,
+  spotPassClaimLink,
+  spotPassRegistrationLink,
   toTournamentSlugId,
   tournamentQrFileName,
   tournamentShareLink,
@@ -117,5 +119,40 @@ describe('whatsAppShareUrl', () => {
 describe('tournamentQrFileName', () => {
   it('usa o slug do torneio', () => {
     expect(tournamentQrFileName('Copa de Verão', 'aBc123')).toBe('torneio-copa-de-verao-aBc123-qr.png');
+  });
+});
+
+describe('links de vaga liberada', () => {
+  // O link nominal NÃO carrega token: o passe já está preso ao uid, então quem mais abrir
+  // esbarra na categoria lotada. Um token aqui só daria a impressão de segredo.
+  it('link nominal é a própria inscrição da categoria', () => {
+    expect(spotPassRegistrationLink('https://atleta.nexago.com.br', 't1', 'cat-a')).toBe(
+      'https://atleta.nexago.com.br/torneios/t1/inscricao?categoryId=cat-a',
+    );
+  });
+
+  it('categoria com caracteres especiais é escapada', () => {
+    expect(spotPassRegistrationLink('https://a.b', 't1', 'Feminina B/C')).toBe(
+      'https://a.b/torneios/t1/inscricao?categoryId=Feminina%20B%2FC',
+    );
+  });
+
+  it('sem categoria, cai na inscrição do torneio', () => {
+    expect(spotPassRegistrationLink('https://a.b', 't1', '')).toBe(
+      'https://a.b/torneios/t1/inscricao',
+    );
+  });
+
+  it('link do grupo aponta para a tela de resgate', () => {
+    expect(spotPassClaimLink('https://atleta.nexago.com.br', 'tok3n')).toBe(
+      'https://atleta.nexago.com.br/vaga/tok3n',
+    );
+  });
+
+  it('barra sobrando no host não vira barra dupla', () => {
+    expect(spotPassClaimLink('https://a.b/', 'tok3n')).toBe('https://a.b/vaga/tok3n');
+    expect(spotPassRegistrationLink('https://a.b//', 't1', 'c1')).toBe(
+      'https://a.b/torneios/t1/inscricao?categoryId=c1',
+    );
   });
 });

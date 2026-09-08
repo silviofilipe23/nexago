@@ -7,13 +7,35 @@ import {
   type AthleteSearchResult,
 } from '../data/athlete-search-repository';
 import { initialsOf } from '../data/mock-data';
-import type { TournamentSpotPass } from '../data/spot-passes-repository';
+import type {
+  TournamentSpotPass,
+  TournamentSpotPassLink,
+} from '../data/spot-passes-repository';
+import { spotPassClaimLink, spotPassRegistrationLink } from '../data/tournament-share';
 import type { OrganizerTournamentCategory } from '../data/tournament.model';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 
 const SEARCH_DEBOUNCE_MS = 350;
+const COPIED_FEEDBACK_MS = 2000;
+
+/** Espelham `MAX_LINK_SPOTS` / `DEFAULT_LINK_HOURS` da Cloud Function. */
+const MAX_LINK_SPOTS = 20;
+const DEFAULT_LINK_HOURS = 24;
+
+const TTL_OPTIONS = [
+  { hours: 6, label: '6 horas' },
+  { hours: DEFAULT_LINK_HOURS, label: '24 horas' },
+  { hours: 48, label: '2 dias' },
+  { hours: 7 * 24, label: '7 dias' },
+] as const;
+
+export interface LiberarVagaLinkSubmit {
+  categoryId: string;
+  spots: number;
+  expiresInHours: number;
+}
 
 export interface LiberarVagaSubmit {
   categoryId: string;
@@ -83,6 +105,110 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
           </p>
         }
 
+        <div class="og-lv-tabs" role="tablist" aria-label="Como liberar a vaga">
+          <button
+            type="button"
+            role="tab"
+            [class.active]="tab() === 'atleta'"
+            [attr.aria-selected]="tab() === 'atleta'"
+            (click)="tab.set('atleta')"
+          >
+            Atleta
+          </button>
+          <button
+            type="button"
+            role="tab"
+            [class.active]="tab() === 'link'"
+            [attr.aria-selected]="tab() === 'link'"
+            (click)="tab.set('link')"
+          >
+            Link do grupo
+          </button>
+        </div>
+
+        @if (tab() === 'link') {
+          <p class="og-lv-note">
+            Um link só, para mandar no grupo: as primeiras pessoas que abrirem ficam com as
+            vagas. Quem já está inscrito, ou não cabe no nível da categoria, é recusado na hora
+            do resgate.
+          </p>
+
+          <div class="og-lv-form">
+            <label class="og-lv-num">
+              <span>Vagas</span>
+              <input
+                type="number"
+                min="1"
+                [max]="maxSpots"
+                [value]="spots()"
+                (input)="onSpotsInput($event)"
+              />
+            </label>
+            <div class="og-lv-ttl">
+              <span>Validade</span>
+              <div class="og-lv-cats">
+                @for (option of ttlOptions; track option.hours) {
+                  <button
+                    type="button"
+                    class="og-chip"
+                    [class.active]="expiresInHours() === option.hours"
+                    [attr.aria-pressed]="expiresInHours() === option.hours"
+                    (click)="expiresInHours.set(option.hours)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            </div>
+            <button
+              type="button"
+              class="og-mini-btn og-mini-btn-primary"
+              [disabled]="busy() || categoryId() === ''"
+              (click)="requestLink()"
+            >
+              Gerar link
+            </button>
+          </div>
+
+          <div class="og-lv-sec">
+            <h4>Links ativos</h4>
+            @if (linksForCategory().length > 0) {
+              <span class="og-lv-count">{{ linksForCategory().length }}</span>
+            }
+          </div>
+          @if (linksForCategory().length === 0) {
+            <p class="og-lv-empty">Nenhum link ativo nesta categoria.</p>
+          } @else {
+            <ul class="og-lv-passes">
+              @for (l of linksForCategory(); track l.id) {
+                <li>
+                  <span class="og-lv-dot" [class]="linkTone(l)" aria-hidden="true"></span>
+                  <span class="og-lv-name">{{ remainingLabel(l) }}</span>
+                  <span class="og-lv-state">{{ expiryLabel(l) }}</span>
+                  <button
+                    type="button"
+                    class="og-mini-btn"
+                    [attr.aria-label]="'Copiar o link de ' + remainingLabel(l)"
+                    (click)="copy(l.id, claimLink(l))"
+                  >
+                    {{ copiedId() === l.id ? 'Copiado' : 'Copiar' }}
+                  </button>
+                  @if (l.status === 'active') {
+                    <button
+                      type="button"
+                      class="og-mini-btn"
+                      [disabled]="busy()"
+                      (click)="linkRevoked.emit(l.id)"
+                    >
+                      Revogar
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        } @else {
+
         <input
           type="search"
           class="og-lv-search"
@@ -137,6 +263,14 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
                   <button
                     type="button"
                     class="og-mini-btn"
+                    [attr.aria-label]="'Copiar o link da vaga de ' + p.athleteName"
+                    (click)="copy(p.id, nominalLink(p))"
+                  >
+                    {{ copiedId() === p.id ? 'Copiado' : 'Copiar link' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="og-mini-btn"
                     [disabled]="busy()"
                     [attr.aria-label]="'Revogar a vaga de ' + p.athleteName"
                     (click)="revoked.emit(p.id)"
@@ -147,6 +281,7 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
               </li>
             }
           </ul>
+        }
         }
       </div>
     </og-card>
@@ -309,6 +444,70 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
       font-size: 11.5px;
       color: var(--nx-text-mute);
     }
+    .og-lv-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 3px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-pill);
+      background: var(--nx-surface-0);
+      width: fit-content;
+    }
+    .og-lv-tabs button {
+      height: 28px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: var(--nx-r-pill);
+      background: transparent;
+      color: var(--nx-text-mute);
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .og-lv-tabs button.active {
+      background: var(--nx-orange-tint);
+      color: var(--nx-text);
+      font-weight: 600;
+    }
+    .og-lv-tabs button:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 1px;
+    }
+    .og-lv-form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .og-lv-num,
+    .og-lv-ttl {
+      display: grid;
+      gap: 5px;
+    }
+    .og-lv-num > span,
+    .og-lv-ttl > span {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-lv-num input {
+      width: 72px;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-mono);
+      font-size: 14px;
+    }
+    .og-lv-num input:focus {
+      outline: 2px solid var(--nx-orange-500);
+    }
     .og-lv-empty {
       margin: 0;
       padding: 14px;
@@ -326,16 +525,28 @@ export class OgLiberarVagaComponent {
   readonly occupancyByCategory = input<Record<string, number>>({});
   readonly categoriaInicial = input<string | null>(null);
   readonly passes = input<readonly TournamentSpotPass[]>([]);
+  readonly links = input<readonly TournamentSpotPassLink[]>([]);
+  readonly tournamentId = input('');
+  /** `environment.athleteAppUrl` — o link é para o atleta abrir, não para o painel. */
+  readonly athleteBaseUrl = input('');
   readonly busy = input(false);
 
   readonly submitted = output<LiberarVagaSubmit>();
   readonly revoked = output<string>();
+  readonly linkRequested = output<LiberarVagaLinkSubmit>();
+  readonly linkRevoked = output<string>();
 
   protected readonly minTerm = ATHLETE_SEARCH_MIN_TERM;
   protected readonly nameOf = athleteDisplayName;
   protected readonly initialsOf = initialsOf;
 
+  protected readonly tab = signal<'atleta' | 'link'>('atleta');
   protected readonly categoryId = signal('');
+  protected readonly spots = signal(1);
+  protected readonly expiresInHours = signal(DEFAULT_LINK_HOURS);
+  protected readonly copiedId = signal('');
+  protected readonly maxSpots = MAX_LINK_SPOTS;
+  protected readonly ttlOptions = TTL_OPTIONS;
   protected readonly searchTerm = signal('');
   protected readonly candidates = signal<AthleteSearchResult[]>([]);
   protected readonly searching = signal(false);
@@ -407,6 +618,77 @@ export class OgLiberarVagaComponent {
       }
       this.categoryId.set(cats.length === 1 ? cats[0].id : '');
     });
+  }
+
+  /** Links vivos da categoria em foco. Revogado e esgotado saem: não há o que copiar. */
+  protected readonly linksForCategory = computed(() =>
+    this.links().filter(
+      (l) => l.categoryId === this.categoryId() && l.status !== 'revoked',
+    ),
+  );
+
+  protected nominalLink(pass: TournamentSpotPass): string {
+    return spotPassRegistrationLink(this.athleteBaseUrl(), this.tournamentId(), pass.categoryId);
+  }
+
+  protected claimLink(link: TournamentSpotPassLink): string {
+    return spotPassClaimLink(this.athleteBaseUrl(), link.id);
+  }
+
+  protected remainingLabel(link: TournamentSpotPassLink): string {
+    if (link.status === 'exhausted' || link.remaining <= 0) return 'Vagas esgotadas';
+    return `${link.remaining} de ${link.total} ${link.total === 1 ? 'vaga' : 'vagas'}`;
+  }
+
+  /** "expira em 22h" / "expirado": o prazo é a válvula do link esquecido no grupo. */
+  protected expiryLabel(link: TournamentSpotPassLink): string {
+    const at = link.expiresAt;
+    if (!at) return '';
+    const ms = at.getTime() - Date.now();
+    if (ms <= 0) return 'Prazo vencido';
+    const hours = Math.floor(ms / 3_600_000);
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      return `Expira em ${days} ${days === 1 ? 'dia' : 'dias'}`;
+    }
+    if (hours >= 1) return `Expira em ${hours}h`;
+    return `Expira em ${Math.max(1, Math.floor(ms / 60_000))} min`;
+  }
+
+  protected linkTone(link: TournamentSpotPassLink): string {
+    if (link.status !== 'active' || link.remaining <= 0) return '';
+    return 'waiting';
+  }
+
+  protected onSpotsInput(event: Event): void {
+    const raw = Number.parseInt((event.target as HTMLInputElement).value, 10);
+    const clamped = Number.isFinite(raw) ? Math.min(Math.max(raw, 1), MAX_LINK_SPOTS) : 1;
+    this.spots.set(clamped);
+  }
+
+  protected requestLink(): void {
+    const categoryId = this.categoryId();
+    if (!categoryId) return;
+    this.linkRequested.emit({
+      categoryId,
+      spots: this.spots(),
+      expiresInHours: this.expiresInHours(),
+    });
+  }
+
+  /** Copiar é a ação inteira desta tela: sem clipboard, o link não sai daqui. */
+  protected async copy(id: string, url: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(url);
+      this.copiedId.set(id);
+      setTimeout(() => {
+        if (this.copiedId() === id) this.copiedId.set('');
+      }, COPIED_FEEDBACK_MS);
+    } catch {
+      // Clipboard negado (contexto inseguro, permissão): o link segue no botão de compartilhar
+      // do navegador, e insistir com um erro não devolveria o texto para o organizador.
+      this.copiedId.set('');
+    }
   }
 
   protected statusLabel(pass: TournamentSpotPass): string {

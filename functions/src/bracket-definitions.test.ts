@@ -25,7 +25,11 @@ import {BRACKET_24_TEAMS} from "./bracket-definitions/bracket-24-teams";
 import {BRACKET_25_TEAMS} from "./bracket-definitions/bracket-25-teams";
 import {BRACKET_26_TEAMS} from "./bracket-definitions/bracket-26-teams";
 import {BRACKET_27_TEAMS} from "./bracket-definitions/bracket-27-teams";
+import {BRACKET_32_TEAMS} from "./bracket-definitions/bracket-32-teams";
 import {
+  BRACKET_DEFINITIONS,
+  SUPPORTED_DE_TEAM_COUNTS,
+  describeTeamCounts,
   type MatchDefinition,
   validateBracketDefinition,
 } from "./bracket-definitions/bracket-definitions";
@@ -56,6 +60,7 @@ const ALL_BRACKET_DEFINITIONS: [number, MatchDefinition[]][] = [
   [25, BRACKET_25_TEAMS],
   [26, BRACKET_26_TEAMS],
   [27, BRACKET_27_TEAMS],
+  [32, BRACKET_32_TEAMS],
 ];
 
 describe("validateBracketDefinition", () => {
@@ -244,5 +249,35 @@ describe("buildMatchesFromDefinition", () => {
     assert.deepEqual(m1.winnerAdvance, {matchNumber: 3, teamSlot: "teamAId"});
     const m2 = out.find((m) => m.matchNumber === 2)!;
     assert.deepEqual(m2.winnerAdvance, {matchNumber: 3, teamSlot: "teamBId"});
+  });
+});
+
+/** O conjunto de plantas tem buraco (não há 28–31). A mensagem que o
+ *  organizador lê ao ser bloqueado sai daqui, e um "4 a 32" prometeria uma
+ *  quantidade que `generateCategoryBracket` recusa. */
+describe("describeTeamCounts", () => {
+  it("agrupa contíguos em faixas e separa o avulso", () => {
+    assert.equal(describeTeamCounts([4, 5, 6, 32]), "4 a 6 ou 32");
+    assert.equal(describeTeamCounts([4, 5, 6, 7]), "4 a 7");
+    assert.equal(describeTeamCounts([32]), "32");
+    assert.equal(describeTeamCounts([4, 8, 16]), "4, 8 ou 16");
+    assert.equal(describeTeamCounts([]), "");
+  });
+
+  it("descreve as plantas registradas sem prometer 28 a 31", () => {
+    assert.equal(describeTeamCounts(SUPPORTED_DE_TEAM_COUNTS), "4 a 27 ou 32");
+    for (const n of [28, 29, 30, 31]) {
+      assert.equal(BRACKET_DEFINITIONS[n], undefined, `${n} não tem planta`);
+    }
+  });
+
+  it("cada tamanho que a descrição promete tem planta de verdade", () => {
+    for (const n of SUPPORTED_DE_TEAM_COUNTS) {
+      assert.ok(BRACKET_DEFINITIONS[n], `${n} anunciado mas sem planta`);
+    }
+    assert.equal(
+      SUPPORTED_DE_TEAM_COUNTS.length,
+      Object.keys(BRACKET_DEFINITIONS).length,
+    );
   });
 });

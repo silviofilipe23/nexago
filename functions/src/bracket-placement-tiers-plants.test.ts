@@ -19,7 +19,7 @@ import {
  *   3. o degrau de cada rodada é o da sua faixa, e nunca melhora conforme se
  *      cai mais cedo.
  */
-describe("degraus contra as 25 plantas de dupla eliminação", () => {
+describe("degraus contra as plantas de dupla eliminação", () => {
   for (const [teamCount, definitions] of Object.entries(BRACKET_DEFINITIONS)) {
     const total = Number(teamCount);
     // Materializa a fiação como `buildMatchesFromDefinition` faz: a partida cujo

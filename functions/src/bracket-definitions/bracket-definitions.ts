@@ -46,6 +46,7 @@ import {BRACKET_24_TEAMS} from "./bracket-24-teams";
 import {BRACKET_25_TEAMS} from "./bracket-25-teams";
 import {BRACKET_26_TEAMS} from "./bracket-26-teams";
 import {BRACKET_27_TEAMS} from "./bracket-27-teams";
+import {BRACKET_32_TEAMS} from "./bracket-32-teams";
 
 export const BRACKET_DEFINITIONS: {[numTeams: number]: MatchDefinition[]} = {
   4: BRACKET_4_TEAMS,
@@ -72,7 +73,36 @@ export const BRACKET_DEFINITIONS: {[numTeams: number]: MatchDefinition[]} = {
   25: BRACKET_25_TEAMS,
   26: BRACKET_26_TEAMS,
   27: BRACKET_27_TEAMS,
+  32: BRACKET_32_TEAMS,
 };
+
+/**
+ * Tamanhos de chave com planta, em ordem crescente. O conjunto TEM buraco —
+ * 4 a 27 e 32, sem 28 a 31 — então nunca descreva a cobertura como uma faixa
+ * de min a max.
+ */
+export const SUPPORTED_DE_TEAM_COUNTS: readonly number[] = Object.keys(
+  BRACKET_DEFINITIONS,
+)
+  .map(Number)
+  .sort((a, b) => a - b);
+
+/**
+ * Descreve tamanhos suportados agrupando os contíguos em faixas — "4 a 27 ou
+ * 32", nunca "4 a 32". Um min-a-max diria ao organizador que uma quantidade
+ * sem planta (28 a 31) é aceita, e a chave seria recusada só na publicação.
+ */
+export function describeTeamCounts(counts: readonly number[]): string {
+  const ranges: string[] = [];
+  for (let i = 0; i < counts.length; ) {
+    let end = i;
+    while (end + 1 < counts.length && counts[end + 1] === counts[end] + 1) end++;
+    ranges.push(end === i ? `${counts[i]}` : `${counts[i]} a ${counts[end]}`);
+    i = end + 1;
+  }
+  if (ranges.length <= 1) return ranges[0] ?? "";
+  return `${ranges.slice(0, -1).join(", ")} ou ${ranges[ranges.length - 1]}`;
+}
 
 /** Mapeia o bracket da definição para o `matchType` usado no app/Firestore. */
 export function bracketToMatchType(bracket: BracketName): string {

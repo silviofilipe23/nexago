@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../firebase_options.dart';
 import 'foreground_local_notifications.dart';
+import 'match_live_notification.dart';
 
 typedef NotificationMessageHandler = void Function(RemoteMessage message);
 typedef NotificationDataHandler = void Function(Map<String, dynamic> data);
@@ -22,6 +23,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
   }
   debugPrint('FCM background message: ${message.messageId}');
+
+  // Placar ao vivo: com o app fechado é ESTE isolate que desenha e atualiza a
+  // notificação fixa da tela bloqueada. É por isso que a mensagem do Android
+  // sai data-only do servidor — com bloco `notification` o sistema desenharia
+  // sozinho e este handler não rodaria de forma confiável.
+  await MatchLiveNotification.handleFromBackground(message.data);
 }
 
 class NotificationService {
@@ -89,6 +96,13 @@ class NotificationService {
 
     _messageForegroundSub = FirebaseMessaging.onMessage.listen((message) async {
       debugPrint('FCM foreground message: ${message.messageId}');
+      // Placar ao vivo tem tratamento próprio (notificação fixa que se
+      // substitui) e não pode virar banner comum a cada ponto.
+      if (MatchLiveNotification.handles(message.data)) {
+        await MatchLiveNotification.handleFromForeground(message.data);
+        _onForegroundMessage?.call(message);
+        return;
+      }
       if (_localNotifications.shouldPresentLocally(message)) {
         await _localNotifications.showFromRemoteMessage(message);
       }

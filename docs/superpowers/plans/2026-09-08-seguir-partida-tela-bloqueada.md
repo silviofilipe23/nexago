@@ -277,11 +277,11 @@ String freshnessSuffix(DateTime updatedAt, DateTime now);
 **Interfaces:**
 - Produces: `MatchLiveNotification.handle(Map<String, dynamic> data)` — mostra, atualiza ou cancela; e `MatchLiveNotification.ensureChannels()`.
 
-- [ ] **Step 1: Criar os dois canais** junto do `default` que já existe (`foreground_local_notifications.dart:18`):
+- [x] **Step 1: Criar os dois canais** junto do `default` que já existe (`foreground_local_notifications.dart:18`):
   - `match_live` / "Placar ao vivo" / `Importance.low`
   - `match_live_alerts` / "Momentos do jogo" / `Importance.high`
 
-- [ ] **Step 2: Implementar `MatchLiveNotification.handle`**
+- [x] **Step 2: Implementar `MatchLiveNotification.handle`**
 
   Fixa, no canal `match_live`:
   ```dart
@@ -298,10 +298,18 @@ String freshnessSuffix(DateTime updatedAt, DateTime now);
 
   **Não usar `RemoteViews`/`styleInformation` customizado** (ver Global Constraints).
 
-- [ ] **Step 3: Ligar no `firebaseMessagingBackgroundHandler`** (`notification_service.dart:18`), que hoje só faz `debugPrint`: se `matchLiveNotificationContentFrom(message.data)` devolver não-nulo, despacha para `MatchLiveNotification.handle` e retorna. Fazer o mesmo no caminho de foreground.
+- [x] **Step 3: Ligar nos DOIS caminhos.** Background:
+  `MatchLiveNotification.handleFromBackground` — inicializa o plugin, porque o isolate de
+  background não herda nada do principal. Foreground: `handleFromForeground`, que **não**
+  reinicializa (isso derrubaria o handler de toque registrado por
+  `ForegroundLocalNotifications`) e intercepta ANTES do banner comum, senão cada ponto viraria
+  um banner. Original:
+- [x] **Step 3 (original): Ligar no `firebaseMessagingBackgroundHandler`** (`notification_service.dart:18`), que hoje só faz `debugPrint`: se `matchLiveNotificationContentFrom(message.data)` devolver não-nulo, despacha para `MatchLiveNotification.handle` e retorna. Fazer o mesmo no caminho de foreground.
 
-- [ ] **Step 4: Rodar a suíte** — `flutter test`, sem regressão.
-- [ ] **Step 5: Commit** — `feat(app): notificacao fixa de placar ao vivo no Android`
+- [~] **Step 4: Rodar a suíte** — NÃO EXECUTADO (sem Flutter no container). `flutter test` +
+  `flutter analyze`. Esta task não tem teste próprio: `_apply` fala com o plugin, e o que dava
+  para testar já está na Task 6. A validação real é a Task 12.
+- [x] **Step 5: Commit** — `feat(app): notificacao fixa de placar ao vivo no Android`
 
 ---
 

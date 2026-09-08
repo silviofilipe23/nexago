@@ -12,6 +12,7 @@ import 'nexa_duo_avatars.dart';
 import '../../domain/tournament_match_display.dart';
 import 'tournament_match_card_premium_skin.dart';
 import 'tournament_match_live_badge.dart';
+import 'follow_match_button.dart';
 
 /// Card de partida no desenho da Copa VH, o mesmo do portal do atleta
 /// (`category-matches.component`): linha mono no topo (nº do jogo + contexto à
@@ -85,6 +86,18 @@ class TournamentMatchCard extends ConsumerWidget {
                 teamAProbability != null ? '${100 - teamAProbability}%' : null,
           ),
           if (row.pills.isNotEmpty) _Pills(pills: row.pills),
+          // "Seguir partida" mora AQUI, e não só no Modo Focus, porque o Focus
+          // some para quem não está jogando: `athleteFocusHomeTargetProvider`
+          // devolve null fora do dia do evento e para atleta eliminado. Sem
+          // isto, justamente o espectador — que é quem mais quer acompanhar —
+          // não teria como seguir. Este card é a superfície pública (chave,
+          // grupos, categoria).
+          //
+          // Não replicar no portal web: lá não há push, o botão não faria nada.
+          Align(
+            alignment: Alignment.centerRight,
+            child: FollowMatchButton(match: match, compact: true),
+          ),
         ],
       ),
     );

@@ -8,8 +8,6 @@
  * `docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md`.
  */
 
-import {createHash} from "node:crypto";
-
 import {FieldValue, Firestore, Timestamp, getFirestore} from "firebase-admin/firestore";
 import {TopicMessage, getMessaging} from "firebase-admin/messaging";
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
@@ -259,6 +257,24 @@ export function resolveLiveUpdate(
 
 // --- Tópicos ----------------------------------------------------------------
 
+/**
+ * FNV-1a de 32 bits sobre UNIDADES DE CÓDIGO UTF-16, em base 36.
+ *
+ * O app precisa gerar exatamente o mesmo nome de tópico (`matchTopicName` em
+ * `followed_matches_repository.dart`) ou o push simplesmente não chega — falha
+ * silenciosa, sem erro em lugar nenhum. SHA-1 obrigaria o pacote `crypto` no
+ * Flutter; isto aqui são cinco linhas idênticas nas duas linguagens, e os dois
+ * lados travam os mesmos vetores no teste.
+ */
+export function fnv1a32(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
 /** Alfabeto aceito pelo FCM em nome de tópico. */
 const TOPIC_SAFE = /^[a-zA-Z0-9\-_.~%]+$/;
 const TOPIC_UNSAFE = /[^a-zA-Z0-9\-_.~%]/g;
@@ -275,8 +291,7 @@ function safeTopicSegment(matchId: string): string {
   if (!id) throw new Error("matchId obrigatório para montar o tópico");
   if (TOPIC_SAFE.test(id)) return id;
 
-  const digest = createHash("sha1").update(id).digest("hex").slice(0, 10);
-  return `${id.replace(TOPIC_UNSAFE, "_")}.${digest}`;
+  return `${id.replace(TOPIC_UNSAFE, "_")}.${fnv1a32(id)}`;
 }
 
 /**

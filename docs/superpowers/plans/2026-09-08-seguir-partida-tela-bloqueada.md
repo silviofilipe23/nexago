@@ -332,11 +332,16 @@ class FollowedMatchesRepository {
 String matchTopicName(String matchId, {required bool ios});  // espelha matchLiveTopics do backend
 ```
 
-- [ ] **Step 1: Escrever o teste que falha** — `matchTopicName` gera exatamente o mesmo nome que `matchLiveTopics` do backend (mesma sanitização; **duplique os casos da Task 2 aqui** — divergência entre os dois lados é silenciosa e o push simplesmente não chega).
-- [ ] **Step 2: Rodar e confirmar que falha**
-- [ ] **Step 3: Implementar.** `follow` grava o doc **antes** de `subscribeToTopic` (se o subscribe falhar, o re-sync conserta). `unfollow` desassina e depois apaga.
-- [ ] **Step 4: Rodar a suíte** — `flutter test`
-- [ ] **Step 5: Commit** — `feat(app): repositorio de partidas seguidas e topicos FCM`
+- [x] **Step 1: Escrever o teste que falha** — `matchTopicName` gera exatamente o mesmo nome que
+  `matchLiveTopics` do backend. **O backend trocou SHA-1 por FNV-1a de 32 bits nesta task:**
+  SHA-1 exigiria o pacote `crypto` no Flutter só para isso, e FNV-1a são cinco linhas idênticas
+  nas duas linguagens. Os DOIS lados travam os mesmos vetores fixos (`a/b` -> `g8wk3l` etc.) —
+  é o único jeito de a divergência quebrar um teste em vez de aparecer em quadra com o push
+  indo para um tópico que ninguém assina.
+- [~] **Step 2: Rodar e confirmar que falha** — NÃO EXECUTADO (sem Flutter no container).
+- [x] **Step 3: Implementar.** `follow` grava o doc **antes** de `subscribeToTopic` (se o subscribe falhar, o re-sync conserta). `unfollow` desassina e depois apaga.
+- [~] **Step 4: Rodar a suíte** — NÃO EXECUTADO. `flutter test` + `flutter analyze`
+- [x] **Step 5: Commit** — `feat(app): repositorio de partidas seguidas e topicos FCM`
 
 ---
 

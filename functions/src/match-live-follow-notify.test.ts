@@ -11,6 +11,7 @@ import {
   SCORE_THROTTLE_MS,
   buildMatchLiveContext,
   buildMatchLiveMessages,
+  fnv1a32,
   liveScoreSignature,
   matchLiveTopics,
   pairLabelFrom,
@@ -627,4 +628,19 @@ test("sem pointAlert os campos vão vazios, nunca undefined", () => {
 
   assert.equal(android.data?.pointAlertSide, "");
   assert.equal(android.data?.pointAlertClosesMatch, "false");
+});
+
+test("fnv1a32 trava os vetores que o app tem que reproduzir", () => {
+  // Estes MESMOS pares estão em followed_matches_test.dart. Se um lado mudar,
+  // o outro quebra — sem isso a divergência só apareceria em quadra, com o
+  // push indo para um tópico que ninguém assina.
+  assert.equal(fnv1a32("a/b"), "g8wk3l");
+  assert.equal(fnv1a32("a b"), "4m7u2a");
+  assert.equal(fnv1a32("partida com espaço"), "lfqgei");
+  assert.equal(fnv1a32("m1"), "15454vf");
+});
+
+test("tópico de id sujo é o id saneado mais o hash do original", () => {
+  assert.equal(matchLiveTopics("a/b").android, "match-a_b.g8wk3l-android");
+  assert.equal(matchLiveTopics("a b").ios, "match-a_b.4m7u2a-ios");
 });

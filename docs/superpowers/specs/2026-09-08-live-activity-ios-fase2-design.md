@@ -82,6 +82,35 @@ recomendada pela Apple para Live Activity é 5–15s; nossa janela de 20s já é
 - Token em `users/{uid}/liveActivityTokens/{installationId}` — por APARELHO, não por activity:
   push-to-start é um token só por app por dispositivo.
 
+### O contrato `ContentState` — copiar campo a campo
+
+Definido e travado por teste em `functions/src/live-activity-content-state.ts`. É o acoplamento
+silencioso desta fase: renomear um campo de um lado e o card para de atualizar **sem erro em
+lugar nenhum**. O teste `CONTRATO: o JSON e exatamente este` fixa a serialização inteira; se ele
+mudar, o Swift muda junto ou está quebrado.
+
+```swift
+struct ContentState: Codable, Hashable {
+    let setsA: Int
+    let setsB: Int
+    let pointsA: Int
+    let pointsB: Int
+    let setIndex: Int          // 0-based
+    let servingSide: String?   // "A" | "B" | nil
+    let status: String         // "live" | "finished" | "canceled"
+    let updatedAtMs: Int
+    let staleAfterMs: Int      // updatedAtMs + 90_000
+}
+```
+
+JSON de referência, byte a byte:
+
+```json
+{"setsA":1,"setsB":0,"pointsA":20,"pointsB":15,"setIndex":1,
+ "servingSide":"A","status":"live","updatedAtMs":1700000000000,
+ "staleAfterMs":1700000090000}
+```
+
 ### `staleDate` não é enfeite
 
 É como esses apps sobrevivem a push perdido: declara-se quando o dado apodrece e o widget

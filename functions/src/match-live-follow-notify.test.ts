@@ -3,7 +3,9 @@ import {test} from "node:test";
 
 import {MatchStatus} from "./match-status";
 import {
+  FOLLOW_RETENTION_MS,
   LiveMatchSnapshot,
+  MatchEndState,
   MatchLiveContext,
   NotifySidecar,
   SCORE_THROTTLE_MS,
@@ -14,6 +16,7 @@ import {
   pairLabelFrom,
   resolveLiveUpdate,
   snapshotFromMatchData,
+  staleFollowPaths,
 } from "./match-live-follow-notify";
 
 const NOW = 1_700_000_000_000;
@@ -535,4 +538,76 @@ test("pairLabelFrom usa o fallback quando não há nada exibível", () => {
     pairLabelFrom({player1Id: "u1", player2Id: "u2"}, new Map(), "Dupla B"),
     "Dupla B",
   );
+});
+
+// --- Varredura de follows órfãos --------------------------------------------
+
+function endState(over: Partial<MatchEndState> = {}): MatchEndState {
+  return {exists: true, status: MatchStatus.completed, endedAtMs: null, ...over};
+}
+
+const candidate = {path: "users/u1/followedMatches/m1", matchId: "m1"};
+
+test("partida ainda em andamento continua sendo seguida", () => {
+  const stale = staleFollowPaths(
+    [candidate],
+    new Map([["m1", endState({status: MatchStatus.inProgress})]]),
+    NOW,
+  );
+
+  assert.deepEqual(stale, []);
+});
+
+test("partida encerrada há pouco continua na lista", () => {
+  // Dá tempo de o atleta ver o resultado em "Acompanhando" antes de sumir.
+  const stale = staleFollowPaths(
+    [candidate],
+    new Map([["m1", endState({endedAtMs: NOW - 60 * 60 * 1000})]]),
+    NOW,
+  );
+
+  assert.deepEqual(stale, []);
+});
+
+test("partida encerrada há mais de 48h sai da lista", () => {
+  const stale = staleFollowPaths(
+    [candidate],
+    new Map([["m1", endState({endedAtMs: NOW - FOLLOW_RETENTION_MS - 1_000})]]),
+    NOW,
+  );
+
+  assert.deepEqual(stale, [candidate.path]);
+});
+
+test("partida cancelada há mais de 48h sai da lista", () => {
+  const stale = staleFollowPaths(
+    [candidate],
+    new Map([
+      ["m1", endState({status: MatchStatus.canceled, endedAtMs: NOW - FOLLOW_RETENTION_MS - 1})],
+    ]),
+    NOW,
+  );
+
+  assert.deepEqual(stale, [candidate.path]);
+});
+
+test("partida encerrada sem matchEndedAt é dado velho e sai", () => {
+  const stale = staleFollowPaths([candidate], new Map([["m1", endState()]]), NOW);
+
+  assert.deepEqual(stale, [candidate.path]);
+});
+
+test("partida que não existe mais sai da lista", () => {
+  const stale = staleFollowPaths(
+    [candidate],
+    new Map([["m1", endState({exists: false})]]),
+    NOW,
+  );
+
+  assert.deepEqual(stale, [candidate.path]);
+});
+
+test("partida que nem foi lida não é apagada por engano", () => {
+  // Leitura falhou ou o lote não a trouxe: na dúvida, mantém.
+  assert.deepEqual(staleFollowPaths([candidate], new Map(), NOW), []);
 });

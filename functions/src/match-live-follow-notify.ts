@@ -10,9 +10,10 @@
 
 import {createHash} from "node:crypto";
 
-import {FieldValue, Firestore, getFirestore} from "firebase-admin/firestore";
+import {FieldValue, Firestore, Timestamp, getFirestore} from "firebase-admin/firestore";
 import {TopicMessage, getMessaging} from "firebase-admin/messaging";
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 
 import {
@@ -22,7 +23,11 @@ import {
   setsWon,
   targetPointsForSet,
 } from "./match-scoring";
-import {artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {
+  artifactsMatchesPath,
+  artifactsTeamsPath,
+  getFirebaseProjectId,
+} from "./firebase-paths";
 import {coerceNotificationData} from "./notification-delivery";
 import {
   isMatchCanceled,
@@ -687,5 +692,145 @@ export const onMatchLiveScoreChanged = onDocumentUpdated(
       // aqui vira retry infinito em plena partida.
       logger.error(`matchLiveNotify: falha na partida ${matchId}`, error);
     }
+  },
+);
+
+// --- Varredura de follows órfãos --------------------------------------------
+
+/**
+ * Quanto tempo uma partida encerrada continua em "Acompanhando".
+ *
+ * O caminho normal de limpeza é o push `end`, que o cliente usa para derrubar a
+ * notificação e apagar o doc. Esta janela existe para o atleta que não abriu o
+ * app: ele ainda vê o resultado da partida que seguiu.
+ */
+export const FOLLOW_RETENTION_MS = 48 * 60 * 60 * 1000;
+
+/** Quantos follows a varredura examina por execução. */
+export const FOLLOW_SWEEP_BATCH = 400;
+
+export interface FollowCandidate {
+  path: string;
+  matchId: string;
+}
+
+export interface MatchEndState {
+  exists: boolean;
+  status: string;
+  endedAtMs: number | null;
+}
+
+/**
+ * Quais follows já não têm razão de existir.
+ *
+ * Conservador de propósito: partida que a varredura não conseguiu ler NÃO entra
+ * na lista. Apagar o follow de uma partida que ainda vai acontecer é pior que
+ * deixar lixo — o atleta perde o acompanhamento sem entender por quê.
+ */
+export function staleFollowPaths(
+  candidates: FollowCandidate[],
+  matches: Map<string, MatchEndState>,
+  nowMs: number,
+): string[] {
+  const stale: string[] = [];
+
+  for (const candidate of candidates) {
+    const match = matches.get(candidate.matchId);
+    if (!match) continue;
+
+    if (!match.exists) {
+      stale.push(candidate.path);
+      continue;
+    }
+
+    const finished =
+      isMatchCompleted(match.status) || isMatchCanceled(match.status);
+    if (!finished) continue;
+
+    // Encerrada sem `matchEndedAt` é dado antigo: o candidato só chegou aqui
+    // por já ter passado da janela de retenção.
+    const endedAtMs = match.endedAtMs;
+    if (endedAtMs === null || nowMs - endedAtMs > FOLLOW_RETENTION_MS) {
+      stale.push(candidate.path);
+    }
+  }
+
+  return stale;
+}
+
+function endedAtMsOf(data: Record<string, unknown>): number | null {
+  const raw = data.matchEndedAt as {toMillis?: () => number} | undefined;
+  if (raw && typeof raw.toMillis === "function") {
+    const ms = raw.toMillis();
+    if (Number.isFinite(ms)) return ms;
+  }
+  return null;
+}
+
+/**
+ * Rede de segurança para follows de partidas que já acabaram.
+ *
+ * Ordena pelos mais antigos porque é lá que o lixo está: sem `orderBy`, um lote
+ * fixo examinaria sempre os mesmos primeiros docs e nunca alcançaria o resto.
+ */
+export const sweepStaleFollowedMatches = onSchedule(
+  {schedule: "every day 04:00", timeZone: "America/Sao_Paulo"},
+  async () => {
+    const db = getFirestore();
+    const nowMs = Date.now();
+    const cutoff = Timestamp.fromMillis(nowMs - FOLLOW_RETENTION_MS);
+
+    const snap = await db
+      .collectionGroup("followedMatches")
+      .where("followedAt", "<", cutoff)
+      .orderBy("followedAt", "asc")
+      .limit(FOLLOW_SWEEP_BATCH)
+      .get();
+
+    const candidates: FollowCandidate[] = snap.docs.map((doc) => ({
+      path: doc.ref.path,
+      matchId: String(doc.data().matchId ?? doc.id).trim(),
+    }));
+
+    const matchesPath = artifactsMatchesPath(getFirebaseProjectId());
+    const matchIds = Array.from(
+      new Set(candidates.map((c) => c.matchId).filter(Boolean)),
+    );
+
+    // Uma leitura por partida DISTINTA, não por follow: numa etapa, dezenas de
+    // atletas seguem a mesma partida.
+    const matches = new Map<string, MatchEndState>();
+    await Promise.all(
+      matchIds.map(async (matchId) => {
+        try {
+          const doc = await db.doc(`${matchesPath}/${matchId}`).get();
+          const data = doc.data();
+          matches.set(matchId, {
+            exists: doc.exists,
+            status: typeof data?.status === "string" ? data.status : "",
+            endedAtMs: data ? endedAtMsOf(data) : null,
+          });
+        } catch (error) {
+          // Fica de fora do mapa e `staleFollowPaths` preserva o follow.
+          logger.warn(`sweepFollowedMatches: falha lendo ${matchId}`, error);
+        }
+      }),
+    );
+
+    const stale = staleFollowPaths(candidates, matches, nowMs);
+
+    for (let i = 0; i < stale.length; i += 400) {
+      const batch = db.batch();
+      for (const path of stale.slice(i, i + 400)) batch.delete(db.doc(path));
+      await batch.commit();
+    }
+
+    // Loga toda volta, inclusive vazia: job agendado que só fala quando age é
+    // indistinguível de job que parou de rodar.
+    logger.info("Varredura de partidas seguidas concluída", {
+      candidates: candidates.length,
+      distinctMatches: matchIds.length,
+      deleted: stale.length,
+    });
   },
 );

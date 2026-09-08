@@ -206,13 +206,21 @@
 
 **Files:**
 - Modify: `functions/src/match-live-follow-notify.ts`
+- Modify: `firestore.indexes.json` (índice de collection group, ver Step 1)
 
 **Interfaces:**
 - Produces: `export const sweepStaleFollowedMatches` (`onSchedule`, diário).
 
-- [ ] **Step 1: Implementar** — `collectionGroup('followedMatches')`, para cada uma checa a partida; apaga quando `Completed`/`Canceled` há mais de 48h, ou quando a partida não existe mais. Em lotes de 500.
-- [ ] **Step 2: Exportar em `index.ts`, type-check, suíte.**
-- [ ] **Step 3: Commit** — `feat(functions): varredura diaria de partidas seguidas encerradas`
+- [x] **Step 1: Implementar** — núcleo puro `staleFollowPaths(candidates, matches, nowMs)` com
+  teste; apaga quando `Completed`/`Canceled` há mais de 48h ou quando a partida sumiu.
+  **Conservador:** partida que a varredura não conseguiu ler fica de fora da lista — apagar o
+  follow de uma partida que ainda vai acontecer é pior que deixar lixo.
+  **`orderBy('followedAt')` é obrigatório**, não enfeite: com lote fixo e sem ordenação, a
+  varredura examinaria sempre os mesmos primeiros docs e nunca alcançaria o lixo. Isso exige
+  um índice de escopo `COLLECTION_GROUP` em `followedAt` — primeiro `fieldOverrides` do repo.
+  Uma leitura por partida DISTINTA, não por follow: numa etapa, dezenas seguem o mesmo jogo.
+- [x] **Step 2: Exportar em `index.ts`, type-check, suíte.**
+- [x] **Step 3: Commit** — `feat(functions): varredura diaria de partidas seguidas encerradas`
 
 ---
 

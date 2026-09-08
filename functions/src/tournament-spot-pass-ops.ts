@@ -12,13 +12,9 @@
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
-import type {Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
-import {loadUserAccessData} from "./athlete-tournament-access";
-import {assertTeamAgeEligibility} from "./category-age-eligibility";
-import {assertTeamLevelEligibility} from "./category-level-eligibility";
-import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
+import {getFirebaseProjectId} from "./firebase-paths";
 import {
   WEB_PUSH_PRIVATE_KEY,
   WEB_PUSH_PUBLIC_KEY,
@@ -26,50 +22,17 @@ import {
   deliverNotificationToUser,
 } from "./notification-delivery";
 import {assertCanManageTournament} from "./tournament-acl";
-import {categoryBracketPublished} from "./tournament-category-bracket-status";
+import {loadTournamentData} from "./tournament-registration-guards";
+import {SPOT_PASSES_COLLECTION, type SpotPassStatus} from "./tournament-spot-pass";
 import {
-  findCategory,
-  loadTournamentData,
-  resolveCategoryLabel,
-  resolveCategoryMatchKeys,
-} from "./tournament-registration-guards";
-import {
-  SPOT_PASSES_COLLECTION,
-  type SpotPassStatus,
-} from "./tournament-spot-pass";
-
-function trimmed(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-/** Nome do atleta para a lista do organizador — retrato, não fonte da verdade. */
-function athleteDisplayName(userData: Record<string, unknown> | null): string {
-  return (
-    trimmed(userData?.["fullName"]) ||
-    trimmed(userData?.["name"]) ||
-    trimmed(userData?.["displayName"]) ||
-    "Atleta"
-  );
-}
-
-/** O atleta já ocupa (ou disputa) vaga nesta categoria? Aí o passe não teria o que abrir. */
-async function alreadyInCategory(params: {
-  db: Firestore;
-  projectId: string;
-  tournamentId: string;
-  categoryKeys: Set<string>;
-  athleteUid: string;
-}): Promise<boolean> {
-  const {db, projectId, tournamentId, categoryKeys, athleteUid} = params;
-  const snap = await db
-    .collection(artifactsInscriptionsPath(projectId))
-    .where("tournamentId", "==", tournamentId)
-    .where("participantUids", "array-contains", athleteUid)
-    .get();
-  return snap.docs.some((doc) =>
-    categoryKeys.has(trimmed(doc.data()?.categoryId)),
-  );
-}
+  assertAthleteCanReceiveSpotPass,
+  assertCategoryAcceptsSpotPass,
+  athleteDisplayName,
+  buildSpotPassDoc,
+  findActiveSpotPass,
+  spotPassRegistrationUrl,
+  trimmed,
+} from "./tournament-spot-pass-grant";
 
 /**
  * Libera uma vaga nominal numa categoria para UM atleta.
@@ -104,65 +67,39 @@ export const organizerGrantTournamentSpotPass = onCall({
   if (!tournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
   }
-  const category = findCategory(tournament, categoryId);
-  if (!category) {
-    throw new HttpsError("not-found", "Categoria não encontrada.");
-  }
-  if (category.isCompleted === true) {
-    throw new HttpsError("failed-precondition", "Categoria já concluída.");
-  }
-
-  const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
-  if (categoryBracketPublished(tournament, categoryKeys)) {
-    throw new HttpsError(
-      "failed-precondition",
-      "As chaves desta categoria já foram publicadas — não é possível liberar vagas.",
-    );
-  }
-
-  const athlete = await loadUserAccessData(db, athleteUid);
-  if (athlete == null) {
-    throw new HttpsError("not-found", "Atleta não encontrado.");
-  }
-
-  if (await alreadyInCategory({db, projectId, tournamentId, categoryKeys, athleteUid})) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Este atleta já tem inscrição nesta categoria.",
-    );
-  }
-
-  // A mesma régua que ele encontraria na inscrição. Nível e idade nunca são furados — nem pelo
-  // organizador, nem por um passe.
-  await assertTeamLevelEligibility({db, tournament, category, uids: [athleteUid]});
-  await assertTeamAgeEligibility({db, tournament, category, uids: [athleteUid]});
-
-  const passes = db.collection(SPOT_PASSES_COLLECTION);
-  const existing = await passes
-    .where("tournamentId", "==", tournamentId)
-    .where("status", "==", "active")
-    .where("athleteUid", "==", athleteUid)
-    .get();
-  const live = existing.docs.find((doc) =>
-    categoryKeys.has(trimmed(doc.data()?.categoryId)),
+  const {category, categoryKeys, categoryLabel} = assertCategoryAcceptsSpotPass(
+    tournament,
+    categoryId,
   );
+
+  const athlete = await assertAthleteCanReceiveSpotPass({
+    db,
+    projectId,
+    tournament,
+    category,
+    tournamentId,
+    categoryKeys,
+    athleteUid,
+    alreadyRegisteredMessage: "Este atleta já tem inscrição nesta categoria.",
+  });
+
+  // Idempotente: dois passes abririam duas vagas para a mesma pessoa.
+  const live = await findActiveSpotPass({db, tournamentId, categoryKeys, athleteUid});
   if (live) {
     return {passId: live.id, alreadyGranted: true};
   }
 
-  const categoryLabel = resolveCategoryLabel(tournament, categoryId);
-  const ref = passes.doc();
-  await ref.set({
-    tournamentId,
-    categoryId,
-    categoryLabel,
-    athleteUid,
-    athleteName: athleteDisplayName(athlete as Record<string, unknown>),
-    status: "active" satisfies SpotPassStatus,
-    grantedByUid: organizerUid,
-    grantedAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  const ref = db.collection(SPOT_PASSES_COLLECTION).doc();
+  await ref.set(
+    buildSpotPassDoc({
+      tournamentId,
+      categoryId,
+      categoryLabel,
+      athleteUid,
+      athleteName: athleteDisplayName(athlete),
+      grantedByUid: organizerUid,
+    }),
+  );
 
   logger.info("Passe de vaga liberado", {
     passId: ref.id,
@@ -183,9 +120,7 @@ export const organizerGrantTournamentSpotPass = onCall({
       data: {
         tournamentId,
         categoryId,
-        url:
-          `/torneios/${tournamentId}/inscricao` +
-          `?categoryId=${encodeURIComponent(categoryId)}`,
+        url: spotPassRegistrationUrl(tournamentId, categoryId),
       },
       requireInteraction: true,
     });

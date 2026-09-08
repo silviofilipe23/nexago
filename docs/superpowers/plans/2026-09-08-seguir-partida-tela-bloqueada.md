@@ -13,10 +13,19 @@
 ## Global Constraints
 
 - **Comandos das functions rodam de `functions/`.** `npm ci` primeiro (o container onde este plano foi escrito não tinha `node_modules`). Baseline medida em 2026-09-08: **`npm test` → 1749 pass, 0 fail, 340 suites**. Se a contagem não subir a cada task de backend, você está rodando a árvore errada.
-- **Comandos do app rodam de `nexago_app/`:** `flutter test` e `flutter analyze`. **Baseline não
-  medida e tasks de Flutter escritas SEM execução** — não havia Flutter no container. Todo passo
-  de execução das Tasks 6-11 está marcado `[~]` (escrito, não rodado). Rode a suíte antes de
-  confiar em qualquer uma delas.
+- **Comandos do app rodam de `nexago_app/`:** `flutter test` e `flutter analyze`.
+  **Baseline medida em 2026-09-08 com Flutter 3.47.2 / Dart 3.13.2** (o SDK não vinha no
+  container; instalado em `/opt/flutter`):
+  - `flutter analyze` → **0 erros**; 118 warnings/infos, TODOS pré-existentes.
+  - `flutter test` → **3347 passam, 16 falham**. As 16 são **pré-existentes**: rodando os 6
+    arquivos afetados no commit base (`3dbad93`) dá exatamente o mesmo conjunto — diferença
+    simétrica vazia nos dois sentidos. Concentram-se em teste dependente de data
+    (`matchTimeLabelForCard`, `matchScheduleFooterLabelPt`) e são **anteriores a esta branch**.
+  - Ao comparar, **use `-r json`**: o reporter padrão e o `failures-only` sobrescrevem linha com
+    `\r` e o arquivo capturado perde os nomes das falhas (aparecem 1 ou 2 de 16). Só o JSON,
+    lido pelas chaves `test.id` no `testStart` e `testID` no `testDone`, dá a lista inteira.
+- As Tasks 6-11 foram ESCRITAS sem compilador e verificadas depois. Os passos ficaram marcados
+  `[~]` (escrito) e então confirmados: os 44 testes novos passam, 0 falhas.
 - `npm test` compila para `lib/` antes de rodar (`npm run build && node --test lib/*.test.js`). Todo `src/*.test.ts` novo é coletado sozinho — não precisa mexer no script.
 - Rules test é separado, sob emulador, e **não** entra no `npm test`. Padrão:
   `firebase emulators:exec --only firestore --project <id> "node --test test/<arquivo>.rules.test.mjs"`.

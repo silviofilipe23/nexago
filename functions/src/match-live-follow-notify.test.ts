@@ -11,7 +11,9 @@ import {
   buildMatchLiveMessages,
   liveScoreSignature,
   matchLiveTopics,
+  pairLabelFrom,
   resolveLiveUpdate,
+  snapshotFromMatchData,
 } from "./match-live-follow-notify";
 
 const NOW = 1_700_000_000_000;
@@ -454,4 +456,83 @@ test("contexto de partida encerrada não anuncia set em jogo", () => {
 
   assert.equal(built.statusLabel, "Encerrada");
   assert.equal(built.setsLine, "2 x 0");
+});
+
+// --- Leitura do doc e rótulo das duplas -------------------------------------
+
+test("snapshotFromMatchData lê o liveScore da mesa web", () => {
+  const s = snapshotFromMatchData({
+    status: "In Progress",
+    liveScore: {setsA: 1, setsB: 0, currentGamesA: 20, currentGamesB: 15},
+    currentSetIndex: 1,
+    bestOf: 3,
+  });
+
+  assert.equal(s.status, "In Progress");
+  assert.deepEqual(s.liveScore, {
+    setsA: 1,
+    setsB: 0,
+    currentGamesA: 20,
+    currentGamesB: 15,
+  });
+  assert.equal(s.currentSetIndex, 1);
+});
+
+test("snapshotFromMatchData lê os sets da mesa do app e ignora entrada corrompida", () => {
+  const s = snapshotFromMatchData({
+    status: "In Progress",
+    sets: [{a: 21, b: 15}, "lixo", {a: 3, b: 1}, null],
+  });
+
+  assert.deepEqual(s.sets, [{a: 21, b: 15}, {a: 3, b: 1}]);
+});
+
+test("snapshotFromMatchData aguenta doc vazio sem explodir", () => {
+  const s = snapshotFromMatchData({});
+
+  assert.equal(s.status, "");
+  assert.deepEqual(s.sets, []);
+  assert.equal(s.liveScore, null);
+  assert.equal(s.currentSetIndex, null);
+});
+
+test("pairLabelFrom prefere o nome da equipe quando existe", () => {
+  const label = pairLabelFrom(
+    {teamName: "As Feras", player1Id: "u1", player2Id: "u2"},
+    new Map([["u1", {fullName: "Ana"}]]),
+    "Dupla A",
+  );
+
+  assert.equal(label, "As Feras");
+});
+
+test("pairLabelFrom junta os dois atletas e prefere apelido a nome completo", () => {
+  const label = pairLabelFrom(
+    {player1Id: "u1", player2Id: "u2"},
+    new Map([
+      ["u1", {nickname: "Aninha", fullName: "Ana Souza"}],
+      ["u2", {fullName: "Bia Lima"}],
+    ]),
+    "Dupla A",
+  );
+
+  assert.equal(label, "Aninha / Bia Lima");
+});
+
+test("pairLabelFrom cai no atleta que existe quando só há um", () => {
+  const label = pairLabelFrom(
+    {player1Id: "u1", player2Id: ""},
+    new Map([["u1", {fullName: "Ana Souza"}]]),
+    "Dupla A",
+  );
+
+  assert.equal(label, "Ana Souza");
+});
+
+test("pairLabelFrom usa o fallback quando não há nada exibível", () => {
+  assert.equal(pairLabelFrom(null, new Map(), "Dupla A"), "Dupla A");
+  assert.equal(
+    pairLabelFrom({player1Id: "u1", player2Id: "u2"}, new Map(), "Dupla B"),
+    "Dupla B",
+  );
 });

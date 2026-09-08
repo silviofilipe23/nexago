@@ -133,29 +133,36 @@
 - Modify: `functions/src/index.ts`
 
 **Interfaces:**
+- Produces (puros, com teste): `snapshotFromMatchData(data)` — doc cru do Firestore para
+  `LiveMatchSnapshot`, tolerante a campo faltando e a entrada corrompida em `sets`;
+  `pairLabelFrom(team, profiles, fallback)` — `teamName` > apelido > nome completo, mesma
+  ordem de `resolveAppUserDisplayName` no app.
 - Produces: `export const onMatchLiveScoreChanged` (`onDocumentUpdated('artifacts/{appId}/public/data/matches/{matchId}')`); exportado em `index.ts` junto dos demais.
 
 **O ponto sensível:** a function **não pode escrever no doc do match** — ela se re-dispararia. Todo estado vai para `matchLiveNotify/{matchId}`, coleção nova sem gatilho.
 
-- [ ] **Step 1: Implementar o gatilho**
+- [x] **Step 1: Implementar o gatilho**
 
   1. Lê `before`/`after`, monta os `LiveMatchSnapshot`. Toda formatação já está em
      `buildMatchLiveContext` (Task 2) — o gatilho não monta texto.
   2. Lê `matchLiveNotify/{matchId}`.
-  3. `resolveLiveUpdate(...)`. Se `push: false`, **grava só a assinatura** e retorna.
+  3. `resolveLiveUpdate(...)`. Se `push: false`, retorna **sem gravar nada**: o sidecar só
+     guarda o que foi realmente notificado. Gravar assinatura a cada ponto engolido pelo
+     throttle dobraria as escritas da partida e não protegeria nada — reentrega de evento
+     throttled também não empurraria.
   4. Resolve rótulos das duplas: se o sidecar já tem `teamALabel`/`teamBLabel`, usa; senão faz o join `teams/{teamId}` → `player1Id`/`player2Id` → `public_profiles` (fallback `teamName`, depois `teamADescription`/`teamBDescription`, depois `'Dupla A'`/`'Dupla B'`) e **grava no sidecar**. O join acontece uma vez por partida, não por ponto.
   5. `getMessaging().send()` nas duas mensagens, em `Promise.allSettled` — falha de uma plataforma não derruba a outra.
   6. Grava `{lastPushAt, lastSignature, lastKind, teamALabel, teamBLabel}`.
 
-- [ ] **Step 2: Guardas obrigatórias**
+- [x] **Step 2: Guardas obrigatórias**
   - `try/catch` no envio, com `logger.error` — o gatilho nunca pode lançar e virar retry infinito em cima da mesa.
   - Ignorar update cujo `after` não é partida de torneio válida (sem `tournamentId`).
 
-- [ ] **Step 3: Exportar em `index.ts`** — seguindo o padrão dos outros (`export {onMatchLiveScoreChanged} from "./match-live-follow-notify";`).
+- [x] **Step 3: Exportar em `index.ts`** — seguindo o padrão dos outros (`export {onMatchLiveScoreChanged} from "./match-live-follow-notify";`).
 
-- [ ] **Step 4: Type-check e suíte** — `npm run lint` (é `tsc --noEmit`) e `npm test` sem regressão.
+- [x] **Step 4: Type-check e suíte** — `npm run lint` (é `tsc --noEmit`) e `npm test` sem regressão.
 
-- [ ] **Step 5: Commit** — `feat(functions): gatilho de fan-out do placar ao vivo por topico`
+- [x] **Step 5: Commit** — `feat(functions): gatilho de fan-out do placar ao vivo por topico`
 
 ---
 

@@ -10,7 +10,10 @@
 
 import {createHash} from "node:crypto";
 
-import {TopicMessage} from "firebase-admin/messaging";
+import {FieldValue, Firestore, getFirestore} from "firebase-admin/firestore";
+import {TopicMessage, getMessaging} from "firebase-admin/messaging";
+import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import * as logger from "firebase-functions/logger";
 
 import {
   DEFAULT_BEST_OF,
@@ -19,6 +22,7 @@ import {
   setsWon,
   targetPointsForSet,
 } from "./match-scoring";
+import {artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 import {coerceNotificationData} from "./notification-delivery";
 import {
   isMatchCanceled,
@@ -435,3 +439,253 @@ export function buildMatchLiveMessages(
 
   return [android, ios];
 }
+
+// --- Leitura do doc da partida ----------------------------------------------
+
+function setsFromRaw(raw: unknown): ScoreSet[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ScoreSet[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const obj = entry as Record<string, unknown>;
+    out.push({a: intOf(obj.a), b: intOf(obj.b)});
+  }
+  return out;
+}
+
+function liveScoreFromRaw(raw: unknown): LiveScoreFields | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  return {
+    setsA: intOf(obj.setsA),
+    setsB: intOf(obj.setsB),
+    currentGamesA: intOf(obj.currentGamesA),
+    currentGamesB: intOf(obj.currentGamesB),
+  };
+}
+
+/** Doc cru do Firestore para o formato que `resolveLiveUpdate` entende. */
+export function snapshotFromMatchData(
+  data: Record<string, unknown> | undefined,
+): LiveMatchSnapshot {
+  const d = data ?? {};
+  const rawIndex = d.currentSetIndex;
+  return {
+    status: typeof d.status === "string" ? d.status : "",
+    sets: setsFromRaw(d.sets),
+    liveScore: liveScoreFromRaw(d.liveScore),
+    currentSetIndex: typeof rawIndex === "number" ? Math.trunc(rawIndex) : null,
+    bestOf: typeof d.bestOf === "number" ? d.bestOf : null,
+  };
+}
+
+// --- Rótulo da dupla --------------------------------------------------------
+
+export interface ProfileNameFields {
+  nickname?: unknown;
+  fullName?: unknown;
+  name?: unknown;
+}
+
+function displayNameOf(profile: ProfileNameFields | undefined): string {
+  if (!profile) return "";
+  for (const candidate of [profile.nickname, profile.fullName, profile.name]) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return "";
+}
+
+/**
+ * Mesma ordem de preferência do app (`resolveAppUserDisplayName`): apelido,
+ * depois nome completo. `teamName` ganha de tudo quando a dupla tem nome.
+ */
+export function pairLabelFrom(
+  team: {teamName?: unknown; player1Id?: unknown; player2Id?: unknown} | null,
+  profiles: Map<string, ProfileNameFields>,
+  fallback: string,
+): string {
+  if (!team) return fallback;
+
+  const teamName = team.teamName;
+  if (typeof teamName === "string" && teamName.trim()) return teamName.trim();
+
+  const p1 = displayNameOf(profiles.get(String(team.player1Id ?? "")));
+  const p2 = displayNameOf(profiles.get(String(team.player2Id ?? "")));
+
+  if (p1 && p2 && p1 !== p2) return `${p1} / ${p2}`;
+  if (p1) return p1;
+  if (p2) return p2;
+  return fallback;
+}
+
+// --- Gatilho ----------------------------------------------------------------
+
+/**
+ * Coleção do estado de notificação, IRMÃ do doc da partida.
+ *
+ * Mora fora de `artifacts/` de propósito: a function não pode gravar no doc que
+ * a dispara, senão se re-dispara em laço. Nada tem gatilho aqui.
+ */
+const NOTIFY_COLLECTION = "matchLiveNotify";
+
+interface StoredSidecar extends NotifySidecar {
+  teamALabel: string | null;
+  teamBLabel: string | null;
+}
+
+function sidecarFrom(data: Record<string, unknown> | undefined): StoredSidecar {
+  const d = data ?? {};
+  const lastPushAt = d.lastPushAt;
+  return {
+    lastPushAt: typeof lastPushAt === "number" ? lastPushAt : null,
+    lastSignature: typeof d.lastSignature === "string" ? d.lastSignature : null,
+    teamALabel: typeof d.teamALabel === "string" ? d.teamALabel : null,
+    teamBLabel: typeof d.teamBLabel === "string" ? d.teamBLabel : null,
+  };
+}
+
+/** `updatedAt` da partida quando existe; é o instante real do ponto. */
+function updatedAtMsOf(data: Record<string, unknown>, fallbackMs: number): number {
+  const raw = data.updatedAt as {toMillis?: () => number} | undefined;
+  if (raw && typeof raw.toMillis === "function") {
+    const ms = raw.toMillis();
+    if (Number.isFinite(ms)) return ms;
+  }
+  return fallbackMs;
+}
+
+/**
+ * Resolve o nome das duas duplas com o join `teams` → `public_profiles`.
+ *
+ * Custa quatro leituras e por isso roda UMA vez por partida: o resultado fica
+ * no sidecar e as atualizações seguintes o reaproveitam. Fazer isso a cada
+ * ponto multiplicaria as leituras pelo número de pontos do jogo.
+ */
+async function resolveTeamLabels(
+  db: Firestore,
+  projectId: string,
+  data: Record<string, unknown>,
+): Promise<{a: string; b: string}> {
+  const teamsPath = artifactsTeamsPath(projectId);
+  const idA = String(data.teamAId ?? "").trim();
+  const idB = String(data.teamBId ?? "").trim();
+
+  const [snapA, snapB] = await Promise.all([
+    idA ? db.doc(`${teamsPath}/${idA}`).get() : Promise.resolve(null),
+    idB ? db.doc(`${teamsPath}/${idB}`).get() : Promise.resolve(null),
+  ]);
+  const teamA = (snapA?.data() ?? null) as Record<string, unknown> | null;
+  const teamB = (snapB?.data() ?? null) as Record<string, unknown> | null;
+
+  const playerIds = new Set<string>();
+  for (const team of [teamA, teamB]) {
+    for (const key of ["player1Id", "player2Id"]) {
+      const id = String(team?.[key] ?? "").trim();
+      if (id) playerIds.add(id);
+    }
+  }
+
+  const profiles = new Map<string, ProfileNameFields>();
+  await Promise.all(
+    Array.from(playerIds).map(async (id) => {
+      const snap = await db.doc(`public_profiles/${id}`).get();
+      const profile = snap.data();
+      if (profile) profiles.set(id, profile as ProfileNameFields);
+    }),
+  );
+
+  const fallbackA = String(data.teamADescription ?? "").trim() || "Dupla A";
+  const fallbackB = String(data.teamBDescription ?? "").trim() || "Dupla B";
+  return {
+    a: pairLabelFrom(teamA, profiles, fallbackA),
+    b: pairLabelFrom(teamB, profiles, fallbackB),
+  };
+}
+
+/**
+ * Fan-out do placar ao vivo para quem segue a partida.
+ *
+ * A mesa grava ponto a ponto, então este gatilho roda dezenas de vezes por
+ * jogo; `resolveLiveUpdate` derruba a maioria antes de qualquer I/O extra.
+ */
+export const onMatchLiveScoreChanged = onDocumentUpdated(
+  "artifacts/{appId}/public/data/matches/{matchId}",
+  async (event) => {
+    const matchId = event.params.matchId;
+    const before = event.data?.before.data() as Record<string, unknown> | undefined;
+    const after = event.data?.after.data() as Record<string, unknown> | undefined;
+    if (!after) return;
+
+    const tournamentId = String(after.tournamentId ?? "").trim();
+    if (!tournamentId || !matchId.trim()) return;
+
+    const db = getFirestore();
+    const notifyRef = db.doc(`${NOTIFY_COLLECTION}/${matchId}`);
+
+    try {
+      const stored = sidecarFrom((await notifyRef.get()).data());
+      const nowMs = Date.now();
+      const decision = resolveLiveUpdate(
+        snapshotFromMatchData(before),
+        snapshotFromMatchData(after),
+        stored,
+        nowMs,
+      );
+
+      if (!decision.push) {
+        // Sem gravar nada: o sidecar só guarda o que foi REALMENTE notificado,
+        // e um write por ponto engolido dobraria as escritas da partida à toa.
+        return;
+      }
+
+      const cachedA = stored.teamALabel;
+      const cachedB = stored.teamBLabel;
+      const labels =
+        cachedA && cachedB ?
+          {a: cachedA, b: cachedB} :
+          await resolveTeamLabels(db, getFirebaseProjectId(), after);
+
+      const context = buildMatchLiveContext({
+        matchId,
+        tournamentId,
+        teamALabel: labels.a,
+        teamBLabel: labels.b,
+        courtName: String(after.courtName ?? "").trim(),
+        snapshot: snapshotFromMatchData(after),
+        decision,
+        updatedAtMs: updatedAtMsOf(after, nowMs),
+      });
+
+      const messages = buildMatchLiveMessages(decision.kind!, context);
+      const results = await Promise.allSettled(
+        messages.map((message) => getMessaging().send(message)),
+      );
+      for (const [i, result] of results.entries()) {
+        if (result.status === "rejected") {
+          // Falha de uma plataforma não pode derrubar a outra.
+          logger.warn(
+            `matchLiveNotify: envio ${i === 0 ? "android" : "ios"} falhou ` +
+            `na partida ${matchId}`,
+            result.reason,
+          );
+        }
+      }
+
+      await notifyRef.set(
+        {
+          lastPushAt: nowMs,
+          lastSignature: decision.signature,
+          lastKind: decision.kind,
+          teamALabel: labels.a,
+          teamBLabel: labels.b,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    } catch (error) {
+      // Nunca relançar: o gatilho roda em cima da escrita da mesa e um erro
+      // aqui vira retry infinito em plena partida.
+      logger.error(`matchLiveNotify: falha na partida ${matchId}`, error);
+    }
+  },
+);

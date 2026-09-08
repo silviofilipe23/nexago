@@ -419,6 +419,9 @@ export {addAppOrderItem} from "./arena-comanda-app-orders";
 export {getHeadToHeadRecord} from "./head-to-head";
 // Placar ao vivo (games/sets do set em andamento) de partidas In Progress.
 export {updateLiveMatchScore} from "./organizer-match-ops";
+// Fan-out do placar ao vivo para quem segue a partida (tela bloqueada) —
+// docs/superpowers/specs/2026-09-05-seguir-partida-tela-bloqueada-design.md
+export {onMatchLiveScoreChanged} from "./match-live-follow-notify";
 export {
   joinArenaBookingWaitlist,
   notifyArenaWaitlistOnSlotFreed,

@@ -9,26 +9,27 @@ import {
   replaceRevealPhrase,
   voidDrawSession,
 } from '../data/organizer-ops.service';
-import { TelaoStageComponent } from '../telao/telao-stage.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
+import { OgIconComponent } from '../ui/icon.component';
 import { crossesPotBoundary, shouldAutoDraw } from './draw-auto-advance';
 import { DrawClockService } from './draw-clock.service';
 import { drawTelaoUrl } from './draw-links';
 import { DrawSessionStore } from './draw-session.store';
-import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
+import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
+import { SorteioEspelhoComponent } from './sorteio-espelho.component';
 
 /**
  * O console de controle — a ÚNICA superfície do sorteio com botões.
  *
- * O "Espelho do telão" no centro não é um desenho parecido com o telão: é o
- * telão, o mesmo componente, escalado pelo `og-telao-stage`. Some com isso a
- * categoria inteira de bug "o espelho mostra uma coisa e a TV mostra outra", e
- * o console ganha as animações de revelação de graça.
+ * Três colunas, como no protótipo: à esquerda o que está NO AR e o que vem a
+ * seguir, no meio o espelho do telão, à direita o que já aconteceu. A barra de
+ * transporte fica fixa no rodapé porque é de onde o organizador conduz — e
+ * durante uma transmissão ele não pode caçar botão.
  *
  * Nos modos automático e híbrido o timer roda AQUI, no navegador do
- * organizador. É deliberado: agendar no servidor custaria uma função por
- * revelação, e "console fechou, show pausou" é o comportamento desejado.
+ * organizador: agendar no servidor custaria uma função por revelação, e
+ * "console fechou, show pausou" é o comportamento desejado.
  */
 @Component({
   selector: 'og-sorteio-console',
@@ -38,122 +39,183 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
     DatePipe,
     OgCardComponent,
     OgConfirmDialogComponent,
-    SorteioTelaoScreenComponent,
-    TelaoStageComponent,
+    OgIconComponent,
+    SorteioDuplaRowComponent,
+    SorteioEspelhoComponent,
   ],
   template: `
     @let s = store.session();
     @if (!s) {
-      <div class="og-console-vazio">
-        @if (store.loading()) {
-          Carregando a sessão…
-        } @else {
-          Sessão não encontrada. Volte para a configuração do sorteio.
-        }
+      <div class="og-cs-vazio">
+        {{
+          store.loading()
+            ? 'Carregando a sessão…'
+            : 'Sessão não encontrada. Volte para a configuração do sorteio.'
+        }}
       </div>
     } @else {
-      <header class="og-console-head">
-        <div class="og-console-head-text">
-          <h1>Console do sorteio</h1>
+      <header class="og-cs-head">
+        <div>
+          <div class="og-cs-titulo">
+            <h1>Console do sorteio</h1>
+            @if (s.status === 'live') {
+              <span class="og-cs-live"><i></i>AO VIVO</span>
+            }
+          </div>
           <p>
             {{ s.tournamentName }} · {{ s.categoryName }} ·
-            {{ s.format === 'groups_knockout' ? 'grupos' : 'dupla eliminatória' }} ·
-            modo {{ modeLabel(s) }}
+            {{ s.format === 'groups_knockout' ? 'grupos' : 'dupla eliminatória' }} · modo
+            {{ modeLabel(s) }}
           </p>
         </div>
-        @if (s.status === 'live') {
-          <span class="og-console-live"><i></i>AO VIVO</span>
+        <div class="og-cs-spacer"></div>
+        @if (s.format === 'double_elimination') {
+          <div class="og-cs-etapas">
+            @for (stage of deStages(); track stage.n) {
+              <span
+                class="og-cs-etapa"
+                [class.live]="stage.state === 'live'"
+                [class.done]="stage.state === 'done'"
+              >
+                {{ stage.n }} · {{ stage.label }}
+              </span>
+            }
+          </div>
         }
-        <div class="og-console-spacer"></div>
         <a class="og-mini-btn" [href]="telaoUrl(s)" target="_blank" rel="noopener">Ver telão</a>
       </header>
 
       @if (error(); as msg) {
-        <div class="og-console-erro" role="alert">{{ msg }}</div>
+        <div class="og-cs-erro" role="alert">{{ msg }}</div>
       }
 
-      <div class="og-console-grid">
-        <div class="og-console-col">
-          <og-card [kicker]="current() ? 'Revelação ' + current()!.index : 'Aguardando'" title="No ar agora">
+      <div class="og-cs-grid">
+        <div class="og-cs-col">
+          <og-card [kicker]="currentKicker(s)" title="No ar agora">
             @if (currentEntrant(); as e) {
-              <div class="og-console-atual">
-                <strong>{{ e.label }}</strong>
-                <span class="og-console-destino">→ {{ currentDestination() }}</span>
+              <div class="og-cs-atual">
+                <span class="og-cs-capsula">{{ current()?.index }}</span>
+                <span class="og-cs-atual-texto">
+                  <strong>{{ e.label }}</strong>
+                  <em>→ {{ currentDestination() }}</em>
+                </span>
               </div>
-              <div class="og-console-stats">
+              <div class="og-cs-stats">
                 @for (stat of currentStats(); track stat.label) {
-                  <div><span>{{ stat.label }}</span><strong>{{ stat.value }}</strong></div>
+                  <div>
+                    <span>{{ stat.label }}</span><strong>{{ stat.value }}</strong>
+                  </div>
                 }
               </div>
+
+              @if (consequence(); as texto) {
+                <div class="og-cs-consequencia">
+                  <span class="og-cs-label">Consequência imediata</span>
+                  <p>{{ texto }}</p>
+                </div>
+              }
+
               @if (s.config.phrasesEnabled) {
-                <div class="og-console-frase-head">
-                  <span class="og-console-label">Frase no telão</span>
-                  <div class="og-console-spacer"></div>
-                  <button type="button" class="og-mini-btn" [disabled]="pending()" (click)="swapPhrase(s)">
+                <div class="og-cs-frase-head">
+                  <span class="og-cs-label">Frase no telão</span>
+                  <div class="og-cs-spacer"></div>
+                  <button
+                    type="button"
+                    class="og-mini-btn"
+                    [disabled]="pending()"
+                    (click)="swapPhrase(s)"
+                  >
                     Trocar
                   </button>
-                  <button type="button" class="og-mini-btn" [disabled]="pending()" (click)="clearPhrase(s)">
+                  <button
+                    type="button"
+                    class="og-mini-btn"
+                    [disabled]="pending()"
+                    (click)="clearPhrase(s)"
+                  >
                     Sem frase
                   </button>
                 </div>
-                <p class="og-console-frase">
-                  {{ current()?.phrase?.text ?? 'Esta revelação foi ao ar sem frase.' }}
-                </p>
+                <div class="og-cs-frase">
+                  <span class="og-cs-frase-icone"><og-icon name="bell" [size]="13" /></span>
+                  <p>{{ current()?.phrase?.text ?? 'Esta revelação foi ao ar sem frase.' }}</p>
+                </div>
               }
             } @else {
-              <p class="og-console-texto">
-                Potes fechados. Dispare a primeira revelação quando quiser.
-              </p>
+              <div class="og-cs-atual">
+                <span class="og-cs-capsula vazia">?</span>
+                <p class="og-cs-texto">
+                  Potes fechados. Dispare a primeira revelação quando quiser.
+                </p>
+              </div>
             }
           </og-card>
 
-          <og-card kicker="Fila" title="Ainda no pote" flex="1">
-            <ol class="og-console-fila">
+          <og-card kicker="Fila" [title]="queueTitle(s)" flex="1">
+            <div class="og-cs-fila">
               @for (entrant of queue(); track entrant.teamId) {
-                <li [class.proxima]="$first">
-                  <span>{{ entrant.label }}</span>
-                  <em>P{{ entrant.potIndex }}</em>
-                </li>
+                <og-sorteio-dupla-row
+                  [entrant]="entrant"
+                  [tone]="$first ? 'hot' : 'soft'"
+                  [compact]="true"
+                >
+                  <span class="og-cs-pote">P{{ entrant.potIndex }}</span>
+                </og-sorteio-dupla-row>
               }
               @empty {
-                <li class="og-console-fila-vazia">Todos os potes esvaziados.</li>
+                <p class="og-cs-texto">Todos os potes esvaziados.</p>
               }
-            </ol>
+            </div>
           </og-card>
         </div>
 
-        <og-card kicker="Espelho do telão" title="O que está na TV agora" pad="sm" class="og-console-espelho">
-          <og-telao-stage class="og-console-stage">
-            <og-sorteio-telao-screen [session]="s" [now]="clock.now()" />
-          </og-telao-stage>
+        <og-card kicker="Espelho do telão" [title]="mirrorTitle(s)" pad="sm" class="og-cs-espelho">
+          <span card-action class="og-cs-sync">
+            @if (s.status === 'live') {
+              <i></i>sincronizado
+            } @else {
+              {{ statusLabel(s) }}
+            }
+          </span>
+          <og-sorteio-espelho [session]="s" [visibleCount]="visibleCount()" />
         </og-card>
 
-        <div class="og-console-col">
-          <og-card kicker="Log imutável" title="{{ s.reveals.length }} de {{ s.totalReveals }} registradas" flex="1">
-            <ol class="og-console-log">
+        <div class="og-cs-col">
+          <div class="og-cs-tempo">
+            <span class="og-cs-label">No ar há</span>
+            <strong>{{ onAirLabel(s) }}</strong>
+          </div>
+
+          <og-card kicker="Log imutável" [title]="logTitle(s)" flex="1">
+            <ol class="og-cs-log">
               @for (row of logRows(); track row.index) {
                 <li>
-                  <span class="og-console-log-num">#{{ padded(row.index) }}</span>
-                  <span class="og-console-log-nome">{{ row.label }}</span>
-                  <span class="og-console-log-dest">{{ row.destination }}</span>
-                  <span class="og-console-log-hora">{{ row.atMillis | date: 'HH:mm:ss' }}</span>
+                  <span class="num">#{{ padded(row.index) }}</span>
+                  <span class="nome">{{ row.label }}</span>
+                  <span class="dest">{{ row.destination }}</span>
+                  <span class="hora">{{ row.atMillis | date: 'HH:mm:ss' }}</span>
                 </li>
               }
               @empty {
-                <li class="og-console-fila-vazia">Nada registrado ainda.</li>
+                <li class="og-cs-texto">Nada registrado ainda.</li>
               }
             </ol>
           </og-card>
         </div>
       </div>
 
-      <footer class="og-console-transporte">
+      <footer class="og-cs-transporte">
         <button
           type="button"
-          class="og-btn og-console-sortear"
+          class="og-btn og-cs-sortear"
           [disabled]="pending() || done() || s.status !== 'live'"
           (click)="next(s)"
         >
+          @if (!done() && !pending()) {
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M5 3l14 9-14 9z" />
+            </svg>
+          }
           {{ done() ? 'Sorteio completo' : pending() ? 'Sorteando…' : 'Sortear próxima' }}
         </button>
 
@@ -163,14 +225,16 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
           </button>
         }
 
-        <div class="og-console-contagem">
-          <span class="og-console-label">Revelações</span>
+        <div class="og-cs-medidor">
+          <span class="og-cs-label">Revelações</span>
           <strong>{{ padded(s.reveals.length) }}<em>/{{ s.totalReveals }}</em></strong>
         </div>
-
-        <div class="og-console-progresso">
-          <div [style.width.%]="progress(s)"></div>
+        <div class="og-cs-medidor">
+          <span class="og-cs-label">Etapa</span>
+          <b>{{ stageLabel(s) }}</b>
         </div>
+
+        <div class="og-cs-progresso"><div [style.width.%]="progress(s)"></div></div>
 
         <button
           type="button"
@@ -208,60 +272,89 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
     :host {
       display: flex;
       flex-direction: column;
-      /* Cadeia de altura: o host precisa ocupar a área do router-outlet pra que
-         o espelho tenha altura definida e o og-telao-stage saiba escalar. */
+      /* Cadeia de altura: sem isso o espelho não sabe qual altura ocupar. */
       height: 100%;
       min-height: 0;
     }
-    .og-console-head {
+    .og-cs-head {
       flex: none;
       display: flex;
       align-items: center;
       gap: 14px;
       flex-wrap: wrap;
-      padding: 18px 32px;
+      padding: 16px 32px;
       border-bottom: 1px solid var(--nx-line);
     }
-    .og-console-head h1 {
+    .og-cs-titulo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .og-cs-head h1 {
       margin: 0;
       font-family: var(--nx-font-display);
       font-weight: 800;
       font-size: 21px;
       letter-spacing: -0.02em;
     }
-    .og-console-head p {
+    .og-cs-head p {
       margin: 5px 0 0;
       font-family: var(--nx-font-mono);
-      font-size: 11px;
+      font-size: 10.5px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
     }
-    .og-console-spacer {
+    .og-cs-spacer {
       flex: 1;
     }
-    .og-console-live {
+    .og-cs-live {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 13px;
+      padding: 5px 12px;
       border-radius: 999px;
       background: rgb(255 59 48 / 14%);
       border: 1px solid rgb(255 59 48 / 45%);
       color: var(--nx-live);
       font-family: var(--nx-font-mono);
       font-weight: 700;
-      font-size: 11px;
+      font-size: 10.5px;
       letter-spacing: 0.14em;
     }
-    .og-console-live i {
-      width: 8px;
-      height: 8px;
+    .og-cs-live i {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: var(--nx-live);
-      animation: og-console-pulsa 1.6s ease-in-out infinite;
+      animation: og-cs-pulsa 1.6s ease-in-out infinite;
     }
-    .og-console-erro {
+    .og-cs-etapas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .og-cs-etapa {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-cs-etapa.done {
+      color: var(--nx-win);
+    }
+    .og-cs-etapa.live {
+      background: var(--nx-orange-tint);
+      border-color: rgb(255 106 26 / 45%);
+      color: var(--nx-orange-500);
+    }
+    .og-cs-erro {
       flex: none;
       margin: 12px 32px 0;
       padding: 11px 14px;
@@ -271,66 +364,110 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
       color: var(--nx-live);
       font-size: 13px;
     }
-    .og-console-grid {
+    .og-cs-grid {
       flex: 1;
       min-height: 0;
       display: grid;
-      grid-template-columns: 300px minmax(0, 1fr) 300px;
+      grid-template-columns: 320px minmax(0, 1fr) 300px;
       gap: 14px;
       padding: 16px 32px;
     }
-    .og-console-col {
+    .og-cs-col {
       display: flex;
       flex-direction: column;
       gap: 12px;
       min-height: 0;
     }
-    .og-console-espelho {
+    .og-cs-espelho {
       min-width: 0;
       min-height: 0;
     }
-    .og-console-stage {
-      display: block;
-      width: 100%;
-      height: 100%;
-      min-height: 0;
+    .og-cs-sync {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-win);
     }
-    .og-console-atual strong {
+    .og-cs-sync i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--nx-win);
+    }
+    .og-cs-atual {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    /* A cápsula repete o número que o telão mostra: mesmo objeto, mesma cor.
+       É o que liga o console à TV sem precisar de legenda. */
+    .og-cs-capsula {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: var(--nx-orange-500);
+      border: 2px solid var(--nx-orange-600);
+      color: var(--nx-text-on-orange);
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 24px;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 0 34px rgb(255 106 26 / 35%);
+    }
+    .og-cs-capsula.vazia {
+      background: var(--nx-surface-2);
+      border-color: var(--nx-line-strong);
+      color: var(--nx-text-dim);
+      box-shadow: inset 0 2px 10px rgb(0 0 0 / 50%);
+    }
+    .og-cs-atual-texto {
+      min-width: 0;
+    }
+    .og-cs-atual-texto strong {
       display: block;
       font-family: var(--nx-font-display);
       font-weight: 800;
       font-size: 17px;
       letter-spacing: -0.01em;
+      overflow-wrap: anywhere;
     }
-    .og-console-destino {
+    .og-cs-atual-texto em {
       display: block;
       margin-top: 3px;
+      font-style: normal;
       font-family: var(--nx-font-mono);
       font-size: 12px;
       color: var(--nx-orange-500);
     }
-    .og-console-stats {
+    .og-cs-stats {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 5px;
       margin-top: 12px;
     }
-    .og-console-stats div {
+    .og-cs-stats div {
       padding: 7px 8px;
       border-radius: 9px;
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
       min-width: 0;
     }
-    .og-console-stats span {
+    .og-cs-stats span {
       display: block;
       font-family: var(--nx-font-mono);
-      font-size: 8.5px;
-      letter-spacing: 0.14em;
+      font-size: 8px;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
     }
-    .og-console-stats strong {
+    .og-cs-stats strong {
       display: block;
       margin-top: 2px;
       font-family: var(--nx-font-mono);
@@ -338,112 +475,143 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
       font-size: 13px;
       font-variant-numeric: tabular-nums;
     }
-    .og-console-label {
+    .og-cs-label {
       font-family: var(--nx-font-mono);
       font-size: 9px;
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
     }
-    .og-console-frase-head {
+    .og-cs-consequencia {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+    .og-cs-consequencia p {
+      margin: 5px 0 0;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--nx-text-mute);
+      text-wrap: pretty;
+    }
+    .og-cs-frase-head {
       display: flex;
       align-items: center;
       gap: 6px;
       margin: 12px 0 6px;
     }
-    .og-console-frase {
-      margin: 0;
-      padding: 10px 12px;
-      border-radius: var(--nx-r-2);
+    .og-cs-frase {
+      display: flex;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: var(--nx-r-3);
       background: var(--nx-orange-tint);
-      border: 1px solid rgb(255 106 26 / 30%);
-      font-size: 13px;
-      line-height: 1.45;
-      color: var(--nx-text);
+      border: 1px solid rgb(255 106 26 / 32%);
     }
-    .og-console-texto {
+    .og-cs-frase-icone {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+    }
+    .og-cs-frase p {
+      margin: 0;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 13.5px;
+      line-height: 1.4;
+      color: var(--nx-text);
+      text-wrap: pretty;
+    }
+    .og-cs-texto {
       margin: 0;
       font-size: 12.5px;
       line-height: 1.5;
       color: var(--nx-text-mute);
     }
-    .og-console-fila,
-    .og-console-log {
-      list-style: none;
-      margin: 0;
-      padding: 0;
+    /* Mesma cadeia de altura do espelho: flex:1 + min-height:0 para a lista
+       rolar DENTRO do card em vez de esticá-lo. */
+    .og-cs-fila,
+    .og-cs-log {
       display: flex;
+      flex: 1;
       flex-direction: column;
       gap: 5px;
       overflow-y: auto;
       min-height: 0;
+      scrollbar-width: none;
     }
-    .og-console-fila li {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      font-size: 12.5px;
+    .og-cs-log {
+      list-style: none;
+      margin: 0;
+      padding: 0;
     }
-    .og-console-fila li.proxima {
-      background: var(--nx-orange-tint);
-      border-color: rgb(255 106 26 / 40%);
-    }
-    .og-console-fila li span {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .og-console-fila li em {
+    .og-cs-pote {
+      flex: none;
       font-family: var(--nx-font-mono);
-      font-style: normal;
       font-size: 10px;
       color: var(--nx-text-dim);
     }
-    .og-console-fila-vazia {
-      font-size: 12px;
-      color: var(--nx-text-dim);
-      padding: 6px;
-    }
-    .og-console-log li {
+    .og-cs-log li {
       display: grid;
-      grid-template-columns: 34px minmax(0, 1fr) auto auto;
+      grid-template-columns: 32px minmax(0, 1fr) auto auto;
       gap: 7px;
       align-items: center;
       font-family: var(--nx-font-mono);
       font-size: 10.5px;
       color: var(--nx-text-dim);
+      font-variant-numeric: tabular-nums;
     }
-    .og-console-log-num {
+    .og-cs-log .num {
       color: var(--nx-orange-500);
     }
-    .og-console-log-nome {
+    .og-cs-log .nome {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       color: var(--nx-text);
     }
-    .og-console-transporte {
+    .og-cs-tempo {
+      flex: none;
+      padding: 11px 13px;
+      border-radius: var(--nx-r-3);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+    }
+    .og-cs-tempo strong {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 22px;
+      font-variant-numeric: tabular-nums;
+      color: var(--nx-live);
+    }
+    .og-cs-transporte {
       flex: none;
       display: flex;
       align-items: center;
       gap: 14px;
       flex-wrap: wrap;
-      padding: 16px 32px;
+      padding: 14px 32px;
       border-top: 1px solid var(--nx-line);
       background: #070708;
     }
-    .og-console-sortear {
-      min-height: 56px;
+    .og-cs-sortear {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 54px;
       font-size: 16px;
       padding: 0 26px;
     }
-    .og-console-contagem strong {
+    .og-cs-medidor strong {
       display: block;
       margin-top: 2px;
       font-family: var(--nx-font-mono);
@@ -451,24 +619,31 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
       font-size: 20px;
       font-variant-numeric: tabular-nums;
     }
-    .og-console-contagem em {
+    .og-cs-medidor em {
       font-style: normal;
       color: var(--nx-text-dim);
     }
-    .og-console-progresso {
+    .og-cs-medidor b {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .og-cs-progresso {
       flex: 1;
-      min-width: 120px;
+      min-width: 100px;
       height: 6px;
       border-radius: 4px;
       background: var(--nx-surface-2);
       overflow: hidden;
     }
-    .og-console-progresso div {
+    .og-cs-progresso div {
       height: 100%;
       background: var(--nx-orange-500);
       transition: width 400ms var(--nx-ease-out);
     }
-    .og-console-vazio {
+    .og-cs-vazio {
       display: grid;
       place-items: center;
       height: 100%;
@@ -478,7 +653,7 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
       font-size: 15px;
     }
 
-    @keyframes og-console-pulsa {
+    @keyframes og-cs-pulsa {
       0%,
       100% {
         opacity: 1;
@@ -488,48 +663,45 @@ import { SorteioTelaoScreenComponent } from './sorteio-telao-screen.component';
       }
     }
 
-    /* Tablet: o espelho vai pra cima e as duas colunas dividem a linha de baixo.
-       Abaixo de 768px vira coluna única — o console é ferramenta de mesa, mas
-       precisa continuar operável no celular do organizador. */
-    @media (max-width: 1199px) {
-      .og-console-grid {
+    /* Tablet: espelho em cima, colunas de apoio dividindo a linha de baixo. */
+    @media (max-width: 1279px) {
+      .og-cs-grid {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        grid-template-rows: minmax(260px, 1fr) auto;
+        grid-template-rows: minmax(280px, 1fr) auto;
         padding: 14px 20px;
       }
-      .og-console-espelho {
+      .og-cs-espelho {
         grid-column: 1 / -1;
         grid-row: 1;
       }
     }
 
-    @media (max-width: 767px) {
-      .og-console-grid {
+    @media (max-width: 899px) {
+      .og-cs-grid {
         grid-template-columns: minmax(0, 1fr);
         overflow-y: auto;
       }
-      .og-console-head,
-      .og-console-transporte {
+      .og-cs-head,
+      .og-cs-transporte {
         padding-inline: 20px;
       }
-      .og-console-transporte {
+      .og-cs-transporte {
         position: sticky;
         bottom: 0;
       }
-      .og-console-sortear {
+      .og-cs-sortear {
         flex: 1 0 100%;
       }
-      /* Área de toque confortável na barra de transporte. */
-      .og-console-transporte .og-mini-btn {
+      .og-cs-transporte .og-mini-btn {
         min-height: 44px;
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .og-console-live i {
+      .og-cs-live i {
         animation: none;
       }
-      .og-console-progresso div {
+      .og-cs-progresso div {
         transition: none;
       }
     }
@@ -553,32 +725,26 @@ export class SorteioConsoleComponent {
   };
 
   constructor() {
-    effect(() => {
-      const id = this.route.snapshot.queryParamMap.get('s');
-      this.store.sessionId.set(id);
-    });
+    effect(() => this.store.sessionId.set(this.route.snapshot.queryParamMap.get('s')));
 
     // O maestro do ritmo é este relógio. A idempotência do servidor
     // (`expectedIndex`) é a rede de segurança: se este disparo correr com um
-    // clique do organizador, um dos dois volta sem efeito em vez de sortear
-    // duas vezes.
+    // clique do organizador, um dos dois volta sem efeito.
     effect(() => {
       const session = this.store.session();
-      if (!session || session.status !== 'live') return;
-      if (session.config.mode === 'manual') return;
+      if (!session || session.status !== 'live' || session.config.mode === 'manual') return;
 
-      const now = this.clock.now();
       const shouldDraw = shouldAutoDraw({
         playing: this.playing(),
-        lastRevealAt: this.lastRevealAt(),
+        lastRevealAt: this.current()?.atMillis ?? null,
         intervalMs: session.config.intervalMs,
-        now,
+        now: this.clock.now(),
         pending: this.pending(),
         done: session.reveals.length >= session.totalReveals,
       });
       if (!shouldDraw) return;
 
-      // Híbrido: pausa sozinho na virada de pote — o respiro pro organizador
+      // Híbrido pausa sozinho na virada de pote — o respiro pro organizador
       // comentar sem travar o ritmo dentro do pote.
       if (
         session.config.mode === 'hybrid' &&
@@ -596,7 +762,9 @@ export class SorteioConsoleComponent {
     return reveals.length > 0 ? reveals[reveals.length - 1]! : null;
   });
 
-  private readonly lastRevealAt = computed(() => this.current()?.atMillis ?? null);
+  /** O espelho mostra tudo que já foi gravado: o console conduz e pode ver o
+   *  resultado antes de o telão terminar a animação. */
+  protected readonly visibleCount = computed(() => this.store.session()?.reveals.length ?? 0);
 
   protected readonly currentEntrant = computed(() => {
     const session = this.store.session();
@@ -622,6 +790,26 @@ export class SorteioConsoleComponent {
     ];
   });
 
+  /** A consequência da dupla eliminatória, já resolvida pela planta no servidor. */
+  protected readonly consequence = computed(() => {
+    const placement = this.current()?.dePlacement;
+    if (!placement) return null;
+    const debut = placement.hasBye ?
+      'Entra direto na segunda rodada — tem bye.' :
+      placement.opponentSeed != null ?
+        `Enfrenta a cabeça ${placement.opponentSeed} na primeira rodada.` :
+        placement.opponentFromMatch != null ?
+          `Enfrenta o vencedor do jogo ${placement.opponentFromMatch}.` :
+          null;
+    const meeting = placement.meetsSeed;
+    if (!meeting) return debut;
+    const path =
+      meeting.winsNeeded === 0 ?
+        `Cruza com a cabeça ${meeting.seed} já na estreia.` :
+        `Se ganhar ${meeting.winsNeeded === 1 ? 'uma' : meeting.winsNeeded}, cruza com a cabeça ${meeting.seed}.`;
+    return [debut, path].filter(Boolean).join(' ');
+  });
+
   protected readonly queue = computed(() => {
     const session = this.store.session();
     return session ? remainingInPot(session) : [];
@@ -632,7 +820,7 @@ export class SorteioConsoleComponent {
     return !!session && session.reveals.length >= session.totalReveals;
   });
 
-  /** Log do mais recente pro mais antigo — é o que o organizador quer conferir. */
+  /** Log do mais recente pro mais antigo — é o que o organizador confere. */
   protected readonly logRows = computed(() => {
     const session = this.store.session();
     if (!session) return [];
@@ -643,6 +831,72 @@ export class SorteioConsoleComponent {
       atMillis: reveal.atMillis,
     }));
   });
+
+  /** Etapas da dupla eliminatória. Cabeças e byes vêm da planta, não do
+   *  sorteio — aparecem como concluídas desde o início, e é essa transparência
+   *  que o roteiro pede antes da tensão. */
+  protected readonly deStages = computed(() => {
+    const session = this.store.session();
+    const drawing = !!session && session.reveals.length < session.totalReveals;
+    return [
+      { n: 1, label: 'Cabeças', state: 'done' as const },
+      { n: 2, label: 'Byes', state: 'done' as const },
+      { n: 3, label: 'Posições', state: drawing ? ('live' as const) : ('done' as const) },
+      {
+        n: 4,
+        label: 'Publicação',
+        state: session?.status === 'published' ? ('done' as const) : ('wait' as const),
+      },
+    ];
+  });
+
+  protected currentKicker(session: DrawSession): string {
+    const reveal = this.current();
+    return reveal ? `Revelação ${reveal.index} de ${session.totalReveals}` : 'Aguardando';
+  }
+
+  protected queueTitle(session: DrawSession): string {
+    return session.format === 'groups_knockout' ? 'Ainda no pote' : 'Não-cabeças no pote';
+  }
+
+  protected mirrorTitle(session: DrawSession): string {
+    return session.format === 'groups_knockout' ?
+      'Grupos ao vivo' :
+      'Chave dos vencedores · rodada 1';
+  }
+
+  protected logTitle(session: DrawSession): string {
+    return `${session.reveals.length} de ${session.totalReveals} registradas`;
+  }
+
+  protected statusLabel(session: DrawSession): string {
+    return {
+      draft: 'rascunho',
+      scheduled: 'agendada',
+      live: 'no ar',
+      published: 'publicada',
+      voided: 'anulada',
+    }[session.status];
+  }
+
+  /** Tempo de transmissão em mm:ss, do relógio compartilhado. */
+  protected onAirLabel(session: DrawSession): string {
+    if (session.startedAt == null) return '--:--';
+    const elapsed = Math.max(0, Math.floor((this.clock.now() - session.startedAt) / 1000));
+    return `${this.padded(Math.floor(elapsed / 60))}:${this.padded(elapsed % 60)}`;
+  }
+
+  protected stageLabel(session: DrawSession): string {
+    if (this.done()) return 'Encerrado';
+    if (session.format === 'double_elimination') return 'Posições R1';
+    const revealed = session.reveals.length;
+    let seen = 0;
+    for (const pot of session.pots) {
+      seen += pot.teamIds.length;
+      if (revealed < seen) return `Pote ${pot.index}`;
+    }
+    return 'Encerrado';
+  }
 
   protected telaoUrl(session: DrawSession): string {
     return drawTelaoUrl(location.origin, session.id);

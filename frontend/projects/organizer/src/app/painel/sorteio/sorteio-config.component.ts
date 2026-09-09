@@ -3,34 +3,41 @@ import { Router } from '@angular/router';
 import { getTournament } from '../data/tournaments-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { findDrawSessionForCategory } from '../data/draw-sessions-repository';
-import type { DrawFormat, DrawSession } from '../data/draw-session.model';
+import type { DrawFormat, DrawSession, DrawSessionEntrant } from '../data/draw-session.model';
+import { combinationsOf, formatSummaryOf, readinessChecksOf } from '../data/draw-summary';
 import {
   createDrawSession,
   startDrawSession,
   updateDrawSessionConfig,
 } from '../data/organizer-ops.service';
 import { OgCardComponent } from '../ui/card.component';
+import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgRadioRowComponent } from '../ui/radio-row.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
 import { drawTelaoUrl } from './draw-links';
+import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
 
 /**
  * `eventos/:id/categorias/:catId/sorteio` — configurar a sessão de Sorteio ao Vivo.
  *
- * A tela tem dois estados bem diferentes e é isso que organiza o layout: sem
- * sessão, ela é um único botão de criar com o resumo do que será congelado; com
- * sessão, ela vira o painel de ajustes + o link do telão + o botão de entrar no
- * console.
- *
- * O botão de criar é deliberadamente pesado (confirma o número de duplas antes):
- * criar a sessão CONGELA o elenco, e recriar depois é o único caminho quando as
- * inscrições mudam.
+ * Três colunas, como no protótipo, e a divisão não é estética: à esquerda o que
+ * é FATO (quando, formato detectado, pendências), no meio o que vai ser
+ * sorteado (os potes), à direita o que o organizador DECIDE (ritmo, regras,
+ * transmissão). Ler da esquerda para a direita é ler da realidade para a
+ * escolha.
  */
 @Component({
   selector: 'og-sorteio-config',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgCardComponent, OgPageHeaderComponent, OgRadioRowComponent, OgToggleRowComponent],
+  imports: [
+    OgCardComponent,
+    OgIconComponent,
+    OgPageHeaderComponent,
+    OgRadioRowComponent,
+    OgToggleRowComponent,
+    SorteioDuplaRowComponent,
+  ],
   template: `
     <og-page-header title="Sorteio ao vivo" [subtitle]="headerSubtitle()">
       @if (session(); as s) {
@@ -39,7 +46,7 @@ import { drawTelaoUrl } from './draw-links';
         </button>
         @if (s.status === 'live') {
           <button type="button" class="og-btn" (click)="openConsole(s)">Voltar ao console</button>
-        } @else if (s.status === 'draft' || s.status === 'scheduled') {
+        } @else if (editable(s)) {
           <button type="button" class="og-btn" [disabled]="busy()" (click)="start(s)">
             {{ busy() ? 'Iniciando…' : 'Iniciar sorteio' }}
           </button>
@@ -47,22 +54,21 @@ import { drawTelaoUrl } from './draw-links';
       }
     </og-page-header>
 
-    <div class="og-sorteio-config">
-      @if (loading()) {
-        <og-card><p class="og-sorteio-msg">Carregando…</p></og-card>
-      } @else if (feedback(); as f) {
-        <div class="og-sorteio-feedback" [class.erro]="!f.ok" role="status">{{ f.message }}</div>
+    <div class="og-sc">
+      @if (feedback(); as f) {
+        <div class="og-sc-feedback" [class.erro]="!f.ok" role="status">{{ f.message }}</div>
       }
 
-      @if (!loading() && !session()) {
+      @if (loading()) {
+        <og-card><p class="og-sc-texto">Carregando…</p></og-card>
+      } @else if (!session()) {
         <og-card kicker="Ainda não existe sessão" title="Criar o sorteio desta categoria">
-          <p class="og-sorteio-texto">
-            Criar a sessão congela o elenco: nome, foto, cidade, nível e cartel de cada dupla
-            entram no sorteio como estão agora. Se as inscrições confirmadas mudarem depois, o
-            sorteio recusa começar e a sessão precisa ser criada de novo.
+          <p class="og-sc-texto">
+            Criar a sessão <strong>congela o elenco</strong>: nome, foto, cidade, nível e cartel de
+            cada dupla entram no sorteio como estão agora. Se as inscrições confirmadas mudarem
+            depois, o sorteio recusa começar e a sessão precisa ser criada de novo.
           </p>
-
-          <div class="og-sorteio-formatos">
+          <div class="og-sc-formatos">
             <og-radio-row
               title="Fase de grupos"
               desc="Cada dupla é sorteada para um grupo, pote a pote"
@@ -76,11 +82,10 @@ import { drawTelaoUrl } from './draw-links';
               (click)="format.set('double_elimination')"
             />
           </div>
-
           @if (format() === 'double_elimination') {
-            <div class="og-sorteio-campo">
-              <span class="og-sorteio-label">Cabeças travadas</span>
-              <div class="og-sorteio-opcoes">
+            <div class="og-sc-campo">
+              <span class="og-sc-label">Cabeças travadas</span>
+              <div class="og-sc-chips">
                 @for (n of lockedOptions; track n) {
                   <button
                     type="button"
@@ -92,62 +97,107 @@ import { drawTelaoUrl } from './draw-links';
                   </button>
                 }
               </div>
-              <p class="og-sorteio-ajuda">
-                As primeiras da ordem de nível entram sem sorteio, e a planta da chave decide
-                byes e confrontos a partir daí.
-              </p>
             </div>
           }
-
           <button type="button" class="og-btn" [disabled]="busy()" (click)="create()">
             {{ busy() ? 'Criando…' : 'Criar sessão de sorteio' }}
           </button>
         </og-card>
-      }
-
-      @if (session(); as s) {
-        <div class="og-sorteio-grid">
-          <og-card kicker="Transmissão" title="Link do telão">
-            <p class="og-sorteio-texto">
-              Abra na TV da arena ou capture a janela no OBS. <strong>Não pede login</strong> —
-              quem tiver o link assiste.
-            </p>
-            <code class="og-sorteio-link">{{ telaoUrl(s) }}</code>
-            <div class="og-sorteio-acoes">
-              <button type="button" class="og-mini-btn" (click)="copyTelaoLink(s)">
-                {{ copied() ? 'Copiado ✓' : 'Copiar link' }}
-              </button>
-              <a class="og-mini-btn" [href]="telaoUrl(s)" target="_blank" rel="noopener">
-                Abrir telão
-              </a>
-              <a class="og-mini-btn" [href]="telaoUrl(s) + '/comprovante'" target="_blank" rel="noopener">
-                Comprovante
-              </a>
-            </div>
-          </og-card>
-
-          <og-card kicker="Sessão" title="O que foi congelado">
-            <div class="og-sorteio-stats">
-              <div><span>Duplas</span><strong>{{ s.entrants.length }}</strong></div>
-              <div><span>Revelações</span><strong>{{ s.totalReveals }}</strong></div>
-              <div><span>Potes</span><strong>{{ s.pots.length }}</strong></div>
-              <div><span>Status</span><strong>{{ statusLabel(s) }}</strong></div>
-            </div>
-            @for (pot of s.pots; track pot.index) {
-              <div class="og-sorteio-pote">
-                <span class="og-sorteio-label">
-                  Pote {{ pot.index }}{{ pot.index === 1 ? ' · cabeças' : '' }}
-                </span>
-                <div class="og-sorteio-pote-lista">
-                  @for (teamId of pot.teamIds; track teamId) {
-                    <span class="og-sorteio-dupla">{{ labelOf(s, teamId) }}</span>
-                  }
-                </div>
+      } @else if (session(); as s) {
+        <div class="og-sc-grid">
+          <!-- ── Coluna 1 · o que é fato ─────────────────────────── -->
+          <div class="og-sc-col">
+            <og-card kicker="Quando" title="Data e hora da transmissão">
+              <div class="og-sc-quando">
+                <label class="og-sc-box">
+                  <span class="og-sc-label">Data</span>
+                  <input
+                    type="date"
+                    [value]="dateValue(s)"
+                    [disabled]="!editable(s)"
+                    (change)="setDate(s, $event)"
+                  />
+                </label>
+                <label class="og-sc-box">
+                  <span class="og-sc-label">Hora</span>
+                  <input
+                    type="time"
+                    [value]="timeValue(s)"
+                    [disabled]="!editable(s)"
+                    (change)="setTime(s, $event)"
+                  />
+                </label>
               </div>
-            }
-          </og-card>
+              @if (scheduleLabel(s); as label) {
+                <p class="og-sc-nota">{{ label }}</p>
+              }
+            </og-card>
 
-          @if (editable(s)) {
+            <og-card kicker="Formato detectado" [title]="formatTitle()">
+              <div class="og-sc-stats">
+                @for (stat of formatStats(); track stat.label) {
+                  <div>
+                    <span class="og-sc-label">{{ stat.label }}</span>
+                    <strong>{{ stat.value }}</strong>
+                  </div>
+                }
+              </div>
+              <p class="og-sc-nota">{{ exactNote() }}</p>
+            </og-card>
+
+            <og-card kicker="Trava de segurança" title="Pendências antes de começar">
+              <ul class="og-sc-checks">
+                @for (check of checks(); track check.id) {
+                  <li [class.ok]="check.ok" [class.opcional]="check.optional">
+                    <span class="og-sc-check-box">
+                      @if (check.ok) {
+                        <og-icon name="check" [size]="11" />
+                      }
+                    </span>
+                    <span>{{ check.label }}</span>
+                    @if (!check.ok && check.optional) {
+                      <em>· opcional</em>
+                    }
+                  </li>
+                }
+              </ul>
+            </og-card>
+          </div>
+
+          <!-- ── Coluna 2 · o que vai ser sorteado ────────────────── -->
+          <div class="og-sc-col">
+            <og-card [kicker]="potsKicker(s)" [title]="potsTitle(s)" flex="1">
+              <div class="og-sc-potes">
+                @for (pot of s.pots; track pot.index) {
+                  <section>
+                    <div class="og-sc-pote-head">
+                      <span class="og-sc-label" [class.destaque]="pot.index === 1">
+                        Pote {{ pot.index }}{{ pot.index === 1 ? ' · cabeças' : '' }}
+                      </span>
+                      <span class="og-sc-rule"></span>
+                      <span class="og-sc-label">{{ potRangeOf(s, pot.teamIds) }}</span>
+                    </div>
+                    <div class="og-sc-pote-lista">
+                      @for (teamId of pot.teamIds; track teamId) {
+                        <og-sorteio-dupla-row
+                          [entrant]="entrantOf(s, teamId)"
+                          [num]="seedNumOf(s, teamId)"
+                          [seedStyle]="pot.index === 1"
+                          [compact]="true"
+                        />
+                      }
+                    </div>
+                  </section>
+                }
+                @if (s.pots.length === 0) {
+                  <p class="og-sc-texto">Nenhum pote montado.</p>
+                }
+              </div>
+            </og-card>
+          </div>
+
+          <!-- ── Coluna 3 · o que o organizador decide ────────────── -->
+          <div class="og-sc-col">
             <og-card kicker="Condução" title="Ritmo do sorteio">
               <og-radio-row
                 title="Manual"
@@ -157,7 +207,7 @@ import { drawTelaoUrl } from './draw-links';
               />
               <og-radio-row
                 title="Automático"
-                desc="Revela sozinho no intervalo escolhido, com pausa"
+                [desc]="'Revela sozinho a cada ' + seconds(s.config.intervalMs) + ' s, com play/pause'"
                 [selected]="s.config.mode === 'auto'"
                 (click)="setMode(s, 'auto')"
               />
@@ -167,20 +217,20 @@ import { drawTelaoUrl } from './draw-links';
                 [selected]="s.config.mode === 'hybrid'"
                 (click)="setMode(s, 'hybrid')"
               />
-
-              <label class="og-sorteio-campo">
-                <span class="og-sorteio-label">Intervalo entre revelações</span>
-                <div class="og-sorteio-slider">
+              <label class="og-sc-campo og-sc-slider-campo">
+                <span class="og-sc-label">Intervalo entre revelações</span>
+                <span class="og-sc-slider">
                   <input
                     type="range"
                     min="2000"
                     max="15000"
                     step="500"
                     [value]="s.config.intervalMs"
+                    [disabled]="!editable(s)"
                     (change)="setInterval(s, $event)"
                   />
-                  <span class="og-sorteio-slider-valor">{{ seconds(s.config.intervalMs) }}s</span>
-                </div>
+                  <b>{{ seconds(s.config.intervalMs) }}s</b>
+                </span>
               </label>
             </og-card>
 
@@ -200,16 +250,40 @@ import { drawTelaoUrl } from './draw-links';
                 />
                 <og-toggle-row
                   title="Evitar mesma cidade no grupo"
-                  desc="Relaxada automaticamente se travar a chave — e o comprovante registra"
+                  desc="Relaxada automaticamente se travar a chave"
                   [on]="s.config.constraints.avoidSameCity"
                   (toggled)="setConstraint(s, 'avoidSameCity', $event)"
                 />
               } @else {
-                <p class="og-sorteio-texto">
-                  Na dupla eliminatória as restrições vêm da planta da chave: as cabeças entram
-                  travadas nos primeiros seeds e os byes são consequência, não sorteio.
+                <p class="og-sc-texto">
+                  Na dupla eliminatória as restrições vêm da planta: as cabeças entram travadas nos
+                  primeiros seeds e os byes são consequência, não sorteio.
                 </p>
               }
+              <div class="og-sc-combo">
+                <span class="og-sc-label">Combinações possíveis</span>
+                <strong>{{ combinationsLabel() }}</strong>
+                <p>Com as restrições ligadas. O sorteio roda no servidor a cada clique.</p>
+              </div>
+            </og-card>
+
+            <og-card kicker="Transmissão" title="Telão e comprovante">
+              <p class="og-sc-texto">
+                Abra na TV da arena ou capture a janela no OBS.
+                <strong>Não pede login</strong> — quem tiver o link assiste.
+              </p>
+              <code class="og-sc-link">{{ telaoUrl(s) }}</code>
+              <div class="og-sc-acoes">
+                <button type="button" class="og-mini-btn" (click)="copyTelaoLink(s)">
+                  {{ copied() ? 'Copiado ✓' : 'Copiar link' }}
+                </button>
+                <a class="og-mini-btn" [href]="telaoUrl(s)" target="_blank" rel="noopener">
+                  Abrir telão
+                </a>
+                <a class="og-mini-btn" [href]="telaoUrl(s) + '/comprovante'" target="_blank" rel="noopener">
+                  Comprovante
+                </a>
+              </div>
               <og-toggle-row
                 title="Frases no telão"
                 desc="Provocação por contexto, sempre sobre a chave — nunca sobre a pessoa"
@@ -217,150 +291,261 @@ import { drawTelaoUrl } from './draw-links';
                 (toggled)="setPhrases(s, $event)"
               />
             </og-card>
-          }
+          </div>
         </div>
       }
     </div>
   `,
   styles: `
-    .og-sorteio-config {
+    .og-sc {
       padding: 20px 32px 32px;
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
-    .og-sorteio-grid {
+    /* Fato · sorteio · decisão. A coluna do meio é a mais larga porque é a
+       lista mais longa; a da direita é fixa porque são controles. */
+    .og-sc-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 360px;
       gap: 14px;
       align-items: start;
     }
-    .og-sorteio-msg,
-    .og-sorteio-texto {
-      margin: 0 0 14px;
-      font-size: 13.5px;
-      line-height: 1.6;
+    .og-sc-col {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+    .og-sc-texto,
+    .og-sc-nota {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.55;
       color: var(--nx-text-mute);
       text-wrap: pretty;
     }
-    .og-sorteio-texto strong {
+    .og-sc-texto {
+      font-size: 13.5px;
+      margin-bottom: 14px;
+    }
+    .og-sc-texto strong {
       color: var(--nx-text);
     }
-    .og-sorteio-formatos {
+    .og-sc-nota {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+    .og-sc-label {
+      display: block;
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .og-sc-label.destaque {
+      color: var(--nx-orange-500);
+    }
+    .og-sc-quando {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .og-sc-box {
+      display: block;
+      padding: 9px 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      cursor: pointer;
+    }
+    .og-sc-box input {
+      display: block;
+      width: 100%;
+      margin-top: 3px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 14px;
+      /* Altura de toque confortável no tablet do organizador. */
+      min-height: 28px;
+      color-scheme: dark;
+    }
+    .og-sc-box input:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .og-sc-box input[type='time'] {
+      font-family: var(--nx-font-mono);
+    }
+    .og-sc-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .og-sc-stats div {
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      min-width: 0;
+    }
+    .og-sc-stats strong {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 22px;
+      font-variant-numeric: tabular-nums;
+      color: var(--nx-text);
+    }
+    .og-sc-checks {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .og-sc-checks li {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+    }
+    .og-sc-checks li.ok {
+      color: var(--nx-text);
+    }
+    .og-sc-checks li em {
+      font-style: normal;
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+    }
+    .og-sc-check-box {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 5px;
+      border: 1px solid var(--nx-line-strong);
+      color: #07130d;
+    }
+    .og-sc-checks li.ok .og-sc-check-box {
+      background: var(--nx-win);
+      border-color: var(--nx-win);
+    }
+    .og-sc-potes {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .og-sc-pote-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .og-sc-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--nx-line);
+    }
+    .og-sc-pote-lista {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 5px;
+    }
+    .og-sc-campo {
+      display: block;
+      margin-top: 14px;
+    }
+    .og-sc-slider-campo {
+      padding-top: 12px;
+      border-top: 1px solid var(--nx-line);
+    }
+    .og-sc-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .og-sc-formatos {
       display: flex;
       flex-direction: column;
       gap: 8px;
       margin-bottom: 16px;
     }
-    .og-sorteio-campo {
-      display: block;
-      margin: 16px 0;
-    }
-    .og-sorteio-label {
-      display: block;
-      font-family: var(--nx-font-mono);
-      font-size: 10px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--nx-text-dim);
-      margin-bottom: 8px;
-    }
-    .og-sorteio-opcoes {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .og-sorteio-ajuda {
-      margin: 8px 0 0;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--nx-text-dim);
-    }
-    .og-sorteio-link {
-      display: block;
-      padding: 11px 13px;
-      border-radius: var(--nx-r-2);
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      font-family: var(--nx-font-mono);
-      font-size: 12.5px;
-      color: var(--nx-orange-500);
-      /* URL longa quebra dentro da caixa em vez de esticar o card. */
-      overflow-wrap: anywhere;
-    }
-    .og-sorteio-acoes {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .og-sorteio-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .og-sorteio-stats div {
-      padding: 9px 11px;
-      border-radius: var(--nx-r-2);
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      min-width: 0;
-    }
-    .og-sorteio-stats span {
-      display: block;
-      font-family: var(--nx-font-mono);
-      font-size: 9.5px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--nx-text-dim);
-    }
-    .og-sorteio-stats strong {
-      display: block;
-      margin-top: 3px;
-      font-family: var(--nx-font-mono);
-      font-size: 16px;
-      font-variant-numeric: tabular-nums;
-      color: var(--nx-text);
-    }
-    .og-sorteio-pote {
-      margin-top: 12px;
-    }
-    .og-sorteio-pote-lista {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .og-sorteio-dupla {
-      padding: 5px 10px;
-      border-radius: 999px;
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      font-size: 12px;
-      color: var(--nx-text-mute);
-    }
-    .og-sorteio-slider {
+    .og-sc-slider {
       display: flex;
       align-items: center;
       gap: 12px;
+      margin-top: 6px;
     }
-    .og-sorteio-slider input {
+    .og-sc-slider input {
       flex: 1;
       min-width: 0;
       accent-color: var(--nx-orange-500);
-      /* Área de toque confortável no tablet do organizador. */
-      height: 44px;
+      min-height: 44px;
     }
-    .og-sorteio-slider-valor {
+    .og-sc-slider b {
       font-family: var(--nx-font-mono);
       font-weight: 700;
       font-size: 14px;
       color: var(--nx-orange-500);
-      width: 40px;
+      width: 38px;
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
-    .og-sorteio-feedback {
+    .og-sc-combo {
+      margin-top: 12px;
+      padding: 11px 13px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+    .og-sc-combo strong {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
+      font-size: 17px;
+      font-variant-numeric: tabular-nums;
+      color: var(--nx-text);
+    }
+    .og-sc-combo p {
+      margin: 4px 0 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--nx-text-dim);
+    }
+    .og-sc-link {
+      display: block;
+      padding: 10px 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-mono);
+      font-size: 12px;
+      color: var(--nx-orange-500);
+      overflow-wrap: anywhere;
+    }
+    .og-sc-acoes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 4px;
+    }
+    .og-sc-feedback {
       padding: 11px 14px;
       border-radius: var(--nx-r-2);
       background: rgb(43 209 126 / 12%);
@@ -368,10 +553,37 @@ import { drawTelaoUrl } from './draw-links';
       color: var(--nx-win);
       font-size: 13px;
     }
-    .og-sorteio-feedback.erro {
+    .og-sc-feedback.erro {
       background: rgb(255 59 48 / 10%);
       border-color: rgb(255 59 48 / 40%);
       color: var(--nx-live);
+    }
+
+    /* Tablet: a coluna de decisão desce e as duas de cima dividem a linha. */
+    @media (max-width: 1279px) {
+      .og-sc-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+      .og-sc-grid > :last-child {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      .og-sc-grid > :last-child > * {
+        flex: 1 1 300px;
+      }
+    }
+
+    @media (max-width: 899px) {
+      .og-sc {
+        padding: 16px 20px 24px;
+      }
+      .og-sc-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .og-sc-grid > :last-child {
+        flex-direction: column;
+      }
     }
   `,
 })
@@ -396,10 +608,68 @@ export class SorteioConfigComponent {
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
 
   protected readonly headerSubtitle = computed(() => {
+    const s = this.session();
     const t = this.tournament();
     const category = t?.categories.find((c) => c.id === this.catId());
-    if (!t || !category) return 'A chave só vira oficial quando a sessão for publicada';
-    return `${t.name} · ${category.name} · a chave só vira oficial quando a sessão for publicada`;
+    const base = 'a chave só vira oficial quando a sessão for publicada';
+    if (!category) return base;
+    const teams = s ? `${s.entrants.length} duplas · ` : '';
+    return `${category.name} · ${teams}${base}`;
+  });
+
+  private readonly summary = computed(() => {
+    const s = this.session();
+    return s ? formatSummaryOf(s) : null;
+  });
+
+  protected readonly formatTitle = computed(() => {
+    const s = this.session();
+    if (!s) return '';
+    return s.format === 'groups_knockout' ? 'Fase de grupos + mata-mata' : 'Dupla eliminatória';
+  });
+
+  protected readonly formatStats = computed(() => {
+    const summary = this.summary();
+    if (!summary) return [];
+    if (summary.kind === 'groups') {
+      return [
+        { label: 'duplas', value: summary.teams },
+        { label: 'grupos', value: summary.groups },
+        { label: 'por grupo', value: summary.perGroup },
+        { label: 'classificam', value: summary.qualifiers },
+      ];
+    }
+    return [
+      { label: 'duplas', value: summary.teams },
+      { label: 'cabeças', value: summary.locked },
+      { label: 'sorteadas', value: summary.drawn },
+      { label: 'byes', value: summary.byes },
+    ];
+  });
+
+  protected readonly exactNote = computed(() => {
+    const summary = this.summary();
+    if (!summary) return '';
+    if (summary.kind === 'groups') {
+      return summary.exact ?
+        'A chave fecha exatamente. Nenhum grupo desigual.' :
+        'A divisão não fecha: alguns grupos ficam com uma dupla a menos.';
+    }
+    return summary.exact ?
+      'A planta fecha exatamente. Nenhum bye necessário.' :
+      `A planta dá bye para ${summary.byes} cabeça(s) na primeira rodada.`;
+  });
+
+  protected readonly checks = computed(() => {
+    const s = this.session();
+    return s ? readinessChecksOf(s) : [];
+  });
+
+  protected readonly combinationsLabel = computed(() => {
+    const s = this.session();
+    if (!s) return '—';
+    const total = combinationsOf(s);
+    return total == null ? 'praticamente infinitas' : total.toLocaleString('pt-BR');
   });
 
   constructor() {
@@ -452,18 +722,36 @@ export class SorteioConfigComponent {
     return session.status === 'draft' || session.status === 'scheduled';
   }
 
-  protected statusLabel(session: DrawSession): string {
-    return {
-      draft: 'Rascunho',
-      scheduled: 'Agendada',
-      live: 'No ar',
-      published: 'Publicada',
-      voided: 'Anulada',
-    }[session.status];
+  protected entrantOf(session: DrawSession, teamId: string): DrawSessionEntrant | null {
+    return session.entrants.find((e) => e.teamId === teamId) ?? null;
   }
 
-  protected labelOf(session: DrawSession, teamId: string): string {
-    return session.entrants.find((e) => e.teamId === teamId)?.label ?? teamId;
+  /** Cabeça mostra o seed; as demais mostram a posição no ranking do pote. */
+  protected seedNumOf(session: DrawSession, teamId: string): number {
+    const entrant = this.entrantOf(session, teamId);
+    if (entrant?.lockedSeed != null) return entrant.lockedSeed;
+    return session.pots.flatMap((p) => p.teamIds).indexOf(teamId) + 1;
+  }
+
+  /** Faixa de pontuação do pote — é o que justifica a divisão para quem olha. */
+  protected potRangeOf(session: DrawSession, teamIds: readonly string[]): string {
+    const points = teamIds
+      .map((id) => this.entrantOf(session, id)?.points)
+      .filter((p): p is number => p != null);
+    if (points.length === 0) return 'sem nível';
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    return min === max ? `${min} pts` : `${min}–${max} pts`;
+  }
+
+  protected potsKicker(session: DrawSession): string {
+    return session.format === 'groups_knockout' ? 'Potes' : 'Pote único';
+  }
+
+  protected potsTitle(session: DrawSession): string {
+    return session.format === 'groups_knockout' ?
+      `${session.pots.length} potes por ranking` :
+      'Não-cabeças a sortear';
   }
 
   protected telaoUrl(session: DrawSession): string {
@@ -474,13 +762,66 @@ export class SorteioConfigComponent {
     return (ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1);
   }
 
+  /** `YYYY-MM-DD` na parede local — nunca `toISOString`, que desloca o dia. */
+  protected dateValue(session: DrawSession): string {
+    const at = session.scheduledAt;
+    if (at == null) return '';
+    const d = new Date(at);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  protected timeValue(session: DrawSession): string {
+    const at = session.scheduledAt;
+    if (at == null) return '';
+    const d = new Date(at);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  protected scheduleLabel(session: DrawSession): string {
+    if (session.scheduledAt == null) {
+      return 'Sem horário definido: a contagem regressiva do telão só aparece depois de agendar.';
+    }
+    return `A contagem regressiva aparece no telão a partir de 24 h antes.`;
+  }
+
+  protected setDate(session: DrawSession, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (!value) return;
+    const [y, m, d] = value.split('-').map(Number);
+    const current = session.scheduledAt != null ? new Date(session.scheduledAt) : new Date();
+    const next = new Date(y!, (m ?? 1) - 1, d ?? 1, current.getHours(), current.getMinutes());
+    void this.schedule(session, next.getTime());
+  }
+
+  protected setTime(session: DrawSession, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    if (!value) return;
+    const [h, min] = value.split(':').map(Number);
+    const base = session.scheduledAt != null ? new Date(session.scheduledAt) : new Date();
+    const next = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h ?? 0, min ?? 0);
+    void this.schedule(session, next.getTime());
+  }
+
+  private async schedule(session: DrawSession, scheduledAt: number): Promise<void> {
+    this.session.set({ ...session, scheduledAt, status: 'scheduled' });
+    try {
+      await updateDrawSessionConfig(session.id, {}, scheduledAt);
+    } catch (e) {
+      this.session.set(session);
+      this.feedback.set({ ok: false, message: this.messageOf(e) });
+    }
+  }
+
   protected async copyTelaoLink(session: DrawSession): Promise<void> {
     try {
       await navigator.clipboard.writeText(this.telaoUrl(session));
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 2000);
     } catch {
-      this.feedback.set({ ok: false, message: 'Não foi possível copiar. Selecione o link e copie à mão.' });
+      this.feedback.set({
+        ok: false,
+        message: 'Não foi possível copiar. Selecione o link e copie à mão.',
+      });
     }
   }
 
@@ -498,7 +839,10 @@ export class SorteioConfigComponent {
           {}),
       });
       await this.load(this.id(), this.catId());
-      this.feedback.set({ ok: true, message: 'Sessão criada. Ajuste o ritmo e as regras antes de iniciar.' });
+      this.feedback.set({
+        ok: true,
+        message: 'Sessão criada. Ajuste o ritmo e as regras antes de iniciar.',
+      });
     } catch (e) {
       this.feedback.set({ ok: false, message: this.messageOf(e) });
     } finally {
@@ -521,14 +865,10 @@ export class SorteioConfigComponent {
   }
 
   protected openConsole(session: DrawSession): void {
-    void this.router.navigate([
-      '/painel/eventos',
-      this.id(),
-      'categorias',
-      this.catId(),
-      'sorteio',
-      'console',
-    ], { queryParams: { s: session.id } });
+    void this.router.navigate(
+      ['/painel/eventos', this.id(), 'categorias', this.catId(), 'sorteio', 'console'],
+      { queryParams: { s: session.id } },
+    );
   }
 
   protected setMode(session: DrawSession, mode: DrawSession['config']['mode']): void {
@@ -536,8 +876,9 @@ export class SorteioConfigComponent {
   }
 
   protected setInterval(session: DrawSession, event: Event): void {
-    const value = Number((event.target as HTMLInputElement).value);
-    void this.patchConfig(session, { intervalMs: value });
+    void this.patchConfig(session, {
+      intervalMs: Number((event.target as HTMLInputElement).value),
+    });
   }
 
   protected setPhrases(session: DrawSession, phrasesEnabled: boolean): void {
@@ -559,7 +900,7 @@ export class SorteioConfigComponent {
     patch: Partial<DrawSession['config']>,
   ): Promise<void> {
     // Otimista: a tela responde na hora e o servidor confirma. Se recusar, o
-    // reload devolve o estado real em vez de deixar a tela mentindo.
+    // estado anterior volta em vez de a tela ficar mentindo.
     this.session.set({ ...session, config: { ...session.config, ...patch } });
     try {
       await updateDrawSessionConfig(session.id, patch);
@@ -573,4 +914,8 @@ export class SorteioConfigComponent {
     const err = error as { message?: string };
     return err?.message || 'Não foi possível concluir a ação.';
   }
+}
+
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
 }

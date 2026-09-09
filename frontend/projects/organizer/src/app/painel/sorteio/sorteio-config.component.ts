@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { getTournament } from '../data/tournaments-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
@@ -378,9 +378,11 @@ import { drawTelaoUrl } from './draw-links';
 export class SorteioConfigComponent {
   private readonly router = inject(Router);
 
-  /** Preenchidos pelo router (`withComponentInputBinding`). */
-  readonly id = signal('');
-  readonly catId = signal('');
+  /** Preenchidos pelo router (`withComponentInputBinding`) — que só alimenta
+   *  `input()`. Como `signal()` comum, ficavam vazios pra sempre e a tela
+   *  travava em "Carregando…". */
+  readonly id = input<string>('');
+  readonly catId = input<string>('');
 
   protected readonly lockedOptions = [0, 2, 4, 8];
 
@@ -404,7 +406,17 @@ export class SorteioConfigComponent {
     effect(() => {
       const tid = this.id();
       const cid = this.catId();
-      if (!tid || !cid) return;
+      if (!tid || !cid) {
+        // Sem torneio/categoria não há o que carregar. Sair daqui deixando
+        // `loading` ligado prendia a tela em "Carregando…" pra sempre — o
+        // sintoma não dizia nada sobre a causa.
+        this.loading.set(false);
+        this.feedback.set({
+          ok: false,
+          message: 'Abra o sorteio pelo menu da categoria — falta o torneio ou a categoria na URL.',
+        });
+        return;
+      }
       void this.load(tid, cid);
     });
   }
@@ -420,8 +432,17 @@ export class SorteioConfigComponent {
       this.session.set(session);
       const saved = tournament?.categories.find((c) => c.id === categoryId)?.bracketFormat;
       if (saved === 'double_elimination') this.format.set('double_elimination');
-    } catch {
-      this.feedback.set({ ok: false, message: 'Não foi possível carregar a categoria.' });
+    } catch (e) {
+      // Mostra o motivo real junto. Engolir a mensagem do servidor num "não foi
+      // possível" genérico é o que transforma uma falha diagnosticável (índice
+      // faltando, permissão, rede) em "a tela não faz nada".
+      const detail = (e as { message?: string })?.message?.trim();
+      this.feedback.set({
+        ok: false,
+        message: detail ?
+          `Não foi possível carregar a categoria: ${detail}` :
+          'Não foi possível carregar a categoria.',
+      });
     } finally {
       this.loading.set(false);
     }

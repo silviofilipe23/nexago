@@ -168,7 +168,7 @@ describe('SorteioConsoleComponent', () => {
   it('a fila lista só quem ainda não saiu — quem já foi sorteada some dela', async () => {
     const fixture = await render(session({ reveals: [reveal(1, 'a', 'A')] }));
     const nomes = [
-      ...(fixture.nativeElement as HTMLElement).querySelectorAll('.og-console-fila li span'),
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('.og-cs-fila .og-dupla-nome'),
     ].map((el) => (el.textContent ?? '').trim());
     expect(nomes).toEqual(['DUPLA-B', 'DUPLA-C', 'DUPLA-D']);
   });
@@ -186,7 +186,7 @@ describe('SorteioConsoleComponent', () => {
   it('o log aparece do mais recente para o mais antigo', async () => {
     const reveals = ['a', 'b'].map((t, i) => reveal(i + 1, t, 'A'));
     const fixture = await render(session({ reveals }));
-    const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.og-console-log li');
+    const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.og-cs-log li');
     expect(items[0].textContent).toContain('#02');
   });
 });

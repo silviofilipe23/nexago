@@ -2,18 +2,18 @@ import { MatchDefinition } from './bracket-definitions';
 
 export const BRACKET_14_TEAMS: MatchDefinition[] = [
     // WB R1
-    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'SEED', seed: 2 } },
-    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 4 } },
-    { matchNumber: 3, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 5 }, teamB: { type: 'SEED', seed: 6 } },
-    { matchNumber: 4, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 7 }, teamB: { type: 'SEED', seed: 8 } },
-    { matchNumber: 5, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 9 }, teamB: { type: 'SEED', seed: 10 } },
-    { matchNumber: 6, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 11 }, teamB: { type: 'SEED', seed: 12 } },
+    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 7 }, teamB: { type: 'SEED', seed: 10 } },
+    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 14 } },
+    { matchNumber: 3, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 6 }, teamB: { type: 'SEED', seed: 11 } },
+    { matchNumber: 4, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 4 }, teamB: { type: 'SEED', seed: 13 } },
+    { matchNumber: 5, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 5 }, teamB: { type: 'SEED', seed: 12 } },
+    { matchNumber: 6, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 8 }, teamB: { type: 'SEED', seed: 9 } },
 
     // WB R2
-    { matchNumber: 7, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 13 }, teamB: { type: 'WINNER', matchNumber: 1 } },
+    { matchNumber: 7, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 2 }, teamB: { type: 'WINNER', matchNumber: 1 } },
     { matchNumber: 8, bracket: 'WB', round: 2, teamA: { type: 'WINNER', matchNumber: 2 }, teamB: { type: 'WINNER', matchNumber: 3 } },
     { matchNumber: 9, bracket: 'WB', round: 2, teamA: { type: 'WINNER', matchNumber: 4 }, teamB: { type: 'WINNER', matchNumber: 5 } },
-    { matchNumber: 10, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 14 }, teamB: { type: 'WINNER', matchNumber: 6 } },
+    { matchNumber: 10, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'WINNER', matchNumber: 6 } },
 
     // LB R1
     { matchNumber: 11, bracket: 'LB', round: 1, teamA: { type: 'LOSER', matchNumber: 3 }, teamB: { type: 'LOSER', matchNumber: 2 } },

@@ -20,25 +20,47 @@ import {MatchDefinition} from "./bracket-definitions";
  * colocação premiar o perdedor com um degrau de 5º-8º ANTES de ele jogar o 3º
  * lugar (`resolveDoubleEliminationLbPlacement`), enquanto partidas de WB não
  * concedem colocação nenhuma e deixam o pódio inteiro para #61 e #62.
+ *
+ * SEMEADURA (a tabela impressa deixa as caixas em branco — a regra é do dono).
+ * `seed: N` é a POSIÇÃO NO RANKING, porque o painel manda `seeds` na ordem da
+ * tela sem redistribuir nada; a planta é o único lugar onde a distribuição
+ * acontece. As demais plantas (4–27) casam seed 1 com seed 2 já na estreia —
+ * aqui NÃO, e essa diferença é deliberada:
+ *
+ *  - cada partida da R1 é cabeça × complemento, somando sempre 33
+ *    (1×32, 2×31, 3×30 …), então ninguém pega um adversário fora da sua faixa;
+ *  - os quatro primeiros abrem nas PONTAS dos quatro quadrantes — 1º no #1,
+ *    4º no #8, 3º no #9, 2º no #16 — e por isso não se cruzam antes das
+ *    semifinais da WB: #53 sai 1º×4º e #54 sai 3º×2º;
+ *  - os cabeças 5–8 entram na ponta oposta do quadrante do seu par de quartas
+ *    (1v8, 4v5, 3v6, 2v7) e os 9–16 completam os blocos da R2 (1v16, 8v9,
+ *    5v12, 4v13, 3v14, 6v11, 7v10, 2v15).
+ *
+ * O efeito é o do bracket semeado canônico, com 2º e 3º trocados de quadrante
+ * e cada cabeça na ponta em vez da posição canônica. `bracket-32-teams.test.ts`
+ * trava as quatro âncoras, a soma 33 e as rodadas de reencontro — mexer na
+ * ordem sem mexer no teste quebra o build de propósito.
  */
 export const BRACKET_32_TEAMS: MatchDefinition[] = [
-  // WB R1 — 32 duplas
-  {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 31}},
-  {matchNumber: 2, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 17}, teamB: {type: "SEED", seed: 15}},
-  {matchNumber: 3, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 5}, teamB: {type: "SEED", seed: 6}},
-  {matchNumber: 4, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 7}, teamB: {type: "SEED", seed: 8}},
-  {matchNumber: 5, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 9}, teamB: {type: "SEED", seed: 10}},
-  {matchNumber: 6, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 11}, teamB: {type: "SEED", seed: 12}},
-  {matchNumber: 7, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 13}, teamB: {type: "SEED", seed: 14}},
-  {matchNumber: 8, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 4}, teamB: {type: "SEED", seed: 16}},
-  {matchNumber: 9, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 3}, teamB: {type: "SEED", seed: 18}},
-  {matchNumber: 10, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 19}, teamB: {type: "SEED", seed: 20}},
-  {matchNumber: 11, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 21}, teamB: {type: "SEED", seed: 22}},
-  {matchNumber: 12, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 23}, teamB: {type: "SEED", seed: 24}},
-  {matchNumber: 13, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 25}, teamB: {type: "SEED", seed: 26}},
-  {matchNumber: 14, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 27}, teamB: {type: "SEED", seed: 28}},
-  {matchNumber: 15, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 29}, teamB: {type: "SEED", seed: 30}},
-  {matchNumber: 16, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 2}, teamB: {type: "SEED", seed: 32}},
+  // WB R1 — cabeça × complemento (soma 33); 1º/4º/3º/2º nas pontas
+  //   quadrante A #1-4 → #41 ⌉                  quadrante C #9-12 → #43 ⌉
+  //   quadrante B #5-8 → #42 ⌋→ #53 (1º×4º)     quadrante D #13-16 → #44 ⌋→ #54 (3º×2º)
+  {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 32}},
+  {matchNumber: 2, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 16}, teamB: {type: "SEED", seed: 17}},
+  {matchNumber: 3, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 9}, teamB: {type: "SEED", seed: 24}},
+  {matchNumber: 4, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 8}, teamB: {type: "SEED", seed: 25}},
+  {matchNumber: 5, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 5}, teamB: {type: "SEED", seed: 28}},
+  {matchNumber: 6, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 12}, teamB: {type: "SEED", seed: 21}},
+  {matchNumber: 7, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 13}, teamB: {type: "SEED", seed: 20}},
+  {matchNumber: 8, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 4}, teamB: {type: "SEED", seed: 29}},
+  {matchNumber: 9, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 3}, teamB: {type: "SEED", seed: 30}},
+  {matchNumber: 10, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 14}, teamB: {type: "SEED", seed: 19}},
+  {matchNumber: 11, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 11}, teamB: {type: "SEED", seed: 22}},
+  {matchNumber: 12, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 6}, teamB: {type: "SEED", seed: 27}},
+  {matchNumber: 13, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 7}, teamB: {type: "SEED", seed: 26}},
+  {matchNumber: 14, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 10}, teamB: {type: "SEED", seed: 23}},
+  {matchNumber: 15, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 15}, teamB: {type: "SEED", seed: 18}},
+  {matchNumber: 16, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 2}, teamB: {type: "SEED", seed: 31}},
 
   // WB R2
   {matchNumber: 17, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 1}, teamB: {type: "WINNER", matchNumber: 2}},

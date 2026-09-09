@@ -2,12 +2,12 @@ import { MatchDefinition } from './bracket-definitions';
 
 export const BRACKET_7_TEAMS: MatchDefinition[] = [
     // WB R1
-    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'SEED', seed: 2 } },
-    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 4 } },
-    { matchNumber: 3, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 5 }, teamB: { type: 'SEED', seed: 6 } },
+    { matchNumber: 1, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 4 }, teamB: { type: 'SEED', seed: 5 } },
+    { matchNumber: 2, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 2 }, teamB: { type: 'SEED', seed: 7 } },
+    { matchNumber: 3, bracket: 'WB', round: 1, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'SEED', seed: 6 } },
     
     // WB R2
-    { matchNumber: 4, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 7 }, teamB: { type: 'WINNER', matchNumber: 1 } },
+    { matchNumber: 4, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'WINNER', matchNumber: 1 } },
     { matchNumber: 5, bracket: 'WB', round: 2, teamA: { type: 'WINNER', matchNumber: 2 }, teamB: { type: 'WINNER', matchNumber: 3 } },
 
     // LB R1

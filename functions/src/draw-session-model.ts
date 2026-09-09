@@ -54,6 +54,14 @@ export interface DrawSessionReveal extends DrawRevealLogEntry {
   phrase: Phrase | null;
   /** Dupla eliminatória: consequência já resolvida pela planta. */
   dePlacement: DePlacement | null;
+  /**
+   * Cabeça de chave que já tinha lugar: mostrada com o mesmo show, mas não
+   * sorteada. O comprovante rotula essas linhas separadamente — é o que impede
+   * o documento de afirmar acaso onde não houve. Fica FORA do hash: a cadeia
+   * segue sobre dupla + destino + instante, então ligar a regra não invalida
+   * comprovante nenhum já emitido.
+   */
+  preassigned?: true;
 }
 
 export interface DrawSessionConfig {

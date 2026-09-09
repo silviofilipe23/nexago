@@ -129,6 +129,13 @@ export function computeNextReveal(
 
   return {
     kind: "applied",
-    reveal: {...entry, destination, relaxed: reveal.relaxed, phrase, dePlacement},
+    reveal: {
+      ...entry,
+      destination,
+      relaxed: reveal.relaxed,
+      phrase,
+      dePlacement,
+      ...(reveal.preassigned ? {preassigned: true as const} : {}),
+    },
   };
 }

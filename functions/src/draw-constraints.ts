@@ -20,6 +20,16 @@ export interface DrawConstraints {
   potsPerGroup: boolean;
   /** Evita mesma cidade no grupo; relaxa sozinha se travar a chave. */
   avoidSameCity: boolean;
+  /**
+   * Cabeças com lugar JÁ DEFINIDO: a 1ª do ranking abre o grupo A, a 2ª o B, e
+   * assim por diante. O telão continua rolando os dados, mas o resultado do
+   * pote 1 não depende do acaso — e a revelação sai marcada para o comprovante
+   * não vender como sorteio o que não foi.
+   *
+   * Opcional porque sessões criadas antes desta regra não têm o campo; ausente
+   * = cabeças sorteadas, que era o comportamento delas.
+   */
+  seedsPreassigned?: boolean;
 }
 
 export interface DrawGroupState {

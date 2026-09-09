@@ -3,6 +3,7 @@ import type {
   DrawGroupView,
   DrawSession,
   DrawSessionEntrant,
+  DrawSessionReveal,
 } from './draw-session.model';
 
 /**
@@ -98,6 +99,23 @@ export function seedRivalPhrase(
 ): string {
   const label = seedOrder[seed - 1]?.label?.trim();
   return label || `a cabeça ${seed}`;
+}
+
+/**
+ * De onde veio a linha do comprovante.
+ *
+ * O documento existe pra provar aleatoriedade. As cabeças entram no grupo que o
+ * ranking já definiu — mostrar essas linhas iguais às sorteadas faria o
+ * comprovante afirmar acaso onde não houve, e aí ele deixaria de valer para as
+ * outras também.
+ */
+export function revealOriginLabelOf(reveal: DrawSessionReveal): string {
+  return reveal.preassigned ? 'por ranking' : 'sorteada';
+}
+
+/** Quantas linhas não foram sorteadas — muda o texto que explica a cadeia. */
+export function preassignedCountOf(reveals: readonly DrawSessionReveal[]): number {
+  return reveals.filter((r) => r.preassigned).length;
 }
 
 /** Aproveitamento em %; `null` pra dupla estreante — mostrar 0% seria mentira. */

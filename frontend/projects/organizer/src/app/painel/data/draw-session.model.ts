@@ -18,6 +18,8 @@ export interface DrawConstraints {
   seedsApart: boolean;
   potsPerGroup: boolean;
   avoidSameCity: boolean;
+  /** Cabeças abrem no grupo que o ranking já definiu (1ª → A, 2ª → B, …). */
+  seedsPreassigned?: boolean;
 }
 
 export interface DrawSessionEntrant {
@@ -64,6 +66,8 @@ export interface DrawSessionReveal {
   relaxed: string[];
   phrase: { id: string; text: string } | null;
   dePlacement: DrawDePlacement | null;
+  /** Cabeça com lugar já definido: teve o mesmo show, mas não foi sorteada. */
+  preassigned?: true;
 }
 
 export interface DrawSessionConfig {

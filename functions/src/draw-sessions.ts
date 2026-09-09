@@ -331,6 +331,10 @@ export const createDrawSession = onCall(async (request) => {
         seedsApart: format === "groups_knockout",
         potsPerGroup: format === "groups_knockout",
         avoidSameCity: false,
+        // As cabeças abrem o sorteio com lugar já definido — 1ª do ranking no
+        // grupo A, 2ª no B. Na dupla eliminatória isso já era assim por
+        // `lockedSeedCount`; aqui a fase de grupos passa a fazer igual.
+        seedsPreassigned: format === "groups_knockout",
       },
     },
     pots,

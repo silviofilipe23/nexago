@@ -16,10 +16,10 @@ import {athleteRatingsPath} from "./rating-engine";
 import {buildEntrants, type EntrantHistoryMatch, type EntrantSource} from "./draw-entrants";
 import {byeSeeds, winnersRoundOnePairings} from "./draw-de-placement";
 import {genesisHash} from "./draw-log";
+import {resequenceSession, validateSeedOrder} from "./draw-resequence";
 import {computeNextReveal} from "./draw-next-reveal";
 import {phraseContextsFor, pickPhrase} from "./draw-phrases";
-import {deSeedSlots, groupCapacities} from "./draw-plan";
-import {buildGroupPots, rankTeamsByStrength, teamStrength, type AthleteRatingLite} from "./draw-pots";
+import {rankTeamsByStrength, teamStrength, type AthleteRatingLite} from "./draw-pots";
 import {
   rebuildEngineState,
   type DrawSessionConfig,
@@ -285,19 +285,28 @@ export const createDrawSession = onCall(async (request) => {
   }));
   const ranked = rankTeamsByStrength(strengths);
 
-  const groups = groupCapacities(teamIds.length, category.teamsPerGroup);
   const lockedSeedCount =
     format === "double_elimination" ?
       Math.min(Math.max(0, Number(request.data?.lockedSeedCount ?? 4) || 0), teamIds.length) :
       0;
 
-  const pots =
-    format === "groups_knockout" ?
-      buildGroupPots(ranked, groups.length) :
-      [{index: 1, teamIds: ranked.slice(lockedSeedCount)}];
-
-  const lockedTeamIds = format === "double_elimination" ? ranked.slice(0, lockedSeedCount) : [];
-  const entrants = buildEntrants(sources, sportCode, pots, lockedTeamIds);
+  // Potes e cabeças saem de `resequenceSession`, a MESMA função que a
+  // reordenação manual usa. Duas regras de montagem seriam duas chaves
+  // diferentes para a mesma ordem.
+  const baseEntrants = buildEntrants(sources, sportCode, [], []);
+  const seeded = resequenceSession(
+    {
+      format,
+      config: {
+        lockedSeedCount,
+        teamsPerGroup: category.teamsPerGroup,
+      },
+      entrants: baseEntrants,
+    } as unknown as DrawSessionDoc,
+    ranked,
+  );
+  const pots = seeded.pots;
+  const entrants = seeded.entrants;
 
   const definition = BRACKET_DEFINITIONS[teamIds.length];
   const doc: DrawSessionDoc = {
@@ -330,10 +339,7 @@ export const createDrawSession = onCall(async (request) => {
     entrants,
     reveals: [],
     genesisHash: "",
-    totalReveals:
-      format === "groups_knockout" ?
-        teamIds.length :
-        deSeedSlots(teamIds.length, lockedSeedCount).open.length,
+    totalReveals: seeded.totalReveals,
     bracketOutline:
       format === "double_elimination" && definition ?
         {pairings: winnersRoundOnePairings(definition), byeSeeds: byeSeeds(definition)} :
@@ -491,6 +497,67 @@ export const drawNextReveal = onCall(async (request) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // replaceRevealPhrase · publishDrawSession · voidDrawSession
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Reordena as cabeças de chave da sessão.
+ *
+ * A ordem automática vem do nível declarado, mas o organizador conhece o
+ * torneio dele — campeã da etapa anterior, dupla que subiu de categoria. Esta
+ * é a porta para ele mandar, e ela reusa a MESMA regra de montagem de potes da
+ * criação (`resequenceSession`), então ordem automática e manual não podem
+ * divergir.
+ *
+ * Só antes de ir ao ar: com revelações gravadas, mudar os potes reescreveria a
+ * história que o log já provou.
+ */
+export const updateDrawSessionSeeds = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+  const sessionId = assertSessionId(request.data?.sessionId);
+  const rawOrder = Array.isArray(request.data?.seedOrder) ? request.data.seedOrder : [];
+  const order = rawOrder.filter((id: unknown): id is string => typeof id === "string");
+
+  const db = getFirestore();
+  const {ref, doc} = await loadSession(db, sessionId);
+  await assertCanManageTournament(db, uid, doc.tournamentId);
+
+  if (doc.status !== "draft" && doc.status !== "scheduled") {
+    throw new HttpsError(
+      "failed-precondition",
+      "As cabeças só mudam antes de a sessão ir ao ar.",
+      {reason: "session_not_editable", status: doc.status},
+    );
+  }
+
+  const verdict = validateSeedOrder(doc, order);
+  if (!verdict.ok) {
+    throw new HttpsError(
+      "invalid-argument",
+      verdict.reason === "unknown_team" ?
+        "A ordem inclui uma dupla que não está nesta sessão." :
+        "A ordem tem uma dupla repetida.",
+      {reason: verdict.reason},
+    );
+  }
+
+  const lockedSeedCount =
+    doc.format === "double_elimination" && typeof request.data?.lockedSeedCount === "number" ?
+      Math.min(Math.max(0, Math.floor(request.data.lockedSeedCount)), doc.entrants.length) :
+      doc.config.lockedSeedCount;
+
+  const next = resequenceSession(
+    {...doc, config: {...doc.config, lockedSeedCount}},
+    verdict.order,
+  );
+
+  await ref.update({
+    pots: next.pots,
+    entrants: next.entrants,
+    totalReveals: next.totalReveals,
+    "config.lockedSeedCount": lockedSeedCount,
+  });
+  return {ok: true, totalReveals: next.totalReveals};
+});
 
 export const replaceRevealPhrase = onCall(async (request) => {
   const uid = request.auth?.uid;

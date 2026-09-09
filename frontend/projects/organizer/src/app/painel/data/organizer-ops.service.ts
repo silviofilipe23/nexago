@@ -478,3 +478,19 @@ export function publishDrawSession(
 export function voidDrawSession(sessionId: string, reason: string): Promise<{ ok: boolean }> {
   return call('voidDrawSession', { sessionId: sessionId.trim(), reason: reason.trim() });
 }
+
+/** Reordena as cabeças de chave da sessão. Ordem PARCIAL é aceita: o servidor
+ *  completa com quem ficou de fora, na ordem em que já estava. Só antes de a
+ *  sessão ir ao ar — com revelações gravadas, mudar potes reescreveria a
+ *  história que o log já provou. */
+export function updateDrawSessionSeeds(
+  sessionId: string,
+  seedOrder: readonly string[],
+  opts?: { lockedSeedCount?: number },
+): Promise<{ ok: boolean; totalReveals: number }> {
+  return call('updateDrawSessionSeeds', {
+    sessionId: sessionId.trim(),
+    seedOrder: [...seedOrder],
+    ...(opts?.lockedSeedCount != null ? { lockedSeedCount: opts.lockedSeedCount } : {}),
+  });
+}

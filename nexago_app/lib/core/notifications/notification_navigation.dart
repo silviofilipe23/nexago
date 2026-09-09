@@ -88,12 +88,41 @@ Future<bool> _awaitSettledSession(WidgetRef ref) async {
   }
 }
 
+/// Destino da notificação de VAGA LIBERADA, montado a partir dos ids.
+///
+/// Existe para o push e a lista de notificações não divergirem. O push resolvia o destino só
+/// pelo `url` do payload; a lista já remontava o caminho pelos ids quando ele faltava. Resultado:
+/// sem `url`, tocar no item da lista levava à inscrição e tocar no PUSH só abria o app. Duas
+/// entradas para a mesma notificação têm de terminar no mesmo lugar — então as duas chamam isto.
+///
+/// `null` sem torneio: não há destino a inventar.
+String? spotPassNotificationRoute({
+  required String tournamentId,
+  required String categoryId,
+}) {
+  final id = tournamentId.trim();
+  if (id.isEmpty) return null;
+  final category = categoryId.trim();
+  final query =
+      category.isEmpty ? '' : '?categoryId=${Uri.encodeComponent(category)}';
+  return '/torneios/$id/inscricao$query';
+}
+
 String? resolveNotificationRoute(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
 
   final url = (data['url'] as String?)?.trim();
   if (url != null && url.startsWith('/')) {
     return url;
+  }
+
+  // Sem `url` no payload, este tipo não tinha caso próprio e o toque no push não resolvia nada
+  // — só abria o app. Todos os outros tipos que importam já remontam o destino pelos ids.
+  if (type == 'tournament_spot_pass_granted') {
+    return spotPassNotificationRoute(
+      tournamentId: (data['tournamentId'] as String?) ?? '',
+      categoryId: (data['categoryId'] as String?) ?? '',
+    );
   }
 
   if (type == 'slot_vacancy_available') {

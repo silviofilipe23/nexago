@@ -137,4 +137,50 @@ void main() {
       expect(destination, isNull);
     });
   });
+
+  group('vaga liberada (tournament_spot_pass_granted)', () {
+    // O payload EXATO que `organizerGrantTournamentSpotPass` manda. Se o resolvedor não
+    // devolver rota aqui, o toque no push só abre o app — que é o sintoma relatado.
+    final payload = <String, dynamic>{
+      'type': 'tournament_spot_pass_granted',
+      'tournamentId': 'zy1qXsBgvUwZDm2do68V',
+      'categoryId': '1788437846026',
+      'url': '/torneios/zy1qXsBgvUwZDm2do68V/inscricao?categoryId=1788437846026',
+      'requireInteraction': 'true',
+    };
+
+    test('resolve a rota da inscrição', () {
+      expect(
+        resolveNotificationRoute(payload),
+        '/torneios/zy1qXsBgvUwZDm2do68V/inscricao?categoryId=1788437846026',
+      );
+    });
+
+    test('com sessão, o destino abre direto', () {
+      final destination = resolveNotificationTapDestination(
+        data: payload,
+        hasSession: true,
+      );
+      expect(destination?.path,
+          '/torneios/zy1qXsBgvUwZDm2do68V/inscricao?categoryId=1788437846026');
+      expect(destination?.requiresLogin, isFalse);
+    });
+
+    // Era aqui que o toque morria: sem `url` o tipo não tinha caso próprio, nada resolvia e o
+    // push só abria o app — enquanto o item da LISTA, que remonta pelos ids, levava à inscrição.
+    test('sem url, o tipo remonta o destino pelos ids', () {
+      final semUrl = Map<String, dynamic>.from(payload)..remove('url');
+      expect(
+        resolveNotificationRoute(semUrl),
+        '/torneios/zy1qXsBgvUwZDm2do68V/inscricao?categoryId=1788437846026',
+      );
+    });
+
+    test('sem torneio não há destino a inventar', () {
+      expect(
+        resolveNotificationRoute({'type': 'tournament_spot_pass_granted'}),
+        isNull,
+      );
+    });
+  });
 }

@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { destinationLabelOf, remainingInPot, winRateOf } from '../data/draw-session-selectors';
 import type { DrawSession } from '../data/draw-session.model';
 import {
+  clearRevealSpotlight,
   drawNextReveal,
   publishDrawSession,
   replaceRevealPhrase,
@@ -100,6 +101,9 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
                   <em>→ {{ currentDestination() }}</em>
                 </span>
               </div>
+              @if (awaitingRelease()) {
+                <p class="og-cs-segurando">No telão agora. Libere para a tabela quando terminar de comentar.</p>
+              }
               <div class="og-cs-stats">
                 @for (stat of currentStats(); track stat.label) {
                   <div>
@@ -205,19 +209,32 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
       </div>
 
       <footer class="og-cs-transporte">
-        <button
-          type="button"
-          class="og-cs-sortear"
-          [disabled]="pending() || done() || s.status !== 'live'"
-          (click)="next(s)"
-        >
-          @if (!done() && !pending()) {
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true">
-              <path d="M7 4.8v14.4L19.5 12z" />
-            </svg>
-          }
-          {{ done() ? 'Sorteio completo' : pending() ? 'Sorteando…' : 'Sortear próxima' }}
-        </button>
+        @if (awaitingRelease()) {
+          <!-- Modo manual: a dupla está no telão e só sai quando ele mandar.
+               Um CTA de cada vez — liberar e sortear nunca competem. -->
+          <button
+            type="button"
+            class="og-btn og-cs-sortear"
+            [disabled]="pending() || s.status !== 'live'"
+            (click)="release(s)"
+          >
+            {{ pending() ? 'Liberando…' : 'Ir para a tabela' }}
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="og-btn og-cs-sortear"
+            [disabled]="pending() || done() || s.status !== 'live'"
+            (click)="next(s)"
+          >
+            @if (!done() && !pending()) {
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M5 3l14 9-14 9z" />
+              </svg>
+            }
+            {{ done() ? 'Sorteio completo' : pending() ? 'Sorteando…' : 'Sortear próxima' }}
+          </button>
+        }
 
         @if (s.config.mode !== 'manual') {
           <button type="button" class="og-mini-btn" [disabled]="done()" (click)="togglePlaying()">
@@ -486,6 +503,16 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+    }
+    .og-cs-segurando {
+      margin: 12px 0 0;
+      padding: 9px 11px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-orange-tint);
+      border: 1px solid rgb(255 106 26 / 32%);
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--nx-text-mute);
     }
     .og-cs-consequencia {
       margin-top: 12px;
@@ -937,6 +964,19 @@ export class SorteioConsoleComponent {
     return session ? remainingInPot(session) : [];
   });
 
+  /**
+   * Modo manual com uma revelação parada no telão, esperando o organizador
+   * mandar seguir. Enquanto isso ele NÃO sorteia a próxima — a dupla no ar é a
+   * conversa do momento, e sortear por cima atropelaria a narração.
+   */
+  protected readonly awaitingRelease = computed(() => {
+    const session = this.store.session();
+    const reveal = this.current();
+    if (!session || !reveal || session.config.mode !== 'manual') return false;
+    if (session.status !== 'live') return false;
+    return reveal.index > (session.spotlightClearedIndex ?? 0);
+  });
+
   protected readonly done = computed(() => {
     const session = this.store.session();
     return !!session && session.reveals.length >= session.totalReveals;
@@ -1055,6 +1095,13 @@ export class SorteioConsoleComponent {
     } finally {
       this.pending.set(false);
     }
+  }
+
+  /** Libera a revelação no ar para a tabela. Só existe no modo manual. */
+  protected async release(session: DrawSession): Promise<void> {
+    const reveal = this.current();
+    if (!reveal) return;
+    await this.guard(() => clearRevealSpotlight(session.id, reveal.index));
   }
 
   protected async swapPhrase(session: DrawSession): Promise<void> {

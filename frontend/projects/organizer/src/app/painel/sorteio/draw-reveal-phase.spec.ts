@@ -100,3 +100,40 @@ describe('countdownPartsOf', () => {
     expect(countdownPartsOf(AT + 30 * 3_600_000, AT)?.hours).toBe(30);
   });
 });
+
+describe('revealPhaseAt — modo manual segura o spotlight', () => {
+  /**
+   * No modo manual a revelação não pode sumir sozinha: o organizador está
+   * narrando, e a dupla precisa ficar na tela até ele mandar seguir. O telão é
+   * OUTRO cliente, então quem decide é o documento — daí a dispensa vir por
+   * flag em vez de timer.
+   */
+  it('sem segurar, o ciclo termina sozinho como sempre', () => {
+    expect(revealPhaseAt(AT, AT + revealCycleMs())).toBe('grid');
+  });
+
+  it('segurando, o spotlight fica na tela depois do ciclo', () => {
+    expect(revealPhaseAt(AT, AT + revealCycleMs(), { holdSpotlight: true })).toBe('spotlight');
+  });
+
+  it('segurando, continua segurando muito tempo depois', () => {
+    expect(revealPhaseAt(AT, AT + 600_000, { holdSpotlight: true })).toBe('spotlight');
+  });
+
+  it('segurar NÃO atropela o rolamento nem a travada', () => {
+    expect(revealPhaseAt(AT, AT + 100, { holdSpotlight: true })).toBe('roll');
+    expect(revealPhaseAt(AT, AT + ROLL_MS + 10, { holdSpotlight: true })).toBe('land');
+  });
+
+  it('dispensada pelo organizador, vai pra grade NA HORA', () => {
+    // Sem isso o clique demoraria até 3,5 s pra surtir efeito — o organizador
+    // apertou "ir para a tabela" e a tela tem que obedecer.
+    expect(revealPhaseAt(AT, AT + ROLL_MS + LAND_MS + 100, { dismissed: true })).toBe('grid');
+  });
+
+  it('dispensar vence o segurar — é o organizador mandando', () => {
+    expect(
+      revealPhaseAt(AT, AT + 600_000, { holdSpotlight: true, dismissed: true }),
+    ).toBe('grid');
+  });
+});

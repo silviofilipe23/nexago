@@ -25,6 +25,20 @@ export function revealCycleMs(): number {
   return ROLL_MS + LAND_MS + SPOTLIGHT_MS;
 }
 
+export interface RevealPhaseOptions {
+  /**
+   * Modo manual: o spotlight FICA na tela depois do ciclo, até o organizador
+   * mandar seguir. Ele está narrando, e a dupla sumir sozinha no meio da frase
+   * é o oposto do que se quer.
+   */
+  holdSpotlight?: boolean;
+  /**
+   * O organizador já liberou esta revelação para a tabela. Vence o `holdSpotlight`
+   * e corta o resto do ciclo: ele apertou o botão, a tela obedece na hora.
+   */
+  dismissed?: boolean;
+}
+
 /**
  * Fase da revelação que começou em `at`.
  *
@@ -33,11 +47,20 @@ export function revealCycleMs(): number {
  * que pular a revelação — o pior caso é o espectador ver o rolamento um pouco
  * mais longo, e não perder a revelação inteira.
  */
-export function revealPhaseAt(at: number | null, now: number): RevealPhase {
+export function revealPhaseAt(
+  at: number | null,
+  now: number,
+  options: RevealPhaseOptions = {},
+): RevealPhase {
   if (at == null) return 'grid';
+  if (options.dismissed) return 'grid';
+
   const elapsed = now - at;
   if (elapsed < ROLL_MS) return 'roll';
   if (elapsed < ROLL_MS + LAND_MS) return 'land';
+  // Segurar só vale DEPOIS da travada: o suspense do rolamento é do relógio,
+  // não do organizador.
+  if (options.holdSpotlight) return 'spotlight';
   if (elapsed < revealCycleMs()) return 'spotlight';
   return 'grid';
 }

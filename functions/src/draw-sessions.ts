@@ -340,6 +340,7 @@ export const createDrawSession = onCall(async (request) => {
     reveals: [],
     genesisHash: "",
     totalReveals: seeded.totalReveals,
+    spotlightClearedIndex: 0,
     bracketOutline:
       format === "double_elimination" && definition ?
         {pairings: winnersRoundOnePairings(definition), byeSeeds: byeSeeds(definition)} :
@@ -557,6 +558,34 @@ export const updateDrawSessionSeeds = onCall(async (request) => {
     "config.lockedSeedCount": lockedSeedCount,
   });
   return {ok: true, totalReveals: next.totalReveals};
+});
+
+/**
+ * Libera a revelação que está no ar para a tabela.
+ *
+ * Só faz sentido no modo manual, onde o spotlight fica parado até o organizador
+ * mandar seguir. Passa pelo servidor porque o telão é outro cliente: não há
+ * outro canal por onde ele saiba que o organizador apertou o botão.
+ *
+ * `Math.max` em vez de atribuição direta: um clique atrasado chegando depois da
+ * revelação seguinte não pode voltar o spotlight de uma dupla que já saiu.
+ */
+export const clearRevealSpotlight = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+  const sessionId = assertSessionId(request.data?.sessionId);
+  const index = Number(request.data?.index);
+  if (!Number.isInteger(index) || index < 1) {
+    throw new HttpsError("invalid-argument", "index da revelação obrigatório");
+  }
+
+  const db = getFirestore();
+  const {ref, doc} = await loadSession(db, sessionId);
+  await assertCanManageTournament(db, uid, doc.tournamentId);
+
+  const cleared = Math.max(doc.spotlightClearedIndex ?? 0, index);
+  await ref.update({spotlightClearedIndex: cleared});
+  return {spotlightClearedIndex: cleared};
 });
 
 export const replaceRevealPhrase = onCall(async (request) => {

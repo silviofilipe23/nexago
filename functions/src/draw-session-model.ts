@@ -92,6 +92,15 @@ export interface DrawSessionDoc {
   reveals: DrawSessionReveal[];
   genesisHash: string;
   totalReveals: number;
+  /**
+   * Índice da última revelação que o organizador liberou para a tabela.
+   *
+   * Existe por causa do modo manual: o spotlight fica na tela até ele mandar
+   * seguir, e o TELÃO É OUTRO CLIENTE — só aprende disso pelo documento. Um
+   * número em vez de um timestamp porque o que importa é "até onde já liberou",
+   * não quando.
+   */
+  spotlightClearedIndex?: number;
   bracketOutline: DrawBracketOutline | null;
   createdBy?: string;
   createdAt?: number;

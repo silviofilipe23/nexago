@@ -141,11 +141,20 @@ describe('SorteioConsoleComponent', () => {
     expect(buttonByText(fixture, 'Publicar chave').disabled).toBe(true);
   });
 
-  it('libera publicar quando todas as revelações saíram', async () => {
+  it('libera publicar quando todas as revelações saíram e a última foi liberada', async () => {
     const reveals = ['a', 'b', 'c', 'd'].map((t, i) => reveal(i + 1, t, i % 2 ? 'B' : 'A'));
-    const fixture = await render(session({ reveals }));
+    const fixture = await render(session({ reveals, spotlightClearedIndex: 4 }));
     expect(buttonByText(fixture, 'Publicar chave').disabled).toBe(false);
     expect(buttonByText(fixture, 'Sorteio completo').disabled).toBe(true);
+  });
+
+  it('no manual, a ÚLTIMA revelação também fica no telão até ser liberada', async () => {
+    // Não é caso de borda: é a dupla mais comentada da transmissão, e sumir
+    // sozinha pra dar lugar a "sorteio completo" seria o pior momento pra isso.
+    const reveals = ['a', 'b', 'c', 'd'].map((t, i) => reveal(i + 1, t, i % 2 ? 'B' : 'A'));
+    const fixture = await render(session({ reveals }));
+    expect(buttonByText(fixture, 'Ir para a tabela')).toBeTruthy();
+    expect(() => buttonByText(fixture, 'Sorteio completo')).toThrow();
   });
 
   it('sessão anulada trava sortear, publicar e anular de novo', async () => {
@@ -188,5 +197,53 @@ describe('SorteioConsoleComponent', () => {
     const fixture = await render(session({ reveals }));
     const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.og-cs-log li');
     expect(items[0].textContent).toContain('#02');
+  });
+});
+
+describe('SorteioConsoleComponent — modo manual segura a revelação', () => {
+  /**
+   * No manual a dupla fica no telão até o organizador mandar seguir. O console
+   * precisa refletir isso em UM botão de cada vez: liberar e sortear nunca
+   * competem pela atenção de quem está narrando ao vivo.
+   */
+  const manual = (over: Partial<DrawSession> = {}) =>
+    session({
+      config: { ...session().config, mode: 'manual' },
+      reveals: [reveal(1, 'a', 'A')],
+      ...over,
+    });
+
+  it('com revelação no ar e nada liberado, oferece "Ir para a tabela"', async () => {
+    const fixture = await render(manual());
+    expect(buttonByText(fixture, 'Ir para a tabela').disabled).toBe(false);
+  });
+
+  it('enquanto segura, NÃO oferece sortear a próxima', async () => {
+    const fixture = await render(manual());
+    expect(() => buttonByText(fixture, 'Sortear próxima')).toThrow();
+  });
+
+  it('depois de liberada, volta a oferecer sortear a próxima', async () => {
+    const fixture = await render(manual({ spotlightClearedIndex: 1 }));
+    expect(buttonByText(fixture, 'Sortear próxima').disabled).toBe(false);
+    expect(() => buttonByText(fixture, 'Ir para a tabela')).toThrow();
+  });
+
+  it('avisa que a dupla está no telão esperando', async () => {
+    const fixture = await render(manual());
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('No telão agora');
+  });
+
+  it('modo híbrido não segura — quem manda no ritmo é o relógio', async () => {
+    const fixture = await render(
+      session({ config: { ...session().config, mode: 'hybrid' }, reveals: [reveal(1, 'a', 'A')] }),
+    );
+    expect(() => buttonByText(fixture, 'Ir para a tabela')).toThrow();
+  });
+
+  it('sessão fora do ar não segura nada', async () => {
+    const fixture = await render(manual({ status: 'published' }));
+    expect(() => buttonByText(fixture, 'Ir para a tabela')).toThrow();
   });
 });

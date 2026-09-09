@@ -556,7 +556,7 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
       margin: 0;
       font-family: var(--nx-font-display);
       font-weight: 700;
-      font-size: 13.5px;
+      font-size: 11.5px;
       line-height: 1.4;
       color: var(--nx-text);
       text-wrap: pretty;

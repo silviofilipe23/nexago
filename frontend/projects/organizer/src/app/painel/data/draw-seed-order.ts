@@ -54,6 +54,27 @@ export function movedSeedOrder(
   return next;
 }
 
+/** Reordena por arraste: tira de `fromIndex` e encaixa em `toIndex`. */
+export function reorderedSeedOrder(
+  order: readonly string[],
+  fromIndex: number,
+  toIndex: number,
+): string[] {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= order.length ||
+    toIndex >= order.length
+  ) {
+    return [...order];
+  }
+  const next = [...order];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item!);
+  return next;
+}
+
 /**
  * Volta à sugestão automática: maior pontuação primeiro, duplas sem nível no
  * fim. Empate PRESERVA a ordem atual — sem isso, clicar duas vezes embaralharia

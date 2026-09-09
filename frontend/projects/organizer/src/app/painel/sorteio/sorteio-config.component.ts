@@ -9,6 +9,7 @@ import {
   currentSeedOrder,
   headCountOf,
   movedSeedOrder,
+  reorderedSeedOrder,
   sortedByStrength,
 } from '../data/draw-seed-order';
 import {
@@ -107,21 +108,21 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
           @if (format() === 'double_elimination') {
             <div class="og-sc-campo">
               <span class="og-sc-label">Cabeças travadas</span>
-              <div class="og-sc-chips">
-                @for (n of lockedOptions; track n) {
+              <div class="og-select-chips og-sc-locked">
+                @for (label of lockedLabels; track label) {
                   <button
                     type="button"
-                    class="og-chip"
-                    [class.active]="lockedSeedCount() === n"
-                    (click)="lockedSeedCount.set(n)"
+                    class="og-select-chip"
+                    [class.active]="lockedLabelOf(lockedSeedCount()) === label"
+                    (click)="lockedSeedCount.set(lockedValueOf(label))"
                   >
-                    {{ n === 0 ? 'nenhuma' : n }}
+                    {{ label }}
                   </button>
                 }
               </div>
             </div>
           }
-          <button type="button" class="og-btn" [disabled]="busy()" (click)="create()">
+          <button type="button" class="og-btn-primary og-sc-create" [disabled]="busy()" (click)="create()">
             {{ busy() ? 'Criando…' : 'Criar sessão de sorteio' }}
           </button>
         </og-card>
@@ -203,7 +204,12 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
                   <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="resetSeeds(s)">
                     Ordem por nível
                   </button>
-                  <button type="button" class="og-btn og-btn-sm" [disabled]="busy()" (click)="saveSeeds(s)">
+                  <button
+                    type="button"
+                    class="og-mini-btn og-mini-btn-primary"
+                    [disabled]="busy()"
+                    (click)="saveSeeds(s)"
+                  >
                     {{ busy() ? 'Salvando…' : 'Salvar ordem' }}
                   </button>
                 } @else if (editable(s)) {
@@ -216,22 +222,22 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
               @if (draftOrder(); as ordem) {
                 <p class="og-sc-ajuda">
                   A ordem define a força: as
-                  {{ s.format === 'groups_knockout' ? headCountOf(s) + ' primeiras viram o pote 1' : s.config.lockedSeedCount + ' primeiras viram as cabeças travadas' }}.
-                  Suba quem você sabe que é mais forte do que o nível declarado diz.
+                  {{ s.format === 'groups_knockout' ? headCountOf(s) + ' primeiras viram o pote 1' : draftLocked() + ' primeiras viram as cabeças travadas' }}.
+                  Arraste as linhas ou use as setas — sobe quem você sabe que é mais forte do que o nível declarado diz.
                 </p>
 
                 @if (s.format === 'double_elimination') {
                   <div class="og-sc-campo">
                     <span class="og-sc-label">Cabeças travadas</span>
-                    <div class="og-sc-chips">
-                      @for (n of lockedOptions; track n) {
+                    <div class="og-select-chips og-sc-locked">
+                      @for (label of lockedLabels; track label) {
                         <button
                           type="button"
-                          class="og-chip"
-                          [class.active]="draftLocked() === n"
-                          (click)="draftLocked.set(n)"
+                          class="og-select-chip"
+                          [class.active]="lockedLabelOf(draftLocked()) === label"
+                          (click)="draftLocked.set(lockedValueOf(label))"
                         >
-                          {{ n === 0 ? 'nenhuma' : n }}
+                          {{ label }}
                         </button>
                       }
                     </div>
@@ -240,7 +246,18 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
 
                 <ol class="og-sc-ordem">
                   @for (teamId of ordem; track teamId) {
-                    <li [class.cabeca]="isHead(s, $index)">
+                    <li
+                      draggable="true"
+                      [class.cabeca]="isHead(s, $index)"
+                      [class.dragging]="dragFrom() === $index"
+                      [class.drag-over]="dragOver() === $index && dragFrom() !== $index"
+                      (dragstart)="onSeedDragStart($event, $index)"
+                      (dragover)="onSeedDragOver($event, $index)"
+                      (dragleave)="onSeedDragLeave($index)"
+                      (drop)="onSeedDrop($event, $index)"
+                      (dragend)="onSeedDragEnd()"
+                    >
+                      <span class="og-sc-grip" aria-hidden="true">⋮⋮</span>
                       <og-sorteio-dupla-row
                         [entrant]="entrantOf(s, teamId)"
                         [num]="$index + 1"
@@ -641,22 +658,29 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
     .og-sc-campo {
       display: block;
       margin-top: 14px;
+      margin-bottom: 16px;
+    }
+    .og-sc-locked {
+      margin-top: 8px;
+    }
+    .og-sc-locked .og-select-chip {
+      /* Botão herda o visual do chip de formulário do painel. */
+      font: inherit;
+      appearance: none;
+      -webkit-appearance: none;
     }
     .og-sc-slider-campo {
       padding-top: 12px;
       border-top: 1px solid var(--nx-line);
-    }
-    .og-sc-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
     }
     .og-sc-formatos {
       display: flex;
       flex-direction: column;
       gap: 8px;
       margin-bottom: 16px;
+    }
+    .og-sc-create {
+      margin-top: 8px;
     }
     .og-sc-slider {
       display: flex;
@@ -744,6 +768,40 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
       flex-direction: column;
       gap: 5px;
     }
+    .og-sc-ordem > li {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: grab;
+      border-radius: 12px;
+      transition:
+        opacity 140ms var(--nx-ease-out),
+        box-shadow 140ms var(--nx-ease-out),
+        background 140ms var(--nx-ease-out);
+    }
+    .og-sc-ordem > li:active {
+      cursor: grabbing;
+    }
+    .og-sc-ordem > li.dragging {
+      opacity: 0.45;
+    }
+    .og-sc-ordem > li.drag-over {
+      box-shadow: inset 0 2px 0 0 var(--nx-orange-500);
+    }
+    .og-sc-ordem > li og-sorteio-dupla-row {
+      flex: 1;
+      min-width: 0;
+    }
+    .og-sc-grip {
+      flex: none;
+      width: 18px;
+      text-align: center;
+      font-size: 14px;
+      letter-spacing: -2px;
+      color: var(--nx-text-dim);
+      user-select: none;
+      pointer-events: none;
+    }
     /* Linha divisória depois da última cabeça: mostra onde a trava termina
        sem precisar contar posições. */
     .og-sc-ordem li.cabeca + li:not(.cabeca) {
@@ -813,7 +871,15 @@ export class SorteioConfigComponent {
   readonly id = input<string>('');
   readonly catId = input<string>('');
 
-  protected readonly lockedOptions = [0, 2, 4, 8];
+  protected readonly lockedLabels = ['Nenhuma', '2', '4', '8'];
+
+  protected lockedLabelOf(n: number): string {
+    return n === 0 ? 'Nenhuma' : String(n);
+  }
+
+  protected lockedValueOf(label: string): number {
+    return label === 'Nenhuma' ? 0 : Number(label) || 0;
+  }
 
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
@@ -829,6 +895,9 @@ export class SorteioConfigComponent {
   /** Ordem em edição; `null` quando não está reordenando. */
   protected readonly draftOrder = signal<string[] | null>(null);
   protected readonly draftLocked = signal(4);
+  /** Índice da linha sendo arrastada / destino do drop. */
+  protected readonly dragFrom = signal<number | null>(null);
+  protected readonly dragOver = signal<number | null>(null);
 
   protected readonly headerSubtitle = computed(() => {
     const s = this.session();
@@ -1176,6 +1245,7 @@ export class SorteioConfigComponent {
   }
 
   protected cancelSeeds(): void {
+    this.onSeedDragEnd();
     this.draftOrder.set(null);
   }
 
@@ -1189,6 +1259,45 @@ export class SorteioConfigComponent {
 
   protected moveSeed(index: number, delta: number): void {
     this.draftOrder.update((order) => (order ? movedSeedOrder(order, index, delta) : order));
+  }
+
+  protected onSeedDragStart(event: DragEvent, index: number): void {
+    const target = event.target as HTMLElement | null;
+    // Setas continuam clicáveis — não iniciar arraste a partir delas.
+    if (target?.closest('button')) {
+      event.preventDefault();
+      return;
+    }
+    this.dragFrom.set(index);
+    this.dragOver.set(index);
+    event.dataTransfer?.setData('text/plain', String(index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  }
+
+  protected onSeedDragOver(event: DragEvent, index: number): void {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (this.dragFrom() === null) return;
+    this.dragOver.set(index);
+  }
+
+  protected onSeedDragLeave(index: number): void {
+    if (this.dragOver() === index) this.dragOver.set(null);
+  }
+
+  protected onSeedDrop(event: DragEvent, toIndex: number): void {
+    event.preventDefault();
+    const fromIndex = this.dragFrom();
+    this.onSeedDragEnd();
+    if (fromIndex == null) return;
+    this.draftOrder.update((order) =>
+      order ? reorderedSeedOrder(order, fromIndex, toIndex) : order,
+    );
+  }
+
+  protected onSeedDragEnd(): void {
+    this.dragFrom.set(null);
+    this.dragOver.set(null);
   }
 
   protected async saveSeeds(session: DrawSession): Promise<void> {

@@ -1,4 +1,4 @@
-import { currentSeedOrder, headCountOf, movedSeedOrder, sortedByStrength } from './draw-seed-order';
+import { currentSeedOrder, headCountOf, movedSeedOrder, reorderedSeedOrder, sortedByStrength } from './draw-seed-order';
 import type { DrawSession, DrawSessionEntrant } from './draw-session.model';
 
 function entrant(teamId: string, over: Partial<DrawSessionEntrant> = {}): DrawSessionEntrant {
@@ -112,6 +112,26 @@ describe('movedSeedOrder', () => {
   it('não muta a lista recebida', () => {
     const original = ['a', 'b', 'c'];
     movedSeedOrder(original, 0, 1);
+    expect(original).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('reorderedSeedOrder', () => {
+  it('arrasta do começo para o meio', () => {
+    expect(reorderedSeedOrder(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd']);
+  });
+
+  it('arrasta do fim para o começo', () => {
+    expect(reorderedSeedOrder(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('mesmo índice devolve cópia intacta', () => {
+    expect(reorderedSeedOrder(['a', 'b'], 1, 1)).toEqual(['a', 'b']);
+  });
+
+  it('não muta a lista recebida', () => {
+    const original = ['a', 'b', 'c'];
+    reorderedSeedOrder(original, 0, 2);
     expect(original).toEqual(['a', 'b', 'c']);
   });
 });

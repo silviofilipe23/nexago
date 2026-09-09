@@ -91,8 +91,15 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
           }
           @case ('waiting') {
             <div class="og-telao-centro">
-              <span class="og-telao-kicker og-telao-kicker-lg">Potes fechados</span>
-              <div class="og-telao-aviso">{{ s.entrants.length }} duplas prontas para o sorteio</div>
+              <div class="og-telao-logo-wrap" aria-hidden="true">
+                <span class="og-telao-logo-glow"></span>
+                <img class="og-telao-logo" src="/brand/logo.png" alt="" width="220" height="220" />
+              </div>
+              @for (line of [waitingLine()]; track line) {
+                <p class="og-telao-frase">{{ line }}</p>
+              }
+              <span class="og-telao-kicker og-telao-kicker-lg">{{ s.entrants.length }} equipes prontas para o sorteio</span>
+              <!-- <div class="og-telao-aviso"></div> -->
             </div>
           }
           @case ('voided') {
@@ -302,6 +309,44 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
       max-width: 1200px;
       text-wrap: pretty;
     }
+    .og-telao-logo-wrap {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 280px;
+      height: 280px;
+      margin-bottom: 8px;
+      animation: og-telao-logo-float 3.6s ease-in-out infinite;
+    }
+    .og-telao-logo-glow {
+      position: absolute;
+      inset: 18%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgb(255 106 26 / 38%), transparent 70%);
+      filter: blur(8px);
+      animation: og-telao-logo-glow 3.6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .og-telao-logo {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      object-fit: contain;
+      filter: drop-shadow(0 18px 40px rgb(0 0 0 / 45%));
+    }
+    .og-telao-frase {
+      margin: 0;
+      max-width: 980px;
+      min-height: 1.3em;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 36px;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+      color: var(--nx-text);
+      text-wrap: pretty;
+      animation: og-telao-frase-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
     .og-telao-esteira {
       display: flex;
       flex-wrap: wrap;
@@ -364,6 +409,45 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
         opacity: 0.35;
       }
     }
+    @keyframes og-telao-logo-float {
+      0%,
+      100% {
+        transform: translateY(0) scale(1);
+      }
+      50% {
+        transform: translateY(-18px) scale(1.04);
+      }
+    }
+    @keyframes og-telao-logo-glow {
+      0%,
+      100% {
+        opacity: 0.55;
+        transform: scale(0.92);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.08);
+      }
+    }
+    @keyframes og-telao-frase-in {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .og-telao-logo-wrap,
+      .og-telao-logo-glow,
+      .og-telao-frase,
+      .og-telao-live-dot {
+        animation: none;
+      }
+    }
 
     /* ── Canvas em pé ──────────────────────────────────────────────
        Mesmo conteúdo, proporções refeitas: mais altura pra respirar, menos
@@ -408,6 +492,18 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
     :host(.retrato) .og-telao-aviso {
       font-size: 52px;
     }
+    :host(.retrato) .og-telao-logo-wrap {
+      width: 320px;
+      height: 320px;
+    }
+    :host(.retrato) .og-telao-logo {
+      width: 260px;
+      height: 260px;
+    }
+    :host(.retrato) .og-telao-frase {
+      font-size: 42px;
+      max-width: 860px;
+    }
     :host(.retrato) .og-telao-esteira {
       gap: 22px;
     }
@@ -419,13 +515,6 @@ import { SorteioSpotlightComponent } from './sorteio-spotlight.component';
     }
     :host(.retrato) .og-telao-app {
       font-size: 26px;
-    }
-
-    /* O ponto do AO VIVO é decorativo — a palavra já diz. */
-    @media (prefers-reduced-motion: reduce) {
-      .og-telao-live-dot {
-        animation: none;
-      }
     }
   `,
 })
@@ -441,6 +530,12 @@ export class SorteioTelaoScreenComponent {
    * celular que o atleta abre.
    */
   readonly portrait = input(false);
+
+  /** Frase sob a logo — troca a cada 8 s pelo relógio do telão. */
+  protected readonly waitingLine = computed(() => {
+    const tick = Math.floor(this.now() / 7000);
+    return WAITING_LINES[tick % WAITING_LINES.length]!;
+  });
 
   protected readonly currentReveal = computed(() => {
     const reveals = this.session().reveals;
@@ -598,3 +693,265 @@ function initialsOf(name: string): string {
   const last = parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? '') : '';
   return (first + last).toUpperCase() || '?';
 }
+
+/**
+ * Corneta de espera — situacional do esporte, sem mirar atleta.
+ * A troca é pelo `now` do telão: TV e espelho do console ficam em fase.
+ */
+const WAITING_LINES = [
+
+  'A nexaGO conecta. A quadra decide.',
+
+  'A chave ainda não saiu. A resenha já começou.',
+
+  'A nexaGO ainda não sorteou. Mas alguém já está reclamando.',
+
+  'Seu próximo adversário pode estar olhando essa mesma tela.',
+
+  'Hoje o sorteio. Amanhã, história no ranking.',
+
+  'A nexaGO mostra os números. A quadra mostra quem é quem.',
+
+  'A chave ainda está fechada. A corneta já está aberta.',
+
+  'A nexaGO conecta as duplas. O sorteio separa os amigos.',
+
+  'Do primeiro saque ao último ponto, tudo fica registrado.',
+
+  'A bola é de vocês. O resto deixa com a nexaGO.',
+
+  'Torneio, arena, ranking e comunidade. Tudo conectado.',
+
+  'Seu nome na chave. Seu jogo no ranking.',
+
+  'A nexaGO organiza. Vocês fazem história.',
+
+  'A próxima partida começa muito antes do primeiro saque.',
+
+  'Mais que torneio. Um ecossistema inteiro em movimento.',
+
+  'Seu jogo. Seu ranking. Sua história.',
+
+  'A partida acaba. O ranking lembra.',
+
+  'Pode fugir da pressão. Do ranking, não.',
+
+  'A nexaGO registra o resultado. A resenha registra o resto.',
+
+  'A chave define o confronto. O grupo do WhatsApp define a corneta.',
+
+  'A nexaGO sabe quem joga. Agora falta descobrir quem ganha.',
+
+  'A competição começa antes da bola subir.',
+
+  'A chave ainda não saiu. O grupo do WhatsApp já está pegando fogo.',
+
+  'Enquanto vocês esperam a chave, a nexaGO já está trabalhando.',
+
+  'Um sorteio. Várias histórias. Uma comunidade.',
+
+  'A arena está pronta. As duplas também. Falta a chave.',
+
+  'Tem jogo chegando. E a nexaGO já sabe disso.',
+
+  'A chave ainda está fechada. Mas a ansiedade já está ao vivo.',
+
+  'A nexaGO está conectando as duplas. O destino faz o resto.',
+
+  'Atletas. Arenas. Torneios. Tudo conectado.',
+
+  'Do treino à competição, tudo passa pela nexaGO.',
+
+  'Onde atletas encontram arenas e torneios encontram histórias.',
+
+  'Seu esporte não termina quando a partida acaba.',
+
+  'Uma arena. Um torneio. Centenas de histórias.',
+
+  'A quadra conecta. A nexaGO leva além.',
+
+  'Encontre seu jogo. Viva o torneio. Construa seu ranking.',
+
+  'A nexaGO transforma partidas em histórico.',
+
+  'Cada partida conecta atletas. Cada torneio movimenta a comunidade.',
+
+  'Jogue. Compita. Evolua. Conecte.',
+
+  'O esporte acontece na quadra. O ecossistema continua na nexaGO.',
+
+  'A nexaGO ainda não começou. A ansiedade já.',
+
+  'A chave está chegando. O psicológico que lute.',
+
+  'Respira. A próxima dupla pode mudar tudo.',
+
+  'A nexaGO conecta as duplas. Agora o sorteio faz o estrago.',
+
+  'Todo mundo quer uma boa chave. Até descobrir o que é uma boa chave.',
+
+  'A sorte está trabalhando. Por enquanto, ninguém pode reclamar.',
+
+  'A chave vai sair. As desculpas também.',
+
+  'O sorteio ainda nem começou e já tem gente negociando com o universo.',
+
+  'Tem dupla torcendo pela chave. Tem dupla torcendo para a chave errar.',
+
+  'A nexaGO prepara a chave. Vocês preparam as desculpas.',
+
+  'A ansiedade também faz parte do torneio.',
+
+  'Se você está tranquilo, provavelmente ainda não viu a chave.',
+
+  'O jogo começa quando a bola sobe. O nervosismo começa bem antes.',
+
+  'A chave está quase pronta. O coração também não.',
+
+  'A nexaGO está calculando. Vocês estão sofrendo.',
+
+  'A tecnologia faz o sorteio. A resenha faz o resto.',
+
+  'O algoritmo não tem amigos.',
+
+  'A nexaGO não escolhe adversário. Só entrega o destino.',
+
+  'Se cair com seu amigo, finja surpresa.',
+
+  'Se cair com a favorita, finja tranquilidade.',
+
+  'Se cair no grupo da morte, pelo menos rende conteúdo.',
+
+  'Se a chave não agradar, lembre-se: reclamar não altera o ranking.',
+
+  'A nexaGO mostra a chave. A quadra resolve a discussão.',
+
+  'O ranking não mente. Mas a resenha tenta.',
+
+  'Tem ranking, tem chave, tem torneio. Falta só o drama.',
+
+  'O próximo ponto pode ser seu próximo salto no ranking.',
+
+  'Cada partida conta. Algumas contam até na resenha.',
+
+  'Seu próximo jogo pode valer mais do que você imagina.',
+
+  'O ranking observa. A nexaGO registra. A quadra responde.',
+
+  'Hoje adversário. Amanhã talvez dupla de treino. Ou não.',
+
+  'A competição aproxima. O sorteio às vezes afasta.',
+
+  'Amizade até o primeiro saque.',
+
+  'O sorteio separa os amigos e aproxima os memes.',
+
+  'A nexaGO conecta todo mundo. A chave decide quem se enfrenta.',
+
+  'Tem atleta, tem arena, tem torneio. Agora falta a confusão.',
+
+  'O ecossistema está em movimento. A bola ainda não.',
+
+  'Tudo conectado. Menos o emocional de quem está esperando a chave.',
+
+  'nexaGO no controle. Atletas tentando controlar a ansiedade.',
+
+  'A plataforma está pronta. A pergunta é: vocês estão?',  
+
+  'A nexaGO cuida da organização. Vocês cuidam do espetáculo.',
+
+  'Do cadastro à final, cada ponto conta uma história.',
+
+  'Do primeiro jogo ao ranking, a nexaGO acompanha tudo.',
+
+  'O torneio começa aqui. A história continua na quadra.',
+
+  'Seu próximo jogo já está tomando forma.',
+
+  'A próxima história do torneio pode começar com um simples sorteio.',
+
+  'Mais uma partida chegando. Mais uma chance de deixar seu nome na história.',
+
+  'A chave define o caminho. Vocês definem o resultado.',
+
+  'A nexaGO mostra o caminho. A quadra decide até onde você vai.',
+
+  'O sorteio aproxima. A competição define.',
+
+  'A areia é o palco. A nexaGO conecta o espetáculo.',
+
+  'O esporte conecta. A nexaGO leva isso além.',
+
+  'Aqui, cada partida é parte de algo maior.',
+
+  'A próxima partida pode mudar seu ranking. Ou seu humor.',
+
+  'Seu ranking está tranquilo. Por enquanto.',
+
+  'A nexaGO está pronta. Agora falta alguém perder a calma.',
+
+  'O sorteio chamou. A ansiedade atendeu.',
+
+  'A chave está quase lá. Aguenta mais um pouco.',
+
+  'Não pisca. Sua próxima partida pode aparecer aqui.',
+
+  'Atualizando o destino de algumas duplas em 3... 2... 1...',
+
+  'Atenção: seu próximo adversário pode estar prestes a aparecer.',
+
+  'A nexaGO está sorteando. O universo que lute.',
+
+  'Em alguns segundos, alguém vai comemorar. Alguém vai culpar o sorteio.',
+
+  'A sorte está lançada. Literalmente.',
+
+  'Prepare o print. Essa chave vai render.',
+
+  'A chave sai. O print vai para o grupo. A resenha começa.',
+
+  'Se não gostou da chave, pelo menos ela ficou bonita no print.',
+
+  'O sorteio termina. A investigação começa.',
+
+  'Todo mundo entende de chaveamento depois que a chave sai.',
+
+  'O torneio tem regulamento. A resenha tem regras próprias.',
+
+  'Ninguém pediu um grupo da morte. Mas alguém sempre recebe.',
+
+  'A nexaGO não promete caminho fácil. Promete jogo.',
+
+  'Não existe chave perfeita. Existe a chave que você consegue ganhar.',
+
+  'A chave pode ser difícil. A desculpa não precisa ser.',
+
+  'Quem quer chegar na final precisa passar pela chave.',
+
+  'O caminho até a final acaba de ficar mais interessante.',
+
+  'A nexaGO conecta. O ranking provoca. A quadra responde.',
+
+  'A comunidade acompanha. Os atletas competem. A nexaGO registra.',
+
+  'Cada torneio movimenta a comunidade. Cada partida movimenta o ranking.',
+
+  'Uma plataforma. Muitas arenas. Milhares de partidas por vir.',
+
+  'O próximo jogo pode ser na arena ao lado. Ou contra alguém que você conhece.',
+
+  'A nexaGO coloca o esporte inteiro na mesma rede.',
+
+  'Atletas se encontram. Arenas se conectam. Torneios acontecem.',
+
+  'O jogo é na areia. A jornada é na nexaGO.',
+
+  'Não é só sobre ganhar. É sobre estar no jogo.',
+
+  'Compita hoje. Evolua amanhã.',
+
+  'Jogue mais. Conecte mais. Evolua mais.',
+
+  'A próxima partida é só o começo.',
+
+] as const;

@@ -163,3 +163,49 @@ describe("computeNextReveal — dupla eliminatória", () => {
     assert.equal(out.kind === "applied" && out.reveal.destinationKey, "seed:3");
   });
 });
+
+describe("computeNextReveal — cabeças com lugar já definido", () => {
+  const comCabecas = doc({
+    config: {
+      mode: "manual",
+      intervalMs: 6000,
+      phrasesEnabled: false,
+      lockedSeedCount: 0,
+      teamsPerGroup: 2,
+      qualifiersPerGroup: 1,
+      constraints: {
+        seedsApart: false,
+        potsPerGroup: true,
+        avoidSameCity: false,
+        seedsPreassigned: true,
+      },
+    },
+  });
+
+  it("a revelação gravada carrega a marca — é o que o comprovante lê", () => {
+    const out = computeNextReveal(comCabecas, 0, sempreZero, 1000);
+    assert.equal(out.kind, "applied");
+    assert.equal(out.kind === "applied" && out.reveal.preassigned, true);
+    assert.deepEqual(
+      out.kind === "applied" ? out.reveal.destination : null,
+      {type: "group", groupId: "A"},
+    );
+  });
+
+  it("revelação sorteada de verdade NÃO carrega a marca", () => {
+    const out = computeNextReveal(doc(), 0, sempreZero, 1000);
+    assert.equal(out.kind, "applied");
+    assert.equal(out.kind === "applied" && out.reveal.preassigned, undefined);
+  });
+
+  it("a marca não muda o hash — a cadeia continua sobre dupla+destino+instante", () => {
+    // Se a marca entrasse no hash, ligar a regra invalidaria comprovantes de
+    // sessões antigas ao reverificar. Ela é METADADO da linha, não do elo.
+    const comMarca = computeNextReveal(comCabecas, 0, sempreZero, 1000);
+    const semMarca = computeNextReveal(doc(), 0, sempreZero, 1000);
+    assert.equal(
+      comMarca.kind === "applied" && comMarca.reveal.hash,
+      semMarca.kind === "applied" && semMarca.reveal.hash,
+    );
+  });
+});

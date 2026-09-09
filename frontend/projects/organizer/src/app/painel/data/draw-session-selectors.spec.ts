@@ -2,6 +2,8 @@ import type { DrawSession, DrawSessionEntrant, DrawSessionReveal } from './draw-
 import {
   destinationLabelOf,
   groupsOf,
+  preassignedCountOf,
+  revealOriginLabelOf,
   remainingInPot,
   seedOrderOf,
   seedRivalPhrase,
@@ -210,5 +212,42 @@ describe('winRateOf', () => {
 
   it('dupla estreante não tem aproveitamento — mostrar 0% seria mentira', () => {
     expect(winRateOf(entrant('a'))).toBeNull();
+  });
+});
+
+/**
+ * O comprovante existe pra provar que o sorteio foi aleatório. As cabeças de
+ * chave NÃO são sorteadas — entram no grupo que o ranking já definiu. Se essas
+ * linhas aparecerem iguais às outras, o documento passa a afirmar acaso onde
+ * não houve, e aí ele não prova mais nada. Daí a marca por linha e a contagem
+ * que muda o texto do cabeçalho.
+ */
+describe('revealOriginLabelOf', () => {
+  it('linha sorteada de verdade diz que foi sorteada', () => {
+    expect(revealOriginLabelOf(groupReveal(1, 'a', 'A'))).toBe('sorteada');
+  });
+
+  it('cabeça com lugar definido diz "por ranking" — não pode passar por sorteio', () => {
+    const cabeca = { ...groupReveal(1, 'a', 'A'), preassigned: true as const };
+    expect(revealOriginLabelOf(cabeca)).toBe('por ranking');
+  });
+});
+
+describe('preassignedCountOf', () => {
+  it('sessão toda sorteada não tem nenhuma linha predeterminada', () => {
+    expect(preassignedCountOf([groupReveal(1, 'a', 'A'), groupReveal(2, 'b', 'B')])).toBe(0);
+  });
+
+  it('conta só as linhas marcadas', () => {
+    const reveals = [
+      { ...groupReveal(1, 'a', 'A'), preassigned: true as const },
+      { ...groupReveal(2, 'b', 'B'), preassigned: true as const },
+      groupReveal(3, 'c', 'A'),
+    ];
+    expect(preassignedCountOf(reveals)).toBe(2);
+  });
+
+  it('sem revelação nenhuma conta zero', () => {
+    expect(preassignedCountOf([])).toBe(0);
   });
 });

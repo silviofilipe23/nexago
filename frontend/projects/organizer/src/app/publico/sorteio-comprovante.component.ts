@@ -1,6 +1,10 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
-import { destinationLabelOf } from '../painel/data/draw-session-selectors';
+import {
+  destinationLabelOf,
+  preassignedCountOf,
+  revealOriginLabelOf,
+} from '../painel/data/draw-session-selectors';
 import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
 
 /**
@@ -72,9 +76,19 @@ import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
         </section>
 
         <p class="og-comp-explica">
-          Cada revelação foi sorteada no servidor com aleatoriedade criptográfica e gravada com o
-          hash da anterior. Reordenar, alterar ou remover qualquer linha quebra a cadeia a partir
-          dela.
+          Cada revelação foi gravada no servidor com o hash da anterior. Reordenar, alterar ou
+          remover qualquer linha quebra a cadeia a partir dela.
+          @if (preassignedCount() > 0) {
+            <strong class="og-comp-ressalva">
+              {{ preassignedCount() }} {{ preassignedCount() === 1 ? 'linha' : 'linhas' }} não
+              {{ preassignedCount() === 1 ? 'foi sorteada' : 'foram sorteadas' }}: as cabeças de
+              chave entram no grupo que o ranking já define, e estão marcadas como
+              &ldquo;por ranking&rdquo;.
+            </strong>
+            As demais saíram de aleatoriedade criptográfica.
+          } @else {
+            Todas foram sorteadas com aleatoriedade criptográfica.
+          }
         </p>
 
         <ol class="og-comp-lista">
@@ -85,6 +99,14 @@ import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
               <span class="og-comp-destino">{{ reveal.destination }}</span>
               <span class="og-comp-hora">{{ reveal.atMillis | date: 'HH:mm:ss' }}</span>
               <span class="og-comp-hash">{{ shortHash(reveal.hash) }}</span>
+              @if (reveal.preassigned) {
+                <span
+                  class="og-comp-origem"
+                  title="Cabeça de chave: o grupo já era definido pelo ranking, não foi sorteado"
+                >
+                  {{ reveal.origin }}
+                </span>
+              }
               @if (reveal.relaxed.length > 0) {
                 <span class="og-comp-relaxed" title="Restrição relaxada nesta revelação">
                   {{ relaxedLabel(reveal.relaxed) }}
@@ -235,6 +257,21 @@ import { DrawSessionStore } from '../painel/sorteio/draw-session.store';
       font-size: 12.5px;
       color: var(--nx-text-mute);
     }
+    .og-comp-ressalva {
+      display: block;
+      margin-top: 6px;
+      color: var(--nx-text);
+      font-weight: 600;
+    }
+    .og-comp-origem {
+      padding: 3px 8px;
+      border-radius: 7px;
+      background: rgb(122 162 255 / 14%);
+      border: 1px solid rgb(122 162 255 / 40%);
+      color: rgb(160 190 255);
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+    }
     .og-comp-relaxed {
       padding: 3px 8px;
       border-radius: 7px;
@@ -270,8 +307,15 @@ export class SorteioComprovanteComponent {
       atMillis: reveal.atMillis,
       hash: reveal.hash,
       relaxed: reveal.relaxed,
+      preassigned: !!reveal.preassigned,
+      origin: revealOriginLabelOf(reveal),
     }));
   });
+
+  /** Quantas linhas não foram sorteadas — a ressalva do cabeçalho depende disso. */
+  protected readonly preassignedCount = computed(() =>
+    preassignedCountOf(this.store.session()?.reveals ?? []),
+  );
 
   protected shortHash(hash: string): string {
     return hash ? `${hash.slice(0, 10)}…` : '—';

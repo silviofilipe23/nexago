@@ -30,6 +30,12 @@ export interface DrawReveal {
   teamId: string;
   destination: DrawDestination;
   relaxed: DrawRelaxedRule[];
+  /**
+   * Revelação de lugar já definido (cabeça de chave). Presente SÓ quando é o
+   * caso — o comprovante usa isso pra separar o que foi sorteado do que já
+   * estava decidido. Sem essa marca o documento afirmaria acaso onde não houve.
+   */
+  preassigned?: true;
 }
 
 export interface DrawEngineState {
@@ -69,12 +75,44 @@ const pickFrom = <T>(items: readonly T[], random: RandomIndex): T => {
   return items[index]!;
 };
 
+/**
+ * A revelação do pote 1 quando as cabeças têm lugar definido, ou `null` quando
+ * a regra não se aplica (outro pote, regra desligada, ou sessão com mais
+ * cabeças do que grupos — aí é melhor sortear do que travar a transmissão).
+ *
+ * `pot.teamIds` já vem em ordem de ranking (`buildGroupPots` fatia a lista
+ * ordenada) e `state.groups` em ordem de grupo, então a correspondência é
+ * posicional: 1ª cabeça → 1º grupo.
+ */
+function preassignedSeedReveal(
+  state: DrawEngineState,
+  potIndex: number,
+  pot: DrawPot | undefined,
+  teamId: string,
+): DrawReveal | null {
+  if (potIndex !== 1 || !pot || !state.constraints.seedsPreassigned) return null;
+  const group = state.groups[pot.teamIds.indexOf(teamId)];
+  if (!group || group.teamIds.length >= group.capacity) return null;
+  return {
+    teamId,
+    destination: {type: "group", groupId: group.groupId},
+    relaxed: [],
+    preassigned: true,
+  };
+}
+
 function nextGroupsReveal(state: DrawEngineState, random: RandomIndex): NextRevealResult {
   const revealed = new Set(state.revealedTeamIds);
   const potIndex = potIndexAt(state.pots, state.revealedTeamIds.length + 1);
   const pot = state.pots.find((p) => p.index === potIndex);
   const remaining = pot ? pot.teamIds.filter((id) => !revealed.has(id)) : [];
   if (remaining.length === 0) return {status: "done"};
+
+  // A cabeça da vez é a primeira ainda não revelada do pote — em ordem de
+  // ranking, e sem gastar aleatoriedade, que é o que separa encenação de
+  // sorteio.
+  const preassigned = preassignedSeedReveal(state, potIndex, pot, remaining[0]!);
+  if (preassigned) return {status: "ok", reveal: preassigned};
 
   const teamId = pickFrom(remaining, random);
   const {groupIds, relaxed} = feasibleGroups({

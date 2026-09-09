@@ -227,3 +227,98 @@ describe("destinationKeyOf", () => {
     assert.equal(destinationKeyOf({type: "seed", seed: 7}), "seed:7");
   });
 });
+
+describe("nextReveal — cabeças com lugar já definido", () => {
+  /**
+   * Em fase de grupos as cabeças não são sorteadas de verdade: a 1 vai pro
+   * grupo A, a 2 pro B, e assim por diante. O show no telão continua igual,
+   * mas o resultado é conhecido — e é por isso que a revelação sai MARCADA,
+   * pra o comprovante não vender como sorteio o que não foi.
+   */
+  const comCabecas = (over: Partial<DrawEngineState> = {}): DrawEngineState => ({
+    ...gruposState(),
+    constraints: {...semRestricao, potsPerGroup: true, seedsPreassigned: true},
+    ...over,
+  });
+
+  /** Estoura se for chamado: revelação predeterminada não pode sortear nada. */
+  const nuncaSorteia = (): number => {
+    throw new Error("o sorteador foi chamado numa revelação predeterminada");
+  };
+
+  it("a primeira cabeça do ranking vai pro primeiro grupo", () => {
+    const out = nextReveal(comCabecas(), nuncaSorteia);
+    assert.deepEqual(out, {
+      status: "ok",
+      reveal: {
+        teamId: "t1",
+        destination: {type: "group", groupId: "A"},
+        relaxed: [],
+        preassigned: true,
+      },
+    });
+  });
+
+  it("a segunda cabeça vai pro segundo grupo", () => {
+    const state = comCabecas({
+      revealedTeamIds: ["t1"],
+      groups: [
+        {groupId: "A", capacity: 2, teamIds: ["t1"]},
+        {groupId: "B", capacity: 2, teamIds: []},
+      ],
+    });
+    const out = nextReveal(state, nuncaSorteia);
+    assert.equal(out.status === "ok" && out.reveal.teamId, "t2");
+    assert.deepEqual(
+      out.status === "ok" ? out.reveal.destination : null,
+      {type: "group", groupId: "B"},
+    );
+  });
+
+  it("revelação predeterminada NÃO consome aleatoriedade", () => {
+    // O teste acima já prova isso pelo sorteador que estoura; aqui fica
+    // explícito porque é o que separa "encenação" de "sorteio".
+    assert.doesNotThrow(() => nextReveal(comCabecas(), nuncaSorteia));
+  });
+
+  it("do pote 2 em diante volta a sortear de verdade, e sem a marca", () => {
+    const state = comCabecas({
+      revealedTeamIds: ["t1", "t2"],
+      groups: [
+        {groupId: "A", capacity: 2, teamIds: ["t1"]},
+        {groupId: "B", capacity: 2, teamIds: ["t2"]},
+      ],
+    });
+    const out = nextReveal(state, scripted(1, 0));
+    assert.equal(out.status === "ok" && out.reveal.teamId, "t4");
+    assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
+  });
+
+  it("com a regra desligada, as cabeças voltam a ser sorteadas", () => {
+    const state = comCabecas({
+      constraints: {...semRestricao, potsPerGroup: true, seedsPreassigned: false},
+    });
+    const out = nextReveal(state, scripted(1, 1));
+    assert.equal(out.status === "ok" && out.reveal.teamId, "t2");
+    assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
+  });
+
+  it("cabeça a mais do que grupo cai no sorteio em vez de estourar", () => {
+    // Não deveria acontecer (o pote 1 tem o tamanho do nº de grupos), mas se a
+    // sessão vier torta é melhor sortear do que travar a transmissão.
+    const state = comCabecas({
+      pots: [
+        {index: 1, teamIds: ["t1", "t2", "t3"]},
+        {index: 2, teamIds: ["t4"]},
+      ],
+      revealedTeamIds: ["t1", "t2"],
+      groups: [
+        {groupId: "A", capacity: 2, teamIds: ["t1"]},
+        {groupId: "B", capacity: 2, teamIds: ["t2"]},
+      ],
+    });
+    const out = nextReveal(state, scripted(0, 0));
+    assert.equal(out.status, "ok");
+    assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
+  });
+});

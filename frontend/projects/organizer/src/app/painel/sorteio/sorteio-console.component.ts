@@ -207,13 +207,13 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
       <footer class="og-cs-transporte">
         <button
           type="button"
-          class="og-btn og-cs-sortear"
+          class="og-cs-sortear"
           [disabled]="pending() || done() || s.status !== 'live'"
           (click)="next(s)"
         >
           @if (!done() && !pending()) {
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M5 3l14 9-14 9z" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7 4.8v14.4L19.5 12z" />
             </svg>
           }
           {{ done() ? 'Sorteio completo' : pending() ? 'Sorteando…' : 'Sortear próxima' }}
@@ -238,7 +238,7 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
 
         <button
           type="button"
-          class="og-btn"
+          class="og-cs-publicar"
           [disabled]="!done() || pending() || s.status !== 'live'"
           (click)="publish(s)"
         >
@@ -246,7 +246,7 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
         </button>
         <button
           type="button"
-          class="og-mini-btn og-mini-btn-danger"
+          class="og-cs-anular"
           [disabled]="pending() || s.status !== 'live'"
           (click)="voidPrompt.set(true)"
         >
@@ -376,6 +376,11 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
       display: flex;
       flex-direction: column;
       gap: 12px;
+      min-height: 0;
+    }
+    /* Sem min-height:0 o card com flex:1 não encolhe — a fila estica a coluna
+       em vez de rolar por dentro. */
+    .og-cs-col > .og-card {
       min-height: 0;
     }
     .og-cs-espelho {
@@ -545,6 +550,15 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
       gap: 5px;
       overflow-y: auto;
       min-height: 0;
+      overscroll-behavior: contain;
+    }
+    .og-cs-fila {
+      scrollbar-width: none;
+    }
+    .og-cs-fila::-webkit-scrollbar {
+      display: none;
+    }
+    .og-cs-log {
       scrollbar-width: none;
     }
     .og-cs-log {
@@ -606,10 +620,118 @@ import { SorteioEspelhoComponent } from './sorteio-espelho.component';
     .og-cs-sortear {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
-      min-height: 54px;
+      min-height: 52px;
+      padding: 0 28px;
+      border: none;
+      border-radius: 15px;
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+      cursor: pointer;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
       font-size: 16px;
-      padding: 0 26px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      transition:
+        background 180ms var(--nx-ease-out),
+        transform 140ms var(--nx-ease-out),
+        opacity 140ms var(--nx-ease-out);
+    }
+    .og-cs-sortear svg {
+      flex: none;
+    }
+    .og-cs-sortear:hover:not(:disabled) {
+      background: var(--nx-orange-400);
+    }
+    .og-cs-sortear:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+    .og-cs-sortear:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .og-cs-sortear:focus-visible {
+      outline: 2px solid var(--nx-orange-400);
+      outline-offset: 3px;
+    }
+    .og-cs-publicar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 28px;
+      border: 1px solid var(--nx-line-strong);
+      border-radius: 15px;
+      background: transparent;
+      color: var(--nx-text-mute);
+      cursor: pointer;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      transition:
+        background 180ms var(--nx-ease-out),
+        border-color 180ms var(--nx-ease-out),
+        color 180ms var(--nx-ease-out),
+        transform 140ms var(--nx-ease-out),
+        opacity 140ms var(--nx-ease-out);
+    }
+    .og-cs-publicar:hover:not(:disabled) {
+      background: var(--nx-surface-1);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: var(--nx-text);
+    }
+    .og-cs-publicar:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+    .og-cs-publicar:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .og-cs-publicar:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 3px;
+    }
+    .og-cs-anular {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 28px;
+      border: 1px solid rgba(255, 59, 48, 0.34);
+      border-radius: 15px;
+      background: transparent;
+      color: var(--nx-live);
+      cursor: pointer;
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      transition:
+        background 180ms var(--nx-ease-out),
+        border-color 180ms var(--nx-ease-out),
+        color 180ms var(--nx-ease-out),
+        transform 140ms var(--nx-ease-out),
+        opacity 140ms var(--nx-ease-out);
+    }
+    .og-cs-anular:hover:not(:disabled) {
+      background: rgba(255, 59, 48, 0.12);
+      border-color: rgba(255, 59, 48, 0.5);
+    }
+    .og-cs-anular:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+    .og-cs-anular:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .og-cs-anular:focus-visible {
+      outline: 2px solid var(--nx-live);
+      outline-offset: 3px;
     }
     .og-cs-medidor strong {
       display: block;

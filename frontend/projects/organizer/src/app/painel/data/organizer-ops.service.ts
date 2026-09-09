@@ -494,3 +494,15 @@ export function updateDrawSessionSeeds(
     ...(opts?.lockedSeedCount != null ? { lockedSeedCount: opts.lockedSeedCount } : {}),
   });
 }
+
+/** Libera para a tabela a revelação que está no ar.
+ *
+ *  Só faz sentido no modo manual, onde o spotlight fica parado até o organizador
+ *  mandar seguir. Passa pelo servidor porque o telão é outro cliente: não há
+ *  outro canal por onde ele saiba que o botão foi apertado. */
+export function clearRevealSpotlight(
+  sessionId: string,
+  index: number,
+): Promise<{ spotlightClearedIndex: number }> {
+  return call('clearRevealSpotlight', { sessionId: sessionId.trim(), index });
+}

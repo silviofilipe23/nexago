@@ -366,8 +366,30 @@ export class SorteioTelaoScreenComponent {
     return reveals.length > 0 ? reveals[reveals.length - 1]! : null;
   });
 
+  /**
+   * No modo manual o spotlight fica na tela até o organizador liberar. Quem
+   * decide é o documento (`spotlightClearedIndex`) — o telão é outro cliente e
+   * não tem como saber do clique de outra forma.
+   */
+  private readonly holdSpotlight = computed(() => {
+    const s = this.session();
+    const reveal = this.currentReveal();
+    if (!reveal || s.config.mode !== 'manual') return false;
+    return reveal.index > (s.spotlightClearedIndex ?? 0);
+  });
+
+  private readonly dismissed = computed(() => {
+    const s = this.session();
+    const reveal = this.currentReveal();
+    if (!reveal || s.config.mode !== 'manual') return false;
+    return reveal.index <= (s.spotlightClearedIndex ?? 0);
+  });
+
   protected readonly phase = computed(() =>
-    revealPhaseAt(this.currentReveal()?.atMillis ?? null, this.now()),
+    revealPhaseAt(this.currentReveal()?.atMillis ?? null, this.now(), {
+      holdSpotlight: this.holdSpotlight(),
+      dismissed: this.dismissed(),
+    }),
   );
 
   protected readonly countdown = computed(() =>

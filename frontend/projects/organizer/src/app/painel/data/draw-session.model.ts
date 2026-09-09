@@ -108,6 +108,13 @@ export interface DrawSession {
   reveals: DrawSessionReveal[];
   genesisHash: string;
   totalReveals: number;
+  /**
+   * Última revelação que o organizador liberou para a tabela.
+   *
+   * Existe por causa do modo manual: o spotlight fica na tela até ele mandar
+   * seguir, e o telão é OUTRO cliente — só aprende disso pelo documento.
+   */
+  spotlightClearedIndex?: number;
   bracketOutline: { pairings: DrawSeedPairing[]; byeSeeds: number[] } | null;
 }
 

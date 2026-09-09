@@ -35,6 +35,45 @@ import {
 } from "./tournament-spot-pass-grant";
 
 /**
+ * Avisa o atleta, e devolve se o aviso chegou a ALGUM canal.
+ *
+ * O booleano não é enfeite: sem ele a tela do organizador dizia "ele foi avisado" mesmo quando o
+ * atleta não tem token nem assinatura nenhuma — e o organizador ia embora achando que o recado
+ * saiu. Com a resposta, a tela pode mandar ele copiar o link.
+ *
+ * Falhar aqui nunca derruba a liberação: o passe já vale, e recusar obrigaria o organizador a
+ * liberar de novo uma vaga que já está liberada.
+ */
+async function notifySpotPassGranted(params: {
+  athleteUid: string;
+  tournamentId: string;
+  categoryId: string;
+  categoryLabel: string;
+}): Promise<boolean> {
+  const {athleteUid, tournamentId, categoryId, categoryLabel} = params;
+  try {
+    const {sent} = await deliverNotificationToUser({
+      userId: athleteUid,
+      title: "Vaga liberada",
+      body:
+        `O organizador abriu uma vaga para você em ${categoryLabel}. ` +
+        "Faça sua inscrição pelo app.",
+      type: "tournament_spot_pass_granted",
+      data: {
+        tournamentId,
+        categoryId,
+        url: spotPassRegistrationUrl(tournamentId, categoryId),
+      },
+      requireInteraction: true,
+    });
+    return sent > 0;
+  } catch (notifyError) {
+    logger.warn("Falha ao avisar atleta da vaga liberada", {athleteUid, notifyError});
+    return false;
+  }
+}
+
+/**
  * Libera uma vaga nominal numa categoria para UM atleta.
  *
  * Idempotente: chamar de novo para o mesmo atleta e categoria devolve o passe que já existe em
@@ -86,7 +125,16 @@ export const organizerGrantTournamentSpotPass = onCall({
   // Idempotente: dois passes abririam duas vagas para a mesma pessoa.
   const live = await findActiveSpotPass({db, tournamentId, categoryKeys, athleteUid});
   if (live) {
-    return {passId: live.id, alreadyGranted: true};
+    // Liberar de novo é o que o organizador faz quando o atleta diz "não recebi". Devolver o
+    // passe existente em silêncio transformava essa recuperação num clique que não faz nada —
+    // então o aviso sai de novo, que é justamente o que ele está pedindo.
+    const notified = await notifySpotPassGranted({
+      athleteUid,
+      tournamentId,
+      categoryId,
+      categoryLabel,
+    });
+    return {passId: live.id, alreadyGranted: true, notified};
   }
 
   const ref = db.collection(SPOT_PASSES_COLLECTION).doc();
@@ -109,32 +157,14 @@ export const organizerGrantTournamentSpotPass = onCall({
     organizerUid,
   });
 
-  try {
-    await deliverNotificationToUser({
-      userId: athleteUid,
-      title: "Vaga liberada",
-      body:
-        `O organizador abriu uma vaga para você em ${categoryLabel}. ` +
-        "Faça sua inscrição pelo app.",
-      type: "tournament_spot_pass_granted",
-      data: {
-        tournamentId,
-        categoryId,
-        url: spotPassRegistrationUrl(tournamentId, categoryId),
-      },
-      requireInteraction: true,
-    });
-  } catch (notifyError) {
-    // O passe já vale; o aviso é o enfeite. Recusar aqui obrigaria o organizador a liberar de
-    // novo uma vaga que já está liberada.
-    logger.warn("Falha ao avisar atleta da vaga liberada", {
-      passId: ref.id,
-      athleteUid,
-      notifyError,
-    });
-  }
+  const notified = await notifySpotPassGranted({
+    athleteUid,
+    tournamentId,
+    categoryId,
+    categoryLabel,
+  });
 
-  return {passId: ref.id, alreadyGranted: false};
+  return {passId: ref.id, alreadyGranted: false, notified};
 });
 
 /** Revoga um passe ainda não usado. Passe já queimado não volta — a inscrição existe. */

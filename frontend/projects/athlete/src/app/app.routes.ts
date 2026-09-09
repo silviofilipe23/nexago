@@ -79,6 +79,18 @@ export const routes: Routes = [
       ),
   },
   {
+    // Confirmação da vaga NOMINAL. Vem ANTES da rota com token para 'pessoal' não ser lido
+    // como um. `/vaga/**` não é reivindicado como App Link por nenhuma plataforma — é o que
+    // faz o link abrir no navegador em vez de cair no app publicado, que bloqueia a categoria
+    // lotada antes de consultar o servidor.
+    path: 'vaga/pessoal',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./tournaments/spot-pass/spot-pass-personal.component').then(
+        (m) => m.SpotPassPersonalComponent,
+      ),
+  },
+  {
     // Resgate de vaga liberada por link. O id É o token; quem abre precisa estar logado, e o
     // `authGuard` traz de volta para cá depois do login.
     path: 'vaga/:linkId',

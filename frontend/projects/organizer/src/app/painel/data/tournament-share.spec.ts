@@ -125,22 +125,44 @@ describe('tournamentQrFileName', () => {
 describe('links de vaga liberada', () => {
   // O link nominal NÃO carrega token: o passe já está preso ao uid, então quem mais abrir
   // esbarra na categoria lotada. Um token aqui só daria a impressão de segredo.
-  it('link nominal é a própria inscrição da categoria', () => {
+  it('link nominal aponta para a confirmação da vaga', () => {
     expect(spotPassRegistrationLink('https://atleta.nexago.com.br', 't1', 'cat-a')).toBe(
-      'https://atleta.nexago.com.br/torneios/t1/inscricao?categoryId=cat-a',
+      'https://atleta.nexago.com.br/vaga/pessoal?t=t1&c=cat-a',
     );
   });
 
   it('categoria com caracteres especiais é escapada', () => {
     expect(spotPassRegistrationLink('https://a.b', 't1', 'Feminina B/C')).toBe(
-      'https://a.b/torneios/t1/inscricao?categoryId=Feminina%20B%2FC',
+      'https://a.b/vaga/pessoal?t=t1&c=Feminina%20B%2FC',
     );
   });
 
-  it('sem categoria, cai na inscrição do torneio', () => {
+  it('sem categoria, o link ainda vale para qualquer vaga viva do torneio', () => {
     expect(spotPassRegistrationLink('https://a.b', 't1', '')).toBe(
-      'https://a.b/torneios/t1/inscricao',
+      'https://a.b/vaga/pessoal?t=t1',
     );
+  });
+
+  /**
+   * O app publicado reivindica estes prefixos como App Link (AndroidManifest) e resolve só
+   * eles. Um link de vaga que caia em `/torneios/**` é entregue ao APP, que bloqueia a
+   * categoria lotada antes de consultar o servidor — beco sem saída para quem tem a vaga.
+   * Enquanto a versão publicada for essa, os links de vaga precisam morar fora daqui.
+   */
+  const PREFIXOS_DO_APP = ['/torneios', '/torneios-convite', '/convite/', '/convite-dupla'];
+
+  it('nenhum link de vaga cai num caminho que o app publicado sequestra', () => {
+    const paths = [
+      new URL(spotPassRegistrationLink('https://a.b', 't1', 'c1')).pathname,
+      new URL(spotPassClaimLink('https://a.b', 'tok3n')).pathname,
+    ];
+    for (const path of paths) {
+      for (const claimed of PREFIXOS_DO_APP) {
+        expect(path.startsWith(claimed))
+          .withContext(`${path} começa com ${claimed}, que o app publicado intercepta`)
+          .toBeFalse();
+      }
+    }
   });
 
   it('link do grupo aponta para a tela de resgate', () => {
@@ -152,7 +174,7 @@ describe('links de vaga liberada', () => {
   it('barra sobrando no host não vira barra dupla', () => {
     expect(spotPassClaimLink('https://a.b/', 'tok3n')).toBe('https://a.b/vaga/tok3n');
     expect(spotPassRegistrationLink('https://a.b//', 't1', 'c1')).toBe(
-      'https://a.b/torneios/t1/inscricao?categoryId=c1',
+      'https://a.b/vaga/pessoal?t=t1&c=c1',
     );
   });
 });

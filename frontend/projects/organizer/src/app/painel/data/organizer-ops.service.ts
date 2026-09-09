@@ -28,7 +28,7 @@ export function grantTournamentSpotPass(params: {
   tournamentId: string;
   categoryId: string;
   athleteUid: string;
-}): Promise<{ passId: string; alreadyGranted: boolean }> {
+}): Promise<{ passId: string; alreadyGranted: boolean; notified: boolean }> {
   return call('organizerGrantTournamentSpotPass', {
     tournamentId: params.tournamentId.trim(),
     categoryId: params.categoryId.trim(),

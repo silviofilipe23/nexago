@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/notifications/notification_navigation.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'athlete_inbox_notification.dart';
@@ -328,15 +329,15 @@ AthleteNotificationPresentation notificationPresentation(
     // isto caía no `default`: sino genérico e sem botão — a notificação que mais pede ação
     // (a vaga é dele até a chave sair) era a única que não oferecia nenhuma.
     case 'tournament_spot_pass_granted':
-      final tournamentId = data['tournamentId'] ?? '';
-      final categoryId = data['categoryId'] ?? '';
       final spotPassUrl = data['url'] ?? '';
+      // Mesma função que o push usa (`spotPassNotificationRoute`): as duas entradas para esta
+      // notificação precisam terminar no mesmo lugar, inclusive quando o `url` não vem.
       final spotPassRoutePath = spotPassUrl.startsWith('/')
           ? spotPassUrl
-          : tournamentId.isNotEmpty
-              ? '/torneios/$tournamentId/inscricao'
-                  '${categoryId.isNotEmpty ? '?categoryId=$categoryId' : ''}'
-              : null;
+          : spotPassNotificationRoute(
+              tournamentId: data['tournamentId'] ?? '',
+              categoryId: data['categoryId'] ?? '',
+            );
       return AthleteNotificationPresentation(
         icon: Icons.confirmation_number_outlined,
         iconColor: AppColors.win,
